@@ -325,8 +325,9 @@ void TChunkWriter::CheckResponse(typename TResponse::TPtr rsp, i32 node, IAction
         if (rsp->GetErrorCode() == NRpc::EErrorCode::ServiceError)
             LOG_FATAL("Node %d returned soft error", node)
         else
-            NodeDied(node);
-    }    
+            LOG_DEBUG("Node %d returned unknown service error", node)
+    } else
+        NodeDied(node);
 }
 
 TChunkWriter::TInvStartChunk::TPtr TChunkWriter::StartSession(i32 node)
@@ -346,10 +347,13 @@ void TChunkWriter::StartSessionSuccess(i32 node)
 
 void TChunkWriter::StartSessionComplete()
 {
-    TGroupBuffer::iterator it;
-    for (it = Groups.begin(); it != Groups.end(); ++it) {
-        TGroupPtr group = *it;
-        group->Process();
+    if (State == Starting) {
+        State = Ready;
+        TGroupBuffer::iterator it;
+        for (it = Groups.begin(); it != Groups.end(); ++it) {
+            TGroupPtr group = *it;
+            group->Process();
+        }
     }
 }
 

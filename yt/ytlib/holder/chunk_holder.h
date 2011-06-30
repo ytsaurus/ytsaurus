@@ -61,7 +61,7 @@ class TChunkHolder
     // TODO: introduce TChunkInfo and TChunkMap
     TLocationMap LocationMap; // Locations of complete chunks
     TSessionMap Sessions; // Write in progress
-    TIntrusivePtr<TLeaseManager> LeaseManager; // Expiring write sessions
+    TLeaseManager::TPtr LeaseManager; // Expiring write sessions
 
     typedef TChunkHolderProxy TProxy;
     typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;

@@ -26,7 +26,7 @@ TBlockCache::TBlockCache(const TBlockCacheConfig& config)
 
 TCachedBlock::TPtr TBlockCache::Put(TBlockId blockId, TSharedRef data)
 {
-    TCachedBlock* value = new TCachedBlock(blockId, data);
+    TCachedBlock::TPtr value = new TCachedBlock(blockId, data);
     Put(value);
     return Get(blockId);
 }
@@ -35,14 +35,14 @@ void TBlockCache::Put(TCachedBlock::TPtr cachedBlock)
 {
     TInsertCookie cookie(cachedBlock->GetKey());
     if (BeginInsert(&cookie))
-        EndInsert(~cachedBlock, &cookie);
+        EndInsert(cachedBlock, &cookie);
 }
 
 TCachedBlock::TPtr TBlockCache::Get(TBlockId blockId)
 {
     TAsyncResultPtr result = Lookup(blockId);
     TCachedBlock::TPtr block;
-    if (result->TryGet(&block) && ~block != NULL)
+    if (~result != NULL && result->TryGet(&block))
         return block;
     else
         return NULL;

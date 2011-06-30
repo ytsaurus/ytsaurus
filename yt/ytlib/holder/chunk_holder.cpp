@@ -70,6 +70,12 @@ class TChunkHolder::TSession
         EBlockState State;
         TCachedBlock::TPtr CachedBlock;
         IAction::TPtr CompleteFlush;
+
+        TEntry()
+            : State(BS_Empty)
+            , CachedBlock(NULL)
+            , CompleteFlush(NULL)
+        { }
     };
 
     yvector<TEntry> Blocks; // Cyclic buffer
@@ -255,6 +261,7 @@ TChunkHolder::TChunkHolder(const TChunkHolderConfig& config)
     , BlockCache(new TBlockCache(config.BlockCacheConfig))
     , ServiceQueue(new TActionQueue())
     , IOQueues(config.Locations.ysize())
+    , LeaseManager(new TLeaseManager)
 {
     RegisterMethods();
     InitLocations();
