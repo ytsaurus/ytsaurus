@@ -25,6 +25,8 @@ static const char* const DefaultFilePattern =
 
 static const char* const AllCategoriesName = "*";
 
+static TLogger Logger(SystemLoggingCategory);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLogManager::TRule
@@ -64,13 +66,15 @@ bool TLogManager::TRule::IsApplicable(const TLogEvent& event) const
 class TLogManager::TConfiguration
     : public virtual TRefCountedBase
 {
+// TODO: no need for private
 private:
     typedef TIntrusivePtr<TConfiguration> TPtr;
 
+    // TODO: drop
     friend class TLogManager;
     typedef yhash_map<Stroka, ILogWriter::TPtr> TWriterMap;
-    TWriterMap Writers;
 
+    TWriterMap Writers;
     TRules Rules;
 
     void ConfigureWriters(const TJsonObject* root);
@@ -317,15 +321,16 @@ void TLogManager::Configure(TJsonObject* root)
 {
     TGuard<TSpinLock> guard(&SpinLock);
 
+    // TODO: rename to newConfig
     TConfiguration::TPtr ptr;
     try {
         ptr = new TConfiguration(root);
-    } catch (yexception& e){
+    } catch (yexception& e) {
+        // TODO: log
         return;
     }
 
     Configuration = ptr;
-
     AtomicIncrement(ConfigVersion);
 }
 
@@ -347,8 +352,7 @@ void TLogManager::ConfigureDefault()
 {
     TGuard<TSpinLock> guard(&SpinLock);
 
-    Configuration = new TConfiguration;
-
+    Configuration = new TConfiguration();
     AtomicIncrement(ConfigVersion);
 }
 
