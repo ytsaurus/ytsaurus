@@ -25,7 +25,6 @@ public:
     TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
     void Load(i32 segmentId, TInputStream& input);
     void ApplyChange(TRef changeData);
-    // TODO: Next -> AdvanceSegment, RotateChangelog
     void NextSegment();
     void NextChangeLog();
     TMasterStateId GetAvailableStateId() const;

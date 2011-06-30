@@ -378,8 +378,6 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
-
-    YASSERT(request->Attachments().size() == 1);
     
     const TSharedRef& change = request->Attachments().at(0);
 
@@ -399,7 +397,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
             LOG_DEBUG("ApplyChange: keeping postponed change %s",
                 ~stateId.ToString());
             
-            Recovery->PostponeChange(change, stateId);
+            // TODO: code here
 
             response->SetCommitted(false);
             context->Reply();
@@ -441,12 +439,9 @@ void TMasterStateManager::OnLocalCommit(
     }
 }
 
-//TODO: rename CreateSnapshot to AdvanceSegment
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 {
     UNUSED(response);
-
-    //TODO: we have to reply whether snapshot was created
 
     if (State != S_Following) {
         context->Reply(TProxy::EErrorCode::InvalidState);

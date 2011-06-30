@@ -48,8 +48,6 @@ public:
     TResult::TPtr RecoverLeader(TMasterStateId stateId);
     TResult::TPtr RecoverFollower();
 
-    void PostponeChange(const TSharedRef& change, const TMasterStateId& stateId);
-
 private:
     // Work thread
     EResult DoRecoverLeader(TMasterStateId targetStateId);
@@ -76,20 +74,8 @@ private:
     IInvoker::TPtr EpochInvoker;
     IInvoker::TPtr WorkQueue;
 
-private:
-    struct TPostponedChange
-    {
-        TSharedRef Change;
-        TMasterStateId StateId;
-
-        TPostponedChange(const TSharedRef& change, const TMasterStateId& stateId)
-            : Change(change)
-            , StateId(stateId)
-        { }
-    };
-
      // Service thread
-    yvector<TPostponedChange> PostponedChanges;
+    yvector<TBlob> PostponedChanges;
     TMasterStateId CurrentPostponedStateId;
 };
 
