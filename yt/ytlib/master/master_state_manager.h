@@ -126,8 +126,8 @@ private:
     virtual void StopLeading();
     virtual void StartFollowing(TMasterId leaderId, TMasterEpoch epoch);
     virtual void StopFollowing();
-    virtual i64 GetPriority();
-    virtual Stroka FormatPriority(i64 priority);
+    virtual TMasterPriority GetPriority();
+    virtual Stroka FormatPriority(TMasterPriority priority);
 
     EState State;
     TConfig Config;

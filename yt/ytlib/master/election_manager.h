@@ -16,6 +16,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TGUID TMasterEpoch;
+typedef i64 TMasterPriority;
 // TODO: introduce TMasterPriority and use it where appropriate
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +27,8 @@ struct IElectionCallbacks
     virtual void StopLeading() = 0;
     virtual void StartFollowing(TMasterId leaderId, TMasterEpoch epoch) = 0;
     virtual void StopFollowing() = 0;
-    virtual i64 GetPriority() = 0;
-    virtual Stroka FormatPriority(i64 priority) = 0;
+    virtual TMasterPriority GetPriority() = 0;
+    virtual Stroka FormatPriority(TMasterPriority priority) = 0;
 
     virtual ~IElectionCallbacks() { }
 };

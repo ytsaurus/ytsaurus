@@ -602,13 +602,13 @@ void TMasterStateManager::StopFollowing()
     }
 }
 
-i64 TMasterStateManager::GetPriority()
+TMasterPriority TMasterStateManager::GetPriority()
 {
     TMasterStateId stateId = MasterState->GetAvailableStateId();
-    return ((i64) stateId.SegmentId << 32) | stateId.ChangeCount;
+    return ((TMasterPriority) stateId.SegmentId << 32) | stateId.ChangeCount;
 }
 
-Stroka TMasterStateManager::FormatPriority(i64 priority)
+Stroka TMasterStateManager::FormatPriority(TMasterPriority priority)
 {
     i32 segmentId = (priority >> 32);
     i32 changeCount = priority & ((1ll << 32) - 1);

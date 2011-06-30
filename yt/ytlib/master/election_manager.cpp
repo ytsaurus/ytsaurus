@@ -230,7 +230,7 @@ public:
         IElectionCallbacks* callbacks = ElectionManager->ElectionCallbacks;
         TCellManager::TPtr cellManager = ElectionManager->CellManager;
         
-        i64 priority = callbacks->GetPriority();
+        TMasterPriority priority = callbacks->GetPriority();
 
         LOG_DEBUG("New voting round started (Round: %p, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             this,
@@ -264,13 +264,13 @@ private:
     {
         TProxy::EState State;
         TMasterId VoteId;
-        i64 Priority;
+        TMasterPriority Priority;
         TMasterEpoch VoteEpoch;
 
         TStatus(
             TProxy::EState state = TProxy::EState::Stopped,
             TMasterId vote = InvalidMasterId,
-            i64 priority = -1,
+            TMasterPriority priority = -1,
             TMasterEpoch epoch = TMasterEpoch())
             : State(state)
             , VoteId(vote)
@@ -303,7 +303,7 @@ private:
 
         TProxy::EState state = TProxy::EState(response->GetState());
         TMasterId vote = response->GetVoteId();
-        i64 priority = response->GetPriority();
+        TMasterPriority priority = response->GetPriority();
         TMasterEpoch epoch = GuidFromProtoGuid(response->GetVoteEpoch());
         
         LOG_DEBUG("Received status from master %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
@@ -509,7 +509,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 {
     UNUSED(request);
     
-    i64 priority = ElectionCallbacks->GetPriority();
+    TMasterPriority priority = ElectionCallbacks->GetPriority();
 
     response->SetState(State);
     response->SetVoteId(VoteId);
@@ -596,7 +596,7 @@ void TElectionManager::StartVoteForSelf()
     VoteId = CellManager->GetSelfId();
     CreateGuid(&VoteEpoch);
 
-    i64 priority = ElectionCallbacks->GetPriority();
+    TMasterPriority priority = ElectionCallbacks->GetPriority();
 
     LOG_DEBUG("Voting for self (Priority: %s, VoteEpoch: %s)",
                 ~ElectionCallbacks->FormatPriority(priority),
