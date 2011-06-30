@@ -36,6 +36,11 @@ YT_SUBDIRECTORY(holder)
 YT_SUBDIRECTORY(master)
 YT_SUBDIRECTORY(logging)
 
+SET_APPEND(SRCS
+    ${ARCADIA_ROOT}/quality/util/prog_options.cpp
+    ${ARCADIA_ROOT}/quality/util/file_utils.cpp
+)
+
 PEERDIR(
     contrib/libs/protobuf
     quality/Misc
