@@ -1,0 +1,31 @@
+#! /bin/sh
+
+if test "$1" = "-W"; then
+    #rc="icpc"
+    rc="/opt/intel/cce/10.1.015/bin/icpc"
+    GCC=/usr/local/bin/g++43
+else
+    #rc="icc"
+    rc="/opt/intel/cce/10.1.015/bin/icc"
+    GCC=/usr/local/bin/gcc43
+fi
+
+out=`echo "$@" | sed -e 's/.* -o //' | sed -e 's/ .*//'`
+
+if test ! -z "`echo \"$@\" | grep '_mem\.c'`"; then
+    $GCC $@
+
+    exit 0
+fi
+
+if test ! -z "`echo \"$@\" | grep ' -c '`"; then
+    tmpf=`mktemp ~/icc.XXXX`
+    l=`echo "$@" | sed -e 's/-o .* //'`
+    l=`echo "$l" | sed -e 's/-o .*$//'`
+    $GCC -E $l -o "$tmpf"
+    cat "$tmpf" | sed -e 's/namespace std .* {/namespace std {/' | sed -e 's/namespace __gnu_cxx .* {/namespace __gnu_cxx {/' | ssh adonis "cat > \"$tmpf.c\"; rm \"$tmpf.s\" >& /dev/null; $rc -w -O2 -S \"$tmpf.c\" -o \"$tmpf.s\" > /dev/null && cat \"$tmpf.s\"; rm \"$tmpf.s\" \"$tmpf.c\" >& /dev/null" > "$tmpf.s"
+    $GCC "$tmpf.s" -c -o "$out"
+    rm "$tmpf.s" "$tmpf"
+else
+    $GCC $@
+fi
