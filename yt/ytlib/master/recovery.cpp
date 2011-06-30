@@ -169,6 +169,11 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverFollower()
                ->AsyncVia(ServiceInvoker));
 }
 
+void TMasterRecovery::PostponeChange(const TSharedRef& change, const TMasterStateId& stateId)
+{
+    PostponedChanges.push_back(TPostponedChange(change, stateId));
+}
+
 TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
     TProxy::TRspGetCurrentState::TPtr response)
 {
@@ -220,12 +225,12 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
     
     // TODO: extract method
     if (DecoratedState->GetStateId().SegmentId < maxSnapshotId) {
-        TAutoPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
+        THolder<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
         if (~snapshotReader == NULL) {
             TSnapshotDownloader snapshotDownloader(
                 SnapshotDownloaderConfig, CellManager);
-            TAutoPtr<TSnapshotWriter> snapshotWriter =
-                SnapshotStore->GetWriter(maxSnapshotId);
+            THolder<TSnapshotWriter> snapshotWriter(
+                SnapshotStore->GetWriter(maxSnapshotId));
             TSnapshotDownloader::EResult snapshotResult =
                 snapshotDownloader.GetSnapshot(maxSnapshotId, ~snapshotWriter);
 
@@ -272,7 +277,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
 */
         // Getting right record count in the changelog
         // TODO: extract method
-        TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
+        THolder<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
         TProxy::TReqGetChangeLogInfo::TPtr request = leaderProxy->GetChangeLogInfo();
         request->SetSegmentId(segmentId);
         TProxy::TRspGetChangeLogInfo::TPtr response = request->Invoke()->Get(); // TODO: timeout
@@ -335,7 +340,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
         return new TResult(E_OK);
     }
 
-    TAutoPtr< yvector<TBlob> > changes(new yvector<TBlob>());
+    // TODO: vector type has changed
+    THolder< yvector<TBlob> > changes(new yvector<TBlob>());
     changes->swap(PostponedChanges);
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
@@ -346,6 +352,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
            ->Do();
 }
 
+// TODO: vector type has changed
 TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
     TAutoPtr< yvector< TBlob > > changes)
 {
@@ -355,6 +362,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
     
     // TODO: add to changelog?
     for (i32 i = 0; i < changes->ysize(); ++i) {
+        // TODO: write this change to local changelog
+        // TODO: sometimes we have to switch to next changelog (via DecoratedMasterState)
         DecoratedState->ApplyChange((*changes)[i]);
     }
     
