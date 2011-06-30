@@ -29,63 +29,55 @@ static TLogger Logger(SystemLoggingCategory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLogManager::TRule
-{
-    TRule()
-        : AllCategories(false)
-        , MinLevel(ELogLevel::Minimum)
-        , MaxLevel(ELogLevel::Maximum)
-    { }
-
-    bool AllCategories;
-    yhash_set<Stroka> Categories;
-
-    ELogLevel MinLevel;
-    ELogLevel MaxLevel;
-
-    yvector<Stroka> Writers;
-
-    bool IsApplicable(Stroka category) const;
-    bool IsApplicable(const TLogEvent& event) const;
-};
-
-bool TLogManager::TRule::IsApplicable(Stroka category) const
-{
-    return (AllCategories || Categories.find(category) != Categories.end());
-}
-
-bool TLogManager::TRule::IsApplicable(const TLogEvent& event) const
-{
-    ELogLevel level = event.GetLevel();
-    return (IsApplicable(event.GetCategory()) &&
-            MinLevel <= level && level <= MaxLevel);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLogManager::TConfiguration
+class TLogManager::TConfig
     : public virtual TRefCountedBase
 {
-// TODO: no need for private
-private:
-    typedef TIntrusivePtr<TConfiguration> TPtr;
+public:
+    typedef TIntrusivePtr<TConfig> TPtr;
 
-    // TODO: drop
-    friend class TLogManager;
     typedef yhash_map<Stroka, ILogWriter::TPtr> TWriterMap;
 
     TWriterMap Writers;
+
+    struct TRule {
+        TRule()
+            : AllCategories(false)
+            , MinLevel(ELogLevel::Minimum)
+            , MaxLevel(ELogLevel::Maximum)
+        { }
+
+        bool AllCategories;
+        yhash_set<Stroka> Categories;
+
+        ELogLevel MinLevel;
+        ELogLevel MaxLevel;
+
+        yvector<Stroka> Writers;
+
+        bool IsApplicable(Stroka category) const
+        {
+            return (AllCategories || Categories.find(category) != Categories.end());
+        }
+
+        bool IsApplicable(const TLogEvent& event) const
+        {
+            ELogLevel level = event.GetLevel();
+            return (IsApplicable(event.GetCategory()) &&
+                    MinLevel <= level && level <= MaxLevel);
+        }
+    };
+
+    typedef yvector<TRule> TRules;
     TRules Rules;
 
     void ConfigureWriters(const TJsonObject* root);
     void ConfigureRules(const TJsonObject* root);
 
-public:
-    TConfiguration();
-    TConfiguration(const TJsonObject* root);
+    TConfig();
+    TConfig(const TJsonObject* root);
 };
 
-void TLogManager::TConfiguration::ConfigureWriters(const TJsonObject* root)
+void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
 {
     const TJsonArray* writers = static_cast<const TJsonArray*>(root);
     for (int i = 0; i < writers->Length(); ++i) {
@@ -109,32 +101,29 @@ void TLogManager::TConfiguration::ConfigureWriters(const TJsonObject* root)
     }
 }
 
-void TLogManager::TConfiguration::ConfigureRules(const TJsonObject* root)
+void TLogManager::TConfig::ConfigureRules(const TJsonObject* root)
 {
     const TJsonArray* rules = static_cast<const TJsonArray*>(root);
-    Rules.resize(rules->Length());
     for (int i = 0; i < rules->Length(); ++i) {
-        // TODO:
-        // TRule rule;
-        // configure rule
+        TRule rule;
         const TJsonObject* item = rules->Item(i);
         yvector<Stroka> categories;
         TryRead(item, L"Categories", &categories);
         if (categories.size() == 1 && categories[0] == AllCategoriesName) {
-            Rules[i].AllCategories = true;
+            rule.AllCategories = true;
         } else {
-            Rules[i].AllCategories = false;
-            Rules[i].Categories.insert(categories.begin(), categories.end());
+            rule.AllCategories = false;
+            rule.Categories.insert(categories.begin(), categories.end());
         }
 
-        ReadEnum<ELogLevel>(item, L"MinLevel", &Rules[i].MinLevel, ELogLevel::Minimum);
-        ReadEnum<ELogLevel>(item, L"MaxLevel", &Rules[i].MaxLevel, ELogLevel::Maximum);
-        TryRead(item, L"Writers", &Rules[i].Writers);
-        // push_back rule
+        ReadEnum<ELogLevel>(item, L"MinLevel", &rule.MinLevel, ELogLevel::Minimum);
+        ReadEnum<ELogLevel>(item, L"MaxLevel", &rule.MaxLevel, ELogLevel::Maximum);
+        TryRead(item, L"Writers", &rule.Writers);
+        Rules.push_back(rule);
     }
 }
 
-TLogManager::TConfiguration::TConfiguration()
+TLogManager::TConfig::TConfig()
 {
     Writers.insert(MakePair(
         DefaultStdErrWriterName,
@@ -157,7 +146,7 @@ TLogManager::TConfiguration::TConfiguration()
     Rules.push_back(fileRule);
 }
 
-TLogManager::TConfiguration::TConfiguration(const TJsonObject* root)
+TLogManager::TConfig::TConfig(const TJsonObject* root)
 {
     ConfigureWriters(root->Value(L"Writers"));
     ConfigureRules(root->Value(L"Rules"));
@@ -220,7 +209,7 @@ void TLogManager::Shutdown()
 
 TVoid TLogManager::DoFlush()
 {
-    for (TConfiguration::TWriterMap::iterator it = Configuration->Writers.begin();
+    for (TConfig::TWriterMap::iterator it = Configuration->Writers.begin();
          it != Configuration->Writers.end();
          ++it)
     {
@@ -268,7 +257,7 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
     ELogLevel level = event.GetLevel();
 
     yhash_set<Stroka> writerIds;
-    for (TRules::iterator it = Configuration->Rules.begin();
+    for (TConfig::TRules::iterator it = Configuration->Rules.begin();
         it != Configuration->Rules.end(); ++it) {
         if (it->IsApplicable(event)) {
             writerIds.insert(it->Writers.begin(), it->Writers.end());
@@ -306,7 +295,7 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 {
     ELogLevel level = ELogLevel::Maximum;
 
-    for(TRules::iterator it = Configuration->Rules.begin();
+    for(TConfig::TRules::iterator it = Configuration->Rules.begin();
         it != Configuration->Rules.end();
         ++it)
     {
@@ -321,16 +310,15 @@ void TLogManager::Configure(TJsonObject* root)
 {
     TGuard<TSpinLock> guard(&SpinLock);
 
-    // TODO: rename to newConfig
-    TConfiguration::TPtr ptr;
+    TConfig::TPtr newConfig;
     try {
-        ptr = new TConfiguration(root);
+        newConfig = new TConfig(root);
     } catch (yexception& e) {
-        // TODO: log
+        LOG_ERROR("Couldn't configure, rolled back to previous config")
         return;
     }
 
-    Configuration = ptr;
+    Configuration = newConfig;
     AtomicIncrement(ConfigVersion);
 }
 
@@ -352,7 +340,7 @@ void TLogManager::ConfigureDefault()
 {
     TGuard<TSpinLock> guard(&SpinLock);
 
-    Configuration = new TConfiguration();
+    Configuration = new TConfig();
     AtomicIncrement(ConfigVersion);
 }
 

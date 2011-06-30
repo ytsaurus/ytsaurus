@@ -52,13 +52,8 @@ private:
     TSpinLock SpinLock;
     TAtomic ConfigVersion;
 
-    // TODO: rename to TConfig and Config
-    class TConfiguration;
-    TIntrusivePtr<TConfiguration> Configuration;
-
-    // TODO: move to TConfig
-    struct TRule;
-    typedef yvector<TRule> TRules;
+    class TConfig;
+    TIntrusivePtr<TConfig> Configuration;
 
     TActionQueue::TPtr Queue;
 
