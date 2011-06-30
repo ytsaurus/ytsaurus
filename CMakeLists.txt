@@ -3,20 +3,13 @@ CMAKE_POLICY(VERSION 2.6.0)
 
 # This variable defines a current root. PEERDIR, TOOLDIR, SUBDIR will use it
 # as a root for their relative-path arguments.
-SET(YT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-SET(ARCADIA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/contrib/arcadia)
-SET(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/contrib/arcadia)
-#SET(PATH_TO_ROOT contrib/arcadia)
+SET(ARCADIA_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+SET(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/include/global.cmake NO_POLICY_SCOPE)
 
 ADD_DIRS(util)
-
-#SUBDIR(experiments)
-SUBDIR(yt__ytlib)
-SUBDIR(yt__unittests)
-#SUBDIR(yt)
-#SUBDIR(ytlib)
+ADD_DIRS(ytable)
 
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/include/dtmk.cmake)
 
