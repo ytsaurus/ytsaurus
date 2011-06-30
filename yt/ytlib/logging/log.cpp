@@ -61,6 +61,106 @@ bool TLogManager::TRule::IsApplicable(const TLogEvent& event) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLogManager::TConfiguration
+    : public virtual TRefCountedBase
+{
+private:
+    typedef TIntrusivePtr<TConfiguration> TPtr;
+
+    friend class TLogManager;
+    typedef yhash_map<Stroka, ILogWriter::TPtr> TWriterMap;
+    TWriterMap Writers;
+
+    TRules Rules;
+
+    void ConfigureWriters(const TJsonObject* root);
+    void ConfigureRules(const TJsonObject* root);
+
+public:
+    TConfiguration();
+    TConfiguration(const TJsonObject* root);
+};
+
+void TLogManager::TConfiguration::ConfigureWriters(const TJsonObject* root)
+{
+    const TJsonArray* writers = static_cast<const TJsonArray*>(root);
+    for (int i = 0; i < writers->Length(); ++i) {
+        Stroka name, type, pattern;
+        const TJsonObject* item = writers->Item(i);
+        TryRead(item, L"Name", &name);
+        TryRead(item, L"Type", &type);
+        TryRead(item, L"Pattern", &pattern);
+        if (type == "File") {
+            Stroka fileName;
+            NYT::TryRead(item, L"FileName", &fileName);
+            Writers[name] = new TFileLogWriter(fileName, pattern);
+        } else if (type == "StdErr") {
+            Writers[name] = new TStdErrLogWriter(pattern);
+        } else if (type == "StdOut") {
+            Writers[name] = new TStdOutLogWriter(pattern);
+        } else {
+            ythrow yexception() <<
+                Sprintf("%s is unknown type of writer", ~type);
+        }
+    }
+}
+
+void TLogManager::TConfiguration::ConfigureRules(const TJsonObject* root)
+{
+    const TJsonArray* rules = static_cast<const TJsonArray*>(root);
+    Rules.resize(rules->Length());
+    for (int i = 0; i < rules->Length(); ++i) {
+        // TODO:
+        // TRule rule;
+        // configure rule
+        const TJsonObject* item = rules->Item(i);
+        yvector<Stroka> categories;
+        TryRead(item, L"Categories", &categories);
+        if (categories.size() == 1 && categories[0] == AllCategoriesName) {
+            Rules[i].AllCategories = true;
+        } else {
+            Rules[i].AllCategories = false;
+            Rules[i].Categories.insert(categories.begin(), categories.end());
+        }
+
+        ReadEnum<ELogLevel>(item, L"MinLevel", &Rules[i].MinLevel, ELogLevel::Minimum);
+        ReadEnum<ELogLevel>(item, L"MaxLevel", &Rules[i].MaxLevel, ELogLevel::Maximum);
+        TryRead(item, L"Writers", &Rules[i].Writers);
+        // push_back rule
+    }
+}
+
+TLogManager::TConfiguration::TConfiguration()
+{
+    Writers.insert(MakePair(
+        DefaultStdErrWriterName,
+        new TStdErrLogWriter(SystemPattern)));
+
+    TRule stdErrRule;
+    stdErrRule.AllCategories = true;
+    stdErrRule.MinLevel = DefaultStdErrMinLevel;
+    stdErrRule.Writers.push_back(DefaultStdErrWriterName);
+    Rules.push_back(stdErrRule);
+
+    Writers.insert(MakePair(
+        DefaultFileWriterName,
+        new TFileLogWriter(DefaultFileName, DefaultFilePattern)));
+
+    TRule fileRule;
+    fileRule.AllCategories = true;
+    fileRule.MinLevel = DefaultFileMinLevel;
+    fileRule.Writers.push_back(DefaultFileWriterName);
+    Rules.push_back(fileRule);
+}
+
+TLogManager::TConfiguration::TConfiguration(const TJsonObject* root)
+{
+    ConfigureWriters(root->Value(L"Writers"));
+    ConfigureRules(root->Value(L"Rules"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void LogEventImpl(
     TLogger& logger,
     const char* fileName,
@@ -116,8 +216,8 @@ void TLogManager::Shutdown()
 
 TVoid TLogManager::DoFlush()
 {
-    for (TWriterMap::iterator it = Writers.begin();
-         it != Writers.end();
+    for (TConfiguration::TWriterMap::iterator it = Configuration->Writers.begin();
+         it != Configuration->Writers.end();
          ++it)
     {
         it->second->Flush();
@@ -164,7 +264,8 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
     ELogLevel level = event.GetLevel();
 
     yhash_set<Stroka> writerIds;
-    for (TRules::iterator it = Rules.begin(); it != Rules.end(); ++it) {
+    for (TRules::iterator it = Configuration->Rules.begin();
+        it != Configuration->Rules.end(); ++it) {
         if (it->IsApplicable(event)) {
             writerIds.insert(it->Writers.begin(), it->Writers.end());
         }
@@ -175,7 +276,7 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
          it != writerIds.end();
          ++it)
     {
-        writers.push_back(Writers[*it]);
+        writers.push_back(Configuration->Writers[*it]);
     }
 
     return writers;
@@ -201,9 +302,12 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 {
     ELogLevel level = ELogLevel::Maximum;
 
-    for(int i = 0; i < Rules.ysize(); ++i) {
-        if (Rules[i].IsApplicable(category)) {
-            level = Min(level, Rules[i].MinLevel);
+    for(TRules::iterator it = Configuration->Rules.begin();
+        it != Configuration->Rules.end();
+        ++it)
+    {
+        if (it->IsApplicable(category)) {
+            level = Min(level, it->MinLevel);
         }
     }
     return level;
@@ -213,9 +317,15 @@ void TLogManager::Configure(TJsonObject* root)
 {
     TGuard<TSpinLock> guard(&SpinLock);
 
-    ConfigureWriters(root->Value(L"Writers"));
-    ConfigureRules(root->Value(L"Rules"));
-    
+    TConfiguration::TPtr ptr;
+    try {
+        ptr = new TConfiguration(root);
+    } catch (yexception& e){
+        return;
+    }
+
+    Configuration = ptr;
+
     AtomicIncrement(ConfigVersion);
 }
 
@@ -236,79 +346,10 @@ void TLogManager::ConfigureSystem()
 void TLogManager::ConfigureDefault()
 {
     TGuard<TSpinLock> guard(&SpinLock);
-    
-    Writers.insert(MakePair(
-        DefaultStdErrWriterName,
-        new TStdErrLogWriter(SystemPattern)));
-    
-    TRule stdErrRule;
-    stdErrRule.AllCategories = true;
-    stdErrRule.MinLevel = DefaultStdErrMinLevel;
-    stdErrRule.Writers.push_back(DefaultStdErrWriterName);
-    Rules.push_back(stdErrRule);
 
-    Writers.insert(MakePair(
-        DefaultFileWriterName,
-        new TFileLogWriter(DefaultFileName, DefaultFilePattern)));
-    
-    TRule fileRule;
-    fileRule.AllCategories = true;
-    fileRule.MinLevel = DefaultFileMinLevel;
-    fileRule.Writers.push_back(DefaultFileWriterName);
-    Rules.push_back(fileRule);
+    Configuration = new TConfiguration;
 
     AtomicIncrement(ConfigVersion);
-}
-
-void TLogManager::ConfigureWriters(const TJsonObject* root)
-{
-    Writers.clear();
-    const TJsonArray* writers = static_cast<const TJsonArray*>(root);
-    for (int i = 0; i < writers->Length(); ++i) {
-        Stroka name, type, pattern;
-        const TJsonObject* item = writers->Item(i);
-        TryRead(item, L"Name", &name);
-        TryRead(item, L"Type", &type);
-        TryRead(item, L"Pattern", &pattern);
-        if (type == "File") {
-            Stroka fileName;
-            NYT::TryRead(item, L"FileName", &fileName);
-            Writers[name] = new TFileLogWriter(fileName, pattern);
-        } else if (type == "StdErr") {
-            Writers[name] = new TStdErrLogWriter(pattern);
-        } else if (type == "StdOut") {
-            Writers[name] = new TStdOutLogWriter(pattern);
-        } else {
-            ythrow yexception() <<
-                Sprintf("%s is unknown type of writer", ~type);
-        }
-    }
-}
-
-void TLogManager::ConfigureRules(const TJsonObject* root)
-{
-    Rules.clear();
-    const TJsonArray* rules = static_cast<const TJsonArray*>(root);
-    Rules.resize(rules->Length());
-    for (int i = 0; i < rules->Length(); ++i) {
-        // TODO:
-        // TRule rule;
-        // configure rule
-        const TJsonObject* item = rules->Item(i);
-        yvector<Stroka> categories;
-        TryRead(item, L"Categories", &categories);
-        if (categories.size() == 1 && categories[0] == AllCategoriesName) {
-            Rules[i].AllCategories = true;
-        } else {
-            Rules[i].AllCategories = false;
-            Rules[i].Categories.insert(categories.begin(), categories.end());
-        }
-
-        ReadEnum<ELogLevel>(item, L"MinLevel", &Rules[i].MinLevel, ELogLevel::Minimum);
-        ReadEnum<ELogLevel>(item, L"MaxLevel", &Rules[i].MaxLevel, ELogLevel::Maximum);
-        TryRead(item, L"Writers", &Rules[i].Writers);
-        // push_back rule
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

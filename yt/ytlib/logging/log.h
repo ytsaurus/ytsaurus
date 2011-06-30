@@ -52,13 +52,11 @@ private:
     TSpinLock SpinLock;
     TAtomic ConfigVersion;
 
-    typedef yhash_map<Stroka, ILogWriter::TPtr> TWriterMap;
-    TWriterMap Writers;
+    class TConfiguration;
+    TIntrusivePtr<TConfiguration> Configuration;
 
     struct TRule;
     typedef yvector<TRule> TRules;
-
-    TRules Rules;
 
     TActionQueue::TPtr Queue;
 
@@ -66,9 +64,6 @@ private:
 
     void ConfigureDefault();
     void ConfigureSystem();
-    void ConfigureWriters(const TJsonObject* root);
-    void ConfigureRules(const TJsonObject* root);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
