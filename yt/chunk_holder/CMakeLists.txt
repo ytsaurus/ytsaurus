@@ -5,8 +5,7 @@ SRCS(
 )
 
 PEERDIR(
-    ADDINCL junk/monster/yt/ytlib
-    quality/util
+    ADDINCL yt/ytlib
     dict/json
 )
 

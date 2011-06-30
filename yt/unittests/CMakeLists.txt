@@ -13,8 +13,7 @@ SRCS(
 
 
 PEERDIR(
-    junk/monster/yt/ytlib
-    quality/util
+    yt/ytlib
 )
 
 END()
