@@ -471,7 +471,7 @@ void TChunkHolder::VerifyNoChunk(const TChunkId& chunkId)
 void TChunkHolder::CheckLease(bool leaseResult, const TChunkId& chunkId)
 {
     if (!leaseResult)
-        ythrow TServiceException() << "No lease for session " << chunkId;
+        ythrow TServiceException() << "No lease for session " << StringFromGuid(chunkId);
 }
 
 RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)

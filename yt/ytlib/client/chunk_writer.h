@@ -15,6 +15,11 @@
 
 namespace NYT
 {
+
+#define USE_RPC_METHOD(TProxy, MethodName) \
+    typedef TProxy::TReq##MethodName TReq##MethodName; \
+    typedef TProxy::TRsp##MethodName TRsp##MethodName; \
+    typedef TProxy::TInv##MethodName TInv##MethodName;
     
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -30,21 +35,6 @@ struct TChunkWriterConfig
 class TChunkWriter
     : public TRefCountedBase
 {
-   /* template<class TReq, class TRsp>
-    class TNodeCallback;
-
-    template<class TReq, class TRsp>
-    class TGroupMethodCall;
-
-    template<class TReq, class TRsp>
-    class TSessionMethodCall;
-
-    class TStartSessionCall;
-    class TFinishSessionCall;
-    class TPutBlocksCall;
-    class TSendBlocksCall;
-    class TFlushBlocksCall; */
-
     struct TNode : public TRefCountedBase
     {
         enum ENodeState {
@@ -68,10 +58,17 @@ class TChunkWriter
     };
 
     struct TBlock;
-    struct TGroup;
+    class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
     typedef ydeque<TGroupPtr> TGroupBuffer;
     typedef TChunkHolderProxy TProxy;
+
+    USE_RPC_METHOD(TProxy, StartChunk);
+    USE_RPC_METHOD(TProxy, FinishChunk);
+    USE_RPC_METHOD(TProxy, PutBlocks);
+    USE_RPC_METHOD(TProxy, SendBlocks);
+    USE_RPC_METHOD(TProxy, FlushBlocks);
+
 private:
     static TLazyPtr<TActionQueue> WriterThread;
     NRpc::TChannelCache ChannelCache;
@@ -82,13 +79,13 @@ private:
     enum ESessionState {
         Starting,
         Ready,
-        Finishing,
         Failed
     } State;
+    bool Finishing;
 
-    TAtomic WinSlots;
-    Event WinReady;
-    Event FinEv;
+    TAtomic WindowSlots; // Number of free slots for blocks in sliding window
+    Event WindowReady;
+    Event FinishedEvent;
 
     yvector< TIntrusivePtr<TNode> > Nodes;
     TGroupBuffer Groups;
@@ -105,33 +102,36 @@ private:
     // writer thread
     void AddGroup(TGroupPtr group);
     void FinishSession();
+    void Work();
 
     void NodeDied(unsigned idx);
-    void CheckStateAndThrow();
-    void ProcessBlocks();
+    void CheckStateAndThrow(); // client thread
+    void ShiftWindow();
 
     void SetFinishFlag();
-    void StartSession(i32 node);
-    void StartSessionCallback(TProxy::TRspStartChunk::TPtr rsp, i32 node);
-    void FinishSession(i32 node);
+
+    TInvStartChunk::TPtr StartSession(i32 node);
+    void StartSessionSuccess(i32 node);
+    void StartSessionComplete();
+
+    TInvFinishChunk::TPtr FinishSession(i32 node);
+    void FinishSessionSuccess(i32 node);
+    void FinishSessionComplete();
+
     void PutBlocks(i32 node, TGroupPtr group);
+    void PutBlocksSuccess(i32 node, TGroupPtr group);
+
     void SendBlocks(i32 node, i32 dst, TGroupPtr group);
-    void FlushBlocks(i32 node, TGroupPtr group);
+    void SendBlocksSuccess(i32 node, i32 dst, TGroupPtr group);
 
-    template<class TResponsePtr>
-    bool CheckResponse(TResponsePtr rsp, i32 node);
+    TInvFlushBlocks::TPtr FlushBlocks(i32 node, TGroupPtr group);
+    void FlushBlocksSuccess(i32 node, TGroupPtr group);
 
-    template<class TResponsePtr>
-    bool CheckSessionResponse(TResponsePtr rsp, i32 node);
-
-    template<class TResponsePtr>
-    bool CheckGroupResponse(TResponsePtr rsp, i32 node, TGroupPtr group);
+    template<class TResponse>
+    void CheckResponse(typename TResponse::TPtr rsp, i32 node, IAction::TPtr action);
 
 public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
-
-    // writer thread
-    void Work();
 
     // Client thread
     TChunkWriter(TChunkWriterConfig config, yvector<Stroka> nodes);

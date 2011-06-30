@@ -1,8 +1,8 @@
 #include <dict/json/json.h>
 #include <util/stream/file.h>
 #include <quality/util/prog_options.h>
-#include <junk/monster/yt/ytlib/logging/log.h>
-#include <junk/monster/yt/ytlib/holder/chunk_holder_server.h>
+#include <yt/ytlib/holder/chunk_holder.h>
+#include <yt/ytlib/rpc/server.h>
 
 using namespace NYT;
 
@@ -20,8 +20,11 @@ void StartChunkHolder(ui16 port, Stroka configName) {
     TChunkHolderConfig chunkHolderConfig;
     chunkHolderConfig.Read(root);
 
-    TRpcChunkHolderServer server(port, chunkHolderConfig);
-    server.Main();
+    IInvoker::TPtr serviceInvoker = new TActionQueue();
+    NRpc::TServer server(port, serviceInvoker);
+    TChunkHolder::TPtr service = new TChunkHolder(chunkHolderConfig);
+    server.RegisterService(service);
+    Cin.ReadLine();
 }
 
 void Usage()  {
