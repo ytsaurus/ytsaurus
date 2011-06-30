@@ -14,6 +14,11 @@ else
     TEMPORARY=$(mktemp -p .)
 fi
 
-python svn-externals-regenerate.py > $TEMPORARY
-svn propset svn:externals . -F $TEMPORARY
+if [[ "$@" != "apply" ]]; then
+    echo "*** Supply an 'apply' as a parameter to update Subversion property."
+    python svn-externals-regenerate.py
+else
+    python svn-externals-regenerate.py > $TEMPORARY
+    svn propset svn:externals . -F $TEMPORARY
+fi
 

@@ -42,22 +42,21 @@ contrib/
 """
 
 def play(iterable):
-    current_stack = []
-    current_level = 0
+    stack = []
+    level = 0
 
     for line in iterable:
-        line = line.rstrip("\r\n")
+        level = (len(line) - len(line.lstrip())) / 4
+        line = line.strip()
 
         if not line:
             continue
 
-        current_level = (len(line) - len(line.lstrip())) / 4
-
         if line.endswith("/"):
-            current_stack = current_stack[0: current_level]
-            current_stack.append(line.strip().rstrip("/"))
+            stack = stack[:level]
+            stack.append(line.rstrip("/"))
         else:
-            yield "/".join(current_stack + [ line.strip() ])
+            yield "/".join(stack + [ line ])
 
 def arrange(scenario, revision):
     for item in play(scenario.split("\n")):
@@ -68,6 +67,4 @@ def arrange(scenario, revision):
 
 if __name__ == "__main__":
     arrange(SCENARIO, REVISION)
-
-
 
