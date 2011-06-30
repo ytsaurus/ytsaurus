@@ -1,0 +1,25 @@
+SET(YT_SOURCE_FILES
+    master_state.h
+    decorated_master_state.cpp
+    master_state_manager.cpp
+    master_state_manager.proto
+    master_state_manager_rpc.h
+    snapshot.cpp
+    change_log.cpp
+    common.h
+    change_committer.cpp
+    election_manager.proto
+    election_manager.cpp
+    election_manager_rpc.h
+    leader_lookup.cpp
+    change_log_writer.cpp
+    change_log_downloader.cpp
+    change_log_cache.cpp
+    snapshot_creator.cpp
+    snapshot_downloader.cpp
+    snapshot_store.cpp
+    recovery.cpp
+    cell_manager.cpp
+    follower_state_tracker.cpp
+    leader_pinger.cpp
+)

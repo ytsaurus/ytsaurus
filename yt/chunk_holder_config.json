@@ -1,0 +1,12 @@
+{
+	WindowSize: 256,
+	ChunkWriter: {
+		StorageLocations: [
+			"/mnt/disk2/psushin",
+			"/mnt/disk3/psushin"
+		]
+	},
+	BlockCache: {
+		MaxSize: 1024
+	}
+} 

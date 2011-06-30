@@ -1,0 +1,9 @@
+SET(YT_SOURCE_FILES
+    common.cpp
+    client.cpp
+    message.cpp
+    bus.cpp
+    service.cpp
+    server.cpp
+    rpc.proto
+)
