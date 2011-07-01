@@ -220,12 +220,12 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
     
     // TODO: extract method
     if (DecoratedState->GetStateId().SegmentId < maxSnapshotId) {
-        TAutoPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
+        THolder<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
         if (~snapshotReader == NULL) {
             TSnapshotDownloader snapshotDownloader(
                 SnapshotDownloaderConfig, CellManager);
-            TAutoPtr<TSnapshotWriter> snapshotWriter =
-                SnapshotStore->GetWriter(maxSnapshotId);
+            THolder<TSnapshotWriter> snapshotWriter(
+                SnapshotStore->GetWriter(maxSnapshotId));
             TSnapshotDownloader::EResult snapshotResult =
                 snapshotDownloader.GetSnapshot(maxSnapshotId, ~snapshotWriter);
 
@@ -272,7 +272,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
 */
         // Getting right record count in the changelog
         // TODO: extract method
-        TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
+        THolder<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
         TProxy::TReqGetChangeLogInfo::TPtr request = leaderProxy->GetChangeLogInfo();
         request->SetSegmentId(segmentId);
         TProxy::TRspGetChangeLogInfo::TPtr response = request->Invoke()->Get(); // TODO: timeout

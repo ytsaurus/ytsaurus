@@ -378,6 +378,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
+
+    YASSERT(request->Attachments().size() == 1);
     
     const TSharedRef& change = request->Attachments().at(0);
 
