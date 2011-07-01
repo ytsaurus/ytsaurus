@@ -47,8 +47,10 @@ TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Save(TOutputStream& output)
 {
     LOG_INFO("Saving snapshot");
 
-    return State->Save(output)
-                ->Apply(FromMethod(&TDecoratedMasterState::OnSave, this, TInstant::Now()));
+    return State->Save(output)->Apply(FromMethod(
+        &TDecoratedMasterState::OnSave,
+        TPtr(this),
+        TInstant::Now()));
 }
 
 TVoid TDecoratedMasterState::OnSave(TVoid, TInstant savingStarted)
@@ -72,30 +74,51 @@ void TDecoratedMasterState::Load(i32 segmentId, TInputStream& input)
     LOG_INFO("Snapshot loaded in %.3f s", (loadingFinished - loadingStarted).SecondsFloat());
 }
 
-void TDecoratedMasterState::ApplyChange(TRef changeData)
+void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
 {
     State->ApplyChange(changeData);
     ++StateId.ChangeCount;
+
     AvailableStateId = Max(AvailableStateId, StateId);
 }
 
-void TDecoratedMasterState::NextSegment()
+TChangeLogWriter::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
+    const TSharedRef& changeData)
+{
+    TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(StateId.SegmentId);
+    if (~changeLog == NULL) {
+        LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
+    }
+
+    TChangeLogWriter& writer = changeLog->GetWriter();
+    TChangeLogWriter::TAppendResult::TPtr appendResult = writer.Append(
+        StateId.ChangeCount,
+        changeData);
+
+    ApplyChange(changeData);
+
+    return appendResult;
+}
+
+void TDecoratedMasterState::AdvanceSegment()
 {
     ++StateId.SegmentId;
     StateId.ChangeCount = 0;
+
     AvailableStateId = Max(AvailableStateId, StateId);
+    
     LOG_INFO("Switched master state to a new segment %d",
         StateId.SegmentId);
 }
 
-void TDecoratedMasterState::NextChangeLog()
+void TDecoratedMasterState::RotateChangeLog()
 {
     TCachedChangeLog::TPtr currentCachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
     YASSERT(~currentCachedChangeLog != NULL);
 
     currentCachedChangeLog->GetWriter().Close();
 
-    NextSegment();
+    AdvanceSegment();
 
     TChangeLog::TPtr currentChangeLog = currentCachedChangeLog->GetChangeLog();
     ChangeLogCache->Create(StateId.SegmentId, currentChangeLog->GetRecordCount());

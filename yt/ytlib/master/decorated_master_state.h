@@ -9,26 +9,32 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: make refcounted
-// TODO: why this is not inherited from IMasterState ?
 class TDecoratedMasterState
+    : public TRefCountedBase
 {
 public:
+    typedef TIntrusivePtr<TDecoratedMasterState> TPtr;
+
     TDecoratedMasterState(
         IMasterState::TPtr state,
         TSnapshotStore* snapshotStore,
         TChangeLogCache::TPtr changeLogCache);
 
     TMasterStateId GetStateId() const;
+    TMasterStateId GetAvailableStateId() const;
+
     IMasterState::TPtr GetState() const;
+
     TVoid Clear();
+    
     TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
     void Load(i32 segmentId, TInputStream& input);
-    void ApplyChange(TRef changeData);
-    // TODO: Next -> AdvanceSegment, RotateChangelog
-    void NextSegment();
-    void NextChangeLog();
-    TMasterStateId GetAvailableStateId() const;
+    
+    void ApplyChange(const TSharedRef& changeData);
+    TChangeLogWriter::TAppendResult::TPtr LogAndApplyChange(const TSharedRef& changeData);
+    
+    void AdvanceSegment();
+    void RotateChangeLog();
 
 private:
     void ComputeAvailableStateId();

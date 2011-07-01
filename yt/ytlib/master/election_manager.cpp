@@ -22,7 +22,7 @@ TElectionManager::TConfig::TConfig()
 { }
 
 // TODO: refactor
-const int Multiplier = 100;
+const int Multiplier = 1000;
 
 const TDuration TElectionManager::TConfig::RpcTimeout = TDuration::MilliSeconds(1 * Multiplier);
 

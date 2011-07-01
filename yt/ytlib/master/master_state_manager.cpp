@@ -39,7 +39,9 @@ TMasterStateManager::TMasterStateManager(
     CleanTempFiles(config.SnapshotLocation);
     SnapshotStore.Reset(new TSnapshotStore(Config.SnapshotLocation));
 
-    MasterState.Reset(new TDecoratedMasterState(masterState, ~SnapshotStore, ChangeLogCache)); // TODO: use initializer
+    MasterState = new TDecoratedMasterState(
+        masterState,
+        ~SnapshotStore, ChangeLogCache);
 
     // TODO: fill config
     ElectionManager = new TElectionManager(
@@ -384,14 +386,14 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 
     YASSERT(request->Attachments().size() == 1);
     
-    const TSharedRef& change = request->Attachments().at(0);
+    const TSharedRef& changeData = request->Attachments().at(0);
 
     switch (State) {
         case S_Following:
             LOG_DEBUG("ApplyChange: applying change %s",
                 ~stateId.ToString());
 
-            ChangeCommitter->CommitLocal(stateId, change)->Subscribe(FromMethod(
+            ChangeCommitter->CommitLocal(stateId, changeData)->Subscribe(FromMethod(
                 &TMasterStateManager::OnLocalCommit,
                 TPtr(this),
                 context));
@@ -401,7 +403,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
             LOG_DEBUG("ApplyChange: keeping postponed change %s",
                 ~stateId.ToString());
             
-            Recovery->PostponeChange(change, stateId);
+            Recovery->PostponeChange(stateId, changeData);
 
             response->SetCommitted(false);
             context->Reply();
@@ -450,7 +452,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 
     //TODO: we have to reply whether snapshot was created
 
-    if (State != S_Following || State != S_FollowerRecovery) {
+    if (State != S_Following && State != S_FollowerRecovery) {
         LOG_WARNING("CreateSnapshot: Invalid state %d",
             State);
 
@@ -487,13 +489,14 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
             LOG_DEBUG("CreateSnapshot: keeping postponed segment advance %s",
                 ~stateId.ToString());
 
-            Recovery->PostponeSnapshot(stateId);
+            Recovery->PostponeSegmentAdvance(stateId);
 
             context->Reply(TProxy::EErrorCode::InvalidState);
             break;
 
         default:
-            YASSERT(false):
+            YASSERT(false);
+            break;
     }
 }
 

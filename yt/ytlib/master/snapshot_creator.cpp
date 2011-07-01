@@ -43,7 +43,7 @@ public:
 
             TAutoPtr<TProxy> proxy = Creator->CellManager->GetMasterProxy<TProxy>(masterId);
             TProxy::TReqCreateSnapshot::TPtr request = proxy->CreateSnapshot();
-            request->SetSnapshotId(StateId.SegmentId);
+            request->SetSegmentId(StateId.SegmentId);
             request->SetChangeCount(StateId.ChangeCount);
             request->SetEpoch(ProtoGuidFromGuid(Creator->Epoch));
 
@@ -119,7 +119,7 @@ private:
 TSnapshotCreator::TSnapshotCreator(
     const TConfig& config,
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState* masterState,
+    TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore* snapshotStore,
     TMasterEpoch epoch,
@@ -133,7 +133,7 @@ TSnapshotCreator::TSnapshotCreator(
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
     , WorkInvoker(workInvoker)
-{}
+{ }
 
 void TSnapshotCreator::CreateDistributed(TMasterStateId stateId)
 {
@@ -176,7 +176,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     TAsyncResult<TVoid>::TPtr saveResult = MasterState->Save(output);
 
     // Switch to a new changelog.
-    MasterState->NextChangeLog();
+    MasterState->RotateChangeLog();
 
     return saveResult->Apply(FromMethod(
         &TSnapshotCreator::OnSave,

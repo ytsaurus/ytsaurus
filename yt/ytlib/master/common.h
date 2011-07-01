@@ -26,7 +26,7 @@ struct TMasterStateId
     bool operator <= (const TMasterStateId& other) const;
     bool operator >= (const TMasterStateId& other) const;
 
-    Stroka ToString()
+    Stroka ToString() const
     {
         return Sprintf("(%d, %d)", SegmentId, ChangeCount);
     }

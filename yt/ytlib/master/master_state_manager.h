@@ -51,7 +51,7 @@ public:
         NRpc::TServer* server);
     ~TMasterStateManager();
 
-    // TODO: refactor; in-class declarations sohuld be logically regroupped
+    // TODO: refactor; in-class declarations should be logically regroupped
     void Start();
 
     enum EState
@@ -141,7 +141,7 @@ private:
     TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     THolder<TSnapshotStore> SnapshotStore;
-    THolder<TDecoratedMasterState> MasterState;
+    TDecoratedMasterState::TPtr MasterState;
 
     // Per epoch, service thread
     TMasterEpoch Epoch;

@@ -28,7 +28,7 @@ public:
 
     typedef TAsyncResult<EResult> TAppendResult;
 
-    TAppendResult::TPtr Append(i32 recordId, TSharedRef data);
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& changeData);
     void Close(); // TODO: rename to Finalize
     // TODO: Truncate();
     // TODO: GetRecordCount();

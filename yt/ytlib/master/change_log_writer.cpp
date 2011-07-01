@@ -123,11 +123,17 @@ TChangeLogWriter::~TChangeLogWriter()
 
 
 TChangeLogWriter::TAppendResult::TPtr TChangeLogWriter::Append(
-    i32 recordId, TSharedRef data)
+    i32 recordId,
+    const TSharedRef& changeData)
 {
     TAppendResult::TPtr result = new TAppendResult();
-    Impl->Invoke(
-        FromMethod(&TImpl::Append, Impl, recordId, data, ChangeLog, result));
+    Impl->Invoke(FromMethod(
+        &TImpl::Append,
+        Impl,
+        recordId,
+        changeData,
+        ChangeLog,
+        result));
     return result;
 }
 

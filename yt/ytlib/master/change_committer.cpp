@@ -121,7 +121,7 @@ private:
 
 TChangeCommitter::TChangeCommitter(
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState* masterState,
+    TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
     IInvoker::TPtr serviceInvoker,
     IInvoker::TPtr workInvoker,
@@ -150,13 +150,6 @@ void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
     OnApplyChange = onApplyChange;
 }
 
-TChangeCommitter::EResult TChangeCommitter::OnAppend(
-    TChangeLogWriter::EResult result)
-{
-    YASSERT(result == TChangeLogWriter::OK);
-    return Committed;
-}
-
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitDistributed(
     TSharedRef change)
 {
@@ -182,32 +175,28 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLocal(
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
     TMasterStateId stateId,
-    TSharedRef change)
+    const TSharedRef& changeData)
 {
     if (MasterState->GetStateId() != stateId) {
         return new TResult(InvalidStateId);
     }
 
-    TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(stateId.SegmentId);
-    if (~changeLog == NULL) {
-        LOG_FATAL("The current changelog %d is missing",
-                   stateId.SegmentId);
-    }
+    TChangeLogWriter::TAppendResult::TPtr appendResult = MasterState->LogAndApplyChange(changeData);
 
-    TChangeLogWriter& writer = changeLog->GetWriter();
-    TChangeLogWriter::TAppendResult::TPtr appendResult = writer.Append(
-        stateId.ChangeCount,
-        change);
-
-    MasterState->ApplyChange(change);
-
-    // Can be modified concurrently.
+    // OnApplyChange can be modified concurrently.
     IAction::TPtr onApplyChange = OnApplyChange;
     if (~onApplyChange != NULL) {
         onApplyChange->Do();
     }
 
     return appendResult->Apply(FromMethod(&TChangeCommitter::OnAppend));
+}
+
+TChangeCommitter::EResult TChangeCommitter::OnAppend(
+    TChangeLogWriter::EResult result)
+{
+    YASSERT(result == TChangeLogWriter::OK);
+    return Committed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,7 +28,7 @@ public:
 
     TChangeCommitter(
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState* masterState,
+        TDecoratedMasterState::TPtr masterState,
         TChangeLogCache::TPtr changeLogCache,
         IInvoker::TPtr serviceInvoker,
         IInvoker::TPtr workInvoker,
@@ -51,11 +51,11 @@ private:
 
     TResult::TPtr DoCommitLocal(
         TMasterStateId stateId,
-        TSharedRef change);
+        const TSharedRef& changeData);
     static EResult OnAppend(TChangeLogWriter::EResult result);
 
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState* MasterState;
+    TDecoratedMasterState::TPtr MasterState;
     TChangeLogCache::TPtr ChangeLogCache;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr WorkInvoker;

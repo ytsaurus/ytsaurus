@@ -19,7 +19,7 @@ TMasterRecovery::TMasterRecovery(
     const TSnapshotDownloader::TConfig& snapshotDownloaderConfig,
     const TChangeLogDownloader::TConfig& changeLogDownloaderConfig,
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState* decoratedState,
+    TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore* snapshotStore,
     TMasterEpoch epoch,
@@ -30,7 +30,7 @@ TMasterRecovery::TMasterRecovery(
     : SnapshotDownloaderConfig(snapshotDownloaderConfig)
     , ChangeLogDownloaderConfig(changeLogDownloaderConfig)
     , CellManager(cellManager)
-    , DecoratedState(decoratedState)
+    , MasterState(masterState)
     , ChangeLogCache(changeLogCache)
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
@@ -51,32 +51,32 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverLeader(TMasterStateId sta
 TMasterRecovery::EResult TMasterRecovery::DoRecoverLeader(TMasterStateId targetStateId)
 {
     LOG_INFO("Recovering leader state from %s to %s",
-               ~DecoratedState->GetStateId().ToString(),
+               ~MasterState->GetStateId().ToString(),
                ~targetStateId.ToString());
 
     // TODO: wrap with try/catch to handle IO errors
 
-    YASSERT(DecoratedState->GetStateId() <= targetStateId);
+    YASSERT(MasterState->GetStateId() <= targetStateId);
 
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= targetStateId.SegmentId);
     i32 prevRecordCount = -1;
 
     // TODO: extract method
-    if (DecoratedState->GetStateId().SegmentId < maxAvailableSnapshotId) {
+    if (MasterState->GetStateId().SegmentId < maxAvailableSnapshotId) {
         THolder<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxAvailableSnapshotId));
         if (~snapshotReader == NULL) {
             LOG_FATAL("The latest snapshot %d has vanished", maxAvailableSnapshotId);
         }
 
         snapshotReader->Open();
-        DecoratedState->Load(maxAvailableSnapshotId, snapshotReader->GetStream());
+        MasterState->Load(maxAvailableSnapshotId, snapshotReader->GetStream());
         prevRecordCount = snapshotReader->GetPrevRecordCount();
     }
 
-    YASSERT(DecoratedState->GetStateId().SegmentId >= maxAvailableSnapshotId);
+    YASSERT(MasterState->GetStateId().SegmentId >= maxAvailableSnapshotId);
 
-    for (i32 segmentId = DecoratedState->GetStateId().SegmentId;
+    for (i32 segmentId = MasterState->GetStateId().SegmentId;
          segmentId <= targetStateId.SegmentId;
          ++segmentId)
     {
@@ -111,15 +111,15 @@ TMasterRecovery::EResult TMasterRecovery::DoRecoverLeader(TMasterStateId targetS
 
         ApplyChangeLog(
             changeLog,
-            DecoratedState->GetStateId().ChangeCount,
-            changeLog->GetRecordCount() - DecoratedState->GetStateId().ChangeCount);
+            MasterState->GetStateId().ChangeCount,
+            changeLog->GetRecordCount() - MasterState->GetStateId().ChangeCount);
 
         if (segmentId < targetStateId.SegmentId) {
-            DecoratedState->NextSegment();
+            MasterState->AdvanceSegment();
         }
     }
 
-    YASSERT(DecoratedState->GetStateId() == targetStateId);
+    YASSERT(MasterState->GetStateId() == targetStateId);
 
     return E_OK;
 }
@@ -130,8 +130,8 @@ void TMasterRecovery::ApplyChangeLog(
     i32 startRecordId,
     i32 recordCount)
 {
-    YASSERT(DecoratedState->GetStateId().SegmentId == changeLog->GetId());
-    YASSERT(DecoratedState->GetStateId().ChangeCount == startRecordId);
+    YASSERT(MasterState->GetStateId().SegmentId == changeLog->GetId());
+    YASSERT(MasterState->GetStateId().ChangeCount == startRecordId);
 
     if (recordCount == 0)
         return;
@@ -148,9 +148,13 @@ void TMasterRecovery::ApplyChangeLog(
                    changeLog->GetId(), startRecordId, recordCount, records.ysize());
     }
 
+    // TODO: kill this hack once changelog returns shared refs
+    TSharedRef::TBlobPtr dataHolder2 = new TBlob();
+    dataHolder.swap(*dataHolder2);
+
     LOG_INFO("Applying changes to master state");
     for (i32 i = 0; i < recordCount; ++i)  {
-        DecoratedState->ApplyChange(records[i]);
+        MasterState->ApplyChange(TSharedRef(dataHolder2, records[i]));
     }
 
     LOG_INFO("Finished applying changes");
@@ -169,30 +173,36 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverFollower()
                ->AsyncVia(ServiceInvoker));
 }
 
-TMasterRecovery::EResult TMasterRecovery::PostponeSnapshot(const TMasterStateId& stateId)
+TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterStateId& stateId)
 {
-    if (PostponedStateId == stateId) {
-        PostponedChanges.push_back(TPostponedChange(stateId));
-        return E_OK;
-    } else {
+    if (PostponedStateId != stateId) {
         LOG_WARNING("Postponed snapshot creation is out of order (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
     }
+
+    PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
+    
+    ++PostponedStateId.SegmentId;
+    PostponedStateId.ChangeCount = 0;
+    
+    return E_OK;
 }
 
-TMasterRecovery::EResult TMasterRecovery::PostponeChange(const TSharedRef& change, const TMasterStateId& stateId)
+TMasterRecovery::EResult TMasterRecovery::PostponeChange(
+    const TMasterStateId& stateId,
+    const TSharedRef& changeData)
 {
-    if (PostponedStateId == stateId) {
-        PostponedChanges.push_back(TPostponedChange(change, stateId));
-        return E_OK;
-    } else {
+    if (PostponedStateId != stateId) {
         LOG_WARNING("Postponed change is out of order (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
     }
+
+    PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
+    return E_OK;
 }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
@@ -212,23 +222,26 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
         return new TResult(E_Failed);
     }
 
-    CurrentPostponedStateId = TMasterStateId(
+    PostponedStateId = TMasterStateId(
         response->GetSegmentId(),
         response->GetChangeCount());
-    LOG_INFO("Postponed state is %s", ~CurrentPostponedStateId.ToString());
+    LOG_INFO("Postponed state is %s", ~PostponedStateId.ToString());
 
-    i32 maxSnapshotId = Max(response->GetMaxSnapshotId(), SnapshotStore->GetMaxSnapshotId());
+    i32 maxSnapshotId = Max(
+        response->GetMaxSnapshotId(),
+        SnapshotStore->GetMaxSnapshotId());
   
     YASSERT(PostponedChanges.ysize() == 0);
 
-    return FromMethod(
-               &TMasterRecovery::DoRecoverFollower,
-               TPtr(this),
-               CurrentPostponedStateId,
-               maxSnapshotId)
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(WorkQueue)
-           ->Do();
+    return
+        FromMethod(
+            &TMasterRecovery::DoRecoverFollower,
+            TPtr(this),
+            PostponedStateId,
+            maxSnapshotId)
+        ->AsyncVia(EpochInvoker)
+        ->AsyncVia(WorkQueue)
+        ->Do();
 }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
@@ -236,17 +249,17 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
     i32 maxSnapshotId)
 {
     LOG_INFO("Recovering follower state from %s to %s",
-        ~DecoratedState->GetStateId().ToString(),
+        ~MasterState->GetStateId().ToString(),
         ~targetStateId.ToString());
 
     // TODO: wrap with try/catch to handle IO errors
 
-    YASSERT(DecoratedState->GetStateId() <= targetStateId);
+    YASSERT(MasterState->GetStateId() <= targetStateId);
     i32 prevRecordCount = -1;
     
     // TODO: extract method
-    if (DecoratedState->GetStateId().SegmentId < maxSnapshotId) {
-        THolder<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
+    if (MasterState->GetStateId().SegmentId < maxSnapshotId) {
+        TAutoPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxSnapshotId));
         if (~snapshotReader == NULL) {
             TSnapshotDownloader snapshotDownloader(
                 SnapshotDownloaderConfig, CellManager);
@@ -269,10 +282,10 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
         }
 
         snapshotReader->Open();
-        DecoratedState->Load(maxSnapshotId, snapshotReader->GetStream());
+        MasterState->Load(maxSnapshotId, snapshotReader->GetStream());
     }
 
-    for (i32 segmentId = DecoratedState->GetStateId().SegmentId;
+    for (i32 segmentId = MasterState->GetStateId().SegmentId;
          segmentId <= targetStateId.SegmentId;
          ++segmentId)
     {
@@ -337,15 +350,15 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
 
         ApplyChangeLog(
             changeLog,
-            DecoratedState->GetStateId().ChangeCount,
-            recordCount - DecoratedState->GetStateId().ChangeCount);
+            MasterState->GetStateId().ChangeCount,
+            recordCount - MasterState->GetStateId().ChangeCount);
 
         if (segmentId < targetStateId.SegmentId) {
-            DecoratedState->NextSegment();
+            MasterState->AdvanceSegment();
         }
     }
 
-    YASSERT(DecoratedState->GetStateId() == targetStateId);
+    YASSERT(MasterState->GetStateId() == targetStateId);
 
     return FromMethod(&TMasterRecovery::CapturePostponedChanges, this)
            ->AsyncVia(EpochInvoker)
@@ -362,7 +375,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
     }
 
     // TODO: vector type has changed
-    THolder< yvector<TBlob> > changes(new yvector<TBlob>());
+    THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
@@ -373,27 +386,38 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
            ->Do();
 }
 
-// TODO: vector type has changed
 TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
-    TAutoPtr< yvector< TBlob > > changes)
+    TAutoPtr<TPostponedChanges> changes)
 {
-    LOG_INFO("Applying postponed changes %d-%d",
-        DecoratedState->GetStateId().ChangeCount,
-        DecoratedState->GetStateId().ChangeCount + changes->ysize() - 1);
+    LOG_INFO("Applying %d postponed change(s)", changes->ysize());
     
-    // TODO: add to changelog?
-    for (i32 i = 0; i < changes->ysize(); ++i) {
-        // TODO: write this change to local changelog
-        // TODO: sometimes we have to switch to next changelog (via DecoratedMasterState)
-        DecoratedState->ApplyChange((*changes)[i]);
+    for (TPostponedChanges::const_iterator it = changes->begin();
+         it != changes->end();
+         ++it)
+    {
+        const TPostponedChange& change = *it;
+        switch (change.Type) {
+            case TPostponedChange::T_Change:
+                MasterState->LogAndApplyChange(change.ChangeData);
+                break;
+
+            case TPostponedChange::T_SegmentAdvance:
+                MasterState->AdvanceSegment();
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
     }
-    
+   
     LOG_INFO("Finished applying postponed changes");
 
-    return FromMethod(&TMasterRecovery::CapturePostponedChanges, TPtr(this))
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(ServiceInvoker)
-           ->Do();
+    return
+        FromMethod(&TMasterRecovery::CapturePostponedChanges, TPtr(this))
+        ->AsyncVia(EpochInvoker)
+        ->AsyncVia(ServiceInvoker)
+        ->Do();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

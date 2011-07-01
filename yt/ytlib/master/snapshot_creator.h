@@ -52,7 +52,7 @@ public:
     TSnapshotCreator(
         const TConfig& config,
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState* masterState,
+        TDecoratedMasterState::TPtr masterState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore* snapshotStore,
         TMasterEpoch epoch,
@@ -69,7 +69,7 @@ private:
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState* MasterState;
+    TDecoratedMasterState::TPtr MasterState;
     TSnapshotStore* SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
     TMasterEpoch Epoch;

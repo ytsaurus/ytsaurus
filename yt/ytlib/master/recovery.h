@@ -36,7 +36,7 @@ public:
         const TSnapshotDownloader::TConfig& snapshotDownloaderConfig,
         const TChangeLogDownloader::TConfig& changeLogDownloaderConfig,
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState* decoratedState,
+        TDecoratedMasterState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore* snapshotStore,
         TMasterEpoch epoch,
@@ -48,14 +48,13 @@ public:
     TResult::TPtr RecoverLeader(TMasterStateId stateId);
     TResult::TPtr RecoverFollower();
 
-    // TODO: Rename to PostponeSegmentAdvance?
-    //! Postpones incoming request for advancing current segment in the master state.
+    //! Postpones incoming request for advancing the current segment in the master state.
     /*!
      * \param stateId State in which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed state
      * and postponing succeeded.
      */
-    EResult PostponeSnapshot(const TMasterStateId& stateId);
+    EResult PostponeSegmentAdvance(const TMasterStateId& stateId);
     //! Postpones incoming change to the master state.
     /*!
      * \param change Incoming change.
@@ -63,14 +62,48 @@ public:
      * \returns True when applicable change is coherent with the postponed state
      * and postponing succeeded.
      */
-    EResult PostponeChange(const TSharedRef& change, const TMasterStateId& stateId);
+    EResult PostponeChange(const TMasterStateId& stateId, const TSharedRef& change);
 
 private:
+    struct TPostponedChange
+    {
+        enum EType
+        {
+            T_Change,
+            T_SegmentAdvance
+        };
+
+        EType Type;
+        TSharedRef ChangeData;
+
+        static TPostponedChange CreateChange(const TSharedRef& changeData)
+        {
+            return TPostponedChange(T_Change, changeData);
+        }
+
+        static TPostponedChange CreateSegmentAdvance()
+        {
+            return TPostponedChange(T_SegmentAdvance, TSharedRef());
+        }
+
+    private:
+        TPostponedChange(EType type, const TSharedRef& changeData)
+            : Type(type)
+            , ChangeData(changeData)
+        { }
+    };
+
+    typedef yvector<TPostponedChange> TPostponedChanges;
+
+    // Service thread
+    TPostponedChanges PostponedChanges;
+    TMasterStateId PostponedStateId;
+
     // Work thread
     EResult DoRecoverLeader(TMasterStateId targetStateId);
     TResult::TPtr OnGetCurrentStateResponse(TProxy::TRspGetCurrentState::TPtr response);
     TResult::TPtr DoRecoverFollower(TMasterStateId targetStateId, i32 maxSnapshotId);
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr< yvector<TBlob> > changes); // Work thread
+    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes); // Work thread
     void ApplyChangeLog(
         TChangeLog::TPtr changeLog,
         i32 startRecordId,
@@ -82,7 +115,7 @@ private:
     TSnapshotDownloader::TConfig SnapshotDownloaderConfig;
     TChangeLogDownloader::TConfig ChangeLogDownloaderConfig;
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState* DecoratedState;
+    TDecoratedMasterState::TPtr MasterState;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore* SnapshotStore;
     TMasterEpoch Epoch;
@@ -91,36 +124,6 @@ private:
     IInvoker::TPtr EpochInvoker;
     IInvoker::TPtr WorkQueue;
 
-private:
-    struct TPostponedChange
-    {
-        enum EChangeType {
-            CT_Change,
-            CT_Snapshot
-        };
-
-        EChangeType Type;
-        TSharedRef Change;
-        TMasterStateId StateId;
-
-        // TODO: add assertions for coherence of type value and value disjointness
-
-        TPostponedChange(const TSharedRef& change, const TMasterStateId& stateId)
-            : Type(CT_Change)
-            , Change(change)
-            , StateId()
-        { }
-
-        TPostponedChange(const TMasterStateId& stateId)
-            : Type(CT_Snapshot)
-            , Change(0)
-            , StateId(stateId)
-        { }
-    };
-
-     // Service thread
-    yvector<TPostponedChange> PostponedChanges;
-    TMasterStateId PostponedStateId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
