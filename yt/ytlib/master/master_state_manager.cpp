@@ -23,7 +23,7 @@ TMasterStateManager::TMasterStateManager(
     IInvoker::TPtr serviceInvoker,
     IMasterState::TPtr masterState,
     NRpc::TServer* server)
-    : TServiceBase(TProxy::GetServiceName())
+    : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , State(S_Stopped)
     , Config(config)
     , LeaderId(InvalidMasterId)
