@@ -277,7 +277,7 @@ public:
 
     void SetResponseInfo(const Stroka& info)
     {
-        Context->SetResponse(info);
+        Context->SetResponseInfo(info);
     }
 
     void SetResponseInfo(const char* format, ...)
