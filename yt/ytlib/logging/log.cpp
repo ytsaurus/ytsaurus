@@ -3,8 +3,6 @@
 #include "../misc/pattern_formatter.h"
 #include "../misc/config.h"
 
-#include <quality/util/file_utils.h>
-
 namespace NYT {
 namespace NLog {
 
@@ -154,24 +152,6 @@ TLogManager::TConfig::TConfig(const TJsonObject* root)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogEventImpl(
-    TLogger& logger,
-    const char* fileName,
-    int line,
-    const char* function,
-    ELogLevel level,
-    Stroka message)
-{
-    TLogEvent event(logger.GetCategory(), level, message);
-    event.AddProperty("file", GetFilename(fileName));
-    event.AddProperty("line", ToString(line));
-    event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
-    event.AddProperty("function", function);
-    logger.Write(event);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLogManager::TLogManager()
     : ConfigVersion(0)
     , Queue(new TActionQueue(false))
@@ -313,8 +293,8 @@ void TLogManager::Configure(TJsonObject* root)
     TConfig::TPtr newConfig;
     try {
         newConfig = new TConfig(root);
-    } catch (yexception& e) {
-        LOG_ERROR("Couldn't configure, rolled back to previous config")
+    } catch (const yexception& e) {
+        LOG_ERROR("Error configuring logging: %s", e.what())
         return;
     }
 
@@ -327,8 +307,8 @@ void TLogManager::Configure(Stroka fileName, Stroka rootPath)
     TIFStream configStream(fileName);
     TJsonReader reader(CODES_UTF8, &configStream);
     TJsonObject* root = reader.ReadAll();
-    root = GetSubTree(root, rootPath);
-    Configure(root);
+    TJsonObject* subTree = GetSubTree(root, rootPath);
+    Configure(subTree);
 }
 
 void TLogManager::ConfigureSystem()
@@ -377,6 +357,42 @@ void TLogger::UpdateConfig()
         Category,
         &MinLevel,
         &ConfigVersion);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPrefixLogger::TPrefixLogger(TLogger& baseLogger, const Stroka& prefix)
+    : BaseLogger(baseLogger)
+    , Prefix(prefix)
+{ }
+
+Stroka TPrefixLogger::GetCategory() const
+{
+    return BaseLogger.GetCategory();
+}
+
+void TPrefixLogger::Write(const TLogEvent& event)
+{
+    // TODO: optimize?
+    TLogEvent prefixedEvent(
+        event.GetCategory(),
+        event.GetLevel(),
+        Prefix + event.GetMessage());
+
+    const TLogEvent::TProperties& properties = event.GetProperties();
+    for (TLogEvent::TProperties::const_iterator it = properties.begin();
+         it != properties.end();
+         ++it)
+    {
+        prefixedEvent.AddProperty(it->First(), it->Second());
+    }
+
+    BaseLogger.Write(prefixedEvent);
+}
+
+bool TPrefixLogger::IsEnabled(ELogLevel level)
+{
+    return BaseLogger.IsEnabled(level);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

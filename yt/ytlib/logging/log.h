@@ -13,6 +13,8 @@
 #include <util/datetime/base.h>
 #include <util/system/thread.h>
 
+#include <quality/util/file_utils.h>
+
 namespace NYT {
 namespace NLog {
 
@@ -85,6 +87,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPrefixLogger
+    : private TNonCopyable
+{
+public:
+    TPrefixLogger(TLogger& baseLogger, const Stroka& prefix);
+
+    Stroka GetCategory() const;
+    bool IsEnabled(ELogLevel level);
+    void Write(const TLogEvent& event);
+    
+private:
+    TLogger& BaseLogger;
+    Stroka Prefix;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define LOG_DEBUG(...)                  LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Debug, __VA_ARGS__)
 #define LOG_DEBUG_IF(condition, ...)    if (condition) LOG_DEBUG(__VA_ARGS__)
 
@@ -112,13 +131,24 @@ private:
             message); \
     } \
 
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TLogger>
 void LogEventImpl(
     TLogger& logger,
     const char* fileName,
     int line,
     const char* function,
     ELogLevel level,
-    Stroka message);
+    const Stroka& message)
+{
+    TLogEvent event(logger.GetCategory(), level, message);
+    event.AddProperty("file", GetFilename(fileName));
+    event.AddProperty("line", ToString(line));
+    event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
+    event.AddProperty("function", function);
+    logger.Write(event);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
