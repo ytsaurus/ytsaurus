@@ -36,6 +36,7 @@ YT_SUBDIRECTORY(holder)
 YT_SUBDIRECTORY(master)
 YT_SUBDIRECTORY(logging)
 
+# TODO: drop dependency to quality/util
 SET_APPEND(SRCS
     ${ARCADIA_ROOT}/quality/util/prog_options.cpp
     ${ARCADIA_ROOT}/quality/util/file_utils.cpp
