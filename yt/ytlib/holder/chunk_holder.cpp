@@ -256,7 +256,7 @@ void TChunkHolder::TCompleteFlush::Do() throw()
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolder::TChunkHolder(const TChunkHolderConfig& config)
-    : NRpc::TServiceBase(TProxy::GetServiceName())
+    : NRpc::TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , Config(config)
     , BlockCache(new TBlockCache(config.BlockCacheConfig))
     , ServiceQueue(new TActionQueue())
