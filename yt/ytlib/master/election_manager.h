@@ -17,7 +17,6 @@ namespace NYT {
 
 typedef TGUID TMasterEpoch;
 typedef i64 TMasterPriority;
-// TODO: introduce TMasterPriority and use it where appropriate
 
 ////////////////////////////////////////////////////////////////////////////////
 

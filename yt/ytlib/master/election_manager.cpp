@@ -40,7 +40,7 @@ TElectionManager::TElectionManager(
     IInvoker::TPtr invoker,
     IElectionCallbacks* electionCallbacks,
     NRpc::TServer* server)
-    : TServiceBase(TProxy::GetServiceName())
+    : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , State(TProxy::EState::Stopped)
     , VoteId(InvalidMasterId)
     , Config(config)
@@ -474,6 +474,11 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 
     TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
     TMasterId leaderId = request->GetLeaderId();
+
+    context->SetRequestInfo("Epoch: %s, LeaderId: %d",
+        ~StringFromGuid(epoch),
+        leaderId);
+
     if (State != TProxy::EState::Following)
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
                Sprintf("Ping from a leader while in an invalid state (LeaderId: %d, Epoch: %s, State: %s)",
@@ -508,21 +513,23 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 {
     UNUSED(request);
-    
+
+    context->SetRequestInfo("");
+
     TMasterPriority priority = ElectionCallbacks->GetPriority();
 
     response->SetState(State);
     response->SetVoteId(VoteId);
     response->SetPriority(priority);
     response->SetVoteEpoch(ProtoGuidFromGuid(VoteEpoch));
-   
-    context->Reply();
 
-    LOG_DEBUG("Status reported (State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
-                ~State.ToString(),
-                VoteId,
-                ~ElectionCallbacks->FormatPriority(priority),
-                ~StringFromGuid(VoteEpoch));
+    context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
+        ~State.ToString(),
+        VoteId,
+        ~ElectionCallbacks->FormatPriority(priority),
+        ~StringFromGuid(VoteEpoch));
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
