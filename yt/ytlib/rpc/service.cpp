@@ -17,7 +17,8 @@ TServiceContext::TServiceContext(
     Stroka serviceName,
     Stroka methodName,
     IMessage::TPtr message,
-    IBus::TPtr replyBus)
+    IBus::TPtr replyBus,
+    NLog::TLogger& serviceLogger)
     : RequestId(requestId)
     , ServiceName(serviceName)
     , MethodName(methodName)
@@ -25,6 +26,7 @@ TServiceContext::TServiceContext(
     , ReplyBus(replyBus)
     , RequestBody(message->GetParts().at(1))
     , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
+    , ServiceLogger(serviceLogger)
 { }
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
@@ -50,9 +52,17 @@ void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
     ReplyBus->Send(message);
     State = S_Replied;
 
-    LOG_DEBUG("Response sent (RequestId: %s, ErrorCode: %s)",
-        ~StringFromGuid(RequestId),
-        ~errorCode.ToString());
+    // TODO: move to a separate method
+    Stroka str;
+    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
+    AppendInfo(str, ResponseInfo);
+    LOG_EVENT(
+        ServiceLogger,
+        NLog::ELogLevel::Debug,
+        "%s -> %s",
+        ~MethodName,
+        ~str);
 }
 
 TSharedRef TServiceContext::GetRequestBody() const
@@ -105,11 +115,11 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
     try {
         action->Do();
     } catch (const TServiceException& e) {
-        LOG_ERROR("Exception occured while executing request (ServiceName: %s, MethodName: %s): %s",
+        LOG_ERROR("Exception occurred while executing request (ServiceName: %s, MethodName: %s): %s",
                     ~ServiceName, ~MethodName, e.what());
         Reply(e.GetErrorCode());
     } catch (const yexception& e) {
-        LOG_ERROR("Exception occured while executing request (ServiceName, %s, MethodName: %s): %s",
+        LOG_ERROR("Exception occurred while executing request (ServiceName, %s, MethodName: %s): %s",
                     ~ServiceName, ~MethodName, e.what());
         Reply(EErrorCode::ServiceError);
     }
@@ -117,8 +127,9 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TServiceBase(Stroka serviceName)
+TServiceBase::TServiceBase(Stroka serviceName, Stroka loggingCategory)
     : ServiceName(serviceName)
+    , ServiceLogger(loggingCategory)
 { }
 
 void TServiceBase::RegisterHandler(
@@ -153,6 +164,11 @@ void TServiceBase::OnRequest(TServiceContext::TPtr context)
 Stroka TServiceBase::GetServiceName() const
 {
     return ServiceName;
+}
+
+NLog::TLogger& TServiceBase::GetLogger() 
+{
+    return ServiceLogger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

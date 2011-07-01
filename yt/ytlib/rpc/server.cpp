@@ -76,7 +76,9 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         serviceName,
         methodName,
         message,
-        replyBus);
+        replyBus,
+        service->GetLogger());
+
     Invoker->Invoke(FromMethod(
         &TServer::OnRequest,
         service,

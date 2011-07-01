@@ -3,6 +3,9 @@
 #include "common.h"
 #include "client.h"
 
+#include "../logging/log.h"
+#include "../misc/string.h"  // TODO: move to cpp
+
 #include <util/generic/yexception.h>
 
 namespace NYT {
@@ -66,7 +69,8 @@ public:
         Stroka serviceName,
         Stroka methodName,
         IMessage::TPtr message,
-        IBus::TPtr replyBus);
+        IBus::TPtr replyBus,
+        NLog::TLogger& serviceLogger);
     
     void Reply(EErrorCode errorCode);
 
@@ -81,6 +85,37 @@ public:
     const TRequestId& GetRequestId() const;
 
     IBus::TPtr GetReplyBus() const;
+
+    void SetRequestInfo(const Stroka& info)
+    {
+        RequestInfo = info;
+        
+        // TODO: move to a separate method
+        Stroka str;
+        AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+        AppendInfo(str, RequestInfo);
+        LOG_EVENT(
+            ServiceLogger,
+            NLog::ELogLevel::Debug,
+            "%s <- %s",
+            ~MethodName,
+            ~str);
+    }
+
+    Stroka GetRequestInfo() const
+    {
+        return RequestInfo;
+    }
+
+    void SetResponseInfo(const Stroka& info)
+    {
+        ResponseInfo = info;
+    }
+
+    Stroka GetResponseInfo()
+    {
+        return ResponseInfo;
+    }
 
     IAction::TPtr Wrap(IAction::TPtr action);
 
@@ -98,12 +133,26 @@ protected:
     IBus::TPtr ReplyBus;
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
+    NLog::TLogger& ServiceLogger;
+
     TBlob ResponseBody;
     yvector<TSharedRef> ResponseAttachments;
+
+    Stroka RequestInfo;
+    Stroka ResponseInfo;
 
 private:
     void WrapThunk(IAction::TPtr action) throw();
 
+    static void AppendInfo(Stroka& lhs, Stroka rhs)
+    {
+        if (!rhs.Empty()) {
+            if (!lhs.Empty()) {
+                lhs.append(", ");
+            }
+            lhs.append(rhs);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +163,7 @@ struct IService
     typedef TIntrusivePtr<IService> TPtr;
 
     virtual Stroka GetServiceName() const = 0;
+    virtual NLog::TLogger& GetLogger() = 0;
     virtual void OnRequest(TServiceContext::TPtr context) = 0;
 
     virtual ~IService()
@@ -205,6 +255,46 @@ public:
         return Context->Wrap(paramAction->Bind(TPtr(this)));
     }
     
+    void SetRequestInfo(const Stroka& info)
+    {
+        Context->SetRequestInfo(info);
+    }
+
+    void SetRequestInfo(const char* format, ...)
+    {
+        Stroka info;
+        va_list params;
+        va_start(params, format);
+        vsprintf(info, format, params);
+        va_end(params);
+        Context->SetRequestInfo(info);
+    }
+
+    Stroka GetRequestInfo() const
+    {
+        return Context->GetRequestInfo();
+    }
+
+    void SetResponseInfo(const Stroka& info)
+    {
+        Context->SetResponse(info);
+    }
+
+    void SetResponseInfo(const char* format, ...)
+    {
+        Stroka info;
+        va_list params;
+        va_start(params, format);
+        vsprintf(info, format, params);
+        va_end(params);
+        Context->SetResponseInfo(info);
+    }
+
+    Stroka GetResponseInfo()
+    {
+        return Context->GetResponseInfo();
+    }
+
 private:
     NLog::TLogger& Logger;
     TServiceContext::TPtr Context;
@@ -219,7 +309,7 @@ class TServiceBase
     : public IService
 {
 protected:
-    TServiceBase(Stroka serviceName);
+    TServiceBase(Stroka serviceName, Stroka loggingCategory);
 
     virtual ~TServiceBase()
     { }
@@ -227,6 +317,8 @@ protected:
     typedef IParamAction<TServiceContext::TPtr> THandler;
 
     void RegisterHandler(Stroka methodName, THandler::TPtr handler);
+
+    NLog::TLogger ServiceLogger;
 
 private:
     typedef yhash_map<Stroka, THandler::TPtr> THandlerMap;
@@ -236,6 +328,7 @@ private:
 
     virtual void OnRequest(TServiceContext::TPtr context);
 
+    virtual NLog::TLogger& GetLogger();
     virtual Stroka GetServiceName() const;
 
 };
@@ -258,7 +351,10 @@ private:
     void type::method##Thunk(::NYT::NRpc::TServiceContext::TPtr context) \
     { \
         TCtx##method::TPtr typedContext = new TCtx##method(context); \
-        method(&typedContext->Request(), &typedContext->Response(), typedContext); \
+        method( \
+            &typedContext->Request(), \
+            &typedContext->Response(), \
+            typedContext); \
     } \
     \
     void type::method( \
@@ -268,6 +364,11 @@ private:
 
 #define RPC_REGISTER_METHOD(type, method) \
     RegisterHandler(#method, FromMethod(&type::method##Thunk, this))
+
+#define USE_RPC_SERVICE_METHOD_LOGGER() \
+    ::NYT::NLog::TPrefixLogger Logger( \
+        ServiceLogger, \
+        context->GetMethodName() + ": ");
         
 ////////////////////////////////////////////////////////////////////////////////
 
