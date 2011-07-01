@@ -171,6 +171,7 @@ void TMasterStateManager::StartEpoch(TMasterEpoch epoch)
 void TMasterStateManager::StopEpoch()
 {
     YASSERT(~EpochInvoker != NULL);
+
     LeaderId = InvalidMasterId;
     EpochInvoker.Drop();
     Epoch = TMasterEpoch();
@@ -362,6 +363,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     if (State != S_Following && State != S_FollowerRecovery) {
         LOG_WARNING("ApplyChange: invalid state %d",
             State);
+
         context->Reply(TProxy::EErrorCode::InvalidState);
         return;
     }
@@ -370,6 +372,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     if (epoch != Epoch) {
         LOG_WARNING("ApplyChange: invalid epoch (expected: %s, received: %s)",
             ~StringFromGuid(Epoch), ~StringFromGuid(epoch));
+
         context->Reply(TProxy::EErrorCode::InvalidEpoch);
         Restart();
         return;
@@ -384,7 +387,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     const TSharedRef& change = request->Attachments().at(0);
 
     switch (State) {
-        case S_Following: {
+        case S_Following:
             LOG_DEBUG("ApplyChange: applying change %s",
                 ~stateId.ToString());
 
@@ -393,13 +396,12 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
                 TPtr(this),
                 context));
             break;
-        }
 
         case S_FollowerRecovery:
             LOG_DEBUG("ApplyChange: keeping postponed change %s",
                 ~stateId.ToString());
             
-            // TODO: code here
+            Recovery->PostponeChange(change, stateId);
 
             response->SetCommitted(false);
             context->Reply();
@@ -448,33 +450,51 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 
     //TODO: we have to reply whether snapshot was created
 
-    if (State != S_Following) {
-        context->Reply(TProxy::EErrorCode::InvalidState);
-
+    if (State != S_Following || State != S_FollowerRecovery) {
         LOG_WARNING("CreateSnapshot: Invalid state %d",
-            (int) State);
+            State);
+
+        context->Reply(TProxy::EErrorCode::InvalidState);
         return;
     }
 
     TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
     if (epoch != Epoch) {
-        context->Reply(TProxy::EErrorCode::InvalidEpoch);
-
         LOG_WARNING("CreateSnapshot: Invalid epoch: expected %s, received %s",
             ~StringFromGuid(Epoch), ~StringFromGuid(epoch));
+
+        context->Reply(TProxy::EErrorCode::InvalidEpoch);
+        Restart();
         return;
     }
 
-    i32 snapshotId = request->GetSnapshotId();
+    i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
-    TMasterStateId stateId(snapshotId, changeCount);
+    TMasterStateId stateId(segmentId, changeCount);
 
-    // TODO: there should be a state-switch whether snapshot creation should be postponed
+    switch (State) {
+        case S_Following:
+            LOG_DEBUG("CreateSnapshot: creating snapshot %s",
+                ~stateId.ToString());
 
-    SnapshotCreator->CreateLocal(stateId)->Subscribe(FromMethod(
-        &TMasterStateManager::OnCreateLocalSnapshot,
-        TPtr(this),
-        context));
+            SnapshotCreator->CreateLocal(stateId)->Subscribe(FromMethod(
+                &TMasterStateManager::OnCreateLocalSnapshot,
+                TPtr(this),
+                context));
+            break;
+            
+        case S_FollowerRecovery:
+            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance %s",
+                ~stateId.ToString());
+
+            Recovery->PostponeSnapshot(stateId);
+
+            context->Reply(TProxy::EErrorCode::InvalidState);
+            break;
+
+        default:
+            YASSERT(false):
+    }
 }
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)

@@ -48,6 +48,23 @@ public:
     TResult::TPtr RecoverLeader(TMasterStateId stateId);
     TResult::TPtr RecoverFollower();
 
+    // TODO: Rename to PostponeSegmentAdvance?
+    //! Postpones incoming request for advancing current segment in the master state.
+    /*!
+     * \param stateId State in which the segment should be changed.
+     * \returns True when applicable request is coherent with the postponed state
+     * and postponing succeeded.
+     */
+    EResult PostponeSnapshot(const TMasterStateId& stateId);
+    //! Postpones incoming change to the master state.
+    /*!
+     * \param change Incoming change.
+     * \param stateId State in which the change should be applied.
+     * \returns True when applicable change is coherent with the postponed state
+     * and postponing succeeded.
+     */
+    EResult PostponeChange(const TSharedRef& change, const TMasterStateId& stateId);
+
 private:
     // Work thread
     EResult DoRecoverLeader(TMasterStateId targetStateId);
@@ -74,9 +91,36 @@ private:
     IInvoker::TPtr EpochInvoker;
     IInvoker::TPtr WorkQueue;
 
+private:
+    struct TPostponedChange
+    {
+        enum EChangeType {
+            CT_Change,
+            CT_Snapshot
+        };
+
+        EChangeType Type;
+        TSharedRef Change;
+        TMasterStateId StateId;
+
+        // TODO: add assertions for coherence of type value and value disjointness
+
+        TPostponedChange(const TSharedRef& change, const TMasterStateId& stateId)
+            : Type(CT_Change)
+            , Change(change)
+            , StateId()
+        { }
+
+        TPostponedChange(const TMasterStateId& stateId)
+            : Type(CT_Snapshot)
+            , Change(0)
+            , StateId(stateId)
+        { }
+    };
+
      // Service thread
-    yvector<TBlob> PostponedChanges;
-    TMasterStateId CurrentPostponedStateId;
+    yvector<TPostponedChange> PostponedChanges;
+    TMasterStateId PostponedStateId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

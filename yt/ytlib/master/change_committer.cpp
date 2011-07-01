@@ -76,7 +76,7 @@ private:
 
             OnCommit();
         } else {
-            LOG_DEBUG("Change %s is acknowledged by master %d",
+            LOG_DEBUG("Change %s is acknowledged but not commited by master %d",
                 ~StateId.ToString(),
                 masterId);
         }

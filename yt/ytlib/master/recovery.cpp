@@ -144,7 +144,7 @@ void TMasterRecovery::ApplyChangeLog(
     changeLog->Read(startRecordId, recordCount, &dataHolder, &records);
     if (records.ysize() < recordCount) {
         LOG_FATAL("Could not read changelog %d starting from record %d"
-                   "(expected: %d records, got %d records)",
+                   "(expected: %d records, received %d records)",
                    changeLog->GetId(), startRecordId, recordCount, records.ysize());
     }
 
@@ -167,6 +167,32 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverFollower()
                FromMethod(&TMasterRecovery::OnGetCurrentStateResponse, TPtr(this))
                ->AsyncVia(EpochInvoker)
                ->AsyncVia(ServiceInvoker));
+}
+
+TMasterRecovery::EResult TMasterRecovery::PostponeSnapshot(const TMasterStateId& stateId)
+{
+    if (PostponedStateId == stateId) {
+        PostponedChanges.push_back(TPostponedChange(stateId));
+        return E_OK;
+    } else {
+        LOG_WARNING("Postponed snapshot creation is out of order (expected state: %s, received: %s)",
+            ~PostponedStateId.ToString(),
+            ~stateId.ToString());
+        return E_Failed;
+    }
+}
+
+TMasterRecovery::EResult TMasterRecovery::PostponeChange(const TSharedRef& change, const TMasterStateId& stateId)
+{
+    if (PostponedStateId == stateId) {
+        PostponedChanges.push_back(TPostponedChange(change, stateId));
+        return E_OK;
+    } else {
+        LOG_WARNING("Postponed change is out of order (expected state: %s, received: %s)",
+            ~PostponedStateId.ToString(),
+            ~stateId.ToString());
+        return E_Failed;
+    }
 }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
@@ -335,7 +361,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
         return new TResult(E_OK);
     }
 
-    TAutoPtr< yvector<TBlob> > changes(new yvector<TBlob>());
+    // TODO: vector type has changed
+    THolder< yvector<TBlob> > changes(new yvector<TBlob>());
     changes->swap(PostponedChanges);
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
@@ -346,6 +373,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
            ->Do();
 }
 
+// TODO: vector type has changed
 TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
     TAutoPtr< yvector< TBlob > > changes)
 {

@@ -103,7 +103,7 @@ message TRspApplyChange
 
 message TReqCreateSnapshot
 {
-    required int32 SnapshotId = 1;
+    required int32 SegmentId = 1;
     required int32 ChangeCount = 2;
     required bytes Epoch = 3;
 }
