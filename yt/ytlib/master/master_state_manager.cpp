@@ -439,9 +439,12 @@ void TMasterStateManager::OnLocalCommit(
     }
 }
 
+//TODO: rename CreateSnapshot to AdvanceSegment
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 {
     UNUSED(response);
+
+    //TODO: we have to reply whether snapshot was created
 
     if (State != S_Following) {
         context->Reply(TProxy::EErrorCode::InvalidState);
@@ -463,6 +466,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
     i32 snapshotId = request->GetSnapshotId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(snapshotId, changeCount);
+
+    // TODO: there should be a state-switch whether snapshot creation should be postponed
 
     SnapshotCreator->CreateLocal(stateId)->Subscribe(FromMethod(
         &TMasterStateManager::OnCreateLocalSnapshot,

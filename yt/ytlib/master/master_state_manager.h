@@ -51,6 +51,7 @@ public:
         NRpc::TServer* server);
     ~TMasterStateManager();
 
+    // TODO: refactor; in-class declarations sohuld be logically regroupped
     void Start();
 
     enum EState
@@ -63,6 +64,8 @@ public:
         S_Leading
     };
 
+    // TODO: add paired setter
+    // TODO: force_inline
     EState GetState() const;
 
     enum ECommitResult

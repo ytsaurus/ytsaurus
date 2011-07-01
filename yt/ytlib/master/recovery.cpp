@@ -355,6 +355,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
     
     // TODO: add to changelog?
     for (i32 i = 0; i < changes->ysize(); ++i) {
+        // TODO: write this change to local changelog
+        // TODO: sometimes we have to switch to next changelog (via DecoratedMasterState)
         DecoratedState->ApplyChange((*changes)[i]);
     }
     
