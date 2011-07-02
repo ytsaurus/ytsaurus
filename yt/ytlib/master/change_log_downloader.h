@@ -62,7 +62,6 @@ private:
         TMasterId masterId,
         TMasterStateId stateId);
     static void OnComplete(
-        TMasterStateId stateId,
         TAsyncResult<TMasterId>::TPtr asyncResult);
 
 };

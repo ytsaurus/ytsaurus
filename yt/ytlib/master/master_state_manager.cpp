@@ -403,6 +403,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
             LOG_DEBUG("ApplyChange: keeping postponed change %s",
                 ~stateId.ToString());
             
+            // TODO: check result
             Recovery->PostponeChange(stateId, changeData);
 
             response->SetCommitted(false);
@@ -489,6 +490,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
             LOG_DEBUG("CreateSnapshot: keeping postponed segment advance %s",
                 ~stateId.ToString());
 
+            // TODO: check result
             Recovery->PostponeSegmentAdvance(stateId);
 
             context->Reply(TProxy::EErrorCode::InvalidState);

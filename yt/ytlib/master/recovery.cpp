@@ -27,7 +27,8 @@ TMasterRecovery::TMasterRecovery(
     IInvoker::TPtr invoker,
     IInvoker::TPtr epochInvoker,
     IInvoker::TPtr workQueue)
-    : SnapshotDownloaderConfig(snapshotDownloaderConfig)
+    : IsPostponing(false)
+    , SnapshotDownloaderConfig(snapshotDownloaderConfig)
     , ChangeLogDownloaderConfig(changeLogDownloaderConfig)
     , CellManager(cellManager)
     , MasterState(masterState)
@@ -51,8 +52,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverLeader(TMasterStateId sta
 TMasterRecovery::EResult TMasterRecovery::DoRecoverLeader(TMasterStateId targetStateId)
 {
     LOG_INFO("Recovering leader state from %s to %s",
-               ~MasterState->GetStateId().ToString(),
-               ~targetStateId.ToString());
+        ~MasterState->GetStateId().ToString(),
+        ~targetStateId.ToString());
 
     // TODO: wrap with try/catch to handle IO errors
 
@@ -109,10 +110,8 @@ TMasterRecovery::EResult TMasterRecovery::DoRecoverLeader(TMasterStateId targetS
             LOG_WARNING("Changelog %d is not finalized", segmentId);
         }
 
-        ApplyChangeLog(
-            changeLog,
-            MasterState->GetStateId().ChangeCount,
-            changeLog->GetRecordCount() - MasterState->GetStateId().ChangeCount);
+        // Apply the whole changelog.
+        ApplyChangeLog(changeLog, changeLog->GetRecordCount());
 
         if (segmentId < targetStateId.SegmentId) {
             MasterState->AdvanceSegment();
@@ -124,28 +123,33 @@ TMasterRecovery::EResult TMasterRecovery::DoRecoverLeader(TMasterStateId targetS
     return E_OK;
 }
 
-// TODO: consider passing first/last instead of first/count
 void TMasterRecovery::ApplyChangeLog(
     TChangeLog::TPtr changeLog,
-    i32 startRecordId,
-    i32 recordCount)
+    i32 targetChangeCount)
 {
     YASSERT(MasterState->GetStateId().SegmentId == changeLog->GetId());
-    YASSERT(MasterState->GetStateId().ChangeCount == startRecordId);
+    
+    i32 startRecordId = MasterState->GetStateId().ChangeCount;
+    i32 recordCount = targetChangeCount - startRecordId;
 
     if (recordCount == 0)
         return;
 
-    LOG_INFO("Reading records %d:%d from changelog %d",
-               startRecordId, startRecordId + recordCount - 1, changeLog->GetId());
+    LOG_INFO("Reading records %d-%d from changelog %d",
+        startRecordId,
+        targetChangeCount - 1, 
+        changeLog->GetId());
 
     TBlob dataHolder;
     yvector<TRef> records;
     changeLog->Read(startRecordId, recordCount, &dataHolder, &records);
     if (records.ysize() < recordCount) {
-        LOG_FATAL("Could not read changelog %d starting from record %d"
-                   "(expected: %d records, received %d records)",
-                   changeLog->GetId(), startRecordId, recordCount, records.ysize());
+        LOG_FATAL("Could not read changelog %d starting from record %d "
+            "(expected: %d records, received %d records)",
+            changeLog->GetId(),
+            startRecordId,
+            recordCount,
+            records.ysize());
     }
 
     // TODO: kill this hack once changelog returns shared refs
@@ -175,8 +179,11 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverFollower()
 
 TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterStateId& stateId)
 {
+    if (!IsPostponing)
+        return E_OK;
+
     if (PostponedStateId != stateId) {
-        LOG_WARNING("Postponed snapshot creation is out of order (expected state: %s, received: %s)",
+        LOG_WARNING("Out-of-order postponed segment advance received (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
@@ -194,8 +201,11 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
     const TMasterStateId& stateId,
     const TSharedRef& changeData)
 {
+    if (!IsPostponing)
+        return E_OK;
+
     if (PostponedStateId != stateId) {
-        LOG_WARNING("Postponed change is out of order (expected state: %s, received: %s)",
+        LOG_WARNING("Out-of-order postponed change received (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
@@ -225,6 +235,8 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
     PostponedStateId = TMasterStateId(
         response->GetSegmentId(),
         response->GetChangeCount());
+    IsPostponing = true;
+
     LOG_INFO("Postponed state is %s", ~PostponedStateId.ToString());
 
     i32 maxSnapshotId = Max(
@@ -321,26 +333,39 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
             return new TResult(E_Failed);
         }
 
-        i32 recordCount = response->GetRecordCount();
-        // TODO: use changeLogWriter instead
-        if (changeLog->GetRecordCount() > recordCount) {
-            LOG_INFO("Changelog %d has %d records while %d are expected, truncating",
-                       segmentId, changeLog->GetRecordCount(), recordCount);
-            changeLog->Truncate(recordCount);
-            // TODO: finalize?
-            // TODO: this could only happen with the last changelog
+        i32 localRecordCount = changeLog->GetRecordCount();
+        i32 remoteRecordCount = response->GetRecordCount();
+
+        LOG_INFO("Changelog %d has %d local record(s), %d remote record(s)",
+            segmentId,
+            localRecordCount,
+            remoteRecordCount);
+
+        if (segmentId == targetStateId.SegmentId &&
+            remoteRecordCount < targetStateId.ChangeCount)
+        {
+            LOG_FATAL("Remote changelog has insufficient records to reach the requested state");
         }
 
-        // TODO: extract method
-        TChangeLogDownloader changeLogDownloader(ChangeLogDownloaderConfig, CellManager);
-        TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
-            TMasterStateId(segmentId, recordCount),
-            &cachedChangeLog->GetWriter());
+        // TODO: use changeLogWriter instead
+        if (localRecordCount > remoteRecordCount) {
+            changeLog->Truncate(remoteRecordCount);
+            // TODO: finalize?
+            // TODO: this could only happen with the last changelog
+        } else if (localRecordCount < remoteRecordCount) {
+            // TODO: extract method
+            TChangeLogDownloader changeLogDownloader(ChangeLogDownloaderConfig, CellManager);
+            TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
+                TMasterStateId(segmentId, remoteRecordCount),
+                &cachedChangeLog->GetWriter());
 
-        if (changeLogResult != TChangeLogDownloader::OK) {
-            LOG_ERROR("Error %d while downloading changelog %d",
-                        (int) changeLogResult, segmentId);
-            return new TResult(E_Failed);
+            if (changeLogResult != TChangeLogDownloader::OK) {
+                // TODO: tostring
+                LOG_ERROR("Error %d while downloading changelog %d",
+                    (int) changeLogResult,
+                    segmentId);
+                return new TResult(E_Failed);
+            }
         }
 
         if (segmentId != targetStateId.SegmentId && !changeLog->IsFinalized()) {
@@ -348,10 +373,12 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
             cachedChangeLog->GetWriter().Close();
         }
 
-        ApplyChangeLog(
-            changeLog,
-            MasterState->GetStateId().ChangeCount,
-            recordCount - MasterState->GetStateId().ChangeCount);
+        i32 targetChangeCount =
+            segmentId == targetStateId.SegmentId
+            ? targetStateId.ChangeCount
+            : remoteRecordCount;
+
+        ApplyChangeLog(changeLog, targetChangeCount);
 
         if (segmentId < targetStateId.SegmentId) {
             MasterState->AdvanceSegment();
@@ -360,10 +387,11 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
 
     YASSERT(MasterState->GetStateId() == targetStateId);
 
-    return FromMethod(&TMasterRecovery::CapturePostponedChanges, this)
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(ServiceInvoker)
-           ->Do();
+    return
+        FromMethod(&TMasterRecovery::CapturePostponedChanges, this)
+        ->AsyncVia(EpochInvoker)
+        ->AsyncVia(ServiceInvoker)
+        ->Do();
 }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
@@ -374,16 +402,16 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
         return new TResult(E_OK);
     }
 
-    // TODO: vector type has changed
     THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
 
-    return FromMethod(&TMasterRecovery::ApplyPostponedChanges, TPtr(this), changes)
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(WorkQueue)
-           ->Do();
+    return
+        FromMethod(&TMasterRecovery::ApplyPostponedChanges, TPtr(this), changes)
+        ->AsyncVia(EpochInvoker)
+        ->AsyncVia(WorkQueue)
+        ->Do();
 }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(

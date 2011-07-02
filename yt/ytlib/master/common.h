@@ -28,7 +28,7 @@ struct TMasterStateId
 
     Stroka ToString() const
     {
-        return Sprintf("(%d, %d)", SegmentId, ChangeCount);
+        return Sprintf("%d:%d", SegmentId, ChangeCount);
     }
 };
 

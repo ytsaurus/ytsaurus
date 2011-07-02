@@ -96,6 +96,7 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Service thread
+    bool IsPostponing;
     TPostponedChanges PostponedChanges;
     TMasterStateId PostponedStateId;
 
@@ -103,11 +104,8 @@ private:
     EResult DoRecoverLeader(TMasterStateId targetStateId);
     TResult::TPtr OnGetCurrentStateResponse(TProxy::TRspGetCurrentState::TPtr response);
     TResult::TPtr DoRecoverFollower(TMasterStateId targetStateId, i32 maxSnapshotId);
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes); // Work thread
-    void ApplyChangeLog(
-        TChangeLog::TPtr changeLog,
-        i32 startRecordId,
-        i32 recordCount);
+    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    void ApplyChangeLog(TChangeLog::TPtr changeLog, i32 targetChangeCount);
 
      // Service thread
     TResult::TPtr CapturePostponedChanges();

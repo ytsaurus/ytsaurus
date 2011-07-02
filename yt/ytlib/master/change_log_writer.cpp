@@ -70,12 +70,12 @@ private:
         // Returns true if flushed.
         bool Append(
             i32 recordId,
-            TSharedRef data,
+            const TSharedRef& data,
             TAppendResult::TPtr result)
         {
             ChangeLog->Append(recordId, data);
             Results.push_back(result);
-            UnflushedSize += ((TRef) data).Size();
+            UnflushedSize += data.Size();
             if (UnflushedSize >= UnflushedThreshold) {
                 Flush();
                 return true;
@@ -97,9 +97,10 @@ private:
     virtual void OnIdle()
     {
         for (TChangeLogEntryMap::iterator it = ChangeLogEntryMap.begin();
-            it != ChangeLogEntryMap.end(); ++it)
+             it != ChangeLogEntryMap.end();
+             ++it)
         {
-            it->second->Flush();
+            it->Second()->Flush();
         }
         ChangeLogEntryMap.clear();
     }
