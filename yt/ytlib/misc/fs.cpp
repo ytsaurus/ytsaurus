@@ -51,23 +51,23 @@ Stroka GetFileName(Stroka filePath)
     return (delimPos == Stroka::npos) ? filePath : filePath.substr(delimPos+1);
 }
 
-Stroka GetFileExtension(Stroka fileName)
+Stroka GetFileExtension(Stroka filePath)
 {
-    i32 dotPosition = fileName.find_last_of('.');
+    i32 dotPosition = filePath.find_last_of('.');
     if (dotPosition < 0) {
         return "";
     }
-    return fileName.substr(dotPosition + 1, fileName.size() - dotPosition - 1);
+    return filePath.substr(dotPosition + 1, filePath.size() - dotPosition - 1);
 }
 
-Stroka GetFileNameWithoutExtension(Stroka fileName)
+Stroka GetFileNameWithoutExtension(Stroka filePath)
 {
-    fileName = GetFileName(fileName);
-    i32 dotPosition = fileName.find_last_of('.');
+    filePath = GetFileName(filePath);
+    i32 dotPosition = filePath.find_last_of('.');
     if (dotPosition < 0) {
-        return fileName;
+        return filePath;
     }
-    return fileName.substr(0, dotPosition);
+    return filePath.substr(0, dotPosition);
 }
 
 void CleanTempFiles(Stroka location)
