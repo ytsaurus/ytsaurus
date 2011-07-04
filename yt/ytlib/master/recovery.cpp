@@ -73,8 +73,8 @@ void TMasterRecovery::RecoverLeaderFromSnapshot(TMasterStateId targetStateId)
 
     // TODO: extract method
     if (MasterState->GetStateId().SegmentId < maxAvailableSnapshotId) {
-        THolder<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxAvailableSnapshotId));
-        if (~snapshotReader == NULL) {
+        TSharedPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxAvailableSnapshotId));
+        if (snapshotReader.Get() == NULL) {
             LOG_FATAL("The latest snapshot %d has vanished", maxAvailableSnapshotId);
         }
 
@@ -84,15 +84,17 @@ void TMasterRecovery::RecoverLeaderFromSnapshot(TMasterStateId targetStateId)
         MasterState->Load(maxAvailableSnapshotId, stream)->Subscribe(FromMethod(
             &TMasterRecovery::RecoverLeaderFromChangeLog,
             TPtr(this),
+            snapshotReader,
             targetStateId));
         //prevRecordCount = snapshotReader->GetPrevRecordCount();
     } else {
-        RecoverLeaderFromChangeLog(TVoid(), targetStateId);
+        RecoverLeaderFromChangeLog(TVoid(), TSharedPtr<TSnapshotReader>(), targetStateId);
     }
 }
 
 void TMasterRecovery::RecoverLeaderFromChangeLog(
     TVoid,
+    TSharedPtr<TSnapshotReader>,
     TMasterStateId targetStateId)
 {
     for (i32 segmentId = MasterState->GetStateId().SegmentId;
@@ -306,8 +308,8 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
     
     // TODO: extract method
     if (MasterState->GetStateId().SegmentId < snapshotId) {
-        TAutoPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(snapshotId));
-        if (~snapshotReader == NULL) {
+        TSharedPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(snapshotId));
+        if (snapshotReader.Get() == NULL) {
             TSnapshotDownloader snapshotDownloader(
                 SnapshotDownloaderConfig, CellManager);
             THolder<TSnapshotWriter> snapshotWriter(
@@ -324,7 +326,7 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
             }
 
             snapshotReader = SnapshotStore->GetReader(snapshotId);
-            if (~snapshotReader == NULL) {
+            if (snapshotReader.Get() == NULL) {
                 LOG_FATAL("Latest snapshot %d has vanished", snapshotId);
             }
             prevRecordCount = snapshotReader->GetPrevRecordCount();
@@ -336,14 +338,16 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
         MasterState->Load(snapshotId, stream)->Subscribe(FromMethod(
             &TMasterRecovery::RecoverFollowerFromChangeLog,
             TPtr(this),
+            snapshotReader,
             targetStateId));
     } else {
-        RecoverFollowerFromChangeLog(TVoid(), targetStateId);
+        RecoverFollowerFromChangeLog(TVoid(), TSharedPtr<TSnapshotReader>(), targetStateId);
     }
 }
 
 void TMasterRecovery::RecoverFollowerFromChangeLog(
     TVoid,
+    TSharedPtr<TSnapshotReader>,
     TMasterStateId targetStateId)
 {
     for (i32 segmentId = MasterState->GetStateId().SegmentId;

@@ -107,10 +107,10 @@ private:
 
     // Work thread
     void RecoverLeaderFromSnapshot(TMasterStateId targetStateId);
-    void RecoverLeaderFromChangeLog(TVoid, TMasterStateId targetStateId);
+    void RecoverLeaderFromChangeLog(TVoid, TSharedPtr<TSnapshotReader>, TMasterStateId targetStateId);
 
     void RecoverFollowerFromSnapshot(TMasterStateId targetStateId, i32 snapshotId);
-    void RecoverFollowerFromChangeLog(TVoid, TMasterStateId targetStateId);
+    void RecoverFollowerFromChangeLog(TVoid, TSharedPtr<TSnapshotReader>, TMasterStateId targetStateId);
 
     void ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
     void ApplyChangeLog(TChangeLog::TPtr changeLog, i32 targetChangeCount);
