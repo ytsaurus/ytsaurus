@@ -59,7 +59,8 @@ TMasterStateManager::~TMasterStateManager()
 
 void TMasterStateManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TMasterStateManager, GetCurrentState);
+    RPC_REGISTER_METHOD(TMasterStateManager, ScheduleSync);
+    RPC_REGISTER_METHOD(TMasterStateManager, Sync);
     RPC_REGISTER_METHOD(TMasterStateManager, GetSnapshotInfo);
     RPC_REGISTER_METHOD(TMasterStateManager, ReadSnapshot);
     RPC_REGISTER_METHOD(TMasterStateManager, GetChangeLogInfo);
@@ -188,43 +189,74 @@ void TMasterStateManager::StopEpoch()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetCurrentState)
+RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ScheduleSync)
 {
-    UNUSED(request);
     UNUSED(response);
 
-    context->SetRequestInfo("");
+    TMasterId masterId = request->GetMasterId();
+
+    context->SetRequestInfo("MasterId: %d", masterId);
    
     if (State != S_Leading && State != S_LeaderRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d", (int) State);
     }
 
+    context->Reply();
+
     WorkQueue->Invoke(FromMethod(
-        &TMasterStateManager::DoGetCurrentState,
+        &TMasterStateManager::SendSync,
         TPtr(this),
-        context,
+        masterId,
         Epoch));
 }
 
-void TMasterStateManager::DoGetCurrentState(
-    TCtxGetCurrentState::TPtr context,
-    TMasterEpoch epoch)
+void TMasterStateManager::SendSync(TMasterId masterId, TMasterEpoch epoch)
 {
     TMasterStateId stateId = MasterState->GetAvailableStateId();
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
-    context->Response().SetSegmentId(stateId.SegmentId);
-    context->Response().SetChangeCount(stateId.ChangeCount);
-    context->Response().SetEpoch(ProtoGuidFromGuid(epoch));
-    context->Response().SetMaxSnapshotId(maxSnapshotId);
+    THolder<TProxy> proxy(CellManager->GetMasterProxy<TProxy>(masterId));
+    TProxy::TReqSync::TPtr request = proxy->Sync();
+    request->SetSegmentId(stateId.SegmentId);
+    request->SetChangeCount(stateId.ChangeCount);
+    request->SetEpoch(ProtoGuidFromGuid(epoch));
+    request->SetMaxSnapshotId(maxSnapshotId);
+    request->Invoke();
 
-    context->SetResponseInfo("StateId: %s, Epoch: %s, MaxSnapshotId: %d",
+    LOG_DEBUG("Sync sent to master %d (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
+        masterId,
+        ~stateId.ToString(),
+        ~StringFromGuid(epoch),
+        maxSnapshotId);
+}
+
+RPC_SERVICE_METHOD_IMPL(TMasterStateManager, Sync)
+{
+    UNUSED(response);
+
+    TMasterStateId stateId(
+        request->GetSegmentId(),
+        request->GetChangeCount());
+    TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
+    i32 maxSnapshotId = request->GetMaxSnapshotId();
+
+    context->SetRequestInfo("StateId: %s, Epoch: %s, MaxSnapshotId: %d",
         ~stateId.ToString(),
         ~StringFromGuid(epoch),
         maxSnapshotId);
 
     context->Reply();
+
+    if (~Recovery == NULL) {
+        LOG_WARNING("Unexpected sync received");
+        return;
+    }
+
+    Recovery->Sync(
+        stateId,
+        epoch,
+        maxSnapshotId);
 }
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetSnapshotInfo)

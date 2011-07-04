@@ -84,7 +84,8 @@ private:
     typedef TMasterStateManagerProxy TProxy;
     typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetCurrentState);
+    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ScheduleSync);
+    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, Sync);
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetSnapshotInfo);
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ReadSnapshot);
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetChangeLogInfo);
@@ -96,9 +97,7 @@ private:
     void RegisterMethods();
 
      // Work thread
-    void DoGetCurrentState(
-        TCtxGetCurrentState::TPtr context,
-        TMasterEpoch epoch);
+    void SendSync(TMasterId masterId, TMasterEpoch epoch);
 
     // Service thread
     void OnLeaderRecovery(TMasterRecovery::EResult result);

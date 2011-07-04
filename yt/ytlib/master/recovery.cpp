@@ -15,6 +15,11 @@ static NLog::TLogger Logger("MasterRecovery");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: make configurable
+static TDuration SyncTimeout = TDuration::MilliSeconds(1000);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMasterRecovery::TMasterRecovery(
     const TSnapshotDownloader::TConfig& snapshotDownloaderConfig,
     const TChangeLogDownloader::TConfig& changeLogDownloaderConfig,
@@ -27,7 +32,7 @@ TMasterRecovery::TMasterRecovery(
     IInvoker::TPtr invoker,
     IInvoker::TPtr epochInvoker,
     IInvoker::TPtr workQueue)
-    : IsPostponing(false)
+    : SyncReceived(false)
     , SnapshotDownloaderConfig(snapshotDownloaderConfig)
     , ChangeLogDownloaderConfig(changeLogDownloaderConfig)
     , CellManager(cellManager)
@@ -39,7 +44,9 @@ TMasterRecovery::TMasterRecovery(
     , ServiceInvoker(invoker)
     , EpochInvoker(epochInvoker)
     , WorkQueue(workQueue)
-{}
+    // TODO: use it for both leader and follower recovery?
+    , Result(new TResult())
+{ }
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverLeader(TMasterStateId stateId)
 {
@@ -166,32 +173,68 @@ void TMasterRecovery::ApplyChangeLog(
 
 TMasterRecovery::TResult::TPtr TMasterRecovery::RecoverFollower()
 {
-    LOG_INFO("Requesting state id from leader");
+    LOG_INFO("Requesting sync from leader");
+
+    TDelayedInvoker::Get()->Submit(
+        FromMethod(&TMasterRecovery::OnSyncTimeout, TPtr(this))->Via(ServiceInvoker),
+        SyncTimeout);
 
     TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-    TProxy::TReqGetCurrentState::TPtr request = leaderProxy->GetCurrentState();
-    // TODO: timeout
-    return request->Invoke()->Apply(
-               FromMethod(&TMasterRecovery::OnGetCurrentStateResponse, TPtr(this))
-               ->AsyncVia(EpochInvoker)
-               ->AsyncVia(ServiceInvoker));
+    TProxy::TReqScheduleSync::TPtr request = leaderProxy->ScheduleSync();
+    request->SetMasterId(CellManager->GetSelfId());
+    request->Invoke();
+    return Result;
+}
+
+void TMasterRecovery::OnSyncTimeout()
+{
+    if (SyncReceived)
+        return;
+
+    LOG_INFO("Sync timeout");
+    
+    Result->Set(E_Failed);
+}
+
+void TMasterRecovery::Sync(
+    const TMasterStateId& stateId,
+    const TMasterEpoch& epoch,
+    i32 maxSnapshotId)
+{
+    if (SyncReceived) {
+        LOG_WARNING("Duplicate sync received");
+        return;
+    }
+        
+    SyncReceived = true;
+
+    LOG_INFO("Sync received (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
+        ~stateId.ToString(),
+        ~StringFromGuid(epoch),
+        maxSnapshotId);
+
+    PostponedStateId = stateId;
+    YASSERT(PostponedChanges.ysize() == 0);
+
+    FromMethod(
+        &TMasterRecovery::DoRecoverFollower,
+        TPtr(this),
+        PostponedStateId,
+        Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId()))
+    ->Via(EpochInvoker)
+    ->Via(WorkQueue)
+    ->Do();
 }
 
 TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterStateId& stateId)
 {
-    if (!IsPostponing)
+    if (!SyncReceived) {
+        LOG_DEBUG("Postponed segment advance received before sync, ignored");
         return E_OK;
-
-    // TODO: drop once rpc becomes ordered
-    if (PostponedStateId > stateId) {
-        LOG_WARNING("Late postponed segment advance received (expected state: %s, received: %s)",
-            ~PostponedStateId.ToString(),
-            ~stateId.ToString());
-        return E_Failed;
     }
 
     if (PostponedStateId != stateId) {
-        LOG_WARNING("Out-of-order postponed segment advance received (expected state: %s, received: %s)",
+        LOG_WARNING("Out-of-order postponed segment advance received (ExpectedStateId: %s, StateId: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
@@ -212,19 +255,13 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
     const TMasterStateId& stateId,
     const TSharedRef& changeData)
 {
-    if (!IsPostponing)
+    if (!SyncReceived) {
+        LOG_DEBUG("Postponed change received before sync, ignored");
         return E_OK;
-
-    // TODO: drop once rpc becomes ordered
-    if (PostponedStateId > stateId) {
-        LOG_WARNING("Late postponed change received (expected state: %s, received: %s)",
-            ~PostponedStateId.ToString(),
-            ~stateId.ToString());
-        return E_Failed;
     }
 
     if (PostponedStateId != stateId) {
-        LOG_WARNING("Out-of-order postponed change received (expected state: %s, received: %s)",
+        LOG_WARNING("Out-of-order postponed change received (ExpectedStateId: %s, StateId: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
         return E_Failed;
@@ -240,48 +277,7 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
     return E_OK;
 }
 
-TMasterRecovery::TResult::TPtr TMasterRecovery::OnGetCurrentStateResponse(
-    TProxy::TRspGetCurrentState::TPtr response)
-{
-    if (!response->IsOK()) {
-        LOG_WARNING("Error %s requesting state id from leader",
-            ~response->GetErrorCode().ToString());
-        return new TResult(E_Failed);
-    }
-
-    TMasterEpoch epoch = GuidFromProtoGuid(response->GetEpoch());
-    if (epoch != Epoch) {
-        LOG_WARNING("Leader replied with a wrong epoch (expected: %s, received: %s)",
-            ~StringFromGuid(Epoch),
-            ~StringFromGuid(epoch));
-        return new TResult(E_Failed);
-    }
-
-    PostponedStateId = TMasterStateId(
-        response->GetSegmentId(),
-        response->GetChangeCount());
-    IsPostponing = true;
-
-    LOG_INFO("Postponed state is %s", ~PostponedStateId.ToString());
-
-    i32 maxSnapshotId = Max(
-        response->GetMaxSnapshotId(),
-        SnapshotStore->GetMaxSnapshotId());
-  
-    YASSERT(PostponedChanges.ysize() == 0);
-
-    return
-        FromMethod(
-            &TMasterRecovery::DoRecoverFollower,
-            TPtr(this),
-            PostponedStateId,
-            maxSnapshotId)
-        ->AsyncVia(EpochInvoker)
-        ->AsyncVia(WorkQueue)
-        ->Do();
-}
-
-TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
+void TMasterRecovery::DoRecoverFollower(
     TMasterStateId targetStateId,
     i32 maxSnapshotId)
 {
@@ -308,7 +304,9 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
             if (snapshotResult != TSnapshotDownloader::OK) {
                 LOG_ERROR("Error %d while downloading snapshot %d",
                     snapshotResult, maxSnapshotId);
-                return new TResult(E_Failed);
+
+                Result->Set(E_Failed);
+                return;
             }
 
             snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
@@ -355,7 +353,9 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
         if (!response->IsOK()) {
             LOG_ERROR("Could not get changelog %d info from leader",
                         segmentId);
-            return new TResult(E_Failed);
+
+            Result->Set(E_Failed);
+            return;
         }
 
         i32 localRecordCount = changeLog->GetRecordCount();
@@ -394,7 +394,9 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
                 LOG_ERROR("Error %d while downloading changelog %d",
                     (int) changeLogResult,
                     segmentId);
-                return new TResult(E_Failed);
+
+                Result->Set(E_Failed);
+                return;
             }
         }
 
@@ -412,19 +414,21 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
 
     YASSERT(MasterState->GetStateId() == targetStateId);
 
-    return
-        FromMethod(&TMasterRecovery::CapturePostponedChanges, this)
-        ->AsyncVia(EpochInvoker)
-        ->AsyncVia(ServiceInvoker)
-        ->Do();
+    FromMethod(
+        &TMasterRecovery::CapturePostponedChanges,
+        TPtr(this))
+    ->Via(EpochInvoker)
+    ->Via(ServiceInvoker)
+    ->Do();
 }
 
-TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
+void TMasterRecovery::CapturePostponedChanges()
 {
     // TODO: use threshold?
     if (PostponedChanges.ysize() == 0) {
         LOG_INFO("No postponed changes left");
-        return new TResult(E_OK);
+        Result->Set(E_OK);
+        return;
     }
 
     THolder<TPostponedChanges> changes(new TPostponedChanges());
@@ -432,15 +436,16 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::CapturePostponedChanges()
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
 
-    return
-        FromMethod(&TMasterRecovery::ApplyPostponedChanges, TPtr(this), changes)
-        ->AsyncVia(EpochInvoker)
-        ->AsyncVia(WorkQueue)
-        ->Do();
+    FromMethod(
+        &TMasterRecovery::ApplyPostponedChanges,
+        TPtr(this),
+        changes)
+    ->Via(EpochInvoker)
+    ->Via(WorkQueue)
+    ->Do();
 }
 
-TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
-    TAutoPtr<TPostponedChanges> changes)
+void TMasterRecovery::ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes)
 {
     LOG_INFO("Applying %d postponed change(s)", changes->ysize());
     
@@ -466,11 +471,12 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
    
     LOG_INFO("Finished applying postponed changes");
 
-    return
-        FromMethod(&TMasterRecovery::CapturePostponedChanges, TPtr(this))
-        ->AsyncVia(EpochInvoker)
-        ->AsyncVia(ServiceInvoker)
-        ->Do();
+    FromMethod(
+        &TMasterRecovery::CapturePostponedChanges,
+        TPtr(this))
+    ->Via(EpochInvoker)
+    ->Via(ServiceInvoker)
+    ->Do();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

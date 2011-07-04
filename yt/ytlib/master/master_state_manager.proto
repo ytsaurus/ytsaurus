@@ -2,16 +2,27 @@ package NYT.NRpcMasterStateManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetCurrentState
+message TReqScheduleSync
+{
+    optional int32 MasterId = 1;
+}
+
+message TRspScheduleSync
 {
 }
 
-message TRspGetCurrentState
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSync
 {
     optional int32 SegmentId = 1;
     optional int32 ChangeCount = 2;
     optional bytes Epoch = 3;
     optional int32 MaxSnapshotId = 4;
+}
+
+message TRspSync
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,7 +33,8 @@ public:
         : TProxyBase(channel, GetServiceName())
     {}
 
-    RPC_PROXY_METHOD(NRpcMasterStateManager, GetCurrentState);
+    RPC_PROXY_METHOD(NRpcMasterStateManager, ScheduleSync);
+    RPC_PROXY_METHOD(NRpcMasterStateManager, Sync);
     RPC_PROXY_METHOD(NRpcMasterStateManager, ReadSnapshot);
     RPC_PROXY_METHOD(NRpcMasterStateManager, ReadChangeLog);
     RPC_PROXY_METHOD(NRpcMasterStateManager, GetSnapshotInfo);

@@ -64,6 +64,11 @@ public:
      */
     EResult PostponeChange(const TMasterStateId& stateId, const TSharedRef& change);
 
+    void Sync(
+        const TMasterStateId& stateId,
+        const TMasterEpoch& epoch,
+        i32 maxSnapshotId);
+
 private:
     struct TPostponedChange
     {
@@ -96,19 +101,20 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Service thread
-    bool IsPostponing;
     TPostponedChanges PostponedChanges;
     TMasterStateId PostponedStateId;
+    bool SyncReceived;
 
     // Work thread
     EResult DoRecoverLeader(TMasterStateId targetStateId);
-    TResult::TPtr OnGetCurrentStateResponse(TProxy::TRspGetCurrentState::TPtr response);
-    TResult::TPtr DoRecoverFollower(TMasterStateId targetStateId, i32 maxSnapshotId);
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+
+    void DoRecoverFollower(TMasterStateId targetStateId, i32 maxSnapshotId);
+    void ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
     void ApplyChangeLog(TChangeLog::TPtr changeLog, i32 targetChangeCount);
 
      // Service thread
-    TResult::TPtr CapturePostponedChanges();
+    void OnSyncTimeout();
+    void CapturePostponedChanges();
 
     TSnapshotDownloader::TConfig SnapshotDownloaderConfig;
     TChangeLogDownloader::TConfig ChangeLogDownloaderConfig;
@@ -121,6 +127,7 @@ private:
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr EpochInvoker;
     IInvoker::TPtr WorkQueue;
+    TResult::TPtr Result;
 
 };
 
