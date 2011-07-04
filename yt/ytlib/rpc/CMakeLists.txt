@@ -6,4 +6,5 @@ SET(YT_SOURCE_FILES
     service.cpp
     server.cpp
     rpc.proto
+    message_rearranger.cpp
 )
