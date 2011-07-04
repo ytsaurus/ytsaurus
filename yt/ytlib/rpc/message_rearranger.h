@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-
 #include "message.h"
 
 #include "../actions/delayed_invoker.h"
@@ -11,27 +10,29 @@ namespace NRpc{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef i64 TSequenceId;
 class TMessageRearranger
     : public TNonCopyable
 {
 public:
-    TMessageRearranger(IParamAction<IMessage::TPtr>::TPtr onMessage, TDuration maxDelay);
+    TMessageRearranger(
+        IParamAction<IMessage::TPtr>::TPtr onMessage,
+        TDuration timeout);
 
-    void ArrangeMessage(IMessage::TPtr message, TSequenceId sequenceId);
+    void ArrangeMessage(
+        IMessage::TPtr message,
+        TSequenceId sequenceId);
 
 private:
+    typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
+
     IParamAction<IMessage::TPtr>::TPtr OnMessage;
-    TDuration MaxDelay;
+    TDuration Timeout;
     TDelayedInvoker::TCookie TimeoutCookie; // for delay
     TSpinLock SpinLock;
-
-    typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
+    TSequenceId ExpectedSequenceId;
     TMessageMap MessageMap;
 
     void OnExpired();
-
-    TSequenceId WaitingId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
