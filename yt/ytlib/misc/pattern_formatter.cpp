@@ -21,44 +21,53 @@ void TPatternFormatter::AddProperty(Stroka name, Stroka value)
 Stroka TPatternFormatter::Format(Stroka pattern)
 {
     Stroka result;
-    result.reserve(1024);
+
     for (size_t pos = 0; pos < pattern.size(); ++pos) {
         if (pattern[pos] != Dollar) {
             result.append(pattern[pos]);
             continue;
         }
-        size_t nextPos = pos + 1;
-        if (nextPos >= pattern.size() || pattern[nextPos] != LeftParen) {
+        ++pos;
+
+        if (pos >= pattern.size() || pattern[pos] != LeftParen) {
             ythrow yexception() <<
-                   Sprintf("expected \"%c\" at position %d", LeftParen, (int) nextPos);
+                   Sprintf("expected \"%c\" at position %d", LeftParen, (int) pos);
         }
-        Stroka property;
-        bool found = false;
-        bool isOptional = false;
-        for (pos = nextPos + 1; pos < pattern.size(); ++pos) {
+        ++pos;
+
+        bool foundRightParen = false;
+        size_t startProperty = pos;
+        size_t endProperty;
+
+        for (; pos < pattern.size(); ++pos) {
             if (pattern[pos] == RightParen) {
-                found = true;
-                TPropertyMap::iterator it = PropertyMap.find(property);
-                if (it == PropertyMap.end()) {
-                    if (!isOptional) {
-                        ythrow yexception() <<
-                            Sprintf("property %s wasn't defined", ~property);
-                    }
-                } else {
-                    result.append(it->second);
-                }
+                foundRightParen = true;
+                endProperty = pos;
                 break;
             }
-            if (pattern[pos] != Question) {
-                property.append(pattern[pos]);
-            } else {
-                isOptional = true;
-            }
         }
-        if (!found) {
+
+        if (!foundRightParen) {
             ythrow yexception() <<
                 Sprintf("can't find \"%c\" for \"%c\" at position %d",
-                        RightParen, LeftParen, (int) nextPos);
+                        RightParen, LeftParen, (int) startProperty - 1);
+        }
+
+        bool isOptional = false;
+        if (pattern[endProperty-1] == Question) {
+            --endProperty;
+            isOptional = true;
+        }
+
+        Stroka property = pattern.substr(startProperty, endProperty - startProperty);
+        TPropertyMap::iterator it = PropertyMap.find(property);
+        if (it == PropertyMap.end()) {
+            if (!isOptional) {
+                ythrow yexception() <<
+                    Sprintf("property %s wasn't defined", ~property);
+            }
+        } else {
+            result.append(it->second);
         }
     }
     return result;
