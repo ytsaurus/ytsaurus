@@ -182,6 +182,14 @@ TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterSt
     if (!IsPostponing)
         return E_OK;
 
+    // TODO: drop once rpc becomes ordered
+    if (PostponedStateId > stateId) {
+        LOG_WARNING("Late postponed segment advance received (expected state: %s, received: %s)",
+            ~PostponedStateId.ToString(),
+            ~stateId.ToString());
+        return E_Failed;
+    }
+
     if (PostponedStateId != stateId) {
         LOG_WARNING("Out-of-order postponed segment advance received (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
@@ -191,6 +199,9 @@ TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterSt
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
     
+    LOG_DEBUG("Enqueued postponed segment advance %s",
+        ~PostponedStateId.ToString());
+
     ++PostponedStateId.SegmentId;
     PostponedStateId.ChangeCount = 0;
     
@@ -204,6 +215,14 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
     if (!IsPostponing)
         return E_OK;
 
+    // TODO: drop once rpc becomes ordered
+    if (PostponedStateId > stateId) {
+        LOG_WARNING("Late postponed change received (expected state: %s, received: %s)",
+            ~PostponedStateId.ToString(),
+            ~stateId.ToString());
+        return E_Failed;
+    }
+
     if (PostponedStateId != stateId) {
         LOG_WARNING("Out-of-order postponed change received (expected state: %s, received: %s)",
             ~PostponedStateId.ToString(),
@@ -212,6 +231,12 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
     }
 
     PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
+    
+    LOG_DEBUG("Enqueued postponed change %s",
+        ~PostponedStateId.ToString());
+
+    ++PostponedStateId.ChangeCount;
+
     return E_OK;
 }
 
@@ -347,16 +372,21 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
             LOG_FATAL("Remote changelog has insufficient records to reach the requested state");
         }
 
+        i32 targetChangeCount =
+            segmentId == targetStateId.SegmentId
+            ? targetStateId.ChangeCount
+            : remoteRecordCount;
+
         // TODO: use changeLogWriter instead
-        if (localRecordCount > remoteRecordCount) {
+        if (remoteRecordCount < targetChangeCount) {
             changeLog->Truncate(remoteRecordCount);
             // TODO: finalize?
             // TODO: this could only happen with the last changelog
-        } else if (localRecordCount < remoteRecordCount) {
+        } else if (localRecordCount < targetChangeCount) {
             // TODO: extract method
             TChangeLogDownloader changeLogDownloader(ChangeLogDownloaderConfig, CellManager);
             TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
-                TMasterStateId(segmentId, remoteRecordCount),
+                TMasterStateId(segmentId, targetChangeCount),
                 &cachedChangeLog->GetWriter());
 
             if (changeLogResult != TChangeLogDownloader::OK) {
@@ -372,11 +402,6 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::DoRecoverFollower(
             LOG_WARNING("Changelog %d was not finalized", segmentId);
             cachedChangeLog->GetWriter().Close();
         }
-
-        i32 targetChangeCount =
-            segmentId == targetStateId.SegmentId
-            ? targetStateId.ChangeCount
-            : remoteRecordCount;
 
         ApplyChangeLog(changeLog, targetChangeCount);
 

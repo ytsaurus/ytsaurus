@@ -368,7 +368,7 @@ private:
 #define USE_RPC_SERVICE_METHOD_LOGGER() \
     ::NYT::NLog::TPrefixLogger Logger( \
         ServiceLogger, \
-        context->GetMethodName() + ": ");
+        context->GetMethodName() + ": ")
         
 ////////////////////////////////////////////////////////////////////////////////
 

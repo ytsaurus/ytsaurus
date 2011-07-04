@@ -221,6 +221,7 @@ public:
     TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
         , Awaiter(new TParallelAwaiter(electionManager->Invoker))
+        , EpochInvoker(electionManager->EpochInvoker)
     { }
 
     void Run() 
@@ -283,6 +284,7 @@ private:
 
     TElectionManager::TPtr ElectionManager;
     TParallelAwaiter::TPtr Awaiter;
+    TCancelableInvoker::TPtr EpochInvoker;
     TStatusTable StatusTable;
 
     bool ProcessVote(TMasterId id, const TStatus& status)
@@ -379,9 +381,15 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == ElectionManager->CellManager->GetSelfId()) {
-            ElectionManager->StartLeading();
+            EpochInvoker->Invoke(FromMethod(
+                &TElectionManager::StartLeading,
+                TElectionManager::TPtr(ElectionManager)));
         } else {
-            ElectionManager->StartFollowing(candidateId, candidateStatus.VoteEpoch);
+            EpochInvoker->Invoke(FromMethod(
+                &TElectionManager::StartFollowing,
+                TElectionManager::TPtr(ElectionManager),
+                candidateId,
+                candidateStatus.VoteEpoch));
         }
 
         return true;
@@ -542,6 +550,10 @@ void TElectionManager::Reset()
     VoteEpoch = TGUID();
     Epoch = TGUID();
     EpochStart = TInstant();
+    if (~EpochInvoker != NULL) {
+        EpochInvoker->Cancel();
+        EpochInvoker.Drop();
+    }
     AliveFollowers.clear();
     PotentialFollowers.clear();
     PingTimeoutCookie.Drop();
@@ -562,11 +574,7 @@ void TElectionManager::DoStart()
 {
     YASSERT(State == TProxy::EState::Stopped);
 
-    if (false/*CellManager->GetMasterCount() == 1*/) {
-        StartLeading();
-    } else {
-        StartVoteForSelf();
-    }    
+    StartVoteForSelf();
 }
 
 void TElectionManager::DoStop()
@@ -602,6 +610,9 @@ void TElectionManager::StartVoteForSelf()
     State = TProxy::EState::Voting;
     VoteId = CellManager->GetSelfId();
     CreateGuid(&VoteEpoch);
+
+    YASSERT(~EpochInvoker == NULL);
+    EpochInvoker = new TCancelableInvoker();
 
     TMasterPriority priority = ElectionCallbacks->GetPriority();
 
@@ -687,8 +698,8 @@ void TElectionManager::StopFollowing()
     YASSERT(State == TProxy::EState::Following);
 
     LOG_INFO("Stopping following (LeaderId: %d, Epoch: %s)",
-               LeaderId,
-               ~StringFromGuid(Epoch));
+        LeaderId,
+        ~StringFromGuid(Epoch));
     
     StopEpoch();
     
@@ -704,9 +715,6 @@ IInvoker::TPtr TElectionManager::GetEpochInvoker() const
 
 void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
 {
-    YASSERT(~EpochInvoker == NULL);
-    EpochInvoker = new TCancelableInvoker();
-
     LeaderId = leaderId;
     Epoch = epoch;
     EpochStart = Now();
@@ -714,9 +722,6 @@ void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
 
 void TElectionManager::StopEpoch()
 {
-    EpochInvoker->Cancel();
-    EpochInvoker.Drop();
-
     LeaderId = InvalidMasterId;
     Epoch = TGUID();
     EpochStart = TInstant();

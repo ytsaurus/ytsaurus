@@ -13,8 +13,6 @@
 #include <util/datetime/base.h>
 #include <util/system/thread.h>
 
-#include <quality/util/file_utils.h>
-
 namespace NYT {
 namespace NLog {
 
@@ -42,8 +40,11 @@ public:
     void Write(const TLogEvent& event);
 
 private:
-    yvector<ILogWriter::TPtr> GetWriters(const TLogEvent& event);
-    yvector<ILogWriter::TPtr> GetConfiguredWriters(const TLogEvent& event);
+    typedef yvector<ILogWriter::TPtr> TLogWriters;
+    typedef ymap<TPair<Stroka, ELogLevel>, TLogWriters> TCachedWriters;
+
+    TLogWriters GetWriters(const TLogEvent& event);
+    TLogWriters GetConfiguredWriters(const TLogEvent& event);
 
     ELogLevel GetMinLevel(Stroka category);
 
@@ -59,7 +60,8 @@ private:
 
     TActionQueue::TPtr Queue;
 
-    yvector<ILogWriter::TPtr> SystemWriters;
+    TLogWriters SystemWriters;
+    TCachedWriters CachedWriters;
 
     void ConfigureDefault();
     void ConfigureSystem();
@@ -143,9 +145,9 @@ void LogEventImpl(
     const Stroka& message)
 {
     TLogEvent event(logger.GetCategory(), level, message);
-    event.AddProperty("file", GetFilename(fileName));
+    event.AddProperty("file", fileName);
     event.AddProperty("line", ToString(line));
-    event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
+    //event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
     event.AddProperty("function", function);
     logger.Write(event);
 }

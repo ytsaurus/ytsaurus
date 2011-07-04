@@ -227,8 +227,15 @@ yvector<ILogWriter::TPtr> TLogManager::GetWriters(const TLogEvent& event)
 {
     if (event.GetCategory() == SystemLoggingCategory)
         return SystemWriters;
-    else
-        return GetConfiguredWriters(event);
+
+    TPair<Stroka, ELogLevel> cacheKey(event.GetCategory(), event.GetLevel());
+    TCachedWriters::iterator it = CachedWriters.find(cacheKey);
+    if (it != CachedWriters.end())
+        return it->second;
+    
+    TLogWriters writers = GetConfiguredWriters(event);
+    CachedWriters.insert(MakePair(cacheKey, writers));
+    return writers;
 }
 
 yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& event)
@@ -237,8 +244,10 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
     ELogLevel level = event.GetLevel();
 
     yhash_set<Stroka> writerIds;
-    for (TConfig::TRules::iterator it = Configuration->Rules.begin();
-        it != Configuration->Rules.end(); ++it) {
+    for (TConfig::TRules::const_iterator it = Configuration->Rules.begin();
+        it != Configuration->Rules.end();
+        ++it)
+    {
         if (it->IsApplicable(event)) {
             writerIds.insert(it->Writers.begin(), it->Writers.end());
         }

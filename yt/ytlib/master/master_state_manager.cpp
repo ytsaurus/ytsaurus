@@ -71,6 +71,7 @@ void TMasterStateManager::RegisterMethods()
 
 void TMasterStateManager::Restart()
 {
+    MyEpoch = TGUID();
     ElectionManager->Restart();
 }
 
@@ -126,11 +127,13 @@ void TMasterStateManager::Start()
     ElectionManager->Start();
 }
 
-void TMasterStateManager::StartEpoch(TMasterEpoch epoch)
+void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
 {
     YASSERT(~EpochInvoker == NULL);
     EpochInvoker = ElectionManager->GetEpochInvoker();
     Epoch = epoch;
+
+    CreateGuid(&MyEpoch);
 
     TChangeLogDownloader::TConfig changeLogDownloaderConfig;
     // TODO: fill config
@@ -177,6 +180,7 @@ void TMasterStateManager::StopEpoch()
     LeaderId = InvalidMasterId;
     EpochInvoker.Drop();
     Epoch = TMasterEpoch();
+    MyEpoch = TMasterEpoch();
     Recovery.Drop();
     ChangeCommitter.Drop();
     SnapshotCreator.Drop();
@@ -188,19 +192,19 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetCurrentState)
 {
     UNUSED(request);
     UNUSED(response);
-   
-    if (State == S_Leading) {
-        WorkQueue->Invoke(FromMethod(
-            &TMasterStateManager::DoGetCurrentState,
-            TPtr(this),
-            context,
-            Epoch));
-    } else {
-        context->Reply(TProxy::EErrorCode::InvalidState);
 
-        LOG_DEBUG("GetSnapshotInfo: Invalid state %d",
-                    (int) State);
+    context->SetRequestInfo("");
+   
+    if (State != S_Leading) {
+        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+            Sprintf("invalid state %d", (int) State);
     }
+
+    WorkQueue->Invoke(FromMethod(
+        &TMasterStateManager::DoGetCurrentState,
+        TPtr(this),
+        context,
+        Epoch));
 }
 
 void TMasterStateManager::DoGetCurrentState(
@@ -214,77 +218,90 @@ void TMasterStateManager::DoGetCurrentState(
     context->Response().SetChangeCount(stateId.ChangeCount);
     context->Response().SetEpoch(ProtoGuidFromGuid(epoch));
     context->Response().SetMaxSnapshotId(maxSnapshotId);
-    context->Reply();
 
-    LOG_DEBUG("GetCurrentState: (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
+    context->SetResponseInfo("StateId: %s, Epoch: %s, MaxSnapshotId: %d",
         ~stateId.ToString(),
         ~StringFromGuid(epoch),
         maxSnapshotId);
+
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetSnapshotInfo)
 {
     i32 snapshotId = request->GetSnapshotId();
+
+    context->SetRequestInfo("SnapshotId: %d",
+        snapshotId);
+
     try {
+        // TODO: extract method
         TAutoPtr<TSnapshotReader> reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            LOG_DEBUG("GetSnapshotInfo: Invalid id %d", snapshotId);
-            context->Reply(TProxy::EErrorCode::InvalidSegmentId);
-            return;
+            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+                Sprintf("invalid snapshot id %d", snapshotId);
         }
 
         reader->Open();
+        
         i64 length = reader->GetLength();
+        TChecksum checksum = reader->GetChecksum();
+        int prevRecordCount = reader->GetPrevRecordCount();
 
         response->SetLength(length);
-        response->SetPrevRecordCount(reader->GetPrevRecordCount());
-        response->SetChecksum(reader->GetChecksum());
+        response->SetPrevRecordCount(prevRecordCount);
+        response->SetChecksum(checksum);
+
+        context->SetResponseInfo("Length: %" PRId64 ", PrevRecordCount: %d, Checksum: %" PRIx64,
+            length,
+            prevRecordCount,
+            checksum);
+
         context->Reply();
-
-        LOG_DEBUG("GetSnapshotInfo: (Id: %d, Length: %" PRId64 ")",
-            snapshotId,
-            length);
     } catch (const yexception& ex) {
-        context->Reply(TProxy::EErrorCode::IOError);
-
-        LOG_DEBUG("GetSnapshotInfo: IO error in snapshot %d: %s",
-            snapshotId, ex.what());
+        // TODO: fail?
+        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+            Sprintf("IO error in snapshot %d: %s",
+                snapshotId,
+                ex.what());
     }
 }
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadSnapshot)
 {
     i32 snapshotId = request->GetSnapshotId();
+    i64 offset = request->GetOffset();
+    i32 length = request->GetLength();
+
+    context->SetRequestInfo("SnapshotId: %d, Offset: %" PRId64 ", Length: %d",
+        snapshotId,
+        offset,
+        length);
+
+    YASSERT(offset >= 0);
+    YASSERT(length >= 0);
+
     try {
         TAutoPtr<TSnapshotReader> reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            context->Reply(TProxy::EErrorCode::InvalidSegmentId);
-
-            LOG_DEBUG("ReadSnapshot: Invalid id %d",
-                snapshotId);
-            return;
+            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+                Sprintf("invalid snapshot id %d", snapshotId);
         }
 
-        i64 offset = request->GetOffset();
-        YASSERT(offset >= 0);
-
-        i32 length = request->GetLength();
-        YASSERT(length >= 0);
-
         reader->Open(offset);
+
         TBlob data(length);
         i32 bytesRead = reader->GetStream().Read(data.begin(), length);
         data.erase(data.begin() + bytesRead, data.end());
 
         response->Attachments().push_back(TSharedRef(data));
 
-        context->Reply();
-
-        LOG_DEBUG("ReadSnapshot: (Id: %d, Offset: %" PRId64 ", BytesRead: %d)",
-            snapshotId,
-            offset,
+        context->SetResponseInfo("BytesRead: %d",
             bytesRead);
+
+        context->Reply();
     } catch (const yexception& ex) {
+        // TODO: fail?
         context->Reply(TProxy::EErrorCode::IOError);
 
         LOG_ERROR("ReadSnapshot: IO error in snapshot %d: %s",
@@ -294,24 +311,35 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadSnapshot)
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 {
+    // TODO: rename to changeLogId
     i32 segmentId = request->GetSegmentId();
+
+    context->SetRequestInfo("ChangeLogId: %d",
+        segmentId);
+
     try {
+        // TODO: extract method
         TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
         if (~cachedChangeLog == NULL) {
-            LOG_DEBUG("GetChangeLogInfo: Invalid id %d",
-                        segmentId);
-            context->Reply(TProxy::EErrorCode::InvalidSegmentId);
-            return;
+            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+                Sprintf("invalid changelog id %d", segmentId);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
-        i32 recordCount = changeLog->GetRecordCount();
-        response->SetRecordCount(recordCount);
-        context->Reply();
+        // TODO: hack!
+        cachedChangeLog->GetWriter().Flush();
 
-        LOG_DEBUG("GetChangeLogInfo: Info reported (Id: %d, RecordCount: %d)",
-                    segmentId, recordCount);
+        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+
+        i32 recordCount = changeLog->GetRecordCount();
+        
+        response->SetRecordCount(recordCount);
+        
+        context->SetResponseInfo("RecordCount: %d",
+            recordCount);
+        
+        context->Reply();
     } catch (const yexception& ex) {
+        // TODO: fail?
         context->Reply(TProxy::EErrorCode::IOError);
 
         LOG_ERROR("GetChangeLogInfo: IO error in changelog %d: %s",
@@ -322,20 +350,30 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
 {
     i32 segmentId = request->GetSegmentId();
+    // TODO: rename to startRecordId
+    i32 startRecordCount = request->GetStartRecordId();
+    i32 recordCount = request->GetRecordCount();
+    
+    context->SetRequestInfo("SegmentId: %d, StartRecordId: %d, RecordCount: %d",
+        segmentId,
+        startRecordCount,
+        recordCount);
+
+    YASSERT(startRecordCount >= 0);
+    YASSERT(recordCount >= 0);
+    
     try {
+        // TODO: extract method
         TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
         if (~cachedChangeLog == NULL) {
-            LOG_WARNING("ReadChangeLog: Invalid snapshot %d", segmentId);
-            context->Reply(TProxy::EErrorCode::InvalidSegmentId);
-            return;
+            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+                Sprintf("invalid changelog id %d", segmentId);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
-        i32 startRecordCount = request->GetStartRecordId();
-        YASSERT(startRecordCount >= 0);
+        // TODO: hack!
+        cachedChangeLog->GetWriter().Flush();
 
-        i32 recordCount = request->GetRecordCount();
-        YASSERT(recordCount >= 0);
+        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
 
         TBlob dataHolder;
         yvector<TRef> recordData;
@@ -348,11 +386,12 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
             response->Attachments().push_back(TSharedRef(data));
         }
         
-        context->Reply();
+        context->SetResponseInfo("RecordCount: %d",
+            recordData.ysize());
 
-        LOG_DEBUG("ReadChangeLog: (Id: %d, RecordCount: %d)",
-                    segmentId, recordData.ysize());
+        context->Reply();
     } catch (const yexception& ex) {
+        // TODO: fail?
         context->Reply(TProxy::EErrorCode::IOError);
 
         LOG_ERROR("ReadChangeLog: IO error in changelog %d: %s",
@@ -362,46 +401,44 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 {
-    if (State != S_Following && State != S_FollowerRecovery) {
-        LOG_WARNING("ApplyChange: invalid state %d",
-            State);
-
-        context->Reply(TProxy::EErrorCode::InvalidState);
-        return;
-    }
-
     TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
-    if (epoch != Epoch) {
-        LOG_WARNING("ApplyChange: invalid epoch (expected: %s, received: %s)",
-            ~StringFromGuid(Epoch), ~StringFromGuid(epoch));
-
-        context->Reply(TProxy::EErrorCode::InvalidEpoch);
-        Restart();
-        return;
-    }
-
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
 
-    YASSERT(request->Attachments().size() == 1);
+    context->SetRequestInfo("Epoch: %s, StateId: %s",
+        ~StringFromGuid(epoch),
+        ~stateId.ToString());
+
+    if (State != S_Following && State != S_FollowerRecovery) {
+        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+            Sprintf("invalid state %d", State);
+    }
+
+    if (epoch != Epoch) {
+        Restart();
+        ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
+            Sprintf("invalid epoch (expected: %s, received: %s)",
+                ~StringFromGuid(Epoch),
+                ~StringFromGuid(epoch));
+    }
     
+    YASSERT(request->Attachments().size() == 1);
     const TSharedRef& changeData = request->Attachments().at(0);
 
     switch (State) {
         case S_Following:
-            LOG_DEBUG("ApplyChange: applying change %s",
-                ~stateId.ToString());
+            LOG_DEBUG("ApplyChange: applying change");
 
             ChangeCommitter->CommitLocal(stateId, changeData)->Subscribe(FromMethod(
                 &TMasterStateManager::OnLocalCommit,
                 TPtr(this),
-                context));
+                context,
+                MyEpoch)->Via(ServiceInvoker));
             break;
 
         case S_FollowerRecovery:
-            LOG_DEBUG("ApplyChange: keeping postponed change %s",
-                ~stateId.ToString());
+            LOG_DEBUG("ApplyChange: keeping postponed change");
             
             // TODO: check result
             Recovery->PostponeChange(stateId, changeData);
@@ -417,7 +454,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 
 void TMasterStateManager::OnLocalCommit(
     TChangeCommitter::EResult result,
-    TCtxApplyChange::TPtr context)
+    TCtxApplyChange::TPtr context,
+    const TMasterEpoch& myEpoch)
 {
     TReqApplyChange& request = context->Request();
     TRspApplyChange& response = context->Response();
@@ -428,17 +466,20 @@ void TMasterStateManager::OnLocalCommit(
         case TChangeCommitter::Committed:
             response.SetCommitted(true);
             context->Reply();
-
-            LOG_DEBUG("ApplyChange: Change %s is committed",
-                ~stateId.ToString());
             break;
 
         case TChangeCommitter::InvalidStateId:
             context->Reply(TProxy::EErrorCode::InvalidStateId);
-            Restart();
 
-            LOG_WARNING("ApplyChange: Change %s is unexpected, restarting",
-                ~stateId.ToString());
+            if (myEpoch == MyEpoch) {
+                Restart();
+                LOG_WARNING("ApplyChange: change %s is unexpected, restarting",
+                    ~stateId.ToString());
+            } else {
+                LOG_WARNING("ApplyChange: change %s is unexpected",
+                    ~stateId.ToString());
+            }
+
             break;
 
         default:
@@ -447,38 +488,37 @@ void TMasterStateManager::OnLocalCommit(
 }
 
 //TODO: rename CreateSnapshot to AdvanceSegment
+//TODO: reply whether snapshot was created
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 {
     UNUSED(response);
 
-    //TODO: we have to reply whether snapshot was created
-
-    if (State != S_Following && State != S_FollowerRecovery) {
-        LOG_WARNING("CreateSnapshot: Invalid state %d",
-            State);
-
-        context->Reply(TProxy::EErrorCode::InvalidState);
-        return;
-    }
-
     TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
-    if (epoch != Epoch) {
-        LOG_WARNING("CreateSnapshot: Invalid epoch: expected %s, received %s",
-            ~StringFromGuid(Epoch), ~StringFromGuid(epoch));
-
-        context->Reply(TProxy::EErrorCode::InvalidEpoch);
-        Restart();
-        return;
-    }
-
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
 
+    context->SetRequestInfo("Epoch: %s, StateId: %s",
+        ~StringFromGuid(epoch),
+        ~stateId.ToString());
+
+    if (State != S_Following && State != S_FollowerRecovery) {
+        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+            Sprintf("invalid state %d",
+                State);
+    }
+
+    if (epoch != Epoch) {
+        Restart();
+        ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
+            Sprintf("invalid epoch: expected %s, received %s",
+                ~StringFromGuid(Epoch),
+                ~StringFromGuid(epoch));
+    }
+
     switch (State) {
         case S_Following:
-            LOG_DEBUG("CreateSnapshot: creating snapshot %s",
-                ~stateId.ToString());
+            LOG_DEBUG("CreateSnapshot: creating snapshot");
 
             SnapshotCreator->CreateLocal(stateId)->Subscribe(FromMethod(
                 &TMasterStateManager::OnCreateLocalSnapshot,
@@ -487,8 +527,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
             break;
             
         case S_FollowerRecovery:
-            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance %s",
-                ~stateId.ToString());
+            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance");
 
             // TODO: check result
             Recovery->PostponeSegmentAdvance(stateId);
@@ -505,20 +544,23 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
 {
     UNUSED(response);
-    
+
     TMasterId followerId = request->GetFollowerId();
     TMasterEpoch followerEpoch = GuidFromProtoGuid(request->GetEpoch());
     EState followerState = static_cast<EState>(request->GetState());
 
+    context->SetRequestInfo("Id: %d, Epoch: %s, State: %d",
+        followerId,
+        ~StringFromGuid(followerEpoch),
+        followerState);
+
     if (State != S_Leading) {
-        LOG_DEBUG("PingLeader: Invalid state (MyState: %d, FollowerId: %d, FollowerState: %d, FollowerEpoch: %s)",
-            (int) State, followerId, (int) followerState, ~StringFromGuid(followerEpoch));
+        LOG_DEBUG("PingLeader: invalid state (State: %d)",
+            (int) State);
     } else if (followerEpoch != Epoch ) {
-        LOG_DEBUG("PingLeader: Invalid epoch (FollowerId: %d, FollowerState: %d, FollowerEpoch: %s)",
-            followerId, (int) followerState, ~StringFromGuid(followerEpoch));
+        LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
+            ~StringFromGuid(Epoch));
     } else {
-        LOG_DEBUG("PingLeader: (FollowerId: %d, State: %d)",
-            followerId, static_cast<int>(followerState));
         FollowerStateTracker->ProcessPing(followerId, followerState);
     }
 

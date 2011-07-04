@@ -48,6 +48,17 @@ public:
         return TVoid();
     }
 
+    TVoid Flush(TChangeLog::TPtr changeLog)
+    {
+        TChangeLogEntryMap::iterator it = ChangeLogEntryMap.find(changeLog);
+        if (it != ChangeLogEntryMap.end()) {
+            TChangeLogEntry::TPtr entry = it->second;
+            entry->Flush();
+            ChangeLogEntryMap.erase(it);
+        }
+        return TVoid();
+    }
+
 private:
     class TChangeLogEntry
         : public TRefCountedBase
@@ -136,6 +147,15 @@ TChangeLogWriter::TAppendResult::TPtr TChangeLogWriter::Append(
         ChangeLog,
         result));
     return result;
+}
+
+void TChangeLogWriter::Flush()
+{
+    FromMethod(&TImpl::Flush, Impl, ChangeLog)
+        ->AsyncVia(~Impl)
+        ->Do()
+        ->Get();
+    LOG_INFO("Changelog %d was flushed", ChangeLog->GetId());
 }
 
 void TChangeLogWriter::Close()

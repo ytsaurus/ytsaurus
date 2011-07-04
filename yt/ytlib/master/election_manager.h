@@ -68,9 +68,10 @@ public:
 
 private:
     typedef TElectionManagerProxy TProxy;
+    // TODO: use typed service exception
 
-    class TFollowerPinger;
     class TVotingRound;
+    class TFollowerPinger;
 
     TProxy::EState State;
     

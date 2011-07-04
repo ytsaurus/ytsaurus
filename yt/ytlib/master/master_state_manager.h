@@ -82,6 +82,7 @@ public:
 
 private:
     typedef TMasterStateManagerProxy TProxy;
+    typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetCurrentState);
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetSnapshotInfo);
@@ -103,16 +104,17 @@ private:
     void OnLeaderRecovery(TMasterRecovery::EResult result);
     void OnFollowerRecovery(TMasterRecovery::EResult result);
 
-    // TODO: which thread?
+    // Service thread
     void OnLocalCommit(
         TChangeCommitter::EResult result,
-        TCtxApplyChange::TPtr context);
+        TCtxApplyChange::TPtr context,
+        const TMasterEpoch& epoch);
 
     // TODO: which thread?
     void Restart();
 
     // TODO: which thread?
-    void StartEpoch(TMasterEpoch epoch);
+    void StartEpoch(const TMasterEpoch& epoch);
     // TODO: which thread?
     void StopEpoch();
 
@@ -127,7 +129,7 @@ private:
     // IElectionCallbacks members
     virtual void StartLeading(TMasterEpoch epoch);
     virtual void StopLeading();
-    virtual void StartFollowing(TMasterId leaderId, TMasterEpoch epoch);
+    virtual void StartFollowing(TMasterId leaderId, TMasterEpoch myEpoch);
     virtual void StopFollowing();
     virtual TMasterPriority GetPriority();
     virtual Stroka FormatPriority(TMasterPriority priority);
@@ -145,6 +147,8 @@ private:
 
     // Per epoch, service thread
     TMasterEpoch Epoch;
+    // TODO: refactor
+    TMasterEpoch MyEpoch;
     IInvoker::TPtr EpochInvoker;
     TSnapshotCreator::TPtr SnapshotCreator;
     TMasterRecovery::TPtr Recovery;

@@ -176,7 +176,13 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLocal(
 TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
     TMasterStateId stateId,
     const TSharedRef& changeData)
+
 {
+    // TODO: drop this once rpc becomes ordered
+    if (MasterState->GetStateId() > stateId) {
+        return new TResult(Committed);
+    }
+
     if (MasterState->GetStateId() != stateId) {
         return new TResult(InvalidStateId);
     }

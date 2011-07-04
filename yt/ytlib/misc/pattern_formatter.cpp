@@ -11,7 +11,6 @@ static const char LeftParen = '(';
 static const char RightParen = ')';
 static const char Question = '?';
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPatternFormatter::AddProperty(Stroka name, Stroka value)
@@ -22,6 +21,7 @@ void TPatternFormatter::AddProperty(Stroka name, Stroka value)
 Stroka TPatternFormatter::Format(Stroka pattern)
 {
     Stroka result;
+    result.reserve(1024);
     for (size_t pos = 0; pos < pattern.size(); ++pos) {
         if (pattern[pos] != Dollar) {
             result.append(pattern[pos]);
