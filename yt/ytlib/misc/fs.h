@@ -49,9 +49,9 @@ Stroka GetFileExtension(Stroka filePath);
  */
 Stroka GetFileNameWithoutExtension(Stroka filePath);
 
-//! Deletes all files in dir with extension #TempFileSuffix
+//! Deletes all files with extension #TempFileSuffix in directory.
 /*!
- * \param location Location of dir
+ * \param location Directory name
  */
 void CleanTempFiles(Stroka location);
 
