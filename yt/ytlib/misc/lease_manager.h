@@ -2,9 +2,10 @@
 
 #include "hash.h"
 
+#include "../misc/delayed_invoker.h"
+
 #include "../actions/action.h"
 #include "../actions/invoker.h"
-#include "../actions/delayed_invoker.h"
 
 namespace NYT 
 {

@@ -4,7 +4,6 @@ SET(YT_SOURCE_FILES
     action_util.h
     action_queue.cpp
     invoker.cpp
-    delayed_invoker.cpp
     async_result.h
     async_result-inl.h
 )

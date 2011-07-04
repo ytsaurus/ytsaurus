@@ -5,8 +5,9 @@
 #include "election_manager_rpc.h"
 #include "cell_manager.h"
 
+#include "../misc/delayed_invoker.h"
+
 #include "../actions/invoker.h"
-#include "../actions/delayed_invoker.h"
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"

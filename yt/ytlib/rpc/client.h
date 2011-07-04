@@ -5,7 +5,7 @@
 #include "rpc.pb.h"
 
 #include "../actions/async_result.h"
-#include "../actions//delayed_invoker.h"
+#include "../misc/delayed_invoker.h"
 
 namespace NYT {
 namespace NRpc {

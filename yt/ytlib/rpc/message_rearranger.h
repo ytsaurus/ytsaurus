@@ -3,7 +3,7 @@
 #include "common.h"
 #include "message.h"
 
-#include "../actions/delayed_invoker.h"
+#include "../misc/delayed_invoker.h"
 
 namespace NYT {
 namespace NRpc{

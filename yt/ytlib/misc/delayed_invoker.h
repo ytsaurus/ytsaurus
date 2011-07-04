@@ -1,7 +1,7 @@
 #pragma once
 
-#include "invoker.h"
-#include "action_queue.h"
+#include "../actions/invoker.h"
+#include "../actions/action_queue.h"
 
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
@@ -12,7 +12,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to misc
 class TDelayedInvoker
     : private TNonCopyable
 {

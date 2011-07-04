@@ -16,6 +16,7 @@ SET(YT_SOURCE_FILES
     checksum.cpp
     demangle.cpp
     ref_counted_tracker.cpp
+    delayed_invoker.cpp
 
     ${SRCDIR}/preprocessor-gen.h
 )
