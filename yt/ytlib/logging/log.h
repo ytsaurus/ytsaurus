@@ -123,14 +123,13 @@ private:
 
 #define LOG_EVENT(logger, level, ...) \
     if (logger.IsEnabled(level)) { \
-        Stroka message = Sprintf(__VA_ARGS__); \
         ::NYT::NLog::LogEventImpl( \
             logger, \
             __FILE__, \
             __LINE__, \
             __FUNCTION__, \
             level, \
-            message); \
+            Sprintf(__VA_ARGS__)); \
     } \
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,9 @@ static NLog::TLogger Logger("FS");
 //////////////////////////////////////////////////////////////////////////////
 
 bool Remove(const char* name) {
+#if defined(_win_)
+    return DeleteFile(name);
+#else
     struct stat sb;
 
     if (int result = lstat(name, &sb))
@@ -24,6 +27,7 @@ bool Remove(const char* name) {
         return ::remove(name) == 0;
 
     return ::rmdir(name) == 0;
+#endif
 }
 
 bool Rename(const char* oldName, const char* newName) {

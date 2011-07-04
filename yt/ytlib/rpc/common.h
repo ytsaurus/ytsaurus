@@ -30,7 +30,6 @@ public:
     NLog::TLogger& GetLogger();
     Stroka GetDebugInfo();
 
-
 private:
     NLog::TLogger Logger;
 

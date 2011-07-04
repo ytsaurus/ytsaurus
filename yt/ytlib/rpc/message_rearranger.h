@@ -18,22 +18,23 @@ public:
         IParamAction<IMessage::TPtr>::TPtr onMessage,
         TDuration timeout);
 
-    void ArrangeMessage(
+    void EnqueueMessage(
         IMessage::TPtr message,
         TSequenceId sequenceId);
 
 private:
     typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
 
+    TSpinLock SpinLock;
     IParamAction<IMessage::TPtr>::TPtr OnMessage;
     TDuration Timeout;
     TDelayedInvoker::TCookie TimeoutCookie; // for delay
-    TSpinLock SpinLock;
     TSequenceId ExpectedSequenceId;
     TMessageMap MessageMap;
 
-    void OnExpired();
-    TDelayedInvoker::TCookie ScheduleExpiration();
+    void ScheduleTimeout();
+    void CancelTimeout();
+    void OnTimeout();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

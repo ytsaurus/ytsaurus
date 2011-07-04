@@ -1,5 +1,6 @@
 #include "bus.h"
 #include "rpc.pb.h"
+#include "message_rearranger.h"
 
 #include "../actions/action_util.h"
 #include "../logging/log.h"
@@ -20,6 +21,7 @@ static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
 static const TDuration ServerSleepQuantum = TDuration::MilliSeconds(10);
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
 static const int MaxRequestsPerCall = 100;
+static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +53,7 @@ struct TMultipartPacketHeader
     static const i32 MaxParts = 1 << 14;
     static const i32 MaxPartSize = 1 << 24;
 
+    TSequenceId SequenceId;
     i32 PartCount;
     i32 PartSizes[MaxParts];
 
@@ -82,15 +85,18 @@ T* ParsePacketHeader(TBlob& data)
     return header;
 }
 
-IMessage::TPtr DecodeMessagePacket(TBlob& data)
+bool DecodeMessagePacket(
+    TBlob& data,
+    IMessage::TPtr* message,
+    TSequenceId* sequenceId)
 {
     TMultipartPacketHeader* header = ParsePacketHeader<TMultipartPacketHeader>(data);
     if (header == NULL)
-        return NULL;
+        return false;
 
     if (header->PartCount < 0 || header->PartCount > TMultipartPacketHeader::MaxParts) {
         LOG_ERROR("Invalid part count in a multipart packet (PartCount: %d)", header->PartCount);
-        return NULL;
+        return false;
     }
 
     yvector<TRef> parts(header->PartCount);
@@ -99,26 +105,31 @@ IMessage::TPtr DecodeMessagePacket(TBlob& data)
     char* dataEnd = data.end();
     for (int i = 0; i < header->PartCount; ++i) {
         i32 partSize = header->PartSizes[i];
-        if (partSize < 0 || partSize > TMultipartPacketHeader::MaxPartSize)
-        {
+        if (partSize < 0 || partSize > TMultipartPacketHeader::MaxPartSize) {
             LOG_ERROR("Invalid part size in a multipart packet (PartIndex: %d, PartSize: %d)",
-                i, partSize);
-            return NULL;
+                i,
+                partSize);
+            return false;
         }
         if (ptr + partSize > dataEnd) {
-            LOG_ERROR("Buffer overrun in a multipart packet (PartIndex: %d)", i);
-            return NULL;
+            LOG_ERROR("Buffer overrun in a multipart packet (PartIndex: %d)",
+                i);
+            return false;
         }
         parts[i] = TRef(ptr, partSize);
         ptr += partSize;
     }
 
-    return new TBlobMessage(data, parts);
+    *message = new TBlobMessage(data, parts);
+    *sequenceId = header->SequenceId;
+
+    return true;
 }
 
 bool EncodeMessagePacket(
     IMessage::TPtr message,
     const TSessionId& sessionId,
+    TSequenceId sequenceId,
     TBlob* data)
 {
     const yvector<TSharedRef>& parts = message->GetParts();
@@ -152,6 +163,7 @@ bool EncodeMessagePacket(
     header->Type = TPacketHeader::Message;
     header->SessionId = sessionId;
     header->PartCount = parts.ysize();
+    header->SequenceId = sequenceId;
     for (int i = 0; i < header->PartCount; ++i) {
         header->PartSizes[i] = static_cast<i32>(parts[i].Size());
     }
@@ -216,8 +228,10 @@ public:
             return NULL;
         }
 
+        TSequenceId sequenceId = GenerateSequenceId();
+
         TBlob data;
-        EncodeMessagePacket(message, SessionId, &data);
+        EncodeMessagePacket(message, SessionId, sequenceId, &data);
         
         TReply::TPtr reply = new TReply(SessionId, data);
         server->EnqueueReply(reply);
@@ -231,8 +245,15 @@ public:
     }
 
 private:
+    TSequenceId GenerateSequenceId()
+    {
+        return AtomicIncrement(SequenceId);
+    }
+
     TBusServer::TPtr Server;
     TSessionId SessionId;
+    TAtomic SequenceId;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,14 +277,21 @@ public:
         , Terminated(false)
     { }
 
+    void Initialize()
+    {
+        MessageRearranger.Reset(new TMessageRearranger(
+            FromMethod(&TSession::OnMessageRearranged, TPtr(this)),
+            MessageRearrangeTimeout));
+    }
+
     TGUID SendReply(TReply::TPtr reply)
     {
         return Server->Requester->SendRequest(ClientAddress, "", &reply->Data);
     }
 
-    void ProcessMessage(IMessage::TPtr message)
+    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
     {
-        Server->Handler->OnMessage(message, ~ReplyBus);
+        MessageRearranger->EnqueueMessage(message, sequenceId);
     }
 
     TSessionId GetSessionId() const
@@ -276,9 +304,19 @@ public:
         return PingId;
     }
 
+    void Terminate()
+    {
+        MessageRearranger.Destroy();
+    }
+
 private:
     typedef yvector<TGUID> TRequestIds;
     typedef NStl::deque<IMessage::TPtr> TResponseMessages;
+
+    void OnMessageRearranged(IMessage::TPtr message)
+    {
+        Server->Handler->OnMessage(message, ~ReplyBus);
+    }
 
     TBusServer::TPtr Server;
     TSessionId SessionId;
@@ -286,6 +324,8 @@ private:
     TGUID PingId;
     TReplyBus::TPtr ReplyBus;
     bool Terminated;
+    THolder<TMessageRearranger> MessageRearranger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +361,14 @@ void TBusServer::Terminate()
     Terminated = true;
     Thread.Join();
 
+    for (TSessionMap::iterator it = SessionMap.begin();
+         it != SessionMap.end();
+         ++it)
+    {
+        it->second->Terminate();
+    }
     SessionMap.clear();
+
     PingMap.clear();
 }
 
@@ -540,14 +587,19 @@ void TBusServer::DoProcessMessage(
         session = sessionIt->Second();
     }
 
-    IMessage::TPtr message = DecodeMessagePacket(data);
-    if (~message == NULL)
+    IMessage::TPtr message;
+    TSequenceId sequenceId;;
+    if (!DecodeMessagePacket(data, &message, &sequenceId))
         return;
 
-    LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, PacketSize: %d)",
-        (int) isRequest, ~StringFromGuid(header->SessionId), ~StringFromGuid(requestId), dataSize);
+    LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
+        (int) isRequest,
+        ~StringFromGuid(header->SessionId),
+        ~StringFromGuid(requestId),
+        sequenceId,
+        dataSize);
 
-    session->ProcessMessage(message);
+    session->ProcessIncomingMessage(message, sequenceId);
 }
 
 void TBusServer::EnqueueReply(TReply::TPtr reply)
@@ -572,6 +624,7 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
         sessionId,
         clientAddress,
         pingId);
+    session->Initialize();
 
     PingMap.insert(MakePair(pingId, session));
     SessionMap.insert(MakePair(sessionId, session));
@@ -584,6 +637,8 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
 
 void TBusServer::UnregisterSession(TIntrusivePtr<TSession> session)
 {
+    session->Terminate();
+
     VERIFY(SessionMap.erase(session->GetSessionId()) == 1, "Failed to erase a session");
     VERIFY(PingMap.erase(session->GetPingId()) == 1, "Failed to erase a session ping");
 
@@ -606,9 +661,14 @@ public:
     typedef TIntrusivePtr<TBus> TPtr;
 
     TBus(TBusClient::TPtr client, IMessageHandler* handler);
+    void Initialize();
+
+    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId);
 
     virtual TSendResult::TPtr Send(IMessage::TPtr message);
     virtual void Terminate();
+
+    TSequenceId GenerateSequenceId();
 
 private:
     friend class TClientDispatcher;
@@ -618,9 +678,14 @@ private:
     TBusClient::TPtr Client;
     IMessageHandler* Handler;
     volatile bool Terminated;
+    TAtomic SequenceId;
     TSessionId SessionId;
     TRequestIdSet RequestIds;
     TRequestIdSet PingIds;
+    THolder<TMessageRearranger> MessageRearranger;
+
+    void OnMessageRearranged(IMessage::TPtr message);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,15 +937,16 @@ class TClientDispatcher
             return;
         }
 
-        IMessage::TPtr message = DecodeMessagePacket(data);
-        if (~message == NULL)
+        IMessage::TPtr message;
+        TSequenceId sequenceId;;
+        if (!DecodeMessagePacket(data, &message, &sequenceId))
             return;
 
         LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, PacketSize: %d)",
             (int) isRequest, ~StringFromGuid(header->SessionId), ~StringFromGuid(requestId), dataSize);
 
         TBusClient::TBus::TPtr bus = busIt->Second();
-        bus->Handler->OnMessage(message, ~bus);
+        bus->ProcessIncomingMessage(message, sequenceId);
 
         if (!isRequest) {
             RequestMap.erase(requestId);
@@ -991,8 +1057,10 @@ public:
 
     IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage::TPtr message)
     {
+        TSequenceId sequenceId = bus->GenerateSequenceId();
+
         TBlob data;
-        if (!EncodeMessagePacket(message, bus->SessionId, &data))
+        if (!EncodeMessagePacket(message, bus->SessionId, sequenceId, &data))
             throw yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
@@ -1036,20 +1104,45 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler* handler)
     : Client(client)
     , Handler(handler)
     , Terminated(false)
+    , SequenceId(0)
 {
     CreateGuid(&SessionId);
+}
+
+void TBusClient::TBus::Initialize()
+{
+    // NB: cannot call this in ctor since a smartpointer for this is needed
+    MessageRearranger.Reset(new TMessageRearranger(
+        FromMethod(&TBus::OnMessageRearranged, TPtr(this)),
+        MessageRearrangeTimeout));
 }
 
 IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
 {
     return TClientDispatcher::Get()->EnqueueRequest(this, message);
-};
+}
 
 void TBusClient::TBus::Terminate()
 {
-    Terminated = true;
+    Terminated = true; 
+    MessageRearranger.Destroy();
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
-};
+}
+
+TSequenceId TBusClient::TBus::GenerateSequenceId()
+{
+    return AtomicIncrement(SequenceId);
+}
+
+void TBusClient::TBus::ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
+{
+    MessageRearranger->EnqueueMessage(message, sequenceId);
+}
+
+void TBusClient::TBus::OnMessageRearranged(IMessage::TPtr message)
+{
+    Handler->OnMessage(message, this);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1063,6 +1156,7 @@ TBusClient::TBusClient(Stroka address)
 IBus::TPtr TBusClient::CreateBus(IMessageHandler* handler)
 {
     TBus::TPtr bus = new TBus(this, handler);
+    bus->Initialize();
     TClientDispatcher::Get()->EnqueueBusRegister(bus);
     return ~bus;
 }
