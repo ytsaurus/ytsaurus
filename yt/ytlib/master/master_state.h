@@ -17,7 +17,7 @@ struct IMasterState
     typedef TIntrusivePtr<IMasterState> TPtr;
 
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
-    virtual void Load(TInputStream& input) = 0;
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;
     virtual void ApplyChange(TRef changeData) = 0;
     virtual void Clear() = 0;
 

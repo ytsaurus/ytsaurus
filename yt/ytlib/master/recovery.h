@@ -106,9 +106,12 @@ private:
     bool SyncReceived;
 
     // Work thread
-    EResult DoRecoverLeader(TMasterStateId targetStateId);
+    void RecoverLeaderFromSnapshot(TMasterStateId targetStateId);
+    void RecoverLeaderFromChangeLog(TVoid, TMasterStateId targetStateId);
 
-    void DoRecoverFollower(TMasterStateId targetStateId, i32 maxSnapshotId);
+    void RecoverFollowerFromSnapshot(TMasterStateId targetStateId, i32 snapshotId);
+    void RecoverFollowerFromChangeLog(TVoid, TMasterStateId targetStateId);
+
     void ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
     void ApplyChangeLog(TChangeLog::TPtr changeLog, i32 targetChangeCount);
 

@@ -95,8 +95,6 @@ private:
     RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, PingLeader);
 
     void RegisterMethods();
-
-     // Work thread
     void SendSync(TMasterId masterId, TMasterEpoch epoch);
 
     // Service thread

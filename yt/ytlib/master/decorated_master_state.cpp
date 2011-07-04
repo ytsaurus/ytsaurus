@@ -25,11 +25,6 @@ TDecoratedMasterState::TDecoratedMasterState(
     ComputeAvailableStateId();
 }
 
-TMasterStateId TDecoratedMasterState::GetStateId() const
-{
-    return StateId;
-}
-
 IMasterState::TPtr TDecoratedMasterState::GetState() const
 {
     return State;
@@ -39,13 +34,12 @@ TVoid TDecoratedMasterState::Clear()
 {
     State->Clear();
     StateId = TMasterStateId();
-
     return TVoid();
 }
 
 TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Save(TOutputStream& output)
 {
-    LOG_INFO("Saving snapshot");
+    LOG_INFO("Started saving snapshot");
 
     return State->Save(output)->Apply(FromMethod(
         &TDecoratedMasterState::OnSave,
@@ -53,33 +47,34 @@ TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Save(TOutputStream& output)
         TInstant::Now()));
 }
 
-TVoid TDecoratedMasterState::OnSave(TVoid, TInstant savingStarted)
+TVoid TDecoratedMasterState::OnSave(TVoid, TInstant started)
 {
-    TInstant savingFinished = TInstant::Now();
-
-    LOG_INFO("Snapshot saved in %.3f s", (savingFinished - savingStarted).SecondsFloat());
-
+    TInstant finished = TInstant::Now();
+    LOG_INFO("Finishied saving snapshot, took %.3f s", (finished - started).SecondsFloat());
     return TVoid();
 }
 
-void TDecoratedMasterState::Load(i32 segmentId, TInputStream& input)
+TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Load(i32 segmentId, TInputStream& input)
 {
-    LOG_INFO("Loading snapshot %d", segmentId);
-    
-    TInstant loadingStarted = TInstant::Now();
-    State->Load(input);
-    StateId = TMasterStateId(segmentId, 0);
-    TInstant loadingFinished = TInstant::Now();
+    LOG_INFO("Started loading snapshot %d", segmentId);
+    UpdateStateId(TMasterStateId(segmentId, 0));
+    return State->Load(input)->Apply(FromMethod(
+        &TDecoratedMasterState::OnLoad,
+        TPtr(this),
+        TInstant::Now()));
+}
 
-    LOG_INFO("Snapshot loaded in %.3f s", (loadingFinished - loadingStarted).SecondsFloat());
+TVoid TDecoratedMasterState::OnLoad(TVoid, TInstant started)
+{
+    TInstant finished = TInstant::Now();
+    LOG_INFO("Finished loading snapshot, took %.3f s", (finished - started).SecondsFloat());
+    return TVoid();
 }
 
 void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
 {
     State->ApplyChange(changeData);
-    ++StateId.ChangeCount;
-
-    AvailableStateId = Max(AvailableStateId, StateId);
+    UpdateStateId(TMasterStateId(StateId.SegmentId, StateId.ChangeCount + 1));
 }
 
 TChangeLogWriter::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
@@ -102,11 +97,8 @@ TChangeLogWriter::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
 
 void TDecoratedMasterState::AdvanceSegment()
 {
-    ++StateId.SegmentId;
-    StateId.ChangeCount = 0;
-
-    AvailableStateId = Max(AvailableStateId, StateId);
-    
+    UpdateStateId(TMasterStateId(StateId.SegmentId + 1, 0));
+   
     LOG_INFO("Switched master state to a new segment %d",
         StateId.SegmentId);
 }
@@ -176,14 +168,24 @@ void TDecoratedMasterState::ComputeAvailableStateId()
     }
 
     LOG_INFO("Available state is %s",
-               ~AvailableStateId.ToString());
+        ~AvailableStateId.ToString());
 }         
+
+TMasterStateId TDecoratedMasterState::GetStateId() const
+{
+    return StateId;
+}
 
 TMasterStateId TDecoratedMasterState::GetAvailableStateId() const
 {
     return AvailableStateId;
 }
 
+void TDecoratedMasterState::UpdateStateId(const TMasterStateId& newStateId)
+{
+    StateId = newStateId;
+    AvailableStateId = Max(AvailableStateId, StateId);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

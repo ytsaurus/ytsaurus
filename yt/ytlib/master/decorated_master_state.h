@@ -28,7 +28,7 @@ public:
     TVoid Clear();
     
     TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
-    void Load(i32 segmentId, TInputStream& input);
+    TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream& input);
     
     void ApplyChange(const TSharedRef& changeData);
     TChangeLogWriter::TAppendResult::TPtr LogAndApplyChange(const TSharedRef& changeData);
@@ -38,11 +38,14 @@ public:
 
 private:
     void ComputeAvailableStateId();
-    TVoid OnSave(TVoid, TInstant savingStarted);
+    void UpdateStateId(const TMasterStateId& newStateId);
+    TVoid OnSave(TVoid, TInstant started);
+    TVoid OnLoad(TVoid, TInstant started);
 
     IMasterState::TPtr State;
     TSnapshotStore* SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
+
     TMasterStateId StateId;
     TMasterStateId AvailableStateId;
 };
