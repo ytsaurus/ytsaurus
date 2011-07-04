@@ -72,7 +72,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(TKey key)
             return item->AsyncResult;
         }
 
-        // Backoff
+        // Backoff.
         guard.Release();
         ThreadYield();
     }
@@ -81,33 +81,43 @@ TCacheBase<TKey, TValue, THash>::Lookup(TKey key)
 template<class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
-    YASSERT(!cookie->Active);
-    TGuard<TSpinLock> guard(SpinLock);
-    TKey key = cookie->GetKey();
-    typename TItemMap::iterator itemIt = ItemMap.find(key);
-    if (itemIt != ItemMap.end()) {
-        TItem* item = itemIt->Second();
+    while (true) {
+        YASSERT(!cookie->Active);
+
+        TGuard<TSpinLock> guard(SpinLock);
+        TKey key = cookie->GetKey();
+        typename TItemMap::iterator itemIt = ItemMap.find(key);
+        if (itemIt != ItemMap.end()) {
+            TItem* item = itemIt->Second();
+            cookie->AsyncResult = item->AsyncResult;
+            return false;
+        }
+
+        TItem* item = new TItem();
+        item->AsyncResult = new TAsyncResult<TValuePtr>();
         cookie->AsyncResult = item->AsyncResult;
-        return false;
+        ItemMap.insert(MakePair(key, item));
+
+        typename TValueMap::iterator valueIt = ValueMap.find(key);
+        if (valueIt == ValueMap.end() {
+            cookie->Active = true;
+            cookie->Cache = this;
+            return true;
+        }
+
+        TIntrusivePtr<TValue> value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+        if (~value != NULL) {
+            item->AsyncResult->Set(value);
+            LruList.PushFront(item);
+            ++LruListSize;
+            Trim();
+            return false;
+        }
+
+        // Backoff.
+        guard.Release();
+        ThreadYield();
     }
-
-    TItem* item = new TItem();
-    item->AsyncResult = new TAsyncResult<TValuePtr>();
-    ItemMap.insert(MakePair(key, item));
-    cookie->AsyncResult = item->AsyncResult;
-
-    typename TValueMap::iterator valueIt = ValueMap.find(key);
-    if (valueIt != ValueMap.end()) {
-        item->AsyncResult->Set(valueIt->Second());
-        LruList.PushFront(item);
-        ++LruListSize;
-        Trim();
-        return false;
-    }
-
-    cookie->Active = true;
-    cookie->Cache = this;
-    return true;
 }
 
 template<class TKey, class TValue, class THash>

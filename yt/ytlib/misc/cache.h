@@ -52,13 +52,6 @@ protected:
 
     class TInsertCookie
     {
-        friend class TCacheBase;
-
-        TKey Key;
-        TPtr Cache;
-        TAsyncResultPtr AsyncResult;
-        bool Active;
-
     public:
         TInsertCookie(TKey key);
         ~TInsertCookie();
@@ -66,6 +59,15 @@ protected:
         TAsyncResultPtr GetAsyncResult() const;
         TKey GetKey() const;
         bool IsActive() const;
+
+    private:
+        friend class TCacheBase;
+
+        TKey Key;
+        TPtr Cache;
+        TAsyncResultPtr AsyncResult;
+        bool Active;
+
     };
 
     TCacheBase();
