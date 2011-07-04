@@ -3,8 +3,6 @@
 
 #include "../misc/pattern_formatter.h"
 
-#include <quality/util/file_utils.h>
-
 namespace NYT {
 namespace NLog {
 

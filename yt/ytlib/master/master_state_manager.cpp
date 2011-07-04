@@ -33,10 +33,10 @@ TMasterStateManager::TMasterStateManager(
 {
     RegisterMethods();
 
-    CleanTempFiles(config.LogLocation);
+    NFS::CleanTempFiles(config.LogLocation);
     ChangeLogCache = new TChangeLogCache(Config.LogLocation);
 
-    CleanTempFiles(config.SnapshotLocation);
+    NFS::CleanTempFiles(config.SnapshotLocation);
     SnapshotStore.Reset(new TSnapshotStore(Config.SnapshotLocation));
 
     MasterState = new TDecoratedMasterState(

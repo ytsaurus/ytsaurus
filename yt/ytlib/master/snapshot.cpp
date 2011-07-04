@@ -6,7 +6,6 @@
 #include "../logging/log.h"
 
 #include <util/folder/dirut.h>
-#include <util/system/fs.h>
 
 namespace NYT {
 
@@ -122,7 +121,7 @@ i32 TSnapshotReader::GetPrevRecordCount() const
 
 TSnapshotWriter::TSnapshotWriter(Stroka fileName, i32 segmentId)
     : FileName(fileName)
-    , TempFileName(fileName + TempFileSuffix)
+    , TempFileName(fileName + NFS::TempFileSuffix)
     , SegmentId(segmentId)
     , PrevRecordCount(0)
     , Checksum(0)
@@ -173,16 +172,14 @@ void TSnapshotWriter::Close()
     File.Reset(NULL);
 
     if (isexist(~FileName)) {
-        int errorCode = NFs::Remove(~FileName);
-        if (errorCode != 0) {
-            ythrow yexception() << "Error removing " << FileName <<  ", error " << errorCode;
+        if (!NFS::Remove(~FileName)) {
+            ythrow yexception() << "Error removing " << FileName;
         }
         LOG_WARNING("File %s already existed and is deleted", ~FileName);
     }
 
-    int errorCode = NFs::Rename(~TempFileName, ~FileName);
-    if (errorCode != 0) {
-        ythrow yexception() << "Error renaming " << TempFileName << " to " << FileName << ", error " << errorCode;
+    if (!NFS::Rename(~TempFileName, ~FileName)) {
+        ythrow yexception() << "Error renaming " << TempFileName << " to " << FileName;
     }
 }
 

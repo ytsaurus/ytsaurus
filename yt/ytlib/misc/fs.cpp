@@ -4,16 +4,48 @@
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
-#include <util/system/fs.h>
-#include <quality/util/file_utils.h>
 
 namespace NYT {
+namespace NFS {
 
 //////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
+
+bool Remove(const char* name) {
+    struct stat sb;
+
+    if (int result = lstat(name, &sb))
+        return result == 0;
+
+    if (!S_ISDIR(sb.st_mode))
+        return ::remove(name) == 0;
+
+    return ::rmdir(name) == 0;
+}
+
+bool Rename(const char* oldName, const char* newName) {
+#if defined(_win_)
+    return MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING) == 0;
+#else
+    return ::rename(oldName, newName) == 0;
+#endif
+}
+
+
+Stroka GetFileName(Stroka filePath)
+{
+    size_t delimPos = filePath.rfind('/');
+#ifdef _win32_
+    if (delimPos == Stroka::npos) {
+        // There's a possibility of Windows-style path
+        delimPos = filePath.rfind('\\');
+    }
+#endif
+    return (delimPos == Stroka::npos) ? filePath : filePath.substr(delimPos+1);
+}
 
 Stroka GetFileExtension(Stroka fileName)
 {
@@ -26,7 +58,7 @@ Stroka GetFileExtension(Stroka fileName)
 
 Stroka GetFileNameWithoutExtension(Stroka fileName)
 {
-    fileName = GetFilename(fileName);
+    fileName = GetFileName(fileName);
     i32 dotPosition = fileName.find_last_of('.');
     if (dotPosition < 0) {
         return fileName;
@@ -44,9 +76,8 @@ void CleanTempFiles(Stroka location)
         Stroka fullName = location + "/" + Stroka(fileName);
         if (fullName.has_suffix(TempFileSuffix)) {
             LOG_INFO("Removing file %s", ~fullName);
-            int result = NFs::Remove(~fullName);
-            if (result != 0) {
-                LOG_ERROR("Error %d removing %s", result,  ~fullName);
+            if (!NFS::Remove(~fullName)) {
+                LOG_ERROR("Error removing %s",  ~fullName);
             }
         }
     }
@@ -54,4 +85,5 @@ void CleanTempFiles(Stroka location)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NFS
 } // namespace NYT

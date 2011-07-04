@@ -55,9 +55,9 @@ i32 TSnapshotStore::GetMaxSnapshotId()
     i32 maxSnapshotId = Min<i32>();
     Stroka fileName;
     while ((fileName = fileList.Next()) != NULL) {
-        Stroka extension = GetFileExtension(fileName);
+        Stroka extension = NFS::GetFileExtension(fileName);
         if (extension == SnapshotExtension) {
-            Stroka name = GetFileNameWithoutExtension(fileName);
+            Stroka name = NFS::GetFileNameWithoutExtension(fileName);
             try {
                 i32 segmentId = FromString<i32>(name);
                 LOG_INFO("Found snapshot %d", segmentId);

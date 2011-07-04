@@ -1,11 +1,11 @@
 #include "chunk_holder.h"
 
+#include "../misc/fs.h"
 #include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
 
-#include <util/system/fs.h>
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
@@ -376,11 +376,11 @@ void TChunkHolder::WriteBlocks(TSessionPtr session,
 void TChunkHolder::DoCancelSession(TSessionPtr session)
 {
     session->GetFile()->Close();
-    int result = NFs::Remove(~session->GetFile()->GetName());
-    if (result != 0)
+    if (!NFS::Remove(~session->GetFile()->GetName())) {
         LOG_FATAL("Chunk %s: unable to remove file %s while canceling",
             ~session->GetChunkIdAsString(), 
             ~session->GetFile()->GetName());
+    }
 
     LOG_INFO("Chunk %s: transaction cancelled",
         ~session->GetChunkIdAsString());
