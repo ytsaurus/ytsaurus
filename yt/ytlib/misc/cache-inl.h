@@ -99,7 +99,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
         ItemMap.insert(MakePair(key, item));
 
         typename TValueMap::iterator valueIt = ValueMap.find(key);
-        if (valueIt == ValueMap.end() {
+        if (valueIt == ValueMap.end()) {
             cookie->Active = true;
             cookie->Cache = this;
             return true;
