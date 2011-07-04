@@ -20,30 +20,16 @@ typedef i64 TSequenceId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impl to cpp
 class TRpcManager
     : private TNonCopyable
 {
 public:
-    TRpcManager()
-        : Logger("Rpc")
-    { }
+    TRpcManager();
 
-    static TRpcManager* Get()
-    {
-        return Singleton<TRpcManager>();
-    }
+    static TRpcManager* Get();
+    NLog::TLogger& GetLogger();
+    Stroka GetDebugInfo();
 
-    NLog::TLogger& GetLogger()
-    {
-        return Logger;
-    }
-
-    Stroka GetDebugInfo()
-    {
-        // TODO: implement
-        return "";
-    }
 
 private:
     NLog::TLogger Logger;

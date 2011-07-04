@@ -33,6 +33,7 @@ private:
     TMessageMap MessageMap;
 
     void OnExpired();
+    TDelayedInvoker::TCookie ScheduleExpiration();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

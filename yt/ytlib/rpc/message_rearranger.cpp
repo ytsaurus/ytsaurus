@@ -19,17 +19,11 @@ void TMessageRearranger::ArrangeMessage(IMessage::TPtr message, TSequenceId sequ
     if (sequenceId == ExpectedSequenceId) {
         TDelayedInvoker::Get()->Cancel(TimeoutCookie);
         OnMessage->Do(message);
-        // TODO: extract method
-        TimeoutCookie = TDelayedInvoker::Get()->Submit(
-            FromMethod(&TMessageRearranger::OnExpired, this),
-            Timeout);
+        TimeoutCookie = ScheduleExpiration();
         ExpectedSequenceId = sequenceId + 1;
     } else {
         if (MessageMap.empty()) {
-            // TODO: extract method
-            TimeoutCookie = TDelayedInvoker::Get()->Submit(
-                FromMethod(&TMessageRearranger::OnExpired, this),
-                Timeout);
+            TimeoutCookie = ScheduleExpiration();
         }
         MessageMap[sequenceId] = message;
     }
@@ -61,11 +55,16 @@ void TMessageRearranger::OnExpired()
         OnMessage->Do(*it);
     }
 
-    // TODO: extract method
-    TimeoutCookie = TDelayedInvoker::Get()->Submit(
+    TimeoutCookie = ScheduleExpiration();
+}
+
+TDelayedInvoker::TCookie TMessageRearranger::ScheduleExpiration()
+{
+    return TDelayedInvoker::Get()->Submit(
         FromMethod(&TMessageRearranger::OnExpired, this),
         Timeout);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
