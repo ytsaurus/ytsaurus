@@ -52,7 +52,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
     TFileList fileList;
     fileList.Fill(Location);
 
-    i32 maxSnapshotId = Min<i32>();
+    i32 maxSnapshotId = -1;
     Stroka fileName;
     while ((fileName = fileList.Next()) != NULL) {
         Stroka extension = NFS::GetFileExtension(fileName);
