@@ -13,6 +13,7 @@ namespace NRpc{
 
 typedef i64 TSequenceId;
 class TMessageRearranger
+    : public TNonCopyable
 {
 public:
     TMessageRearranger(IParamAction<IMessage::TPtr>::TPtr onMessage, TDuration maxDelay);
@@ -22,13 +23,15 @@ public:
 private:
     IParamAction<IMessage::TPtr>::TPtr OnMessage;
     TDuration MaxDelay;
-    TDelayedInvoker::TCookie Cookie; // for delay
+    TDelayedInvoker::TCookie TimeoutCookie; // for delay
+    TSpinLock SpinLock;
 
     typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
     TMessageMap MessageMap;
 
-    void ExpireDelay();
+    void OnExpired();
 
+    TSequenceId WaitingId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
