@@ -195,7 +195,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetCurrentState)
 
     context->SetRequestInfo("");
    
-    if (State != S_Leading) {
+    if (State != S_Leading && State != S_LeaderRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d", (int) State);
     }

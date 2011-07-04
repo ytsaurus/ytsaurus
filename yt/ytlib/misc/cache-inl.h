@@ -36,37 +36,46 @@ void TCacheBase<TKey, TValue, THash>::Clear()
     ItemMap.clear();
     LruList.Clear();
     LruListSize = 0;
-    // clear LRU
 }
 
 template<class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TCacheBase()
     : LruListSize(0)
-{}
+{ }
 
 template<class TKey, class TValue, class THash>
 typename TCacheBase<TKey, TValue, THash>::TAsyncResultPtr
 TCacheBase<TKey, TValue, THash>::Lookup(TKey key)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    typename TItemMap::iterator itemIt = ItemMap.find(key);
-    if (itemIt != ItemMap.end()) {
-        TItem* item = itemIt->Second();
-        Touch(item);
-        return item->AsyncResult;
+    while (true) {
+        TGuard<TSpinLock> guard(SpinLock);
+        typename TItemMap::iterator itemIt = ItemMap.find(key);
+        if (itemIt != ItemMap.end()) {
+            TItem* item = itemIt->Second();
+            Touch(item);
+            return item->AsyncResult;
+        }
+
+        typename TValueMap::iterator valueIt = ValueMap.find(key);
+        if (valueIt == ValueMap.end())
+            return NULL;
+
+        TIntrusivePtr<TValue> value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+        if (~value != NULL) {
+            TItem* item = new TItem();
+            item->AsyncResult = new TAsyncResult<TValuePtr>();
+            item->AsyncResult->Set(value);
+            LruList.PushFront(item);
+            ++LruListSize;
+            ItemMap.insert(MakePair(key, item));
+            Trim();
+            return item->AsyncResult;
+        }
+
+        // Backoff
+        guard.Release();
+        ThreadYield();
     }
-    typename TValueMap::iterator valueIt = ValueMap.find(key);
-    if (valueIt != ValueMap.end()) {
-        TItem* item = new TItem();
-        item->AsyncResult = new TAsyncResult<TValuePtr>();
-        item->AsyncResult->Set(valueIt->Second());
-        LruList.PushFront(item);
-        ++LruListSize;
-        ItemMap.insert(MakePair(key, item));
-        Trim();
-        return item->AsyncResult;
-    }
-    return NULL;
 }
 
 template<class TKey, class TValue, class THash>

@@ -3,6 +3,8 @@
 #include "../actions/action_util.h"
 #include "../logging/log.h"
 
+#include <util/system/thread.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,17 +50,6 @@ public:
         return TVoid();
     }
 
-    TVoid Flush(TChangeLog::TPtr changeLog)
-    {
-        TChangeLogEntryMap::iterator it = ChangeLogEntryMap.find(changeLog);
-        if (it != ChangeLogEntryMap.end()) {
-            TChangeLogEntry::TPtr entry = it->second;
-            entry->Flush();
-            ChangeLogEntryMap.erase(it);
-        }
-        return TVoid();
-    }
-
 private:
     class TChangeLogEntry
         : public TRefCountedBase
@@ -81,12 +72,12 @@ private:
         // Returns true if flushed.
         bool Append(
             i32 recordId,
-            const TSharedRef& data,
+            TSharedRef data,
             TAppendResult::TPtr result)
         {
             ChangeLog->Append(recordId, data);
             Results.push_back(result);
-            UnflushedSize += data.Size();
+            UnflushedSize += ((TRef) data).Size();
             if (UnflushedSize >= UnflushedThreshold) {
                 Flush();
                 return true;
@@ -108,10 +99,9 @@ private:
     virtual void OnIdle()
     {
         for (TChangeLogEntryMap::iterator it = ChangeLogEntryMap.begin();
-             it != ChangeLogEntryMap.end();
-             ++it)
+            it != ChangeLogEntryMap.end(); ++it)
         {
-            it->Second()->Flush();
+            it->second->Flush();
         }
         ChangeLogEntryMap.clear();
     }
@@ -135,27 +125,16 @@ TChangeLogWriter::~TChangeLogWriter()
 
 
 TChangeLogWriter::TAppendResult::TPtr TChangeLogWriter::Append(
-    i32 recordId,
-    const TSharedRef& changeData)
+    i32 recordId, const TSharedRef& data)
 {
     TAppendResult::TPtr result = new TAppendResult();
-    Impl->Invoke(FromMethod(
-        &TImpl::Append,
-        Impl,
-        recordId,
-        changeData,
-        ChangeLog,
-        result));
+    Impl->Invoke(
+        FromMethod(&TImpl::Append, Impl, recordId, data, ChangeLog, result));
     return result;
 }
 
 void TChangeLogWriter::Flush()
 {
-    FromMethod(&TImpl::Flush, Impl, ChangeLog)
-        ->AsyncVia(~Impl)
-        ->Do()
-        ->Get();
-    LOG_INFO("Changelog %d was flushed", ChangeLog->GetId());
 }
 
 void TChangeLogWriter::Close()

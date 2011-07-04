@@ -455,7 +455,7 @@ TMasterRecovery::TResult::TPtr TMasterRecovery::ApplyPostponedChanges(
                 break;
 
             case TPostponedChange::T_SegmentAdvance:
-                MasterState->AdvanceSegment();
+                MasterState->RotateChangeLog();
                 break;
 
             default:

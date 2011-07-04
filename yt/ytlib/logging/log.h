@@ -147,7 +147,7 @@ void LogEventImpl(
     TLogEvent event(logger.GetCategory(), level, message);
     event.AddProperty("file", fileName);
     event.AddProperty("line", ToString(line));
-    //event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
+    event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
     event.AddProperty("function", function);
     logger.Write(event);
 }

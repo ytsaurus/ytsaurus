@@ -13,15 +13,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
-
 class TRefCountedBase
     : private TNonCopyable
 {
 public:
     TRefCountedBase()
         : RefCounter(0)
-        , TypeInfo(0)
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        , TypeInfo(NULL)
+#endif
     { }
 
     virtual ~TRefCountedBase()
@@ -29,39 +29,58 @@ public:
 
     inline void Ref() throw()
     {
+#ifdef ENABLE_REF_COUNTED_TRACKING
         if (AtomicIncrement(RefCounter) == 1) {
+            // Failure within this line means
+            // a zombie is being resurrected!
             YASSERT(TypeInfo == NULL);
             TypeInfo = &typeid (*this);
             TRefCountedTracker::Get()->Increment(TypeInfo);
         }
+#else
+        AtomicIncrement(RefCounter);
+#endif
     }
 
     inline void UnRef() throw()
     {
         if (AtomicDecrement(RefCounter) == 0) {
+#ifdef ENABLE_REF_COUNTED_TRACKING
             YASSERT(TypeInfo != NULL);
             TRefCountedTracker::Get()->Decrement(TypeInfo);
+#endif
             delete this;
+        }
+    }
+
+    template<class T>
+    static TIntrusivePtr<T> DangerousGetPtr(T* obj)
+    {
+        while (true) {
+            TAtomic counter = obj->RefCounter;
+
+            YASSERT(counter >= 0);
+            if (counter == 0)
+                return NULL;
+
+            TAtomic newCounter = counter + 1;
+            if (AtomicCas(&obj->RefCounter, newCounter, counter)) {
+                TIntrusivePtr<T> ptr(obj);
+                AtomicDecrement(obj->RefCounter);
+                return ptr;
+            }    
         }
     }
 
 private:
     TAtomic RefCounter;
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
     const std::type_info* TypeInfo;
-};
-
-#else
-
-class TRefCountedBase
-    : public TRefCounted<TRefCountedBase, TAtomicCounter>
-    , private TNonCopyable
-{
-public:
-    virtual ~TRefCountedBase()
-    { }
-};
-
 #endif
+
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
