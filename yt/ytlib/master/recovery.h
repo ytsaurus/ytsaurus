@@ -7,10 +7,12 @@
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"
 #include "change_log_cache.h"
-#include "election_manager.h"
 #include "snapshot.h"
 #include "snapshot_store.h"
 #include "cell_manager.h"
+
+#include "../election/election_manager.h"
+
 
 namespace NYT {
 

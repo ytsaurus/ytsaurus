@@ -2,8 +2,8 @@
 
 #include "common.h"
 #include "election_manager_rpc.h"
-#include "cell_manager.h"
 
+#include "../master/cell_manager.h"
 #include "../actions/async_result.h"
 #include "../rpc/client.h"
 

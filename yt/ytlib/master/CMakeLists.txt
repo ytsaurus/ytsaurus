@@ -8,10 +8,6 @@ SET(YT_SOURCE_FILES
     change_log.cpp
     common.h
     change_committer.cpp
-    election_manager.proto
-    election_manager.cpp
-    election_manager_rpc.h
-    leader_lookup.cpp
     change_log_writer.cpp
     change_log_downloader.cpp
     change_log_cache.cpp
@@ -19,7 +15,6 @@ SET(YT_SOURCE_FILES
     snapshot_downloader.cpp
     snapshot_store.cpp
     recovery.cpp
-    cell_manager.cpp
     follower_state_tracker.cpp
-    leader_pinger.cpp
+    cell_manager.cpp
 )

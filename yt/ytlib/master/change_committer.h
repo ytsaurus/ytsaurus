@@ -2,10 +2,10 @@
 
 #include "common.h"
 #include "master_state_manager_rpc.h"
-#include "cell_manager.h"
 #include "decorated_master_state.h"
 #include "change_log_cache.h"
-#include "election_manager.h"
+
+#include "../election/election_manager.h"
 
 namespace NYT {
 

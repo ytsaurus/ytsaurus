@@ -3,8 +3,8 @@
 #include "common.h"
 #include "leader_lookup.h"
 #include "election_manager_rpc.h"
-#include "cell_manager.h"
 
+#include "../master/cell_manager.h"
 #include "../misc/delayed_invoker.h"
 
 #include "../actions/invoker.h"

@@ -3,7 +3,6 @@
 #include "common.h"
 #include "change_log.h"
 #include "change_log_cache.h"
-#include "election_manager.h"
 #include "master_state.h"
 #include "master_state_manager_rpc.h"
 #include "snapshot.h"
@@ -12,6 +11,7 @@
 #include "cell_manager.h"
 #include "change_committer.h"
 
+#include "../election/election_manager.h"
 #include "../rpc/service.h"
 #include "../rpc/server.h"
 #include "../actions/invoker.h"
