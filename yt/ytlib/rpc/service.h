@@ -4,7 +4,6 @@
 #include "client.h"
 
 #include "../logging/log.h"
-#include "../misc/string.h"  // TODO: move to cpp
 
 #include <util/generic/yexception.h>
 
@@ -76,7 +75,6 @@ struct IService
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impls to cpp
 class TServiceContext
     : public TRefCountedBase
 {
@@ -104,36 +102,11 @@ public:
 
     IBus::TPtr GetReplyBus() const;
 
-    void SetRequestInfo(const Stroka& info)
-    {
-        RequestInfo = info;
-        
-        // TODO: move to a separate method LogRequestInfo
-        Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
-        AppendInfo(str, RequestInfo);
-        LOG_EVENT(
-            ServiceLogger,
-            NLog::ELogLevel::Debug,
-            "%s <- %s",
-            ~MethodName,
-            ~str);
-    }
+    void SetRequestInfo(const Stroka& info);
+    Stroka GetRequestInfo() const;
 
-    Stroka GetRequestInfo() const
-    {
-        return RequestInfo;
-    }
-
-    void SetResponseInfo(const Stroka& info)
-    {
-        ResponseInfo = info;
-    }
-
-    Stroka GetResponseInfo()
-    {
-        return ResponseInfo;
-    }
+    void SetResponseInfo(const Stroka& info);
+    Stroka GetResponseInfo();
 
     IAction::TPtr Wrap(IAction::TPtr action);
 
@@ -164,16 +137,10 @@ private:
     void WrapThunk(IAction::TPtr action) throw();
 
     void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
+    void LogRequestInfo();
+    void LogResponseInfo(EErrorCode errorCode);
 
-    static void AppendInfo(Stroka& lhs, Stroka rhs)
-    {
-        if (!rhs.Empty()) {
-            if (!lhs.Empty()) {
-                lhs.append(", ");
-            }
-            lhs.append(rhs);
-        }
-    }
+    static void AppendInfo(Stroka& lhs, Stroka rhs);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +185,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to inl?
 template<class TRequestMesssage, class TResponseMessage>
 class TTypedServiceContext
     : public TRefCountedBase

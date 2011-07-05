@@ -30,18 +30,7 @@ TServiceContext::TServiceContext(
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
-    // TODO: move to a separate method LogResponseInfo
-    Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
-    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
-    AppendInfo(str, ResponseInfo);
-    LOG_EVENT(
-        ServiceLogger,
-        NLog::ELogLevel::Debug,
-        "%s -> %s",
-        ~MethodName,
-        ~str);
-
+    LogResponseInfo(errorCode);
     DoReply(errorCode);
 }
 
@@ -107,6 +96,27 @@ IBus::TPtr TServiceContext::GetReplyBus() const
     return ReplyBus;
 }
 
+void TServiceContext::SetRequestInfo(const Stroka& info)
+{
+    RequestInfo = info;
+    LogRequestInfo();
+}
+
+Stroka TServiceContext::GetRequestInfo() const
+{
+    return RequestInfo;
+}
+
+void TServiceContext::SetResponseInfo(const Stroka& info)
+{
+    ResponseInfo = info;
+}
+
+Stroka TServiceContext::GetResponseInfo()
+{
+    return ResponseInfo;
+}
+
 IAction::TPtr TServiceContext::Wrap(IAction::TPtr action)
 {
     return FromMethod(&TServiceContext::WrapThunk, TPtr(this), action);
@@ -141,6 +151,43 @@ void TServiceContext::LogException(
         "%s -> %s",
         ~MethodName,
         ~str);
+}
+
+void TServiceContext::LogRequestInfo()
+{
+    Stroka str;
+    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, RequestInfo);
+    LOG_EVENT(
+        ServiceLogger,
+        NLog::ELogLevel::Debug,
+        "%s <- %s",
+        ~MethodName,
+        ~str);
+}
+
+void TServiceContext::LogResponseInfo(EErrorCode errorCode)
+{
+    Stroka str;
+    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
+    AppendInfo(str, ResponseInfo);
+    LOG_EVENT(
+        ServiceLogger,
+        NLog::ELogLevel::Debug,
+        "%s -> %s",
+        ~MethodName,
+        ~str);
+}
+
+void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
+{
+    if (!rhs.Empty()) {
+        if (!lhs.Empty()) {
+            lhs.append(", ");
+        }
+        lhs.append(rhs);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
