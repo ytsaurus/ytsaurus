@@ -13,28 +13,42 @@ static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContext::TServiceContext(
+    IService::TPtr service,
     TRequestId requestId,
-    Stroka serviceName,
     Stroka methodName,
     IMessage::TPtr message,
-    IBus::TPtr replyBus,
-    NLog::TLogger& serviceLogger)
-    : RequestId(requestId)
-    , ServiceName(serviceName)
+    IBus::TPtr replyBus)
+    : Service(service)
+    , RequestId(requestId)
     , MethodName(methodName)
     , State(S_Received)
     , ReplyBus(replyBus)
     , RequestBody(message->GetParts().at(1))
     , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
-    , ServiceLogger(serviceLogger)
+    , ServiceLogger(service->GetLoggingCategory())
 { }
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
-    if (State != S_Received) {
-        // Reply is called twice.
-        YASSERT(false);
-    }
+    // TODO: move to a separate method LogResponseInfo
+    Stroka str;
+    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
+    AppendInfo(str, ResponseInfo);
+    LOG_EVENT(
+        ServiceLogger,
+        NLog::ELogLevel::Debug,
+        "%s -> %s",
+        ~MethodName,
+        ~str);
+
+    DoReply(errorCode);
+}
+
+void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
+{
+    // Failure here means that Reply is called twice.
+    YASSERT(State == S_Received);
 
     IMessage::TPtr message;
     if (errorCode.IsRpcError()) {
@@ -51,18 +65,6 @@ void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 
     ReplyBus->Send(message);
     State = S_Replied;
-
-    // TODO: move to a separate method
-    Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
-    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
-    AppendInfo(str, ResponseInfo);
-    LOG_EVENT(
-        ServiceLogger,
-        NLog::ELogLevel::Debug,
-        "%s -> %s",
-        ~MethodName,
-        ~str);
 }
 
 TSharedRef TServiceContext::GetRequestBody() const
@@ -87,7 +89,7 @@ void TServiceContext::SetResponseAttachments(yvector<TSharedRef>* attachments)
 
 Stroka TServiceContext::GetServiceName() const
 {
-    return ServiceName;
+    return Service->GetServiceName();
 }
 
 Stroka TServiceContext::GetMethodName() const
@@ -115,14 +117,30 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
     try {
         action->Do();
     } catch (const TServiceException& e) {
-        LOG_ERROR("Exception occurred while executing request (ServiceName: %s, MethodName: %s): %s",
-                    ~ServiceName, ~MethodName, e.what());
-        Reply(e.GetErrorCode());
-    } catch (const yexception& e) {
-        LOG_ERROR("Exception occurred while executing request (ServiceName, %s, MethodName: %s): %s",
-                    ~ServiceName, ~MethodName, e.what());
-        Reply(EErrorCode::ServiceError);
+        DoReply(e.GetErrorCode());
+        LogException(NLog::ELogLevel::Debug, e.GetErrorCode(), e.what());
+    } catch (const NStl::exception& e) {
+        DoReply(EErrorCode::ServiceError);
+        LogException(NLog::ELogLevel::Fatal, EErrorCode::ServiceError, e.what());
     }
+}
+
+void TServiceContext::LogException(
+    NLog::ELogLevel level,
+    EErrorCode errorCode,
+    Stroka what)
+{
+    Stroka str;
+    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
+    AppendInfo(str, ResponseInfo);
+    AppendInfo(str, Sprintf("What: %s", what));
+    LOG_EVENT(
+        ServiceLogger,
+        level,
+        "%s -> %s",
+        ~MethodName,
+        ~str);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,9 +184,9 @@ Stroka TServiceBase::GetServiceName() const
     return ServiceName;
 }
 
-NLog::TLogger& TServiceBase::GetLogger() 
+Stroka TServiceBase::GetLoggingCategory() const
 {
-    return ServiceLogger;
+    return ServiceLogger.GetCategory();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

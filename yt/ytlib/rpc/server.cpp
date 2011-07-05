@@ -72,12 +72,11 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     }
 
     TServiceContext::TPtr context = new TServiceContext(
+        service,
         requestId,
-        serviceName,
         methodName,
         message,
-        replyBus,
-        service->GetLogger());
+        replyBus);
 
     Invoker->Invoke(FromMethod(
         &TServer::OnRequest,

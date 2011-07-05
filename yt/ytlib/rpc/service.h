@@ -58,6 +58,25 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TServiceContext;
+
+struct IService
+    : public virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IService> TPtr;
+
+    virtual Stroka GetServiceName() const = 0;
+    virtual Stroka GetLoggingCategory() const = 0;
+
+    virtual void OnRequest(TIntrusivePtr<TServiceContext> context) = 0;
+
+    virtual ~IService()
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: move impls to cpp
 class TServiceContext
     : public TRefCountedBase
 {
@@ -65,12 +84,11 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
+        IService::TPtr service,
         TRequestId requestId,
-        Stroka serviceName,
         Stroka methodName,
         IMessage::TPtr message,
-        IBus::TPtr replyBus,
-        NLog::TLogger& serviceLogger);
+        IBus::TPtr replyBus);
     
     void Reply(EErrorCode errorCode);
 
@@ -90,7 +108,7 @@ public:
     {
         RequestInfo = info;
         
-        // TODO: move to a separate method
+        // TODO: move to a separate method LogRequestInfo
         Stroka str;
         AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
         AppendInfo(str, RequestInfo);
@@ -126,14 +144,14 @@ protected:
         S_Replied
     };
 
+    IService::TPtr Service;
     TRequestId RequestId;
-    Stroka ServiceName;
     Stroka MethodName;
     EState State;
     IBus::TPtr ReplyBus;
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
-    NLog::TLogger& ServiceLogger;
+    NLog::TLogger ServiceLogger;
 
     TBlob ResponseBody;
     yvector<TSharedRef> ResponseAttachments;
@@ -142,7 +160,10 @@ protected:
     Stroka ResponseInfo;
 
 private:
+    void DoReply(EErrorCode errorCode);
     void WrapThunk(IAction::TPtr action) throw();
+
+    void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
 
     static void AppendInfo(Stroka& lhs, Stroka rhs)
     {
@@ -156,19 +177,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct IService
-    : public virtual TRefCountedBase
-{
-    typedef TIntrusivePtr<IService> TPtr;
-
-    virtual Stroka GetServiceName() const = 0;
-    virtual NLog::TLogger& GetLogger() = 0;
-    virtual void OnRequest(TServiceContext::TPtr context) = 0;
-
-    virtual ~IService()
-    { }
-};
 
 template<class TRequestMessage, class TResponseMessage>
 class TTypedServiceRequest
@@ -328,7 +336,7 @@ private:
 
     virtual void OnRequest(TServiceContext::TPtr context);
 
-    virtual NLog::TLogger& GetLogger();
+    virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;
 
 };
