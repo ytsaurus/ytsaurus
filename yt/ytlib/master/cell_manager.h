@@ -29,12 +29,8 @@ public:
     i32 GetMasterCount() const;
     i32 GetQuorum() const;
 
-    // TODO: move to inl
     template <class TProxy>
-    TAutoPtr<TProxy> GetMasterProxy(TMasterId id) const
-    {
-        return new TProxy(ChannelCache.GetChannel(Config.MasterAddresses.at(id)));
-    }
+    TAutoPtr<TProxy> GetMasterProxy(TMasterId id) const;
 
 private:
     TConfig Config;
@@ -44,3 +40,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define CELL_MANAGER_INL_H_
+#include "cell_manager-inl.h"
+#undef CELL_MANAGER_INL_H_

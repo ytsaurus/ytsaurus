@@ -185,7 +185,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to inl?
+// TODO: move impl to inl?
 template<class TRequestMesssage, class TResponseMessage>
 class TTypedServiceContext
     : public TRefCountedBase
