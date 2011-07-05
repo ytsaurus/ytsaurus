@@ -1,8 +1,6 @@
 #include "writer.h"
 #include "log.h"
 
-#include "../misc/pattern_formatter.h"
-
 namespace NYT {
 namespace NLog {
 
@@ -10,103 +8,6 @@ namespace NLog {
 
 const char* const SystemLoggingCategory = "Logging";
 static TLogger Logger(SystemLoggingCategory);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-Stroka FormatDateTime(TInstant dateTime)
-{
-    timeval time1 = dateTime.TimeVal();
-    tm time2;
-    dateTime.LocalTime(&time2);
-    return Sprintf("%04d-%02d-%02d %02d:%02d:%02d,%03d",
-                   time2.tm_year + 1900,
-                   time2.tm_mon + 1,
-                   time2.tm_mday,
-                   time2.tm_hour,
-                   time2.tm_min,
-                   time2.tm_sec,
-                   (int) time1.tv_usec / 1000);
-}
-
-Stroka FormatLevel(ELogLevel level)
-{
-    switch (level)
-    {
-        case ELogLevel::Debug:   return "D";
-        case ELogLevel::Info:    return "I";
-        case ELogLevel::Warning: return "W";
-        case ELogLevel::Error:   return "E";
-        case ELogLevel::Fatal:   return "F";
-        default: YASSERT(false); return "?";
-    }
-}
-
-void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
-{
-    formatter.AddProperty("level", FormatLevel(event.GetLevel()));
-    formatter.AddProperty("datetime", FormatDateTime(event.GetDateTime()));
-    formatter.AddProperty("message", event.GetMessage());
-    formatter.AddProperty("category", event.GetCategory());
-    formatter.AddProperty("tab", "\t");
-
-    const TLogEvent::TProperties& properties = event.GetProperties();
-    for (TLogEvent::TProperties::const_iterator it = properties.begin();
-        it != properties.end();
-        ++it)
-    {
-        formatter.AddProperty(it->First(), it->Second());
-    }
-}
-
-Stroka FormatEvent(const TLogEvent& event, Stroka pattern)
-{
-    TPatternFormatter formatter;
-    SetupFormatter(formatter, event);
-    return formatter.Format(pattern);
-}
-
-} // namespace <anonymous>
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLogEvent::TLogEvent(Stroka category, ELogLevel level, Stroka message)
-    : Category(category)
-    , Level(level)
-    , Message(message)
-    , DateTime(TInstant::Now())
-{ }
-
-void TLogEvent::AddProperty(Stroka name, Stroka value)
-{
-    Properties.push_back(MakePair(name, value));
-}
-
-Stroka TLogEvent::GetCategory() const
-{
-    return Category;
-}
-
-NYT::NLog::ELogLevel TLogEvent::GetLevel() const
-{
-    return Level;
-}
-
-Stroka TLogEvent::GetMessage() const
-{
-    return Message;
-}
-
-TInstant TLogEvent::GetDateTime() const
-{
-    return DateTime;
-}
-
-const TLogEvent::TProperties& TLogEvent::GetProperties() const
-{
-    return Properties;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

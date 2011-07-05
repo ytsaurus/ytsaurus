@@ -73,22 +73,48 @@ public:
     void ConfigureWriters(const TJsonObject* root);
     void ConfigureRules(const TJsonObject* root);
 
+    void ValidateRule(const TRule& rule);
+
     TConfig();
     TConfig(const TJsonObject* root);
 };
 
 void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
 {
+    if (root == NULL) {
+        ythrow yexception() << "TJsonObject of Writers is NULL";
+    }
+
     const TJsonArray* writers = static_cast<const TJsonArray*>(root);
     for (int i = 0; i < writers->Length(); ++i) {
         Stroka name, type, pattern;
         const TJsonObject* item = writers->Item(i);
-        TryRead(item, L"Name", &name);
-        TryRead(item, L"Type", &type);
-        TryRead(item, L"Pattern", &pattern);
+        if(!TryRead(item, L"Name", &name)) {
+            ythrow yexception() <<
+                Sprintf("Couldn't read property Name at writer #%d", i);
+        }
+
+        if(!TryRead(item, L"Pattern", &pattern)) {
+            ythrow yexception() <<
+                Sprintf("Couldn't read property Pattern at writer #%d", i);
+        }
+
+        Stroka errorMessage;
+        if (!ValidatePattern(pattern, &errorMessage)) {
+            ythrow yexception() << errorMessage;
+        }
+
+        if (!TryRead(item, L"Type", &type)) {
+            ythrow yexception() <<
+                Sprintf("Couldn't read property Type at Writer #%d", i);
+        }
+
         if (type == "File") {
             Stroka fileName;
-            NYT::TryRead(item, L"FileName", &fileName);
+            if(!TryRead(item, L"FileName", &fileName)) {
+                ythrow yexception() <<
+                    Sprintf("Couldn't read property FileName at Writer #%d", i);
+            }
             Writers[name] = new TFileLogWriter(fileName, pattern);
         } else if (type == "StdErr") {
             Writers[name] = new TStdErrLogWriter(pattern);
@@ -103,12 +129,19 @@ void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
 
 void TLogManager::TConfig::ConfigureRules(const TJsonObject* root)
 {
+    if (root == NULL) {
+        ythrow yexception() << "TJsonObject of Rules is NULL";
+    }
+
     const TJsonArray* rules = static_cast<const TJsonArray*>(root);
     for (int i = 0; i < rules->Length(); ++i) {
         TRule rule;
         const TJsonObject* item = rules->Item(i);
         yvector<Stroka> categories;
-        TryRead(item, L"Categories", &categories);
+        if(!TryRead(item, L"Categories", &categories)) {
+            ythrow yexception() <<
+                Sprintf("Couldn't read property Categories at Rule #%d", i);
+        }
         if (categories.size() == 1 && categories[0] == AllCategoriesName) {
             rule.AllCategories = true;
         } else {
@@ -118,8 +151,25 @@ void TLogManager::TConfig::ConfigureRules(const TJsonObject* root)
 
         ReadEnum<ELogLevel>(item, L"MinLevel", &rule.MinLevel, ELogLevel::Minimum);
         ReadEnum<ELogLevel>(item, L"MaxLevel", &rule.MaxLevel, ELogLevel::Maximum);
-        TryRead(item, L"Writers", &rule.Writers);
+        if (!TryRead(item, L"Writers", &rule.Writers)) {
+            ythrow yexception() <<
+                Sprintf("Couldn't read property Writers at Rule #%d", i);
+        }
+        ValidateRule(rule);
         Rules.push_back(rule);
+    }
+}
+
+void TLogManager::TConfig::ValidateRule(const TRule& rule)
+{
+    for (yvector<Stroka>::const_iterator it = rule.Writers.begin();
+        it != rule.Writers.end();
+        ++it)
+    {
+        if (Writers.find(*it) == Writers.end()) {
+            ythrow yexception() <<
+                Sprintf("Writer %s wasn't defined", ~*it);
+        }
     }
 }
 
@@ -148,6 +198,9 @@ TLogManager::TConfig::TConfig()
 
 TLogManager::TConfig::TConfig(const TJsonObject* root)
 {
+    if (root == NULL) {
+        ythrow yexception() << "TJsonObject of Config is NULL";
+    }
     ConfigureWriters(root->Value(L"Writers"));
     ConfigureRules(root->Value(L"Rules"));
 }
@@ -260,7 +313,12 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
          it != writerIds.end();
          ++it)
     {
-        writers.push_back(Configuration->Writers[*it]);
+        TConfig::TWriterMap::iterator writerIt = Configuration->Writers.find(*it);
+        if (writerIt == Configuration->Writers.end()) {
+            ythrow yexception() <<
+                Sprintf("Couldn't find writer %s", ~*it);
+        }
+        writers.push_back(writerIt->second);
     }
 
     return writers;
@@ -302,12 +360,7 @@ void TLogManager::Configure(TJsonObject* root)
     TGuard<TSpinLock> guard(&SpinLock);
 
     TConfig::TPtr newConfig;
-    try {
-        newConfig = new TConfig(root);
-    } catch (const yexception& e) {
-        LOG_ERROR("Error configuring logging: %s", e.what())
-        return;
-    }
+    newConfig = new TConfig(root);
 
     Configuration = newConfig;
     AtomicIncrement(ConfigVersion);
@@ -315,15 +368,16 @@ void TLogManager::Configure(TJsonObject* root)
 
 void TLogManager::Configure(Stroka fileName, Stroka rootPath)
 {
-    if (!isexist(~fileName)) {
-        LOG_ERROR("Config file %s doesn't exist", ~fileName);
+    try {
+        TIFStream configStream(fileName);
+        TJsonReader reader(CODES_UTF8, &configStream);
+        TJsonObject* root = reader.ReadAll();
+        TJsonObject* subTree = GetSubTree(root, rootPath);
+        Configure(subTree);
+    } catch (const yexception& e) {
+        LOG_ERROR("Error configuring logging: %s", e.what())
         return;
     }
-    TIFStream configStream(fileName);
-    TJsonReader reader(CODES_UTF8, &configStream);
-    TJsonObject* root = reader.ReadAll();
-    TJsonObject* subTree = GetSubTree(root, rootPath);
-    Configure(subTree);
 }
 
 void TLogManager::ConfigureSystem()
