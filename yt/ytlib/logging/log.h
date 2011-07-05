@@ -6,6 +6,7 @@
 #include "../actions/action_queue.h"
 #include "../actions/action_util.h"
 #include "../actions/async_result.h"
+#include "../misc/fs.h"
 
 #include <dict/json/json.h>
 
@@ -144,7 +145,7 @@ void LogEventImpl(
     const Stroka& message)
 {
     TLogEvent event(logger.GetCategory(), level, message);
-    event.AddProperty("file", fileName);
+    event.AddProperty("file", NFS::GetFileName(fileName));
     event.AddProperty("line", ToString(line));
     event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
     event.AddProperty("function", function);
