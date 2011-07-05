@@ -81,6 +81,7 @@ void TMasterRecovery::RecoverLeaderFromSnapshot(TMasterStateId targetStateId)
         snapshotReader->Open();
         TInputStream& stream = snapshotReader->GetStream();
 
+        // we need to remember snapshotReader until Load is finished
         MasterState->Load(maxAvailableSnapshotId, stream)->Subscribe(FromMethod(
             &TMasterRecovery::RecoverLeaderFromChangeLog,
             TPtr(this),
@@ -336,6 +337,7 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
         snapshotReader->Open();
         TInputStream& stream = snapshotReader->GetStream();
 
+        // we need to remember snapshotReader until Load is finished
         MasterState->Load(snapshotId, stream)->Subscribe(FromMethod(
             &TMasterRecovery::RecoverFollowerFromChangeLog,
             TPtr(this),

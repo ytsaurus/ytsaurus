@@ -11,8 +11,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotReader
-    : private TNonCopyable
-    , public TRefCountedBase
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TSnapshotReader> TPtr;
@@ -40,8 +39,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotWriter
-    : private TNonCopyable
-    , public TRefCountedBase
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TSnapshotWriter> TPtr;
