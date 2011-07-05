@@ -18,7 +18,12 @@ static const char* const IndexSuffix = ".index";
 
 namespace {
 
+// Alignment should be a power of two.
+// Alignment is measured in bytes.
 const size_t ALIGNMENT = 4;
+const ui8 PADDING[ALIGNMENT] = { 0 };
+
+STATIC_ASSERT(!(ALIGNMENT & (ALIGNMENT - 1)));
 
 size_t GetPaddingSize(size_t size)
 {
@@ -33,8 +38,7 @@ size_t AlignUp(size_t size)
 
 void WritePadding(TOutputStream& output, size_t recordSize)
 {
-    static TBlob padding(ALIGNMENT, 0);
-    output.Write(padding.begin(), GetPaddingSize(recordSize));
+    output.Write(&PADDING, GetPaddingSize(recordSize));
 }
 
 } // namespace <anonymous>
@@ -50,26 +54,26 @@ struct TChangeLog::TLogHeader
     ui64 Signature;
     i32 SegmentId;
     i32 PrevRecordCount;
-    bool Finalized;
+    i32 Finalized;
 
     TLogHeader()
         : Signature(0)
         , SegmentId(0)
-        , Finalized(false)
+        , Finalized(0)
     { }
 
     TLogHeader(i32 segmentId, i32 prevRecordCount, bool finalized)
         : Signature(CurrentSignature)
         , SegmentId(segmentId)
         , PrevRecordCount(prevRecordCount)
-        , Finalized(finalized)
+        , Finalized(finalized ? -1 : 0)
     { }
 
     void Validate() const
     {
         if (Signature != CurrentSignature) {
             ythrow yexception()
-                << Sprintf("Invalid signature: expected %" PRIx64 ", found %" PRIx64,
+                << Sprintf("Invalid TLogHeader signature: expected %" PRIx64 ", found %" PRIx64,
                 CurrentSignature, Signature);
         }
     }
@@ -129,8 +133,9 @@ struct TChangeLog::TLogIndexHeader
     void Validate() const
     {
         if (Signature != CurrentSignature) {
-            ythrow yexception() << Sprintf("Invalid signature: expected %" PRIx64 ", found %" PRIx64,
-                                           CurrentSignature, Signature);
+            ythrow yexception()
+                << Sprintf("Invalid TLogIndexHeader signature: expected %" PRIx64 ", found %" PRIx64,
+                CurrentSignature, Signature);
         }
     }
 };
@@ -156,7 +161,12 @@ TChangeLog::TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize)
     , CurrentBlockSize(-1)
     , CurrentFilePosition(-1)
     , RecordCount(-1)
-{ }
+{
+    // Visibility workaround.
+    STATIC_ASSERT(sizeof(TLogHeader) == 20);
+    STATIC_ASSERT(sizeof(TRecordHeader) == 16);
+    STATIC_ASSERT(sizeof(TLogIndexHeader) == 16);
+}
 
 void TChangeLog::Open()
 {
@@ -167,8 +177,7 @@ void TChangeLog::Open()
 
     TLogHeader header;
     if (!NYT::Read(*File, &header)) {
-        ythrow yexception() << "Cannot read header of changelog "
-                            << FileName;
+        ythrow yexception() << "Cannot read header of changelog " << FileName;
     }
     header.Validate();
     
@@ -180,8 +189,7 @@ void TChangeLog::Open()
         TBufferedFileInput indexInput(IndexFileName);
         TLogIndexHeader indexHeader;
         if (!NYT::Read(indexInput, &indexHeader)) {
-            ythrow yexception() << "Cannot read header of changelog index "
-                                << IndexFileName;
+            ythrow yexception() << "Cannot read header of changelog index " << IndexFileName;
         }
         indexHeader.Validate();
 
@@ -316,7 +324,7 @@ void TChangeLog::Finalize()
     LOG_DEBUG("Changelog %d finalized", Id);
 }
 
-void TChangeLog::Append(i32 recordId, TRef recordData)
+void TChangeLog::Append(i32 recordId, TSharedRef recordData)
 {
     // Make a coarse check first...
     YASSERT(State == S_Open || State == S_Finalized);
@@ -350,35 +358,30 @@ void TChangeLog::Flush()
     FileOutput->Flush();
 }
 
-void TChangeLog::Read(
-    i32 startRecordId,
-    i32 recordCount,
-    TBlob* dataHolder,
-    yvector<TRef>* recordData)
+void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
 {
+    YASSERT(firstRecordId >= 0);
+    YASSERT(recordCount >= 0);
+    YASSERT(result);
+
     YASSERT(State == S_Open || State == S_Finalized);
 
-    YASSERT(recordCount >= 0);
-    if (recordCount == 0)
-        return;
-
-    YASSERT(startRecordId >= 0);
-
+    // TODO(sandello): WTF? Why?
     // Check if the changelog is empty.
-    // NB: cannot call GetXXXBound for an empty changelog since its index is empty.
+    // NB: Cannot call GetXXXBound for an empty changelog since its index is empty.
     if (RecordCount == 0)
         return;
 
-    dataHolder->clear();
-    recordData->clear();
+    TSharedRef::TBlobPtr data(new TBlob());
+    result->clear();
 
-    i32 endRecordId = startRecordId + recordCount - 1;
+    i32 lastRecordId = firstRecordId + recordCount - 1;
     i64 lowerBound, upperBound;
     {
         TGuard<TSpinLock> guard(IndexSpinLock);
-        lowerBound = GetLowerBound(startRecordId)->Offset;
+        lowerBound = GetLowerBound(firstRecordId)->Offset;
 
-        TIndex::iterator it = GetUpperBound(endRecordId);
+        TIndex::iterator it = GetUpperBound(lastRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
@@ -386,25 +389,27 @@ void TChangeLog::Read(
         }
     }
 
-    size_t length = (size_t)(upperBound - lowerBound);
-    dataHolder->resize(length);
-    File->Pread(dataHolder->begin(), length, lowerBound);
+    size_t length = static_cast<size_t>(upperBound - lowerBound);
+    data->resize(length);
+    File->Pread(data->begin(), length, lowerBound);
     
-    i32 currentRecordId = startRecordId;
+    // TODO(sandello): Read this out and refactor with util/memory/*.
+    i32 currentRecordId = firstRecordId;
     size_t position = 0;
     while (position < length) {
         i64 filePosition = lowerBound + position;
-        if (position + sizeof(TRecordHeader) >= dataHolder->size()) {
+        if (position + sizeof(TRecordHeader) >= data->size()) {
             LOG_DEBUG("Can't read record header at %" PRId64, filePosition);
             break;
         }
 
-        TRecordHeader* header = (TRecordHeader*) &dataHolder->at(position);
-        if (header->RecordId > endRecordId) {
+        TRecordHeader* header = reinterpret_cast<TRecordHeader*>(&data->at(position));
+        if (header->RecordId > lastRecordId) {
             break;
         }
 
-        if (header->RecordId >= startRecordId) {
+        // TODO: can we premature exit, if header->RecordId 
+        if (header->RecordId >= firstRecordId) {
             if (header->RecordId != currentRecordId) {
                 LOG_DEBUG("Invalid record id at %" PRId64 ": expected %d, got %d",
                     filePosition,
@@ -413,14 +418,14 @@ void TChangeLog::Read(
                 break;
             }
 
-            if (position + sizeof(TRecordHeader) + header->DataLength > dataHolder->size()) {
+            if (position + sizeof(TRecordHeader) + header->DataLength > data->size()) {
                 LOG_DEBUG("Can't read data of record %d at %" PRId64,
                     header->RecordId,
                     filePosition);
                 break;
             }
 
-            char* ptr = &dataHolder->at(position + sizeof(TRecordHeader));
+            char* ptr = reinterpret_cast<char*>(&data->at(position + sizeof(TRecordHeader)));
             TChecksum checksum = GetChecksum(TRef(ptr, header->DataLength));
             if (checksum != header->Checksum) {
                 LOG_DEBUG("Invalid checksum of record %d at %" PRId64,
@@ -429,9 +434,10 @@ void TChangeLog::Read(
                 break;
             }
 
-            recordData->push_back(TRef(ptr, (size_t) header->DataLength));
+            result->push_back(TSharedRef(data, TRef(ptr, (size_t) header->DataLength)));
             ++currentRecordId;
         }
+
         position += AlignUp(sizeof(TRecordHeader) + (size_t) header->DataLength);
     }
 }
@@ -538,6 +544,7 @@ void TChangeLog::HandleRecord(i32 recordId, i32 recordSize)
     }
 }
 
+// TODO: wtf? why this thing calls UpperBound instead of lower bound?
 TChangeLog::TIndex::iterator TChangeLog::GetLowerBound(i32 recordId)
 {
     YASSERT(Index.ysize() > 0);

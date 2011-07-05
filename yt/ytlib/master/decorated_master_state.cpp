@@ -77,7 +77,7 @@ void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
     UpdateStateId(TMasterStateId(StateId.SegmentId, StateId.ChangeCount + 1));
 }
 
-TChangeLogWriter::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
+TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
     const TSharedRef& changeData)
 {
     TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(StateId.SegmentId);
@@ -85,8 +85,8 @@ TChangeLogWriter::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
         LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
     }
 
-    TChangeLogWriter& writer = changeLog->GetWriter();
-    TChangeLogWriter::TAppendResult::TPtr appendResult = writer.Append(
+    TAsyncChangeLog& asyncChangeLog = changeLog->GetWriter();
+    TAsyncChangeLog::TAppendResult::TPtr appendResult = asyncChangeLog.Append(
         StateId.ChangeCount,
         changeData);
 
@@ -108,7 +108,7 @@ void TDecoratedMasterState::RotateChangeLog()
     TCachedChangeLog::TPtr currentCachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
     YASSERT(~currentCachedChangeLog != NULL);
 
-    currentCachedChangeLog->GetWriter().Close();
+    currentCachedChangeLog->GetWriter().Finalize();
 
     AdvanceSegment();
 
@@ -151,7 +151,7 @@ void TDecoratedMasterState::ComputeAvailableStateId()
 
         if (!currentCachedChangeLog->GetChangeLog()->IsFinalized()) {
             LOG_WARNING("Changelog %d was not finalized", segmentId);
-            currentCachedChangeLog->GetWriter().Close();
+            currentCachedChangeLog->GetWriter().Finalize();
         }
 
         TMasterStateId prevStateId = nextCachedChangeLog->GetChangeLog()->GetPrevStateId();

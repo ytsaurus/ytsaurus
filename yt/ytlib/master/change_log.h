@@ -25,14 +25,10 @@ public:
     void Create(i32 prevRecordCount);
     void Finalize();
 
-    void Append(i32 recordId, TRef recordData);
+    void Append(i32 recordId, TSharedRef recordData);
     void Flush();
     // TODO: get rid of dataHolder, turn recordData into yvector<TSharedRef>
-    void Read(
-        i32 startRecordId,
-        i32 recordCount,
-        TBlob* dataHolder,
-        yvector<TRef>* recordData);
+    void Read(i32 startRecordId, i32 recordCount, yvector<TSharedRef>* recordData);
     void Truncate(i32 recordId);
 
     TMasterStateId GetPrevStateId() const;

@@ -181,7 +181,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
         return new TResult(InvalidStateId);
     }
 
-    TChangeLogWriter::TAppendResult::TPtr appendResult = MasterState->LogAndApplyChange(changeData);
+    TAsyncChangeLog::TAppendResult::TPtr appendResult = MasterState->LogAndApplyChange(changeData);
 
     // OnApplyChange can be modified concurrently.
     IAction::TPtr onApplyChange = OnApplyChange;
@@ -192,10 +192,8 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
     return appendResult->Apply(FromMethod(&TChangeCommitter::OnAppend));
 }
 
-TChangeCommitter::EResult TChangeCommitter::OnAppend(
-    TChangeLogWriter::EResult result)
+TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 {
-    YASSERT(result == TChangeLogWriter::OK);
     return Committed;
 }
 

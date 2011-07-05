@@ -357,9 +357,6 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
                 Sprintf("invalid changelog id %d", segmentId);
         }
 
-        // TODO: hack!
-        cachedChangeLog->GetWriter().Flush();
-
         TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
 
         i32 recordCount = changeLog->GetRecordCount();
@@ -402,32 +399,26 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
                 Sprintf("invalid changelog id %d", segmentId);
         }
 
-        // TODO: hack!
-        cachedChangeLog->GetWriter().Flush();
-
         TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
 
-        TBlob dataHolder;
-        yvector<TRef> recordData;
-        changeLog->Read(startRecordCount, recordCount, &dataHolder, &recordData);
+        yvector<TSharedRef> recordData;
+        changeLog->Read(startRecordCount, recordCount, &recordData);
 
         response->SetRecordsRead(recordData.ysize());
-        for (i32 i = 0; i < recordData.ysize(); ++i) {
-            // TODO: drop this once Read returns TSharedRefs
-            TBlob data = recordData[i].ToBlob();
-            response->Attachments().push_back(TSharedRef(data));
-        }
+        response->Attachments().insert(
+            response->Attachments().end(),
+            recordData.begin(),
+            recordData.end());
         
-        context->SetResponseInfo("RecordCount: %d",
-            recordData.ysize());
-
+        context->SetResponseInfo("RecordCount: %d", recordData.ysize());
         context->Reply();
     } catch (const yexception& ex) {
         // TODO: fail?
         context->Reply(TProxy::EErrorCode::IOError);
 
         LOG_ERROR("ReadChangeLog: IO error in changelog %d: %s",
-            segmentId, ex.what());
+            segmentId,
+            ex.what());
     }
 }
 

@@ -52,7 +52,7 @@ private:
     TResult::TPtr DoCommitLocal(
         TMasterStateId stateId,
         const TSharedRef& changeData);
-    static EResult OnAppend(TChangeLogWriter::EResult result);
+    static EResult OnAppend(TVoid);
 
     TCellManager::TPtr CellManager;
     TDecoratedMasterState::TPtr MasterState;

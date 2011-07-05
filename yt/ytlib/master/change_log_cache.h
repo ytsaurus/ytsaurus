@@ -16,12 +16,13 @@ class TCachedChangeLog
 public:
     TCachedChangeLog(TChangeLog* changeLog);
 
+    // TODO: kill GetWriter() :)
     TChangeLog::TPtr GetChangeLog() const;
-    TChangeLogWriter& GetWriter();
+    TAsyncChangeLog& GetWriter();
 
 private:
     TChangeLog::TPtr ChangeLog;
-    TChangeLogWriter Writer;
+    TAsyncChangeLog Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

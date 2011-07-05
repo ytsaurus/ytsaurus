@@ -20,13 +20,14 @@ TChangeLogDownloader::TChangeLogDownloader(
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMasterStateId stateId,
-    TChangeLogWriter* changeLogWriter)
+    TAsyncChangeLog& asyncChangeLog)
 {
     LOG_INFO("Requested %d record(s) in changelog %d",
         stateId.ChangeCount,
         stateId.SegmentId);
 
-    TChangeLog::TPtr changeLog = changeLogWriter->GetChangeLog();
+    // TODO: remove direct access to TChangeLog
+    TChangeLog::TPtr changeLog = asyncChangeLog.GetChangeLog();
     YASSERT(changeLog->GetId() == stateId.SegmentId);
     if (changeLog->GetRecordCount() >= stateId.ChangeCount) {
         LOG_INFO("Local changelog already contains %d record(s), no download needed",
@@ -39,7 +40,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
         return ChangeLogNotFound;
     }
 
-    return DownloadChangeLog(stateId, sourceId, changeLogWriter);
+    return DownloadChangeLog(stateId, sourceId, asyncChangeLog);
 }
 
 TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
@@ -71,9 +72,10 @@ TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
 TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
     TMasterStateId stateId,
     TMasterId sourceId,
-    TChangeLogWriter* changeLogWriter)
+    TAsyncChangeLog& asyncChangeLog)
 {
-    TChangeLog::TPtr changeLog = changeLogWriter->GetChangeLog();
+    // TODO: remove direct access to TChangeLog
+    TChangeLog::TPtr changeLog = asyncChangeLog.GetChangeLog();
     i32 downloadedRecordCount = changeLog->GetRecordCount();
 
     LOG_INFO("Started downloading records %d:%d from master %d",
@@ -149,16 +151,11 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                 downloadedRecordCount + attachments.ysize() - 1);
         }
 
-        TChangeLogWriter::TAppendResult::TPtr appendResult;
+        TAsyncChangeLog::TAppendResult::TPtr appendResult;
         for (i32 i = 0; i < attachments.ysize(); ++i) {
             TSharedRef attachment = attachments[i];
-            appendResult = changeLogWriter->Append(downloadedRecordCount, attachment);
+            appendResult = asyncChangeLog.Append(downloadedRecordCount, attachment);
             ++downloadedRecordCount;
-        }
-
-        if (downloadedRecordCount >= stateId.ChangeCount) {
-            TChangeLogWriter::EResult result = appendResult->Get();
-            YASSERT(result == TChangeLogWriter::OK);
         }
     }
 

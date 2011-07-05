@@ -31,7 +31,7 @@ public:
     TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream& input);
     
     void ApplyChange(const TSharedRef& changeData);
-    TChangeLogWriter::TAppendResult::TPtr LogAndApplyChange(const TSharedRef& changeData);
+    TAsyncChangeLog::TAppendResult::TPtr LogAndApplyChange(const TSharedRef& changeData);
     
     void AdvanceSegment();
     void RotateChangeLog();

@@ -13,24 +13,19 @@
 
 namespace NYT {
 
-class TChangeLogWriter
+class TAsyncChangeLog
     : private TNonCopyable
 {
 public:
-    // TODO: more error codes?
-    enum EResult
-    {
-        OK
-    };
+    TAsyncChangeLog(TChangeLog::TPtr changeLog);
+    ~TAsyncChangeLog();
 
-    TChangeLogWriter(TChangeLog::TPtr changeLog);
-    ~TChangeLogWriter();
-
-    typedef TAsyncResult<EResult> TAppendResult;
+    typedef TAsyncResult<TVoid> TAppendResult;
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& changeData);
-    void Flush();
-    void Close(); // TODO: rename to Finalize
+    //void Flush();
+    void Finalize();
+    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
     // TODO: Truncate();
     // TODO: GetRecordCount();
     TChangeLog::TPtr GetChangeLog() const;

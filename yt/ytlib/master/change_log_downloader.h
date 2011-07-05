@@ -40,7 +40,7 @@ public:
 
     TChangeLogDownloader(const TConfig& config, TCellManager::TPtr cellManager);
 
-    EResult Download(TMasterStateId stateId, TChangeLogWriter* changeLogWriter);
+    EResult Download(TMasterStateId stateId, TAsyncChangeLog& asyncChangeLog);
 
 private:
     typedef TMasterStateManagerProxy TProxy;
@@ -53,7 +53,7 @@ private:
     EResult DownloadChangeLog(
         TMasterStateId stateId,
         TMasterId sourceId,
-        TChangeLogWriter* changeLogWriter);
+        TAsyncChangeLog& asyncChangeLog);
 
     static void OnResponse(
         TProxy::TRspGetChangeLogInfo::TPtr response,

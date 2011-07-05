@@ -25,7 +25,7 @@ TChangeLog::TPtr TCachedChangeLog::GetChangeLog() const
     return ChangeLog;
 }
 
-TChangeLogWriter& TCachedChangeLog::GetWriter()
+TAsyncChangeLog& TCachedChangeLog::GetWriter()
 {
     return Writer;
 }

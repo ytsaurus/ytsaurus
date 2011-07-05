@@ -161,9 +161,8 @@ void TMasterRecovery::ApplyChangeLog(
         targetChangeCount - 1, 
         changeLog->GetId());
 
-    TBlob dataHolder;
-    yvector<TRef> records;
-    changeLog->Read(startRecordId, recordCount, &dataHolder, &records);
+    yvector<TSharedRef> records;
+    changeLog->Read(startRecordId, recordCount, &records);
     if (records.ysize() < recordCount) {
         LOG_FATAL("Could not read changelog %d starting from record %d "
             "(expected: %d records, received %d records)",
@@ -173,13 +172,9 @@ void TMasterRecovery::ApplyChangeLog(
             records.ysize());
     }
 
-    // TODO: kill this hack once changelog returns shared refs
-    TSharedRef::TBlobPtr dataHolder2 = new TBlob();
-    dataHolder.swap(*dataHolder2);
-
     LOG_INFO("Applying changes to master state");
     for (i32 i = 0; i < recordCount; ++i)  {
-        MasterState->ApplyChange(TSharedRef(dataHolder2, records[i]));
+        MasterState->ApplyChange(records[i]);
     }
 
     LOG_INFO("Finished applying changes");
@@ -420,7 +415,7 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
             TChangeLogDownloader changeLogDownloader(ChangeLogDownloaderConfig, CellManager);
             TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
                 TMasterStateId(segmentId, targetChangeCount),
-                &cachedChangeLog->GetWriter());
+                cachedChangeLog->GetWriter());
 
             if (changeLogResult != TChangeLogDownloader::OK) {
                 // TODO: tostring
@@ -435,7 +430,7 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
 
         if (segmentId != targetStateId.SegmentId && !changeLog->IsFinalized()) {
             LOG_WARNING("Changelog %d was not finalized", segmentId);
-            cachedChangeLog->GetWriter().Close();
+            cachedChangeLog->GetWriter().Finalize();
         }
 
         ApplyChangeLog(changeLog, targetChangeCount);
