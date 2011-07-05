@@ -13,8 +13,8 @@ class TSnapshotStore
 public:
     TSnapshotStore(Stroka location);
 
-    TAutoPtr<TSnapshotReader> GetReader(i32 segmentId);
-    TAutoPtr<TSnapshotWriter> GetWriter(i32 segmentId);
+    TSnapshotReader::TPtr GetReader(i32 segmentId);
+    TSnapshotWriter::TPtr GetWriter(i32 segmentId);
 
     i32 GetMaxSnapshotId();
 

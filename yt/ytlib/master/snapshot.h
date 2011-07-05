@@ -12,8 +12,11 @@ namespace NYT {
 
 class TSnapshotReader
     : private TNonCopyable
+    , public TRefCountedBase
 {
 public:
+    typedef TIntrusivePtr<TSnapshotReader> TPtr;
+
     TSnapshotReader(Stroka fileName, i32 segmentId);
 
     void Open(i64 offset = 0);
@@ -38,8 +41,11 @@ private:
 
 class TSnapshotWriter
     : private TNonCopyable
+    , public TRefCountedBase
 {
 public:
+    typedef TIntrusivePtr<TSnapshotWriter> TPtr;
+
     TSnapshotWriter(Stroka fileName, i32 segmentId);
 
     void Open(i32 prevRecordCount);

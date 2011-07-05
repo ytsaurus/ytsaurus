@@ -29,7 +29,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 segmentId)
            SnapshotExtension;
 }
 
-TAutoPtr<TSnapshotReader> TSnapshotStore::GetReader(i32 segmentId)
+TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 segmentId)
 {
     YASSERT(segmentId > 0);
     Stroka fileName = GetSnapshotFileName(segmentId);
@@ -38,7 +38,7 @@ TAutoPtr<TSnapshotReader> TSnapshotStore::GetReader(i32 segmentId)
     return new TSnapshotReader(fileName, segmentId);
 }
 
-TAutoPtr<TSnapshotWriter> TSnapshotStore::GetWriter(i32 segmentId)
+TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 segmentId)
 {
     YASSERT(segmentId > 0);
     Stroka fileName = GetSnapshotFileName(segmentId);

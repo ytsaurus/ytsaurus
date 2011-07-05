@@ -168,7 +168,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
 
     // Prepare writer.
     i32 segmentId = stateId.SegmentId + 1;
-    TAutoPtr<TSnapshotWriter> writer = SnapshotStore->GetWriter(segmentId);
+    TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(segmentId);
     writer->Open(stateId.ChangeCount);
     TOutputStream& output = writer->GetStream();
 
@@ -187,7 +187,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
 TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
     TVoid /* fake */,
     i32 segmentId,
-    TAutoPtr<TSnapshotWriter> writer)
+    TSnapshotWriter::TPtr writer)
 {
     writer->Close();
 

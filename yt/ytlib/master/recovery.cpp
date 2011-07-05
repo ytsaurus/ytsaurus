@@ -73,7 +73,7 @@ void TMasterRecovery::RecoverLeaderFromSnapshot(TMasterStateId targetStateId)
 
     // TODO: extract method
     if (MasterState->GetStateId().SegmentId < maxAvailableSnapshotId) {
-        TSharedPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(maxAvailableSnapshotId));
+        TSnapshotReader::TPtr snapshotReader = SnapshotStore->GetReader(maxAvailableSnapshotId);
         if (snapshotReader.Get() == NULL) {
             LOG_FATAL("The latest snapshot %d has vanished", maxAvailableSnapshotId);
         }
@@ -88,13 +88,13 @@ void TMasterRecovery::RecoverLeaderFromSnapshot(TMasterStateId targetStateId)
             targetStateId));
         //prevRecordCount = snapshotReader->GetPrevRecordCount();
     } else {
-        RecoverLeaderFromChangeLog(TVoid(), TSharedPtr<TSnapshotReader>(), targetStateId);
+        RecoverLeaderFromChangeLog(TVoid(), TSnapshotReader::TPtr(), targetStateId);
     }
 }
 
 void TMasterRecovery::RecoverLeaderFromChangeLog(
     TVoid,
-    TSharedPtr<TSnapshotReader>,
+    TSnapshotReader::TPtr,
     TMasterStateId targetStateId)
 {
     for (i32 segmentId = MasterState->GetStateId().SegmentId;
@@ -308,12 +308,13 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
     
     // TODO: extract method
     if (MasterState->GetStateId().SegmentId < snapshotId) {
-        TSharedPtr<TSnapshotReader> snapshotReader(SnapshotStore->GetReader(snapshotId));
+        TSnapshotReader::TPtr snapshotReader = SnapshotStore->GetReader(snapshotId);
         if (snapshotReader.Get() == NULL) {
             TSnapshotDownloader snapshotDownloader(
                 SnapshotDownloaderConfig, CellManager);
-            THolder<TSnapshotWriter> snapshotWriter(
-                SnapshotStore->GetWriter(snapshotId));
+
+            TSnapshotWriter::TPtr snapshotWriter =
+                SnapshotStore->GetWriter(snapshotId);
             TSnapshotDownloader::EResult snapshotResult =
                 snapshotDownloader.GetSnapshot(snapshotId, ~snapshotWriter);
 
@@ -341,13 +342,13 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
             snapshotReader,
             targetStateId));
     } else {
-        RecoverFollowerFromChangeLog(TVoid(), TSharedPtr<TSnapshotReader>(), targetStateId);
+        RecoverFollowerFromChangeLog(TVoid(), TSnapshotReader::TPtr(), targetStateId);
     }
 }
 
 void TMasterRecovery::RecoverFollowerFromChangeLog(
     TVoid,
-    TSharedPtr<TSnapshotReader>,
+    TSnapshotReader::TPtr,
     TMasterStateId targetStateId)
 {
     for (i32 segmentId = MasterState->GetStateId().SegmentId;

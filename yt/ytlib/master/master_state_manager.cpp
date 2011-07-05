@@ -268,7 +268,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetSnapshotInfo)
 
     try {
         // TODO: extract method
-        TAutoPtr<TSnapshotReader> reader = SnapshotStore->GetReader(snapshotId);
+        TSnapshotReader::TPtr reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);
@@ -314,7 +314,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadSnapshot)
     YASSERT(length >= 0);
 
     try {
-        TAutoPtr<TSnapshotReader> reader = SnapshotStore->GetReader(snapshotId);
+        TSnapshotReader::TPtr reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);

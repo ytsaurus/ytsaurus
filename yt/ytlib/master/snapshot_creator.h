@@ -81,7 +81,7 @@ private:
     static TLocalResult OnSave(
         TVoid /* fake */,
         i32 segmentId,
-        TAutoPtr<TSnapshotWriter> writer);
+        TSnapshotWriter::TPtr writer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
