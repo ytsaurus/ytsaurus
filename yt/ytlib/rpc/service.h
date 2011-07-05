@@ -144,10 +144,10 @@ protected:
         S_Replied
     };
 
+    EState State;
     IService::TPtr Service;
     TRequestId RequestId;
     Stroka MethodName;
-    EState State;
     IBus::TPtr ReplyBus;
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
