@@ -33,15 +33,10 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
         return SnapshotNotFound;
     }
     
-    LOG_DEBUG("Downloading snapshot %d from master %d", segmentId, sourceId);
-
     EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotWriter);
     if (result != OK) {
         return result;
     }
-
-    LOG_DEBUG("Finished downloading snapshot %d from master %d",
-                segmentId, sourceId);
 
     return OK;
 }
@@ -52,7 +47,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
     for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
-        LOG_DEBUG("Requesting snapshot info from master %d", i);
+        LOG_INFO("Requesting snapshot info from master %d", i);
 
         TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
         TProxy::TReqGetSnapshotInfo::TPtr request = proxy->GetSnapshotInfo();
@@ -78,7 +73,7 @@ void TSnapshotDownloader::OnResponse(
 {
     if (!response->IsOK()) {
         // We have no snapshot id to log it here
-        LOG_DEBUG("Error %s requesting snapshot info from master %d",
+        LOG_INFO("Error %s requesting snapshot info from master %d",
             ~response->GetErrorCode().ToString(),
             masterId);
         return;
@@ -88,7 +83,7 @@ void TSnapshotDownloader::OnResponse(
     ui64 checksum = response->GetChecksum();
     i32 prevRecordCount = response->GetPrevRecordCount();
     
-    LOG_DEBUG("Got snapshot info from master %d (length: %" PRId64 ", checksum: %" PRIx64 ")",
+    LOG_INFO("Got snapshot info from master %d (length: %" PRId64 ", checksum: %" PRIx64 ")",
         masterId,
         length,
         checksum);
@@ -101,8 +96,8 @@ void TSnapshotDownloader::OnComplete(
     i32 segmentId,
     TAsyncResult<TSnapshotInfo>::TPtr asyncResult)
 {
-    LOG_DEBUG("Could not get snapshot %d info from masters",
-        segmentId);
+    LOG_INFO("Could not get snapshot %d info from masters", segmentId);
+
     asyncResult->Set(TSnapshotInfo(InvalidMasterId, -1, 0, 0));
 }
 
@@ -151,6 +146,11 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i32 sourceId,
     TOutputStream& output)
 {
+    LOG_INFO("Started downloading snapshot %d (length: %" PRId64 ") from master %d",
+            snapshotId,
+            snapshotLength,
+            sourceId);
+
     TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
@@ -187,7 +187,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                         break;
                 }
             } else {
-                LOG_DEBUG("RPC error %s reading snapshot from master %d",
+                LOG_WARNING("RPC error %s reading snapshot from master %d",
                     ~errorCode.ToString(),
                     sourceId);
                 return RemoteError;
@@ -219,6 +219,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
         downloadedLength += block.Size();
     }
+
+    LOG_INFO("Finished downloading snapshot %d from master %d", snapshotId, sourceId);
+
     return OK;
 }
 
