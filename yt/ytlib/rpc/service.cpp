@@ -18,10 +18,10 @@ TServiceContext::TServiceContext(
     Stroka methodName,
     IMessage::TPtr message,
     IBus::TPtr replyBus)
-    : Service(service)
+    : State(S_Received)
+    , Service(service)
     , RequestId(requestId)
     , MethodName(methodName)
-    , State(S_Received)
     , ReplyBus(replyBus)
     , RequestBody(message->GetParts().at(1))
     , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
@@ -134,7 +134,7 @@ void TServiceContext::LogException(
     AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
     AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
-    AppendInfo(str, Sprintf("What: %s", what));
+    AppendInfo(str, Sprintf("What: %s", what.c_str()));
     LOG_EVENT(
         ServiceLogger,
         level,
@@ -146,8 +146,8 @@ void TServiceContext::LogException(
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(Stroka serviceName, Stroka loggingCategory)
-    : ServiceName(serviceName)
-    , ServiceLogger(loggingCategory)
+    : ServiceLogger(loggingCategory)
+    , ServiceName(serviceName)
 { }
 
 void TServiceBase::RegisterHandler(
