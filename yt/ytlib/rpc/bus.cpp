@@ -217,6 +217,7 @@ public:
     TReplyBus(TBusServer::TPtr server, TSessionId sessionId)
         : Server(server)
         , SessionId(sessionId)
+        , SequenceId(0)
     { }
 
     virtual TSendResult::TPtr Send(IMessage::TPtr message)
@@ -279,8 +280,9 @@ public:
 
     void Initialize()
     {
+        // Cannot do this in ctor since a smartpointer for this is needed.
         MessageRearranger.Reset(new TMessageRearranger(
-            FromMethod(&TSession::OnMessageRearranged, TPtr(this)),
+            FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             MessageRearrangeTimeout));
     }
 
@@ -313,7 +315,7 @@ private:
     typedef yvector<TGUID> TRequestIds;
     typedef NStl::deque<IMessage::TPtr> TResponseMessages;
 
-    void OnMessageRearranged(IMessage::TPtr message)
+    void OnMessageDequeued(IMessage::TPtr message)
     {
         Server->Handler->OnMessage(message, ~ReplyBus);
     }
@@ -684,7 +686,7 @@ private:
     TRequestIdSet PingIds;
     THolder<TMessageRearranger> MessageRearranger;
 
-    void OnMessageRearranged(IMessage::TPtr message);
+    void OnMessageDequeued(IMessage::TPtr message);
 
 };
 
@@ -1111,9 +1113,9 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler* handler)
 
 void TBusClient::TBus::Initialize()
 {
-    // NB: cannot call this in ctor since a smartpointer for this is needed
+    // Cannot do this in ctor since a smartpointer for this is needed.
     MessageRearranger.Reset(new TMessageRearranger(
-        FromMethod(&TBus::OnMessageRearranged, TPtr(this)),
+        FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout));
 }
 
@@ -1139,7 +1141,7 @@ void TBusClient::TBus::ProcessIncomingMessage(IMessage::TPtr message, TSequenceI
     MessageRearranger->EnqueueMessage(message, sequenceId);
 }
 
-void TBusClient::TBus::OnMessageRearranged(IMessage::TPtr message)
+void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
 {
     Handler->OnMessage(message, this);
 }
