@@ -17,4 +17,5 @@ SET(YT_SOURCE_FILES
     recovery.cpp
     follower_state_tracker.cpp
     cell_manager.cpp
+    leader_pinger.cpp
 )

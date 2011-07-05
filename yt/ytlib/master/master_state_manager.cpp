@@ -1,8 +1,8 @@
 #include "master_state_manager.h"
 #include "follower_state_tracker.h"
 #include "change_committer.h"
+#include "leader_pinger.h"
 
-#include "../election/leader_pinger.h"
 #include "../actions/action_util.h"
 #include "../misc/string.h"
 #include "../misc/serialize.h"
