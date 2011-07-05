@@ -15,7 +15,7 @@ class TMessageRearranger
 {
 public:
     TMessageRearranger(
-        IParamAction<IMessage::TPtr>::TPtr onMessage,
+        IParamAction<IMessage::TPtr>::TPtr onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(
@@ -26,7 +26,7 @@ private:
     typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
 
     TSpinLock SpinLock;
-    IParamAction<IMessage::TPtr>::TPtr OnMessage;
+    IParamAction<IMessage::TPtr>::TPtr OnMessageDequeued;
     TDuration Timeout;
     TDelayedInvoker::TCookie TimeoutCookie; // for delay
     TSequenceId ExpectedSequenceId;

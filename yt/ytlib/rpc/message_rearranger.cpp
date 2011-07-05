@@ -12,7 +12,7 @@ static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
 TMessageRearranger::TMessageRearranger(
     IParamAction<IMessage::TPtr>::TPtr onMessage,
     TDuration timeout)
-    : OnMessage(onMessage)
+    : OnMessageDequeued(onMessage)
     , Timeout(timeout)
     , ExpectedSequenceId(-1)
 { }
@@ -31,7 +31,7 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
 
         guard.Release();
 
-        OnMessage->Do(message);
+        OnMessageDequeued->Do(message);
         return;
     }
 
@@ -95,7 +95,7 @@ void TMessageRearranger::OnTimeout()
          it != readyMessages.end();
          ++it)
     {
-        OnMessage->Do(*it);
+        OnMessageDequeued->Do(*it);
     }
 
     ScheduleTimeout();
