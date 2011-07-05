@@ -20,18 +20,17 @@ TChangeLogDownloader::TChangeLogDownloader(
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMasterStateId stateId,
-    TAsyncChangeLog& asyncChangeLog)
+    TAsyncChangeLog& changeLog)
 {
     LOG_INFO("Requested %d record(s) in changelog %d",
         stateId.ChangeCount,
         stateId.SegmentId);
 
-    // TODO: remove direct access to TChangeLog
-    TChangeLog::TPtr changeLog = asyncChangeLog.GetChangeLog();
-    YASSERT(changeLog->GetId() == stateId.SegmentId);
-    if (changeLog->GetRecordCount() >= stateId.ChangeCount) {
+    YASSERT(changeLog.GetId() == stateId.SegmentId);
+
+    if (changeLog.GetRecordCount() >= stateId.ChangeCount) {
         LOG_INFO("Local changelog already contains %d record(s), no download needed",
-            changeLog->GetRecordCount());
+            changeLog.GetRecordCount());
         return OK;
     }
 
@@ -40,7 +39,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
         return ChangeLogNotFound;
     }
 
-    return DownloadChangeLog(stateId, sourceId, asyncChangeLog);
+    return DownloadChangeLog(stateId, sourceId, changeLog);
 }
 
 TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
@@ -72,14 +71,12 @@ TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
 TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
     TMasterStateId stateId,
     TMasterId sourceId,
-    TAsyncChangeLog& asyncChangeLog)
+    TAsyncChangeLog& changeLog)
 {
-    // TODO: remove direct access to TChangeLog
-    TChangeLog::TPtr changeLog = asyncChangeLog.GetChangeLog();
-    i32 downloadedRecordCount = changeLog->GetRecordCount();
+    i32 downloadedRecordCount = changeLog.GetRecordCount();
 
     LOG_INFO("Started downloading records %d:%d from master %d",
-        changeLog->GetRecordCount(),
+        changeLog.GetRecordCount(),
         stateId.ChangeCount - 1,
         sourceId);
 
@@ -151,10 +148,8 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                 downloadedRecordCount + attachments.ysize() - 1);
         }
 
-        TAsyncChangeLog::TAppendResult::TPtr appendResult;
         for (i32 i = 0; i < attachments.ysize(); ++i) {
-            TSharedRef attachment = attachments[i];
-            appendResult = asyncChangeLog.Append(downloadedRecordCount, attachment);
+            changeLog.Append(downloadedRecordCount, attachments[i]);
             ++downloadedRecordCount;
         }
     }

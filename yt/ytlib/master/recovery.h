@@ -115,7 +115,7 @@ private:
     void RecoverFollowerFromChangeLog(TVoid, TSnapshotReader::TPtr, TMasterStateId targetStateId);
 
     void ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
-    void ApplyChangeLog(TChangeLog::TPtr changeLog, i32 targetChangeCount);
+    void ApplyChangeLog(TAsyncChangeLog& changeLog, i32 targetChangeCount);
 
      // Service thread
     void OnSyncTimeout();

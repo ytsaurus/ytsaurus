@@ -16,13 +16,12 @@ TKey TCacheValueBase<TKey, TValue, THash>::GetKey() const
 template<class TKey, class TValue, class THash>
 TCacheValueBase<TKey, TValue, THash>::TCacheValueBase(TKey key)
     : Key(key)
-{
-}
+{ }
 
 template<class TKey, class TValue, class THash>
 NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 {
-    if (Cache.Get() != NULL) {
+    if (~Cache != NULL) {
         Cache->Unregister(GetKey());
     }
 }
@@ -81,11 +80,12 @@ TCacheBase<TKey, TValue, THash>::Lookup(TKey key)
 template<class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
-    while (true) {
-        YASSERT(!cookie->Active);
+    YASSERT(!cookie->Active);
+    TKey key = cookie->GetKey();
 
+    while (true) {
         TGuard<TSpinLock> guard(SpinLock);
-        TKey key = cookie->GetKey();
+
         typename TItemMap::iterator itemIt = ItemMap.find(key);
         if (itemIt != ItemMap.end()) {
             TItem* item = itemIt->Second();
@@ -124,16 +124,26 @@ template<class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
     YASSERT(cookie->Active);
-    TGuard<TSpinLock> guard(SpinLock);
+
     TKey key = value->GetKey();
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    YASSERT(~value->Cache == NULL);
+    value->Cache = this;
+
     TItem* item = ItemMap.find(key)->Second();
     item->AsyncResult->Set(value);
-    LruList.PushFront(item);
-    ++LruListSize;
-    YASSERT(value->Cache.Get() == NULL);
+
+    // TODO: use verify
     YASSERT(ValueMap.find(key) == ValueMap.end());
     ValueMap.insert(MakePair(key, ~value));
+    
     cookie->Active = false;
+    
+    LruList.PushFront(item);
+    ++LruListSize;
+
     Trim();
 }
 
@@ -141,10 +151,14 @@ template<class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::CancelInsert(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);
+
     typename TItemMap::iterator it = ItemMap.find(key);
+    
     TItem* item = it->Second();
     item->AsyncResult->Set(NULL);
+    
     ItemMap.erase(it);
+    
     delete item;
 }
 

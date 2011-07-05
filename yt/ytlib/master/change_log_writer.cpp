@@ -118,8 +118,12 @@ public:
             // XXX: think about locking on append, because 
             // random push_back can invalidate all reading iterators
             ChangeLog->Append(recordId, data);
-            Records.push_back(TAppendRecord(recordId, data));
-            Results.push_back(result);
+
+            {
+                TGuard<TSpinLock> guard(FlushLock);
+                Records.push_back(TAppendRecord(recordId, data));
+                Results.push_back(result);
+            }
 
             UnflushedSize += data.Size();
             if (UnflushedSize >= UnflushedThreshold) {
@@ -157,7 +161,10 @@ public:
             it->second->Flush();
         }
 
-        ChangeLogQueues.clear();
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            ChangeLogQueues.clear();
+        }
     }
 
     TChangeLogQueue::TPtr GetCorrespondingQueue(TChangeLog::TPtr changeLog)
@@ -192,6 +199,16 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
+i32 TAsyncChangeLog::GetId() const
+{
+    return ChangeLog->GetId();
+}
+
+bool TAsyncChangeLog::IsFinalized() const
+{
+    return ChangeLog->IsFinalized();
+}
+
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId, const TSharedRef& data)
 {
@@ -224,7 +241,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     // TODO: queue access locking
 
     TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
-    if (!flushQueue) {
+    if (~flushQueue == NULL) {
         ChangeLog->Read(firstRecordId, recordCount, result);
         return;
     }
@@ -236,6 +253,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     i32 lastRecordId = firstRecordId + recordCount;
     i32 firstUnflushedRecordId = lastRecordId;
 
+    // TODO: rename to unflushedRecords
     yvector<TSharedRef> unflushedChanges;
 
     for (TImpl::TChangeLogQueue::TAppendRecords::iterator it = flushQueue->Records.begin();
@@ -253,7 +271,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
         unflushedChanges.push_back(it->Data);
     }
 
-    // At this moment we can release the queue.
+    // At this moment we can release the lock.
     guard.Release();
 
     if (unflushedChanges.empty()) {
@@ -263,7 +281,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
     ChangeLog->Read(firstRecordId, firstUnflushedRecordId - firstRecordId, result);
 
-    i32 firstUnreadRecordId = firstRecordId + result->size();
+    i32 firstUnreadRecordId = firstRecordId + result->ysize();
 
     if (firstUnreadRecordId != firstUnflushedRecordId) {
         LOG_FATAL("Gap found while reading changelog: (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
@@ -271,6 +289,22 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
             firstUnflushedRecordId);
     } else {
         result->insert(result->end(), unflushedChanges.begin(), unflushedChanges.end());
+    }
+}
+
+int TAsyncChangeLog::GetRecordCount()
+{
+    // TODO: locking?
+    TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
+    if (~flushQueue == NULL) {
+        return ChangeLog->GetRecordCount();
+    } else {
+        TGuard<TSpinLock> guard(flushQueue->FlushLock);
+        if (flushQueue->Records.empty()) {
+            return ChangeLog->GetRecordCount();
+        } else {
+            return flushQueue->Records[flushQueue->Records.ysize() - 1].RecordId + 1;
+        }
     }
 }
 

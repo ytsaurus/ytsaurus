@@ -115,7 +115,8 @@ void TMasterRecovery::RecoverLeaderFromChangeLog(
             cachedChangeLog = ChangeLogCache->Create(segmentId, -1/*prevRecordCount*/);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+        TAsyncChangeLog& changeLog = cachedChangeLog->GetWriter();
+
         // TODO: fixme
         /*
         if (prevRecordCount != -1 &&
@@ -125,14 +126,14 @@ void TMasterRecovery::RecoverLeaderFromChangeLog(
             return E_Failed;
         }
         prevRecordCount = changeLog->GetRecordCount();
-        */
 
         if (segmentId != targetStateId.SegmentId && !changeLog->IsFinalized()) {
             LOG_WARNING("Changelog %d is not finalized", segmentId);
         }
+        */
 
         // Apply the whole changelog.
-        ApplyChangeLog(changeLog, changeLog->GetRecordCount());
+        ApplyChangeLog(changeLog, changeLog.GetRecordCount());
 
         if (segmentId < targetStateId.SegmentId) {
             MasterState->AdvanceSegment();
@@ -145,10 +146,10 @@ void TMasterRecovery::RecoverLeaderFromChangeLog(
 }
 
 void TMasterRecovery::ApplyChangeLog(
-    TChangeLog::TPtr changeLog,
+    TAsyncChangeLog& changeLog,
     i32 targetChangeCount)
 {
-    YASSERT(MasterState->GetStateId().SegmentId == changeLog->GetId());
+    YASSERT(MasterState->GetStateId().SegmentId == changeLog.GetId());
     
     i32 startRecordId = MasterState->GetStateId().ChangeCount;
     i32 recordCount = targetChangeCount - startRecordId;
@@ -159,14 +160,14 @@ void TMasterRecovery::ApplyChangeLog(
     LOG_INFO("Reading records %d-%d from changelog %d",
         startRecordId,
         targetChangeCount - 1, 
-        changeLog->GetId());
+        changeLog.GetId());
 
     yvector<TSharedRef> records;
-    changeLog->Read(startRecordId, recordCount, &records);
+    changeLog.Read(startRecordId, recordCount, &records);
     if (records.ysize() < recordCount) {
         LOG_FATAL("Could not read changelog %d starting from record %d "
             "(expected: %d records, received %d records)",
-            changeLog->GetId(),
+            changeLog.GetId(),
             startRecordId,
             recordCount,
             records.ysize());
@@ -364,7 +365,7 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
             cachedChangeLog = ChangeLogCache->Create(segmentId, -1 /*prevRecordCount*/);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+        TAsyncChangeLog& changeLog = cachedChangeLog->GetWriter();
 /*
         if (changeLog->GetPrevStateId().ChangeCount != prevRecordCount) {
             // TODO: log
@@ -380,13 +381,13 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
         TProxy::TRspGetChangeLogInfo::TPtr response = request->Invoke()->Get(); // TODO: timeout
         if (!response->IsOK()) {
             LOG_ERROR("Could not get changelog %d info from leader",
-                        segmentId);
+                segmentId);
 
             Result->Set(E_Failed);
             return;
         }
 
-        i32 localRecordCount = changeLog->GetRecordCount();
+        i32 localRecordCount = changeLog.GetRecordCount();
         i32 remoteRecordCount = response->GetRecordCount();
 
         LOG_INFO("Changelog %d has %d local record(s), %d remote record(s)",
@@ -407,15 +408,15 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
 
         // TODO: use changeLogWriter instead
         if (remoteRecordCount < targetChangeCount) {
-            changeLog->Truncate(remoteRecordCount);
             // TODO: finalize?
             // TODO: this could only happen with the last changelog
+            //changeLog.Truncate(remoteRecordCount);
         } else if (localRecordCount < targetChangeCount) {
             // TODO: extract method
             TChangeLogDownloader changeLogDownloader(ChangeLogDownloaderConfig, CellManager);
             TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
                 TMasterStateId(segmentId, targetChangeCount),
-                cachedChangeLog->GetWriter());
+                changeLog);
 
             if (changeLogResult != TChangeLogDownloader::OK) {
                 // TODO: tostring
@@ -428,9 +429,9 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
             }
         }
 
-        if (segmentId != targetStateId.SegmentId && !changeLog->IsFinalized()) {
+        if (segmentId != targetStateId.SegmentId && !changeLog.IsFinalized()) {
             LOG_WARNING("Changelog %d was not finalized", segmentId);
-            cachedChangeLog->GetWriter().Finalize();
+            changeLog.Finalize();
         }
 
         ApplyChangeLog(changeLog, targetChangeCount);
