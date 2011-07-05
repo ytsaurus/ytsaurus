@@ -3,6 +3,8 @@
 #include "../misc/pattern_formatter.h"
 #include "../misc/config.h"
 
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NLog {
 
@@ -313,6 +315,10 @@ void TLogManager::Configure(TJsonObject* root)
 
 void TLogManager::Configure(Stroka fileName, Stroka rootPath)
 {
+    if (!isexist(~fileName)) {
+        LOG_ERROR("Config file %s doesn't exist", ~fileName);
+        return;
+    }
     TIFStream configStream(fileName);
     TJsonReader reader(CODES_UTF8, &configStream);
     TJsonObject* root = reader.ReadAll();
