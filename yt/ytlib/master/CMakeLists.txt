@@ -8,7 +8,7 @@ SET(YT_SOURCE_FILES
     change_log.cpp
     common.h
     change_committer.cpp
-    change_log_writer.cpp
+    async_change_log.cpp
     change_log_downloader.cpp
     change_log_cache.cpp
     snapshot_creator.cpp

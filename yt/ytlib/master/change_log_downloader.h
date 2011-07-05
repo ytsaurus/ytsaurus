@@ -5,7 +5,7 @@
 #include "decorated_master_state.h"
 #include "master_state_manager_rpc.h"
 #include "cell_manager.h"
-#include "change_log_writer.h"
+#include "async_change_log.h"
 
 #include "../rpc/client.h"
 

@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "change_log.h"
-#include "change_log_writer.h"
+#include "async_change_log.h"
 
 #include "../misc/cache.h"
 
