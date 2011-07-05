@@ -89,6 +89,8 @@ void TMessageRearranger::OnTimeout()
             readyMessages.push_back(message);
             ++ExpectedSequenceId;
         }
+
+        ScheduleTimeout();
     }
 
     for (yvector<IMessage::TPtr>::iterator it = readyMessages.begin();
@@ -97,21 +99,14 @@ void TMessageRearranger::OnTimeout()
     {
         OnMessageDequeued->Do(*it);
     }
-
-    ScheduleTimeout();
 }
 
-void TMessageRearranger::CancelTimeout()
+void TMessageRearranger::ScheduleTimeout()
 {
     if (TimeoutCookie != TDelayedInvoker::TCookie()) {
         TDelayedInvoker::Get()->Cancel(TimeoutCookie);
         TimeoutCookie = TDelayedInvoker::TCookie();
     }
-}
-
-void TMessageRearranger::ScheduleTimeout()
-{
-    CancelTimeout();
     TimeoutCookie = TDelayedInvoker::Get()->Submit(
         FromMethod(&TMessageRearranger::OnTimeout, this),
         Timeout);

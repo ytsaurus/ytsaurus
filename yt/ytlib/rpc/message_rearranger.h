@@ -6,7 +6,7 @@
 #include "../misc/delayed_invoker.h"
 
 namespace NYT {
-namespace NRpc{
+namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,12 +28,11 @@ private:
     TSpinLock SpinLock;
     IParamAction<IMessage::TPtr>::TPtr OnMessageDequeued;
     TDuration Timeout;
-    TDelayedInvoker::TCookie TimeoutCookie; // for delay
+    TDelayedInvoker::TCookie TimeoutCookie;
     TSequenceId ExpectedSequenceId;
     TMessageMap MessageMap;
 
     void ScheduleTimeout();
-    void CancelTimeout();
     void OnTimeout();
 };
 
