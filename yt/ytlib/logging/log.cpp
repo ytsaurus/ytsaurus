@@ -94,26 +94,32 @@ void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
                 Sprintf("Couldn't read property Name at writer #%d", i);
         }
 
+        if (Writers.find(name) != Writers.end()) {
+            ythrow yexception() <<
+                Sprintf("Writer %s is already defined", ~name);
+        }
+
         if(!TryRead(item, L"Pattern", &pattern)) {
             ythrow yexception() <<
-                Sprintf("Couldn't read property Pattern at writer #%d", i);
+                Sprintf("Couldn't read property Pattern at writer %s", ~name);
         }
 
         Stroka errorMessage;
-        if (!ValidatePattern(pattern, &errorMessage)) {
-            ythrow yexception() << errorMessage;
+        if (!ValidatePattern(pattern, & errorMessage)) {
+            ythrow yexception() <<
+                Sprintf("Invalid pattern at writer %s: %s", ~name, ~errorMessage);
         }
 
         if (!TryRead(item, L"Type", &type)) {
             ythrow yexception() <<
-                Sprintf("Couldn't read property Type at Writer #%d", i);
+                Sprintf("Couldn't read property Type at writer %s", ~name);
         }
 
         if (type == "File") {
             Stroka fileName;
             if(!TryRead(item, L"FileName", &fileName)) {
                 ythrow yexception() <<
-                    Sprintf("Couldn't read property FileName at Writer #%d", i);
+                    Sprintf("Couldn't read property FileName at writer %s", ~name);
             }
             Writers[name] = new TFileLogWriter(fileName, pattern);
         } else if (type == "StdErr") {
