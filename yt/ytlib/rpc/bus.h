@@ -90,6 +90,7 @@ private:
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
 
     void EnqueueReply(TIntrusivePtr<TReply> reply);
+    TIntrusivePtr<TReply> DequeueReply();
     bool ProcessReplies();
     void ProcessReply(TIntrusivePtr<TReply> reply);
 
@@ -98,7 +99,7 @@ private:
     void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse);
 
-    void DoProcessMessage(
+    TIntrusivePtr<TSession> DoProcessMessage(
         TPacketHeader* header,
         const TGUID& requestId,
         const TUdpAddress& address,

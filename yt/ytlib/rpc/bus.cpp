@@ -198,12 +198,32 @@ struct TBusServer::TReply
 
     TReply(TSessionId sessionId, TBlob& data)
         : SessionId(sessionId)
+        , IsReplied(false)
     {
         Data.swap(data);
     }
 
+    static void Enqueue(TLockFreeQueue<TPtr>& queue, TPtr reply)
+    {
+        YASSERT(!reply->IsReplied);
+        queue.Enqueue(reply);
+    }
+
+    static TPtr Dequeue(TLockFreeQueue<TPtr>& queue)
+    {
+        TBusServer::TReply::TPtr reply;
+        while (queue.Dequeue(&reply)) {
+            if (!reply->IsReplied) {
+                reply->IsReplied = true;
+                return reply;
+            }
+        }
+        return NULL;
+    }
+
     TSessionId SessionId;
     TBlob Data;
+    bool IsReplied;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,6 +259,9 @@ public:
     {
         // Drop the rearranger to kill the cyclic dependency.
         MessageRearranger.Destroy();
+
+        // Also forget about the server.
+        Server.Drop();
     }
 
     TGUID SendReply(TReply::TPtr reply)
@@ -264,7 +287,7 @@ public:
     // IBus implementation.
     virtual TSendResult::TPtr Send(IMessage::TPtr message)
     {
-        // Load to a local since the other thread may be calling Terminate.
+        // Load to a local since the other thread may be calling Finalize.
         TBusServer::TPtr server = Server;
         if (~server == NULL) {
             LOG_WARNING("Attempt to reply via a detached bus");
@@ -273,12 +296,23 @@ public:
 
         TSequenceId sequenceId = GenerateSequenceId();
 
-        TBlob data;
-        EncodeMessagePacket(message, SessionId, sequenceId, &data);
-        
         TReply::TPtr reply = new TReply(SessionId, data);
+        int dataSize = reply->Data.ysize();
+
+        TReply::Enqueue(ReplyQueue, reply);
         server->EnqueueReply(reply);
+        
+        LOG_DEBUG("Reply enqueued (SessionId: %s, Reply: %p, PacketSize: %d)",
+            ~StringFromGuid(reply->SessionId),
+            ~reply,
+            dataSize);
+
         return NULL;
+    }
+
+    TReply::TPtr DequeueReply()
+    {
+        return TReply::Dequeue(ReplyQueue);
     }
 
     virtual void Terminate()
@@ -297,6 +331,7 @@ private:
     bool Terminated;
     TAtomic SequenceId;
     THolder<TMessageRearranger> MessageRearranger;
+    TLockFreeQueue<TReply::TPtr> ReplyQueue;
 
     TSequenceId GenerateSequenceId()
     {
@@ -468,8 +503,8 @@ bool TBusServer::ProcessReplies()
 {
     bool result = false;
     for (int i = 0; i < MaxRequestsPerCall; ++i) {
-        TReply::TPtr reply;
-        if (!ReplyQueue.Dequeue(&reply))
+        TReply::TPtr reply = DequeueReply();
+        if (~reply == NULL)
             break;
         result = true;
         ProcessReply(reply);
@@ -514,18 +549,15 @@ void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
 
 void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
 {
-    TSessionId sessionId =  header->SessionId;
-
-    DoProcessMessage(
+    TSession::TPtr session = DoProcessMessage(
         header,
         nlRequest->ReqId,
         nlRequest->PeerAddress,
         nlRequest->Data,
         true);
     
-    TReply::TPtr reply;
-    // TODO
-    if (false/*ReplyQueue.Dequeue(&reply)*/) {
+    TReply::TPtr reply = session->DequeueReply();
+    if (~reply != NULL) {
         Requester->SendResponse(nlRequest->ReqId, &reply->Data);
 
         LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Reply: %p)",
@@ -534,12 +566,12 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
             ~reply);
     } else {
         TBlob ackData;
-        CreatePacket(sessionId, TPacketHeader::Ack, &ackData);
+        CreatePacket(header->SessionId, TPacketHeader::Ack, &ackData);
 
         Requester->SendResponse(nlRequest->ReqId, &ackData);
 
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(sessionId),
+            ~StringFromGuid(header->SessionId),
             ~StringFromGuid(nlRequest->ReqId));
     }
 }
@@ -554,7 +586,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlRespo
         false);
 }
 
-void TBusServer::DoProcessMessage(
+TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
     TPacketHeader* header,
     const TGUID& requestId,
     const TUdpAddress& address,
@@ -573,7 +605,7 @@ void TBusServer::DoProcessMessage(
                 ~StringFromGuid(header->SessionId),
                 ~StringFromGuid(requestId),
                 dataSize);
-            return;
+            return NULL;
         }
     } else {
         session = sessionIt->Second();
@@ -582,7 +614,7 @@ void TBusServer::DoProcessMessage(
     IMessage::TPtr message;
     TSequenceId sequenceId;;
     if (!DecodeMessagePacket(data, &message, &sequenceId))
-        return;
+        return session;
 
     LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
         (int) isRequest,
@@ -592,17 +624,19 @@ void TBusServer::DoProcessMessage(
         dataSize);
 
     session->ProcessIncomingMessage(message, sequenceId);
+
+    return session;
 }
 
 void TBusServer::EnqueueReply(TReply::TPtr reply)
 {
-    int dataSize = reply->Data.ysize();
-    ReplyQueue.Enqueue(reply);
+    TReply::Enqueue(ReplyQueue, reply);
     GetEvent().Signal();
-    LOG_DEBUG("Reply enqueued (SessionId: %s, Reply: %p, PacketSize: %d)",
-        ~StringFromGuid(reply->SessionId),
-        ~reply,
-        dataSize);
+}
+
+TBusServer::TReply::TPtr TBusServer::DequeueReply()
+{
+    return TReply::Dequeue(ReplyQueue);
 }
 
 TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
