@@ -22,18 +22,17 @@ public:
 
     typedef TAsyncResult<TVoid> TAppendResult;
 
-    i32 GetId() const;
-    bool IsFinalized() const;
+    void Finalize();
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& changeData);
-    //void Flush();
-    void Finalize();
+    // TODO: Flush();
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
     // TODO: Truncate();
-    int GetRecordCount();
 
-    // TODO: deprecated
-    TChangeLog::TPtr GetChangeLog() const;
+    i32 GetId() const;
+    // TMasterStateId GetPrevStateId() const;
+    i32 GetRecordCount() const;
+    bool IsFinalized() const;
 
 private:
     class TImpl;

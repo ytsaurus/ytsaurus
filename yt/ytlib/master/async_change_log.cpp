@@ -199,15 +199,6 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-i32 TAsyncChangeLog::GetId() const
-{
-    return ChangeLog->GetId();
-}
-
-bool TAsyncChangeLog::IsFinalized() const
-{
-    return ChangeLog->IsFinalized();
-}
 
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId, const TSharedRef& data)
@@ -292,7 +283,12 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     }
 }
 
-int TAsyncChangeLog::GetRecordCount()
+i32 TAsyncChangeLog::GetId() const
+{
+    return ChangeLog->GetId();
+}
+
+i32 TAsyncChangeLog::GetRecordCount() const
 {
     // TODO: locking?
     TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
@@ -308,9 +304,9 @@ int TAsyncChangeLog::GetRecordCount()
     }
 }
 
-TChangeLog::TPtr TAsyncChangeLog::GetChangeLog() const
+bool TAsyncChangeLog::IsFinalized() const
 {
-    return ChangeLog;
+    return ChangeLog->IsFinalized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
