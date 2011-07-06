@@ -517,7 +517,8 @@ void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     TPingMap::iterator pingIt = PingMap.find(nlResponse->ReqId);
     if (pingIt == PingMap.end()) {
         LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(header->SessionId), ~StringFromGuid(nlResponse->ReqId));
+            ~StringFromGuid(header->SessionId),
+            ~StringFromGuid(nlResponse->ReqId));
     } else {
         LOG_DEBUG("Ping ack received (RequestId: %s)",
             ~StringFromGuid(nlResponse->ReqId));
@@ -544,7 +545,9 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         Requester->SendResponse(nlRequest->ReqId, &reply->Data);
 
         LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Reply: %p)",
-            ~StringFromGuid(reply->SessionId), ~StringFromGuid(nlRequest->ReqId), ~reply);
+            ~StringFromGuid(reply->SessionId),
+            ~StringFromGuid(nlRequest->ReqId),
+            ~reply);
     } else {
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::Ack, &ackData);
@@ -552,7 +555,8 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         Requester->SendResponse(nlRequest->ReqId, &ackData);
 
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(sessionId), ~StringFromGuid(nlRequest->ReqId));
+            ~StringFromGuid(sessionId),
+            ~StringFromGuid(nlRequest->ReqId));
     }
 }
 
@@ -582,7 +586,9 @@ void TBusServer::DoProcessMessage(
             session = RegisterSession(header->SessionId, address);
         } else {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
-                ~StringFromGuid(header->SessionId), ~StringFromGuid(requestId), dataSize);
+                ~StringFromGuid(header->SessionId),
+                ~StringFromGuid(requestId),
+                dataSize);
             return;
         }
     } else {
