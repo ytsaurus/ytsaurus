@@ -296,8 +296,11 @@ public:
 
         TSequenceId sequenceId = GenerateSequenceId();
 
+        TBlob data;
+        EncodeMessagePacket(message, SessionId, sequenceId, &data);
+        int dataSize = data.ysize();
+        
         TReply::TPtr reply = new TReply(SessionId, data);
-        int dataSize = reply->Data.ysize();
 
         TReply::Enqueue(ReplyQueue, reply);
         server->EnqueueReply(reply);
