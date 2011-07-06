@@ -61,7 +61,6 @@ public:
     Stroka GetDebugInfo();
 
 private:
-    class TReplyBus;
     class TSession;
     struct TReply;
 
