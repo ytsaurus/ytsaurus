@@ -14,7 +14,7 @@ class TCachedChangeLog
     : public TCacheValueBase<i32, TCachedChangeLog>
 {
 public:
-    TCachedChangeLog(TChangeLog* changeLog);
+    TCachedChangeLog(TChangeLog::TPtr changeLog);
 
     // TODO: kill GetWriter() :)
     TChangeLog::TPtr GetChangeLog() const;

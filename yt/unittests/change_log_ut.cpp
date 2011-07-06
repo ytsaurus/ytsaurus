@@ -18,7 +18,7 @@ class TChangeLogTest
         UNIT_TEST(TestUnalighnedChecksum);
     UNIT_TEST_SUITE_END();
 
-public:
+private:
     template<class T>
     static void CheckRecord(T data, TRef record)
     {
@@ -28,23 +28,26 @@ public:
 
     template<class T>
     static void CheckRead(
-        TChangeLog* changeLog,
-        i32 startRecordId,
+        TChangeLog::TPtr changeLog,
+        i32 firstRecordId,
         i32 recordCount,
         i32 logRecordCount)
     {
         yvector<TSharedRef> records;
-        changeLog->Read(startRecordId, recordCount, &records);
-        i32 expectedRecordCount = startRecordId >= logRecordCount
-            ? 0 : Min(recordCount, logRecordCount - startRecordId);
+        changeLog->Read(firstRecordId, recordCount, &records);
+
+        i32 expectedRecordCount =
+            firstRecordId >= logRecordCount ?
+            0 : Min(recordCount, logRecordCount - firstRecordId);
+
         UNIT_ASSERT_EQUAL(records.ysize(), expectedRecordCount);
         for (i32 i = 0; i < records.ysize(); ++i) {
-            CheckRecord<T>(static_cast<T>(startRecordId + i), records[i]);
+            CheckRecord<T>(static_cast<T>(firstRecordId + i), records[i]);
         }
     }
 
     template<class T>
-    static void CheckReads(TChangeLog* changeLog, i32 logRecordCount)
+    static void CheckReads(TChangeLog::TPtr changeLog, i32 logRecordCount)
     {
         for (i32 start = 0; start <= logRecordCount; ++start) {
             for (i32 end = start; end <= 2 * logRecordCount + 1; ++end) {
@@ -53,17 +56,21 @@ public:
         }
     }
 
+public:
+    // TODO: In google-test investigate feasibility of TearUp and TearDown to reduce code duplication.
     void TestEmptyChangeLog()
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 64);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 64));
+            changeLog->Create(0);
         }
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 64);
-            changeLog.Open();
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 64));
+            changeLog->Open();
         }
     }
 
@@ -71,24 +78,31 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 256;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 64);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 64));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
-            changeLog.Flush();
-            UNIT_ASSERT_EQUAL(changeLog.IsFinalized(), false);
-            changeLog.Finalize();
-            UNIT_ASSERT_EQUAL(changeLog.IsFinalized(), true);
+
+            changeLog->Flush();
+            UNIT_ASSERT_EQUAL(changeLog->IsFinalized(), false);
+
+            changeLog->Finalize();
+            UNIT_ASSERT_EQUAL(changeLog->IsFinalized(), true);
         }
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 64);
-            changeLog.Open();
-            UNIT_ASSERT_EQUAL(changeLog.IsFinalized(), true);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 64));
+            changeLog->Open();
+
+            UNIT_ASSERT_EQUAL(changeLog->IsFinalized(), true);
         }
     }
 
@@ -96,24 +110,30 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 256;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
-            changeLog.Flush();
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckReads<ui32>(&changeLog, logRecordCount);
+
+            changeLog->Flush();
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckReads<ui32>(changeLog, logRecordCount);
         }
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckReads<ui32>(&changeLog, logRecordCount);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckReads<ui32>(changeLog, logRecordCount);
         }
     }
 
@@ -121,42 +141,49 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 1024;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
-            changeLog.Flush();
+
+            changeLog->Flush();
         }
-        {   // truncate file
+
+        {   // Truncate file!
             TFile changeLogFile("tmp", RdWr);
             changeLogFile.Resize(changeLogFile.GetLength() - 1);
         }
-        {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
 
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount - 1);
-            CheckRead<ui32>(&changeLog, 0, logRecordCount, logRecordCount - 1);
+        {
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount - 1);
+            CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount - 1);
 
             TBlob blob(sizeof(i32));
             *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-            changeLog.Append(logRecordCount - 1, TSharedRef(blob));
-            changeLog.Flush();
+            changeLog->Append(logRecordCount - 1, TSharedRef(blob));
+            changeLog->Flush();
 
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckRead<ui32>(&changeLog, 0, logRecordCount, logRecordCount);
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
         }
-        {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
 
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckRead<ui32>(&changeLog, 0, logRecordCount, logRecordCount);
+        {
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
         }
     }
 
@@ -164,30 +191,36 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 256;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
-            changeLog.Flush();
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckRead<ui32>(&changeLog, 0, logRecordCount, logRecordCount);
+
+            changeLog->Flush();
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
         }
+
         for (int recordId = logRecordCount; recordId >= 0; --recordId) {
             {
-                TChangeLog changeLog(tempFile.Name(), 0, 128);
-                changeLog.Open();
-                changeLog.Truncate(recordId);
+                TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+                changeLog->Open();
+                changeLog->Truncate(recordId);
             }
             {
-                TChangeLog changeLog(tempFile.Name(), 0, 128);
-                changeLog.Open();
-                UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), recordId);
-                CheckRead<ui32>(&changeLog, 0, recordId, recordId);
+                TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+                changeLog->Open();
+
+                UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), recordId);
+                CheckRead<ui32>(changeLog, 0, recordId, recordId);
             }
         }
     }
@@ -196,42 +229,50 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 256;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
-            changeLog.Flush();
-            UNIT_ASSERT_EQUAL(changeLog.GetRecordCount(), logRecordCount);
-            CheckRead<ui32>(&changeLog, 0, logRecordCount, logRecordCount);
+
+            changeLog->Flush();
+            UNIT_ASSERT_EQUAL(changeLog->GetRecordCount(), logRecordCount);
+            CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
         }
+
         int recordId = logRecordCount / 2;
         {
-            //truncate
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
-            changeLog.Truncate(recordId);
-            CheckRead<ui32>(&changeLog, 0, recordId, recordId);
+            // Truncate
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+            changeLog->Truncate(recordId);
+
+            CheckRead<ui32>(changeLog, 0, recordId, recordId);
         }
         {
-            //append
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
+            // Append
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
             for (i32 i = recordId; i < logRecordCount; ++i) {
                 TBlob blob(sizeof(ui32));
                 *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(i);
-                changeLog.Append(i, TSharedRef(blob));
+                changeLog->Append(i, TSharedRef(blob));
             }
         }
         {
-            //check
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
-            CheckRead<ui32>(&changeLog, 0, recordId, recordId);
+            // Check
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
+            CheckRead<ui32>(changeLog, 0, recordId, recordId);
         }
     }
 
@@ -239,20 +280,24 @@ public:
     {
         TTempFile tempFile("tmp");
         TTempFile tempIndexFile("tmp.index");
+
         const int logRecordCount = 256;
+
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Create(0);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Create(0);
+
             for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
                 TBlob blob(sizeof(ui8));
                 *reinterpret_cast<ui8*>(blob.begin()) = static_cast<ui8>(recordId);
-                changeLog.Append(recordId, TSharedRef(blob));
+                changeLog->Append(recordId, TSharedRef(blob));
             }
         }
         {
-            TChangeLog changeLog(tempFile.Name(), 0, 128);
-            changeLog.Open();
-            CheckRead<ui8>(&changeLog, 0, logRecordCount, logRecordCount);
+            TChangeLog::TPtr changeLog(new TChangeLog(tempFile.Name(), 0, 128));
+            changeLog->Open();
+
+            CheckRead<ui8>(changeLog, 0, logRecordCount, logRecordCount);
         }
     }
 };

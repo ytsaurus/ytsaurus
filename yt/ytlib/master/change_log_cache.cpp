@@ -14,7 +14,7 @@ static const char* const LogExtension = "log";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedChangeLog::TCachedChangeLog(TChangeLog* changeLog)
+TCachedChangeLog::TCachedChangeLog(TChangeLog::TPtr changeLog)
     : TCacheValueBase<i32, TCachedChangeLog>(changeLog->GetId())
     , ChangeLog(changeLog)
     , Writer(changeLog)
@@ -52,7 +52,7 @@ TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
         if (!isexist(~fileName)) {
             return NULL;
         }
-        THolder<TChangeLog> changeLog(new TChangeLog(fileName, segmentId));
+        TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
         try {
             changeLog->Open();
         } catch (const yexception& ex) {
@@ -60,7 +60,7 @@ TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
                 segmentId, ex.what());
             return NULL;
         }
-        EndInsert(new TCachedChangeLog(changeLog.Release()), &cookie);
+        EndInsert(new TCachedChangeLog(changeLog), &cookie);
     }
     return cookie.GetAsyncResult()->Get();
 }
@@ -74,14 +74,14 @@ TCachedChangeLog::TPtr TChangeLogCache::Create(
             segmentId);
     }
     Stroka fileName = GetChangeLogFileName(segmentId);
-    THolder<TChangeLog> changeLog(new TChangeLog(fileName, segmentId));
+    TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
     try {
         changeLog->Create(prevRecordCount);
     } catch (const yexception& ex) {
         LOG_FATAL("Could not create changelog %d: %s",
             segmentId, ex.what());
     }
-    EndInsert(new TCachedChangeLog(changeLog.Release()), &cookie);
+    EndInsert(new TCachedChangeLog(changeLog), &cookie);
     return cookie.GetAsyncResult()->Get();
 }
 

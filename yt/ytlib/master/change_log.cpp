@@ -5,6 +5,8 @@
 #include "../logging/log.h"
 
 #include <util/generic/algorithm.h>
+#include <util/generic/ptr.h>
+#include <util/generic/noncopyable.h>
 #include <util/digest/murmur.h>
 
 namespace NYT {
@@ -12,30 +14,37 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChangeLog");
-static const char* const IndexSuffix = ".index";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Auxiliary constants and functions.
 namespace {
 
-// Alignment should be a power of two.
-// Alignment is measured in bytes.
+static const char* const IndexSuffix = ".index";
+
+//! Alignment size; measured in bytes and must be a power of two.
 const size_t ALIGNMENT = 4;
+
+//! Auxiliary padding zeros.
 const ui8 PADDING[ALIGNMENT] = { 0 };
 
 STATIC_ASSERT(!(ALIGNMENT & (ALIGNMENT - 1)));
 
+//! Returns padding size: number of bytes required to make size
+//! a factor of #ALIGNMENT.
 size_t GetPaddingSize(size_t size)
 {
     size_t res = size % ALIGNMENT;
     return res == 0 ? 0 : ALIGNMENT - res;
 }
 
+//! Rounds up the #size to the nearest factor of #ALIGNMENT.
 size_t AlignUp(size_t size)
 {
     return size + GetPaddingSize(size);
 }
 
+//! Writes padding zeros.
 void WritePadding(TOutputStream& output, size_t recordSize)
 {
     output.Write(&PADDING, GetPaddingSize(recordSize));
@@ -45,113 +54,200 @@ void WritePadding(TOutputStream& output, size_t recordSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 4)
-
-struct TChangeLog::TLogHeader
+//! Implementation of TChangeLog.
+//! \cond Implementation
+class TChangeLog::TImpl
+    : private ::TNonCopyable
 {
-    static const ui64 CurrentSignature = 0x313030304C435459ull; // YTCL0001
+public:
+    TImpl(Stroka fileName, i32 id, i32 indexBlockSize);
 
-    ui64 Signature;
-    i32 SegmentId;
-    i32 PrevRecordCount;
-    i32 Finalized;
+    void Open();
+    void Create(i32 previousRecordCount);
+    void Finalize();
 
-    TLogHeader()
-        : Signature(0)
-        , SegmentId(0)
-        , Finalized(0)
-    { }
+    void Append(i32 recordId, TSharedRef recordData);
+    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
+    void Flush();
+    void Truncate(i32 recordId);
 
-    TLogHeader(i32 segmentId, i32 prevRecordCount, bool finalized)
-        : Signature(CurrentSignature)
-        , SegmentId(segmentId)
-        , PrevRecordCount(prevRecordCount)
-        , Finalized(finalized ? -1 : 0)
-    { }
+    i32 GetId() const;
+    TMasterStateId GetPrevStateId() const;
+    i32 GetRecordCount() const;
+    bool IsFinalized() const;
 
-    void Validate() const
+private:
+    // Binary Structures {{{
+    ////////////////////////////////////////////////////////////////////////////////
+
+    #pragma pack(push, 4)
+
+    struct TLogHeader
     {
-        if (Signature != CurrentSignature) {
-            ythrow yexception()
-                << Sprintf("Invalid TLogHeader signature: expected %" PRIx64 ", found %" PRIx64,
-                CurrentSignature, Signature);
+        static const ui64 CurrentSignature = 0x313030304C435459ull; // YTCL0001
+
+        ui64 Signature;
+        i32 SegmentId;
+        i32 PrevRecordCount;
+        i32 Finalized;
+
+        TLogHeader()
+            : Signature(0)
+            , SegmentId(0)
+            , Finalized(0)
+        { }
+
+        TLogHeader(i32 segmentId, i32 prevRecordCount, bool finalized)
+            : Signature(CurrentSignature)
+            , SegmentId(segmentId)
+            , PrevRecordCount(prevRecordCount)
+            , Finalized(finalized ? -1 : 0)
+        { }
+
+        void Validate() const
+        {
+            if (Signature != CurrentSignature) {
+                ythrow yexception() << Sprintf(
+                    "Invalid TLogHeader signature "
+                    "(expected %" PRIx64 ", got %" PRIx64 ")",
+                    CurrentSignature,
+                    Signature);
+            }
         }
-    }
-};
+    };
 
-#pragma pack(pop)
+    STATIC_ASSERT(sizeof(TLogHeader) == 20);
 
-////////////////////////////////////////////////////////////////////////////////
+    #pragma pack(pop)
 
-#pragma pack(push, 4)
+    ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangeLog::TRecordHeader
-{
-    i32 RecordId;
-    i32 DataLength;
-    TChecksum Checksum;
+    #pragma pack(push, 4)
 
-    TRecordHeader()
-        : RecordId(0)
-        , DataLength(0)
-        , Checksum(0)
-    { }
+    struct TRecordHeader
+    {
+        i32 RecordId;
+        i32 DataLength;
+        TChecksum Checksum;
 
-    TRecordHeader(i32 recordId, i32 dataLength)
-        : RecordId(recordId)
-        , DataLength(dataLength)
-        , Checksum(0)
-    { }
-};
+        TRecordHeader()
+            : RecordId(0)
+            , DataLength(0)
+            , Checksum(0)
+        { }
 
-#pragma pack(pop)
+        TRecordHeader(i32 recordId, i32 dataLength)
+            : RecordId(recordId)
+            , DataLength(dataLength)
+            , Checksum(0)
+        { }
+    };
 
-////////////////////////////////////////////////////////////////////////////////
+    STATIC_ASSERT(sizeof(TRecordHeader) == 16);
 
-#pragma pack(push, 4)
+    #pragma pack(pop)
 
-struct TChangeLog::TLogIndexHeader
-{                                                       
-    static const ui64 CurrentSignature = 0x31303030494C5459ull; // YTLI0001
+    ////////////////////////////////////////////////////////////////////////////////
 
-    ui64 Signature;
-    i32 SegmentId;
+    #pragma pack(push, 4)
+
+    struct TLogIndexHeader
+    {                                                       
+        static const ui64 CurrentSignature = 0x31303030494C5459ull; // YTLI0001
+
+        ui64 Signature;
+        i32 SegmentId;
+        i32 RecordCount;
+
+        TLogIndexHeader()
+            : Signature(0)
+            , SegmentId(0)
+            , RecordCount(0)
+        { }
+
+        TLogIndexHeader(i32 segmentId, i32 recordCount)
+            : Signature(CurrentSignature)
+            , SegmentId(segmentId)
+            , RecordCount(recordCount)
+        { }
+
+        void Validate() const
+        {
+            if (Signature != CurrentSignature) {
+                ythrow yexception() << Sprintf(
+                    "Invalid TLogIndexHeader signature "
+                    "(expected %" PRIx64 ", got %" PRIx64 ")",
+                    CurrentSignature,
+                    Signature);
+            }
+        }
+    };
+
+    STATIC_ASSERT(sizeof(TLogIndexHeader) == 16);
+
+    #pragma pack(pop)
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    #pragma pack(push, 4)
+
+    struct TLogIndexRecord
+    {
+        i32 RecordId;
+        i32 Offset;
+
+        bool operator<(const TLogIndexRecord& other) const
+        {
+            return RecordId < other.RecordId;
+        }
+    };
+
+    STATIC_ASSERT(sizeof(TLogIndexRecord) == 8);
+
+    #pragma pack(pop)
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // }}}
+
+private:
+    enum EState
+    {
+        S_Closed,
+        S_Open,
+        S_Finalized
+    };
+
+    typedef yvector<TLogIndexRecord> TIndex;
+
+    void HandleRecord(i32 recordId, i32 recordSize);
+    TIndex::iterator GetLowerBound(i32 recordId);
+    TIndex::iterator GetUpperBound(i32 recordId);
+
+    void TruncateIndex(i32 indexRecordId);
+
+    EState State;
+    Stroka FileName;
+    Stroka IndexFileName;
+    i32 Id;
+    i32 IndexBlockSize;
+
+    i32 PrevRecordCount;
+    i32 CurrentBlockSize;
+    TAtomic CurrentFilePosition;
     i32 RecordCount;
 
-    TLogIndexHeader()
-        : Signature(0)
-        , SegmentId(0)
-        , RecordCount(0)
-    { }
+    TIndex Index;
+    TSpinLock IndexSpinLock;
 
-    TLogIndexHeader(i32 segmentId, i32 recordCount)
-        : Signature(CurrentSignature)
-        , SegmentId(segmentId)
-        , RecordCount(recordCount)
-    { }
-
-    void Validate() const
-    {
-        if (Signature != CurrentSignature) {
-            ythrow yexception()
-                << Sprintf("Invalid TLogIndexHeader signature: expected %" PRIx64 ", found %" PRIx64,
-                CurrentSignature, Signature);
-        }
-    }
-};
-
-#pragma pack(pop)
+    THolder<TFile> File;
+    THolder<TBufferedFileOutput> FileOutput;
+    THolder<TFile> IndexFile;
+}; // class TChangeLog::TImpl
+//! \endcond
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TChangeLog::TLogIndexRecord::operator<(const TLogIndexRecord& right) const
-{
-    return RecordId < right.RecordId;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChangeLog::TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize)
+TChangeLog::TImpl::TImpl(Stroka fileName, i32 id, i32 indexBlockSize)
     : State(S_Closed)
     , FileName(fileName)
     , IndexFileName(fileName + IndexSuffix)
@@ -161,20 +257,18 @@ TChangeLog::TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize)
     , CurrentBlockSize(-1)
     , CurrentFilePosition(-1)
     , RecordCount(-1)
-{
-    // Visibility workaround.
-    STATIC_ASSERT(sizeof(TLogHeader) == 20);
-    STATIC_ASSERT(sizeof(TRecordHeader) == 16);
-    STATIC_ASSERT(sizeof(TLogIndexHeader) == 16);
-}
+{ }
 
-void TChangeLog::Open()
+void TChangeLog::TImpl::Open()
 {
     YASSERT(State == S_Closed);
 
     LOG_DEBUG("Opening changelog %s", ~FileName);
     File.Reset(new TFile(FileName, RdWr));
 
+    // TODO: Why don't use ysaveload.h?
+    // TODO: Why return values are inconsistent?
+    // ::Read returns bool while Validate() throws exception.
     TLogHeader header;
     if (!NYT::Read(*File, &header)) {
         ythrow yexception() << "Cannot read header of changelog " << FileName;
@@ -187,9 +281,12 @@ void TChangeLog::Open()
     i64 currentIndexFilePosition = sizeof(TLogIndexHeader);
     {
         TBufferedFileInput indexInput(IndexFileName);
+
         TLogIndexHeader indexHeader;
         if (!NYT::Read(indexInput, &indexHeader)) {
-            ythrow yexception() << "Cannot read header of changelog index " << IndexFileName;
+            ythrow yexception()
+                << "Cannot read header of changelog index "
+                << IndexFileName;
         }
         indexHeader.Validate();
 
@@ -231,22 +328,29 @@ void TChangeLog::Open()
     while (CurrentFilePosition < fileLength) {
         TRecordHeader recordHeader;
         if (!NYT::Read(fileInput, &recordHeader)) {
-            LOG_WARNING("Can't read header of record %d at %" PRISZT "(ChangeLogId: %d)",
-                RecordCount, CurrentFilePosition, Id);
+            LOG_WARNING("Cannot read header of record %d at %" PRISZT "(ChangeLogId: %d)",
+                RecordCount,
+                CurrentFilePosition,
+                Id);
             break;
         }
 
         i32 recordId = recordHeader.RecordId;
         if (RecordCount != recordId) {
-            LOG_ERROR("Invalid record id at %" PRISZT ": expected %d, got %d (ChangeLogId: %d)",
-                CurrentFilePosition, RecordCount, recordHeader.RecordId, Id);
+            LOG_ERROR("Invalid record id at %" PRISZT " (expected %d, got %d) (ChangeLogId: %d)",
+                CurrentFilePosition,
+                RecordCount,
+                recordHeader.RecordId,
+                Id);
             break;
         }
 
         size_t size = AlignUp(sizeof(recordHeader) + (size_t) recordHeader.DataLength);
         if ((i64) CurrentFilePosition + (i64) size > fileLength) {
-            LOG_WARNING("Can't read data of record %d at %" PRISZT " (ChangeLogId: %d)",
-                recordId, CurrentFilePosition, Id);
+            LOG_WARNING("Cannot read data of record %d at %" PRISZT " (ChangeLogId: %d)",
+                recordId,
+                CurrentFilePosition,
+                Id);
             break;
         }
 
@@ -256,7 +360,9 @@ void TChangeLog::Open()
         TChecksum checksum = GetChecksum(TRef(ptr, (size_t) recordHeader.DataLength));
         if (checksum != recordHeader.Checksum) {
             LOG_ERROR("Invalid checksum of record %d at %" PRISZT " (ChangeLogId: %d)",
-                recordId, CurrentFilePosition, Id);
+                recordId,
+                CurrentFilePosition,
+                Id);
             break;
         }
 
@@ -280,10 +386,12 @@ void TChangeLog::Open()
     State = header.Finalized ? S_Finalized : S_Open;
 
     LOG_DEBUG("Changelog %d opened (RecordCount: %d, Finalized: %d)",
-                Id, RecordCount, header.Finalized);
+        Id,
+        RecordCount,
+        header.Finalized);
 }
 
-void TChangeLog::Create(i32 prevRecordCount)
+void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
     YASSERT(State == S_Closed);
 
@@ -308,7 +416,7 @@ void TChangeLog::Create(i32 prevRecordCount)
     LOG_DEBUG("Changelog %d created", Id);
 }
 
-void TChangeLog::Finalize()
+void TChangeLog::TImpl::Finalize()
 {
     YASSERT(State == S_Open);
 
@@ -324,7 +432,7 @@ void TChangeLog::Finalize()
     LOG_DEBUG("Changelog %d finalized", Id);
 }
 
-void TChangeLog::Append(i32 recordId, TSharedRef recordData)
+void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
 {
     // Make a coarse check first...
     YASSERT(State == S_Open || State == S_Finalized);
@@ -335,8 +443,10 @@ void TChangeLog::Append(i32 recordId, TSharedRef recordData)
     }
 
     if (recordId != RecordCount) {
-        LOG_FATAL("Unexpected record id in changelog %d (ExpectedId: %d, ReceivedId: %d)",
-                   Id, RecordCount, recordId);
+        LOG_FATAL("Unexpected record id in changelog %d (expected: %d, got: %d)",
+            Id,
+            RecordCount,
+            recordId);
     }
 
     i32 recordSize = 0;
@@ -353,12 +463,12 @@ void TChangeLog::Append(i32 recordId, TSharedRef recordData)
     HandleRecord(recordId, recordSize);
 }
 
-void TChangeLog::Flush()
+void TChangeLog::TImpl::Flush()
 {
     FileOutput->Flush();
 }
 
-void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
+void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
 {
     YASSERT(firstRecordId >= 0);
     YASSERT(recordCount >= 0);
@@ -408,7 +518,6 @@ void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* r
             break;
         }
 
-        // TODO: can we premature exit, if header->RecordId 
         if (header->RecordId >= firstRecordId) {
             if (header->RecordId != currentRecordId) {
                 LOG_DEBUG("Invalid record id at %" PRId64 ": expected %d, got %d",
@@ -442,7 +551,7 @@ void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* r
     }
 }
 
-void TChangeLog::Truncate(i32 recordId)
+void TChangeLog::TImpl::Truncate(i32 recordId)
 {
     LOG_DEBUG("Truncating changelog from %d recordId", recordId);
     i64 lowerBound, upperBound;
@@ -505,7 +614,7 @@ void TChangeLog::Truncate(i32 recordId)
         Id, recordId);
 }
 
-void TChangeLog::HandleRecord(i32 recordId, i32 recordSize)
+void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
 {
     ++RecordCount;
     i32 filePosition = CurrentFilePosition;
@@ -544,8 +653,9 @@ void TChangeLog::HandleRecord(i32 recordId, i32 recordSize)
     }
 }
 
-// TODO: wtf? why this thing calls UpperBound instead of lower bound?
-TChangeLog::TIndex::iterator TChangeLog::GetLowerBound(i32 recordId)
+// TODO: What are exact semantics of these two methods?
+// Why NStl::LowerBound is unfeasible?
+TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetLowerBound(i32 recordId)
 {
     YASSERT(Index.ysize() > 0);
     TLogIndexRecord record;
@@ -556,7 +666,7 @@ TChangeLog::TIndex::iterator TChangeLog::GetLowerBound(i32 recordId)
     return it;
 }
 
-TChangeLog::TIndex::iterator TChangeLog::GetUpperBound(i32 recordId)
+TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetUpperBound(i32 recordId)
 {
     YASSERT(Index.ysize() > 0);
     TLogIndexRecord record;
@@ -567,7 +677,7 @@ TChangeLog::TIndex::iterator TChangeLog::GetUpperBound(i32 recordId)
 }
 
 // Should be called under SpinLock
-void TChangeLog::TruncateIndex(i32 indexRecordId)
+void TChangeLog::TImpl::TruncateIndex(i32 indexRecordId)
 {
     // TODO: polish
     LOG_DEBUG("Truncating changelog index from %d recordId", indexRecordId);
@@ -584,12 +694,12 @@ void TChangeLog::TruncateIndex(i32 indexRecordId)
     IndexFile->Flush();
 }
 
-bool TChangeLog::IsFinalized() const
+i32 TChangeLog::TImpl::GetId() const
 {
-    return State == S_Finalized;
+    return Id;
 }
 
-TMasterStateId TChangeLog::GetPrevStateId() const
+TMasterStateId TChangeLog::TImpl::GetPrevStateId() const
 {
     if (Id == 0) {
         YASSERT(PrevRecordCount == 0);
@@ -599,14 +709,75 @@ TMasterStateId TChangeLog::GetPrevStateId() const
     }
 }
 
-i32 TChangeLog::GetRecordCount() const
+i32 TChangeLog::TImpl::GetRecordCount() const
 {
     return RecordCount;
 }
 
+bool TChangeLog::TImpl::IsFinalized() const
+{
+    return State == S_Finalized;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChangeLog::TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize)
+    : Impl(new TImpl(fileName, id, indexBlockSize))
+{ }
+
 i32 TChangeLog::GetId() const
 {
-    return Id;
+    return Impl->GetId();
+}
+
+TMasterStateId TChangeLog::GetPrevStateId() const
+{
+    return Impl->GetPrevStateId();
+}
+
+i32 TChangeLog::GetRecordCount() const
+{
+    return Impl->GetRecordCount();
+}
+
+bool TChangeLog::IsFinalized() const
+{
+    return Impl->IsFinalized();
+}
+
+void TChangeLog::Open()
+{
+    Impl->Open();
+}
+
+void TChangeLog::Create(i32 prevRecordCount)
+{
+    Impl->Create(prevRecordCount);
+}
+
+void TChangeLog::Finalize()
+{
+    Impl->Finalize();
+}
+
+void TChangeLog::Append(i32 recordId, TSharedRef recordData)
+{
+    Impl->Append(recordId, recordData);
+}
+
+void TChangeLog::Flush()
+{
+    Impl->Flush();
+}
+
+void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
+{
+    Impl->Read(firstRecordId, recordCount, result);
+}
+
+void TChangeLog::Truncate(i32 recordId)
+{
+    Impl->Truncate(recordId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
