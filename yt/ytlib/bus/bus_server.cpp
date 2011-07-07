@@ -8,6 +8,7 @@
 
 #include <util/generic/singleton.h>
 #include <util/generic/list.h>
+#include <util/generic/deque.h>
 #include <util/generic/utility.h>
 
 namespace NYT {
