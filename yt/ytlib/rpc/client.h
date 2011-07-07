@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "bus.h"
+#include "bus_client.h"
 #include "rpc.pb.h"
 
 #include "../actions/async_result.h"
