@@ -126,7 +126,7 @@ private:
 
     Stroka ServiceName;
     Stroka MethodName;
-    yvector<TSharedRef> MyAttachments;
+    yvector<TSharedRef> Attachments_;
 
     IMessage::TPtr Serialize(TRequestId requestId);
 };
