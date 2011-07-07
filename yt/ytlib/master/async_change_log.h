@@ -25,7 +25,7 @@ public:
     void Finalize();
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& changeData);
-    // TODO: Flush();
+    void Flush();
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
     // TODO: Truncate();
 

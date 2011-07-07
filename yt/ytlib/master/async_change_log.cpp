@@ -63,6 +63,24 @@ public:
         return TVoid();
     }
 
+    TVoid Flush(TChangeLog::TPtr changeLog)
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
+        TChangeLogQueue::TPtr queue;
+
+        if (it != ChangeLogQueues.end()) {
+            TChangeLogQueue::TPtr queue = it->second;
+            queue->Flush();
+
+            ChangeLogQueues.erase(it);
+        }
+
+        changeLog->Flush();
+        return TVoid();
+    }
+
     //! Queue for asynchronous logging of the changes to the changelog.
     /*!
      * Internally, this class delegates all the work to the underlying changelog
@@ -215,7 +233,16 @@ void TAsyncChangeLog::Finalize()
         ->AsyncVia(~Impl)
         ->Do()
         ->Get();
-    LOG_INFO("Changelog %d was closed", ChangeLog->GetId());
+    LOG_INFO("Changelog %d is finalized", ChangeLog->GetId());
+}
+
+void TAsyncChangeLog::Flush()
+{
+    FromMethod(&TImpl::Flush, Impl, ChangeLog)
+        ->AsyncVia(~Impl)
+        ->Do()
+        ->Get();
+    LOG_INFO("Changelog %d is flushed", ChangeLog->GetId());
 }
 
 void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)

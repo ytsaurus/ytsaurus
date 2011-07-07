@@ -22,14 +22,14 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMasterStateId stateId,
     TAsyncChangeLog& changeLog)
 {
-    LOG_INFO("Requested %d record(s) in changelog %d",
+    LOG_INFO("Requested %d records in changelog %d",
         stateId.ChangeCount,
         stateId.SegmentId);
 
     YASSERT(changeLog.GetId() == stateId.SegmentId);
 
     if (changeLog.GetRecordCount() >= stateId.ChangeCount) {
-        LOG_INFO("Local changelog already contains %d record(s), no download needed",
+        LOG_INFO("Local changelog already contains %d records, no download needed",
             changeLog.GetRecordCount());
         return OK;
     }
@@ -75,7 +75,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 {
     i32 downloadedRecordCount = changeLog.GetRecordCount();
 
-    LOG_INFO("Started downloading records %d:%d from master %d",
+    LOG_INFO("Started downloading records %d-%d from master %d",
         changeLog.GetRecordCount(),
         stateId.ChangeCount - 1,
         sourceId);
@@ -90,7 +90,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             stateId.ChangeCount - downloadedRecordCount);
         request->SetRecordCount(desiredChunkSize);
 
-        LOG_DEBUG("Requesting records %d:%d",
+        LOG_DEBUG("Requesting records %d-%d",
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
@@ -138,12 +138,12 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
         if (attachments.ysize() != desiredChunkSize) {
             // Continue anyway.
-            LOG_DEBUG("Received records %d:%d while %d records were requested",
+            LOG_DEBUG("Received records %d-%d while %d records were requested",
                 downloadedRecordCount,
                 downloadedRecordCount + attachments.ysize() - 1,
                 desiredChunkSize);
         } else {
-            LOG_DEBUG("Received records %d:%d",
+            LOG_DEBUG("Received records %d-%d",
                 downloadedRecordCount,
                 downloadedRecordCount + attachments.ysize() - 1);
         }
@@ -153,6 +153,9 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             ++downloadedRecordCount;
         }
     }
+
+    // TODO: hack! remove this once async changelog works as expected
+    changeLog.Flush();
 
     LOG_INFO("Finished downloading changelog");
 
@@ -176,14 +179,14 @@ void TChangeLogDownloader::OnResponse(
 
     i32 recordCount = response->GetRecordCount();
     if (recordCount < stateId.ChangeCount) {
-        LOG_INFO("Master %d has only %d record(s) while %d records needed",
+        LOG_INFO("Master %d has only %d records while %d records needed",
             masterId,
             recordCount,
             stateId.ChangeCount);
         return;
     }
 
-    LOG_INFO("Found an appropriate download source at master %d (RecordCount: %d)",
+    LOG_INFO("An appropriate download source found (MasterId: %d, RecordCount: %d)",
         masterId,
         recordCount);
 

@@ -399,10 +399,13 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
                 Sprintf("invalid changelog id %d", segmentId);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+        TAsyncChangeLog& changeLog = cachedChangeLog->GetWriter();
+
+        // TODO: hack! remove this once async changelog works as expected
+        changeLog.Flush();
 
         yvector<TSharedRef> recordData;
-        changeLog->Read(startRecordCount, recordCount, &recordData);
+        changeLog.Read(startRecordCount, recordCount, &recordData);
 
         response->SetRecordsRead(recordData.ysize());
         response->Attachments().insert(

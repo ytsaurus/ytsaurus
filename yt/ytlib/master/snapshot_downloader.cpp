@@ -83,7 +83,7 @@ void TSnapshotDownloader::OnResponse(
     ui64 checksum = response->GetChecksum();
     i32 prevRecordCount = response->GetPrevRecordCount();
     
-    LOG_INFO("Got snapshot info from master %d (length: %" PRId64 ", checksum: %" PRIx64 ")",
+    LOG_INFO("Got snapshot info from master %d (Length: %" PRId64 ", Checksum: %" PRIx64 ")",
         masterId,
         length,
         checksum);
@@ -146,7 +146,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i32 sourceId,
     TOutputStream& output)
 {
-    LOG_INFO("Started downloading snapshot %d (length: %" PRId64 ") from master %d",
+    LOG_INFO("Started downloading snapshot (SnapshotId: %d, Length: %" PRId64 ", MasterId: %d)",
             snapshotId,
             snapshotLength,
             sourceId);
@@ -198,13 +198,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         TRef block(attachments.at(0));
 
         if (static_cast<i32>(block.Size()) != blockSize) {
-            LOG_WARNING("Received block with offset %" PRId64 " and size %d while size %d was expected",
+            LOG_WARNING("Snapshot block of wrong size received (Offset: %" PRId64 ", Size: %d, ExpectedSize: %d)",
                 downloadedLength,
                 static_cast<i32>(block.Size()),
                 blockSize);
             // continue anyway
         } else {
-            LOG_DEBUG("Received block with offset %" PRId64 " and size %d",
+            LOG_DEBUG("Snapshot block received (Offset: %" PRId64 ", Size: %d)",
                 downloadedLength,
                 blockSize);
         }
@@ -220,7 +220,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         downloadedLength += block.Size();
     }
 
-    LOG_INFO("Finished downloading snapshot %d from master %d", snapshotId, sourceId);
+    LOG_INFO("Finished downloading snapshot");
 
     return OK;
 }
