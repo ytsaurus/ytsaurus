@@ -135,7 +135,7 @@ IMessage::TPtr TClientRequest::Serialize(TRequestId requestId)
         ServiceName,
         MethodName,
         bodyData,
-        MyAttachments);
+        Attachments_);
 }
 
 void TClientRequest::DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout)
@@ -145,7 +145,7 @@ void TClientRequest::DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration
 
 yvector<TSharedRef>& TClientRequest::Attachments()
 {
-    return MyAttachments;
+    return Attachments_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,11 +236,12 @@ void TClientResponse::Complete(EErrorCode errorCode)
 
     if (errorCode != EErrorCode::Timeout && TimeoutCookie != TDelayedInvoker::TCookie()) {
         TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-        TimeoutCookie = TDelayedInvoker::TCookie();
     }
+
     Channel->UnregisterResponse(RequestId);
     ErrorCode = errorCode;
     State = S_Done;
+    TimeoutCookie = TDelayedInvoker::TCookie();
     SetReady();
 }
 
