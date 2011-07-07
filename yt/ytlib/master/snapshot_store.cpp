@@ -59,7 +59,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
             Stroka name = NFS::GetFileNameWithoutExtension(fileName);
             try {
                 i32 segmentId = FromString<i32>(name);
-                LOG_INFO("Found snapshot %d", segmentId);
+                LOG_DEBUG("Found snapshot %d", segmentId);
                 maxSnapshotId = Max(maxSnapshotId, segmentId);
             } catch (const yexception&) {
                 LOG_WARNING("Found unrecognized file %s", ~fileName);
