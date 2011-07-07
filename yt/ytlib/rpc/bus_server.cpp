@@ -28,34 +28,12 @@ struct TBusServer::TReply
 {
     typedef TIntrusivePtr<TReply> TPtr;
 
-    TReply(TSessionId sessionId, TBlob& data)
-        : SessionId(sessionId)
-        , IsReplied(false)
+    TReply(TBlob& data)
     {
         Data.swap(data);
     }
 
-    static void Enqueue(TLockFreeQueue<TPtr>& queue, TPtr reply)
-    {
-        YASSERT(!reply->IsReplied);
-        queue.Enqueue(reply);
-    }
-
-    static TPtr Dequeue(TLockFreeQueue<TPtr>& queue)
-    {
-        TBusServer::TReply::TPtr reply;
-        while (queue.Dequeue(&reply)) {
-            if (!reply->IsReplied) {
-                reply->IsReplied = true;
-                return reply;
-            }
-        }
-        return NULL;
-    }
-
-    TSessionId SessionId;
     TBlob Data;
-    bool IsReplied;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,22 +110,27 @@ public:
         EncodeMessagePacket(message, SessionId, sequenceId, &data);
         int dataSize = data.ysize();
 
-        TReply::TPtr reply = new TReply(SessionId, data);
-
-        TReply::Enqueue(ReplyQueue, reply);
-        server->EnqueueReply(reply);
+        TReply::TPtr reply = new TReply(data);
+        server->EnqueueReply(this, reply);
 
         LOG_DEBUG("Reply enqueued (SessionId: %s, Reply: %p, PacketSize: %d)",
-            ~StringFromGuid(reply->SessionId),
+            ~StringFromGuid(SessionId),
             ~reply,
             dataSize);
 
         return NULL;
     }
 
+    void EnqueueReply(TReply::TPtr reply)
+    {
+        PendingReplies.Enqueue(reply);
+    }
+
     TReply::TPtr DequeueReply()
     {
-        return TReply::Dequeue(ReplyQueue);
+        TReply::TPtr reply;
+        PendingReplies.Dequeue(&reply);
+        return reply;
     }
 
     virtual void Terminate()
@@ -166,7 +149,7 @@ private:
     bool Terminated;
     TAtomic SequenceId;
     THolder<TMessageRearranger> MessageRearranger;
-    TLockFreeQueue<TReply::TPtr> ReplyQueue;
+    TLockFreeQueue<TReply::TPtr> PendingReplies;
 
     TSequenceId GenerateSequenceId()
     {
@@ -338,30 +321,25 @@ bool TBusServer::ProcessReplies()
 {
     bool result = false;
     for (int i = 0; i < MaxRequestsPerCall; ++i) {
-        TReply::TPtr reply = DequeueReply();
+        TSession::TPtr session;
+        if (!PendingReplySessions.Dequeue(&session))
+            break;
+
+        TReply::TPtr reply = session->DequeueReply();
         if (~reply == NULL)
             break;
+
         result = true;
-        ProcessReply(reply);
+        ProcessReply(session, reply);
     }
     return result;
 }
 
-void TBusServer::ProcessReply(TReply::TPtr reply)
+void TBusServer::ProcessReply(TSession::TPtr session, TReply::TPtr reply)
 {
-    TSessionMap::iterator sessionIt = SessionMap.find(reply->SessionId);
-    if (sessionIt == SessionMap.end()) {
-        LOG_DEBUG("Reply to an obsolete session is dropped (SessionId: %s, Reply: %p)",
-            ~StringFromGuid(reply->SessionId),
-            ~reply);
-        return;
-    }
-
-    TSession::TPtr session = sessionIt->Second();
     TGUID requestId = session->SendReply(reply);
-
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Reply: %p)",
-        ~StringFromGuid(reply->SessionId),
+        ~StringFromGuid(session->GetSessionId()),
         ~StringFromGuid(requestId),
         ~reply);
 }
@@ -396,7 +374,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         Requester->SendResponse(nlRequest->ReqId, &reply->Data);
 
         LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Reply: %p)",
-            ~StringFromGuid(reply->SessionId),
+            ~StringFromGuid(session->GetSessionId()),
             ~StringFromGuid(nlRequest->ReqId),
             ~reply);
     } else {
@@ -463,15 +441,11 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
     return session;
 }
 
-void TBusServer::EnqueueReply(TReply::TPtr reply)
+void TBusServer::EnqueueReply(TSession::TPtr session, TReply::TPtr reply)
 {
-    TReply::Enqueue(ReplyQueue, reply);
+    session->EnqueueReply(reply);
+    PendingReplySessions.Enqueue(session);
     GetEvent().Signal();
-}
-
-TBusServer::TReply::TPtr TBusServer::DequeueReply()
-{
-    return TReply::Dequeue(ReplyQueue);
 }
 
 TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(

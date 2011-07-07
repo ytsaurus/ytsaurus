@@ -39,7 +39,7 @@ private:
     TThread Thread;
     TSessionMap SessionMap;
     TPingMap PingMap;
-    TLockFreeQueue< TIntrusivePtr<TReply> > ReplyQueue;
+    TLockFreeQueue< TIntrusivePtr<TSession> > PendingReplySessions;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
@@ -53,10 +53,9 @@ private:
     void ProcessNLResponse(TUdpHttpResponse* nlResponse);
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
 
-    void EnqueueReply(TIntrusivePtr<TReply> reply);
-    TIntrusivePtr<TReply> DequeueReply();
+    void EnqueueReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
     bool ProcessReplies();
-    void ProcessReply(TIntrusivePtr<TReply> reply);
+    void ProcessReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
