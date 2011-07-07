@@ -13,7 +13,7 @@ namespace NYT {
 static NLog::TLogger& Logger = MasterLogger;
 
 // TODO: make configurable
-static TDuration SyncTimeout = TDuration::MilliSeconds(1000);
+static TDuration SyncTimeout = TDuration::MilliSeconds(5000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,7 +330,7 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
         snapshotReader->Open();
         TInputStream& stream = snapshotReader->GetStream();
 
-        // we need to remember snapshotReader until Load is finished
+        // Keep the reference to snapshotReader.
         MasterState->Load(snapshotId, stream)->Subscribe(FromMethod(
             &TMasterRecovery::RecoverFollowerFromChangeLog,
             TPtr(this),
@@ -403,7 +403,6 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
             ? targetStateId.ChangeCount
             : remoteRecordCount;
 
-        // TODO: use changeLogWriter instead
         if (remoteRecordCount < targetChangeCount) {
             // TODO: finalize?
             // TODO: this could only happen with the last changelog
@@ -415,10 +414,9 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
                 TMasterStateId(segmentId, targetChangeCount),
                 changeLog);
 
-            if (changeLogResult != TChangeLogDownloader::OK) {
-                // TODO: tostring
-                LOG_ERROR("Error %d while downloading changelog %d",
-                    (int) changeLogResult,
+            if (changeLogResult != TChangeLogDownloader::EResult::OK) {
+                LOG_ERROR("Error %s while downloading changelog %d",
+                    ~changeLogResult.ToString(),
                     segmentId);
 
                 Result->Set(E_Failed);

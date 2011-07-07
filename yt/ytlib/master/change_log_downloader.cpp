@@ -29,12 +29,12 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     if (changeLog.GetRecordCount() >= stateId.ChangeCount) {
         LOG_INFO("Local changelog already contains %d records, no download needed",
             changeLog.GetRecordCount());
-        return OK;
+        return EResult::OK;
     }
 
     TMasterId sourceId = GetChangeLogSource(stateId);
     if (sourceId == InvalidMasterId) {
-        return ChangeLogNotFound;
+        return EResult::ChangeLogNotFound;
     }
 
     return DownloadChangeLog(stateId, sourceId, changeLog);
@@ -103,13 +103,13 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                         LOG_WARNING("Master %d does not have changelog %d anymore",
                             sourceId,
                             stateId.SegmentId);
-                        return ChangeLogUnavailable;
+                        return EResult::ChangeLogUnavailable;
 
                     case TProxy::EErrorCode::IOError:
                         LOG_WARNING("IO error occurred on master %d during downloading changelog %d",
                             sourceId,
                             stateId.SegmentId);
-                        return RemoteError;
+                        return EResult::RemoteError;
 
                     default:
                         LOG_FATAL("Unknown error code %s received from master %d",
@@ -121,7 +121,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                 LOG_WARNING("Error %s reading snapshot from master %d",
                     ~errorCode.ToString(),
                     sourceId);
-                return RemoteError;
+                return EResult::RemoteError;
             }
         }
 
@@ -131,7 +131,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                 sourceId,
                 stateId.ChangeCount,
                 stateId.SegmentId);
-            return ChangeLogUnavailable;
+            return EResult::ChangeLogUnavailable;
         }
 
         if (attachments.ysize() != desiredChunkSize) {
@@ -157,7 +157,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
     LOG_INFO("Finished downloading changelog");
 
-    return OK;
+    return EResult::OK;
 }
 
 void TChangeLogDownloader::OnResponse(

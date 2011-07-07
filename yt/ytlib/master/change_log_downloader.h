@@ -30,13 +30,12 @@ public:
         { }
     };
 
-    enum EResult
-    {
-        OK,
-        ChangeLogNotFound,
-        ChangeLogUnavailable,
-        RemoteError
-    };
+    DECLARE_ENUM(EResult,
+        (OK)
+        (ChangeLogNotFound)
+        (ChangeLogUnavailable)
+        (RemoteError)
+    );
 
     TChangeLogDownloader(const TConfig& config, TCellManager::TPtr cellManager);
 
