@@ -24,8 +24,6 @@ struct TPacketHeader
     ui32 Signature;
     i32 Type;
     TSessionId SessionId;
-
-    static int FixedSize;
 };
 
 struct TMultipartPacketHeader
@@ -37,12 +35,27 @@ struct TMultipartPacketHeader
     TSequenceId SequenceId;
     i32 PartCount;
     i32 PartSizes[MaxParts];
-
-    static int FixedSize;
 };
 
 #pragma pack(pop)
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct THeaderTraits
+{ };
+
+template<>
+struct THeaderTraits<TPacketHeader>
+{
+    static const int FixedSize;
+};
+
+template<>
+struct THeaderTraits<TMultipartPacketHeader>
+{
+    static const int FixedSize;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,10 +75,11 @@ void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//TODO: fix logging
 template <class T>
 T* ParsePacketHeader(TBlob& data)
 {
-    if (data.ysize() < T::FixedSize) {
+    if (data.ysize() < THeaderTraits<T>::FixedSize) {
         //LOG_ERROR("Packet is too short (Size: %d)", data.ysize());
         return NULL;
     }

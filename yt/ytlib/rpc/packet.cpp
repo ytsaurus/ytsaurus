@@ -9,9 +9,9 @@ static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: fix this!
-int TPacketHeader::FixedSize = sizeof (TPacketHeader);
-int TMultipartPacketHeader::FixedSize = (size_t) &(((TMultipartPacketHeader*) NULL)->PartSizes);
+const int THeaderTraits<TPacketHeader>::FixedSize = sizeof (TPacketHeader);
+const int THeaderTraits<TMultipartPacketHeader>::FixedSize =
+        (size_t) &(((TMultipartPacketHeader*) NULL)->PartSizes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,7 @@ bool EncodeMessagePacket(
     }
 
     i64 dataSize = 0;
-    dataSize += TMultipartPacketHeader::FixedSize;
+    dataSize += THeaderTraits<TMultipartPacketHeader>::FixedSize;
     dataSize += sizeof (i32) * parts.ysize();
     for (int index = 0; index < parts.ysize(); ++index)
     {
@@ -110,7 +110,7 @@ bool EncodeMessagePacket(
 
 void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob* data)
 {
-    data->resize(TPacketHeader::FixedSize);
+    data->resize(THeaderTraits<TPacketHeader>::FixedSize);
     TPacketHeader* header = reinterpret_cast<TPacketHeader*>(data->begin());
     header->Signature = TPacketHeader::ExpectedSignature;
     header->Type = type;
