@@ -1,13 +1,11 @@
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 
-#include "../logging/log.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChangeLogDownloader");
+static NLog::TLogger& Logger = MasterLogger;
 
 //////////////////////////////////////////////////////////////////////////////////
 

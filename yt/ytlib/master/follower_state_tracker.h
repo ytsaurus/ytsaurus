@@ -28,21 +28,7 @@ public:
         IInvoker::TPtr serviceInvoker);
 
     bool HasActiveQuorum();
-
-    void ProcessPing(TMasterId followerId, TMasterStateManager::EState state)
-    {
-        TFollowerState& followerState = FollowerStates[followerId];
-        followerState.State = state;
-        if (followerState.Lease == TLeaseManager::TLease()) {
-            followerState.Lease = LeaseManager->CreateLease(
-                Config.PingTimeout,
-                FromMethod(&TFollowerStateTracker::OnLeaseExpired, TPtr(this), followerId)
-                ->Via(~EpochInvoker)
-                ->Via(ServiceInvoker));
-        } else {
-            LeaseManager->RenewLease(followerState.Lease);
-        }
-    }
+    void ProcessPing(TMasterId followerId, TMasterStateManager::EState state);
 
 private:
     struct TFollowerState

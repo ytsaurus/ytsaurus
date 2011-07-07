@@ -3,7 +3,6 @@
 
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
-#include "../logging/log.h"
 
 #include <util/system/fs.h>
 
@@ -11,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("SnapshotCreator");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

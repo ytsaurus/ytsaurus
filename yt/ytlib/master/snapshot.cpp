@@ -3,7 +3,6 @@
 #include "../misc/ptr.h"
 #include "../misc/fs.h"
 #include "../misc/serialize.h"
-#include "../logging/log.h"
 
 #include <util/folder/dirut.h>
 
@@ -11,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Snapshot");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

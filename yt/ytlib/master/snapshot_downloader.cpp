@@ -4,7 +4,6 @@
 
 #include "../actions/action_util.h"
 #include "../actions/async_result.h"
-#include "../logging/log.h"
 
 #include <util/system/fs.h>
 
@@ -12,7 +11,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("SnapshotDownloader");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,13 +3,12 @@
 #include "snapshot_store.h"
 
 #include "../actions/action_util.h"
-#include "../logging/log.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("DecoratedMasterState");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

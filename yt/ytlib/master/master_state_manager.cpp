@@ -7,13 +7,12 @@
 #include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../misc/fs.h"
-#include "../logging/log.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MasterState");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +23,7 @@ TMasterStateManager::TMasterStateManager(
     IMasterState::TPtr masterState,
     NRpc::TServer* server)
     : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
-    , State(S_Stopped)
+    , State(EState::Stopped)
     , Config(config)
     , LeaderId(InvalidMasterId)
     , CellManager(cellManager)
@@ -76,10 +75,25 @@ void TMasterStateManager::Restart()
     ElectionManager->Restart();
 }
 
-namespace {
+TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
+    TSharedRef change)
+{
+    if (State != EState::Leading) {
+        return new TCommitResult(CR_InvalidState);
+    }
 
-// TODO: turn into member
-TMasterStateManager::ECommitResult OnChangeCommit(TChangeCommitter::EResult result)
+    if (!FollowerStateTracker->HasActiveQuorum()) {
+        return new TCommitResult(CR_NotCommitted);
+    }
+
+    return
+        ChangeCommitter
+        ->CommitDistributed(change)
+        ->Apply(FromMethod(&TMasterStateManager::OnChangeCommit));
+}
+
+TMasterStateManager::ECommitResult TMasterStateManager::OnChangeCommit(
+    TChangeCommitter::EResult result)
 {
     switch (result) {
         case TChangeCommitter::Committed:
@@ -95,30 +109,11 @@ TMasterStateManager::ECommitResult OnChangeCommit(TChangeCommitter::EResult resu
     }
 }
 
-}
-
-TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
-    TSharedRef change)
-{
-    if (State != S_Leading) {
-        return new TCommitResult(CR_InvalidState);
-    }
-
-    if (!FollowerStateTracker->HasActiveQuorum()) {
-        return new TCommitResult(CR_NotCommitted);
-    }
-
-    return
-        ChangeCommitter
-        ->CommitDistributed(change)
-        ->Apply(FromMethod(OnChangeCommit));
-}
-
 void TMasterStateManager::Start()
 {
-    YASSERT(State == S_Stopped);
+    YASSERT(State == EState::Stopped);
 
-    State = S_Elections;
+    State = EState::Elections;
 
     MasterState->Clear();
 
@@ -197,7 +192,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ScheduleSync)
 
     context->SetRequestInfo("MasterId: %d", masterId);
    
-    if (State != S_Leading && State != S_LeaderRecovery) {
+    if (State != EState::Leading && State != EState::LeaderRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d", (int) State);
     }
@@ -436,7 +431,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
         ~StringFromGuid(epoch),
         ~stateId.ToString());
 
-    if (State != S_Following && State != S_FollowerRecovery) {
+    if (State != EState::Following && State != EState::FollowerRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d", State);
     }
@@ -453,7 +448,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     const TSharedRef& changeData = request->Attachments().at(0);
 
     switch (State) {
-        case S_Following:
+        case EState::Following:
             LOG_DEBUG("ApplyChange: applying change");
 
             ChangeCommitter->CommitLocal(stateId, changeData)->Subscribe(FromMethod(
@@ -463,7 +458,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
                 MyEpoch)->Via(ServiceInvoker));
             break;
 
-        case S_FollowerRecovery:
+        case EState::FollowerRecovery:
             LOG_DEBUG("ApplyChange: keeping postponed change");
             
             // TODO: check result
@@ -528,7 +523,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
         ~StringFromGuid(epoch),
         ~stateId.ToString());
 
-    if (State != S_Following && State != S_FollowerRecovery) {
+    if (State != EState::Following && State != EState::FollowerRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d",
                 State);
@@ -543,7 +538,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
     }
 
     switch (State) {
-        case S_Following:
+        case EState::Following:
             LOG_DEBUG("CreateSnapshot: creating snapshot");
 
             SnapshotCreator->CreateLocal(stateId)->Subscribe(FromMethod(
@@ -552,7 +547,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
                 context));
             break;
             
-        case S_FollowerRecovery:
+        case EState::FollowerRecovery:
             LOG_DEBUG("CreateSnapshot: keeping postponed segment advance");
 
             // TODO: check result
@@ -561,6 +556,24 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
             context->Reply(TProxy::EErrorCode::InvalidState);
             break;
 
+        default:
+            YASSERT(false);
+            break;
+    }
+}
+
+void TMasterStateManager::OnCreateLocalSnapshot(
+    TSnapshotCreator::TLocalResult result,
+    TCtxCreateSnapshot::TPtr context)
+{
+    switch (result.ResultCode) {
+        case TSnapshotCreator::OK:
+            context->Response().SetChecksum(result.Checksum);
+            context->Reply();
+            break;
+        case TSnapshotCreator::InvalidStateId:
+            context->Reply(TProxy::EErrorCode::InvalidStateId);
+            break;
         default:
             YASSERT(false);
             break;
@@ -580,7 +593,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
         ~StringFromGuid(followerEpoch),
         followerState);
 
-    if (State != S_Leading) {
+    if (State != EState::Leading) {
         LOG_DEBUG("PingLeader: invalid state (State: %d)",
             (int) State);
     } else if (followerEpoch != Epoch ) {
@@ -601,7 +614,7 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
 {
     LOG_INFO("Starting leader recovery");
 
-    State = S_LeaderRecovery;
+    State = EState::LeaderRecovery;
     LeaderId = CellManager->GetSelfId();    
     StartEpoch(epoch);
     
@@ -623,7 +636,7 @@ void TMasterStateManager::OnLeaderRecovery(TMasterRecovery::EResult result)
         return;
     }
 
-    State = S_Leading;
+    State = EState::Leading;
     
     FollowerStateTracker = new TFollowerStateTracker(
         TFollowerStateTracker::TConfig(),
@@ -638,11 +651,20 @@ void TMasterStateManager::OnLeaderRecovery(TMasterRecovery::EResult result)
     LOG_INFO("Leader recovery complete");
 }
 
+void TMasterStateManager::OnApplyChange()
+{
+    YASSERT(State == EState::Leading);
+    TMasterStateId stateId = MasterState->GetStateId();
+    if (stateId.ChangeCount >= Config.MaxChangeCount) {
+        SnapshotCreator->CreateDistributed(stateId);
+    }
+}
+
 void TMasterStateManager::StopLeading()
 {
     LOG_INFO("Stopped leading");
     
-    State = S_Elections;
+    State = EState::Elections;
     
     ChangeCommitter->SetOnApplyChange(NULL);
 
@@ -655,7 +677,7 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
 {
     LOG_INFO("Starting follower state recovery");
     
-    State = S_FollowerRecovery;
+    State = EState::FollowerRecovery;
     LeaderId = leaderId;
     StartEpoch(epoch);
 
@@ -676,7 +698,7 @@ void TMasterStateManager::OnFollowerRecovery(TMasterRecovery::EResult result)
         return;
     }
 
-    State = S_Following;
+    State = EState::Following;
 
     LeaderPinger = new TLeaderPinger(
         TLeaderPinger::TConfig(),
@@ -692,7 +714,7 @@ void TMasterStateManager::StopFollowing()
 {
     LOG_INFO("Stopped following");
     
-    State = S_Elections;
+    State = EState::Elections;
     
     StopEpoch();
 
@@ -713,35 +735,6 @@ Stroka TMasterStateManager::FormatPriority(TMasterPriority priority)
     i32 segmentId = (priority >> 32);
     i32 changeCount = priority & ((1ll << 32) - 1);
     return Sprintf("(%d, %d)", segmentId, changeCount);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMasterStateManager::OnCreateLocalSnapshot(
-    TSnapshotCreator::TLocalResult result,
-    TCtxCreateSnapshot::TPtr context)
-{
-    switch (result.ResultCode) {
-        case TSnapshotCreator::OK:
-            context->Response().SetChecksum(result.Checksum);
-            context->Reply();
-            break;
-        case TSnapshotCreator::InvalidStateId:
-            context->Reply(TProxy::EErrorCode::InvalidStateId);
-            break;
-        default:
-            YASSERT(false);
-            break;
-    }
-}
-
-void TMasterStateManager::OnApplyChange()
-{
-    YASSERT(State == S_Leading);
-    TMasterStateId stateId = MasterState->GetStateId();
-    if (stateId.ChangeCount >= Config.MaxChangeCount) {
-        SnapshotCreator->CreateDistributed(stateId);
-    }
 }
 
 TMasterStateManager::EState TMasterStateManager::GetState() const

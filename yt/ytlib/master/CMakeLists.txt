@@ -1,4 +1,5 @@
 SET(YT_SOURCE_FILES
+    common.cpp
     master_state.h
     decorated_master_state.cpp
     master_state_manager.cpp
@@ -6,7 +7,6 @@ SET(YT_SOURCE_FILES
     master_state_manager_rpc.h
     snapshot.cpp
     change_log.cpp
-    common.h
     change_committer.cpp
     async_change_log.cpp
     change_log_downloader.cpp

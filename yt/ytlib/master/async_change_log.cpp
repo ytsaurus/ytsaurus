@@ -1,7 +1,6 @@
 #include "async_change_log.h"
 
 #include "../actions/action_util.h"
-#include "../logging/log.h"
 
 #include <util/system/thread.h>
 
@@ -9,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChangeLogWriter");
+static NLog::TLogger& Logger = MasterLogger;
 static i32 UnflushedThreshold = 1 << 20;
 
 ////////////////////////////////////////////////////////////////////////////////

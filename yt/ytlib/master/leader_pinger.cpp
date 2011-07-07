@@ -1,15 +1,13 @@
-
 #include "leader_pinger.h"
 
 #include "../misc/serialize.h"
 #include "../rpc/message.h"
-#include "../logging/log.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("FollowerStateTracker");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

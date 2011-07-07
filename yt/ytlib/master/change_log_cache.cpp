@@ -1,16 +1,14 @@
 #include "change_log_cache.h"
 #include "master_state_manager.h"
 
-#include "../logging/log.h"
-
 #include <util/folder/dirut.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChangeLogCache");
-static const char* const LogExtension = "log";
+static NLog::TLogger& Logger = MasterLogger;
+static const char LogExtension[] = "log";
 
 ////////////////////////////////////////////////////////////////////////////////
 

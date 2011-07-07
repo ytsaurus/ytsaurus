@@ -6,7 +6,7 @@ namespace NYT {
 
 TCellManager::TCellManager(const TConfig& config)
     : Config(config)
-{}
+{ }
 
 i32 TCellManager::GetMasterCount() const
 {

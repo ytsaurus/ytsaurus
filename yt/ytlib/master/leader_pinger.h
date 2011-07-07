@@ -22,7 +22,7 @@ public:
         TConfig()
             : PingInterval(TDuration::MilliSeconds(1000))
             , RpcTimeout(TDuration::MilliSeconds(1000))
-        {}
+        { }
     };
 
     TLeaderPinger(

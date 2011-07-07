@@ -2,6 +2,8 @@
 
 #include "../misc/common.h"
 
+#include "../logging/log.h"
+
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/file.h>
@@ -77,6 +79,8 @@ inline bool TMasterStateId::operator >= (const TMasterStateId& other) const
 
 typedef i32 TMasterId;
 const TMasterId InvalidMasterId = -1;
+
+extern NLog::TLogger MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

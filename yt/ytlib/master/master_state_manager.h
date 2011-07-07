@@ -54,15 +54,14 @@ public:
     // TODO: refactor; in-class declarations should be logically regroupped
     void Start();
 
-    enum EState
-    {
-        S_Stopped,
-        S_Elections,
-        S_FollowerRecovery,
-        S_Following,
-        S_LeaderRecovery,
-        S_Leading
-    };
+    DECLARE_ENUM(EState, 
+        (Stopped)
+        (Elections)
+        (FollowerRecovery)
+        (Following)
+        (LeaderRecovery)
+        (Leading)
+    );
 
     // TODO: add paired setter
     // TODO: force_inline
@@ -122,6 +121,9 @@ private:
 
     // TODO: which thread?
     void OnApplyChange();
+
+    // TODO: which thread?
+    static ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members
     virtual void StartLeading(TMasterEpoch epoch);

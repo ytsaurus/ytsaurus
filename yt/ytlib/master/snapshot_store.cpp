@@ -2,7 +2,6 @@
 #include "snapshot_store.h"
 
 #include "../misc/fs.h"
-#include "../logging/log.h"
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
@@ -12,7 +11,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("SnapshotStore");
+static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

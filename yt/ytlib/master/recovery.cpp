@@ -5,15 +5,12 @@
 #include "../actions/action_util.h"
 #include "../misc/serialize.h"
 #include "../misc/string.h"
-#include "../logging/log.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MasterRecovery");
-
-////////////////////////////////////////////////////////////////////////////////
+static NLog::TLogger& Logger = MasterLogger;
 
 // TODO: make configurable
 static TDuration SyncTimeout = TDuration::MilliSeconds(1000);
