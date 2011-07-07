@@ -20,7 +20,7 @@ TFollowerStateTracker::TFollowerStateTracker(
     , FollowerStates(cellManager->GetMasterCount())
     , LeaseManager(new TLeaseManager())
 {
-    ClearFollowerStates();
+    ResetFollowerStates();
 }
 
 bool TFollowerStateTracker::HasActiveQuorum()
@@ -35,29 +35,24 @@ bool TFollowerStateTracker::HasActiveQuorum()
     return activeFollowerCount + 1 >= CellManager->GetQuorum();
 }
 
-void TFollowerStateTracker::ClearFollowerState(TFollowerState& followerState)
+void TFollowerStateTracker::ResetFollowerStates()
 {
-    followerState.State = TMasterStateManager::EState::Stopped;
-    followerState.Lease = TLeaseManager::TLease();
-}
-
-void TFollowerStateTracker::ClearFollowerStates()
-{
-    for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
-        ClearFollowerState(FollowerStates[i]);
+    for (TMasterId id = 0; id < CellManager->GetMasterCount(); ++id) {
+        ResetFollowerState(id);
     }
 }
 
-void TFollowerStateTracker::OnLeaseExpired(TMasterId followerId)
+void TFollowerStateTracker::ResetFollowerState(int followerId)
 {
-    LOG_DEBUG("Leader ping lease expired (FollowerId: %d)", followerId);
-    ClearFollowerState(FollowerStates[followerId]);
+    ChangeFollowerState(followerId, TMasterStateManager::EState::Stopped);
+    FollowerStates[followerId].Lease = TLeaseManager::TLease();
 }
 
-void TFollowerStateTracker::ProcessPing(TMasterId followerId, TMasterStateManager::EState state)
+void TFollowerStateTracker::ChangeFollowerState(
+    int followerId,
+    TMasterStateManager::EState state)
 {
     TFollowerState& followerState = FollowerStates[followerId];
-
     if (followerState.State != state) {
         LOG_INFO("Follower state changed (FollowerId: %d, OldState: %s, NewState: %s)",
             followerId,
@@ -65,7 +60,18 @@ void TFollowerStateTracker::ProcessPing(TMasterId followerId, TMasterStateManage
             ~state.ToString());
         followerState.State = state;
     }
+}
 
+void TFollowerStateTracker::OnLeaseExpired(TMasterId followerId)
+{
+    ResetFollowerState(followerId);
+}
+
+void TFollowerStateTracker::ProcessPing(TMasterId followerId, TMasterStateManager::EState state)
+{
+    ChangeFollowerState(followerId, state);
+
+    TFollowerState& followerState = FollowerStates[followerId];
     if (followerState.Lease == TLeaseManager::TLease()) {
         followerState.Lease = LeaseManager->CreateLease(
             Config.PingTimeout,

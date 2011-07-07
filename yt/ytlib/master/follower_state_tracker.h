@@ -37,8 +37,11 @@ private:
         TLeaseManager::TLease Lease;
     };
 
-    void ClearFollowerState(TFollowerState& followerState);
-    void ClearFollowerStates();
+    void ChangeFollowerState(
+        int followerId,
+        TMasterStateManager::EState state);
+    void ResetFollowerState(int followerId);
+    void ResetFollowerStates();
     void OnLeaseExpired(TMasterId followerId);
 
     TConfig Config;
