@@ -587,10 +587,10 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
     TMasterEpoch followerEpoch = GuidFromProtoGuid(request->GetEpoch());
     EState followerState = static_cast<EState>(request->GetState());
 
-    context->SetRequestInfo("Id: %d, Epoch: %s, State: %d",
+    context->SetRequestInfo("Id: %d, Epoch: %s, State: %s",
         followerId,
         ~StringFromGuid(followerEpoch),
-        followerState);
+        ~followerState.ToString());
 
     if (State != EState::Leading) {
         LOG_DEBUG("PingLeader: invalid state (State: %s)",
