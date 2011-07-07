@@ -1,0 +1,9 @@
+SET(YT_SOURCE_FILES
+    common.cpp
+    bus.h
+    bus_client.cpp
+    bus_server.cpp
+    packet.cpp
+    message.cpp
+    message_rearranger.cpp
+)

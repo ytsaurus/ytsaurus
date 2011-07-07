@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "client.h"
+#include "message.h"
 
 #include "../logging/log.h"
 
@@ -196,7 +197,7 @@ public:
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
     TTypedServiceContext(TServiceContext::TPtr context)
-        : Logger(TRpcManager::Get()->GetLogger())
+        : Logger(RpcLogger)
         , Context(context)
         , Request_(context->GetRequestAttachments())
     {

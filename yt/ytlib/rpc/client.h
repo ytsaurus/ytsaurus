@@ -1,15 +1,17 @@
 #pragma once
 
 #include "common.h"
-#include "bus_client.h"
+#include "message.h"
 #include "rpc.pb.h"
 
+#include "../bus/bus_client.h"
 #include "../actions/async_result.h"
 #include "../misc/delayed_invoker.h"
 
 namespace NYT {
 namespace NRpc {
 
+using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientRequest;

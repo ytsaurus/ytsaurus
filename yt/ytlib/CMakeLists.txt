@@ -36,6 +36,8 @@ YT_SUBDIRECTORY(logging)
 YT_SUBDIRECTORY(master)
 YT_SUBDIRECTORY(misc)
 YT_SUBDIRECTORY(rpc)
+YT_SUBDIRECTORY(bus)
+
 
 # TODO: drop dependency to quality/util
 SET_APPEND(SRCS

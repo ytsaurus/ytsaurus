@@ -11,27 +11,17 @@
 #include "../logging/log.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger RpcLogger;
+typedef TGUID TSessionId;
+typedef i64 TSequenceId;
+
+extern NLog::TLogger BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcManager
-    : private TNonCopyable
-{
-public:
-    TRpcManager();
-
-    static TRpcManager* Get();
-    NLog::TLogger& GetLogger();
-    Stroka GetDebugInfo();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT
 

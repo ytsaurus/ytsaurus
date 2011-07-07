@@ -4,7 +4,7 @@
 #include "message.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,6 @@ bool EncodeMessagePacket(
 
 void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob* data);
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //TODO: fix logging
@@ -96,5 +95,5 @@ T* ParsePacketHeader(TBlob& data)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT

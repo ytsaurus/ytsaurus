@@ -3,41 +3,18 @@
 #include "common.h"
 #include "rpc.pb.h"
 
+#include "../bus/message.h"
 #include "../misc/enum.h"
 
 namespace NYT {
 namespace NRpc {
 
+using namespace NBus;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SerializeMessage(google::protobuf::Message* message, TBlob* data);
 bool DeserializeMessage(google::protobuf::Message* message, TRef data);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IMessage
-    : public virtual TRefCountedBase
-{
-    typedef TIntrusivePtr<IMessage> TPtr;
-
-    virtual ~IMessage() {}
-    virtual const yvector<TSharedRef>& GetParts() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBlobMessage
-    : public IMessage
-{
-private:
-    yvector<TSharedRef> Parts;
-
-public:
-    TBlobMessage(TBlob& blob);
-    TBlobMessage(TBlob& blob, yvector<TRef>& parts);
-
-    const yvector<TSharedRef>& GetParts();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,7 +93,6 @@ private:
     yvector<TSharedRef> Parts;
 
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

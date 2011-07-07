@@ -1,7 +1,7 @@
 #include "leader_pinger.h"
 
 #include "../misc/serialize.h"
-#include "../rpc/message.h"
+#include "../bus/message.h"
 
 namespace NYT {
 

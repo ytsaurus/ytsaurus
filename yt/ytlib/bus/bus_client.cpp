@@ -15,11 +15,11 @@
 
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
+static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
@@ -558,5 +558,5 @@ IBus::TPtr TBusClient::CreateBus(IMessageHandler* handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT

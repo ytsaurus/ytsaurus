@@ -1,11 +1,11 @@
 #include "packet.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
+static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,5 +119,5 @@ void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT

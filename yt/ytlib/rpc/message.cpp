@@ -1,4 +1,5 @@
 #include "message.h"
+#include "rpc.pb.h"
 
 #include "../misc/serialize.h"
 #include "../logging/log.h"
@@ -10,7 +11,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TRpcManager::Get()->GetLogger();
+static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,29 +29,6 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data)
     return message->ParseFromZeroCopyStream(&ais);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TBlobMessage::TBlobMessage(TBlob& blob)
-{
-    Parts.push_back(TSharedRef(blob));
-}
-
-TBlobMessage::TBlobMessage(TBlob& blob, yvector<TRef>& parts)
-{
-    TSharedRef::TBlobPtr sharedBlob = new TBlob();
-    blob.swap(*sharedBlob);
-    for (yvector<TRef>::const_iterator it = parts.begin();
-         it != parts.end();
-         ++it)
-    {
-        Parts.push_back(TSharedRef(sharedBlob, *it));
-    }
-}
-
-const yvector<TSharedRef>& TBlobMessage::GetParts()
-{
-    return Parts;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

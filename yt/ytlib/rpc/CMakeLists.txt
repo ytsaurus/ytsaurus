@@ -1,13 +1,8 @@
 SET(YT_SOURCE_FILES
     common.cpp
     client.cpp
-    message.cpp
-    bus.h
-    bus_client.cpp
-    bus_server.cpp
-    packet.cpp
     service.cpp
     server.cpp
     rpc.proto
-    message_rearranger.cpp
+    message.cpp
 )

@@ -5,18 +5,16 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NLog::TLogger RpcLogger("Rpc");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRpcManager::TRpcManager()
-    : Logger("Rpc")
 { }
 
 TRpcManager* TRpcManager::Get()
 {
     return Singleton<TRpcManager>();
-}
-
-NLog::TLogger& TRpcManager::GetLogger()
-{
-    return Logger;
 }
 
 Stroka TRpcManager::GetDebugInfo()

@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "service.h"
-#include "bus_server.h"
+#include "../bus/bus_server.h"
 
 namespace NYT {
 namespace NRpc {

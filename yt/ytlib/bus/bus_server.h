@@ -6,7 +6,7 @@
 #include "packet.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ private:
     TThread Thread;
     TSessionMap SessionMap;
     TPingMap PingMap;
-    TLockFreeQueue< TIntrusivePtr<TSession> > PendingReplySessions;
+    TLockFreeQueue< TIntrusivePtr<TReply> > ReplyQueue;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
@@ -53,9 +53,10 @@ private:
     void ProcessNLResponse(TUdpHttpResponse* nlResponse);
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
 
-    void EnqueueReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
+    void EnqueueReply(TIntrusivePtr<TReply> reply);
+    TIntrusivePtr<TReply> DequeueReply();
     bool ProcessReplies();
-    void ProcessReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
+    void ProcessReply(TIntrusivePtr<TReply> reply);
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
@@ -77,5 +78,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT
