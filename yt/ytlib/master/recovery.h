@@ -25,11 +25,10 @@ public:
     typedef TIntrusivePtr<TMasterRecovery> TPtr;
     typedef TMasterStateManagerProxy TProxy;
 
-    enum EResult
-    {
-        E_OK,
-        E_Failed
-    };
+    DECLARE_ENUM(EResult,
+        (OK)
+        (Failed)
+    );
 
     typedef TAsyncResult<EResult> TResult;
 

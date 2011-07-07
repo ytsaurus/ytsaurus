@@ -13,7 +13,6 @@
 #include <util/generic/list.h>
 #include <util/generic/utility.h>
 
-
 namespace NYT {
 namespace NBus {
 
@@ -22,7 +21,9 @@ namespace NBus {
 static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
+static const int MaxRequestsPerCall = 100;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
+static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 

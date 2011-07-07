@@ -3,6 +3,7 @@
 #include "common.h"
 #include "message.h"
 
+// TODO: drop redundant includes
 #include "../misc/lease_manager.h"
 
 #include <util/system/thread.h>
@@ -11,12 +12,6 @@
 
 namespace NYT {
 namespace NBus {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: move somvewhere (needed for both server and client)
-const int MaxRequestsPerCall = 100;
-static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,9 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "rpc.pb.h"
-
-#include "../misc/enum.h"
 
 namespace NYT {
 namespace NBus {

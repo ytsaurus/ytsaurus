@@ -139,7 +139,7 @@ void TMasterRecovery::RecoverLeaderFromChangeLog(
 
     YASSERT(MasterState->GetStateId() == targetStateId);
 
-    Result->Set(E_OK);
+    Result->Set(EResult::OK);
 }
 
 void TMasterRecovery::ApplyChangeLog(
@@ -201,7 +201,7 @@ void TMasterRecovery::OnSyncTimeout()
 
     LOG_INFO("Sync timeout");
     
-    Result->Set(E_Failed);
+    Result->Set(EResult::Failed);
 }
 
 void TMasterRecovery::Sync(
@@ -240,14 +240,14 @@ TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterSt
 {
     if (!SyncReceived) {
         LOG_DEBUG("Postponed segment advance received before sync, ignored");
-        return E_OK;
+        return EResult::OK;
     }
 
     if (PostponedStateId != stateId) {
         LOG_WARNING("Out-of-order postponed segment advance received (ExpectedStateId: %s, StateId: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
-        return E_Failed;
+        return EResult::Failed;
     }
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
@@ -258,7 +258,7 @@ TMasterRecovery::EResult TMasterRecovery::PostponeSegmentAdvance(const TMasterSt
     ++PostponedStateId.SegmentId;
     PostponedStateId.ChangeCount = 0;
     
-    return E_OK;
+    return EResult::OK;
 }
 
 TMasterRecovery::EResult TMasterRecovery::PostponeChange(
@@ -267,14 +267,14 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
 {
     if (!SyncReceived) {
         LOG_DEBUG("Postponed change received before sync, ignored");
-        return E_OK;
+        return EResult::OK;
     }
 
     if (PostponedStateId != stateId) {
         LOG_WARNING("Out-of-order postponed change received (ExpectedStateId: %s, StateId: %s)",
             ~PostponedStateId.ToString(),
             ~stateId.ToString());
-        return E_Failed;
+        return EResult::Failed;
     }
 
     PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
@@ -284,7 +284,7 @@ TMasterRecovery::EResult TMasterRecovery::PostponeChange(
 
     ++PostponedStateId.ChangeCount;
 
-    return E_OK;
+    return EResult::OK;
 }
 
 void TMasterRecovery::RecoverFollowerFromSnapshot(
@@ -316,7 +316,7 @@ void TMasterRecovery::RecoverFollowerFromSnapshot(
                 LOG_ERROR("Error %d while downloading snapshot %d",
                     snapshotResult, snapshotId);
 
-                Result->Set(E_Failed);
+                Result->Set(EResult::Failed);
                 return;
             }
 
@@ -380,7 +380,7 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
             LOG_ERROR("Could not get changelog %d info from leader",
                 segmentId);
 
-            Result->Set(E_Failed);
+            Result->Set(EResult::Failed);
             return;
         }
 
@@ -419,7 +419,7 @@ void TMasterRecovery::RecoverFollowerFromChangeLog(
                     ~changeLogResult.ToString(),
                     segmentId);
 
-                Result->Set(E_Failed);
+                Result->Set(EResult::Failed);
                 return;
             }
         }
@@ -451,7 +451,7 @@ void TMasterRecovery::CapturePostponedChanges()
     // TODO: use threshold?
     if (PostponedChanges.ysize() == 0) {
         LOG_INFO("No postponed changes left");
-        Result->Set(E_OK);
+        Result->Set(EResult::OK);
         return;
     }
 

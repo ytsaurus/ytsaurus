@@ -123,7 +123,7 @@ private:
     void OnApplyChange();
 
     // TODO: which thread?
-    static ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
+    ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members
     virtual void StartLeading(TMasterEpoch epoch);

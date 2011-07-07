@@ -9,9 +9,10 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int THeaderTraits<TPacketHeader>::FixedSize = sizeof (TPacketHeader);
+const int THeaderTraits<TPacketHeader>::FixedSize =
+    sizeof (TPacketHeader);
 const int THeaderTraits<TMultipartPacketHeader>::FixedSize =
-        (size_t) &(((TMultipartPacketHeader*) NULL)->PartSizes);
+    (int) &(((TMultipartPacketHeader*) NULL)->PartSizes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

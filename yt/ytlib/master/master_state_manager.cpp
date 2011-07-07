@@ -69,6 +69,7 @@ void TMasterStateManager::RegisterMethods()
     RPC_REGISTER_METHOD(TMasterStateManager, PingLeader);
 }
 
+// TODO: cascading restart issue
 void TMasterStateManager::Restart()
 {
     MyEpoch = TGUID();
@@ -89,7 +90,7 @@ TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
     return
         ChangeCommitter
         ->CommitDistributed(change)
-        ->Apply(FromMethod(&TMasterStateManager::OnChangeCommit));
+        ->Apply(FromMethod(&TMasterStateManager::OnChangeCommit, TPtr(this)));
 }
 
 TMasterStateManager::ECommitResult TMasterStateManager::OnChangeCommit(
@@ -100,7 +101,7 @@ TMasterStateManager::ECommitResult TMasterStateManager::OnChangeCommit(
             return TMasterStateManager::CR_Committed;
 
         case TChangeCommitter::MaybeCommitted:
-            // TODO: restart!
+            Restart();
             return TMasterStateManager::CR_MaybeCommitted;
 
         default:
@@ -374,16 +375,15 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
 {
     i32 segmentId = request->GetSegmentId();
-    // TODO: rename to startRecordId
-    i32 startRecordCount = request->GetStartRecordId();
+    i32 startRecordId = request->GetStartRecordId();
     i32 recordCount = request->GetRecordCount();
     
     context->SetRequestInfo("SegmentId: %d, StartRecordId: %d, RecordCount: %d",
         segmentId,
-        startRecordCount,
+        startRecordId,
         recordCount);
 
-    YASSERT(startRecordCount >= 0);
+    YASSERT(startRecordId >= 0);
     YASSERT(recordCount >= 0);
     
     try {
@@ -400,7 +400,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
         changeLog.Flush();
 
         yvector<TSharedRef> recordData;
-        changeLog.Read(startRecordCount, recordCount, &recordData);
+        changeLog.Read(startRecordId, recordCount, &recordData);
 
         response->SetRecordsRead(recordData.ysize());
         response->Attachments().insert(
@@ -458,18 +458,22 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
                 MyEpoch)->Via(ServiceInvoker));
             break;
 
-        case EState::FollowerRecovery:
+        case EState::FollowerRecovery: {
             LOG_DEBUG("ApplyChange: keeping postponed change");
             
-            // TODO: check result
-            Recovery->PostponeChange(stateId, changeData);
+            TMasterRecovery::EResult result = Recovery->PostponeChange(stateId, changeData);
+            if (result != TMasterRecovery::EResult::OK) {
+                Restart();
+            }
 
             response->SetCommitted(false);
             context->Reply();
             break;
+        }
 
         default:
             YASSERT(false);
+            break;
     }
 }
 
@@ -626,10 +630,10 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
 
 void TMasterStateManager::OnLeaderRecovery(TMasterRecovery::EResult result)
 {
-    YASSERT(result == TMasterRecovery::E_OK ||
-            result == TMasterRecovery::E_Failed);
+    YASSERT(result == TMasterRecovery::EResult::OK ||
+            result == TMasterRecovery::EResult::Failed);
 
-    if (result != TMasterRecovery::E_OK) {
+    if (result != TMasterRecovery::EResult::OK) {
         LOG_WARNING("Leader recovery failed, restarting");
         Restart();
         return;
@@ -688,10 +692,10 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
 
 void TMasterStateManager::OnFollowerRecovery(TMasterRecovery::EResult result)
 {
-    YASSERT(result == TMasterRecovery::E_OK ||
-            result == TMasterRecovery::E_Failed);
+    YASSERT(result == TMasterRecovery::EResult::OK ||
+            result == TMasterRecovery::EResult::Failed);
 
-    if (result != TMasterRecovery::E_OK) {
+    if (result != TMasterRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
         Restart();
         return;
