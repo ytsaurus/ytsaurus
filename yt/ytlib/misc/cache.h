@@ -77,7 +77,10 @@ protected:
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void Touch(TKey key);
 
+    // Called under SpinLock.
     virtual bool NeedTrim() const = 0;
+
+    // Called without SpinLock.
     virtual void OnTrim(TValuePtr value);
 
 private:

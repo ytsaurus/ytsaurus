@@ -127,24 +127,25 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 
     TKey key = value->GetKey();
 
-    TGuard<TSpinLock> guard(SpinLock);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
 
-    YASSERT(~value->Cache == NULL);
-    value->Cache = this;
+        YASSERT(~value->Cache == NULL);
+        value->Cache = this;
 
-    TItem* item = ItemMap.find(key)->Second();
-    item->AsyncResult->Set(value);
+        TItem* item = ItemMap.find(key)->Second();
+        item->AsyncResult->Set(value);
 
-    // TODO: use verify
-    YASSERT(ValueMap.find(key) == ValueMap.end());
-    ValueMap.insert(MakePair(key, ~value));
+        // TODO: use YVERIFY
+        VERIFY(ValueMap.insert(MakePair(key, ~value)).second, "oops");
     
-    cookie->Active = false;
-    
-    LruList.PushFront(item);
-    ++LruListSize;
+        LruList.PushFront(item);
+        ++LruListSize;
+    }
 
     Trim();
+
+    cookie->Active = false;
 }
 
 template<class TKey, class TValue, class THash>
@@ -197,16 +198,25 @@ i32 TCacheBase<TKey, TValue, THash>::GetSize() const
 template<class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Trim()
 {
-    while (LruList.Size() > 0 && NeedTrim()) {
+    while (true) {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (LruList.Size() == 0 || !NeedTrim())
+            break;
+
         TItem* item = LruList.PopBack();
         --LruListSize;
+        
+        // TODO: use YVERIFY
         TValuePtr value;
-        bool got = item->AsyncResult->TryGet(&value);
-        YASSERT(got); // TODO: verify?
-        OnTrim(value);
+        VERIFY(item->AsyncResult->TryGet(&value), "oops");
+
         TKey key = value->GetKey();
         ItemMap.erase(key);
         delete item;
+
+        guard.Release();
+
+        OnTrim(value);
     }
 }
 
