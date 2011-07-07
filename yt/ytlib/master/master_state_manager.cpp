@@ -433,7 +433,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
-            Sprintf("invalid state %d", State);
+            Sprintf("invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
@@ -525,8 +525,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
         ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
-            Sprintf("invalid state %d",
-                State);
+            Sprintf("invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
@@ -594,8 +593,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
         followerState);
 
     if (State != EState::Leading) {
-        LOG_DEBUG("PingLeader: invalid state (State: %d)",
-            (int) State);
+        LOG_DEBUG("PingLeader: invalid state (State: %s)",
+            ~State.ToString());
     } else if (followerEpoch != Epoch ) {
         LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
             ~StringFromGuid(Epoch));
