@@ -20,6 +20,7 @@ struct IBus
 {
     typedef TIntrusivePtr<IBus> TPtr;
 
+    // TODO: turn into a smartenum
     enum ESendResult
     {
         OK,

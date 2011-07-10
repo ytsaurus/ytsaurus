@@ -17,7 +17,7 @@ public:
 
     TDecoratedMasterState(
         IMasterState::TPtr state,
-        TSnapshotStore* snapshotStore,
+        TSnapshotStore::TPtr snapshotStore,
         TChangeLogCache::TPtr changeLogCache);
 
     TMasterStateId GetStateId() const;
@@ -43,7 +43,7 @@ private:
     TVoid OnLoad(TVoid, TInstant started);
 
     IMasterState::TPtr State;
-    TSnapshotStore* SnapshotStore;
+    TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
 
     TMasterStateId StateId;

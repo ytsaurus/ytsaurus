@@ -28,6 +28,7 @@ public:
         {}
     };
 
+    // TODO: turn into a smartenum
     enum EResult
     {
         OK,

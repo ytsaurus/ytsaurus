@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = MasterLogger;
 
 TDecoratedMasterState::TDecoratedMasterState(
     IMasterState::TPtr state,
-    TSnapshotStore* snapshotStore,
+    TSnapshotStore::TPtr snapshotStore,
     TChangeLogCache::TPtr changeLogCache)
     : State(state)
     , SnapshotStore(snapshotStore)
@@ -49,7 +49,7 @@ TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Save(TOutputStream& output)
 TVoid TDecoratedMasterState::OnSave(TVoid, TInstant started)
 {
     TInstant finished = TInstant::Now();
-    LOG_INFO("Finishied saving snapshot, took %.3f s", (finished - started).SecondsFloat());
+    LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
     return TVoid();
 }
 
@@ -66,7 +66,7 @@ TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Load(i32 segmentId, TInputStrea
 TVoid TDecoratedMasterState::OnLoad(TVoid, TInstant started)
 {
     TInstant finished = TInstant::Now();
-    LOG_INFO("Finished loading snapshot, took %.3f s", (finished - started).SecondsFloat());
+    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
     return TVoid();
 }
 
@@ -98,8 +98,7 @@ void TDecoratedMasterState::AdvanceSegment()
 {
     UpdateStateId(TMasterStateId(StateId.SegmentId + 1, 0));
    
-    LOG_INFO("Switched master state to a new segment %d",
-        StateId.SegmentId);
+    LOG_INFO("Switched to a new segment %d", StateId.SegmentId);
 }
 
 void TDecoratedMasterState::RotateChangeLog()
@@ -118,56 +117,37 @@ void TDecoratedMasterState::RotateChangeLog()
 void TDecoratedMasterState::ComputeAvailableStateId()
 {
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
-    if (maxSnapshotId < 0) {
+    if (maxSnapshotId == NonexistingSnapshotId) {
         LOG_INFO("No snapshots found");
         // Let's pretend we have snapshot 0.
         maxSnapshotId = 0;
     } else {
+        TSnapshotReader::TPtr snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
         LOG_INFO("Latest snapshot is %d", maxSnapshotId);
     }
 
     TMasterStateId currentStateId = TMasterStateId(maxSnapshotId, 0);
 
-    // TODO: check prevchangecount between the snapshot and the first log
-
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
-        TCachedChangeLog::TPtr currentCachedChangeLog = ChangeLogCache->Get(segmentId);
-        if (~currentCachedChangeLog == NULL) {
+        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
+        if (~cachedChangeLog == NULL) {
             AvailableStateId = currentStateId;
             break;
         }
 
-        currentStateId = TMasterStateId(
+        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+        bool isFinal = ~ChangeLogCache->Get(segmentId + 1) == NULL;
+
+        LOG_DEBUG("Found changelog (Id: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
-            currentCachedChangeLog->GetChangeLog()->GetRecordCount());
-        
-        i32 nextSegmentId = segmentId + 1;
-        TCachedChangeLog::TPtr nextCachedChangeLog = ChangeLogCache->Get(nextSegmentId);
-        if (~nextCachedChangeLog == NULL) {
-            AvailableStateId = currentStateId;
-            break;
-        }
+            changeLog->GetRecordCount(),
+            changeLog->GetPrevRecordCount(),
+            ~ToString(isFinal));
 
-        if (!currentCachedChangeLog->GetChangeLog()->IsFinalized()) {
-            LOG_WARNING("Changelog %d was not finalized", segmentId);
-            currentCachedChangeLog->GetWriter().Finalize();
-        }
-
-        TMasterStateId prevStateId = nextCachedChangeLog->GetChangeLog()->GetPrevStateId();
-        if (prevStateId != currentStateId) {
-            LOG_FATAL("Previous state is mismatch in changelog %d: expected (%d, %d), found (%d, %d)",
-            nextSegmentId,
-            currentStateId.SegmentId, currentStateId.ChangeCount,
-            prevStateId.SegmentId, prevStateId.ChangeCount);
-        }
-
-        if (!currentCachedChangeLog->GetChangeLog()->IsFinalized()) {
-            LOG_FATAL("Changelog %d is not finalized", segmentId);
-        }
+        currentStateId = TMasterStateId(segmentId, changeLog->GetRecordCount());
     }
 
-    LOG_INFO("Available state is %s",
-        ~AvailableStateId.ToString());
+    LOG_INFO("Available state is %s", ~AvailableStateId.ToString());
 }         
 
 TMasterStateId TDecoratedMasterState::GetStateId() const

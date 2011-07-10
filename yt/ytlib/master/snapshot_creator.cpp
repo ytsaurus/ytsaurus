@@ -120,7 +120,7 @@ TSnapshotCreator::TSnapshotCreator(
     TCellManager::TPtr cellManager,
     TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
-    TSnapshotStore* snapshotStore,
+    TSnapshotStore::TPtr snapshotStore,
     TMasterEpoch epoch,
     IInvoker::TPtr serviceInvoker,
     IInvoker::TPtr workInvoker)
@@ -160,14 +160,14 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     // TODO: handle IO errors
     if (MasterState->GetStateId() != stateId) {
         LOG_WARNING("Invalid state id, snapshot creation canceled: expected %s, found %s",
-                      ~stateId.ToString(),
-                      ~MasterState->GetStateId().ToString());
-        return new TAsyncLocalResult(TLocalResult(InvalidStateId));
+            ~stateId.ToString(),
+            ~MasterState->GetStateId().ToString());
+        return new TAsyncLocalResult(TLocalResult(EResultCode::InvalidStateId));
     }
 
     // Prepare writer.
-    i32 segmentId = stateId.SegmentId + 1;
-    TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(segmentId);
+    i32 snapshotId = stateId.SegmentId + 1;
+    TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(snapshotId);
     writer->Open(stateId.ChangeCount);
     TOutputStream& output = writer->GetStream();
 
@@ -177,10 +177,11 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     // Switch to a new changelog.
     MasterState->RotateChangeLog();
 
+    // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(
         &TSnapshotCreator::OnSave,
-        segmentId,
-        writer)); // writer will live in this IParamAction
+        snapshotId,
+        writer));
 }
 
 TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
@@ -191,9 +192,10 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
     writer->Close();
 
     LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
-                      segmentId, writer->GetChecksum());
+        segmentId,
+        writer->GetChecksum());
 
-    return TLocalResult(OK, writer->GetChecksum());
+    return TLocalResult(EResultCode::OK, writer->GetChecksum());
 }
 
 

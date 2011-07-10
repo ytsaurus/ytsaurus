@@ -60,7 +60,10 @@ class TChangeLog::TImpl
     : private ::TNonCopyable
 {
 public:
-    TImpl(Stroka fileName, i32 id, i32 indexBlockSize);
+    TImpl(
+        Stroka fileName,
+        i32 id,
+        i32 indexBlockSize);
 
     void Open();
     void Create(i32 previousRecordCount);
@@ -72,7 +75,7 @@ public:
     void Truncate(i32 recordId);
 
     i32 GetId() const;
-    TMasterStateId GetPrevStateId() const;
+    i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
@@ -247,7 +250,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeLog::TImpl::TImpl(Stroka fileName, i32 id, i32 indexBlockSize)
+TChangeLog::TImpl::TImpl(
+    Stroka fileName,
+    i32 id,
+    i32 indexBlockSize)
     : State(S_Closed)
     , FileName(fileName)
     , IndexFileName(fileName + IndexSuffix)
@@ -551,25 +557,25 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     }
 }
 
-void TChangeLog::TImpl::Truncate(i32 recordId)
+void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
-    LOG_DEBUG("Truncating changelog from %d recordId", recordId);
+    LOG_DEBUG("Truncating changelog from %d recordId", atRecordId);
     i64 lowerBound, upperBound;
     i32 currentRecordId;
     {
         TGuard<TSpinLock> guard(IndexSpinLock);
-        TIndex::iterator it = GetUpperBound(recordId);
+        TIndex::iterator it = GetUpperBound(atRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
             upperBound = it->Offset;
         }
 
-        TIndex::iterator itPrev = GetLowerBound(recordId);
+        TIndex::iterator itPrev = GetLowerBound(atRecordId);
         currentRecordId = itPrev->RecordId;
         lowerBound = itPrev->Offset;
 
-        if (currentRecordId == recordId) {
+        if (currentRecordId == atRecordId) {
             TruncateIndex(itPrev - Index.begin());
         } else {
             TruncateIndex(it - Index.begin());
@@ -582,7 +588,7 @@ void TChangeLog::TImpl::Truncate(i32 recordId)
     File->Pread(dataHolder.begin(), length, lowerBound);
 
     size_t position = 0;
-    while (currentRecordId < recordId) {
+    while (currentRecordId < atRecordId) {
         i64 filePosition = lowerBound + position;
 
         // All records before recordId should be ok
@@ -608,10 +614,10 @@ void TChangeLog::TImpl::Truncate(i32 recordId)
 
     CurrentBlockSize = position;
     File->Resize(lowerBound + position);
-    RecordCount = recordId;
+    RecordCount = atRecordId;
 
     LOG_DEBUG("Changelog %d is truncated to %d record(s)",
-        Id, recordId);
+        Id, atRecordId);
 }
 
 void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
@@ -699,14 +705,9 @@ i32 TChangeLog::TImpl::GetId() const
     return Id;
 }
 
-TMasterStateId TChangeLog::TImpl::GetPrevStateId() const
+i32 TChangeLog::TImpl::GetPrevRecordCount() const
 {
-    if (Id == 0) {
-        YASSERT(PrevRecordCount == 0);
-        return TMasterStateId(0, 0);
-    } else {
-        return TMasterStateId(Id - 1, PrevRecordCount);
-    }
+    return PrevRecordCount;
 }
 
 i32 TChangeLog::TImpl::GetRecordCount() const
@@ -730,9 +731,9 @@ i32 TChangeLog::GetId() const
     return Impl->GetId();
 }
 
-TMasterStateId TChangeLog::GetPrevStateId() const
+i32 TChangeLog::GetPrevRecordCount() const
 {
-    return Impl->GetPrevStateId();
+    return Impl->GetPrevRecordCount();
 }
 
 i32 TChangeLog::GetRecordCount() const
@@ -775,9 +776,9 @@ void TChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* r
     Impl->Read(firstRecordId, recordCount, result);
 }
 
-void TChangeLog::Truncate(i32 recordId)
+void TChangeLog::Truncate(i32 atRecordId)
 {
-    Impl->Truncate(recordId);
+    Impl->Truncate(atRecordId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

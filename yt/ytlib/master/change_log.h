@@ -4,8 +4,6 @@
 
 #include "../misc/ptr.h"
 
-#include <util/generic/ptr.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +21,10 @@ public:
     typedef TIntrusivePtr<TChangeLog> TPtr;
 
     //! Basic constructor.
-    TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize = 1024 * 1024);
+    TChangeLog(
+        Stroka fileName,
+        i32 id,
+        i32 indexBlockSize = 1024 * 1024);
 
     void Open();
     void Create(i32 prevRecordCount);
@@ -31,20 +32,19 @@ public:
 
     void Append(i32 recordId, TSharedRef recordData);
     void Flush();
-    // TODO: get rid of dataHolder, turn recordData into yvector<TSharedRef>
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
-    // TODO: argument name to firstRecordId?
-    void Truncate(i32 recordId);
+    void Truncate(i32 atRecordId);
 
     i32 GetId() const;
-    // TODO: Better name? ExpectedStateId?
-    TMasterStateId GetPrevStateId() const;
+    i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
 private:
     class TImpl;
+
     THolder<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,21 +27,22 @@ public:
 
         TConfig()
             : Timeout(TDuration::Minutes(1))
-        {}
+        { }
     };
 
-    enum EResult
-    {
-        OK,
-        InvalidStateId
-    };
+    DECLARE_ENUM(EResultCode,
+        (OK)
+        (InvalidStateId)
+    );
 
     struct TLocalResult
     {
-        EResult ResultCode;
+        EResultCode ResultCode;
         TChecksum Checksum;
 
-        explicit TLocalResult(EResult resultCode = OK, TChecksum checksum = 0)
+        explicit TLocalResult(
+            EResultCode resultCode = EResultCode::OK,
+            TChecksum checksum = 0)
             : ResultCode(resultCode)
             , Checksum(checksum)
         { }
@@ -54,7 +55,7 @@ public:
         TCellManager::TPtr cellManager,
         TDecoratedMasterState::TPtr masterState,
         TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore* snapshotStore,
+        TSnapshotStore::TPtr snapshotStore,
         TMasterEpoch epoch,
         IInvoker::TPtr serviceInvoker,
         IInvoker::TPtr workInvoker);
@@ -70,7 +71,7 @@ private:
     TConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMasterState::TPtr MasterState;
-    TSnapshotStore* SnapshotStore;
+    TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
     TMasterEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;

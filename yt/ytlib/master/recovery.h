@@ -13,17 +13,18 @@
 
 #include "../election/election_manager.h"
 
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterRecovery
+class TLeaderRecovery;
+class TFollowerRecovery;
+
+class TRecovery
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TMasterRecovery> TPtr;
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TIntrusivePtr<TRecovery> TPtr;
 
     DECLARE_ENUM(EResult,
         (OK)
@@ -32,22 +33,99 @@ public:
 
     typedef TAsyncResult<EResult> TResult;
 
-    // TODO: refactor!!!
-    TMasterRecovery(
-        const TSnapshotDownloader::TConfig& snapshotDownloaderConfig,
-        const TChangeLogDownloader::TConfig& changeLogDownloaderConfig,
+    TRecovery(
         TCellManager::TPtr cellManager,
         TDecoratedMasterState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore* snapshotStore,
+        TSnapshotStore::TPtr snapshotStore,
         TMasterEpoch epoch,
         TMasterId leaderId,
         IInvoker::TPtr serviceInvoker,
         IInvoker::TPtr epochInvoker,
         IInvoker::TPtr workQueue);
 
-    TResult::TPtr RecoverLeader(TMasterStateId stateId);
-    TResult::TPtr RecoverFollower();
+protected:
+    friend class TLeaderRecovery;
+    friend class TFollowerRecovery;
+
+    typedef TMasterStateManagerProxy TProxy;
+
+    virtual bool IsLeader() const = 0;
+
+    // Work thread
+    TResult::TPtr RecoverFromSnapshot(
+        TMasterStateId targetStateId,
+        i32 snapshotId);
+    TResult::TPtr RecoverFromChangeLog(
+        TVoid,
+        TSnapshotReader::TPtr,
+        TMasterStateId targetStateId,
+        i32 expectedPrevRecordCount);
+    void ApplyChangeLog(
+        TAsyncChangeLog& changeLog,
+        i32 targetChangeCount);
+
+    // Thread-neutral.
+    TCellManager::TPtr CellManager;
+    TDecoratedMasterState::TPtr MasterState;
+    TChangeLogCache::TPtr ChangeLogCache;
+    TSnapshotStore::TPtr SnapshotStore;
+    TMasterEpoch Epoch;
+    TMasterId LeaderId;
+    IInvoker::TPtr ServiceInvoker;
+    IInvoker::TPtr EpochInvoker;
+    IInvoker::TPtr WorkQueue;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLeaderRecovery
+    : public TRecovery
+{
+public:
+    typedef TIntrusivePtr<TLeaderRecovery> TPtr;
+
+    TLeaderRecovery(
+        TCellManager::TPtr cellManager,
+        TDecoratedMasterState::TPtr decoratedState,
+        TChangeLogCache::TPtr changeLogCache,
+        TSnapshotStore::TPtr snapshotStore,
+        TMasterEpoch epoch,
+        TMasterId leaderId,
+        IInvoker::TPtr serviceInvoker,
+        IInvoker::TPtr epochInvoker,
+        IInvoker::TPtr workQueue);
+
+    //! Performs leader recovery loading the latest snapshot and applying the changelogs.
+    TResult::TPtr Run();
+
+private:
+    virtual bool IsLeader() const;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFollowerRecovery
+    : public TRecovery
+{
+public:
+    typedef TIntrusivePtr<TFollowerRecovery> TPtr;
+
+    TFollowerRecovery(
+        TCellManager::TPtr cellManager,
+        TDecoratedMasterState::TPtr decoratedState,
+        TChangeLogCache::TPtr changeLogCache,
+        TSnapshotStore::TPtr snapshotStore,
+        TMasterEpoch epoch,
+        TMasterId leaderId,
+        IInvoker::TPtr serviceInvoker,
+        IInvoker::TPtr epochInvoker,
+        IInvoker::TPtr workQueue);
+
+    //! Performs follower recovery brining the follower up-to-date and synched with the leader.
+    TResult::TPtr Run();
 
     //! Postpones incoming request for advancing the current segment in the master state.
     /*!
@@ -64,7 +142,12 @@ public:
      * and postponing succeeded.
      */
     EResult PostponeChange(const TMasterStateId& stateId, const TSharedRef& change);
-
+    //! Handles sync response from the leader
+    /*!
+     * \param stateId Current state at leader.
+     * \param epoch Current epoch at leader.
+     * \param maxSnapshotId Maximum snapshot id at leader.
+     */
     void Sync(
         const TMasterStateId& stateId,
         const TMasterEpoch& epoch,
@@ -73,6 +156,7 @@ public:
 private:
     struct TPostponedChange
     {
+        // TODO: turn into a smartenum
         enum EType
         {
             T_Change,
@@ -101,40 +185,26 @@ private:
 
     typedef yvector<TPostponedChange> TPostponedChanges;
 
+    // Thread-neutral.
+    TResult::TPtr Result;
+
     // Service thread
     TPostponedChanges PostponedChanges;
     TMasterStateId PostponedStateId;
     bool SyncReceived;
 
-    // Work thread
-    void RecoverLeaderFromSnapshot(TMasterStateId targetStateId);
-    void RecoverLeaderFromChangeLog(TVoid, TSnapshotReader::TPtr, TMasterStateId targetStateId);
-
-    void RecoverFollowerFromSnapshot(TMasterStateId targetStateId, i32 snapshotId);
-    void RecoverFollowerFromChangeLog(TVoid, TSnapshotReader::TPtr, TMasterStateId targetStateId);
-
-    void ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
-    void ApplyChangeLog(TAsyncChangeLog& changeLog, i32 targetChangeCount);
-
      // Service thread
     void OnSyncTimeout();
-    void CapturePostponedChanges();
+    TResult::TPtr CapturePostponedChanges();
 
-    TSnapshotDownloader::TConfig SnapshotDownloaderConfig;
-    TChangeLogDownloader::TConfig ChangeLogDownloaderConfig;
-    TCellManager::TPtr CellManager;
-    TDecoratedMasterState::TPtr MasterState;
-    TChangeLogCache::TPtr ChangeLogCache;
-    TSnapshotStore* SnapshotStore;
-    TMasterEpoch Epoch;
-    TMasterId LeaderId;
-    IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr EpochInvoker;
-    IInvoker::TPtr WorkQueue;
-    TResult::TPtr Result;
+    // Thread-neutral.
+    virtual bool IsLeader() const;
+    TResult::TPtr OnSyncReached(EResult result);
+
+    // Work thread.
+    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT

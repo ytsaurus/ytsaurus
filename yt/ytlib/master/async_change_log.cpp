@@ -330,9 +330,20 @@ i32 TAsyncChangeLog::GetRecordCount() const
     }
 }
 
+i32 TAsyncChangeLog::GetPrevRecordCount() const
+{
+    return ChangeLog->GetPrevRecordCount();
+}
+
 bool TAsyncChangeLog::IsFinalized() const
 {
     return ChangeLog->IsFinalized();
+}
+
+void TAsyncChangeLog::Truncate( i32 atRecordId )
+{
+    // TOOD: flush or something?
+    return ChangeLog->Truncate(atRecordId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

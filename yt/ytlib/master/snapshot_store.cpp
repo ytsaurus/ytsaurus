@@ -21,27 +21,27 @@ TSnapshotStore::TSnapshotStore(Stroka location)
     : Location(location)
 { }
 
-Stroka TSnapshotStore::GetSnapshotFileName(i32 segmentId)
+Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId)
 {
     return Location + "/" +
-           Sprintf("%09d", segmentId) + "." +
+           Sprintf("%09d", snapshotId) + "." +
            SnapshotExtension;
 }
 
-TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 segmentId)
+TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId)
 {
-    YASSERT(segmentId > 0);
-    Stroka fileName = GetSnapshotFileName(segmentId);
+    YASSERT(snapshotId > 0);
+    Stroka fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName))
         return NULL;
-    return new TSnapshotReader(fileName, segmentId);
+    return new TSnapshotReader(fileName, snapshotId);
 }
 
-TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 segmentId)
+TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId)
 {
-    YASSERT(segmentId > 0);
-    Stroka fileName = GetSnapshotFileName(segmentId);
-    return new TSnapshotWriter(fileName, segmentId);
+    YASSERT(snapshotId > 0);
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    return new TSnapshotWriter(fileName, snapshotId);
 }
 
 i32 TSnapshotStore::GetMaxSnapshotId()
@@ -51,7 +51,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
     TFileList fileList;
     fileList.Fill(Location);
 
-    i32 maxSnapshotId = -1;
+    i32 maxSnapshotId = NonexistingSnapshotId;
     Stroka fileName;
     while ((fileName = fileList.Next()) != NULL) {
         Stroka extension = NFS::GetFileExtension(fileName);

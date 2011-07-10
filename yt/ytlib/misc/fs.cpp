@@ -14,7 +14,8 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool Remove(const char* name) {
+bool Remove(const char* name)
+{
 #if defined(_win_)
     return DeleteFile(name);
 #else
@@ -30,9 +31,10 @@ bool Remove(const char* name) {
 #endif
 }
 
-bool Rename(const char* oldName, const char* newName) {
+bool Rename(const char* oldName, const char* newName)
+{
 #if defined(_win_)
-    return MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING) == 0;
+    return MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
     return ::rename(oldName, newName) == 0;
 #endif

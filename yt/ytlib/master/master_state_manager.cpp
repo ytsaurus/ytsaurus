@@ -36,7 +36,7 @@ TMasterStateManager::TMasterStateManager(
     ChangeLogCache = new TChangeLogCache(Config.LogLocation);
 
     NFS::CleanTempFiles(config.SnapshotLocation);
-    SnapshotStore.Reset(new TSnapshotStore(Config.SnapshotLocation));
+    SnapshotStore = new TSnapshotStore(Config.SnapshotLocation);
 
     MasterState = new TDecoratedMasterState(
         masterState,
@@ -138,19 +138,6 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
     TSnapshotDownloader::TConfig snapshotDownloaderConfig;
     // TODO: fill config
 
-    Recovery = new TMasterRecovery(
-        snapshotDownloaderConfig,
-        changeLogDownloaderConfig,
-        CellManager,
-        ~MasterState,
-        ChangeLogCache,
-        ~SnapshotStore,
-        Epoch,
-        LeaderId,
-        ServiceInvoker,
-        EpochInvoker,
-        WorkQueue);
-
     ChangeCommitter = new TChangeCommitter(
         CellManager,
         ~MasterState,
@@ -178,7 +165,6 @@ void TMasterStateManager::StopEpoch()
     EpochInvoker.Drop();
     Epoch = TMasterEpoch();
     MyEpoch = TMasterEpoch();
-    Recovery.Drop();
     ChangeCommitter.Drop();
     SnapshotCreator.Drop();
 }
@@ -244,12 +230,12 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, Sync)
 
     context->Reply();
 
-    if (~Recovery == NULL) {
+    if (~FollowerRecovery == NULL) {
         LOG_WARNING("Unexpected sync received");
         return;
     }
 
-    Recovery->Sync(
+    FollowerRecovery->Sync(
         stateId,
         epoch,
         maxSnapshotId);
@@ -461,8 +447,9 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
         case EState::FollowerRecovery: {
             LOG_DEBUG("ApplyChange: keeping postponed change");
             
-            TMasterRecovery::EResult result = Recovery->PostponeChange(stateId, changeData);
-            if (result != TMasterRecovery::EResult::OK) {
+            YASSERT(~FollowerRecovery != NULL);
+            TRecovery::EResult result = FollowerRecovery->PostponeChange(stateId, changeData);
+            if (result != TRecovery::EResult::OK) {
                 Restart();
             }
 
@@ -550,14 +537,18 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
                 context));
             break;
             
-        case EState::FollowerRecovery:
+        case EState::FollowerRecovery: {
             LOG_DEBUG("CreateSnapshot: keeping postponed segment advance");
 
-            // TODO: check result
-            Recovery->PostponeSegmentAdvance(stateId);
+            YASSERT(~FollowerRecovery != NULL);
+            TRecovery::EResult result = FollowerRecovery->PostponeSegmentAdvance(stateId);
+            if (result != TRecovery::EResult::OK) {
+                Restart();
+            }
 
             context->Reply(TProxy::EErrorCode::InvalidState);
             break;
+        }
 
         default:
             YASSERT(false);
@@ -570,11 +561,11 @@ void TMasterStateManager::OnCreateLocalSnapshot(
     TCtxCreateSnapshot::TPtr context)
 {
     switch (result.ResultCode) {
-        case TSnapshotCreator::OK:
+        case TSnapshotCreator::EResultCode::OK:
             context->Response().SetChecksum(result.Checksum);
             context->Reply();
             break;
-        case TSnapshotCreator::InvalidStateId:
+        case TSnapshotCreator::EResultCode::InvalidStateId:
             context->Reply(TProxy::EErrorCode::InvalidStateId);
             break;
         default:
@@ -621,19 +612,30 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
     LeaderId = CellManager->GetSelfId();    
     StartEpoch(epoch);
     
-    TMasterStateId stateId = MasterState->GetAvailableStateId();
-    Recovery->RecoverLeader(stateId)->Subscribe(
+    YASSERT(~LeaderRecovery == NULL);
+    LeaderRecovery = new TLeaderRecovery(
+        CellManager,
+        ~MasterState,
+        ChangeLogCache,
+        ~SnapshotStore,
+        Epoch,
+        LeaderId,
+        ServiceInvoker,
+        EpochInvoker,
+        WorkQueue);
+
+    LeaderRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnLeaderRecovery, TPtr(this))
         ->Via(EpochInvoker)
         ->Via(ServiceInvoker));
 }
 
-void TMasterStateManager::OnLeaderRecovery(TMasterRecovery::EResult result)
+void TMasterStateManager::OnLeaderRecovery(TRecovery::EResult result)
 {
-    YASSERT(result == TMasterRecovery::EResult::OK ||
-            result == TMasterRecovery::EResult::Failed);
+    YASSERT(result == TRecovery::EResult::OK ||
+            result == TRecovery::EResult::Failed);
 
-    if (result != TMasterRecovery::EResult::OK) {
+    if (result != TRecovery::EResult::OK) {
         LOG_WARNING("Leader recovery failed, restarting");
         Restart();
         return;
@@ -673,6 +675,8 @@ void TMasterStateManager::StopLeading()
 
     StopEpoch();
 
+    LeaderRecovery.Drop();
+
     FollowerStateTracker.Drop();
 }
 
@@ -684,18 +688,30 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
     LeaderId = leaderId;
     StartEpoch(epoch);
 
-    Recovery->RecoverFollower()->Subscribe(
+    YASSERT(~FollowerRecovery == NULL);
+    FollowerRecovery = new TFollowerRecovery(
+        CellManager,
+        ~MasterState,
+        ChangeLogCache,
+        ~SnapshotStore,
+        Epoch,
+        LeaderId,
+        ServiceInvoker,
+        EpochInvoker,
+        WorkQueue);
+
+    FollowerRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnFollowerRecovery, TPtr(this))
         ->Via(EpochInvoker)
         ->Via(ServiceInvoker));
 }
 
-void TMasterStateManager::OnFollowerRecovery(TMasterRecovery::EResult result)
+void TMasterStateManager::OnFollowerRecovery(TRecovery::EResult result)
 {
-    YASSERT(result == TMasterRecovery::EResult::OK ||
-            result == TMasterRecovery::EResult::Failed);
+    YASSERT(result == TRecovery::EResult::OK ||
+            result == TRecovery::EResult::Failed);
 
-    if (result != TMasterRecovery::EResult::OK) {
+    if (result != TRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
         Restart();
         return;
@@ -720,6 +736,8 @@ void TMasterStateManager::StopFollowing()
     State = EState::Elections;
     
     StopEpoch();
+
+    FollowerRecovery.Drop();
 
     if (~LeaderPinger != NULL) {
         LeaderPinger->Terminate();

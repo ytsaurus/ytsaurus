@@ -36,7 +36,7 @@ void TChannel::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     TRequestId requestId = GuidFromProtoGuid(header.GetRequestId());
     TClientResponse::TPtr response = GetResponse(requestId);
     if (~response == NULL) {
-        LOG_WARNING( "Response for an incorrect or obsolete request received (RequestId: %s)",
+        LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
             ~StringFromGuid(requestId));
         return;
     }
@@ -67,8 +67,10 @@ void TChannel::Send(
         &TClientResponse::OnAcknowledgment,
         response));
 
-    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
-        ~StringFromGuid(requestId), ~request->ServiceName, ~request->MethodName);
+    LOG_DEBUG("Request sent (ServiceName: %s, MethodName:%s, RequestId: %s)",
+        ~request->ServiceName,
+        ~request->MethodName,
+        ~StringFromGuid(requestId));
 }
 
 TRequestId TChannel::RegisterResponse(TClientResponse::TPtr response)
@@ -183,8 +185,10 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
 
 void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
 {
+    // TODO: ToString
     LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %d)",
-        ~StringFromGuid(RequestId), static_cast<int>(sendResult));
+        ~StringFromGuid(RequestId),
+        static_cast<int>(sendResult));
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == S_Sent) {

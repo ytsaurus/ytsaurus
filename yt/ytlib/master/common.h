@@ -80,6 +80,11 @@ inline bool TMasterStateId::operator >= (const TMasterStateId& other) const
 typedef i32 TMasterId;
 const TMasterId InvalidMasterId = -1;
 
+const i32 NonexistingPrevRecordCount = -1;
+const i32 UnknownPrevRecordCount = -2;
+
+const i32 NonexistingSnapshotId = -1;
+
 extern NLog::TLogger MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////

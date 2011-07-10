@@ -16,7 +16,9 @@ class TSnapshotReader
 public:
     typedef TIntrusivePtr<TSnapshotReader> TPtr;
 
-    TSnapshotReader(Stroka fileName, i32 segmentId);
+    TSnapshotReader(
+        Stroka fileName,
+        i32 segmentId);
 
     void Open(i64 offset = 0);
     TInputStream& GetStream() const;
@@ -44,7 +46,9 @@ class TSnapshotWriter
 public:
     typedef TIntrusivePtr<TSnapshotWriter> TPtr;
 
-    TSnapshotWriter(Stroka fileName, i32 segmentId);
+    TSnapshotWriter(
+        Stroka fileName,
+        i32 segmentId);
 
     void Open(i32 prevRecordCount);
     TOutputStream& GetStream() const;

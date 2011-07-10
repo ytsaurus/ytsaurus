@@ -50,7 +50,8 @@ void TLeaderPinger::SchedulePing()
         ->Via(~EpochInvoker)
         ->Via(ServiceInvoker),
         Config.PingInterval);
-    LOG_DEBUG("Scheduled leader ping");
+
+    LOG_DEBUG("Leader ping scheduled");
 }
 
 void TLeaderPinger::SendPing()
@@ -69,16 +70,19 @@ void TLeaderPinger::SendPing()
         &TLeaderPinger::OnSendPing, TPtr(this))
         ->Via(~EpochInvoker)
         ->Via(ServiceInvoker));
-    LOG_DEBUG("Sent leader ping (LeaderId: %d, State: %d)",
-        LeaderId, (int) state);
+
+    LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %d)",
+        LeaderId,
+        ~state.ToString());
 }
 
 void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
 {
     if (response->IsOK()) {
-        LOG_DEBUG("Leader %d was successfully pinged", LeaderId);
+        LOG_DEBUG("Leader ping succeeded (LeaderId: %d)",
+            LeaderId);
     } else {
-        LOG_WARNING("Error pinging leader %d with error code %s",
+        LOG_WARNING("Error pinging leader (LeaderId: %d, ErrorCode: %s)",
             LeaderId,
             ~response->GetErrorCode().ToString());
     }

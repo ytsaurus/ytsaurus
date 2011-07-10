@@ -97,8 +97,8 @@ private:
     void SendSync(TMasterId masterId, TMasterEpoch epoch);
 
     // Service thread
-    void OnLeaderRecovery(TMasterRecovery::EResult result);
-    void OnFollowerRecovery(TMasterRecovery::EResult result);
+    void OnLeaderRecovery(TRecovery::EResult result);
+    void OnFollowerRecovery(TRecovery::EResult result);
 
     // Service thread
     void OnLocalCommit(
@@ -109,17 +109,16 @@ private:
     // TODO: which thread?
     void Restart();
 
-    // TODO: which thread?
+    // Service thread
     void StartEpoch(const TMasterEpoch& epoch);
-    // TODO: which thread?
     void StopEpoch();
 
-    // TODO: which thread?
+    // Thread-neutral.
     void OnCreateLocalSnapshot(
         TSnapshotCreator::TLocalResult result,
         TCtxCreateSnapshot::TPtr context);
 
-    // TODO: which thread?
+    // Work thread.
     void OnApplyChange();
 
     // TODO: which thread?
@@ -141,7 +140,7 @@ private:
     IInvoker::TPtr WorkQueue;
     TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
-    THolder<TSnapshotStore> SnapshotStore;
+    TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMasterState::TPtr MasterState;
 
     // Per epoch, service thread
@@ -150,7 +149,8 @@ private:
     TMasterEpoch MyEpoch;
     IInvoker::TPtr EpochInvoker;
     TSnapshotCreator::TPtr SnapshotCreator;
-    TMasterRecovery::TPtr Recovery;
+    TLeaderRecovery::TPtr LeaderRecovery;
+    TFollowerRecovery::TPtr FollowerRecovery;
     TChangeCommitter::TPtr ChangeCommitter;
     TIntrusivePtr<TFollowerStateTracker> FollowerStateTracker;
     TIntrusivePtr<TLeaderPinger> LeaderPinger;

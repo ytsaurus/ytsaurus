@@ -56,7 +56,9 @@ struct TSnapshotHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotReader::TSnapshotReader(Stroka fileName, i32 segmentId)
+TSnapshotReader::TSnapshotReader(
+    Stroka fileName,
+    i32 segmentId)
     : FileName(fileName)
     , SegmentId(segmentId)
 { }
@@ -72,9 +74,9 @@ void TSnapshotReader::Open(i64 offset)
     Read(*File, &header);
     header.Validate();
     if (header.SegmentId != SegmentId) {
-        LOG_FATAL("Invalid snapshot id: expected %ud, got %ud",
-                   SegmentId,
-                   header.SegmentId);
+        LOG_FATAL("Invalid snapshot id: expected %d, got %d",
+            SegmentId,
+            header.SegmentId);
     }
     PrevRecordCount = header.PrevRecordCount;
     Checksum = header.Checksum;

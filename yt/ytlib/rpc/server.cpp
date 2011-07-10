@@ -56,8 +56,10 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     Stroka serviceName = requestHeader.GetServiceName();
     Stroka methodName = requestHeader.GetMethodName();
 
-    LOG_DEBUG("Request received (RequestId: %s, ServiceName: %s, MethodName: %s)",
-        ~StringFromGuid(requestId), ~serviceName, ~methodName);
+    LOG_DEBUG("Request received (ServiceName: %s, MethodName: %s, RequestId: %s)",
+        ~serviceName,
+        ~methodName,
+        ~StringFromGuid(requestId));
 
     IService::TPtr service = GetService(serviceName);
     if (~service == NULL) {

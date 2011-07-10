@@ -27,10 +27,10 @@ public:
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& changeData);
     void Flush();
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
-    // TODO: Truncate();
+    void Truncate(i32 atRecordId);
 
     i32 GetId() const;
-    // TMasterStateId GetPrevStateId() const;
+    i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
