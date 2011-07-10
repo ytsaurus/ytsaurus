@@ -71,7 +71,7 @@ void TLeaderPinger::SendPing()
         ->Via(~EpochInvoker)
         ->Via(ServiceInvoker));
 
-    LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %d)",
+    LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %s)",
         LeaderId,
         ~state.ToString());
 }
