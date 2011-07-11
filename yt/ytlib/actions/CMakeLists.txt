@@ -7,5 +7,7 @@ SET(YT_SOURCE_FILES
     invoker.cpp
     async_result.h
     async_result-inl.h
+    parallel_awaiter.h
+    parallel_awaiter-inl.h
 )
 

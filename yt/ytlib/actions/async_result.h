@@ -44,46 +44,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: move to separate file
-
-class TParallelAwaiter
-    : public TRefCountedBase
-{
-public:
-    typedef TIntrusivePtr<TParallelAwaiter> TPtr;
-
-    TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
-
-    template<class T>
-    void Await(
-        TIntrusivePtr< TAsyncResult<T> > result,
-        TIntrusivePtr< IParamAction<T> > onResult = NULL);
-
-    void Complete(IAction::TPtr onComplete = NULL);
-    void Cancel();
-    bool IsCanceled() const;
-
-private:
-    TSpinLock SpinLock;
-    bool Canceled;
-    bool Completed;
-    bool Terminated;
-    i32 RequestCount;
-    i32 ResponseCount;
-    IAction::TPtr OnComplete;
-    IInvoker::TPtr UserInvoker;
-    TCancelableInvoker::TPtr CancelableInvoker;
-
-    void Terminate();
-
-    template<class T>
-    void OnResult(
-        T result,
-        typename IParamAction<T>::TPtr onResult);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
