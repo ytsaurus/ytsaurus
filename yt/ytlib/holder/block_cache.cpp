@@ -11,7 +11,7 @@ TCachedBlock::TCachedBlock(TBlockId blockId, const TSharedRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBlockCacheConfig::Read(const TJsonObject* jsonConfig)
+void TBlockCache::TConfig::Read(const TJsonObject* jsonConfig)
 {
     if (jsonConfig == NULL)
         return;
@@ -20,7 +20,7 @@ void TBlockCacheConfig::Read(const TJsonObject* jsonConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockCache::TBlockCache(const TBlockCacheConfig& config)
+TBlockCache::TBlockCache(const TConfig& config)
     : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.Capacity)
 {}
 

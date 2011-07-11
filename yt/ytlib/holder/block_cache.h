@@ -30,25 +30,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: replace with TBlockCache::TConfig
-struct TBlockCacheConfig
-{
-    i32 Capacity;
-
-    explicit TBlockCacheConfig()
-        : Capacity(1024)
-    { }
-
-    void Read(const TJsonObject* jsonConfig);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBlockCache 
     : public TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>
 {
 public:
-    TBlockCache(const TBlockCacheConfig& config);
+
+    struct TConfig
+    {
+        i32 Capacity;
+
+        explicit TConfig()
+            : Capacity(1024)
+        { }
+
+        void Read(const TJsonObject* jsonConfig);
+    };
+
+    TBlockCache(const TConfig& config);
 
     void Put(TCachedBlock::TPtr blockHolder);
     TCachedBlock::TPtr Put(TBlockId blockId, TSharedRef data);

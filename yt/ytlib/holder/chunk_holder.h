@@ -23,7 +23,7 @@ namespace NYT {
 
 struct TChunkHolderConfig
 {
-    TBlockCacheConfig BlockCacheConfig;
+    TBlockCache::TConfig BlockCacheConfig;
     i32 WindowSize;
     TDuration LeaseTimeout;
     yvector<Stroka> Locations;
