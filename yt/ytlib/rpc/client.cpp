@@ -185,7 +185,6 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
 
 void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
 {
-    // TODO: ToString
     LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
         ~StringFromGuid(RequestId),
         ~sendResult.ToString());
