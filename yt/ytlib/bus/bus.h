@@ -3,13 +3,6 @@
 #include "common.h"
 #include "message.h"
 
-// TODO: drop redundant includes
-#include "../misc/lease_manager.h"
-
-#include <util/system/thread.h>
-#include <quality/NetLiba/UdpHttp.h>
-#include <quality/NetLiba/UdpAddress.h>
-
 namespace NYT {
 namespace NBus {
 

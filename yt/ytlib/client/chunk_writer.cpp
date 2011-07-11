@@ -5,6 +5,7 @@
 #include "../misc/metric.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
+#include "../actions/parallel_awaiter.h"
 
 #include <util/random/random.h>
 #include <util/generic/yexception.h>

@@ -5,6 +5,7 @@
 
 #include "../master/cell_manager.h"
 #include "../actions/async_result.h"
+#include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
 
 namespace NYT {

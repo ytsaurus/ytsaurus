@@ -5,6 +5,8 @@
 #include "bus.h"
 #include "packet.h"
 
+#include <quality/NetLiba/UdpHttp.h>
+
 namespace NYT {
 namespace NBus {
 
