@@ -17,7 +17,8 @@ class TAsyncResult
     T Value;
     mutable TSpinLock SpinLock;
     mutable THolder<Event> ReadyEvent;
-    typename IParamAction<T>::TPtr Subscriber;
+
+    yvector<typename IParamAction<T>::TPtr> Subscribers;
 
 public:
     typedef TIntrusivePtr<TAsyncResult> TPtr;

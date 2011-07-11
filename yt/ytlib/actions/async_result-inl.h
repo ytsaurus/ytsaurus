@@ -31,11 +31,13 @@ void TAsyncResult<T>::Set(T value)
         if (event != NULL) {
             event->Signal();
         }
-        IParamAction<T>* subscriber = ~Subscriber;
-        if (subscriber != NULL) {
-            subscriber->Do(value);
-            Subscriber = NULL;
+        for (typename yvector<typename IParamAction<T>::TPtr>::iterator it = Subscribers.begin();
+            it != Subscribers.end();
+            ++it)
+        {
+            (*it)->Do(value);
         }
+        Subscribers.clear();
     }
 }
 
@@ -73,7 +75,7 @@ void TAsyncResult<T>::Subscribe(typename IParamAction<T>::TPtr action)
     if (IsSet) {
         action->Do(Value);
     } else {
-        Subscriber = action;
+        Subscribers.push_back(action);
     }
 }
 
