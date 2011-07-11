@@ -112,11 +112,11 @@ public:
     IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
-    enum EState
-    {
-        S_Received,
-        S_Replied
-    };
+
+    DECLARE_ENUM(EState,
+        (Received)
+        (Replied)
+    );
 
     EState State;
     IService::TPtr Service;

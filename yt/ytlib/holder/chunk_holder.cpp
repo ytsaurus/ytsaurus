@@ -57,13 +57,14 @@ public:
 class TChunkHolder::TSession
     : public TRefCountedBase
 {
-    enum EBlockState
-    {
-        BS_Empty,
-        BS_Received,
-        BS_BeingWritten,
-        BS_Written
-    };
+    BEGIN_DECLARE_ENUM(EBlockState,
+        (Empty)
+        (Received)
+        (BeingWritten)
+        (Written)
+    )
+    END_DECLARE_ENUM();
+
 
     struct TEntry
     {
@@ -72,7 +73,7 @@ class TChunkHolder::TSession
         IAction::TPtr CompleteFlush;
 
         TEntry()
-            : State(BS_Empty)
+            : State(EBlockState::Empty)
             , CachedBlock(NULL)
             , CompleteFlush(NULL)
         { }
@@ -106,11 +107,11 @@ class TChunkHolder::TSession
 
         for (i32 i = StartIndex; i < minStartIndex; ++i) {
             TEntry& entry = GetEntry(i);
-            if (entry.State != BS_Written) {
+            if (entry.State != EBlockState::Written) {
                 LOG_FATAL("Chunk %s: missing block %d while moving window",
                            ~GetChunkIdAsString(), i);
             }
-            entry.State = BS_Empty;
+            entry.State = EBlockState::Empty;
         }
         StartOffset += minStartIndex - StartIndex;
         StartOffset %= Blocks.ysize();
@@ -155,15 +156,15 @@ public:
     {
         ShiftWindow(blockIndex);
         TEntry& block = GetEntry(blockIndex);
-        YASSERT(block.State == BS_Empty);
+        YASSERT(block.State == EBlockState::Empty);
         block.CachedBlock = cachedBlock;
-        block.State = BS_Received;
+        block.State = EBlockState::Received;
     }
 
     TCachedBlock::TPtr GetBlock(i32 blockIndex)
     {
         TEntry& e = GetEntry(blockIndex);
-        YASSERT(e.State != BS_Empty);
+        YASSERT(e.State != EBlockState::Empty);
         return e.CachedBlock;
     }
 
@@ -173,17 +174,17 @@ public:
         i32 i = StartIndex;
         while (true) {
             TEntry& b = GetEntry(i);
-            if (b.State != BS_Written && b.State != BS_BeingWritten)
+            if (b.State != EBlockState::Written && b.State != EBlockState::BeingWritten)
                 break;
             ++i;
         }
 
         while (true) {
             TEntry& entry = GetEntry(i);
-            if (entry.State != BS_Received)
+            if (entry.State != EBlockState::Received)
                 break;
             output->push_back(entry.CachedBlock);
-            entry.State = BS_BeingWritten;
+            entry.State = EBlockState::BeingWritten;
             ++i;
         }
         return i;
@@ -212,13 +213,13 @@ public:
             return true;
         if (blockIndex >= StartIndex + Blocks.ysize())
             return false;
-        return GetEntry(blockIndex).State == BS_Written;
+        return GetEntry(blockIndex).State == EBlockState::Written;
     }
 
     void CompleteWriteTo(i32 firstUnwritten)
     {
         for (i32 i = StartIndex; i < firstUnwritten; ++i) {
-            GetEntry(i).State = BS_Written;
+            GetEntry(i).State = EBlockState::Written;
         }
 
         for (i32 i = StartIndex; i < firstUnwritten; ++i) {

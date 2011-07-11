@@ -18,7 +18,7 @@ TServiceContext::TServiceContext(
     Stroka methodName,
     IMessage::TPtr message,
     IBus::TPtr replyBus)
-    : State(S_Received)
+    : State(EState::Received)
     , Service(service)
     , RequestId(requestId)
     , MethodName(methodName)
@@ -37,7 +37,7 @@ void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
     // Failure here means that Reply is called twice.
-    YASSERT(State == S_Received);
+    YASSERT(State == EState::Received);
 
     IMessage::TPtr message;
     if (errorCode.IsRpcError()) {
@@ -53,7 +53,7 @@ void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
     }
 
     ReplyBus->Send(message);
-    State = S_Replied;
+    State = EState::Replied;
 }
 
 TSharedRef TServiceContext::GetRequestBody() const

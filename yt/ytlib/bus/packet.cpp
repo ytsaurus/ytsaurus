@@ -91,7 +91,7 @@ bool EncodeMessagePacket(
 
     TMultipartPacketHeader* header = reinterpret_cast<TMultipartPacketHeader*>(data->begin());
     header->Signature = TPacketHeader::ExpectedSignature;
-    header->Type = TPacketHeader::Message;
+    header->Type = TPacketHeader::EType::Message;
     header->SessionId = sessionId;
     header->PartCount = parts.ysize();
     header->SequenceId = sequenceId;

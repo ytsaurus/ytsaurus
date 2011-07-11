@@ -164,7 +164,7 @@ class TClientDispatcher
         bus->RequestIds.clear();
 
         TBlob ackData;
-        CreatePacket(bus->SessionId, TPacketHeader::Ack, &ackData);
+        CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
 
         for (TBusClient::TBus::TRequestIdSet::iterator i = bus->PingIds.begin();
             i != bus->PingIds.end();
@@ -206,18 +206,18 @@ class TClientDispatcher
             return;
 
         switch (header->Type) {
-            case TPacketHeader::Ack:
+            case TPacketHeader::EType::Ack:
                 ProcessAck(header, nlResponse);
                 break;
 
-            case TPacketHeader::Message:
+            case TPacketHeader::EType::Message:
                 ProcessMessage(header, nlResponse);
                 break;
 
             default:
-                LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %d)",
+                LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %s)",
                     ~StringFromGuid(nlResponse->ReqId),
-                    (int) header->Type);
+                    ~header->Type.ToString());
         }
     }
 
@@ -236,7 +236,7 @@ class TClientDispatcher
             ~StringFromGuid(request->SessionId),
             ~StringFromGuid(nlResponse->ReqId));
 
-        request->Result->Set(IBus::Failed);
+        request->Result->Set(IBus::ESendResult::Failed);
         RequestMap.erase(requestIt);
     }
 
@@ -260,18 +260,18 @@ class TClientDispatcher
             return;
 
         switch (header->Type) {
-        case TPacketHeader::Ping:
-            ProcessPing(header, nlRequest);
-            break;
+            case TPacketHeader::EType::Ping:
+                ProcessPing(header, nlRequest);
+                break;
 
-        case TPacketHeader::Message:
-            ProcessMessage(header, nlRequest);
-            break;
+            case TPacketHeader::EType::Message:
+                ProcessMessage(header, nlRequest);
+                break;
 
-        default:
-            LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %d)",
-                ~StringFromGuid(nlRequest->ReqId),
-                (int) header->Type);
+            default:
+                LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %s)",
+                    ~StringFromGuid(nlRequest->ReqId),
+                    ~header->Type.ToString());
             return;
         }
     }
@@ -291,7 +291,7 @@ class TClientDispatcher
             ~StringFromGuid(nlResponse->ReqId));
 
         TRequest::TPtr request = requestIt->Second();
-        request->Result->Set(IBus::OK);
+        request->Result->Set(IBus::ESendResult::OK);
         RequestMap.erase(requestIt);
     }
 
@@ -336,7 +336,7 @@ class TClientDispatcher
             RequestMap.erase(requestId);
         } else {
             TBlob ackData;
-            CreatePacket(bus->SessionId, TPacketHeader::Ack, &ackData);
+            CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
             Requester->SendResponse(requestId, &ackData);
 
             LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
@@ -354,7 +354,7 @@ class TClientDispatcher
                 ~StringFromGuid(nlRequest->ReqId));
 
             TBlob data;
-            CreatePacket(header->SessionId, TPacketHeader::Ack, &data);
+            CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &data);
             Requester->SendResponse(nlRequest->ReqId, &data);
 
             return;

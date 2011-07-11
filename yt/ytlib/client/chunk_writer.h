@@ -37,22 +37,25 @@ class TChunkWriter
 {
     struct TNode : public TRefCountedBase
     {
-        enum ENodeState {
-            Starting,
-            Alive,
-            Closed,
-            Dead
-        } State;
+
+        BEGIN_DECLARE_ENUM(ENodeState,
+            (Starting)
+            (Alive)
+            (Closed)
+            (Dead)
+        )
+        END_DECLARE_ENUM();
+        ENodeState State;
 
         const Stroka Address;
 
         bool IsAlive()
         {
-            return State == Alive;
+            return State == ENodeState::Alive;
         }
 
         TNode(Stroka address)
-            : State(Starting)
+            : State(ENodeState::Starting)
             , Address(address)
         {}
     };
@@ -76,11 +79,14 @@ private:
     const Stroka Id;
     const TChunkWriterConfig Config;
 
-    enum ESessionState {
-        Starting,
-        Ready,
-        Failed
-    } State;
+    BEGIN_DECLARE_ENUM(ESessionState,
+        (Starting)
+        (Ready)
+        (Failed)
+    )
+    END_DECLARE_ENUM();
+    ESessionState State;
+
     bool Finishing;
 
     TAtomic WindowSlots; // Number of free slots for blocks in sliding window

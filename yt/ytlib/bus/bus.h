@@ -20,12 +20,11 @@ struct IBus
 {
     typedef TIntrusivePtr<IBus> TPtr;
 
-    // TODO: turn into a smartenum
-    enum ESendResult
-    {
-        OK,
-        Failed
-    };
+    BEGIN_DECLARE_ENUM(ESendResult,
+        (OK)
+        (Failed)
+    )
+    END_DECLARE_ENUM();
 
     typedef TAsyncResult<ESendResult> TSendResult;
 

@@ -83,7 +83,7 @@ private:
 
     void OnLocalCommit(EResult result) // Service thread
     {
-        YASSERT(result == Committed);
+        YASSERT(result == EResult::Committed);
         LOG_DEBUG("Change %s is committed locally",
             ~StateId.ToString());
         OnCommit();
@@ -95,7 +95,7 @@ private:
         if (CommitCount >= Committer->CellManager->GetQuorum()) {
             LOG_DEBUG("Change %s is committed by quorum",
                 ~StateId.ToString());
-            Result->Set(Committed);
+            Result->Set(EResult::Committed);
             Awaiter->Cancel();
         }
     }
@@ -104,7 +104,7 @@ private:
     {
         LOG_WARNING("Change %s is uncertain, committed by %d master(s)",
             ~StateId.ToString(), CommitCount);
-        Result->Set(MaybeCommitted);
+        Result->Set(EResult::MaybeCommitted);
     }
 
 private:
@@ -177,7 +177,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
     const TSharedRef& changeData)
 {
     if (MasterState->GetStateId() != stateId) {
-        return new TResult(InvalidStateId);
+        return new TResult(EResult::InvalidStateId);
     }
 
     TAsyncChangeLog::TAppendResult::TPtr appendResult = MasterState->LogAndApplyChange(changeData);
@@ -193,7 +193,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
 
 TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 {
-    return Committed;
+    return EResult::Committed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

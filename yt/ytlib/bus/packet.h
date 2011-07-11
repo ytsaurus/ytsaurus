@@ -14,15 +14,15 @@ struct TPacketHeader
 {
     static const ui32 ExpectedSignature = 0x78616d6f;
 
-    enum EType
-    {
-        Message,
-        Ping,
-        Ack
-    };
+    BEGIN_DECLARE_ENUM(EType,
+        (Message)
+        (Ping)
+        (Ack)
+    )
+    END_DECLARE_ENUM();
 
     ui32 Signature;
-    i32 Type;
+    EType Type;
     TSessionId SessionId;
 };
 

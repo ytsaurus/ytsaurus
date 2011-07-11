@@ -156,24 +156,23 @@ public:
 private:
     struct TPostponedChange
     {
-        // TODO: turn into a smartenum
-        enum EType
-        {
-            T_Change,
-            T_SegmentAdvance
-        };
+        BEGIN_DECLARE_ENUM(EType,
+            (Change)
+            (SegmentAdvance)
+        )
+        END_DECLARE_ENUM();
 
         EType Type;
         TSharedRef ChangeData;
 
         static TPostponedChange CreateChange(const TSharedRef& changeData)
         {
-            return TPostponedChange(T_Change, changeData);
+            return TPostponedChange(EType::Change, changeData);
         }
 
         static TPostponedChange CreateSegmentAdvance()
         {
-            return TPostponedChange(T_SegmentAdvance, TSharedRef());
+            return TPostponedChange(EType::SegmentAdvance, TSharedRef());
         }
 
     private:

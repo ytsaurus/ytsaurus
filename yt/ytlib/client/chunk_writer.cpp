@@ -38,11 +38,13 @@ struct TChunkWriter::TBlock
 class TChunkWriter::TGroup : public TRefCountedBase
 {
 public:
-    enum ENodeGroupState {
-        No,
-        InMem,
-        Flushed
-    };
+
+    BEGIN_DECLARE_ENUM(ENodeGroupState,
+        (No)
+        (InMem)
+        (Flushed)
+    )
+    END_DECLARE_ENUM();
 
     yvector<ENodeGroupState> States;
     yvector< TIntrusivePtr<TBlock> > Blocks;
@@ -84,7 +86,7 @@ public:
     bool IsFlushed()
     {
         for (unsigned i = 0; i < Session->Nodes.size(); ++i) {
-            if (Session->Nodes[i]->IsAlive() && States[i] != Flushed) {
+            if (Session->Nodes[i]->IsAlive() && States[i] != ENodeGroupState::Flushed) {
                 return false;
             }
         }
@@ -98,7 +100,7 @@ void TChunkWriter::TGroup::Flush()
 {    
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~WriterThread);
     for (unsigned i = 0; i < Session->Nodes.size(); ++i) {
-        if (Session->Nodes[i]->IsAlive() && States[i] != Flushed) {
+        if (Session->Nodes[i]->IsAlive() && States[i] != ENodeGroupState::Flushed) {
             IAction::TPtr onSuccess = FromMethod(&TChunkWriter::FlushBlocksSuccess, Session, i, TGroupPtr(this));
             IParamAction<TRspFlushBlocks::TPtr>::TPtr onResponse = 
                 FromMethod(&TChunkWriter::CheckResponse<TRspFlushBlocks>, Session, i, onSuccess);
@@ -111,7 +113,7 @@ void TChunkWriter::TGroup::Flush()
 void TChunkWriter::TGroup::Send(unsigned src)
 {
     for (unsigned i = 0; i < States.size(); ++i) {
-        if (Session->Nodes[i]->IsAlive() && States[i] == No) {
+        if (Session->Nodes[i]->IsAlive() && States[i] == ENodeGroupState::No) {
             Session->SendBlocks(src, i, this);
             break;
         }
@@ -128,17 +130,17 @@ void TChunkWriter::TGroup::Process()
     for (unsigned i = 0; i < States.size(); ++i) {
         if (Session->Nodes[i]->IsAlive()) {
             switch (States[i]) {
-            case InMem:
-                nodeWithBlock = i;
-                break;
+                case ENodeGroupState::InMem:
+                    nodeWithBlock = i;
+                    break;
 
-            case No:
-                existsEmpty = true;
-                break;
+                case ENodeGroupState::No:
+                    existsEmpty = true;
+                    break;
 
-            case Flushed:
-                //Nothing to do here
-                break;
+                case ENodeGroupState::Flushed:
+                    //Nothing to do here
+                    break;
             }
         }
     }
@@ -161,7 +163,7 @@ TLazyPtr<TActionQueue> TChunkWriter::WriterThread;
 TChunkWriter::TChunkWriter(TChunkWriterConfig config, yvector<Stroka> nodes)
     : Id(CreateGuidAsString())
     , Config(config)
-    , State(Starting)
+    , State(ESessionState::Starting)
     , WindowSlots(config.WinSize)
     , WindowReady(Event::rAuto)
     , FinishedEvent(Event::rAuto)
@@ -193,7 +195,7 @@ TChunkWriter::TChunkWriter(TChunkWriterConfig config, yvector<Stroka> nodes)
 TChunkWriter::~TChunkWriter()
 {
     //LOG_DEBUG("Session %s destructor", Id.c_str());
-    YASSERT((Finishing && Groups.empty()) || State == Failed);
+    YASSERT((Finishing && Groups.empty()) || State == ESessionState::Failed);
 }
 
 TChunkId TChunkWriter::GetChunkId()
@@ -265,7 +267,7 @@ void TChunkWriter::AddBlock(TBlob &buffer)
 
 void TChunkWriter::CheckStateAndThrow()
 {
-    if (State == Failed)
+    if (State == ESessionState::Failed)
         ythrow yexception() << "Chunk write session failed!";
 }
 
@@ -274,12 +276,12 @@ void TChunkWriter::AddGroup(TGroupPtr group)
     // ToDo: throw exception here
     YASSERT(!Finishing);
 
-    if (State == Failed) {
+    if (State == ESessionState::Failed) {
         group->ReleaseSlots();
     } else {
         LOG_DEBUG("Session %s, added group %d", ~Id, group->StartId);
         Groups.push_back(group);
-        if (State != Starting)
+        if (State != ESessionState::Starting)
             group->Process();
     }
 }
@@ -302,12 +304,12 @@ void TChunkWriter::Finish()
 
 void TChunkWriter::NodeDied(unsigned idx)
 {
-    if (Nodes[idx]->State != TNode::Dead) {
-        Nodes[idx]->State = TNode::Dead;
+    if (Nodes[idx]->State != TNode::ENodeState::Dead) {
+        Nodes[idx]->State = TNode::ENodeState::Dead;
         --AliveNodes;
         LOG_DEBUG("Session %s, node %d died. Alive nodes = %d", Id.c_str(), idx, AliveNodes);
-        if (State != Failed && AliveNodes < Config.MinRepFactor) {
-            State = Failed;
+        if (State != ESessionState::Failed && AliveNodes < Config.MinRepFactor) {
+            State = ESessionState::Failed;
             FinishedEvent.Signal();
             LOG_DEBUG("Write session %s failed", ~Id);
             AtomicIncrement(WindowSlots);
@@ -341,14 +343,14 @@ TChunkWriter::TInvStartChunk::TPtr TChunkWriter::StartSession(i32 node)
 
 void TChunkWriter::StartSessionSuccess(i32 node)
 {
-    Nodes[node]->State = TNode::Alive;
+    Nodes[node]->State = TNode::ENodeState::Alive;
     LOG_DEBUG("Session %s, node %d started successfully", ~Id, node);
 }
 
 void TChunkWriter::StartSessionComplete()
 {
-    if (State == Starting) {
-        State = Ready;
+    if (State == ESessionState::Starting) {
+        State = ESessionState::Ready;
         TGroupBuffer::iterator it;
         for (it = Groups.begin(); it != Groups.end(); ++it) {
             TGroupPtr group = *it;
@@ -368,7 +370,7 @@ TChunkWriter::TInvFinishChunk::TPtr TChunkWriter::FinishSession(i32 node)
 
 void TChunkWriter::FinishSessionSuccess(i32 node)
 {
-    Nodes[node]->State = TNode::Closed;
+    Nodes[node]->State = TNode::ENodeState::Closed;
     LOG_DEBUG("Session %s, node %d finished successfully", ~Id, node);
 }
 
@@ -401,7 +403,7 @@ void TChunkWriter::PutBlocks(i32 node, TGroupPtr group)
 
 void TChunkWriter::PutBlocksSuccess(i32 node, TGroupPtr group)
 {
-    group->States[node] = TGroup::InMem;
+    group->States[node] = TGroup::ENodeGroupState::InMem;
     LOG_DEBUG("Session %s, group %d, node %d put success",
         ~Id, group->StartId, node);
 }
@@ -428,7 +430,7 @@ void TChunkWriter::SendBlocks(i32 node, i32 dst, TGroupPtr group)
 
 void TChunkWriter::SendBlocksSuccess(i32 node, i32 dst, TGroupPtr group)
 {
-    group->States[dst] = TGroup::InMem;
+    group->States[dst] = TGroup::ENodeGroupState::InMem;
     LOG_DEBUG("Session %s, group %d, node %d, send to %d success",
         ~Id, group->StartId, node, dst);
 }
@@ -447,7 +449,7 @@ TChunkWriter::TInvFlushBlocks::TPtr TChunkWriter::FlushBlocks(i32 node, TGroupPt
 
 void TChunkWriter::FlushBlocksSuccess(i32 node, TGroupPtr group)
 {
-    group->States[node] = TGroup::Flushed;
+    group->States[node] = TGroup::ENodeGroupState::Flushed;
     LOG_DEBUG("Session %s, group %d, node %d, flush success",
         ~Id, group->StartId, node);
 }

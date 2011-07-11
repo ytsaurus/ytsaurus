@@ -67,13 +67,12 @@ public:
     // TODO: force_inline
     EState GetState() const;
 
-    enum ECommitResult
-    {
-        CR_Committed,
-        CR_MaybeCommitted,
-        CR_NotCommitted,
-        CR_InvalidState
-    };
+    DECLARE_ENUM(ECommitResult,
+        (Committed)
+        (MaybeCommitted)
+        (NotCommitted)
+        (InvalidState)
+    );
 
     typedef TAsyncResult<ECommitResult> TCommitResult;
 

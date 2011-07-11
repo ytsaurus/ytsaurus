@@ -154,7 +154,7 @@ yvector<TSharedRef>& TClientRequest::Attachments()
 
 TClientResponse::TClientResponse(TChannel::TPtr channel)
     : Channel(channel)
-    , State(S_Sent)
+    , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
 {}
 
@@ -186,18 +186,18 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
 void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
 {
     // TODO: ToString
-    LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %d)",
+    LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
         ~StringFromGuid(RequestId),
-        static_cast<int>(sendResult));
+        ~sendResult.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
-    if (State == S_Sent) {
+    if (State == EState::Sent) {
         switch (sendResult) {
-            case IBus::OK:
-                State = S_Ack;
+            case IBus::ESendResult::OK:
+                State = EState::Ack;
                 break;
 
-            case IBus::Failed:
+            case IBus::ESendResult::Failed:
                 Complete(EErrorCode::TransportError);
                 break;
 
@@ -214,7 +214,7 @@ void TClientResponse::OnTimeout()
         ~StringFromGuid(RequestId));
 
     TGuard<TSpinLock> guard(&SpinLock);
-    if (State == S_Sent || State == S_Ack) {
+    if (State == EState::Sent || State == EState::Ack) {
         Complete(EErrorCode::Timeout);
     }
 }
@@ -227,7 +227,7 @@ void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
     Deserialize(message);
 
     TGuard<TSpinLock> guard(&SpinLock);
-    if (State == S_Sent || State == S_Ack) {
+    if (State == EState::Sent || State == EState::Ack) {
         Complete(errorCode);
     }
 }
@@ -244,7 +244,7 @@ void TClientResponse::Complete(EErrorCode errorCode)
 
     Channel->UnregisterResponse(RequestId);
     ErrorCode = errorCode;
-    State = S_Done;
+    State = EState::Done;
     TimeoutCookie = TDelayedInvoker::TCookie();
     SetReady();
 }

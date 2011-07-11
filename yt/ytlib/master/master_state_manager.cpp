@@ -80,11 +80,11 @@ TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
     TSharedRef change)
 {
     if (State != EState::Leading) {
-        return new TCommitResult(CR_InvalidState);
+        return new TCommitResult(ECommitResult::InvalidState);
     }
 
     if (!FollowerStateTracker->HasActiveQuorum()) {
-        return new TCommitResult(CR_NotCommitted);
+        return new TCommitResult(ECommitResult::NotCommitted);
     }
 
     return
@@ -97,16 +97,16 @@ TMasterStateManager::ECommitResult TMasterStateManager::OnChangeCommit(
     TChangeCommitter::EResult result)
 {
     switch (result) {
-        case TChangeCommitter::Committed:
-            return TMasterStateManager::CR_Committed;
+        case TChangeCommitter::EResult::Committed:
+            return TMasterStateManager::ECommitResult::Committed;
 
-        case TChangeCommitter::MaybeCommitted:
+        case TChangeCommitter::EResult::MaybeCommitted:
             Restart();
-            return TMasterStateManager::CR_MaybeCommitted;
+            return TMasterStateManager::ECommitResult::MaybeCommitted;
 
         default:
             YASSERT(false);
-            return TMasterStateManager::CR_NotCommitted;
+            return TMasterStateManager::ECommitResult::NotCommitted;
     }
 }
 
@@ -475,12 +475,12 @@ void TMasterStateManager::OnLocalCommit(
     TMasterStateId stateId(request.GetSegmentId(), request.GetChangeCount());
 
     switch (result) {
-        case TChangeCommitter::Committed:
+        case TChangeCommitter::EResult::Committed:
             response.SetCommitted(true);
             context->Reply();
             break;
 
-        case TChangeCommitter::InvalidStateId:
+        case TChangeCommitter::EResult::InvalidStateId:
             context->Reply(TProxy::EErrorCode::InvalidStateId);
 
             if (myEpoch == MyEpoch) {

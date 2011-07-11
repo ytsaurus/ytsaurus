@@ -213,12 +213,12 @@ private:
     // }}}
 
 private:
-    enum EState
-    {
-        S_Closed,
-        S_Open,
-        S_Finalized
-    };
+    BEGIN_DECLARE_ENUM(EState,
+        (Closed)
+        (Open)
+        (Finalized)
+    )
+    END_DECLARE_ENUM();
 
     typedef yvector<TLogIndexRecord> TIndex;
 
@@ -254,7 +254,7 @@ TChangeLog::TImpl::TImpl(
     Stroka fileName,
     i32 id,
     i32 indexBlockSize)
-    : State(S_Closed)
+    : State(EState::Closed)
     , FileName(fileName)
     , IndexFileName(fileName + IndexSuffix)
     , Id(id)
@@ -267,7 +267,7 @@ TChangeLog::TImpl::TImpl(
 
 void TChangeLog::TImpl::Open()
 {
-    YASSERT(State == S_Closed);
+    YASSERT(State == EState::Closed);
 
     LOG_DEBUG("Opening changelog %s", ~FileName);
     File.Reset(new TFile(FileName, RdWr));
@@ -389,7 +389,7 @@ void TChangeLog::TImpl::Open()
 
     IndexFile->Resize(currentIndexFilePosition);
 
-    State = header.Finalized ? S_Finalized : S_Open;
+    State = header.Finalized ? EState::Finalized : EState::Open;
 
     LOG_DEBUG("Changelog %d opened (RecordCount: %d, Finalized: %d)",
         Id,
@@ -399,7 +399,7 @@ void TChangeLog::TImpl::Open()
 
 void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
-    YASSERT(State == S_Closed);
+    YASSERT(State == EState::Closed);
 
     PrevRecordCount = prevRecordCount;
     RecordCount = 0;
@@ -417,14 +417,14 @@ void TChangeLog::TImpl::Create(i32 prevRecordCount)
     FileOutput.Reset(new TBufferedFileOutput(*File));
     FileOutput->SetFlushPropagateMode(true);
 
-    State = S_Open;
+    State = EState::Open;
 
     LOG_DEBUG("Changelog %d created", Id);
 }
 
 void TChangeLog::TImpl::Finalize()
 {
-    YASSERT(State == S_Open);
+    YASSERT(State == EState::Open);
 
     Flush();
 
@@ -433,7 +433,7 @@ void TChangeLog::TImpl::Finalize()
     NYT::Write(*File, header);
     File->Flush();
 
-    State = S_Finalized;
+    State = EState::Finalized;
 
     LOG_DEBUG("Changelog %d finalized", Id);
 }
@@ -441,10 +441,10 @@ void TChangeLog::TImpl::Finalize()
 void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
 {
     // Make a coarse check first...
-    YASSERT(State == S_Open || State == S_Finalized);
+    YASSERT(State == EState::Open || State == EState::Finalized);
 
     // ... and handle finalized changelogs next.
-    if (State == S_Finalized) {
+    if (State == EState::Finalized) {
         LOG_FATAL("Unable to append to a finalized changelog %d", Id);
     }
 
@@ -480,7 +480,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     YASSERT(recordCount >= 0);
     YASSERT(result);
 
-    YASSERT(State == S_Open || State == S_Finalized);
+    YASSERT(State == EState::Open || State == EState::Finalized);
 
     // TODO(sandello): WTF? Why?
     // Check if the changelog is empty.
@@ -717,7 +717,7 @@ i32 TChangeLog::TImpl::GetRecordCount() const
 
 bool TChangeLog::TImpl::IsFinalized() const
 {
-    return State == S_Finalized;
+    return State == EState::Finalized;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

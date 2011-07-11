@@ -28,16 +28,14 @@ public:
         {}
     };
 
-    // TODO: turn into a smartenum
-    enum EResult
-    {
-        OK,
-        SnapshotNotFound,
-        SnapshotUnavailable,
-        RemoteError,
-        IOError,
-        IncorrectChecksum
-    };
+    DECLARE_ENUM(EResult,
+        (OK)
+        (SnapshotNotFound)
+        (SnapshotUnavailable)
+        (RemoteError)
+        (IOError)
+        (IncorrectChecksum)
+    );
 
     TSnapshotDownloader(
         const TConfig& config,

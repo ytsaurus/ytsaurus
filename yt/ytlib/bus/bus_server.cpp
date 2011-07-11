@@ -252,14 +252,14 @@ void TBusServer::ProcessNLRequest(TUdpHttpRequest* nlRequest)
         return;
 
     switch (header->Type) {
-        case TPacketHeader::Message:
+        case TPacketHeader::EType::Message:
             ProcessMessage(header, nlRequest);
             break;
 
         default:
-            LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %d)",
+            LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %s)",
                 ~StringFromGuid(nlRequest->ReqId),
-                (int) header->Type);
+                ~(header->Type).ToString());
             return;
     }
 }
@@ -289,18 +289,18 @@ void TBusServer::ProcessNLResponse(TUdpHttpResponse* nlResponse)
         return;
 
     switch (header->Type) {
-        case TPacketHeader::Ack:
+        case TPacketHeader::EType::Ack:
             ProcessAck(header, nlResponse);
             break;
 
-        case TPacketHeader::Message:
+        case TPacketHeader::EType::Message:
             ProcessMessage(header, nlResponse);
             break;
 
         default:
-            LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %d)",
+            LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %s)",
                 ~StringFromGuid(nlResponse->ReqId),
-                (int) header->Type);
+                ~header->Type.ToString());
     }
 }
 
@@ -381,7 +381,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
             ~reply);
     } else {
         TBlob ackData;
-        CreatePacket(header->SessionId, TPacketHeader::Ack, &ackData);
+        CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &ackData);
 
         Requester->SendResponse(nlRequest->ReqId, &ackData);
 
@@ -455,7 +455,7 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
     const TUdpAddress& clientAddress)
 {
     TBlob data;
-    CreatePacket(sessionId, TPacketHeader::Ping, &data);
+    CreatePacket(sessionId, TPacketHeader::EType::Ping, &data);
     TGUID pingId = Requester->SendRequest(clientAddress, "", &data);
 
     TSession::TPtr session = new TSession(

@@ -194,12 +194,11 @@ private:
     friend class TChannel;
     friend class TClientRequest;
 
-    enum EState
-    {
-        S_Sent,
-        S_Ack,
-        S_Done
-    };
+    DECLARE_ENUM(EState,
+        (Sent)
+        (Ack)
+        (Done)
+    );
 
     // Protects state.
     TSpinLock SpinLock;

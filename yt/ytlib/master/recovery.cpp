@@ -75,11 +75,11 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                 snapshotId,
                 ~snapshotWriter);
 
-            if (snapshotResult != TSnapshotDownloader::OK) {
+            if (snapshotResult != TSnapshotDownloader::EResult::OK) {
                 // TODO: ToString()
-                LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %d)",
+                LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
                     snapshotId,
-                    snapshotResult);
+                    ~snapshotResult.ToString());
                 return new TResult(EResult::Failed);
             }
 
@@ -449,11 +449,11 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     {
         const TPostponedChange& change = *it;
         switch (change.Type) {
-            case TPostponedChange::T_Change:
+            case TPostponedChange::EType::Change:
                 MasterState->LogAndApplyChange(change.ChangeData);
                 break;
 
-            case TPostponedChange::T_SegmentAdvance:
+            case TPostponedChange::EType::SegmentAdvance:
                 MasterState->RotateChangeLog();
                 break;
 

@@ -29,15 +29,15 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TMasterId sourceId = snapshotInfo.SourceId;
     if (sourceId == InvalidMasterId) {
-        return SnapshotNotFound;
+        return EResult::SnapshotNotFound;
     }
     
     EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotWriter);
-    if (result != OK) {
+    if (result != EResult::OK) {
         return result;
     }
 
-    return OK;
+    return EResult::OK;
 }
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
@@ -112,12 +112,12 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         snapshotWriter->Open(snapshotInfo.PrevRecordCount);
     } catch (const yexception& ex) {
         LOG_ERROR("Could not open snapshot writer: %s", ex.what());
-        return IOError;
+        return EResult::IOError;
     }
 
     TOutputStream& output = snapshotWriter->GetStream();
     EResult result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, output);
-    if (result != OK) {
+    if (result != EResult::OK) {
         return result;
     }
 
@@ -125,7 +125,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         snapshotWriter->Close();
     } catch (const yexception& ex) {
         LOG_ERROR("Could not close snapshot writer: %s", ex.what());
-        return IOError;
+        return EResult::IOError;
     }
 
     if (snapshotWriter->GetChecksum() != snapshotInfo.Checksum) {
@@ -133,10 +133,10 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
             "Incorrect checksum in snapshot %d from master %d, "
             "expected %" PRIx64 ", got %" PRIx64,
             segmentId, sourceId, snapshotInfo.Checksum, snapshotWriter->GetChecksum());
-        return IncorrectChecksum;
+        return EResult::IncorrectChecksum;
     }
     
-    return OK;
+    return EResult::OK;
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
@@ -170,14 +170,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                             "Master %d does not have snapshot %d anymore",
                             sourceId,
                             snapshotId);
-                        return SnapshotUnavailable;
+                        return EResult::SnapshotUnavailable;
 
                     case TProxy::EErrorCode::IOError:
                         LOG_WARNING(
                             "IO error occurred on master %d during downloading snapshot %d",
                             sourceId,
                             snapshotId);
-                        return RemoteError;
+                        return EResult::RemoteError;
 
                     default:
                         LOG_FATAL("Unknown error code %s received from master %d",
@@ -189,7 +189,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                 LOG_WARNING("RPC error %s reading snapshot from master %d",
                     ~errorCode.ToString(),
                     sourceId);
-                return RemoteError;
+                return EResult::RemoteError;
             }
         }
         
@@ -213,7 +213,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         } catch (const yexception& ex) {
             LOG_ERROR("Exception occurred while writing to output: %s",
                 ex.what());
-            return IOError;
+            return EResult::IOError;
         }
 
         downloadedLength += block.Size();
@@ -221,7 +221,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
     LOG_INFO("Finished downloading snapshot");
 
-    return OK;
+    return EResult::OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
