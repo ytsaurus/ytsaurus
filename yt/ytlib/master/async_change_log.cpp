@@ -270,8 +270,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     i32 lastRecordId = firstRecordId + recordCount;
     i32 firstUnflushedRecordId = lastRecordId;
 
-    // TODO: rename to unflushedRecords
-    yvector<TSharedRef> unflushedChanges;
+    yvector<TSharedRef> unflushedRecords;
 
     for (TImpl::TChangeLogQueue::TAppendRecords::iterator it = flushQueue->Records.begin();
         it != flushQueue->Records.end();
@@ -285,13 +284,13 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
         firstUnflushedRecordId = Min(firstUnflushedRecordId, it->RecordId);
 
-        unflushedChanges.push_back(it->Data);
+        unflushedRecords.push_back(it->Data);
     }
 
     // At this moment we can release the lock.
     guard.Release();
 
-    if (unflushedChanges.empty()) {
+    if (unflushedRecords.empty()) {
         ChangeLog->Read(firstRecordId, lastRecordId, result);
         return;
     }
@@ -305,7 +304,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
             firstUnreadRecordId,
             firstUnflushedRecordId);
     } else {
-        result->insert(result->end(), unflushedChanges.begin(), unflushedChanges.end());
+        result->insert(result->end(), unflushedRecords.begin(), unflushedRecords.end());
     }
 }
 

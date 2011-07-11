@@ -76,7 +76,6 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                 ~snapshotWriter);
 
             if (snapshotResult != TSnapshotDownloader::EResult::OK) {
-                // TODO: ToString()
                 LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
                     snapshotId,
                     ~snapshotResult.ToString());

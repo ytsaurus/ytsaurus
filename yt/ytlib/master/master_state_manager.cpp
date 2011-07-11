@@ -325,18 +325,17 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadSnapshot)
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 {
-    // TODO: rename to changeLogId
-    i32 segmentId = request->GetSegmentId();
+    i32 changeLogId = request->GetSegmentId();
 
     context->SetRequestInfo("ChangeLogId: %d",
-        segmentId);
+        changeLogId);
 
     try {
         // TODO: extract method
-        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
+        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(changeLogId);
         if (~cachedChangeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid changelog id %d", segmentId);
+                Sprintf("invalid changelog id %d", changeLogId);
         }
 
         TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
@@ -354,7 +353,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
         context->Reply(TProxy::EErrorCode::IOError);
 
         LOG_ERROR("GetChangeLogInfo: IO error in changelog %d: %s",
-            segmentId, ex.what());
+            changeLogId, ex.what());
     }
 }
 
