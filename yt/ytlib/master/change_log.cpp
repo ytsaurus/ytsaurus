@@ -213,12 +213,11 @@ private:
     // }}}
 
 private:
-    BEGIN_DECLARE_ENUM(EState,
+    DECLARE_ENUM(EState,
         (Closed)
         (Open)
         (Finalized)
-    )
-    END_DECLARE_ENUM();
+    );
 
     typedef yvector<TLogIndexRecord> TIndex;
 

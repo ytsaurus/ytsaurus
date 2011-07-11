@@ -38,13 +38,12 @@ class TChunkWriter
     struct TNode : public TRefCountedBase
     {
 
-        BEGIN_DECLARE_ENUM(ENodeState,
+        DECLARE_ENUM(ENodeState,
             (Starting)
             (Alive)
             (Closed)
             (Dead)
-        )
-        END_DECLARE_ENUM();
+        );
         ENodeState State;
 
         const Stroka Address;
@@ -79,12 +78,11 @@ private:
     const Stroka Id;
     const TChunkWriterConfig Config;
 
-    BEGIN_DECLARE_ENUM(ESessionState,
+    DECLARE_ENUM(ESessionState,
         (Starting)
         (Ready)
         (Failed)
-    )
-    END_DECLARE_ENUM();
+    );
     ESessionState State;
 
     bool Finishing;

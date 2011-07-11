@@ -17,12 +17,11 @@ class TChangeCommitter
 public:
     typedef TIntrusivePtr<TChangeCommitter> TPtr;
 
-    BEGIN_DECLARE_ENUM(EResult,
+    DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
         (InvalidStateId)
-    )
-    END_DECLARE_ENUM();
+    );
 
     typedef TAsyncResult<EResult> TResult;
 

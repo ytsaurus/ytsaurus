@@ -57,13 +57,12 @@ public:
 class TChunkHolder::TSession
     : public TRefCountedBase
 {
-    BEGIN_DECLARE_ENUM(EBlockState,
+    DECLARE_ENUM(EBlockState,
         (Empty)
         (Received)
         (BeingWritten)
         (Written)
-    )
-    END_DECLARE_ENUM();
+    );
 
 
     struct TEntry

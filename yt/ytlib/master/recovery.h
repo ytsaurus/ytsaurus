@@ -156,11 +156,10 @@ public:
 private:
     struct TPostponedChange
     {
-        BEGIN_DECLARE_ENUM(EType,
+        DECLARE_ENUM(EType,
             (Change)
             (SegmentAdvance)
-        )
-        END_DECLARE_ENUM();
+        );
 
         EType Type;
         TSharedRef ChangeData;

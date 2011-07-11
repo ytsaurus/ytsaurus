@@ -20,11 +20,10 @@ struct IBus
 {
     typedef TIntrusivePtr<IBus> TPtr;
 
-    BEGIN_DECLARE_ENUM(ESendResult,
+    DECLARE_ENUM(ESendResult,
         (OK)
         (Failed)
-    )
-    END_DECLARE_ENUM();
+    );
 
     typedef TAsyncResult<ESendResult> TSendResult;
 

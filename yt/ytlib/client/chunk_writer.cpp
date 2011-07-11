@@ -39,12 +39,11 @@ class TChunkWriter::TGroup : public TRefCountedBase
 {
 public:
 
-    BEGIN_DECLARE_ENUM(ENodeGroupState,
+    DECLARE_ENUM(ENodeGroupState,
         (No)
         (InMem)
         (Flushed)
-    )
-    END_DECLARE_ENUM();
+    );
 
     yvector<ENodeGroupState> States;
     yvector< TIntrusivePtr<TBlock> > Blocks;
