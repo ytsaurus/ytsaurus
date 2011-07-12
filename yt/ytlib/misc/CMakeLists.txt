@@ -14,6 +14,7 @@ SET(YT_SOURCE_FILES
     pattern_formatter.cpp
     enum.h
     checksum.cpp
+    backtrace.cpp
     demangle.cpp
     ref_counted_tracker.cpp
     delayed_invoker.cpp

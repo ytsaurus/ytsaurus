@@ -1,0 +1,17 @@
+#pragma once
+
+class TOutputStream;
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintCallStackAux(TOutputStream& output, const char* file, int line);
+#define PrintCallStack() PrintCallStackAux(Cerr, __FILE__, __LINE__)
+
+void Break();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
