@@ -46,14 +46,14 @@ public:
         public:
             TRecord(
                 i32 id,
-                const TSharedRef& data,
+                TSharedRef data,
                 const TAsyncChangeLog::TAppendResult::TPtr& result)
                 : Id(id)
                 , Data(data)
-                , WaitingForSync(false)
                 , Result(result)
+                , WaitingForSync(false)
             { }
-        };
+        }; // class TRecord
 
         //! A list of unflushed records (auxiliary structure).
         /*!
@@ -67,17 +67,19 @@ public:
         {
         public:
             //! Sweep operation performed during the Flush().
-            class TSweepWaitingForSync
+            struct TSweepWaitingForSync
             {
-                inline operator()(TRecord* record)
+                inline void operator()(TRecord* record) const
                 {
                     if (record->WaitingForSync) {
-                        record->Result.Set(TVoid());
+                        record->Result->Set(TVoid());
                         record->Unlink();
+
+                        delete record;
                     }
                 }
             };
-        };
+        }; // class TRecords
 
         //! Underlying changelog.
         TChangeLog::TPtr ChangeLog;
@@ -102,7 +104,7 @@ public:
         //! Lazily appends the record to the changelog.
         IAction::TPtr Append(
             i32 recordId,
-            const TSharedRef& data,
+            TSharedRef data,
             const TAppendResult::TPtr& result)
         {
             THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
@@ -110,7 +112,7 @@ public:
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                Records.PushBack(record.Release());
+                Records.PushBack(recordHolder.Release());
             }
 
             UnflushedBytes += data.Size();
@@ -122,14 +124,16 @@ public:
         //! Flushes the underlying changelog.
         void Flush()
         {
-            TGuard<TSpinLock> guard(FlushLock);
+            TGuard<TSpinLock> guard(SpinLock);
 
             ChangeLog->Flush();
 
             UnflushedBytes = 0;
             UnflushedRecords = 0;
 
-            Records.ForEach(TRecords::TSweepWaitingForSync());
+            // Curse you, arcadia/util!
+            TRecords::TSweepWaitingForSync sweepFunctor;
+            Records.ForEach(sweepFunctor);
         }
 
     private:
@@ -160,7 +164,7 @@ public:
     void Append(
         TChangeLog::TPtr changeLog,
         i32 recordId,
-        const TSharedRef& data,
+        TSharedRef data,
         const TAppendResult::TPtr& result)
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -175,7 +179,7 @@ public:
             queue = it->second;
         }
 
-        queue->Append(recordId, data)->Via(this)->Do();
+        queue->Append(recordId, data, result)->Via(this)->Do();
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
@@ -214,21 +218,6 @@ public:
         return TVoid();
     }
 
-    //! Invoked synchronously in the idle time, as the name suggests.
-    virtual void OnIdle()
-    {
-        for (TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
-            it != ChangeLogQueues.end(); ++it)
-        {
-            it->second->Flush();
-        }
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            ChangeLogQueues.clear();
-        }
-    }
-
     TChangeLogQueue::TPtr GetCorrespondingQueue(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -242,6 +231,22 @@ public:
         }
     }
 
+    virtual void OnIdle()
+    {
+        TChangeLogQueueMap::iterator it, jt;
+
+        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
+        {
+            // XXX: May be preserve queues across sweeps?
+            TGuard<TSpinLock> guard(SpinLock);
+
+            it->second->Flush();
+            jt = it++;
+            ChangeLogQueues.erase(jt);
+        }
+    }
+
+private:
     typedef yhash_map<TChangeLog::TPtr,
         TChangeLogQueue::TPtr,
         TIntrusivePtrHash<TChangeLog> > TChangeLogQueueMap;
@@ -261,7 +266,7 @@ TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
-    i32 recordId, const TSharedRef& data)
+    i32 recordId, TSharedRef data)
 {
     TAppendResult::TPtr result = new TAppendResult();
     Impl->Append(ChangeLog, recordId, data, result);
@@ -274,6 +279,7 @@ void TAsyncChangeLog::Finalize()
         ->AsyncVia(~Impl)
         ->Do()
         ->Get();
+
     LOG_INFO("Changelog %d is finalized", ChangeLog->GetId());
 }
 
@@ -283,6 +289,7 @@ void TAsyncChangeLog::Flush()
         ->AsyncVia(~Impl)
         ->Do()
         ->Get();
+
     LOG_INFO("Changelog %d is flushed", ChangeLog->GetId());
 }
 
@@ -292,14 +299,12 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     YASSERT(recordCount >= 0);
     YASSERT(result);
 
-    // TODO: ?
     if (recordCount == 0) {
         return;
     }
 
-    // TODO: queue access locking
-
     TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
+
     if (~flushQueue == NULL) {
         ChangeLog->Read(firstRecordId, recordCount, result);
         return;
@@ -308,23 +313,24 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     // Determine whether unflushed records intersect with requested records.
     // To achieve this we have to lock the queue in order to iterate
     // through currently flushing record.
-    TGuard<TSpinLock> guard(flushQueue->FlushLock);
-    i32 lastRecordId = firstRecordId + recordCount;
+    TGuard<TSpinLock> guard(flushQueue->SpinLock);
+
+    i32 lastRecordId = firstRecordId + recordCount; // Non-inclusive.
     i32 firstUnflushedRecordId = lastRecordId;
 
     yvector<TSharedRef> unflushedRecords;
 
-    for (TImpl::TChangeLogQueue::TAppendRecords::iterator it = flushQueue->Records.begin();
-        it != flushQueue->Records.end();
+    for (TImpl::TChangeLogQueue::TRecords::iterator it = flushQueue->Records.Begin();
+        it != flushQueue->Records.End();
         ++it)
     {
-        if (it->RecordId >= lastRecordId)
+        if (it->Id >= lastRecordId)
             break;
 
-        if (it->RecordId < firstRecordId)
+        if (it->Id < firstRecordId)
             continue;
 
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, it->RecordId);
+        firstUnflushedRecordId = Min(firstUnflushedRecordId, it->Id);
 
         unflushedRecords.push_back(it->Data);
     }
@@ -333,7 +339,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     guard.Release();
 
     if (unflushedRecords.empty()) {
-        ChangeLog->Read(firstRecordId, lastRecordId, result);
+        ChangeLog->Read(firstRecordId, recordCount, result);
         return;
     }
 
@@ -357,17 +363,19 @@ i32 TAsyncChangeLog::GetId() const
 
 i32 TAsyncChangeLog::GetRecordCount() const
 {
-    // TODO: locking?
     TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
+
     if (~flushQueue == NULL) {
         return ChangeLog->GetRecordCount();
+    }
+    
+    TGuard<TSpinLock> guard(flushQueue->SpinLock);
+    if (flushQueue->Records.Empty()) {
+        return ChangeLog->GetRecordCount();
     } else {
-        TGuard<TSpinLock> guard(flushQueue->FlushLock);
-        if (flushQueue->Records.empty()) {
-            return ChangeLog->GetRecordCount();
-        } else {
-            return flushQueue->Records[flushQueue->Records.ysize() - 1].RecordId + 1;
-        }
+        TImpl::TChangeLogQueue::TRecords::const_iterator it = flushQueue->Records.End();
+        --it;
+        return it->Id + 1;
     }
 }
 
@@ -381,9 +389,12 @@ bool TAsyncChangeLog::IsFinalized() const
     return ChangeLog->IsFinalized();
 }
 
-void TAsyncChangeLog::Truncate( i32 atRecordId )
+void TAsyncChangeLog::Truncate(i32 atRecordId)
 {
-    // TOOD: flush or something?
+    // TODO: Later on this can be improved to asynchronous behaviour by
+    // getting rid of explicit synchronization.
+    Flush();
+
     return ChangeLog->Truncate(atRecordId);
 }
 
