@@ -4,7 +4,8 @@ SET(YT_SOURCE_FILES
     io.cpp
     io_channels.cpp
     types.cpp
-    chunk_writer.cpp
+    chunk_writer.h
+    remote_chunk_writer.cpp
     block_buffer.cpp
     user_indexes.cpp
     chunk_reader.cpp

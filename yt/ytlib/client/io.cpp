@@ -1,8 +1,8 @@
 #include "io.h"
 #include "io_channels.h"
-#include "user_indexes.h"
 #include "chunk_writer.h"
 #include "chunk_reader.h"
+#include "user_indexes.h"
 #include "chunk.pb.h"
 
 #include "../misc/common.h"
@@ -257,11 +257,14 @@ class TWrite::TWriteImpl
 
     TMsgChunkHeader ChunkHeader;
 
+    // ToDo: Create ChunkId here or get in constructor
+    TChunkId ChunkId;
+
 #ifdef FILE_IO
     FILE* Output;
 #else
     yvector<Stroka> Nodes;
-    TIntrusivePtr<TChunkWriter> ChunkWriter;
+    TIntrusivePtr<IChunkWriter> ChunkWriter;
 #endif
 
     TUserIndexes UserIndexes;
@@ -284,7 +287,7 @@ class TWrite::TWriteImpl
 #ifdef FILE_IO
         fwrite(data.begin(), size, 1, Output);
 #else
-        ChunkWriter->AddBlock(data);
+        ChunkWriter->AddBlock(&data);
 #endif
 
         ui64 offset = TotalSize;
@@ -323,9 +326,9 @@ class TWrite::TWriteImpl
         fwrite(data.begin(), size, 1, Output);
         fwrite(&fixed, sizeof(TFixedChunkFooter), 1, Output);
 #else
-        ChunkWriter->AddBlock(data);
+        ChunkWriter->AddBlock(&data);
         data.assign((ui8*)&fixed, (ui8*)&fixed + sizeof(TFixedChunkFooter));
-        ChunkWriter->AddBlock(data);
+        ChunkWriter->AddBlock(&data);
 #endif
         TotalSize += size + sizeof(TFixedChunkFooter);
         LOG_DEBUG("write chunk header");
@@ -385,7 +388,8 @@ public:
 
     TChunkId GetChunkId()
     {
-        return ChunkWriter->GetChunkId();
+        return ChunkId;
+
     }
 
     ui64 GetChunkSize()
@@ -399,11 +403,12 @@ public:
         Output = fopen(Table.c_str(), "wb");
 #else
         yvector<Stroka> nodes;
-        TChunkWriterConfig config;
+    /*    TChunkWriterConfig config;
         config.WinSize = 48;
         config.GroupSize = 8 << 20;
         config.MinRepFactor = 1;
-        ChunkWriter = new TChunkWriter(config, Nodes);
+        ChunkWriter = new TChunkWriter(config, Nodes);*/
+    // ToDo: Get ChunkWriter in constructor
 #endif
 
         // add misc channel
