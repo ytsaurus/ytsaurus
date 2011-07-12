@@ -233,17 +233,20 @@ public:
 
     virtual void OnIdle()
     {
+        // TODO: Fix locking in this method.
+        // Curious bugs occur there due to simultaneous read and write to the queues.
+        TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueueMap::iterator it, jt;
 
         for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
         {
             // XXX: May be preserve queues across sweeps?
-            TGuard<TSpinLock> guard(SpinLock);
-
             it->second->Flush();
-            jt = it++;
-            ChangeLogQueues.erase(jt);
+            // jt = it++;
+            // ChangeLogQueues.erase(jt);
         }
+
+        ChangeLogQueues.clear();
     }
 
 private:
