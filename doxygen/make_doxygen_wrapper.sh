@@ -1,9 +1,6 @@
 #!/bin/bash
-
-set -e
-
-CELLAR=/home/sandello/Cellar/stage
-SOURCE=/home/sandello/source/junk/monster/yt
+source /home/sandello/source/doxygen/common.sh
+set +x
 
 rm -rf ${SOURCE}/doxygen/output
 mkdir -p ${SOURCE}/doxygen/output
