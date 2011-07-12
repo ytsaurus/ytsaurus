@@ -26,12 +26,9 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
             ~message,
             sequenceId);
 
+        OnMessageDequeued->Do(message);
         ScheduleTimeout();
         ExpectedSequenceId = sequenceId + 1;
-
-        guard.Release();
-
-        OnMessageDequeued->Do(message);
         return;
     }
 
@@ -60,45 +57,34 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
 
 void TMessageRearranger::OnTimeout()
 {
-    yvector<IMessage::TPtr> readyMessages;
-    
-    {
-        TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock);
 
-        if (MessageMap.empty())
-            return;
+    if (MessageMap.empty())
+        return;
 
-        ExpectedSequenceId = MessageMap.begin()->first;
+    ExpectedSequenceId = MessageMap.begin()->first;
 
-        LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")",
-            ExpectedSequenceId);
+    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")",
+        ExpectedSequenceId);
 
-        while (true) {
-            TMessageMap::iterator it = MessageMap.begin();
-            TSequenceId sequenceId = it->first;
-            if (sequenceId != ExpectedSequenceId)
-                break;
+    while (true) {
+        TMessageMap::iterator it = MessageMap.begin();
+        TSequenceId sequenceId = it->first;
+        if (sequenceId != ExpectedSequenceId)
+            break;
 
-            IMessage::TPtr message = it->second;
-            MessageMap.erase(it);
+        IMessage::TPtr message = it->second;
+        MessageMap.erase(it);
 
-            LOG_DEBUG("Flushed message (Message: %p, SequenceId: %" PRId64 ")",
-                ~message,
-                sequenceId);
+        LOG_DEBUG("Flushed message (Message: %p, SequenceId: %" PRId64 ")",
+            ~message,
+            sequenceId);
 
-            readyMessages.push_back(message);
-            ++ExpectedSequenceId;
-        }
-
-        ScheduleTimeout();
+        OnMessageDequeued->Do(message);
+        ++ExpectedSequenceId;
     }
 
-    for (yvector<IMessage::TPtr>::iterator it = readyMessages.begin();
-         it != readyMessages.end();
-         ++it)
-    {
-        OnMessageDequeued->Do(*it);
-    }
+    ScheduleTimeout();
 }
 
 void TMessageRearranger::ScheduleTimeout()
@@ -111,7 +97,6 @@ void TMessageRearranger::ScheduleTimeout()
         FromMethod(&TMessageRearranger::OnTimeout, this),
         Timeout);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

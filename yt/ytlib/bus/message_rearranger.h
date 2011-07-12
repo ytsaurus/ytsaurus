@@ -34,6 +34,7 @@ private:
 
     void ScheduleTimeout();
     void OnTimeout();
+    void FlushRearrangedMessages();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
