@@ -148,7 +148,9 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             changeLog.GetPrevRecordCount(),
             ~ToString(isFinal));
 
-        if (changeLog.GetPrevRecordCount() != expectedPrevRecordCount) {
+        if (expectedPrevRecordCount != UnknownPrevRecordCount &&
+            changeLog.GetPrevRecordCount() != expectedPrevRecordCount)
+        {
             LOG_FATAL("PrevRecordCount mismatch (Expected: %d, Actual: %d)",
                 expectedPrevRecordCount,
                 changeLog.GetPrevRecordCount());
