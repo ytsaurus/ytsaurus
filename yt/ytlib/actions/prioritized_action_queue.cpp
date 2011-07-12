@@ -42,9 +42,9 @@ void* TPrioritizedActionQueue::ThreadFunc(void* param)
 ///////////////////////////////////////////////////////////////////////////////
 
 TPrioritizedActionQueue::TPrioritizedActionQueue(i32 priorityCount)
-    : Thread(ThreadFunc, (void*) this)
+    : PriorityCount(priorityCount)
+    , Thread(ThreadFunc, (void*) this)
     , Finished(false)
-    , PriorityCount(priorityCount)
     , Queues(priorityCount)
     , Invokers(priorityCount)
     , WakeupEvent(Event::rAuto)
