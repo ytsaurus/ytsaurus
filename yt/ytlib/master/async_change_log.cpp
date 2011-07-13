@@ -230,6 +230,13 @@ public:
         TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueueMap::iterator it, jt;
 
+        if (ChangeLogQueues.empty()) {
+            // Hash map from arcadia/util does not support iteration over
+            // the empty map with iterators. It crashes with a dump assertion
+            // deeply within implementation details.
+            return;
+        }
+
         for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
         {
             jt = it++;
