@@ -344,9 +344,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
         
         response->SetRecordCount(recordCount);
         
-        context->SetResponseInfo("RecordCount: %d",
-            recordCount);
-        
+        context->SetResponseInfo("RecordCount: %d", recordCount);
         context->Reply();
     } catch (const yexception& ex) {
         // TODO: fail?

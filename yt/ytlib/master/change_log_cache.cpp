@@ -37,9 +37,7 @@ TChangeLogCache::TChangeLogCache(Stroka location)
 
 Stroka TChangeLogCache::GetChangeLogFileName(i32 segmentId)
 {
-    return Location + "/" +
-           Sprintf("%09d", segmentId) + "." +
-           LogExtension;
+    return Location + "/" + Sprintf("%09d", segmentId) + "." + LogExtension;
 }
 
 TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
@@ -50,16 +48,21 @@ TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
         if (!isexist(~fileName)) {
             return NULL;
         }
+
         TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
+
         try {
             changeLog->Open();
         } catch (const yexception& ex) {
             LOG_ERROR("Could not open changelog %d: %s",
-                segmentId, ex.what());
+                segmentId,
+                ex.what());
             return NULL;
         }
+
         EndInsert(new TCachedChangeLog(changeLog), &cookie);
     }
+
     return cookie.GetAsyncResult()->Get();
 }
 
