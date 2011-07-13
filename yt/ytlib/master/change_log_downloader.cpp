@@ -152,9 +152,6 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         }
     }
 
-    // TODO: hack! remove this once async changelog works as expected
-    changeLog.Flush();
-
     LOG_INFO("Finished downloading changelog");
 
     return EResult::OK;

@@ -381,9 +381,6 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
 
         TAsyncChangeLog& changeLog = cachedChangeLog->GetWriter();
 
-        // TODO: hack! remove this once async changelog works as expected
-        changeLog.Flush();
-
         yvector<TSharedRef> recordData;
         changeLog.Read(startRecordId, recordCount, &recordData);
 

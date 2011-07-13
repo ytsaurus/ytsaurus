@@ -122,7 +122,9 @@ public:
         }
 
         //! Flushes the underlying changelog.
-        void Flush()
+        //! \returns True iff the queue has no pending records
+        //! (i. e. can be safely discarded).
+        bool Flush()
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -134,6 +136,8 @@ public:
             // Curse you, arcadia/util!
             TRecords::TSweepWaitingForSync sweepFunctor;
             Records.ForEach(sweepFunctor);
+
+            return Records.Empty();
         }
 
     private:
@@ -185,15 +189,12 @@ public:
     TVoid Finalize(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-
         TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
-        TChangeLogQueue::TPtr queue;
 
         if (it != ChangeLogQueues.end()) {
-            queue = it->second;
-            queue->Flush();
-
-            ChangeLogQueues.erase(it);
+            if (it->second->Flush()) {
+                ChangeLogQueues.erase(it);
+            }
         }
 
         changeLog->Finalize();
@@ -203,14 +204,12 @@ public:
     TVoid Flush(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-
         TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
-        TChangeLogQueue::TPtr queue;
 
         if (it != ChangeLogQueues.end()) {
-            queue = it->second;
-            queue->Flush();
-            // Keep the queue alive as it might be useful for further appends.
+            if (it->second->Flush()) {
+                ChangeLogQueues.erase(it);
+            }
         }
 
         changeLog->Flush();
@@ -220,26 +219,24 @@ public:
     TChangeLogQueue::TPtr GetCorrespondingQueue(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-
         TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
 
-        if (it != ChangeLogQueues.end()) {
-            return it->second;
-        } else {
-            return NULL;
-        }
+        return it != ChangeLogQueues.end() ? it->second : NULL;
     }
 
     virtual void OnIdle()
     {
+        // TODO: This method can lock for a while; consider more fine locking.
         TGuard<TSpinLock> guard(SpinLock);
+        TChangeLogQueueMap::iterator it, jt;
 
-        for (
-            TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
-            it != ChangeLogQueues.end();
-            ++it)
+        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
         {
-            it->second->Flush();
+            jt = it++;
+
+            if (jt->second->Flush()) {
+                ChangeLogQueues.erase(jt);
+            }
         }
     }
 
