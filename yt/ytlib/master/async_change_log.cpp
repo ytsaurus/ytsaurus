@@ -210,8 +210,7 @@ public:
         if (it != ChangeLogQueues.end()) {
             queue = it->second;
             queue->Flush();
-
-            ChangeLogQueues.erase(it);
+            // Keep the queue alive as it might be useful for further appends.
         }
 
         changeLog->Flush();
@@ -233,20 +232,15 @@ public:
 
     virtual void OnIdle()
     {
-        // TODO: Fix locking in this method.
-        // Curious bugs occur there due to simultaneous read and write to the queues.
         TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it, jt;
 
-        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
+        for (
+            TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
+            it != ChangeLogQueues.end();
+            ++it)
         {
-            // XXX: May be preserve queues across sweeps?
             it->second->Flush();
-            // jt = it++;
-            // ChangeLogQueues.erase(jt);
         }
-
-        ChangeLogQueues.clear();
     }
 
 private:
