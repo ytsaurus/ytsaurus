@@ -129,7 +129,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
         bool isFinal = segmentId == targetStateId.SegmentId;
         bool mayBeMissing = isFinal && targetStateId.ChangeCount == 0 || !IsLeader();
 
-        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
             if (!mayBeMissing) {
                 LOG_FATAL("A required changelog %d is missing", segmentId);

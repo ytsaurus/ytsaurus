@@ -332,7 +332,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 
     try {
         // TODO: extract method
-        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(changeLogId);
+        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", changeLogId);
@@ -369,7 +369,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
     
     try {
         // TODO: extract method
-        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", segmentId);

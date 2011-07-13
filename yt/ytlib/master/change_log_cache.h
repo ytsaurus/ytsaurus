@@ -10,13 +10,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachedChangeLog
-    : public TCacheValueBase<i32, TCachedChangeLog>
+class TCachedAsyncChangeLog
+    : public TCacheValueBase<i32, TCachedAsyncChangeLog>
     , public TAsyncChangeLog
 {
 public:
-    TCachedChangeLog(TChangeLog::TPtr changeLog)
-        : TCacheValueBase<i32, TCachedChangeLog>(changeLog->GetId())
+    TCachedAsyncChangeLog(TChangeLog::TPtr changeLog)
+        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
         , TAsyncChangeLog(changeLog)
     { }
 };
@@ -24,15 +24,15 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeLogCache
-    : public TCapacityLimitedCache<i32, TCachedChangeLog>
+    : public TCapacityLimitedCache<i32, TCachedAsyncChangeLog>
 {
 public:
     typedef TIntrusivePtr<TChangeLogCache> TPtr;
 
     TChangeLogCache(Stroka location);
 
-    TCachedChangeLog::TPtr Get(i32 segmentId);
-    TCachedChangeLog::TPtr Create(i32 segmentId, i32 prevRecordCount);
+    TCachedAsyncChangeLog::TPtr Get(i32 segmentId);
+    TCachedAsyncChangeLog::TPtr Create(i32 segmentId, i32 prevRecordCount);
 
 protected:
     virtual void OnTrim(TValuePtr value);

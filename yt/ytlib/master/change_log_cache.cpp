@@ -13,7 +13,7 @@ static const char LogExtension[] = "log";
 ////////////////////////////////////////////////////////////////////////////////
 
 TChangeLogCache::TChangeLogCache(Stroka location)
-    : TCapacityLimitedCache<i32, TCachedChangeLog>(4) // TODO: introduce config
+    : TCapacityLimitedCache<i32, TCachedAsyncChangeLog>(4) // TODO: introduce config
     , Location(location)
 { }
 
@@ -22,7 +22,7 @@ Stroka TChangeLogCache::GetChangeLogFileName(i32 segmentId)
     return Location + "/" + Sprintf("%09d", segmentId) + "." + LogExtension;
 }
 
-TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
+TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
 {
     TInsertCookie cookie(segmentId);
     if (BeginInsert(&cookie)) {
@@ -42,13 +42,13 @@ TCachedChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
             return NULL;
         }
 
-        EndInsert(new TCachedChangeLog(changeLog), &cookie);
+        EndInsert(new TCachedAsyncChangeLog(changeLog), &cookie);
     }
 
     return cookie.GetAsyncResult()->Get();
 }
 
-TCachedChangeLog::TPtr TChangeLogCache::Create(
+TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
     i32 segmentId, i32 prevRecordCount)
 {
     TInsertCookie cookie(segmentId);
@@ -68,7 +68,7 @@ TCachedChangeLog::TPtr TChangeLogCache::Create(
             ex.what());
     }
 
-    EndInsert(new TCachedChangeLog(changeLog), &cookie);
+    EndInsert(new TCachedAsyncChangeLog(changeLog), &cookie);
 
     return cookie.GetAsyncResult()->Get();
 }

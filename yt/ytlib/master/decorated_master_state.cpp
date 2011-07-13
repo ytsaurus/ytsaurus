@@ -79,7 +79,7 @@ void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
     const TSharedRef& changeData)
 {
-    TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
+    TCachedAsyncChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
     if (~cachedChangeLog == NULL) {
         LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
     }
@@ -102,7 +102,7 @@ void TDecoratedMasterState::AdvanceSegment()
 
 void TDecoratedMasterState::RotateChangeLog()
 {
-    TCachedChangeLog::TPtr currentChangeLog = ChangeLogCache->Get(StateId.SegmentId);
+    TCachedAsyncChangeLog::TPtr currentChangeLog = ChangeLogCache->Get(StateId.SegmentId);
     YASSERT(~currentChangeLog != NULL);
 
     currentChangeLog->Finalize();
@@ -127,7 +127,7 @@ void TDecoratedMasterState::ComputeAvailableStateId()
     TMasterStateId currentStateId = TMasterStateId(maxSnapshotId, 0);
 
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
-        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
             AvailableStateId = currentStateId;
             break;
