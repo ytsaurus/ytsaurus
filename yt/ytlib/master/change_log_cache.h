@@ -14,15 +14,23 @@ class TCachedChangeLog
     : public TCacheValueBase<i32, TCachedChangeLog>
 {
 public:
-    TCachedChangeLog(TChangeLog::TPtr changeLog);
+    TCachedChangeLog(TChangeLog::TPtr changeLog)
+        : TCacheValueBase<i32, TCachedChangeLog>(changeLog->GetId())
+        , ChangeLog(changeLog)
+    { }
 
-    // TODO: kill GetWriter() :)
-    TChangeLog::TPtr GetChangeLog() const;
-    TAsyncChangeLog& GetWriter();
+    TAsyncChangeLog& GetChangeLog()
+    {
+        return ChangeLog;
+    }
+
+    const TAsyncChangeLog& GetChangeLog() const
+    {
+        return ChangeLog;
+    }
 
 private:
-    TChangeLog::TPtr ChangeLog;
-    TAsyncChangeLog Writer;
+    TAsyncChangeLog ChangeLog;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

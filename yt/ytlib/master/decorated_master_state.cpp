@@ -79,12 +79,12 @@ void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
     const TSharedRef& changeData)
 {
-    TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(StateId.SegmentId);
-    if (~changeLog == NULL) {
+    TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
+    if (~cachedChangeLog == NULL) {
         LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
     }
 
-    TAsyncChangeLog& asyncChangeLog = changeLog->GetWriter();
+    TAsyncChangeLog& asyncChangeLog = cachedChangeLog->GetChangeLog();
     TAsyncChangeLog::TAppendResult::TPtr appendResult = asyncChangeLog.Append(
         StateId.ChangeCount,
         changeData);
@@ -105,13 +105,13 @@ void TDecoratedMasterState::RotateChangeLog()
 {
     TCachedChangeLog::TPtr currentCachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
     YASSERT(~currentCachedChangeLog != NULL);
+    TAsyncChangeLog& currentChangeLog = currentCachedChangeLog->GetChangeLog();
 
-    currentCachedChangeLog->GetWriter().Finalize();
+    currentChangeLog.Finalize();
 
     AdvanceSegment();
 
-    TChangeLog::TPtr currentChangeLog = currentCachedChangeLog->GetChangeLog();
-    ChangeLogCache->Create(StateId.SegmentId, currentChangeLog->GetRecordCount());
+    ChangeLogCache->Create(StateId.SegmentId, currentChangeLog.GetRecordCount());
 }
 
 void TDecoratedMasterState::ComputeAvailableStateId()
@@ -135,16 +135,16 @@ void TDecoratedMasterState::ComputeAvailableStateId()
             break;
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
+        const TAsyncChangeLog& changeLog = cachedChangeLog->GetChangeLog();
         bool isFinal = ~ChangeLogCache->Get(segmentId + 1) == NULL;
 
         LOG_DEBUG("Found changelog (Id: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
-            changeLog->GetRecordCount(),
-            changeLog->GetPrevRecordCount(),
+            changeLog.GetRecordCount(),
+            changeLog.GetPrevRecordCount(),
             ~ToString(isFinal));
 
-        currentStateId = TMasterStateId(segmentId, changeLog->GetRecordCount());
+        currentStateId = TMasterStateId(segmentId, changeLog.GetRecordCount());
     }
 
     LOG_INFO("Available state is %s", ~AvailableStateId.ToString());

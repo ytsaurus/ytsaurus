@@ -12,24 +12,6 @@ static const char LogExtension[] = "log";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedChangeLog::TCachedChangeLog(TChangeLog::TPtr changeLog)
-    : TCacheValueBase<i32, TCachedChangeLog>(changeLog->GetId())
-    , ChangeLog(changeLog)
-    , Writer(changeLog)
-{ }
-
-TChangeLog::TPtr TCachedChangeLog::GetChangeLog() const
-{
-    return ChangeLog;
-}
-
-TAsyncChangeLog& TCachedChangeLog::GetWriter()
-{
-    return Writer;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChangeLogCache::TChangeLogCache(Stroka location)
     : TCapacityLimitedCache<i32, TCachedChangeLog>(4) // TODO: introduce config
     , Location(location)
@@ -74,23 +56,28 @@ TCachedChangeLog::TPtr TChangeLogCache::Create(
         LOG_FATAL("Trying to create an already existing changelog %d",
             segmentId);
     }
+
     Stroka fileName = GetChangeLogFileName(segmentId);
     TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
+
     try {
         changeLog->Create(prevRecordCount);
     } catch (const yexception& ex) {
         LOG_FATAL("Could not create changelog %d: %s",
-            segmentId, ex.what());
+            segmentId,
+            ex.what());
     }
+
     EndInsert(new TCachedChangeLog(changeLog), &cookie);
+
     return cookie.GetAsyncResult()->Get();
 }
 
 void TChangeLogCache::OnTrim(TValuePtr value)
 {
-    if (!value->GetChangeLog()->IsFinalized()) {
+    if (!value->GetChangeLog().IsFinalized()) {
         LOG_WARNING("Trimming a non-finalized changelog %d",
-                      value->GetChangeLog()->GetId());
+            value->GetChangeLog().GetId());
     }
 }
 

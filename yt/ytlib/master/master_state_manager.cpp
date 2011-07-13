@@ -338,9 +338,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
                 Sprintf("invalid changelog id %d", changeLogId);
         }
 
-        TChangeLog::TPtr changeLog = cachedChangeLog->GetChangeLog();
-
-        i32 recordCount = changeLog->GetRecordCount();
+        i32 recordCount = cachedChangeLog->GetChangeLog().GetRecordCount();
         
         response->SetRecordCount(recordCount);
         
@@ -377,7 +375,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
                 Sprintf("invalid changelog id %d", segmentId);
         }
 
-        TAsyncChangeLog& changeLog = cachedChangeLog->GetWriter();
+        TAsyncChangeLog& changeLog = cachedChangeLog->GetChangeLog();
 
         yvector<TSharedRef> recordData;
         changeLog.Read(startRecordId, recordCount, &recordData);
