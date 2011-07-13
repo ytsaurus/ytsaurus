@@ -129,31 +129,29 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
         bool isFinal = segmentId == targetStateId.SegmentId;
         bool mayBeMissing = isFinal && targetStateId.ChangeCount == 0 || !IsLeader();
 
-        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
-        if (~cachedChangeLog == NULL) {
+        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        if (~changeLog == NULL) {
             if (!mayBeMissing) {
                 LOG_FATAL("A required changelog %d is missing", segmentId);
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
             YASSERT(expectedPrevRecordCount != UnknownPrevRecordCount);
-            cachedChangeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount);
+            changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount);
         }
-
-        TAsyncChangeLog& changeLog = cachedChangeLog->GetChangeLog();
 
         LOG_DEBUG("Found changelog (Id: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
-            changeLog.GetRecordCount(),
-            changeLog.GetPrevRecordCount(),
+            changeLog->GetRecordCount(),
+            changeLog->GetPrevRecordCount(),
             ~ToString(isFinal));
 
         if (expectedPrevRecordCount != UnknownPrevRecordCount &&
-            changeLog.GetPrevRecordCount() != expectedPrevRecordCount)
+            changeLog->GetPrevRecordCount() != expectedPrevRecordCount)
         {
             LOG_FATAL("PrevRecordCount mismatch (Expected: %d, Actual: %d)",
                 expectedPrevRecordCount,
-                changeLog.GetPrevRecordCount());
+                changeLog->GetPrevRecordCount());
         }
 
         if (!IsLeader()) {
@@ -167,7 +165,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 return new TResult(EResult::Failed);
             }
 
-            i32 localRecordCount = changeLog.GetRecordCount();
+            i32 localRecordCount = changeLog->GetRecordCount();
             i32 remoteRecordCount = response->GetRecordCount();
 
             LOG_INFO("Changelog %d has %d local record(s), %d remote record(s)",
@@ -187,8 +185,8 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 : remoteRecordCount;
 
             if (remoteRecordCount < targetChangeCount) {
-                changeLog.Truncate(remoteRecordCount);
-                changeLog.Finalize();
+                changeLog->Truncate(remoteRecordCount);
+                changeLog->Finalize();
                 LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
                     segmentId,
                     remoteRecordCount);
@@ -199,7 +197,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                     CellManager);
                 TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
                     TMasterStateId(segmentId, targetChangeCount),
-                    changeLog);
+                    *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
                     LOG_ERROR("Error downloading changelog (ChangeLogId: %d, Result: %s)",
@@ -210,19 +208,19 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             }
         }
 
-        if (!isFinal && !changeLog.IsFinalized()) {
+        if (!isFinal && !changeLog->IsFinalized()) {
             LOG_WARNING("Forcing finalization of an intermediate changelog %d", segmentId);
-            changeLog.Finalize();
+            changeLog->Finalize();
         }
 
         // Apply the whole changelog.
-        ApplyChangeLog(changeLog, changeLog.GetRecordCount());
+        ApplyChangeLog(*changeLog, changeLog->GetRecordCount());
 
         if (!isFinal) {
             MasterState->AdvanceSegment();
         }
 
-        expectedPrevRecordCount = changeLog.GetRecordCount();
+        expectedPrevRecordCount = changeLog->GetRecordCount();
     }
 
     YASSERT(MasterState->GetStateId() == targetStateId);

@@ -332,13 +332,13 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, GetChangeLogInfo)
 
     try {
         // TODO: extract method
-        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(changeLogId);
-        if (~cachedChangeLog == NULL) {
+        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(changeLogId);
+        if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", changeLogId);
         }
 
-        i32 recordCount = cachedChangeLog->GetChangeLog().GetRecordCount();
+        i32 recordCount = changeLog->GetRecordCount();
         
         response->SetRecordCount(recordCount);
         
@@ -369,16 +369,14 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
     
     try {
         // TODO: extract method
-        TCachedChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(segmentId);
-        if (~cachedChangeLog == NULL) {
+        TCachedChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", segmentId);
         }
 
-        TAsyncChangeLog& changeLog = cachedChangeLog->GetChangeLog();
-
         yvector<TSharedRef> recordData;
-        changeLog.Read(startRecordId, recordCount, &recordData);
+        changeLog->Read(startRecordId, recordCount, &recordData);
 
         response->SetRecordsRead(recordData.ysize());
         response->Attachments().insert(

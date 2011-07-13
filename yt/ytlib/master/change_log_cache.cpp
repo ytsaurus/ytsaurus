@@ -75,9 +75,8 @@ TCachedChangeLog::TPtr TChangeLogCache::Create(
 
 void TChangeLogCache::OnTrim(TValuePtr value)
 {
-    if (!value->GetChangeLog().IsFinalized()) {
-        LOG_WARNING("Trimming a non-finalized changelog %d",
-            value->GetChangeLog().GetId());
+    if (!value->IsFinalized()) {
+        LOG_WARNING("Trimming a non-finalized changelog %d", value->GetId());
     }
 }
 

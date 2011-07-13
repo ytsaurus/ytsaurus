@@ -12,25 +12,13 @@ namespace NYT {
 
 class TCachedChangeLog
     : public TCacheValueBase<i32, TCachedChangeLog>
+    , public TAsyncChangeLog
 {
 public:
     TCachedChangeLog(TChangeLog::TPtr changeLog)
         : TCacheValueBase<i32, TCachedChangeLog>(changeLog->GetId())
-        , ChangeLog(changeLog)
+        , TAsyncChangeLog(changeLog)
     { }
-
-    TAsyncChangeLog& GetChangeLog()
-    {
-        return ChangeLog;
-    }
-
-    const TAsyncChangeLog& GetChangeLog() const
-    {
-        return ChangeLog;
-    }
-
-private:
-    TAsyncChangeLog ChangeLog;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
