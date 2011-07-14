@@ -12,8 +12,11 @@ namespace NChunkHolder {
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
 {
-    //! Maximum number blocks in cache (not counting those locked by smart pointers).
-    int CacheCapacity;
+    //! Maximum number blocks in cache.
+    int MaxCachedBlocks;
+
+    //! Maximum number opened files in cache.
+    int MaxCachedFiles;
 
     //! Upload session timeout.
     /*!
@@ -28,7 +31,9 @@ struct TChunkHolderConfig
 
     //! Constructs a default instance.
     TChunkHolderConfig()
-        : SessionTimeout(TDuration::Seconds(10))
+        : MaxCachedBlocks(1024)
+        , MaxCachedFiles(256)
+        , SessionTimeout(TDuration::Seconds(15))
     {
         Locations.push_back(".");
     }

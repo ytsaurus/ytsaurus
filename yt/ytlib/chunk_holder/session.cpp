@@ -42,7 +42,7 @@ TSession::TPtr TSessionManager::StartSession(
 
     TSession::TPtr session = new TSession(this, chunkId, location, windowSize);
     TLeaseManager::TLease lease = LeaseManager->CreateLease(
-        Config.LeaseTimeout,
+        Config.SessionTimeout,
         FromMethod(
             &TSessionManager::OnLeaseExpired,
             TPtr(this),
@@ -335,7 +335,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    File.Reset(new TFile(FileName + NFS::TempFileSuffix, CreateAlways/*|WrOnly|Seq|Direct*/));
+    File.Reset(new TFile(FileName + NFS::TempFileSuffix, CreateAlways|WrOnly|Seq));
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~StringFromGuid(ChunkId));

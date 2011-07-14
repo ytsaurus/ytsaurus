@@ -22,6 +22,64 @@ TSharedRef TCachedBlock::GetData() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlockStore::TCachedFile
+    : public TCacheValueBase<TChunkId, TCachedFile, TGUIDHash>
+{
+public:
+    typedef TIntrusivePtr<TCachedFile> TPtr;
+
+    TCachedFile(const TChunkId& chunkId, Stroka fileName)
+        : TCacheValueBase<TChunkId, TCachedFile, TGUIDHash>(chunkId)
+        , File_(fileName, OpenExisting|RdOnly)
+    { }
+
+
+    TFile& File()
+    {
+        return File_;
+    }
+
+private:
+    TFile File_;
+
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlockStore::TFileCache
+    : public TCapacityLimitedCache<TChunkId, TCachedFile, TGUIDHash>
+{
+public:
+    typedef TIntrusivePtr<TFileCache> TPtr;
+
+    TFileCache(
+        const TChunkHolderConfig& config,
+        TChunkStore::TPtr chunkStore)
+        : TCapacityLimitedCache<TChunkId, TCachedFile, TGUIDHash>(config.MaxCachedFiles)
+        , ChunkStore(chunkStore)
+    { }
+
+    TCachedFile::TPtr Get(TChunk::TPtr chunk)
+    {
+        TInsertCookie cookie(chunk->GetId());
+        if (BeginInsert(&cookie)) {
+            // TODO: IO exceptions and error checking
+            TCachedFile::TPtr file = new TCachedFile(
+                chunk->GetId(),
+                ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
+            EndInsert(file, &cookie);
+        }
+        return cookie.GetAsyncResult()->Get();
+    }
+
+private:
+    TChunkStore::TPtr ChunkStore;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockStore::TBlockCache 
     : public TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>
 {
@@ -30,9 +88,11 @@ public:
 
     TBlockCache(
         const TChunkHolderConfig& config,
-        TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.CacheCapacity)
+        TChunkStore::TPtr chunkStore,
+        TFileCache::TPtr fileCache)
+        : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.MaxCachedBlocks)
         , ChunkStore(chunkStore)
+        , FileCache(fileCache)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
@@ -80,6 +140,7 @@ public:
 
 private:
     TChunkStore::TPtr ChunkStore;
+    TFileCache::TPtr FileCache;
 
     void ReadBlock(
         TChunk::TPtr chunk,
@@ -89,10 +150,8 @@ private:
     {
         // TODO: IO exceptions and error checking
 
-        Stroka fileName = ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation());
-       
+        TFile& file = FileCache->Get(chunk)->File();
         TBlob data(blockSize);
-        TFile file(fileName, OpenExisting|RdOnly|Seq|Direct);
         file.Pread(data.begin(), blockSize, blockId.Offset);
         
         TCachedBlock::TPtr block = new TCachedBlock(blockId, data);
@@ -110,7 +169,8 @@ private:
 TBlockStore::TBlockStore(
     const TChunkHolderConfig& config,
     TChunkStore::TPtr chunkStore)
-    : Cache(new TBlockCache(config, chunkStore))
+    : FileCache(new TFileCache(config, chunkStore))
+    , BlockCache(new TBlockCache(config, chunkStore, FileCache))
 { }
 
 TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId, i32 blockSize)
@@ -119,7 +179,7 @@ TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId, i32 b
         ~blockId.ToString(),
         blockSize);
 
-    return Cache->Find(blockId, blockSize);
+    return BlockCache->Find(blockId, blockSize);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
@@ -128,7 +188,7 @@ TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedR
         ~blockId.ToString(),
         data.Size());
 
-    return Cache->Put(blockId, data);
+    return BlockCache->Put(blockId, data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
