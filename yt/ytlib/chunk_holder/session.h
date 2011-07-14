@@ -81,9 +81,9 @@ private:
 
     typedef yvector<TSlot> TWindow;
 
+    TIntrusivePtr<TSessionManager> SessionManager;
     TChunkId ChunkId;
     int Location;
-    TIntrusivePtr<TSessionManager> SessionManager;
     
     TWindow Window;
     int WindowStart;

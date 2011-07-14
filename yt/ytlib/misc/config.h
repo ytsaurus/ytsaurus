@@ -12,6 +12,42 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 // JSON configs helper
 
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool TryRead(
+    const TJsonObject* json,
+    const wchar_t* name,
+    Stroka* result)
+{
+    const TJsonObject* value = json->Value(name);
+    if (value != NULL) {
+        *result = WideToChar(value->ToString());
+        return true;
+    }
+    return false;
+}
+
+inline Stroka Read(
+    TJsonObject* json,
+    const wchar_t* name)
+{
+    Stroka result;
+    if (!TryRead(json, name, &result))
+        ythrow yexception() << Sprintf("Error reading string %S", name);
+    return result;
+}
+
+inline Stroka Read(
+    TJsonObject* json,
+    const wchar_t* name,
+    Stroka defaultValue)
+{
+    Stroka result = defaultValue;
+    TryRead(json, name, &result);
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 //TODO: implement other read functions with defaultValue
 inline bool TryRead(
@@ -114,42 +150,6 @@ inline TJsonObject* GetSubTree(TJsonObject* object, Stroka rootPath) {
     }
     return root;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline bool TryRead(
-    const TJsonObject* json,
-    const wchar_t* name,
-    Stroka* result)
-{
-    const TJsonObject* value = json->Value(name);
-    if (value != NULL) {
-        *result = WideToChar(value->ToString());
-        return true;
-    }
-    return false;
-}
-
-inline Stroka Read(
-    TJsonObject* json,
-    const wchar_t* name)
-{
-    Stroka result;
-    if (!TryRead(json, name, &result))
-        ythrow yexception() << Sprintf("Error reading string %S", name);
-    return result;
-}
-
-inline Stroka Read(
-    TJsonObject* json,
-    const wchar_t* name,
-    Stroka defaultValue)
-{
-    Stroka result = defaultValue;
-    TryRead(json, name, &result);
-    return result;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

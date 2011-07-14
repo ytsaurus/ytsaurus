@@ -186,7 +186,7 @@ TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedR
 {
     LOG_DEBUG("Putting block into store (BlockId: %s, BlockSize: %d)",
         ~blockId.ToString(),
-        data.Size());
+        static_cast<int>(data.Size()));
 
     return BlockCache->Put(blockId, data);
 }

@@ -216,7 +216,7 @@ void TSession::PutBlock(
     slot.Block = SessionManager->BlockStore->PutBlock(blockId, data);
     Size += data.Size();
 
-    LOG_DEBUG("Chunk block received (ChunkId: %s, BlockIndex: %d, BlockId: %s, BlockSize: %d)",
+    LOG_DEBUG("Chunk block received (ChunkId: %s, BlockIndex: %d, BlockId: %s, BlockSize: %" PRISZT ")",
         ~StringFromGuid(ChunkId),
         blockIndex,
         ~blockId.ToString(),

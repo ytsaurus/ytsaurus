@@ -22,7 +22,7 @@ TAsyncResult<T>::TAsyncResult(T value)
 template <class T>
 void TAsyncResult<T>::Set(T value)
 {
-    typename yvector<typename IParamAction<T>::TPtr> subscribers;
+    yvector<typename IParamAction<T>::TPtr> subscribers;
 
     {
         TGuard<TSpinLock> guard(SpinLock);

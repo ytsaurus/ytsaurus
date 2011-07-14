@@ -220,7 +220,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         const NRpcChunkHolder::TBlockInfo& info = request->GetBlocks(blockIndex);
 
         LOG_DEBUG("GetBlocks: (Index: %d, Offset: %" PRId64 ", Size: %d)",
-            ~StringFromGuid(chunkId),
+            blockIndex,
             info.GetOffset(),
             info.GetSize());
 
