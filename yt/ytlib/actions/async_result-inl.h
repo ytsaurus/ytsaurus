@@ -17,50 +17,60 @@ template <class T>
 TAsyncResult<T>::TAsyncResult(T value)
     : IsSet(true)
     , Value(value)
-{}
+{ }
 
 template <class T>
 void TAsyncResult<T>::Set(T value)
 {
-    YASSERT(!IsSet);
-    Value = value;
-    IsSet = true;
+    typename yvector<typename IParamAction<T>::TPtr> subscribers;
+
     {
         TGuard<TSpinLock> guard(SpinLock);
+        YASSERT(!IsSet);
+        Value = value;
+        IsSet = true;
+
         Event* event = ~ReadyEvent;
         if (event != NULL) {
             event->Signal();
         }
-        for (typename yvector<typename IParamAction<T>::TPtr>::iterator it = Subscribers.begin();
-            it != Subscribers.end();
-            ++it)
-        {
-            (*it)->Do(value);
-        }
-        Subscribers.clear();
+
+        Subscribers.swap(subscribers);
+    }
+
+    for (typename yvector<typename IParamAction<T>::TPtr>::iterator it = subscribers.begin();
+        it != subscribers.end();
+        ++it)
+    {
+        (*it)->Do(value);
     }
 }
 
 template <class T>
 T TAsyncResult<T>::Get() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     if (IsSet) {
         return Value;
     }
+
     if (~ReadyEvent == NULL) {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (~ReadyEvent == NULL) {
-            ReadyEvent.Reset(new Event());
-        }
+        ReadyEvent.Reset(new Event());
     }
+
+    guard.Release();
     ReadyEvent->Wait();
+
     YASSERT(IsSet);
+
     return Value;
 }
 
 template <class T>
 bool TAsyncResult<T>::TryGet(T* value) const
 {
+    TGuard<TSpinLock> guard(SpinLock);
     if (IsSet) {
         *value = Value;
         return true;
@@ -73,6 +83,7 @@ void TAsyncResult<T>::Subscribe(typename IParamAction<T>::TPtr action)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsSet) {
+        guard.Release();
         action->Do(Value);
     } else {
         Subscribers.push_back(action);
