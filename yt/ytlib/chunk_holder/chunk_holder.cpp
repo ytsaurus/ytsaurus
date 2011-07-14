@@ -142,9 +142,10 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
         // of blocks arriving within a single RPC request.
         TBlob data = it->ToBlob();
         TBlockId blockId(chunkId, offset);
+        // Increment offset before PutBlocks, hence data will be swapped out
+        offset += data.ysize();         
         session->PutBlock(blockIndex, blockId, data);
         ++blockIndex;
-        offset += data.ysize();
     }
     
     context->Reply();
