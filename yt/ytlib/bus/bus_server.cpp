@@ -259,7 +259,7 @@ void TBusServer::ProcessNLRequest(TUdpHttpRequest* nlRequest)
         default:
             LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %s)",
                 ~StringFromGuid(nlRequest->ReqId),
-                ~(header->Type).ToString());
+                ~header->Type.ToString());
             return;
     }
 }
@@ -381,12 +381,12 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
             ~reply);
     } else {
         TBlob ackData;
-        CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &ackData);
+        CreatePacket(session->GetSessionId(), TPacketHeader::EType::Ack, &ackData);
 
         Requester->SendResponse(nlRequest->ReqId, &ackData);
 
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(header->SessionId),
+            ~StringFromGuid(session->GetSessionId()),
             ~StringFromGuid(nlRequest->ReqId));
     }
 }
