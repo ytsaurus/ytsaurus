@@ -1,10 +1,10 @@
 #pragma once
 
 #include "chunk_writer.h"
-#include "../rpc/client.h"
 #include "../misc/lazy_ptr.h"
-#include "../holder/chunk_holder_rpc.h"
-#include "../holder/chunk.h"
+#include "../rpc/client.h"
+#include "../chunk_holder/common.h"
+#include "../chunk_holder/chunk_holder_rpc.h"
 #include "../actions/action_queue.h"
 
 #include <util/generic/deque.h>
@@ -25,11 +25,13 @@ class TRemoteChunkWriter
 {
 public:
     typedef TIntrusivePtr<TRemoteChunkWriter> TPtr;
+    typedef NChunkHolder::TChunkId TChunkId;
+
     struct TConfig
     {
-        unsigned WinSize;
-        unsigned MinRepFactor;
-        size_t GroupSize;
+        int WinSize;
+        int MinRepFactor;
+        int GroupSize;
     };
 
     // Client thread
@@ -77,7 +79,7 @@ private:
     USE_RPC_METHOD(TProxy, FinishChunk);
     USE_RPC_METHOD(TProxy, PutBlocks);
     USE_RPC_METHOD(TProxy, SendBlocks);
-    USE_RPC_METHOD(TProxy, FlushBlocks);
+    USE_RPC_METHOD(TProxy, FlushBlock);
 
 private:
     static TLazyPtr<TActionQueue> WriterThread;
@@ -102,7 +104,7 @@ private:
     yvector< TIntrusivePtr<TNode> > Nodes;
     TGroupBuffer Groups;
 
-    unsigned AliveNodes;
+    int AliveNodes;
 
     TGroupPtr NewGroup;
     unsigned BlockCount;
@@ -136,7 +138,7 @@ private:
     void SendBlocks(i32 node, i32 dst, TGroupPtr group);
     void SendBlocksSuccess(i32 node, i32 dst, TGroupPtr group);
 
-    TInvFlushBlocks::TPtr FlushBlocks(i32 node, TGroupPtr group);
+    TInvFlushBlock::TPtr FlushBlocks(i32 node, TGroupPtr group);
     void FlushBlocksSuccess(i32 node, TGroupPtr group);
 
     template<class TResponse>

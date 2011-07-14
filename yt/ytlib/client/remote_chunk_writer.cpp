@@ -21,9 +21,9 @@ struct TRemoteChunkWriter::TBlock
     : public TRefCountedBase
 {
     TSharedRef Buffer;
-    size_t Offset;
+    int Offset;
 
-    TBlock(TBlob &data, size_t offset)
+    TBlock(TBlob &data, int offset)
         : Buffer(data)
         , Offset(offset)
     { }
@@ -102,8 +102,8 @@ void TRemoteChunkWriter::TGroup::Flush()
     for (unsigned i = 0; i < Session->Nodes.size(); ++i) {
         if (Session->Nodes[i]->IsAlive() && States[i] != ENodeGroupState::Flushed) {
             IAction::TPtr onSuccess = FromMethod(&TRemoteChunkWriter::FlushBlocksSuccess, Session, i, TGroupPtr(this));
-            IParamAction<TRspFlushBlocks::TPtr>::TPtr onResponse = 
-                FromMethod(&TRemoteChunkWriter::CheckResponse<TRspFlushBlocks>, Session, i, onSuccess);
+            IParamAction<TRspFlushBlock::TPtr>::TPtr onResponse = 
+                FromMethod(&TRemoteChunkWriter::CheckResponse<TRspFlushBlock>, Session, i, onSuccess);
             awaiter->Await(Session->FlushBlocks(i, TGroupPtr(this)), onResponse);
         }
     }
@@ -198,7 +198,7 @@ TRemoteChunkWriter::~TRemoteChunkWriter()
     YASSERT((Finishing && Groups.empty()) || State == ESessionState::Failed);
 }
 
-TChunkId TRemoteChunkWriter::GetChunkId()
+TRemoteChunkWriter::TChunkId TRemoteChunkWriter::GetChunkId()
 {
     return GetGuid(Id);
 }
@@ -337,6 +337,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartSession(i32 no
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TProxy::TReqStartChunk::TPtr req = TProxy(channel).StartChunk();
     req->SetChunkId(ProtoGuidFromGuid(GetGuid(Id)));
+    req->SetWindowSize(Config.WinSize);
     LOG_DEBUG("Session %s, node %d start request", ~Id, node);
     return req->Invoke();
 }
@@ -435,15 +436,14 @@ void TRemoteChunkWriter::SendBlocksSuccess(i32 node, i32 dst, TGroupPtr group)
         ~Id, group->StartId, node, dst);
 }
 
-TRemoteChunkWriter::TInvFlushBlocks::TPtr TRemoteChunkWriter::FlushBlocks(i32 node, TGroupPtr group)
+TRemoteChunkWriter::TInvFlushBlock::TPtr TRemoteChunkWriter::FlushBlocks(i32 node, TGroupPtr group)
 {
     LOG_DEBUG("Session %s, group %d, node %d, flush request",
         ~Id, group->StartId, node);
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
-    TProxy::TReqFlushBlocks::TPtr req = TProxy(channel).FlushBlocks();
+    TProxy::TReqFlushBlock::TPtr req = TProxy(channel).FlushBlock();
     req->SetChunkId(ProtoGuidFromGuid(GetGuid(Id)));
-    req->SetStartBlockIndex(group->StartId);
-    req->SetEndBlockIndex(group->GetEndId());
+    req->SetBlockIndex(group->GetEndId());
     return req->Invoke();
 }
 
