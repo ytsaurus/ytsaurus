@@ -38,13 +38,14 @@ public:
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
         TInsertCookie cookie(blockId);
+        // TODO: use YVERIFY
         VERIFY(BeginInsert(&cookie), "oops");
         TCachedBlock::TPtr block = new TCachedBlock(blockId, data);
         EndInsert(block, &cookie);
         return block;
     }
 
-    TCachedBlock::TAsync::TPtr Get(const TBlockId& blockId, i32 blockSize)
+    TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId, i32 blockSize)
     {
         TAutoPtr<TInsertCookie> cookie = new TInsertCookie(blockId);
         if (!BeginInsert(~cookie)) {
@@ -63,6 +64,7 @@ public:
             blockSize);
 
         TCachedBlock::TAsync::TPtr result = cookie->GetAsyncResult();
+
         int location = chunk->GetLocation();
         IInvoker::TPtr invoker = ChunkStore->GetIOInvoker(location);
         invoker->Invoke(FromMethod(
@@ -111,13 +113,13 @@ TBlockStore::TBlockStore(
     : Cache(new TBlockCache(config, chunkStore))
 { }
 
-TCachedBlock::TAsync::TPtr TBlockStore::GetBlock(const TBlockId& blockId, i32 blockSize)
+TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId, i32 blockSize)
 {
     LOG_DEBUG("Getting block from store (BlockId: %s, BlockSize: %d)",
         ~blockId.ToString(),
         blockSize);
 
-    return Cache->Get(blockId, blockSize);
+    return Cache->Find(blockId, blockSize);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)

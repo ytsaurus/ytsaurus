@@ -65,10 +65,10 @@ void TSessionManager::CancelSession(TSession::TPtr session)
 {
     TChunkId chunkId = session->GetChunkId();
 
-    session->Cancel();
-
     // TODO: use YVERIFY
     VERIFY(SessionMap.erase(chunkId) == 1, "oops");
+
+    session->Cancel();
 
     LOG_INFO("Session canceled (ChunkId: %s)",
         ~StringFromGuid(chunkId));
@@ -81,10 +81,12 @@ TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
     // TODO: use YVERIFY
     VERIFY(SessionMap.erase(chunkId) == 1, "oops");
 
-    return session->Finish()->Apply(FromMethod(
-        &TSessionManager::OnSessionFinished,
-        TPtr(this),
-        session)->AsyncVia(ServiceInvoker));
+    return session->Finish()->Apply(
+        FromMethod(
+            &TSessionManager::OnSessionFinished,
+            TPtr(this),
+            session)
+        ->AsyncVia(ServiceInvoker));
 }
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
@@ -120,12 +122,16 @@ TSession::TSession(
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
     , Location(location)
-    , Window(windowSize)
     , WindowStart(0)
     , FirstUnwritten(0)
     , Size(0)
 {
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
+
+    for (int index = 0; index < windowSize; ++index) {
+        Window.push_back(TSlot());
+    }
+
     OpenFile();
 }
 
@@ -173,7 +179,7 @@ TCachedBlock::TPtr TSession::GetBlock(int blockIndex)
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("accessing a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            << Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             ~StringFromGuid(ChunkId),
             WindowStart,
             Window.ysize(),
@@ -222,7 +228,9 @@ void TSession::PutBlock(
 void TSession::EnqueueWrites()
 {
     while (IsInWindow(FirstUnwritten)) {
-        const TSlot& slot = GetSlot(FirstUnwritten);
+        int blockIndex = FirstUnwritten;
+
+        const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Received)
             break;
         
@@ -230,13 +238,13 @@ void TSession::EnqueueWrites()
             &TSession::DoWrite,
             TPtr(this),
             slot.Block,
-            FirstUnwritten)
+            blockIndex)
         ->AsyncVia(GetInvoker())
         ->Do()
         ->Subscribe(FromMethod(
             &TSession::OnBlockWritten,
             TPtr(this),
-            FirstUnwritten)
+            blockIndex)
         ->Via(SessionManager->ServiceInvoker));
 
         ++FirstUnwritten;
@@ -280,10 +288,11 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(int blockIndex)
             blockIndex);
     }
 
+    // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
     return slot.IsWritten->Apply(FromMethod(
-        &TSession::OnBlockFlushed,
-        TPtr(this),
-        blockIndex));
+            &TSession::OnBlockFlushed,
+            TPtr(this),
+            blockIndex));
 }
 
 TVoid TSession::OnBlockFlushed(TVoid, int blockIndex)

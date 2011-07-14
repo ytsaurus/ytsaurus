@@ -87,7 +87,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
     VerifyNoSession(chunkId);
     VerifyNoChunk(chunkId);
 
-    TSession::TPtr session = SessionManager->StartSession(chunkId, windowSize);
+    SessionManager->StartSession(chunkId, windowSize);
 
     context->Reply();
 }
@@ -227,7 +227,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         TBlockId blockId(chunkId, info.GetOffset());
 
         awaiter->Await(
-            BlockStore->GetBlock(blockId, info.GetSize()),
+            BlockStore->FindBlock(blockId, info.GetSize()),
             FromMethod(
                 &TChunkHolder::OnGotBlock,
                 TPtr(this),
@@ -246,6 +246,7 @@ void TChunkHolder::OnGotBlock(
     int blockIndex,
     TCtxGetBlocks::TPtr context)
 {
+    YASSERT(~block != NULL);
     context->Response().Attachments().at(blockIndex) = block->GetData();
 }
 

@@ -29,7 +29,6 @@ void TChunkStore::ScanChunks()
     for (int location = 0; location < Config.Locations.ysize(); ++location) {
         Stroka path = Config.Locations[location];
 
-
         NFS::CleanTempFiles(path);
 
         // TODO: make a function in NYT::NFS

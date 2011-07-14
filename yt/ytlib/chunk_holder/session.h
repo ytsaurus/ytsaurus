@@ -14,23 +14,27 @@ namespace NChunkHolder {
 
 class TSessionManager;
 
+//! Represents a chunk upload in progress.
 class TSession
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
+    //! Constructs a new session.
     TSession(
         TIntrusivePtr<TSessionManager> sessionManager,
         const TChunkId& chunkId,
         int location,
         int windowSize);
 
+    //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
     int GetLocation() const;
 
+    //! Returns the size of blocks received so far.
     i64 GetSize() const;
 
     //! Returns a cached block that is still in the session window.
@@ -42,11 +46,13 @@ public:
         const TBlockId& blockId,
         const TSharedRef& data);
 
+    //! Flushes a block and moves the window
+    /*!
+     * The operation is asynchronous. It returns a result that gets set
+     * when the actual flush happens. Once a block is flushed, the next block becomes
+     * the first one in the window.
+     */
     TAsyncResult<TVoid>::TPtr FlushBlock(int blockIndex);
-
-    TAsyncResult<TVoid>::TPtr Finish();
-
-    void Cancel();
 
 private:
     friend class TSessionManager;
@@ -89,6 +95,9 @@ private:
 
     TLeaseManager::TLease Lease;
 
+    TAsyncResult<TVoid>::TPtr Finish();
+    void Cancel();
+
     void SetLease(TLeaseManager::TLease lease);
     void RenewLease();
     void CloseLease();
@@ -119,12 +128,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages chunk uploads.
 class TSessionManager
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TSessionManager> TPtr;
 
+    //! Constructs a manager.
     TSessionManager(
         const TChunkHolderConfig& config,
         TBlockStore::TPtr blockStore,
@@ -137,12 +148,18 @@ public:
         int windowSize);
 
     //! Completes an earlier opened upload session.
+    /*!
+     * The call returns a result that gets set when the session is finished.
+     */
     TAsyncResult<TVoid>::TPtr FinishSession(TSession::TPtr session);
 
     //! Cancels an earlier opened upload session.
+    /*!
+     * Chunk file is closed asynchronously, however the call returns immediately.
+     */
     void CancelSession(TSession::TPtr session);
 
-    //! Finds a session by TChunkId.
+    //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const TChunkId& chunkId);
 
 private:

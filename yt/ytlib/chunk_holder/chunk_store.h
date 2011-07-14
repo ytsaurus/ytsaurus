@@ -9,6 +9,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes an already uploaded chunk.
 class TChunk
     : public TRefCountedBase
 {
@@ -24,16 +25,19 @@ public:
 
     typedef TIntrusivePtr<TChunk> TPtr;
 
+    //! Returns chunk id.
     TChunkId GetId() const
     {
         return Id;
     }
 
+    //! Returns chunk size.
     i64 GetSize() const
     {
         return Size;
     }
 
+    //! Returns chunk storage location.
     int GetLocation() const
     {
         return Location;
@@ -48,25 +52,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages uploaded chunks.
 class TChunkStore
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;
 
+    //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
 
+    //! Registers a just-uploaded chunk for further usage.
     TChunk::TPtr RegisterChunk(
         const TChunkId& chunkId,
         i64 size,
         int location);
     
+    //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunk::TPtr FindChunk(const TChunkId& chunkId);
 
+    //! Returns invoker for a given storage location.
     IInvoker::TPtr GetIOInvoker(int location);
 
+    //! Calculates a storage location for a new chunk.
     int GetNewChunkLocation(const TChunkId& chunkId);
 
+    //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const TChunkId& chunkId, int location);
 
 private:
