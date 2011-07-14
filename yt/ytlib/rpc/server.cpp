@@ -106,6 +106,11 @@ Stroka TServer::GetDebugInfo()
     return BusServer->GetDebugInfo();
 }
 
+IInvoker::TPtr TServer::GetInvoker()
+{
+    return Invoker;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

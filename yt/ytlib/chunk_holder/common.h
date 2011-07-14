@@ -1,22 +1,22 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/string.h"
 #include "../logging/log.h"
 
 namespace NYT {
+namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkHolderConfig
 {
-    int WindowSize;
     int CacheCapacity;
     TDuration LeaseTimeout;
     yvector<Stroka> Locations;
 
     TChunkHolderConfig()
-        : WindowSize(256)
-        , LeaseTimeout(TDuration::Seconds(10))
+        : LeaseTimeout(TDuration::Seconds(10))
     {
         Locations.push_back(".");
     }
@@ -40,6 +40,13 @@ struct TBlockId
         : ChunkId(chunkId)
         , Offset(offset)
     { }
+
+    Stroka ToString() const
+    {
+        return Sprintf("%s:%" PRId64,
+            ~StringFromGuid(ChunkId),
+            Offset);
+    }
 };
 
 inline bool operator==(const TBlockId& blockId1, const TBlockId& blockId2)
@@ -70,4 +77,5 @@ extern NLog::TLogger ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkHolder
 } // namespace NYT

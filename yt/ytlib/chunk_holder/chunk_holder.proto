@@ -5,6 +5,7 @@ package NYT.NRpcChunkHolder;
 message TReqStartChunk
 {
     required bytes ChunkId = 1;
+    required int32 WindowSize = 2;
 }
 
 message TRspStartChunk
@@ -52,14 +53,13 @@ message TRspSendBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFlushBlocks
+message TReqFlushBlock
 {
     required bytes ChunkId = 1;
-    required int32 StartBlockIndex = 2;
-    required int32 EndBlockIndex = 3;
+    required int32 BlockIndex = 2;
 }
 
-message TRspFlushBlocks
+message TRspFlushBlock
 {
 }
 
@@ -81,3 +81,4 @@ message TRspGetBlocks
 {
 }
 
+////////////////////////////////////////////////////////////////////////////////

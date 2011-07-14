@@ -31,7 +31,6 @@ public:
     RPC_PROXY_METHOD(NRpcChunkHolder, FinishChunk);
     RPC_PROXY_METHOD(NRpcChunkHolder, PutBlocks);
     RPC_PROXY_METHOD(NRpcChunkHolder, SendBlocks);
-    RPC_PROXY_METHOD(NRpcChunkHolder, FlushBlocks);
     RPC_PROXY_METHOD(NRpcChunkHolder, GetBlocks);
 };
 

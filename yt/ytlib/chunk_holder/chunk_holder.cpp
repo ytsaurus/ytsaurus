@@ -5,10 +5,8 @@
 #include "../actions/action_util.h"
 #include "../actions/parallel_awaiter.h"
 
-#include <util/folder/dirut.h>
-#include <util/folder/filelist.h>
-
 namespace NYT {
+namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,12 +14,18 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolder::TChunkHolder(const TConfig& config)
+TChunkHolder::TChunkHolder(
+    const TConfig& config,
+    NRpc::TServer* server)
     : NRpc::TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , Config(config)
-    , Store(new TBlockStore())
 {
+    ChunkStore = new TChunkStore(config);
+    BlockStore = new TBlockStore(config, ChunkStore);
+    SessionManager = new TSessionManager(config, BlockStore, ChunkStore, server->GetInvoker());
+
     RegisterMethods();
+    server->RegisterService(this);
 }
 
 // Do not remove this!
@@ -34,14 +38,14 @@ void TChunkHolder::RegisterMethods()
     RPC_REGISTER_METHOD(TChunkHolder, StartChunk);
     RPC_REGISTER_METHOD(TChunkHolder, FinishChunk);
     RPC_REGISTER_METHOD(TChunkHolder, PutBlocks);
-    RPC_REGISTER_METHOD(TChunkHolder, FlushBlocks);
     RPC_REGISTER_METHOD(TChunkHolder, SendBlocks);
+    RPC_REGISTER_METHOD(TChunkHolder, FlushBlock);
     RPC_REGISTER_METHOD(TChunkHolder, GetBlocks);
 }
 
 void TChunkHolder::VerifyNoSession(const TChunkId& chunkId)
 {
-    if (~Store->FindSession(chunkId) != NULL) {
+    if (~SessionManager->FindSession(chunkId) != NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
             Sprintf("session %s already exists",
                 ~StringFromGuid(chunkId));
@@ -50,13 +54,15 @@ void TChunkHolder::VerifyNoSession(const TChunkId& chunkId)
 
 void TChunkHolder::VerifyNoChunk(const TChunkId& chunkId)
 {
-    //if (LocationMap.find(chunkId) != LocationMap.end())
-    //    ythrow TServiceException() << "Chunk " << StringFromGuid(chunkId) << " already exists";
+    if (~ChunkStore->FindChunk(chunkId) != NULL) {
+        ythrow TServiceException(TProxy::EErrorCode::ChunkAlreadyExists) <<
+            Sprintf("chunk %s already exists", ~StringFromGuid(chunkId));
+    }
 }
 
-TChunkHolder::TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
+TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
 {
-    TSession::TPtr session = Store->FindSession(chunkId);
+    TSession::TPtr session = SessionManager->FindSession(chunkId);
     if (~session == NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
             Sprintf("session %s is invalid or expired",
@@ -72,17 +78,16 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
     UNUSED(response);
 
     TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    int windowSize = request->GetWindowSize();
 
-    context->SetRequestInfo("ChunkId: %s",
-        ~StringFromGuid(chunkId));
+    context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
+        ~StringFromGuid(chunkId),
+        windowSize);
 
     VerifyNoSession(chunkId);
     VerifyNoChunk(chunkId);
 
-    TSession::TPtr session = Store->StartSession(chunkId);
-
-    context->SetResponseInfo("Location: %d",
-        session->GetLocation());
+    TSession::TPtr session = SessionManager->StartSession(chunkId, windowSize);
 
     context->Reply();
 }
@@ -98,8 +103,16 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 
     TSession::TPtr session = GetSession(chunkId);
 
-    Store->FinishSession(session);
+    SessionManager->FinishSession(session)->Subscribe(FromMethod(
+        &TChunkHolder::OnFinishedChunk,
+        TPtr(this),
+        context));
+}
 
+void TChunkHolder::OnFinishedChunk(
+    TVoid,
+    TCtxFinishChunk::TPtr context)
+{
     context->Reply();
 }
 
@@ -111,7 +124,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     i32 startBlockIndex = request->GetStartBlockIndex();
     TBlockOffset startOffset = request->GetStartOffset();
 
-    context->SetRequestInfo("ChunkId: %s, BlockCount: %d, StartBlockIndex: %s, StartOffset: %" PRId64,
+    context->SetRequestInfo("ChunkId: %s, BlockCount: %d, StartBlockIndex: %d, StartOffset: %" PRId64,
         ~StringFromGuid(chunkId),
         request->Attachments().ysize(),
         startBlockIndex,
@@ -188,34 +201,6 @@ void TChunkHolder::OnSentBlocks(
     }
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlocks)
-{
-    UNUSED(response);
-
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
-    i32 startBlockIndex = request->GetStartBlockIndex();
-    i32 endBlockIndex = request->GetStartBlockIndex();
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, EndBlockIndex: %d",
-        ~StringFromGuid(chunkId),
-        startBlockIndex,
-        endBlockIndex);
-
-    // TODO: (first, end) vs (first, count)?
-
-    TSession::TPtr session = GetSession(chunkId);
-    session->FlushBlocks(startBlockIndex, endBlockIndex - startBlockIndex + 1)->Subscribe(FromMethod(
-        &TChunkHolder::OnFlushedBlocks,
-        TPtr(this),
-        context));
-}
-
-void TChunkHolder::OnFlushedBlocks(
-    TVoid,
-    TCtxFlushBlocks::TPtr context)
-{
-    context->Reply();
-}
-
 RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
@@ -242,7 +227,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         TBlockId blockId(chunkId, info.GetOffset());
 
         awaiter->Await(
-            Store->GetBlock(blockId, info.GetSize()),
+            BlockStore->GetBlock(blockId, info.GetSize()),
             FromMethod(
                 &TChunkHolder::OnGotBlock,
                 TPtr(this),
@@ -269,7 +254,31 @@ void TChunkHolder::OnGotAllBlocks(TCtxGetBlocks::TPtr context)
     context->Reply();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
+{
+    UNUSED(response);
 
+    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    int blockIndex = request->GetBlockIndex();
+
+    context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
+        ~StringFromGuid(chunkId),
+        blockIndex);
+
+    TSession::TPtr session = GetSession(chunkId);
+
+    session->FlushBlock(blockIndex)->Subscribe(FromMethod(
+        &TChunkHolder::OnFlushedBlock,
+        TPtr(this),
+        context));
 }
 
+void TChunkHolder::OnFlushedBlock(TVoid, TCtxFlushBlock::TPtr context)
+{
+    context->Reply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NChunkHolder
+} // namespace NYT

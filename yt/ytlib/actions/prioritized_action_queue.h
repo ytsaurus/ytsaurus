@@ -16,6 +16,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPrioritizedActionQueue
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TPrioritizedActionQueue> TPtr;

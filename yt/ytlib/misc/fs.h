@@ -6,7 +6,7 @@
  */
 
 #include "common.h"
-
+    
 namespace NYT {
 namespace NFS {
 
@@ -20,7 +20,7 @@ const char* const TempFileSuffix = "~";
  * \param name File name
  * \return True when succeeds
  */
-bool Remove(const char* name);
+bool Remove(Stroka name);
 
 //! Renames file.
 /*!
@@ -28,7 +28,7 @@ bool Remove(const char* name);
  * \param newName New name
  * \return True when succeeds
  */
-bool Rename(const char* oldName, const char* newName);
+bool Rename(Stroka oldName, Stroka newName);
 
 //! Returns name of file
 /*!

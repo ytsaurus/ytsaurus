@@ -14,32 +14,31 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool Remove(const char* name)
+bool Remove(Stroka name)
 {
 #if defined(_win_)
-    return DeleteFile(name);
+    return DeleteFile(~name);
 #else
     struct stat sb;
 
-    if (int result = lstat(name, &sb))
+    if (int result = lstat(~name, &sb))
         return result == 0;
 
     if (!S_ISDIR(sb.st_mode))
-        return ::remove(name) == 0;
+        return ::remove(~name) == 0;
 
-    return ::rmdir(name) == 0;
+    return ::rmdir(~name) == 0;
 #endif
 }
 
-bool Rename(const char* oldName, const char* newName)
+bool Rename(Stroka oldName, Stroka newName)
 {
 #if defined(_win_)
-    return MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING) != 0;
+    return MoveFileEx(~oldName, ~newName, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-    return ::rename(oldName, newName) == 0;
+    return ::rename(~oldName, ~newName) == 0;
 #endif
 }
-
 
 Stroka GetFileName(Stroka filePath)
 {

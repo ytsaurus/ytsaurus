@@ -15,11 +15,11 @@ public:
     typedef TIntrusivePtr<TChunkHolderProxy> TPtr;
 
     DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode, 
-        // TODO: more!
         ((RemoteCallFailed)(1))
         (NoSuchSession)
         (SessionAlreadyExists)
         (ChunkAlreadyExists)
+        (WindowError)
     );
 
     static Stroka GetServiceName() 
@@ -35,7 +35,7 @@ public:
     RPC_PROXY_METHOD(NRpcChunkHolder, FinishChunk);
     RPC_PROXY_METHOD(NRpcChunkHolder, PutBlocks);
     RPC_PROXY_METHOD(NRpcChunkHolder, SendBlocks);
-    RPC_PROXY_METHOD(NRpcChunkHolder, FlushBlocks);
+    RPC_PROXY_METHOD(NRpcChunkHolder, FlushBlock);
     RPC_PROXY_METHOD(NRpcChunkHolder, GetBlocks);
 };
 

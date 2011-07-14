@@ -56,20 +56,6 @@ inline bool TryRead(
 inline bool TryRead(
     const TJsonObject* jsonConfig,
     const wchar_t* paramName,
-    Stroka* param)
-{
-    const TJsonObject* value = jsonConfig->Value(paramName);
-    if (value != NULL) {
-        *param = WideToChar(value->ToString());
-        return true;
-    }
-    return false;
-}
-
-
-inline bool TryRead(
-    const TJsonObject* jsonConfig,
-    const wchar_t* paramName,
     yvector<Stroka>* param)
 {
     const TJsonObject* value = jsonConfig->Value(paramName);
@@ -85,7 +71,7 @@ inline bool TryRead(
 }
 
 template <class T>
-inline bool ReadEnum(
+inline void ReadEnum(
     const TJsonObject* jsonConfig,
     const wchar_t* paramName,
     T* param)
@@ -93,10 +79,8 @@ inline bool ReadEnum(
     Stroka value;
     if (TryRead(jsonConfig, paramName, &value)) {
         *param = T::FromString(value);
-        return true;
     } else {
-        ythrow yexception() << "Couldn't read enum";
-        return false;
+        ythrow yexception() << Sprintf("Error reading enumeration %s", paramName);
     }
 }
 
@@ -130,6 +114,42 @@ inline TJsonObject* GetSubTree(TJsonObject* object, Stroka rootPath) {
     }
     return root;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool TryRead(
+    const TJsonObject* json,
+    const wchar_t* name,
+    Stroka* result)
+{
+    const TJsonObject* value = json->Value(name);
+    if (value != NULL) {
+        *result = WideToChar(value->ToString());
+        return true;
+    }
+    return false;
+}
+
+inline Stroka Read(
+    TJsonObject* json,
+    const wchar_t* name)
+{
+    Stroka result;
+    if (!TryRead(json, name, &result))
+        ythrow yexception() << Sprintf("Error reading string %S", name);
+    return result;
+}
+
+inline Stroka Read(
+    TJsonObject* json,
+    const wchar_t* name,
+    Stroka defaultValue)
+{
+    Stroka result = defaultValue;
+    TryRead(json, name, &result);
+    return result;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

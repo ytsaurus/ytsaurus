@@ -9,6 +9,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: make refcounted
 class TServer
     : public IMessageHandler
 {
@@ -17,6 +18,8 @@ public:
 
     void RegisterService(IService::TPtr service);
     void UnregisterService(IService::TPtr service);
+
+    IInvoker::TPtr GetInvoker();
 
     Stroka GetDebugInfo();
 

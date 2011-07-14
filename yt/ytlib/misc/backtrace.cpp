@@ -31,6 +31,9 @@ void PrintCallStackAux(TOutputStream& output, const char* file, int line)
 
     free(stackStrings); // malloc()ed by backtrace_symbols.
 #else
+    UNUSED(output);
+    UNUSED(file);
+    UNUSED(line);
     abort();
 #endif
 }

@@ -2,7 +2,6 @@
 #error "Direct inclusion of this file is not allowed, include action.h"
 #endif
 
-
 #include "async_result.h"
 
 namespace NYT {
