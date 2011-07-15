@@ -37,7 +37,7 @@ public:
     // Client thread
     TRemoteChunkWriter(TConfig config, yvector<Stroka> nodes);
     void AddBlock(TBlob *buffer);
-    void Finish();
+    void Close();
     TChunkId GetChunkId();
 
     ~TRemoteChunkWriter();

@@ -445,7 +445,7 @@ public:
 #ifdef FILE_IO
         fclose(Output);
 #else
-        ChunkWriter->Finish();
+        ChunkWriter->Close();
 #endif
         Finished = true;
     }

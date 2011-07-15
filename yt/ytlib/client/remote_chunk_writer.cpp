@@ -286,7 +286,7 @@ void TRemoteChunkWriter::AddGroup(TGroupPtr group)
     }
 }
 
-void TRemoteChunkWriter::Finish()
+void TRemoteChunkWriter::Close()
 {
     LOG_DEBUG("Session %s, client thread finishing", Id.c_str());
     if (NewGroup->Size)
