@@ -2,14 +2,9 @@
 
 /*!
  * \file enum.h
- * \brief YT Enumerations
+ * \brief Smart enumerations
  */
 
-/*!
- * \defgroup yt_enum Enumerations
- * \ingroup YT
- * \{
- */
 #include "preprocessor.h"
 
 #include <util/string/cast.h>
@@ -18,6 +13,18 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+/*!
+ * \defgroup yt_enum Smart enumerations
+ * \ingroup yt_commons
+ *
+ * \{
+ *
+ * \page yt_enum_examples Examples
+ * Please refer to the unit test for an actual example of usage
+ * (unittests/enum_ut.cpp).
+ *
+ */
 
 //! Base class for (more or less) type safe enumerations.
 template<typename TDerived>
@@ -42,13 +49,12 @@ public:
 
 protected:
     int Value;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! \internal
-//! Mix-ins for specifying enumerations.
+//! \defgroup yt_enum_mixins Mix-ins for specifying enumerations.
 //! \{
 
 //! Base mix-in.
@@ -85,8 +91,9 @@ protected:
     private: \
         friend class ::NYT::TEnumBase<basename>;
 
+//! \cond Implementation
 //! EDomain declaration helper.
-// \{
+//! \{
 #define DECLARE_ENUM__DOMAIN_ITEM(item) \
     PP_IF( \
         PP_IS_SEQUENCE(item), \
@@ -99,7 +106,8 @@ protected:
 
 #define DECLARE_ENUM__DOMAIN_ITEM_SEQ(seq) \
     PP_ELEMENT(seq, 0) = PP_ELEMENT(seq, 1) PP_COMMA
-// \}
+//! \}
+//! \endcond
 
 //! Mix-in with implicit constructor from integral value.
 #define MIXIN_ENUM__IMPLICIT_INT_CONSTRUCTOR(name) \
@@ -118,7 +126,7 @@ protected:
         }
 
 //! ToString() mix-in.
-// \{
+//! \{
 #define MIXIN_ENUM__TO_STRING(basename, name, seq, derived) \
     public: \
         Stroka ToString() const \
@@ -141,10 +149,11 @@ protected:
 
 #define MIXIN_ENUM__TO_STRING__DEFAULT_RETURN(basename, name) \
     return PP_STRINGIZE(name) "(" + ::ToString(Value) + ")"
-// \}
+//! \}
 
+//! \cond Implementation
 //! ToString() declaration helper.
-// \{
+//! \{
 #define DECLARE_ENUM__TO_STRING_ITEM(item) \
     PP_IF( \
         PP_IS_SEQUENCE(item), \
@@ -159,16 +168,18 @@ protected:
 #define DECLARE_ENUM__TO_STRING_ITEM_SEQ(seq) \
     DECLARE_ENUM__TO_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 //! \}
+//! \endcond
 
 //! FromString() mix-in.
-// \{
+//! \{
 #define MIXIN_ENUM__FROM_STRING(basename, name, seq, derived) \
     public: \
         static name FromString(const Stroka& str) \
         { \
             name target; \
             if (!FromString(str, &target)) { \
-                ythrow yexception() << "Error parsing enumeration value '" << str << "'"; \
+                ythrow yexception() \
+                    << "Error parsing enumeration value '" << str << "'"; \
             } \
             return target; \
         } \
@@ -189,10 +200,11 @@ protected:
 
 #define MIXIN_ENUM__FROM_STRING__DERIVED_RETURN(basename, name) \
     return basename::FromString(str, reinterpret_cast<basename*>(target))
-// \}
+//! \}
 
+//! \cond Implementation
 //! FromString() declaration helper.
-// \{
+//! \{
 #define DECLARE_ENUM__FROM_STRING_ITEM(item) \
     PP_IF( \
         PP_IS_SEQUENCE(item), \
@@ -208,7 +220,8 @@ protected:
 
 #define DECLARE_ENUM__FROM_STRING_ITEM_SEQ(seq) \
     DECLARE_ENUM__FROM_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-// \}
+//! \}
+//! \endcond
 
 //! \endinternal
 //! \}
@@ -242,21 +255,24 @@ protected:
 #define END_DECLARE_ENUM() \
     }
 
-//! Declares an enumeration with explicit integral conversion and no custom methods.
+//! Declares an enumeration with explicit integral conversion
+//! and no custom methods.
 #define DECLARE_ENUM(name, seq) \
     BEGIN_DECLARE_ENUM(name, seq) \
         MIXIN_ENUM__EXPLICIT_INT_CONSTRUCTOR(name) \
     END_DECLARE_ENUM()
 
-//! Declares a derived enumeration with explicit integral conversion and no custom methods.
+//! Declares a derived enumeration with explicit integral conversion
+//! and no custom methods.
 #define DECLARE_DERIVED_ENUM(basename, name, seq) \
     BEGIN_DECLARE_DERIVED_ENUM(basename, name, seq) \
         MIXIN_ENUM__EXPLICIT_INT_CONSTRUCTOR(name) \
     END_DECLARE_ENUM()
 
+/*! \} */
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-//! \}
 

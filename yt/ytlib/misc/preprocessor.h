@@ -2,7 +2,7 @@
 
 /*!
  * \file preprocesor.h
- * \brief YT Preprocessor metaprogramming macroses
+ * \brief Preprocessor metaprogramming macroses
  */
 
 #if !defined(_MSC_VER) && !defined(__GNUC__)
@@ -10,17 +10,25 @@
 #endif
 
 /*!
- * \defgroup yt_preprocessor Preprocessor metaprogramming macroses
- * \ingroup YT
- * This is collection of macro definitions for various metaprogramming
- * tasks with the preprocessor.
- * \todo Write documentation on sequence data type and possible applications.
+ * \defgroup yt_pp Preprocessor metaprogramming macroses
+ * \ingroup yt_commons
+ *
+ * This is collection of macro definitions for various metaprogramming tasks
+ * with the preprocessor.
+ *
  * \{
- */
-
-/*! \page concepts Concepts
- * Everything revolves around the concept of a <em>sequence</em>. Typical
- * sequence is encoded like this, <tt>(1)(2)(3)(4)...</tt>.
+ *
+ * \page yt_pp_sequences Sequences
+ * Everything revolves around the concept of a \em sequence. Typical
+ * sequence is encoded like this, <tt>(1)(2)(3)...</tt>. Internally, this allows
+ * to apply some macro to the every element in the sequence (see #PP_FOR_EACH).
+ *
+ * Note that sequences can be nested, i. e. <tt>((1)(2)(3))(a)(b)(c)</tt>
+ *
+ * \page yt_pp_examples Examples
+ * Please refer to the unit test for an actual example of usage
+ * (unittests/preprocessor_ut.cpp).
+ *
  */
 
 //! Concatenates two tokens.
@@ -46,9 +54,9 @@
 
 //! Performs (non-lazy) conditional expansion.
 /*!
- * \param cond Condition; should expands to either PP_TRUE or PP_FALSE.
- * \param _then Expansion result in case when #cond holds.
- * \param _else Expansion result in case when #cond does not hold.
+ * \param cond Condition; should expands to either \c PP_TRUE or \c PP_FALSE.
+ * \param _then Expansion result in case when \c cond holds.
+ * \param _else Expansion result in case when \c cond does not hold.
  */
 #define PP_IF(cond, _then, _else) PP_CONCAT(PP_IF_, cond)(_then, _else)
 //! \cond Implementation
@@ -56,7 +64,8 @@
 #define PP_IF_PP_FALSE(x, y) y
 //! \endcond
 
-//! Tests whether supplied argument can be treated as a sequence (i. e. ()()()...)
+//! Tests whether supplied argument can be treated as a sequence
+//! (i. e. <tt>()()()...</tt>)
 #define PP_IS_SEQUENCE(arg) PP_CONCAT(PP_IS_SEQUENCE_B_, PP_COUNT((PP_NIL PP_IS_SEQUENCE_A arg PP_NIL)))
 //! \cond Implementation
 #define PP_IS_SEQUENCE_A(_) PP_RIGHT_PARENTHESIS PP_LEFT_PARENTHESIS
@@ -67,7 +76,7 @@
 //! Computes the number of elements in the sequence.
 #define PP_COUNT(...) PP_COUNT_IMPL(__VA_ARGS__)
 
-//! Removes first #n elements from the sequence.
+//! Removes first \c n elements from the sequence.
 #define PP_KILL(seq, n) PP_KILL_IMPL(seq, n)
 
 //! Extracts the head of the sequence.
@@ -81,9 +90,17 @@
 #define PP_TAIL(...) PP_TAIL_IMPL(__VA_ARGS__)
 
 //! Extracts the element with the specified index from the sequence.
+/*! For example, \code PP_ELEMENT((0)(1)(2)(3), 1) == 1 \endcode
+ */
 #define PP_ELEMENT(seq, index) PP_ELEMENT_IMPL(seq, index)
 
 //! Applies the macro to every member of the sequence.
+/*! For example,
+ * \code
+ * #define MyFunctor(x) +x+
+ * PP_FOR_EACH(MyFunctor, (0)(1)(2)(3)) == +0+ +1+ +2+ +3+
+ * \encode
+ */
 #define PP_FOR_EACH(what, seq) PP_FOR_EACH_IMPL(what, seq)
 
 //! \cond Implementation
@@ -92,5 +109,5 @@
 #undef PREPROCESSOR_GEN_H_
 //! \endcond
 
-//! \}
+/*! \} */
 
