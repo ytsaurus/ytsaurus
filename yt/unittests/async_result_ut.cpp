@@ -1,94 +1,87 @@
 #include "../ytlib/actions/async_result.h"
 
-#include <library/unittest/registar.h>
 #include <util/system/thread.h>
+
+#include "framework/framework.h"
 
 namespace NYT {
 
-class TAsyncResultTest
-    : public TTestBase
-{
-    UNIT_TEST_SUITE(TAsyncResultTest);
-        UNIT_TEST(TestTryGet);
-        UNIT_TEST(TestGet);
-        UNIT_TEST(TestSubsribe);
-        UNIT_TEST(TestAsync);
-    UNIT_TEST_SUITE_END();
+////////////////////////////////////////////////////////////////////////////////
 
-public:
-    void TestTryGet()
-    {
-        TAsyncResult<int> result;
-        int value;
-        UNIT_ASSERT(!result.TryGet(&value));
-        result.Set(57);
-        UNIT_ASSERT(result.TryGet(&value));
-        UNIT_ASSERT(value == 57);
-    }
-
-    void TestGet()
-    {
-        TAsyncResult<int> result;
-        result.Set(57);
-        UNIT_ASSERT(result.Get() == 57);
-    }
-
-    class TTestSubscriber
-        : public IParamAction<int>
-    {
-    public:
-        typedef TIntrusivePtr<TTestSubscriber> TPtr;
-
-        bool IsCalled;
-
-        TTestSubscriber()
-            : IsCalled(false)
-        {
-        }
-
-        virtual void Do(int value)
-        {
-            UNIT_ASSERT(!IsCalled);
-            UNIT_ASSERT(value == 57);
-            IsCalled = true;
-        }
-    };
-
-    void TestSubsribe()
-    {
-        TAsyncResult<int> result;
-        TTestSubscriber::TPtr subscriber1 = new TTestSubscriber(),
-                              subscriber2 = new TTestSubscriber();
-        result.Subscribe(subscriber1.Get());
-        result.Set(57);
-        UNIT_ASSERT(subscriber1->IsCalled);
-        result.Subscribe(subscriber2.Get());
-        UNIT_ASSERT(subscriber2->IsCalled);
-    }
-
-    static void* TestThreadRun(void* param)
-    {
-        Sleep(TDuration::Seconds(0.1));
-        TAsyncResult<int>* result = static_cast<TAsyncResult<int>*>(param);
-        result->Set(57);
-        return NULL;
-    }
-
-    void TestAsync()
-    {
-        TAsyncResult<int>::TPtr result = new TAsyncResult<int>();
-        TTestSubscriber::TPtr subscriber1 = new TTestSubscriber(),
-                                subscriber2 = new TTestSubscriber();
-        TThread thread(&TestThreadRun, result.Get());
-        result->Subscribe(subscriber1.Get());
-        thread.Start();
-        thread.Join();
-        UNIT_ASSERT(subscriber1->IsCalled);
-        result->Subscribe(subscriber2.Get());
-        UNIT_ASSERT(subscriber2->IsCalled);
-    }
+class TAsyncResultTest : public ::testing::Test {
+protected:
+    TAsyncResult<int> Result;
 };
 
-UNIT_TEST_SUITE_REGISTRATION(TAsyncResultTest);
+TEST_F(TAsyncResultTest, SimpleGet)
+{
+    Result.Set(57);
+
+    ASSERT_EQ(57, Result.Get());
+}
+
+TEST_F(TAsyncResultTest, SimpleTryGet)
+{
+    int value = 17;
+
+    ASSERT_FALSE(Result.TryGet(&value));
+    ASSERT_EQ(17, value);
+
+    Result.Set(42);
+
+    ASSERT_TRUE(Result.TryGet(&value));
+    ASSERT_EQ(42, value);
+}
+
+class TMockSubscriber : public IParamAction<int>
+{
+public:
+    typedef TIntrusivePtr<TMockSubscriber> TPtr;
+
+    MOCK_METHOD1(Do, void(int value));
+};
+
+TEST_F(TAsyncResultTest, Subscribe)
+{
+    TMockSubscriber::TPtr firstSubscriber = new TMockSubscriber();
+    TMockSubscriber::TPtr secondSubscriber = new TMockSubscriber();
+
+    EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
+    EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
+
+    Result.Subscribe(firstSubscriber.Get());
+    Result.Set(42);
+    Result.Subscribe(secondSubscriber.Get());
+}
+
+static void* AsynchronousSetter(void* param)
+{
+    Sleep(TDuration::Seconds(0.125));
+
+    TAsyncResult<int>* result = reinterpret_cast<TAsyncResult<int>*>(param);
+    result->Set(42);
+
+    return NULL;
+}
+
+TEST_F(TAsyncResultTest, SubscribeWithAsynchronousSet)
+{
+    TMockSubscriber::TPtr firstSubscriber = new TMockSubscriber();
+    TMockSubscriber::TPtr secondSubscriber = new TMockSubscriber();
+
+    EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
+    EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
+
+    Result.Subscribe(firstSubscriber.Get());
+
+    TThread thread(&AsynchronousSetter, &Result);
+    thread.Start();
+    thread.Join();
+    
+    Result.Subscribe(secondSubscriber.Get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

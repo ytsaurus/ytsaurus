@@ -2,7 +2,8 @@ PROGRAM(unittester)
 
 SRCS(
     utmain.cpp
-    change_log_ut.cpp
+    framework/framework.cpp
+    #change_log_ut.cpp
     async_result_ut.cpp
     snapshot_ut.cpp
     preprocessor_ut.cpp
@@ -10,7 +11,6 @@ SRCS(
     pattern_formatter_ut.cpp
     enum_ut.cpp
 )
-
 
 PEERDIR(
     yt/ytlib

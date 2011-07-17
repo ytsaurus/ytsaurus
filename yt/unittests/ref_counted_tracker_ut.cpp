@@ -3,18 +3,13 @@
 #include "../ytlib/misc/ptr.h"
 #include "../ytlib/misc/ref_counted_tracker.h"
 
-#include <library/unittest/registar.h>
+#include "framework/framework.h"
 
 namespace NYT {
 
-class TRefCountedTrackerTest
-    : public TTestBase
-{
-    UNIT_TEST_SUITE(TRefCountedTrackerTest);
-        UNIT_TEST(TestSimple);
-    UNIT_TEST_SUITE_END();
+////////////////////////////////////////////////////////////////////////////////
 
-private:
+namespace {
     class TSimpleObject : public NYT::TRefCountedBase
     {
         ui32 Foo;
@@ -22,41 +17,57 @@ private:
 
     public:
         typedef TIntrusivePtr<TSimpleObject> TPtr;
+
+        static int GetAliveCount()
+        {
+            return TRefCountedTracker::Get()->
+                GetAliveObjects(typeid(TSimpleObject));
+        }
+
+        static int GetTotalCount()
+        {
+            return TRefCountedTracker::Get()->
+                GetTotalObjects(typeid(TSimpleObject));
+        }
     };
+}
 
-public:
-    void TestSimple()
-    {
-        yvector<TSimpleObject::TPtr> container;
-        container.reserve(2000);
+////////////////////////////////////////////////////////////////////////////////
 
-        for (size_t i = 0; i < 1000; ++i) {
-            container.push_back(new TSimpleObject());
-        }
+TEST(TRefCountedTrackerTest, Simple)
+{
+    yvector<TSimpleObject::TPtr> container;
+    container.reserve(2000);
 
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetAliveObjects(typeid(TSimpleObject)), 1000);
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetTotalObjects(typeid(TSimpleObject)), 1000);
+    ASSERT_EQ(   0, TSimpleObject::GetAliveCount());
+    ASSERT_EQ(   0, TSimpleObject::GetTotalCount());
 
-        for (size_t i = 0; i < 1000; ++i) {
-            container.push_back(new TSimpleObject());
-        }
-
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetAliveObjects(typeid(TSimpleObject)), 2000);
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetTotalObjects(typeid(TSimpleObject)), 2000);
-
-        container.resize(1000);
-
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetAliveObjects(typeid(TSimpleObject)), 1000);
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetTotalObjects(typeid(TSimpleObject)), 2000);
-
-        container.resize(0);
-
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetAliveObjects(typeid(TSimpleObject)),    0);
-        UNIT_ASSERT_EQUAL(TRefCountedTracker::Get()->GetTotalObjects(typeid(TSimpleObject)), 2000);
+    for (size_t i = 0; i < 1000; ++i) {
+        container.push_back(new TSimpleObject());
     }
-};
 
-UNIT_TEST_SUITE_REGISTRATION(TRefCountedTrackerTest);
+    ASSERT_EQ(1000, TSimpleObject::GetAliveCount());
+    ASSERT_EQ(1000, TSimpleObject::GetTotalCount());
+
+    for (size_t i = 0; i < 1000; ++i) {
+        container.push_back(new TSimpleObject());
+    }
+
+    ASSERT_EQ(2000, TSimpleObject::GetAliveCount());
+    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+
+    container.resize(1000);
+
+    ASSERT_EQ(1000, TSimpleObject::GetAliveCount());
+    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+
+    container.resize(0);
+
+    ASSERT_EQ(   0, TSimpleObject::GetAliveCount());
+    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 

@@ -1,114 +1,97 @@
-// Add includes here.
-
 #include "../ytlib/misc/pattern_formatter.h"
-#include <library/unittest/registar.h>
+
+#include "framework/framework.h"
 
 namespace NYT {
 
-class TPatternFormatterTest
-    : public TTestBase
-{
-    UNIT_TEST_SUITE(TPatternFormatterTest);
-        UNIT_TEST(TestEmptyName);
+////////////////////////////////////////////////////////////////////////////////
 
-        UNIT_TEST(TestEmptyPattern);
-        UNIT_TEST(TestPatternWithoutProperties);
-        UNIT_TEST(TestEmptyName);
-        UNIT_TEST(TestMultipleDefinition);
-        UNIT_TEST(TestUsualCase);
-        UNIT_TEST(TestUndefinedValue);
-        UNIT_TEST(TestOptionalValue);
-        UNIT_TEST(TestBadSyntax);
-    UNIT_TEST_SUITE_END();
-
-public:
-
-    static void CheckFormatting(
-        TPatternFormatter& formatter,
-        Stroka pattern, Stroka answer)
-    {
-        Stroka result = formatter.Format(pattern);
-        UNIT_ASSERT_EQUAL(result, answer);
-    }
-
-    void TestEmptyPattern()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("key", "value");
-        CheckFormatting(formatter, "", "");
-    }
-
-    void TestPatternWithoutProperties()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("key1", "value1");
-        formatter.AddProperty("key2", "value2");
-        CheckFormatting(formatter, "some text", "some text");
-    }
-
-    void TestEmptyName()
-    {
-        {
-            TPatternFormatter formatter;
-            formatter.AddProperty("", "");
-            CheckFormatting(formatter, "<<-$()->>", "<<-->>");
-        }
-        {
-            TPatternFormatter formatter;
-            formatter.AddProperty("", "aaa");
-            CheckFormatting(formatter, "<<-$()->>", "<<-aaa->>");
-        }
-    }
-
-    void TestUsualCase()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("a", "1");
-        formatter.AddProperty("b", "10");
-        formatter.AddProperty("c", "100");
-        CheckFormatting(formatter, "$(a)", "1");
-        CheckFormatting(formatter,
-            "abcd - $(a)$(b) wxyz $(c)", "abcd - 110 wxyz 100");
-
-    }
-
-    void TestMultipleDefinition()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("aa", "1");
-        formatter.AddProperty("aa", "2");
-        CheckFormatting(formatter, "$(aa) + $(aa) = 4", "2 + 2 = 4");
-        formatter.AddProperty("aa", "9");
-        CheckFormatting(formatter, "3 * 3 = $(aa)", "3 * 3 = 9");
-    }
-
-    void TestUndefinedValue()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("a", "b");
-        formatter.AddProperty("key", "value");
-        UNIT_ASSERT_EXCEPTION(formatter.Format("$(a) $(kkeeyy)"), yexception);
-    }
-
-    void TestOptionalValue()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("abc", "1");
-        CheckFormatting(formatter, "$(abc)-$(def?)-", "1--");
-    }
-
-
-    void TestBadSyntax()
-    {
-        TPatternFormatter formatter;
-        formatter.AddProperty("a", "b");
-        UNIT_ASSERT_EXCEPTION(formatter.Format("$(a"), yexception);
-        UNIT_ASSERT_EXCEPTION(formatter.Format("$a)"), yexception);
-        UNIT_ASSERT_EXCEPTION(formatter.Format("$"), yexception);
-    }
-
+class TPatternFormatterTest : public ::testing::Test {
+protected:
+    TPatternFormatter Formatter;
 };
 
-UNIT_TEST_SUITE_REGISTRATION(TPatternFormatterTest);
+#define ASSERT_FORMAT(pattern, expected) \
+    ASSERT_EQ(Formatter.Format(pattern), (expected))
+
+TEST_F(TPatternFormatterTest, EmptyPattern)
+{
+    Formatter.AddProperty("key", "value");
+    ASSERT_FORMAT("", "");
+}
+
+TEST_F(TPatternFormatterTest, PatternWithoutProperties)
+{
+    Formatter.AddProperty("key", "value");
+    ASSERT_FORMAT("some text", "some text");
+}
+
+TEST_F(TPatternFormatterTest, PropertyWithEmptyName1)
+{
+    Formatter.AddProperty("", "");
+    ASSERT_FORMAT("<<-$()->>", "<<-->>");
+}
+
+TEST_F(TPatternFormatterTest, PropertyWithEmptyName2)
+{
+    Formatter.AddProperty("", "foobar");
+    ASSERT_FORMAT("<<-$()->>", "<<-foobar->>");
+}
+
+TEST_F(TPatternFormatterTest, CommonCase)
+{
+    Formatter.AddProperty("a", "1");
+    Formatter.AddProperty("b", "10");
+    Formatter.AddProperty("c", "100");
+    ASSERT_FORMAT("$(a)", "1");
+    ASSERT_FORMAT(
+        "Hello! You own me $(a)$(b) dollars; not $(c)!",
+        "Hello! You own me 110 dollars; not 100!");
+
+}
+
+TEST_F(TPatternFormatterTest, MultiplePropertyDeclaration)
+{
+    Formatter.AddProperty("x", "1");
+    ASSERT_FORMAT("<$(x)>", "<1>");
+    Formatter.AddProperty("x", "2");
+    ASSERT_FORMAT("<$(x)>", "<2>");
+    Formatter.AddProperty("x", "3");
+    ASSERT_FORMAT("<$(x)>", "<3>");
+}
+
+TEST_F(TPatternFormatterTest, MultiplePropertyUsage)
+{
+    Formatter.AddProperty("x", "2");
+    ASSERT_FORMAT("$(x) = 2", "2 = 2");
+    ASSERT_FORMAT("$(x) + $(x) = 4", "2 + 2 = 4");
+    ASSERT_FORMAT("$(x) + $(x) + $(x) = 6", "2 + 2 + 2 = 6");
+}
+
+TEST_F(TPatternFormatterTest, UndefinedValue)
+{
+    Formatter.AddProperty("a", "b");
+    Formatter.AddProperty("key", "value");
+    ASSERT_THROW(Formatter.Format("$(a) $(kkeeyy)"), yexception);
+}
+
+TEST_F(TPatternFormatterTest, OptionalValue)
+{
+    Formatter.AddProperty("abc", "1");
+    ASSERT_FORMAT("$(abc)-$(def?)-", "1--");
+}
+
+TEST_F(TPatternFormatterTest, BadSyntax)
+{
+    Formatter.AddProperty("a", "b");
+    ASSERT_THROW(Formatter.Format("$(a"), yexception);
+    ASSERT_THROW(Formatter.Format("$a)"), yexception);
+    ASSERT_THROW(Formatter.Format("$"),   yexception);
+}
+
+#undef ASSERT_FORMAT
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

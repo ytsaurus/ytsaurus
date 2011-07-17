@@ -1,6 +1,10 @@
 #include "../ytlib/misc/enum.h"
 
-#include <library/unittest/registar.h>
+#include "framework/framework.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
     DECLARE_ENUM(ESimple, (X)(Y)(Z));
@@ -29,101 +33,90 @@ namespace {
     DECLARE_DERIVED_ENUM(EMyBase, EMyOtherDerived, ((Jack)(3)));
 }
 
-namespace NYT {
+////////////////////////////////////////////////////////////////////////////////
 
-class TEnumTest
-    : public TTestBase
+TEST(TEnumTest, Basic)
 {
-    UNIT_TEST_SUITE(TEnumTest);
-        UNIT_TEST(TestBasic);
-        UNIT_TEST(TestToString);
-        UNIT_TEST(TestFromString);
-        UNIT_TEST(TestDerived);
-    UNIT_TEST_SUITE_END();
+    ASSERT_EQ(0, ESimple(ESimple::X).ToValue());
+    ASSERT_EQ(1, ESimple(ESimple::Y).ToValue());
+    ASSERT_EQ(2, ESimple(ESimple::Z).ToValue());
 
-public:
-    void TestBasic()
-    {
-        UNIT_ASSERT_EQUAL(ESimple(ESimple::X).ToValue(), 0);
-        UNIT_ASSERT_EQUAL(ESimple(ESimple::Y).ToValue(), 1);
-        UNIT_ASSERT_EQUAL(ESimple(ESimple::Z).ToValue(), 2);
+    ASSERT_EQ(0, EColor( ).ToValue());
+    ASSERT_EQ(5, EColor(5).ToValue());
 
-        UNIT_ASSERT_EQUAL(EColor( ).ToValue(), 0);
-        UNIT_ASSERT_EQUAL(EColor(5).ToValue(), 5);
+    ASSERT_EQ(10, EColor(EColor::Red  ).ToValue());
+    ASSERT_EQ(20, EColor(EColor::Green).ToValue());
+    ASSERT_EQ(30, EColor(EColor::Blue ).ToValue());
+    ASSERT_EQ(31, EColor(EColor::Black).ToValue());
+    ASSERT_EQ(32, EColor(EColor::White).ToValue());
+}
 
-        UNIT_ASSERT_EQUAL(EColor(EColor::Red  ).ToValue(), 10);
-        UNIT_ASSERT_EQUAL(EColor(EColor::Green).ToValue(), 20);
-        UNIT_ASSERT_EQUAL(EColor(EColor::Blue ).ToValue(), 30);
-        UNIT_ASSERT_EQUAL(EColor(EColor::Black).ToValue(), 31);
-        UNIT_ASSERT_EQUAL(EColor(EColor::White).ToValue(), 32);
-    }
+TEST(TEnumTest, ToString)
+{
+    ASSERT_EQ("EColor(0)", EColor( ).ToString());
+    ASSERT_EQ("EColor(5)", EColor(5).ToString());
 
-    void TestToString()
-    {
-        UNIT_ASSERT_EQUAL(EColor( ).ToString(), "EColor(0)");
-        UNIT_ASSERT_EQUAL(EColor(5).ToString(), "EColor(5)");
+    ASSERT_EQ("Red",   EColor(EColor::Red  ).ToString());
+    ASSERT_EQ("Green", EColor(EColor::Green).ToString());
+    ASSERT_EQ("Blue",  EColor(EColor::Blue ).ToString());
+    ASSERT_EQ("Black", EColor(EColor::Black).ToString());
+    ASSERT_EQ("White", EColor(EColor::White).ToString());
+}
 
-        UNIT_ASSERT_EQUAL(EColor(EColor::Red  ).ToString(), "Red");
-        UNIT_ASSERT_EQUAL(EColor(EColor::Green).ToString(), "Green");
-        UNIT_ASSERT_EQUAL(EColor(EColor::Blue ).ToString(), "Blue");
-        UNIT_ASSERT_EQUAL(EColor(EColor::Black).ToString(), "Black");
-        UNIT_ASSERT_EQUAL(EColor(EColor::White).ToString(), "White");
-    }
+TEST(TEnumTest, FromString)
+{
+    ASSERT_EQ(EColor::Red  , EColor::FromString("Red"  ));
+    ASSERT_EQ(EColor::Green, EColor::FromString("Green"));
+    ASSERT_EQ(EColor::Blue , EColor::FromString("Blue" ));
+    ASSERT_EQ(EColor::Black, EColor::FromString("Black"));
+    ASSERT_EQ(EColor::White, EColor::FromString("White"));
 
-    void TestFromString()
-    {
-        UNIT_ASSERT_EQUAL(EColor::FromString("Red"  ), EColor::Red  );
-        UNIT_ASSERT_EQUAL(EColor::FromString("Green"), EColor::Green);
-        UNIT_ASSERT_EQUAL(EColor::FromString("Blue" ), EColor::Blue );
-        UNIT_ASSERT_EQUAL(EColor::FromString("Black"), EColor::Black);
-        UNIT_ASSERT_EQUAL(EColor::FromString("White"), EColor::White);
+    ASSERT_THROW(EColor::FromString("Pink"), yexception);
 
-        UNIT_ASSERT_EXCEPTION(EColor::FromString("RedBull"), yexception);
+    EColor color;
+    bool returnValue;
 
-        EColor color;
-        bool returnValue;
+    returnValue = EColor::FromString("Red", &color);
+    ASSERT_EQ(EColor::Red, color);
+    ASSERT_EQ(true, returnValue);
 
-        returnValue = EColor::FromString("Red", &color);
-        UNIT_ASSERT_EQUAL(color, EColor::Red);
-        UNIT_ASSERT_EQUAL(returnValue, true);
+    returnValue = EColor::FromString("Pink", &color);
+    ASSERT_EQ(EColor::Red, color);
+    ASSERT_EQ(false, returnValue);
+}
 
-        returnValue = EColor::FromString("RedBull", &color);
-        UNIT_ASSERT_EQUAL(color, EColor::Red);
-        UNIT_ASSERT_EQUAL(returnValue, false);
-    }
+TEST(TEnumTest, Derived)
+{
+    EMyBase first;
+    EMyDerived second;
+    EMyOtherDerived third;
 
-    void TestDerived()
-    {
-        EMyBase first;
-        EMyDerived second;
-        EMyOtherDerived third;
+    third = EMyOtherDerived::Jack;
+    ASSERT_EQ(3, third.ToValue());
+    ASSERT_EQ("Jack", third.ToString());
+    third = EMyBase::Chip;
+    ASSERT_EQ(1, third.ToValue());
+    ASSERT_EQ("Chip", third.ToString());
 
-        third = EMyOtherDerived::Jack;
-        UNIT_ASSERT_EQUAL(third.ToValue(), 3);
-        UNIT_ASSERT_EQUAL(third.ToString(), "Jack");
-        third = EMyBase::Chip;
-        UNIT_ASSERT_EQUAL(third.ToValue(), 1);
-        UNIT_ASSERT_EQUAL(third.ToString(), "Chip");
+    second = EMyDerived::Dale;
+    ASSERT_EQ(2, second.ToValue());
+    ASSERT_EQ("Dale", second.ToString());
+    second = EMyBase::Chip;
+    ASSERT_EQ(1, second.ToValue());
+    ASSERT_EQ("Chip", second.ToString());
 
-        second = EMyDerived::Dale;
-        UNIT_ASSERT_EQUAL(second.ToValue(), 2);
-        UNIT_ASSERT_EQUAL(second.ToString(), "Dale");
-        second = EMyBase::Chip;
-        UNIT_ASSERT_EQUAL(second.ToValue(), 1);
-        UNIT_ASSERT_EQUAL(second.ToString(), "Chip");
+    first = EMyOtherDerived::Jack;
+    ASSERT_EQ(3, first.ToValue());
+    ASSERT_EQ("EMyBase(3)", first.ToString());
+    first = EMyDerived::Dale;
+    ASSERT_EQ(2, first.ToValue());
+    ASSERT_EQ("EMyBase(2)", first.ToString());
+    first = EMyBase::Chip;
+    ASSERT_EQ(1, first.ToValue());
+    ASSERT_EQ("Chip", first.ToString());
+}
 
-        first = EMyOtherDerived::Jack;
-        UNIT_ASSERT_EQUAL(first.ToValue(), 3);
-        UNIT_ASSERT_EQUAL(first.ToString(), "EMyBase(3)");
-        first = EMyDerived::Dale;
-        UNIT_ASSERT_EQUAL(first.ToValue(), 2);
-        UNIT_ASSERT_EQUAL(first.ToString(), "EMyBase(2)");
-        first = EMyBase::Chip;
-        UNIT_ASSERT_EQUAL(first.ToValue(), 1);
-        UNIT_ASSERT_EQUAL(first.ToString(), "Chip");
-    }
-};
-
-UNIT_TEST_SUITE_REGISTRATION(TEnumTest);
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
