@@ -1,5 +1,5 @@
 #!/bin/bash
-source /home/sandello/source/doxygen/common.sh
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 set +x
 
 rm -rf ${SOURCE}/doxygen/output

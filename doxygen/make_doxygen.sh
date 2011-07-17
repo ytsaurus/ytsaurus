@@ -1,5 +1,5 @@
 #!/bin/bash
-source /home/sandello/source/doxygen/common.sh
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 set -x
 
 LAST_CHANGED_REV=$(svn info ${SOURCE} | grep 'Last Changed Rev' | cut -d : -f 2- | cut -c 2-)
@@ -18,3 +18,4 @@ cat ${SOURCE}/doxygen/yt.cfg.template \
     > ${SOURCE}/doxygen/output/yt.cfg
 
 ${CELLAR}/bin/doxygen ${SOURCE}/doxygen/output/yt.cfg
+
