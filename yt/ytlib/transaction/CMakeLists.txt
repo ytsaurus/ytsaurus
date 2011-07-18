@@ -3,5 +3,5 @@ SET(YT_SOURCE_FILES
     transaction.cpp
     transaction_manager.cpp
     transaction_manager_rpc.h
-    transaction.proto
+    transaction_manager.proto
 )
