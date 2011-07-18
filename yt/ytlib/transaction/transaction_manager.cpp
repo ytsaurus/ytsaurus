@@ -85,7 +85,11 @@ void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
 
 TTransaction::TPtr TTransactionManager::FindTransaction(TTransactionId id)
 {
-    return State->FindTransaction(id);
+    TTransaction::TPtr transaction = State->FindTransaction(id);
+    if (~transaction != NULL) {
+        DoRenewTransactionLease(transaction);
+    }
+    return transaction;
 }
 
 TTransaction::TPtr TTransactionManager::DoStartTransaction()
@@ -149,15 +153,24 @@ void TTransactionManager::DoAbortTransaction(TTransaction::TPtr transaction)
         ~StringFromGuid(transaction->GetId()));
 }
 
+void TTransactionManager::DoRenewTransactionLease(TTransaction::TPtr transaction)
+{
+    TLeaseManager::TLease lease = transaction->GetLease();
+    LeaseManager->RenewLease(lease);
+}
+
 void TTransactionManager::OnTransactionExpired( TTransaction::TPtr transaction )
 {
-    // Check if the transaction is still registered.
-    if (~State->FindTransaction(transaction->GetId()) != NULL) {
-        LOG_INFO("Transaction expired (TransactionId: %s)",
-            ~StringFromGuid(transaction->GetId()));
+    TTransactionId id = transaction->GetId();
 
-        DoAbortTransaction(transaction);
-    }
+    // Check if the transaction is still registered.
+    if (~State->FindTransaction(id) == NULL)
+        return;
+
+    LOG_INFO("Transaction expired (TransactionId: %s)",
+        ~StringFromGuid(id));
+
+    DoAbortTransaction(transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,8 +231,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
         ~StringFromGuid(id));
 
     TTransaction::TPtr transaction = State->GetTransaction(id);
-    TLeaseManager::TLease lease = transaction->GetLease();
-    LeaseManager->RenewLease(lease);
+    DoRenewTransactionLease(transaction);
 
     context->Reply();
 }

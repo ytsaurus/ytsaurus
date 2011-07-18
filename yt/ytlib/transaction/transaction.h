@@ -19,14 +19,14 @@ public:
         : Id(id)
     { }
 
-    void SetLease(TLeaseManager::TLease lease)
-    {
-        Lease = lease;
-    }
-
     TLeaseManager::TLease GetLease() const
     {
         return Lease;
+    }
+
+    void SetLease(TLeaseManager::TLease lease)
+    {
+        Lease = lease;
     }
 
     TTransactionId GetId() const

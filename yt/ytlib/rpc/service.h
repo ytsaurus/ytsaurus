@@ -83,7 +83,7 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        IService::TPtr ns,
+        IService::TPtr service,
         TRequestId requestId,
         Stroka methodName,
         IMessage::TPtr message,

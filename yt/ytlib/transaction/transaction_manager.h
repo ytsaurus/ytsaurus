@@ -43,6 +43,9 @@ public:
     void RegisterHander(ITransactionHandler::TPtr handler);
 
     //! Finds transaction by id. Returns NULL if not found.
+    /*!
+     * If a transaction is found, its lease is renewed automatically.
+     */
     TTransaction::TPtr FindTransaction(TTransactionId id);
 
 private:
@@ -71,6 +74,7 @@ private:
     TTransaction::TPtr DoStartTransaction();
     void DoCommitTransaction(TTransaction::TPtr transaction);
     void DoAbortTransaction(TTransaction::TPtr transaction);
+    void DoRenewTransactionLease(TTransaction::TPtr transaction);
 
     void OnTransactionExpired(TTransaction::TPtr transaction);
 
