@@ -66,7 +66,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
     context->SetRequestInfo("HolderId: %d, %s, AddedChunkCount: %d, RemovedChunkCount: %d",
         id,
-        statistics.ToString(),
+        ~statistics.ToString(),
         request->AddedChunksSize(),
         request->RemovedChunkSize());
 
