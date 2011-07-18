@@ -19,7 +19,8 @@ message THolderStatistics
 
 message TReqRegisterHolder
 {
-    required THolderStatistics Statistics = 1;
+    required bytes Address = 1;
+    required THolderStatistics Statistics = 2;
 }
 
 message TRspRegisterHolder
@@ -42,6 +43,33 @@ message TReqHolderHeartbeat
 message TRspHolderHeartbeat
 {
     repeated bytes ChunksToRemove = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddChunk
+{
+    required bytes TransactionId = 1;
+    required int32 ReplicationFactor = 2;
+}
+
+message TRspAddChunk
+{
+    required bytes ChunkId = 1;
+    repeated bytes HolderAddresses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFindChunk
+{
+    required bytes TransactionId = 1;
+    required bytes ChunkId = 2;
+}
+
+message TRspFindChunk
+{
+    repeated bytes HolderAddresses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

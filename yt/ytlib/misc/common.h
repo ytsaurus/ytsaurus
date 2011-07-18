@@ -15,6 +15,7 @@
 
 #include <string>
 
+// TODO: remove this once we have our own TGuid implementation
 using std::string; // hack for guid.h to work
 #include <quality/Misc/Guid.h>
 
@@ -35,6 +36,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to a proper place
 struct TFixedChunkFooter
 {
     ui64 HeaderOffset;

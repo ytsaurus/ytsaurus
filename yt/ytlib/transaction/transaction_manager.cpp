@@ -18,8 +18,11 @@ class TTransactionManager::TState
 public:
     TTransaction::TPtr CreateTransaction()
     {
+        // Don't trust anyone!
         TTransactionId id;
-        CreateGuid(&id);
+        do {
+            CreateGuid(&id);
+        } while (Transactions.find(id) != Transactions.end());
         
         TTransaction::TPtr transaction = new TTransaction(id);
 
@@ -35,8 +38,10 @@ public:
         VERIFY(Transactions.erase(transaction->GetId()) == 1, "oops");
     }
 
-    TTransaction::TPtr FindTransaction(TTransactionId id)
+    TTransaction::TPtr FindTransaction(TTransactionId id, bool forUpdate = false)
     {
+        UNUSED(forUpdate);
+
         TTransactionMap::iterator it = Transactions.find(id);
         if (it == Transactions.end())
             return NULL;
@@ -44,9 +49,9 @@ public:
             return it->Second();
     }
 
-    TTransaction::TPtr GetTransaction(TTransactionId id)
+    TTransaction::TPtr GetTransaction(TTransactionId id, bool forUpdate = false)
     {
-        TTransaction::TPtr transaction = FindTransaction(id);
+        TTransaction::TPtr transaction = FindTransaction(id, forUpdate);
         if (~transaction == NULL) {
             ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
                 Sprintf("unknown or expired transaction %s",
@@ -83,9 +88,9 @@ void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
     Handlers.push_back(handler);
 }
 
-TTransaction::TPtr TTransactionManager::FindTransaction(TTransactionId id)
+TTransaction::TPtr TTransactionManager::FindTransaction(TTransactionId id, bool forUpdate)
 {
-    TTransaction::TPtr transaction = State->FindTransaction(id);
+    TTransaction::TPtr transaction = State->FindTransaction(id, forUpdate);
     if (~transaction != NULL) {
         DoRenewTransactionLease(transaction);
     }
@@ -200,7 +205,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~StringFromGuid(id));
     
-    TTransaction::TPtr transaction = State->GetTransaction(id);
+    TTransaction::TPtr transaction = State->GetTransaction(id, true);
     DoCommitTransaction(transaction);
 
     context->Reply();
@@ -215,7 +220,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~StringFromGuid(id));
 
-    TTransaction::TPtr transaction = State->GetTransaction(id);
+    TTransaction::TPtr transaction = State->GetTransaction(id, true);
     DoAbortTransaction(transaction);
 
     context->Reply();

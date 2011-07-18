@@ -4,6 +4,8 @@
 
 #include "../misc/lease_manager.h"
 
+#include "../chunk_holder/common.h"
+
 namespace NYT {
 namespace NTransaction {
 
@@ -14,6 +16,7 @@ class TTransaction
 {
 public:
     typedef TIntrusivePtr<TTransaction> TPtr;
+    typedef yvector<NChunkHolder::TChunkId> TChunks;
 
     TTransaction(const TTransactionId& id)
         : Id(id)
@@ -34,9 +37,15 @@ public:
         return Id;
     }
 
+    TChunks& AddedChunks()
+    {
+        return AddedChunks_;
+    }
+
 private:
     TTransactionId Id;
     TLeaseManager::TLease Lease;
+    TChunks AddedChunks_;
 
 };
 

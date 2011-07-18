@@ -46,7 +46,7 @@ public:
     /*!
      * If a transaction is found, its lease is renewed automatically.
      */
-    TTransaction::TPtr FindTransaction(TTransactionId id);
+    TTransaction::TPtr FindTransaction(TTransactionId id, bool forUpdate = false);
 
 private:
     typedef TTransactionManagerProxy::EErrorCode EErrorCode;

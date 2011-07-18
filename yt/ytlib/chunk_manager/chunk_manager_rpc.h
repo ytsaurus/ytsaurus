@@ -19,7 +19,7 @@ public:
 
     DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
         ((NoSuchTransaction)(1))
-        ((NoSuchHolderId)(2))
+        ((NoSuchHolder)(2))
     );
 
     static Stroka GetServiceName()
@@ -33,8 +33,8 @@ public:
 
     RPC_PROXY_METHOD(NProto, RegisterHolder);
     RPC_PROXY_METHOD(NProto, HolderHeartbeat);
-    //RPC_PROXY_METHOD(NProto, AbortTransaction);
-    //RPC_PROXY_METHOD(NProto, RenewTransactionLease);
+    RPC_PROXY_METHOD(NProto, AddChunk);
+    RPC_PROXY_METHOD(NProto, FindChunk);
 
 };
 
