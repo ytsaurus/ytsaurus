@@ -15,7 +15,12 @@
 
 namespace NYT
 {
+
+///////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger Logger("ChunkWriter");
+
+///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteChunkWriter::TBlock 
     : public TRefCountedBase
@@ -246,8 +251,10 @@ void TRemoteChunkWriter::AddBlock(TBlob *buffer)
 {
     CheckStateAndThrow();
     
-    while (!WindowSlots)
+    while (WindowSlots == 0) {
         WindowReady.Wait();
+    }
+
     AtomicDecrement(WindowSlots);
 
     LOG_DEBUG("Session %s, client adds new block", ~Id);

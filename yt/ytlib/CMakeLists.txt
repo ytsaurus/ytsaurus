@@ -36,9 +36,10 @@ MACRO(YT_SUBDIRECTORY DIR)
 ENDMACRO(YT_SUBDIRECTORY)
 
 YT_SUBDIRECTORY(actions)
-YT_SUBDIRECTORY(client)
+#YT_SUBDIRECTORY(client)
 YT_SUBDIRECTORY(election)
 YT_SUBDIRECTORY(chunk_holder)
+YT_SUBDIRECTORY(chunk_client)
 YT_SUBDIRECTORY(logging)
 YT_SUBDIRECTORY(master)
 YT_SUBDIRECTORY(misc)
@@ -52,7 +53,7 @@ SET_APPEND(SRCS
     ${ARCADIA_ROOT}/quality/util/file_utils.cpp
 )
 
-#Removes header files from build in VS
+# Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(
     ${HEADERS}
     PROPERTIES HEADER_FILE_ONLY TRUE
