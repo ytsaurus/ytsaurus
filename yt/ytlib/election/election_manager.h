@@ -16,6 +16,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to common.h
 typedef TGUID TMasterEpoch;
 typedef i64 TMasterPriority;
 
