@@ -3,7 +3,7 @@
 #include "common.h"
 #include "transaction.h"
 #include "transaction_manager_rpc.h"
-#include "transaction.pb.h"
+#include "transaction_manager.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/server.h"
