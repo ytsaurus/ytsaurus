@@ -42,7 +42,7 @@ struct THolderStatistics
 
     Stroka ToString() const
     {
-        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64, ", ChunkCount: %d",
+        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d",
             AvailableSpace,
             UsedSpace,
             ChunkCount);
