@@ -29,7 +29,7 @@ public:
         TChunk::TPtr chunk = new TChunk(id);
         Chunks.insert(MakePair(id, chunk));
 
-        LOG_INFO("Chunk added (ChunkId: %d)",
+        LOG_INFO("Chunk added (ChunkId: %s)",
             ~StringFromGuid(id));
 
         return chunk;
@@ -40,7 +40,7 @@ public:
         TChunk::TPtr chunk = new TChunk(id, size);
         Chunks.insert(MakePair(id, chunk));
 
-        LOG_INFO("Chunk registered (ChunkId: %d, Size: %" PRId64 ")",
+        LOG_INFO("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
             ~StringFromGuid(id),
             size);
 
@@ -147,7 +147,9 @@ void TChunkManager::AddChunkLocation(TChunk::TPtr chunk, THolder::TPtr holder)
 }
 
 void TChunkManager::OnTransactionStarted(TTransaction::TPtr transaction)
-{ }
+{
+    UNUSED(transaction);
+}
 
 void TChunkManager::OnTransactionCommitted(TTransaction::TPtr transaction)
 {
