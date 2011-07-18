@@ -23,7 +23,8 @@ using std::string; // hack for guid.h to work
     #pragma warning (disable : 4505)
     // C4121: alignment of a member was sensitive to packing
     #pragma warning (disable : 4121)
-
+    // C4503: decorated name length exceeded, name was truncated
+    #pragma warning (disable : 4503)
 #endif
 
 // This define enabled tracking of reference-counted objects to provide

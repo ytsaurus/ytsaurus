@@ -45,7 +45,7 @@ YT_SUBDIRECTORY(master)
 YT_SUBDIRECTORY(misc)
 YT_SUBDIRECTORY(rpc)
 YT_SUBDIRECTORY(bus)
-
+YT_SUBDIRECTORY(transaction)
 
 # TODO: drop dependency to quality/util
 SET_APPEND(SRCS

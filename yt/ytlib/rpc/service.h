@@ -83,7 +83,7 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        IService::TPtr service,
+        IService::TPtr ns,
         TRequestId requestId,
         Stroka methodName,
         IMessage::TPtr message,
@@ -312,10 +312,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_SERVICE_METHOD_DECL(service, method) \
-    typedef ::NYT::NRpc::TTypedServiceRequest<service::TReq##method, service::TRsp##method> TReq##method; \
-    typedef ::NYT::NRpc::TTypedServiceResponse<service::TReq##method, service::TRsp##method> TRsp##method; \
-    typedef ::NYT::NRpc::TTypedServiceContext<service::TReq##method, service::TRsp##method> TCtx##method; \
+#define RPC_SERVICE_METHOD_DECL(ns, method) \
+    typedef ::NYT::NRpc::TTypedServiceRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
+    typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
     \
     void method##Thunk(::NYT::NRpc::TServiceContext::TPtr context); \
     \

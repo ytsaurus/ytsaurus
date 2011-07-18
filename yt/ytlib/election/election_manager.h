@@ -22,6 +22,7 @@ typedef i64 TMasterPriority;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: make refcounted
 struct IElectionCallbacks
 {
     virtual void StartLeading(TMasterEpoch epoch) = 0;
