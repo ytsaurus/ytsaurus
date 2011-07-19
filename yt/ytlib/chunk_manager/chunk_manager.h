@@ -27,7 +27,7 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        NRpc::TServer* server,
+        NRpc::TServer::TPtr server,
         NTransaction::TTransactionManager::TPtr transactionManager);
  
 private:

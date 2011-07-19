@@ -48,7 +48,7 @@ public:
         TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker,
         IMasterState::TPtr masterState,
-        NRpc::TServer* server);
+        NRpc::TServer::TPtr server);
     ~TMasterStateManager();
 
     // TODO: refactor; in-class declarations should be logically regroupped

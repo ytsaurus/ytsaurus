@@ -37,7 +37,6 @@ class TTypedClientResponse;
 
 class TChannel
     : public IMessageHandler
-    , public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TChannel> TPtr;

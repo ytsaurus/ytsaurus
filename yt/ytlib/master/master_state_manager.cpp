@@ -21,7 +21,7 @@ TMasterStateManager::TMasterStateManager(
     TCellManager::TPtr cellManager,
     IInvoker::TPtr serviceInvoker,
     IMasterState::TPtr masterState,
-    NRpc::TServer* server)
+    NRpc::TServer::TPtr server)
     : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , State(EState::Stopped)
     , Config(config)

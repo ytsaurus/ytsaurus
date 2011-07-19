@@ -33,7 +33,7 @@ class TBusClient::TBus
 public:
     typedef TIntrusivePtr<TBus> TPtr;
 
-    TBus(TBusClient::TPtr client, IMessageHandler* handler);
+    TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler);
     void Initialize();
 
     void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId);
@@ -49,7 +49,7 @@ private:
     typedef yhash_set<TGUID, TGUIDHash> TRequestIdSet;
 
     TBusClient::TPtr Client;
-    IMessageHandler* Handler;
+    IMessageHandler::TPtr Handler;
     volatile bool Terminated;
     TAtomic SequenceId;
     TSessionId SessionId;
@@ -494,7 +494,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler* handler)
+TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
     : Client(client)
     , Handler(handler)
     , Terminated(false)
@@ -549,7 +549,7 @@ TBusClient::TBusClient(Stroka address)
         throw yexception() << "Failed to resolve the address " << address;
 }
 
-IBus::TPtr TBusClient::CreateBus(IMessageHandler* handler)
+IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
     TBus::TPtr bus = new TBus(this, handler);
     bus->Initialize();

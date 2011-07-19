@@ -9,11 +9,12 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: make refcounted
 class TServer
     : public IMessageHandler
 {
 public:
+    typedef TIntrusivePtr<TServer> TPtr;
+
     TServer(int port, IInvoker::TPtr invoker);
 
     void RegisterService(IService::TPtr service);

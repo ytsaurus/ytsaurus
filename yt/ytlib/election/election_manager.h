@@ -60,7 +60,7 @@ public:
         TCellManager::TPtr cellManager,
         IInvoker::TPtr invoker,
         IElectionCallbacks* electionCallbacks,
-        NRpc::TServer* server);
+        NRpc::TServer::TPtr server);
     ~TElectionManager();
 
     void Start();

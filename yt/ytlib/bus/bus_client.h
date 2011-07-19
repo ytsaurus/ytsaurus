@@ -22,7 +22,7 @@ public:
 
     TBusClient(Stroka address);
 
-    IBus::TPtr CreateBus(IMessageHandler* handler);
+    IBus::TPtr CreateBus(IMessageHandler::TPtr handler);
 
 private:
     class TBus;

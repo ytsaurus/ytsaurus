@@ -34,7 +34,7 @@ public:
     //! Creates an instance.
     TTransactionManager(
         const TConfig& config,
-        NRpc::TServer* server);
+        NRpc::TServer::TPtr server);
 
     //! Registers a handler.
     /*!

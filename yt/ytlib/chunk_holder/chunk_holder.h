@@ -24,7 +24,7 @@ public:
 
     TChunkHolder(
         const TConfig& config,
-        NRpc::TServer* server);
+        NRpc::TServer::TPtr server);
     ~TChunkHolder();
 
 private:

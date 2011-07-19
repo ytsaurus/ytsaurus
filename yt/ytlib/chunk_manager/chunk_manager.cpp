@@ -89,7 +89,7 @@ private:
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    NRpc::TServer* server,
+    NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TServiceBase(
         TChunkManagerProxy::GetServiceName(),

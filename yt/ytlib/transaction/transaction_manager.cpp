@@ -71,7 +71,7 @@ private:
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
-    NRpc::TServer* server)
+    NRpc::TServer::TPtr server)
     : TServiceBase(
         TTransactionManagerProxy::GetServiceName(),
         TransactionLogger.GetCategory())

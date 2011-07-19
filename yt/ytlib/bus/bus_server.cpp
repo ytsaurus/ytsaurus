@@ -166,12 +166,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusServer::TBusServer(int port, IMessageHandler* handler)
+TBusServer::TBusServer(int port, IMessageHandler::TPtr handler)
     : Handler(handler)
     , Terminated(false)
     , Thread(ThreadFunc, (void*) this)
 {
-    YASSERT(Handler != NULL);
+    YASSERT(~Handler != NULL);
 
     Requester = CreateHttpUdpRequester(port);
     if (~Requester == NULL)

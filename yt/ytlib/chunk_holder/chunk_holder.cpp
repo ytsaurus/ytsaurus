@@ -16,7 +16,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TChunkHolder::TChunkHolder(
     const TConfig& config,
-    NRpc::TServer* server)
+    NRpc::TServer::TPtr server)
     : NRpc::TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , Config(config)
 {

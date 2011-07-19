@@ -29,7 +29,10 @@ struct IBus
 
 // TODO: make refcounted
 struct IMessageHandler
+    : public virtual TRefCountedBase
 {
+    typedef TIntrusivePtr<IMessageHandler> TPtr;
+
     virtual ~IMessageHandler() {}
     virtual void OnMessage(
         IMessage::TPtr message,

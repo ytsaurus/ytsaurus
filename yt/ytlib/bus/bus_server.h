@@ -20,7 +20,7 @@ public:
 
     TBusServer(
         int port,
-        IMessageHandler* handler);
+        IMessageHandler::TPtr handler);
     virtual ~TBusServer();
 
     void Terminate();
@@ -35,7 +35,7 @@ private:
     typedef yhash_map<TSessionId, TIntrusivePtr<TSession>, TGUIDHash> TSessionMap;
     typedef yhash_map<TGUID, TIntrusivePtr<TSession>, TGUIDHash> TPingMap;
 
-    IMessageHandler* Handler;
+    IMessageHandler::TPtr Handler;
     volatile bool Terminated;
     TIntrusivePtr<IRequester> Requester;
     TThread Thread;
