@@ -58,6 +58,7 @@ class TChunkStore
 {
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;
+    typedef yvector<TChunk::TPtr> TChunks;
 
     //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
@@ -82,6 +83,9 @@ public:
 
     //! Returns current statistics.
     THolderStatistics GetStatistics() const;
+
+    //! Returns the list of all registered chunks.
+    TChunks GetChunks();
 
 private:
     void ScanChunks();

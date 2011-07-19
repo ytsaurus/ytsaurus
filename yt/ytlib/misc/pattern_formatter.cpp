@@ -37,7 +37,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
 
         bool foundRightParen = false;
         size_t startProperty = pos;
-        size_t endProperty;
+        size_t endProperty = 0;
 
         for (; pos < pattern.size(); ++pos) {
             if (pattern[pos] == RightParen) {
@@ -54,7 +54,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
         }
 
         bool isOptional = false;
-        if (pattern[endProperty-1] == Question) {
+        if (pattern[endProperty - 1] == Question) {
             --endProperty;
             isOptional = true;
         }

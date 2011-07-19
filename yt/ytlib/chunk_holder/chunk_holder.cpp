@@ -122,13 +122,20 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
     SessionManager->FinishSession(session)->Subscribe(FromMethod(
         &TChunkHolder::OnFinishedChunk,
         TPtr(this),
+        chunkId,
         context));
 }
 
 void TChunkHolder::OnFinishedChunk(
     TVoid,
+    const TChunkId& chunkId,
     TCtxFinishChunk::TPtr context)
 {
+    if (~MasterConnector != NULL) {
+        TChunk::TPtr chunk = ChunkStore->FindChunk(chunkId);
+        YASSERT(~chunk != NULL);
+        MasterConnector->RegisterAddedChunk(chunk);
+    }
     context->Reply();
 }
 

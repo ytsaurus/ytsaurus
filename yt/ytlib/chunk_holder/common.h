@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_holder.pb.h"
+#include "chunk_manager.pb.h"
 
 #include "../misc/common.h"
 #include "../misc/string.h"
@@ -129,6 +130,7 @@ struct TBlockIdHash
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: to statistics.h/cpp
 struct THolderStatistics
 {
     THolderStatistics()
@@ -141,7 +143,7 @@ struct THolderStatistics
     i64 UsedSpace;
     i32 ChunkCount;
 
-    static THolderStatistics FromProto(const NProto::THolderStatistics& proto)
+    static THolderStatistics FromProto(const NChunkManager::NProto::THolderStatistics& proto)
     {
         THolderStatistics result;
         result.AvailableSpace = proto.GetAvailableSpace();
@@ -150,9 +152,9 @@ struct THolderStatistics
         return result;
     }
 
-    NProto::THolderStatistics ToProto() const
+    NChunkManager::NProto::THolderStatistics ToProto() const
     {
-        NProto::THolderStatistics result;
+        NChunkManager::NProto::THolderStatistics result;
         result.SetAvailableSpace(AvailableSpace);
         result.SetUsedSpace(UsedSpace);
         result.SetChunkCount(0);

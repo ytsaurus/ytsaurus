@@ -2,15 +2,6 @@ package NYT.NChunkHolder.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message THolderStatistics
-{
-    required int64 AvailableSpace = 1;
-    required int64 UsedSpace = 2;
-    required int32 ChunkCount = 3;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqStartChunk
 {
     required bytes ChunkId = 1;

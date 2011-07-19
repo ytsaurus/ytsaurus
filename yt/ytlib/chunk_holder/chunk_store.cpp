@@ -111,6 +111,19 @@ THolderStatistics TChunkStore::GetStatistics() const
     return result;
 }
 
+NYT::NChunkHolder::TChunkStore::TChunks TChunkStore::GetChunks()
+{
+    TChunks result;
+    result.reserve(ChunkMap.ysize());
+    for (TChunkMap::iterator it = ChunkMap.begin();
+        it != ChunkMap.end();
+        ++it)
+    {
+        result.push_back(it->Second());
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkHolder
