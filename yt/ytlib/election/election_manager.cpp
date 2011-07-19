@@ -38,7 +38,7 @@ TElectionManager::TElectionManager(
     const TConfig& config,
     TCellManager::TPtr cellManager,
     IInvoker::TPtr invoker,
-    IElectionCallbacks* electionCallbacks,
+    IElectionCallbacks::TPtr electionCallbacks,
     NRpc::TServer::TPtr server)
     : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
     , State(TProxy::EState::Stopped)
@@ -228,7 +228,7 @@ public:
     {
         YASSERT(ElectionManager->State == TProxy::EState::Voting);
 
-        IElectionCallbacks* callbacks = ElectionManager->ElectionCallbacks;
+        IElectionCallbacks::TPtr callbacks = ElectionManager->ElectionCallbacks;
         TCellManager::TPtr cellManager = ElectionManager->CellManager;
         
         TMasterPriority priority = callbacks->GetPriority();

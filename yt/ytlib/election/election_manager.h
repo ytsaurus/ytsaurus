@@ -16,15 +16,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to common.h
-typedef TGUID TMasterEpoch;
-typedef i64 TMasterPriority;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: make refcounted
 struct IElectionCallbacks
+    : public virtual TRefCountedBase
 {
+    typedef TIntrusivePtr<IElectionCallbacks> TPtr;
+
     virtual void StartLeading(TMasterEpoch epoch) = 0;
     virtual void StopLeading() = 0;
     virtual void StartFollowing(TMasterId leaderId, TMasterEpoch epoch) = 0;
@@ -59,7 +55,7 @@ public:
         const TConfig& config,
         TCellManager::TPtr cellManager,
         IInvoker::TPtr invoker,
-        IElectionCallbacks* electionCallbacks,
+        IElectionCallbacks::TPtr electionCallbacks,
         NRpc::TServer::TPtr server);
     ~TElectionManager();
 
@@ -98,7 +94,7 @@ private:
     TConfig Config;
     TCellManager::TPtr CellManager;
     IInvoker::TPtr Invoker;
-    IElectionCallbacks* ElectionCallbacks;
+    IElectionCallbacks::TPtr ElectionCallbacks;
 
     RPC_SERVICE_METHOD_DECL(NRpcElectionManager, PingFollower);
     RPC_SERVICE_METHOD_DECL(NRpcElectionManager, GetStatus);
