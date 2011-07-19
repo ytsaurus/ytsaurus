@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "guid.h"
+
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/file.h>
@@ -10,8 +12,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGUID GuidFromProtoGuid(const Stroka& protoGuid);
-Stroka ProtoGuidFromGuid(const TGUID& guid);
+TGuid GuidFromProtoGuid(const Stroka& protoGuid);
+Stroka ProtoGuidFromGuid(const TGuid& guid);
 
 ////////////////////////////////////////////////////////////////////////////////
 

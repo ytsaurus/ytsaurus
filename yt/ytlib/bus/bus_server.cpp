@@ -50,7 +50,7 @@ public:
         TBusServer::TPtr server,
         const TSessionId& sessionId,
         const TUdpAddress& clientAddress,
-        const TGUID& pingId)
+        const TGuid& pingId)
         : Server(server)
         , SessionId(sessionId)
         , ClientAddress(clientAddress)
@@ -91,7 +91,7 @@ public:
         return SessionId;
     }
 
-    TGUID GetPingId() const
+    TGuid GetPingId() const
     {
         return PingId;
     }
@@ -116,7 +116,7 @@ public:
         server->EnqueueReply(this, reply);
 
         LOG_DEBUG("Reply enqueued (SessionId: %s, Reply: %p, PacketSize: %d)",
-            ~StringFromGuid(SessionId),
+            ~SessionId.ToString(),
             ~reply,
             dataSize);
 
@@ -141,13 +141,13 @@ public:
     }
 
 private:
-    typedef yvector<TGUID> TRequestIds;
+    typedef yvector<TGuid> TRequestIds;
     typedef NStl::deque<IMessage::TPtr> TResponseMessages;
 
     TBusServer::TPtr Server;
     TSessionId SessionId;
     TUdpAddress ClientAddress;
-    TGUID PingId;
+    TGuid PingId;
     bool Terminated;
     TAtomic SequenceId;
     THolder<TMessageRearranger> MessageRearranger;
@@ -258,7 +258,7 @@ void TBusServer::ProcessNLRequest(TUdpHttpRequest* nlRequest)
 
         default:
             LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %s)",
-                ~StringFromGuid(nlRequest->ReqId),
+                ~((TGuid) nlRequest->ReqId).ToString(),
                 ~header->Type.ToString());
             return;
     }
@@ -299,7 +299,7 @@ void TBusServer::ProcessNLResponse(TUdpHttpResponse* nlResponse)
 
         default:
             LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %s)",
-                ~StringFromGuid(nlResponse->ReqId),
+                ~((TGuid) nlResponse->ReqId).ToString(),
                 ~header->Type.ToString());
     }
 }
@@ -309,10 +309,10 @@ void TBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
     TPingMap::iterator pingIt = PingMap.find(nlResponse->ReqId);
     if (pingIt == PingMap.end()) {
         LOG_DEBUG("Request failed (RequestId: %s)",
-            ~StringFromGuid(nlResponse->ReqId));
+            ~((TGuid) nlResponse->ReqId).ToString());
     } else {
         LOG_DEBUG("Ping failed (RequestId: %s)",
-            ~StringFromGuid(nlResponse->ReqId));
+            ~((TGuid) nlResponse->ReqId).ToString());
 
         TSession::TPtr session = pingIt->Second();
         UnregisterSession(session);
@@ -339,23 +339,24 @@ bool TBusServer::ProcessReplies()
 
 void TBusServer::ProcessReply(TSession::TPtr session, TReply::TPtr reply)
 {
-    TGUID requestId = session->SendReply(reply);
+    TGuid requestId = session->SendReply(reply);
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Reply: %p)",
-        ~StringFromGuid(session->GetSessionId()),
-        ~StringFromGuid(requestId),
+        ~session->GetSessionId().ToString(),
+        ~requestId.ToString(),
         ~reply);
 }
 
 void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
 {
-    TPingMap::iterator pingIt = PingMap.find(nlResponse->ReqId);
+    TGuid requestId = nlResponse->ReqId;
+    TPingMap::iterator pingIt = PingMap.find(requestId);
     if (pingIt == PingMap.end()) {
         LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(header->SessionId),
-            ~StringFromGuid(nlResponse->ReqId));
+            ~header->SessionId.ToString(),
+            ~requestId.ToString());
     } else {
         LOG_DEBUG("Ping ack received (RequestId: %s)",
-            ~StringFromGuid(nlResponse->ReqId));
+            ~requestId.ToString());
 
         TSession::TPtr session = pingIt->Second();
         UnregisterSession(session);
@@ -364,9 +365,10 @@ void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
 
 void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
 {
+    TGuid requestId = nlRequest->ReqId;
     TSession::TPtr session = DoProcessMessage(
         header,
-        nlRequest->ReqId,
+        requestId,
         nlRequest->PeerAddress,
         nlRequest->Data,
         true);
@@ -376,8 +378,8 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         Requester->SendResponse(nlRequest->ReqId, &reply->Data);
 
         LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Reply: %p)",
-            ~StringFromGuid(session->GetSessionId()),
-            ~StringFromGuid(nlRequest->ReqId),
+            ~session->GetSessionId().ToString(),
+            ~requestId.ToString(),
             ~reply);
     } else {
         TBlob ackData;
@@ -386,8 +388,8 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         Requester->SendResponse(nlRequest->ReqId, &ackData);
 
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(session->GetSessionId()),
-            ~StringFromGuid(nlRequest->ReqId));
+            ~session->GetSessionId().ToString(),
+            ~requestId.ToString());
     }
 }
 
@@ -403,7 +405,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlRespo
 
 TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
     TPacketHeader* header,
-    const TGUID& requestId,
+    const TGuid& requestId,
     const TUdpAddress& address,
     TBlob& data,
     bool isRequest)
@@ -417,8 +419,8 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
             session = RegisterSession(header->SessionId, address);
         } else {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
-                ~StringFromGuid(header->SessionId),
-                ~StringFromGuid(requestId),
+                ~header->SessionId.ToString(),
+                ~requestId.ToString(),
                 dataSize);
             return NULL;
         }
@@ -433,8 +435,8 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
 
     LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
         (int) isRequest,
-        ~StringFromGuid(header->SessionId),
-        ~StringFromGuid(requestId),
+        ~header->SessionId.ToString(),
+        ~requestId.ToString(),
         sequenceId,
         dataSize);
 
@@ -456,7 +458,7 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
 {
     TBlob data;
     CreatePacket(sessionId, TPacketHeader::EType::Ping, &data);
-    TGUID pingId = Requester->SendRequest(clientAddress, "", &data);
+    TGuid pingId = Requester->SendRequest(clientAddress, "", &data);
 
     TSession::TPtr session = new TSession(
         this,
@@ -469,9 +471,9 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
     SessionMap.insert(MakePair(sessionId, session));
 
     LOG_DEBUG("Session registered (SessionId: %s, ClientAddress: %s, PingId: %s)",
-        ~StringFromGuid(sessionId),
+        ~sessionId.ToString(),
         ~GetAddressAsString(clientAddress),
-        ~StringFromGuid(pingId));
+        ~pingId.ToString());
 
     return session;
 }
@@ -484,7 +486,7 @@ void TBusServer::UnregisterSession(TIntrusivePtr<TSession> session)
     VERIFY(PingMap.erase(session->GetPingId()) == 1, "Failed to erase a session ping");
 
     LOG_DEBUG("Session unregistered (SessionId: %s)",
-        ~StringFromGuid(session->GetSessionId()));
+        ~session->GetSessionId().ToString());
 }
 
 Stroka TBusServer::GetDebugInfo()

@@ -141,7 +141,7 @@ void TServiceContext::LogException(
     Stroka what)
 {
     Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
     AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
     AppendInfo(str, Sprintf("What: %s", what.c_str()));
@@ -156,7 +156,7 @@ void TServiceContext::LogException(
 void TServiceContext::LogRequestInfo()
 {
     Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
     AppendInfo(str, RequestInfo);
     LOG_EVENT(
         ServiceLogger,
@@ -169,7 +169,7 @@ void TServiceContext::LogRequestInfo()
 void TServiceContext::LogResponseInfo(EErrorCode errorCode)
 {
     Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~StringFromGuid(RequestId)));
+    AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
     AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
     LOG_EVENT(

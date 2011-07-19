@@ -7,6 +7,7 @@
 #include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../misc/fs.h"
+#include "../misc/guid.h"
 
 namespace NYT {
 
@@ -72,7 +73,7 @@ void TMasterStateManager::RegisterMethods()
 // TODO: cascading restart issue
 void TMasterStateManager::Restart()
 {
-    MyEpoch = TGUID();
+    MyEpoch = TGuid();
     ElectionManager->Restart();
 }
 
@@ -130,7 +131,7 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
     EpochInvoker = ElectionManager->GetEpochInvoker();
     Epoch = epoch;
 
-    CreateGuid(&MyEpoch);
+    MyEpoch = TGuid::Create();
 
     TChangeLogDownloader::TConfig changeLogDownloaderConfig;
     // TODO: fill config
@@ -209,7 +210,7 @@ void TMasterStateManager::SendSync(TMasterId masterId, TMasterEpoch epoch)
     LOG_DEBUG("Sync sent to master %d (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
         masterId,
         ~stateId.ToString(),
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         maxSnapshotId);
 }
 
@@ -225,7 +226,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, Sync)
 
     context->SetRequestInfo("StateId: %s, Epoch: %s, MaxSnapshotId: %d",
         ~stateId.ToString(),
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         maxSnapshotId);
 
     context->Reply();
@@ -404,7 +405,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
     TMasterStateId stateId(segmentId, changeCount);
 
     context->SetRequestInfo("Epoch: %s, StateId: %s",
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         ~stateId.ToString());
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
@@ -416,8 +417,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
         Restart();
         ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
             Sprintf("invalid epoch (expected: %s, received: %s)",
-                ~StringFromGuid(Epoch),
-                ~StringFromGuid(epoch));
+                ~Epoch.ToString(),
+                ~epoch.ToString());
     }
     
     YASSERT(request->Attachments().size() == 1);
@@ -501,7 +502,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
     TMasterStateId stateId(segmentId, changeCount);
 
     context->SetRequestInfo("Epoch: %s, StateId: %s",
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         ~stateId.ToString());
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
@@ -513,8 +514,8 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
         Restart();
         ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
             Sprintf("invalid epoch: expected %s, received %s",
-                ~StringFromGuid(Epoch),
-                ~StringFromGuid(epoch));
+                ~Epoch.ToString(),
+                ~epoch.ToString());
     }
 
     switch (State) {
@@ -574,7 +575,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
 
     context->SetRequestInfo("Id: %d, Epoch: %s, State: %s",
         followerId,
-        ~StringFromGuid(followerEpoch),
+        ~followerEpoch.ToString(),
         ~followerState.ToString());
 
     if (State != EState::Leading) {
@@ -582,7 +583,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
             ~State.ToString());
     } else if (followerEpoch != Epoch ) {
         LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
-            ~StringFromGuid(Epoch));
+            ~Epoch.ToString());
     } else {
         FollowerStateTracker->ProcessPing(followerId, followerState);
     }

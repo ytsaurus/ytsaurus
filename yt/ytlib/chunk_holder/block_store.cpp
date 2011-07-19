@@ -23,13 +23,13 @@ TSharedRef TCachedBlock::GetData() const
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TCachedFile
-    : public TCacheValueBase<TChunkId, TCachedFile, TGUIDHash>
+    : public TCacheValueBase<TChunkId, TCachedFile, TGuidHash>
 {
 public:
     typedef TIntrusivePtr<TCachedFile> TPtr;
 
     TCachedFile(const TChunkId& chunkId, Stroka fileName)
-        : TCacheValueBase<TChunkId, TCachedFile, TGUIDHash>(chunkId)
+        : TCacheValueBase<TChunkId, TCachedFile, TGuidHash>(chunkId)
         , File_(fileName, OpenExisting|RdOnly)
     { }
 
@@ -48,7 +48,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TFileCache
-    : public TCapacityLimitedCache<TChunkId, TCachedFile, TGUIDHash>
+    : public TCapacityLimitedCache<TChunkId, TCachedFile, TGuidHash>
 {
 public:
     typedef TIntrusivePtr<TFileCache> TPtr;
@@ -56,7 +56,7 @@ public:
     TFileCache(
         const TChunkHolderConfig& config,
         TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TChunkId, TCachedFile, TGUIDHash>(config.MaxCachedFiles)
+        : TCapacityLimitedCache<TChunkId, TCachedFile, TGuidHash>(config.MaxCachedFiles)
         , ChunkStore(chunkStore)
     { }
 

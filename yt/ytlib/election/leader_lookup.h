@@ -28,7 +28,7 @@ public:
     struct TResult
     {
         TMasterId LeaderId;
-        TGUID Epoch;
+        TGuid Epoch;
     };
 
     typedef TAsyncResult<TResult> TLookupResult;

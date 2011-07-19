@@ -49,8 +49,8 @@ class TChunkHolder
 
     class TSession;
     typedef TIntrusivePtr<TSession> TSessionPtr;
-    typedef yhash_map<TChunkId, TSessionPtr, TGUIDHash> TSessionMap;
-    typedef yhash_map<TChunkId, i32, TGUIDHash> TLocationMap;
+    typedef yhash_map<TChunkId, TSessionPtr, TGuidHash> TSessionMap;
+    typedef yhash_map<TChunkId, i32, TGuidHash> TLocationMap;
 
     const TChunkHolderConfig Config;
 

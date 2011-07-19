@@ -2,6 +2,7 @@
 
 #include "../misc/serialize.h"
 #include "../misc/string.h"
+#include "../misc/guid.h"
 
 namespace NYT {
 namespace NChunkManager {
@@ -21,14 +22,14 @@ public:
         // Don't trust anyone!
         TChunkId id;
         do {
-            CreateGuid(&id);
+            id = TGuid::Create();
         } while (Chunks.find(id) != Chunks.end());
 
         TChunk::TPtr chunk = new TChunk(id);
         Chunks.insert(MakePair(id, chunk));
 
         LOG_INFO("Chunk added (ChunkId: %s)",
-            ~StringFromGuid(id));
+            ~id.ToString());
 
         return chunk;
     }
@@ -39,7 +40,7 @@ public:
         Chunks.insert(MakePair(id, chunk));
 
         LOG_INFO("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
-            ~StringFromGuid(id),
+            ~id.ToString(),
             size);
 
         return chunk;
@@ -71,13 +72,13 @@ public:
         TChunk::TPtr chunk = FindChunk(id, forUpdate);
         if (~chunk == NULL || !chunk->IsVisible(transaction->GetId())) {
             ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-                Sprintf("invalid chunk %s", ~StringFromGuid(id));
+                Sprintf("invalid chunk %s", ~id.ToString());
         }
         return chunk;
     }
 
 private:
-    typedef yhash_map<TChunkId, TChunk::TPtr, TGUIDHash> TChunkMap;
+    typedef yhash_map<TChunkId, TChunk::TPtr, TGuidHash> TChunkMap;
     
     TChunkMap Chunks;
 
@@ -109,7 +110,7 @@ TTransaction::TPtr TChunkManager::GetTransaction(const TTransactionId& id, bool 
     TTransaction::TPtr transaction = TransactionManager->FindTransaction(id, forUpdate);
     if (~transaction == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-            Sprintf("invalid or expired transaction %s", ~StringFromGuid(id));
+            Sprintf("invalid or expired transaction %s", ~id.ToString());
     }
     return transaction;
 }
@@ -162,7 +163,7 @@ void TChunkManager::OnTransactionCommitted(TTransaction::TPtr transaction)
         chunk->SetTransactionId(TTransactionId());
 
         LOG_DEBUG("Chunk committed (ChunkId: %s)",
-            ~StringFromGuid(chunk->GetId()));
+            ~chunk->GetId().ToString());
     }
 
     // TODO: handle removed chunks
@@ -181,7 +182,7 @@ void TChunkManager::OnTransactionAborted(TTransaction::TPtr transaction)
         State->RemoveChunk(chunk);
 
         LOG_DEBUG("Chunk aborted (ChunkId: %s)",
-            ~StringFromGuid(chunk->GetId()));
+            ~chunk->GetId().ToString());
     }
 
     // TODO: handle removed chunks
@@ -238,7 +239,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
             firstSeen = false;
             if (chunk->GetSize() != size) {
                 LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-                    ~StringFromGuid(chunkId),
+                    ~chunkId.ToString(),
                     chunk->GetSize(),
                     size);
             }
@@ -248,7 +249,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
         LOG_DEBUG("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ", FirstSeen: %d)",
             holderId,
-            ~StringFromGuid(chunkId),
+            ~chunkId.ToString(),
             size,
             static_cast<int>(firstSeen));
     }
@@ -260,7 +261,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
         LOG_DEBUG("Chunk removed at holder (HolderId: %d, ChunkId: %s)",
             holderId,
-            ~StringFromGuid(chunkId));
+            ~chunkId.ToString());
     }
 
     context->Reply();
@@ -272,7 +273,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
     int replicationFactor = request->GetReplicationFactor();
 
     context->SetRequestInfo("TransactionId: %s, ReplicationFactor: %d",
-        ~StringFromGuid(transactionId),
+        ~transactionId.ToString(),
         replicationFactor);
 
     TTransaction::TPtr transaction = GetTransaction(transactionId, true);
@@ -295,7 +296,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 
     // TODO: probably log holder addresses
     context->SetResponseInfo("ChunkId: %s, HolderCount: %d",
-        ~StringFromGuid(chunk->GetId()),
+        ~chunk->GetId().ToString(),
         holders.ysize());
 
     context->Reply();
@@ -307,8 +308,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
     TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
 
     context->SetRequestInfo("TransactionId: %s, ChunkId: %s",
-        ~StringFromGuid(transactionId),
-        ~StringFromGuid(chunkId));
+        ~transactionId.ToString(),
+        ~chunkId.ToString());
 
     TTransaction::TPtr transaction = GetTransaction(transactionId);
     TChunk::TPtr chunk = State->GetChunk(chunkId, transaction);

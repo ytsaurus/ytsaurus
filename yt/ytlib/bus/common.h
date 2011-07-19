@@ -2,6 +2,7 @@
 
 #include "../misc/common.h"
 #include "../misc/ptr.h"
+#include "../misc/guid.h"
 
 #include "../actions/invoker.h"
 #include "../actions/action.h"
@@ -15,7 +16,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGUID TSessionId;
+typedef TGuid TSessionId;
 typedef i64 TSequenceId;
 
 extern NLog::TLogger BusLogger;

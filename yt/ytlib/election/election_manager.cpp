@@ -237,7 +237,7 @@ public:
             this,
             ElectionManager->VoteId,
             ~callbacks->FormatPriority(priority),
-            ~StringFromGuid(ElectionManager->VoteEpoch));
+            ~ElectionManager->VoteEpoch.ToString());
 
         ProcessVote(
             cellManager->GetSelfId(),
@@ -314,7 +314,7 @@ private:
             ~state.ToString(),
             vote,
             ~ElectionManager->ElectionCallbacks->FormatPriority(priority),
-            ~StringFromGuid(epoch));
+            ~epoch.ToString());
 
         ProcessVote(masterId, TStatus(state, vote, priority, epoch));
     }
@@ -364,7 +364,7 @@ private:
             LOG_DEBUG("Candidate %d has too few votes (Round: %p, VoteEpoch: %s, VoteCount: %d, Quorum: %d)",
                 candidateId,
                 this,
-                ~StringFromGuid(candidateEpoch),
+                ~candidateEpoch.ToString(),
                 voteCount,
                 quorum);
             return false;
@@ -373,7 +373,7 @@ private:
         LOG_DEBUG("Candidate %d has quorum (Round: %p, VoteEpoch: %s, VoteCount: %d, Quorum: %d)",
             candidateId,
             this,
-            ~StringFromGuid(candidateEpoch),
+            ~candidateEpoch.ToString(),
             voteCount,
             quorum);
 
@@ -484,14 +484,14 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
     TMasterId leaderId = request->GetLeaderId();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         leaderId);
 
     if (State != TProxy::EState::Following)
         ythrow TServiceException(EErrorCode::InvalidState) <<
                Sprintf("Ping from a leader while in an invalid state (LeaderId: %d, Epoch: %s, State: %s)",
                    leaderId,
-                   ~StringFromGuid(epoch),
+                   ~epoch.ToString(),
                    ~State.ToString());
 
     if (leaderId != LeaderId)
@@ -504,8 +504,8 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
                Sprintf("Ping with invalid epoch from leader %d: expected %s, got %s",
                    leaderId,
-                   ~StringFromGuid(Epoch),
-                   ~StringFromGuid(epoch));
+                   ~Epoch.ToString(),
+                   ~epoch.ToString());
 
     TDelayedInvoker::Get()->Cancel(PingTimeoutCookie);
 
@@ -535,7 +535,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
         ~State.ToString(),
         VoteId,
         ~ElectionCallbacks->FormatPriority(priority),
-        ~StringFromGuid(VoteEpoch));
+        ~VoteEpoch.ToString());
 
     context->Reply();
 }
@@ -547,8 +547,8 @@ void TElectionManager::Reset()
     State = TProxy::EState::Stopped;
     VoteId = InvalidMasterId;
     LeaderId = InvalidMasterId;
-    VoteEpoch = TGUID();
-    Epoch = TGUID();
+    VoteEpoch = TGuid();
+    Epoch = TGuid();
     EpochStart = TInstant();
     if (~EpochInvoker != NULL) {
         EpochInvoker->Cancel();
@@ -609,7 +609,7 @@ void TElectionManager::StartVoteForSelf()
 {
     State = TProxy::EState::Voting;
     VoteId = CellManager->GetSelfId();
-    CreateGuid(&VoteEpoch);
+    VoteEpoch = TGuid::Create();
 
     YASSERT(~EpochInvoker == NULL);
     EpochInvoker = new TCancelableInvoker();
@@ -618,7 +618,7 @@ void TElectionManager::StartVoteForSelf()
 
     LOG_DEBUG("Voting for self (Priority: %s, VoteEpoch: %s)",
                 ~ElectionCallbacks->FormatPriority(priority),
-                ~StringFromGuid(VoteEpoch));
+                ~VoteEpoch.ToString());
 
     StartVotingRound();
 }
@@ -648,7 +648,7 @@ void TElectionManager::StartFollowing(
 
     LOG_INFO("Starting following (LeaderId: %d, Epoch: %s)",
         LeaderId,
-        ~StringFromGuid(Epoch));
+        ~Epoch.ToString());
 
     ElectionCallbacks->StartFollowing(LeaderId, Epoch);
 }
@@ -671,7 +671,7 @@ void TElectionManager::StartLeading()
     FollowerPinger = new TFollowerPinger(this);
     FollowerPinger->Run();
 
-    LOG_INFO("Starting leading (Epoch: %s)", ~StringFromGuid(Epoch));
+    LOG_INFO("Starting leading (Epoch: %s)", ~Epoch.ToString());
     ElectionCallbacks->StartLeading(Epoch);
 }
 
@@ -680,7 +680,7 @@ void TElectionManager::StopLeading()
     YASSERT(State == TProxy::EState::Leading);
     
     LOG_INFO("Stopping leading (Epoch: %s)",
-               ~StringFromGuid(Epoch));
+               ~Epoch.ToString());
 
     YASSERT(~FollowerPinger != NULL);
     FollowerPinger->Cancel();
@@ -699,7 +699,7 @@ void TElectionManager::StopFollowing()
 
     LOG_INFO("Stopping following (LeaderId: %d, Epoch: %s)",
         LeaderId,
-        ~StringFromGuid(Epoch));
+        ~Epoch.ToString());
     
     StopEpoch();
     
@@ -723,7 +723,7 @@ void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
 void TElectionManager::StopEpoch()
 {
     LeaderId = InvalidMasterId;
-    Epoch = TGUID();
+    Epoch = TGuid();
     EpochStart = TInstant();
 }
 

@@ -2,6 +2,7 @@
 
 #include "../misc/common.h"
 #include "../misc/ptr.h"
+#include "../misc/guid.h"
 
 #include "../logging/log.h"
 
@@ -14,7 +15,7 @@ extern NLog::TLogger TransactionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGUID TTransactionId;
+typedef TGuid TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

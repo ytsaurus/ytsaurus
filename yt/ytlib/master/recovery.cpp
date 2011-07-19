@@ -378,7 +378,7 @@ void TFollowerRecovery::Sync(
 
     LOG_INFO("Sync received (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
         ~stateId.ToString(),
-        ~StringFromGuid(epoch),
+        ~epoch.ToString(),
         maxSnapshotId);
 
     PostponedStateId = stateId;

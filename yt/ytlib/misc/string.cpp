@@ -7,10 +7,10 @@ namespace NYT {
 
 Stroka StringFromProtoGuid(const Stroka& protoGuid)
 {
-    return GetGuidAsString(GuidFromProtoGuid(protoGuid));
+    return GuidFromProtoGuid(protoGuid).ToString();
 }
 
-Stroka StringFromGuid(const TGUID& guid)
+Stroka StringFromGUID(const TGUID& guid)
 {
     return GetGuidAsString(guid);
 }

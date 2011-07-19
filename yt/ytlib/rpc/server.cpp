@@ -59,7 +59,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     LOG_DEBUG("Request received (ServiceName: %s, MethodName: %s, RequestId: %s)",
         ~serviceName,
         ~methodName,
-        ~StringFromGuid(requestId));
+        ~requestId.ToString());
 
     IService::TPtr service = GetService(serviceName);
     if (~service == NULL) {

@@ -46,7 +46,7 @@ public:
 private:
     friend class TClientDispatcher;
 
-    typedef yhash_set<TGUID, TGUIDHash> TRequestIdSet;
+    typedef yhash_set<TGuid, TGuidHash> TRequestIdSet;
 
     TBusClient::TPtr Client;
     IMessageHandler::TPtr Handler;
@@ -84,8 +84,8 @@ class TClientDispatcher
         TBlob Data;
     };
 
-    typedef yhash_map<TSessionId, TBusClient::TBus::TPtr, TGUIDHash > TBusMap;
-    typedef yhash_map<TGUID, TRequest::TPtr, TGUIDHash> TRequestMap;
+    typedef yhash_map<TSessionId, TBusClient::TBus::TPtr, TGuidHash > TBusMap;
+    typedef yhash_map<TGuid, TRequest::TPtr, TGuidHash> TRequestMap;
 
     TThread Thread;
     volatile bool Terminated;
@@ -145,7 +145,7 @@ class TClientDispatcher
     {
         BusMap.insert(MakePair(bus->SessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p)",
-            ~StringFromGuid(bus->SessionId),
+            ~bus->SessionId.ToString(),
             ~bus);
     }
 
@@ -157,8 +157,8 @@ class TClientDispatcher
             i != bus->RequestIds.end();
             ++i)
         {
-            const TGUID& requestId = *i;
-            Requester->CancelRequest(requestId);
+            const TGuid& requestId = *i;
+            Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
         bus->RequestIds.clear();
@@ -170,13 +170,13 @@ class TClientDispatcher
             i != bus->PingIds.end();
             ++i)
         {
-            const TGUID& requestId = *i;
-            Requester->SendResponse(requestId, &ackData);
+            const TGuid& requestId = *i;
+            Requester->SendResponse((TGUID) requestId, &ackData);
         }
         bus->PingIds.clear();
 
         LOG_DEBUG("Bus is unregistered (SessionId: %s, Bus: %p)",
-            ~StringFromGuid(bus->SessionId),
+            ~bus->SessionId.ToString(),
             ~bus);
     }
 
@@ -216,25 +216,26 @@ class TClientDispatcher
 
             default:
                 LOG_ERROR("Invalid response packet type (RequestId: %s, Type: %s)",
-                    ~StringFromGuid(nlResponse->ReqId),
+                    ~TGuid(nlResponse->ReqId).ToString(),
                     ~header->Type.ToString());
         }
     }
 
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
     {
-        TRequestMap::iterator requestIt = RequestMap.find(nlResponse->ReqId);
+        TGuid requestId = nlResponse->ReqId;
+        TRequestMap::iterator requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request failed (RequestId: %s)",
-                ~StringFromGuid(nlResponse->ReqId));
+                ~requestId.ToString());
             return;
         }
 
         TRequest::TPtr request = requestIt->Second();
 
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(request->SessionId),
-            ~StringFromGuid(nlResponse->ReqId));
+            ~request->SessionId.ToString(),
+            ~requestId.ToString());
 
         request->Result->Set(IBus::ESendResult::Failed);
         RequestMap.erase(requestIt);
@@ -270,7 +271,7 @@ class TClientDispatcher
 
             default:
                 LOG_ERROR("Invalid request packet type (RequestId: %s, Type: %s)",
-                    ~StringFromGuid(nlRequest->ReqId),
+                    ~TGuid(nlRequest->ReqId).ToString(),
                     ~header->Type.ToString());
             return;
         }
@@ -278,17 +279,18 @@ class TClientDispatcher
 
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
-        TRequestMap::iterator requestIt = RequestMap.find(nlResponse->ReqId);
+        TGuid requestId = nlResponse->ReqId;
+        TRequestMap::iterator requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request ack received (SessionId: %s, RequestId: %s)",
-                ~StringFromGuid(header->SessionId),
-                ~StringFromGuid(nlResponse->ReqId));
+                ~header->SessionId.ToString(),
+                ~requestId.ToString());
             return;
         }
 
         LOG_DEBUG("Request ack received (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(header->SessionId),
-            ~StringFromGuid(nlResponse->ReqId));
+            ~header->SessionId.ToString(),
+            ~requestId.ToString());
 
         TRequest::TPtr request = requestIt->Second();
         request->Result->Set(IBus::ESendResult::OK);
@@ -305,15 +307,15 @@ class TClientDispatcher
         DoProcessMessage(header, nlResponse->ReqId, nlResponse->Data, false);
     }
 
-    void DoProcessMessage(TPacketHeader* header, const TGUID& requestId, TBlob& data, bool isRequest)
+    void DoProcessMessage(TPacketHeader* header, const TGuid& requestId, TBlob& data, bool isRequest)
     {
         int dataSize = data.ysize();
 
         TBusMap::iterator busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
-                ~StringFromGuid(header->SessionId),
-                ~StringFromGuid(requestId),
+                ~header->SessionId.ToString(),
+                ~requestId.ToString(),
                 dataSize);
             return;
         }
@@ -325,8 +327,8 @@ class TClientDispatcher
 
         LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, PacketSize: %d)",
             (int) isRequest,
-            ~StringFromGuid(header->SessionId),
-            ~StringFromGuid(requestId),
+            ~header->SessionId.ToString(),
+            ~requestId.ToString(),
             dataSize);
 
         TBusClient::TBus::TPtr bus = busIt->Second();
@@ -337,21 +339,22 @@ class TClientDispatcher
         } else {
             TBlob ackData;
             CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
-            Requester->SendResponse(requestId, &ackData);
+            Requester->SendResponse((TGUID) requestId, &ackData);
 
             LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-                ~StringFromGuid(bus->SessionId),
-                ~StringFromGuid(requestId));
+                ~bus->SessionId.ToString(),
+                ~requestId.ToString());
         }
     }
 
     void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest)
     {
+        TGuid requestId = nlRequest->ReqId;
         TBusMap::iterator busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Ping for an obsolete session received (SessionId: %s, RequestId: %s)",
-                ~StringFromGuid(header->SessionId),
-                ~StringFromGuid(nlRequest->ReqId));
+                ~header->SessionId.ToString(),
+                ~requestId.ToString());
 
             TBlob data;
             CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &data);
@@ -361,12 +364,12 @@ class TClientDispatcher
         }
 
         LOG_DEBUG("Ping received (SessionId: %s, RequestId: %s)",
-            ~StringFromGuid(header->SessionId),
-            ~StringFromGuid(nlRequest->ReqId));
+            ~header->SessionId.ToString(),
+            ~requestId.ToString());
 
         // Don't reply to a ping, just register it.
         TBusClient::TBus::TPtr bus = busIt->Second();
-        bus->PingIds.insert(nlRequest->ReqId);
+        bus->PingIds.insert(requestId);
     }
 
     bool ProcessRequests()
@@ -392,7 +395,7 @@ class TClientDispatcher
             if (busIt == BusMap.end()) {
                 // Still no luck.
                 LOG_DEBUG("Request via an obsolete session is dropped (SessionId: %s, Request: %p)",
-                    ~StringFromGuid(request->SessionId),
+                    ~request->SessionId.ToString(),
                     ~request);
                 return;
             }
@@ -400,14 +403,14 @@ class TClientDispatcher
 
         TBusClient::TBus::TPtr bus = busIt->Second();
 
-        TGUID requestId = Requester->SendRequest(bus->Client->ServerAddress, "", &request->Data);
+        TGuid requestId = Requester->SendRequest(bus->Client->ServerAddress, "", &request->Data);
 
         bus->RequestIds.insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
         LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, Request: %p)",
-            ~StringFromGuid(request->SessionId),
-            ~StringFromGuid(requestId),
+            ~request->SessionId.ToString(),
+            ~requestId.ToString(),
             ~request);
     }
 
@@ -459,7 +462,7 @@ public:
         GetEvent().Signal();
 
         LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, PacketSize: %d)",
-            ~StringFromGuid(bus->SessionId),
+            ~bus->SessionId.ToString(),
             ~request,
             dataSize);
 
@@ -472,7 +475,7 @@ public:
         GetEvent().Signal();
 
         LOG_DEBUG("Bus registration enqueued (SessionId: %s, Bus: %p)",
-            ~StringFromGuid(bus->SessionId),
+            ~bus->SessionId.ToString(),
             ~bus);
     }
 
@@ -482,7 +485,7 @@ public:
         GetEvent().Signal();
 
         LOG_DEBUG("Bus unregistration enqueued (SessionId: %s, Bus: %p)",
-            ~StringFromGuid(bus->SessionId),
+            ~bus->SessionId.ToString(),
             ~bus);
     }
 
@@ -500,7 +503,7 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
     , Terminated(false)
     , SequenceId(0)
 {
-    CreateGuid(&SessionId);
+    SessionId = TGuid::Create();
 }
 
 void TBusClient::TBus::Initialize()

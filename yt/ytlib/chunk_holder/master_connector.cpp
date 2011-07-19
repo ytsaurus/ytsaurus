@@ -175,7 +175,7 @@ void TMasterConnector::RegisterAddedChunk(TChunk::TPtr chunk)
     AddedChunks.push_back(chunk);
 
     LOG_DEBUG("Registered addition of chunk (ChunkId: %s)",
-        ~StringFromGuid(chunk->GetId()));
+        ~chunk->GetId().ToString());
 }
 
 void TMasterConnector::RegisterRemovedChunk(TChunk::TPtr chunk)
@@ -183,7 +183,7 @@ void TMasterConnector::RegisterRemovedChunk(TChunk::TPtr chunk)
     RemovedChunks.push_back(chunk);
 
     LOG_DEBUG("Registered removal of chunk (ChunkId: %s)",
-        ~StringFromGuid(chunk->GetId()));
+        ~chunk->GetId().ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

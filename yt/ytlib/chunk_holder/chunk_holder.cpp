@@ -64,7 +64,7 @@ void TChunkHolder::VerifyNoSession(const TChunkId& chunkId)
     if (~SessionManager->FindSession(chunkId) != NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
             Sprintf("session %s already exists",
-                ~StringFromGuid(chunkId));
+                ~chunkId.ToString());
     }
 }
 
@@ -72,7 +72,7 @@ void TChunkHolder::VerifyNoChunk(const TChunkId& chunkId)
 {
     if (~ChunkStore->FindChunk(chunkId) != NULL) {
         ythrow TServiceException(TProxy::EErrorCode::ChunkAlreadyExists) <<
-            Sprintf("chunk %s already exists", ~StringFromGuid(chunkId));
+            Sprintf("chunk %s already exists", ~chunkId.ToString());
     }
 }
 
@@ -82,7 +82,7 @@ TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
     if (~session == NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
             Sprintf("session %s is invalid or expired",
-                ~StringFromGuid(chunkId));
+                ~chunkId.ToString());
     }
     return session;
 }
@@ -97,7 +97,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
     int windowSize = request->GetWindowSize();
 
     context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         windowSize);
 
     VerifyNoSession(chunkId);
@@ -115,7 +115,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
     TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
     
     context->SetRequestInfo("ChunkId: %s",
-        ~StringFromGuid(chunkId));
+        ~chunkId.ToString());
 
     TSession::TPtr session = GetSession(chunkId);
 
@@ -148,7 +148,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     TBlockOffset startOffset = request->GetStartOffset();
 
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d, StartBlockIndex: %d, StartOffset: %" PRId64,
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         request->Attachments().ysize(),
         startBlockIndex,
         startOffset);
@@ -184,7 +184,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     Stroka destination = request->GetDestination();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, EndBlockIndex: %d, Destination: %s",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         startBlockIndex,
         endBlockIndex,
         ~destination);
@@ -232,7 +232,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
     int blockCount = static_cast<int>(request->BlocksSize());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         blockCount);
 
     response->Attachments().yresize(blockCount);
@@ -286,7 +286,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
     int blockIndex = request->GetBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         blockIndex);
 
     TSession::TPtr session = GetSession(chunkId);

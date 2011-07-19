@@ -37,7 +37,7 @@ void TChannel::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     TClientResponse::TPtr response = GetResponse(requestId);
     if (~response == NULL) {
         LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
-            ~StringFromGuid(requestId));
+            ~requestId.ToString());
         return;
     }
 
@@ -70,19 +70,18 @@ void TChannel::Send(
     LOG_DEBUG("Request sent (ServiceName: %s, MethodName:%s, RequestId: %s)",
         ~request->ServiceName,
         ~request->MethodName,
-        ~StringFromGuid(requestId));
+        ~requestId.ToString());
 }
 
 TRequestId TChannel::RegisterResponse(TClientResponse::TPtr response)
 {
-    TRequestId requestId;
-    CreateGuid(&requestId);
+    TRequestId requestId = TGuid::Create();
     {
         TGuard<TSpinLock> guard(&SpinLock);
         ResponseMap.insert(MakePair(requestId, response));
     }
     LOG_DEBUG("Request registered (RequestId: %s)",
-        ~StringFromGuid(requestId));
+        ~requestId.ToString());
     return requestId;
 }
 
@@ -93,7 +92,7 @@ void TChannel::UnregisterResponse(TRequestId requestId)
         ResponseMap.erase(requestId);
     }
     LOG_DEBUG("Request unregistered (RequestId: %s)",
-        ~StringFromGuid(requestId));
+        ~requestId.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +159,7 @@ TClientResponse::TClientResponse(TChannel::TPtr channel)
 
 void TClientResponse::Prepare(TRequestId requestId, TDuration timeout)
 {
-    YASSERT(RequestId == TGUID());
+    YASSERT(RequestId == TGuid());
     RequestId = requestId;
     if (timeout != TDuration::Zero()) {
         TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
@@ -186,7 +185,7 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
 void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
 {
     LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
-        ~StringFromGuid(RequestId),
+        ~RequestId.ToString(),
         ~sendResult.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
@@ -210,7 +209,7 @@ void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
 void TClientResponse::OnTimeout()
 {
     LOG_DEBUG("Request timed out (RequestId: %s)",
-        ~StringFromGuid(RequestId));
+        ~RequestId.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
@@ -221,7 +220,7 @@ void TClientResponse::OnTimeout()
 void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
 {
     LOG_DEBUG("Response received (RequestId: %s)",
-        ~StringFromGuid(RequestId));
+        ~RequestId.ToString());
 
     Deserialize(message);
 
@@ -234,7 +233,7 @@ void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
 void TClientResponse::Complete(EErrorCode errorCode)
 {
     LOG_DEBUG("Request complete (RequestId: %s, ErrorCode: %s)",
-        ~StringFromGuid(RequestId),
+        ~RequestId.ToString(),
         ~errorCode.ToString());
 
     if (errorCode != EErrorCode::Timeout && TimeoutCookie != TDelayedInvoker::TCookie()) {

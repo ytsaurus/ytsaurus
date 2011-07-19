@@ -81,7 +81,7 @@ private:
 
     // Epoch parameters.
     TMasterId LeaderId;
-    TGUID Epoch;
+    TGuid Epoch;
     TInstant EpochStart;
     TCancelableInvoker::TPtr EpochInvoker;
     

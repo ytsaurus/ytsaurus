@@ -32,8 +32,8 @@ private:
 
     friend class TSession;
 
-    typedef yhash_map<TSessionId, TIntrusivePtr<TSession>, TGUIDHash> TSessionMap;
-    typedef yhash_map<TGUID, TIntrusivePtr<TSession>, TGUIDHash> TPingMap;
+    typedef yhash_map<TSessionId, TIntrusivePtr<TSession>, TGuidHash> TSessionMap;
+    typedef yhash_map<TGuid, TIntrusivePtr<TSession>, TGuidHash> TPingMap;
 
     IMessageHandler::TPtr Handler;
     volatile bool Terminated;
@@ -66,7 +66,7 @@ private:
 
     TIntrusivePtr<TSession> DoProcessMessage(
         TPacketHeader* header,
-        const TGUID& requestId,
+        const TGuid& requestId,
         const TUdpAddress& address,
         TBlob& data,
         bool isRequest);

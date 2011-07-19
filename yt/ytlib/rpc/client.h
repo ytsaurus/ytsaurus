@@ -47,7 +47,7 @@ private:
     friend class TClientRequest;
     friend class TClientResponse;
 
-    typedef yhash_map< TRequestId, TIntrusivePtr<TClientResponse>, TGUIDHash > TRequestMap;
+    typedef yhash_map< TRequestId, TIntrusivePtr<TClientResponse>, TGuidHash > TRequestMap;
 
     IBus::TPtr Bus;
     TSpinLock SpinLock;

@@ -40,8 +40,7 @@ void TChunkStore::ScanChunks()
         fileList.Fill(Config.Locations[location]);
         const char* fileName;
         while ((fileName = fileList.Next()) != NULL) {
-            // TODO: use our own guid class
-            TChunkId id = GetGuid(fileName);
+            TChunkId id = TGuid::FromString(fileName);
             if (!id.IsEmpty()) {
                 Stroka fullName = path + "/" + fileName;
                 // TODO: make a function in NYT::NFS
@@ -70,7 +69,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         size);
 
     return chunk;
@@ -93,12 +92,12 @@ IInvoker::TPtr TChunkStore::GetIOInvoker(int location)
 int TChunkStore::GetNewChunkLocation(const TChunkId& chunkId)
 {
     // TODO: code here
-    return chunkId.dw[0] % Config.Locations.ysize();
+    return chunkId.parts[0] % Config.Locations.ysize();
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, int location)
 {
-    return Config.Locations[location] + "/" + StringFromGuid(chunkId);
+    return Config.Locations[location] + "/" + chunkId.ToString();
 }
 
 THolderStatistics TChunkStore::GetStatistics() const

@@ -54,7 +54,7 @@ TSession::TPtr TSessionManager::StartSession(
     VERIFY(SessionMap.insert(MakePair(chunkId, session)).Second(), "oops");
 
     LOG_INFO("Session started (ChunkId: %s, Location: %d, WindowSize: %d)",
-        ~StringFromGuid(chunkId),
+        ~chunkId.ToString(),
         location,
         windowSize);
 
@@ -71,7 +71,7 @@ void TSessionManager::CancelSession(TSession::TPtr session)
     session->Cancel();
 
     LOG_INFO("Session canceled (ChunkId: %s)",
-        ~StringFromGuid(chunkId));
+        ~chunkId.ToString());
 }
 
 TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
@@ -97,7 +97,7 @@ TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
         session->GetLocation());
 
     LOG_INFO("Session finished (ChunkId: %s)",
-        ~StringFromGuid(session->GetChunkId()));
+        ~session->GetChunkId().ToString());
 
     return TVoid();
 }
@@ -106,7 +106,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
 {
     if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
         LOG_INFO("Session lease expired (ChunkId: %s)",
-            ~StringFromGuid(session->GetChunkId()));
+            ~session->GetChunkId().ToString());
 
         CancelSession(session);
     }
@@ -180,14 +180,14 @@ TCachedBlock::TPtr TSession::GetBlock(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(TErrorCode::WindowError)
             << Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~StringFromGuid(ChunkId),
+            ~ChunkId.ToString(),
             WindowStart,
             Window.ysize(),
             blockIndex);
     }
 
     LOG_DEBUG("Chunk block retrieved (ChunkId: %s, BlockIndex: %d)",
-        ~StringFromGuid(ChunkId),
+        ~ChunkId.ToString(),
         blockIndex);
 
     return slot.Block;
@@ -206,7 +206,7 @@ void TSession::PutBlock(
     if (slot.State != ESlotState::Empty) {
         ythrow TServiceException(TErrorCode::WindowError)
             << Sprintf("putting an already received block received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~StringFromGuid(ChunkId),
+            ~ChunkId.ToString(),
             WindowStart,
             Window.ysize(),
             blockIndex);
@@ -217,7 +217,7 @@ void TSession::PutBlock(
     Size += data.Size();
 
     LOG_DEBUG("Chunk block received (ChunkId: %s, BlockIndex: %d, BlockId: %s, BlockSize: %" PRISZT ")",
-        ~StringFromGuid(ChunkId),
+        ~ChunkId.ToString(),
         blockIndex,
         ~blockId.ToString(),
         data.Size());
@@ -258,7 +258,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, int blockIndex)
     File->Flush();
 
     LOG_DEBUG("Chunk block written (ChunkId: %s, BlockIndex: %d)",
-        ~StringFromGuid(ChunkId),
+        ~ChunkId.ToString(),
         blockIndex);
 
     return TVoid();
@@ -282,7 +282,7 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(TErrorCode::WindowError)
             << Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~StringFromGuid(ChunkId),
+            ~ChunkId.ToString(),
             WindowStart,
             Window.ysize(),
             blockIndex);
@@ -310,7 +310,7 @@ TAsyncResult<TVoid>::TPtr TSession::Finish()
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(TErrorCode::WindowError)
                 << Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~StringFromGuid(ChunkId),
+                ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),
                 blockIndex);
@@ -338,7 +338,7 @@ void TSession::DoOpenFile()
     File.Reset(new TFile(FileName + NFS::TempFileSuffix, CreateAlways|WrOnly|Seq));
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
-        ~StringFromGuid(ChunkId));
+        ~ChunkId.ToString());
 }
 
 void TSession::DeleteFile()
@@ -356,7 +356,7 @@ void TSession::DoDeleteFile()
     NFS::Remove(FileName + NFS::TempFileSuffix);
 
     LOG_DEBUG("Chunk file deleted (ChunkId: %s)",
-        ~StringFromGuid(ChunkId));
+        ~ChunkId.ToString());
 }
 
 TAsyncResult<TVoid>::TPtr TSession::CloseFile()
@@ -379,7 +379,7 @@ TVoid TSession::DoCloseFile()
     NFS::Rename(FileName + NFS::TempFileSuffix, FileName);
 
     LOG_DEBUG("Chunk file closed (ChunkId: %s)",
-        ~StringFromGuid(ChunkId));
+        ~ChunkId.ToString());
 
     return TVoid();
 }
@@ -394,7 +394,7 @@ void TSession::RotateWindow(int flushedBlockIndex)
     }
 
     LOG_DEBUG("Window rotated (ChunkId: %s, WindowStart: %d)",
-        ~StringFromGuid(ChunkId),
+        ~ChunkId.ToString(),
         WindowStart);
 }
 
@@ -408,7 +408,7 @@ void TSession::VerifyInWindow(int blockIndex)
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(TErrorCode::WindowError)
             << Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~StringFromGuid(ChunkId),
+            ~ChunkId.ToString(),
             WindowStart,
             Window.ysize(),
             blockIndex);

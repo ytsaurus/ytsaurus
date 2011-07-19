@@ -74,10 +74,10 @@ void TLeaderLookup::OnResponse(
     
     TMasterId leaderId = response->GetVoteId();
     YASSERT(leaderId != InvalidMasterId);
-    TGUID epoch = GuidFromProtoGuid(response->GetVoteEpoch());
+    TGuid epoch = GuidFromProtoGuid(response->GetVoteEpoch());
 
     LOG_INFO("Obtained leader %d with epoch %s from master %d",
-        leaderId, ~StringFromGuid(epoch), masterId);
+        leaderId, ~epoch.ToString(), masterId);
 
     TResult result;
     result.LeaderId = leaderId;
@@ -92,7 +92,7 @@ void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)
     LOG_INFO("No leader can be obtained from masters");
     TResult result;
     result.LeaderId = InvalidMasterId;
-    result.Epoch = TGUID();
+    result.Epoch = TGuid();
     asyncResult->Set(result);
 }
 

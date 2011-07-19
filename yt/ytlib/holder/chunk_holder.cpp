@@ -398,7 +398,7 @@ void TChunkHolder::DoFinishChunk(TCtxFinishChunk::TPtr context, TSessionPtr sess
 
 i32 TChunkHolder::GetNewLocation(const TChunkId& chunkId) const
 {
-    static TGUIDHash hasher;
+    static TGuidHash hasher;
     YASSERT(Config.Locations.size() != 0);
     i32 index = hasher(chunkId) % Config.Locations.size();
     if (index < 0) {

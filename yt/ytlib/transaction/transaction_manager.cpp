@@ -21,7 +21,7 @@ public:
         // Don't trust anyone!
         TTransactionId id;
         do {
-            CreateGuid(&id);
+            id = TGuid::Create();
         } while (Transactions.find(id) != Transactions.end());
         
         TTransaction::TPtr transaction = new TTransaction(id);
@@ -55,13 +55,13 @@ public:
         if (~transaction == NULL) {
             ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
                 Sprintf("unknown or expired transaction %s",
-                    ~StringFromGuid(id));
+                    ~id.ToString());
         }
         return transaction;
     }
 
 private:
-    typedef yhash_map<TTransactionId, TTransaction::TPtr, TGUIDHash> TTransactionMap;
+    typedef yhash_map<TTransactionId, TTransaction::TPtr, TGuidHash> TTransactionMap;
 
     TTransactionMap Transactions;
 
@@ -117,7 +117,7 @@ TTransaction::TPtr TTransactionManager::DoStartTransaction()
     }
 
     LOG_INFO("Transaction started (TransactionId: %s)",
-        ~StringFromGuid(transaction->GetId()));
+        ~transaction->GetId().ToString());
 
     return transaction;
 }
@@ -137,7 +137,7 @@ void TTransactionManager::DoCommitTransaction(TTransaction::TPtr transaction)
     LeaseManager->CloseLease(transaction->GetLease());
 
     LOG_INFO("Transaction committed (TransactionId: %s)",
-        ~StringFromGuid(transaction->GetId()));
+        ~transaction->GetId().ToString());
 }
 
 void TTransactionManager::DoAbortTransaction(TTransaction::TPtr transaction)
@@ -155,7 +155,7 @@ void TTransactionManager::DoAbortTransaction(TTransaction::TPtr transaction)
     LeaseManager->CloseLease(transaction->GetLease());
 
     LOG_INFO("Transaction aborted (TransactionId: %s)",
-        ~StringFromGuid(transaction->GetId()));
+        ~transaction->GetId().ToString());
 }
 
 void TTransactionManager::DoRenewTransactionLease(TTransaction::TPtr transaction)
@@ -173,7 +173,7 @@ void TTransactionManager::OnTransactionExpired( TTransaction::TPtr transaction )
         return;
 
     LOG_INFO("Transaction expired (TransactionId: %s)",
-        ~StringFromGuid(id));
+        ~id.ToString());
 
     DoAbortTransaction(transaction);
 }
@@ -191,7 +191,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, StartTransaction)
     response->SetTransactionId(ProtoGuidFromGuid(transaction->GetId()));
 
     context->SetResponseInfo("TransactionId: %s",
-        ~StringFromGuid(transaction->GetId()));
+        ~transaction->GetId().ToString());
 
     context->Reply();
 }
@@ -203,7 +203,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
     TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
-        ~StringFromGuid(id));
+        ~id.ToString());
     
     TTransaction::TPtr transaction = State->GetTransaction(id, true);
     DoCommitTransaction(transaction);
@@ -218,7 +218,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
     TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
-        ~StringFromGuid(id));
+        ~id.ToString());
 
     TTransaction::TPtr transaction = State->GetTransaction(id, true);
     DoAbortTransaction(transaction);
@@ -233,7 +233,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
     TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
-        ~StringFromGuid(id));
+        ~id.ToString());
 
     TTransaction::TPtr transaction = State->GetTransaction(id);
     DoRenewTransactionLease(transaction);

@@ -5,18 +5,18 @@ namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// we store TGUID in "bytes" protobuf type which is mapped to Stroka
+// we store TGuid in "bytes" protobuf type which is mapped to Stroka
 
-TGUID GuidFromProtoGuid(const Stroka& protoGuid)
+TGuid GuidFromProtoGuid(const Stroka& protoGuid)
 {
-    return *(TGUID*) protoGuid.data();
+    return *(TGuid*) protoGuid.data();
 }
 
-Stroka ProtoGuidFromGuid(const TGUID& guid)
+Stroka ProtoGuidFromGuid(const TGuid& guid)
 {
     Stroka tmp;
     const char* p = (const char*) &guid;
-    tmp.assign(p, p + sizeof(TGUID));
+    tmp.assign(p, p + sizeof(TGuid));
     return tmp;
 }
 

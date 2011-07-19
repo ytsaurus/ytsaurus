@@ -68,7 +68,7 @@ struct TChunkHolderConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Identified a chunk.
-typedef TGUID TChunkId;
+typedef TGuid TChunkId;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;
@@ -98,7 +98,7 @@ struct TBlockId
     Stroka ToString() const
     {
         return Sprintf("%s:%" PRId64,
-            ~StringFromGuid(ChunkId),
+            ~ChunkId.ToString(),
             Offset);
     }
 };
@@ -123,7 +123,7 @@ struct TBlockIdHash
 {
     i32 operator()(const TBlockId& blockId) const
     {
-        static TGUIDHash hash;
+        static TGuidHash hash;
         return hash(blockId.ChunkId) * 497 + (i32) blockId.Offset;
     }
 };

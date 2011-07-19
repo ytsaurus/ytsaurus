@@ -17,7 +17,6 @@
 
 // TODO: remove this once we have our own TGuid implementation
 using std::string; // hack for guid.h to work
-#include <quality/Misc/Guid.h>
 
 #ifdef _MSC_VER
     // C4505: unreferenced local function has been removed

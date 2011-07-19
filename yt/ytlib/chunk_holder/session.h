@@ -172,7 +172,7 @@ private:
 
     TLeaseManager::TPtr LeaseManager;
 
-    typedef yhash_map<TChunkId, TSession::TPtr, TGUIDHash> TSessionMap;
+    typedef yhash_map<TChunkId, TSession::TPtr, TGuidHash> TSessionMap;
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSession::TPtr session);
