@@ -13,7 +13,7 @@ struct IChunkWriter
 {
     typedef TIntrusivePtr<IChunkWriter> TPtr;
 
-    virtual void AddBlock(TBlob *buffer) = 0;
+    virtual void AddBlock(const TSharedRef& data) = 0;
     virtual void Close() = 0;
 };
 

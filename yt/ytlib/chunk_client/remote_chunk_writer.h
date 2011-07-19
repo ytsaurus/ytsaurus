@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_writer.h"
+
 #include "../misc/lazy_ptr.h"
 #include "../misc/semaphore.h"
 #include "../rpc/client.h"
@@ -35,7 +36,7 @@ public:
     // Client thread
     TRemoteChunkWriter(const TConfig& config, const yvector<Stroka>& nodes);
 
-    void AddBlock(const TSharedRef& block);
+    void AddBlock(const TSharedRef& data);
 
     void Close();
 
