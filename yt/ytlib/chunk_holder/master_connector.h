@@ -27,14 +27,7 @@ public:
     TMasterConnector(
         const TConfig& config,
         TChunkStore::TPtr chunkStore,
-        IInvoker::TPtr serviceInvoker)
-        : Config(config)
-        , ChunkStore(chunkStore)
-        , ServiceInvoker(serviceInvoker)
-        , Registered(false)
-        , IncrementalHeartbeat(false)
-        , HolderId(InvalidHolderId)
-    {  }
+        IInvoker::TPtr serviceInvoker);
 
     //! Initializes the instance.
     /*!
