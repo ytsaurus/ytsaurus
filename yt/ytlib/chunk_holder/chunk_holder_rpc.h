@@ -1,10 +1,12 @@
 #pragma once
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
 #include "chunk_holder.pb.h"
 
+#include "../rpc/service.h"
+#include "../rpc/client.h"
+
 namespace NYT {
+namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,14 +33,15 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NRpcChunkHolder, StartChunk);
-    RPC_PROXY_METHOD(NRpcChunkHolder, FinishChunk);
-    RPC_PROXY_METHOD(NRpcChunkHolder, PutBlocks);
-    RPC_PROXY_METHOD(NRpcChunkHolder, SendBlocks);
-    RPC_PROXY_METHOD(NRpcChunkHolder, FlushBlock);
-    RPC_PROXY_METHOD(NRpcChunkHolder, GetBlocks);
+    RPC_PROXY_METHOD(NProto, StartChunk);
+    RPC_PROXY_METHOD(NProto, FinishChunk);
+    RPC_PROXY_METHOD(NProto, PutBlocks);
+    RPC_PROXY_METHOD(NProto, SendBlocks);
+    RPC_PROXY_METHOD(NProto, FlushBlock);
+    RPC_PROXY_METHOD(NProto, GetBlocks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NChunkHolder
+} // namespace NYT

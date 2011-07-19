@@ -80,6 +80,9 @@ public:
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const TChunkId& chunkId, int location);
 
+    //! Returns current statistics.
+    THolderStatistics GetStatistics() const;
+
 private:
     void ScanChunks();
     void InitIOQueues();

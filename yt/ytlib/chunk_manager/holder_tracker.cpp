@@ -41,7 +41,7 @@ THolder::TPtr THolderTracker::RegisterHolder(
 
     UpdateHolderPreference(holder);
 
-    LOG_INFO("Holder registered (Id: %d, Address: %s)",
+    LOG_INFO("Holder registered (HolderId: %d, Address: %s)",
         id,
         ~address);
 
@@ -114,7 +114,7 @@ void THolderTracker::OnHolderExpired(THolder::TPtr holder)
         holder->SetPreferenceIterator(PreferenceMap.end());
     }
 
-    LOG_INFO("Holder expired (Id: %d)", id);
+    LOG_INFO("Holder expired (HolderId: %d)", id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,14 +11,15 @@ NLog::TLogger ChunkHolderLogger("Chunk");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkHolderConfig::Read(const TJsonObject* jsonConfig)
+// TODO: read everything
+void TChunkHolderConfig::Read(const TJsonObject* json)
 {
-    if (jsonConfig == NULL)
+    if (json == NULL)
         return;
 
-    NYT::TryRead(jsonConfig, L"MaxCachedFiles", &MaxCachedFiles);
-    NYT::TryRead(jsonConfig, L"MaxCachedBlocks", &MaxCachedBlocks);
-    NYT::TryRead(jsonConfig, L"Locations", &Locations);
+    NYT::TryRead(json, L"MaxCachedFiles", &MaxCachedFiles);
+    NYT::TryRead(json, L"MaxCachedBlocks", &MaxCachedBlocks);
+    NYT::TryRead(json, L"Locations", &Locations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

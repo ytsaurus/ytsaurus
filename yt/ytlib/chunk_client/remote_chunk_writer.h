@@ -90,7 +90,7 @@ private:
     typedef TIntrusivePtr<TGroup> TGroupPtr;
     // TODO: -> TWindow
     typedef ydeque<TGroupPtr> TGroupBuffer;
-    typedef TChunkHolderProxy TProxy;
+    typedef NChunkHolder::TChunkHolderProxy TProxy;
 
     USE_RPC_METHOD(TProxy, StartChunk);
     USE_RPC_METHOD(TProxy, FinishChunk);

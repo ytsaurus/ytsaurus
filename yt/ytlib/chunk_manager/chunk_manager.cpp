@@ -6,8 +6,6 @@
 namespace NYT {
 namespace NChunkManager {
 
-using namespace NTransaction;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkManagerLogger;
@@ -67,7 +65,7 @@ public:
 
     TChunk::TPtr GetChunk(
         const TChunkId& id,
-        NTransaction::TTransaction::TPtr transaction,
+        TTransaction::TPtr transaction,
         bool forUpdate = false)
     {
         TChunk::TPtr chunk = FindChunk(id, forUpdate);
@@ -223,7 +221,6 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
     THolder::TPtr holder = GetHolder(holderId);
     holder->SetStatistics(statistics);
-    
     HolderTracker->UpdateHolderPreference(holder);
 
     // TODO: refactor this once the state becomes persistent

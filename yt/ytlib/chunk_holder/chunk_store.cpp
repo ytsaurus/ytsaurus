@@ -101,6 +101,16 @@ Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, int location)
     return Config.Locations[location] + "/" + StringFromGuid(chunkId);
 }
 
+THolderStatistics TChunkStore::GetStatistics() const
+{
+    // TODO: do something meaningful
+    THolderStatistics result;
+    result.AvailableSpace = 100;
+    result.UsedSpace = 100;
+    result.ChunkCount = ChunkMap.ysize();
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkHolder

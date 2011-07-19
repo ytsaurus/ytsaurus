@@ -17,12 +17,28 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolder::TChunkHolder(
     const TConfig& config,
     NRpc::TServer::TPtr server)
-    : NRpc::TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
+    : NRpc::TServiceBase(
+        TProxy::GetServiceName(),
+        Logger.GetCategory())
     , Config(config)
 {
-    ChunkStore = new TChunkStore(config);
-    BlockStore = new TBlockStore(config, ChunkStore);
-    SessionManager = new TSessionManager(config, BlockStore, ChunkStore, server->GetInvoker());
+    ChunkStore = new TChunkStore(Config);
+
+    BlockStore = new TBlockStore(Config, ChunkStore);
+
+    SessionManager = new TSessionManager(
+        Config,
+        BlockStore,
+        ChunkStore,
+        server->GetInvoker());
+
+    if (!Config.MasterAddress.Empty()) {
+        MasterConnector = new TMasterConnector(
+            Config,
+            ChunkStore,
+            server->GetInvoker());
+        MasterConnector->Initialize();
+    }
 
     RegisterMethods();
     server->RegisterService(this);
@@ -182,8 +198,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    // TODO: timeout
-    putRequest->Invoke()->Subscribe(FromMethod(
+    putRequest->Invoke(Config.RpcTimeout)->Subscribe(FromMethod(
         &TChunkHolder::OnSentBlocks,
         TPtr(this),
         context));
@@ -218,7 +233,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
     for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-        const NRpcChunkHolder::TBlockInfo& info = request->GetBlocks(blockIndex);
+        const NProto::TBlockInfo& info = request->GetBlocks(blockIndex);
 
         LOG_DEBUG("GetBlocks: (Index: %d, Offset: %" PRId64 ", Size: %d)",
             blockIndex,

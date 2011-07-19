@@ -3,51 +3,16 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
+#include "../chunk_holder/common.h"
+
 #include "../misc/lease_manager.h"
 
 namespace NYT {
 namespace NChunkManager {
 
+using NChunkHolder::THolderStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
-
-struct THolderStatistics
-{
-    THolderStatistics()
-        : AvailableSpace(0)
-        , UsedSpace(0)
-        , ChunkCount(0)
-    { }
-
-    i64 AvailableSpace;
-    i64 UsedSpace;
-    i32 ChunkCount;
-
-    static THolderStatistics FromProto(const NProto::THolderStatistics& proto)
-    {
-        THolderStatistics result;
-        result.AvailableSpace = proto.GetAvailableSpace();
-        result.UsedSpace = proto.GetUsedSpace();
-        result.ChunkCount = proto.GetChunkCount();
-        return result;
-    }
-
-    NProto::THolderStatistics ToProto() const
-    {
-        NProto::THolderStatistics result;
-        result.SetAvailableSpace(AvailableSpace);
-        result.SetUsedSpace(UsedSpace);
-        result.SetChunkCount(0);
-        return result;
-    }
-
-    Stroka ToString() const
-    {
-        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d",
-            AvailableSpace,
-            UsedSpace,
-            ChunkCount);
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

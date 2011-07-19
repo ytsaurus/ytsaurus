@@ -6,6 +6,7 @@
 #include "session.h"
 #include "chunk_store.h"
 #include "chunk_holder_rpc.h"
+#include "master_connector.h"
 
 #include "../rpc/service.h"
 #include "../rpc/server.h"
@@ -22,6 +23,7 @@ public:
     typedef TIntrusivePtr<TChunkHolder> TPtr;
     typedef TChunkHolderConfig TConfig;
 
+    //! Creates an instance.
     TChunkHolder(
         const TConfig& config,
         NRpc::TServer::TPtr server);
@@ -31,18 +33,30 @@ private:
     typedef TChunkHolderProxy TProxy;
     typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
+    //! Configuration.
     TConfig Config;
+
+    //! Caches blocks.
     TIntrusivePtr<TBlockStore> BlockStore;
+
+    //! Manages complete chunks.
     TIntrusivePtr<TChunkStore> ChunkStore;
+
+    //! Manages currently active upload sessions.
     TIntrusivePtr<TSessionManager> SessionManager;
+
+    //! Caches channels that are used for sending blocks to other holders.
     NRpc::TChannelCache ChannelCache;
 
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, StartChunk);
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, FinishChunk);
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, PutBlocks);
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, SendBlocks);
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, FlushBlock);
-    RPC_SERVICE_METHOD_DECL(NRpcChunkHolder, GetBlocks);
+    //! Manages connection between chunk holder and master.
+    TMasterConnector::TPtr MasterConnector;
+
+    RPC_SERVICE_METHOD_DECL(NProto, StartChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, FinishChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, PutBlocks);
+    RPC_SERVICE_METHOD_DECL(NProto, SendBlocks);
+    RPC_SERVICE_METHOD_DECL(NProto, FlushBlock);
+    RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
 
     void RegisterMethods();
 
