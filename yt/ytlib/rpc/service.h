@@ -137,7 +137,7 @@ private:
     void DoReply(EErrorCode errorCode);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
+    void LogException(NLog::ELogLevel level, Stroka errorCodeString, Stroka what);
     void LogRequestInfo();
     void LogResponseInfo(EErrorCode errorCode);
 
