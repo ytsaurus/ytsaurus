@@ -272,5 +272,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define USE_RPC_PROXY_METHOD(TProxy, MethodName) \
+    typedef TProxy::TReq##MethodName TReq##MethodName; \
+    typedef TProxy::TRsp##MethodName TRsp##MethodName; \
+    typedef TProxy::TInv##MethodName TInv##MethodName;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

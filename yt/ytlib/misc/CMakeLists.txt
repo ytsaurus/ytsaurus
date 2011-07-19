@@ -17,6 +17,7 @@ SET(YT_SOURCE_FILES
     demangle.cpp
     ref_counted_tracker.cpp
     delayed_invoker.cpp
+	semaphore.cpp
     guid.cpp
 
     ${SRCDIR}/preprocessor-gen.h
