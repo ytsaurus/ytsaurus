@@ -16,11 +16,27 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMasterConnector::TMasterConnector(
+    const TConfig& config,
+    TChunkStore::TPtr chunkStore,
+    IInvoker::TPtr serviceInvoker)
+    : Config(config)
+    , ChunkStore(chunkStore)
+    , ServiceInvoker(serviceInvoker)
+    , Registered(false)
+    , IncrementalHeartbeat(false)
+    , HolderId(InvalidHolderId)
+{ }
+
 void TMasterConnector::Initialize()
 {
     InitializeProxy();
     InitializeAddress();
-    ScheduleHeartbeat();
+    OnHeartbeat();
+
+    LOG_INFO("Chunk holder address is %s, master address is %s",
+        ~Address,
+        ~Config.MasterAddress);
 }
 
 void TMasterConnector::InitializeProxy()
@@ -33,7 +49,6 @@ void TMasterConnector::InitializeProxy()
 void TMasterConnector::InitializeAddress()
 {
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);
-    LOG_INFO("Local address is %s", ~Address);
 }
 
 void TMasterConnector::ScheduleHeartbeat()

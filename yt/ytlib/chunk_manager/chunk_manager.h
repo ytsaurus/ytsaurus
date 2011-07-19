@@ -50,7 +50,9 @@ private:
     //! Tracks holder liveness.
     THolderTracker::TPtr HolderTracker;
 
-    THolder::TPtr GetHolder(int id);
+    //! Registers RPC methods.
+    void RegisterMethods();
+
     TTransaction::TPtr GetTransaction(const TTransactionId& id, bool forUpdate = false);
 
     void UpdateChunk(TChunk::TPtr chunk);

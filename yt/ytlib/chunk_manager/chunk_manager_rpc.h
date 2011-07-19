@@ -24,7 +24,7 @@ public:
 
     static Stroka GetServiceName()
     {
-        return "TransactionManager";
+        return "ChunkManager";
     }
 
     TChunkManagerProxy(NRpc::TChannel::TPtr channel)

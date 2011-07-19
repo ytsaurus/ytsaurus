@@ -4,4 +4,5 @@ RECURSE(
     ${DOTDIR}/experiments
     ${DOTDIR}/unittests
     ${DOTDIR}/ytlib
+    ${DOTDIR}/server
 )

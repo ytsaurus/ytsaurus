@@ -1,0 +1,15 @@
+PROGRAM(server)
+
+SRCS(
+    main.cpp
+)
+
+PEERDIR(
+    ADDINCL yt/ytlib
+    dict/json
+)
+
+DEFAULT(INSTALLDIR ${INSTALL_BIN_DIR})
+SET(INSTALLEDNAME ${PROG})
+
+END()

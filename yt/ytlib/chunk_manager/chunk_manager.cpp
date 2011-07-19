@@ -101,8 +101,17 @@ TChunkManager::TChunkManager(
         Config,
         ServiceInvoker))
 {
+    RegisterMethods();
     server->RegisterService(this);
     transactionManager->RegisterHander(this);
+}
+
+void TChunkManager::RegisterMethods()
+{
+    RPC_REGISTER_METHOD(TChunkManager, RegisterHolder);
+    RPC_REGISTER_METHOD(TChunkManager, HolderHeartbeat);
+    RPC_REGISTER_METHOD(TChunkManager, AddChunk);
+    RPC_REGISTER_METHOD(TChunkManager, FindChunk);
 }
 
 TTransaction::TPtr TChunkManager::GetTransaction(const TTransactionId& id, bool forUpdate)
@@ -220,7 +229,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
         request->AddedChunksSize(),
         request->RemovedChunkSize());
 
-    THolder::TPtr holder = GetHolder(holderId);
+    THolder::TPtr holder = HolderTracker->GetHolder(holderId);
     holder->SetStatistics(statistics);
     HolderTracker->UpdateHolderPreference(holder);
 

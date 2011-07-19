@@ -15,6 +15,7 @@ THolderTracker::THolderTracker(
     : Config(config)
     , ServiceInvoker(serviceInvoker)
     , CurrentId(0)
+    , LeaseManager(new TLeaseManager())
 { }
 
 THolder::TPtr THolderTracker::RegisterHolder(
@@ -35,6 +36,7 @@ THolder::TPtr THolderTracker::RegisterHolder(
             holder)
         ->Via(ServiceInvoker));
     holder->SetLease(lease);
+    holder->SetPreferenceIterator(PreferenceMap.end());
 
     // TODO: use YVERIFY
     VERIFY(Holders.insert(MakePair(id, holder)).Second(), "oops");

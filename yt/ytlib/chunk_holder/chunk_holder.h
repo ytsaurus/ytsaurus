@@ -58,6 +58,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, FlushBlock);
     RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
 
+    //! Registers RPC methods.
     void RegisterMethods();
 
     void VerifyNoSession(const TChunkId& chunkId);
