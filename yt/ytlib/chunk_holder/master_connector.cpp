@@ -126,7 +126,7 @@ void TMasterConnector::SendHeartbeat()
             it != RemovedChunks.end();
             ++it)
         {
-            request->AddRemovedChunk(ProtoGuidFromGuid((*it)->GetId()));
+            request->AddRemovedChunk((*it)->GetId().ToProto());
         }
     } else {
         TChunks chunks = ChunkStore->GetChunks();
@@ -180,7 +180,7 @@ void TMasterConnector::OnError()
 NChunkManager::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
 {
     NChunkManager::NProto::TChunkInfo result;
-    result.SetId(ProtoGuidFromGuid(chunk->GetId()));
+    result.SetId(chunk->GetId().ToProto());
     result.SetSize(chunk->GetSize());
     return result;
 }

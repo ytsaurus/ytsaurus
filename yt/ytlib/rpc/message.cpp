@@ -40,7 +40,7 @@ TRpcRequestMessage::TRpcRequestMessage(
     yvector<TSharedRef>& attachments)
 {
     TRequestHeader requestHeader;
-    requestHeader.SetRequestId(ProtoGuidFromGuid(requestId));
+    requestHeader.SetRequestId(requestId.ToProto());
     requestHeader.SetServiceName(serviceName);
     requestHeader.SetMethodName(methodName);
 
@@ -74,7 +74,7 @@ TRpcResponseMessage::TRpcResponseMessage(
     yvector<TSharedRef>& attachments)
 {
     TResponseHeader responseHeader;
-    responseHeader.SetRequestId(ProtoGuidFromGuid(requestId));
+    responseHeader.SetRequestId(requestId.ToProto());
     responseHeader.SetErrorCode(errorCode);
 
     TBlob header;
@@ -103,7 +103,7 @@ const yvector<TSharedRef>& TRpcResponseMessage::GetParts()
 TRpcErrorResponseMessage::TRpcErrorResponseMessage(TRequestId requestId, EErrorCode errorCode)
 {
     TResponseHeader responseHeader;
-    responseHeader.SetRequestId(ProtoGuidFromGuid(requestId));
+    responseHeader.SetRequestId(requestId.ToProto());
     responseHeader.SetErrorCode(errorCode);
     TBlob body;
     if (!SerializeMessage(&responseHeader, &body)) {

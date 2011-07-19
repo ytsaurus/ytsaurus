@@ -1,7 +1,6 @@
 #include "leader_lookup.h"
 #include "election_manager.h"
 
-#include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../logging/log.h"
 
@@ -60,7 +59,7 @@ void TLeaderLookup::OnResponse(
         response->GetState(),
         response->GetVoteId(),
         response->GetPriority(),
-        ~StringFromProtoGuid(response->GetVoteEpoch()));
+        ~TGuid::FromProto(response->GetVoteEpoch()).ToString());
 
     switch (response->GetState()) {
         case TProxy::EState::Leading:
@@ -74,7 +73,7 @@ void TLeaderLookup::OnResponse(
     
     TMasterId leaderId = response->GetVoteId();
     YASSERT(leaderId != InvalidMasterId);
-    TGuid epoch = GuidFromProtoGuid(response->GetVoteEpoch());
+    TGuid epoch = TGuid::FromProto(response->GetVoteEpoch());
 
     LOG_INFO("Obtained leader %d with epoch %s from master %d",
         leaderId, ~epoch.ToString(), masterId);

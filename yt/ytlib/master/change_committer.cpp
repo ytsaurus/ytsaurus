@@ -41,7 +41,7 @@ public:
             TProxy::TReqApplyChange::TPtr request = proxy->ApplyChange();
             request->SetSegmentId(StateId.SegmentId);
             request->SetChangeCount(StateId.ChangeCount);
-            request->SetEpoch(ProtoGuidFromGuid(Committer->Epoch));
+            request->SetEpoch(Committer->Epoch.ToProto());
             request->Attachments().push_back(Data);
             
             Awaiter->Await(

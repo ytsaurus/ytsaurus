@@ -1,7 +1,6 @@
 #include "transaction_manager.h"
 
 #include "../misc/serialize.h"
-#include "../misc/string.h"
 
 namespace NYT {
 namespace NTransaction {
@@ -188,7 +187,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, StartTransaction)
 
     TTransaction::TPtr transaction = DoStartTransaction();
 
-    response->SetTransactionId(ProtoGuidFromGuid(transaction->GetId()));
+    response->SetTransactionId(transaction->GetId().ToProto());
 
     context->SetResponseInfo("TransactionId: %s",
         ~transaction->GetId().ToString());
@@ -200,7 +199,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
 {
     UNUSED(response);
 
-    TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
+    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -215,7 +214,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
 {
     UNUSED(response);
 
-    TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
+    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -230,7 +229,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
 {
     UNUSED(response);
 
-    TTransactionId id = GuidFromProtoGuid(request->GetTransactionId());
+    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());

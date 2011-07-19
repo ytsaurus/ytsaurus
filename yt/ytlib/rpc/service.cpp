@@ -1,6 +1,5 @@
 #include "service.h"
 
-#include "../misc/string.h"
 #include "../logging/log.h"
 
 namespace NYT {

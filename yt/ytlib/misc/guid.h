@@ -10,27 +10,47 @@ namespace NYT {
 
 struct TGuid
 {
-    ui32 parts[4];
+    ui32 Parts[4];
 
+    //! Empty constructor.
     TGuid() { Zero(*this); }
 
-    TGuid(const TGUID& guid); // TGuid <- TGUID
+    //! Copy constructor.
     TGuid(const TGuid& guid); // copy ctor
-    operator TGUID() const;   // TGUID <- TGuid
 
-    bool IsEmpty() const { return (parts[0] | parts[1] | parts[2] | parts[3]) == 0; }
+    //! Conversion from quality/Misc/TGUID.
+    TGuid(const TGUID& guid);
 
+    //! Conversion to quality/Misc/TGUID.
+    operator TGUID() const;
+
+    bool IsEmpty() const;
+
+    //! Creates new instance.
     static TGuid Create();
+
+    //! Conversion to Stroka.
     Stroka ToString() const;
+
+    //! Conversion from Stroka, throws ans exception if something went wrong.
     static TGuid FromString(const Stroka& str);
+
+    //! Conversion from Stroka, returns true if everything was ok.
     static bool FromString(const Stroka &str, TGuid* guid);
+
+    //! Conversion to protobuf type, which we mapped to Stroka
+    Stroka ToProto() const;
+
+    //! Conversion from protobuf type.
+    static TGuid FromProto(const Stroka& protoGuid);
 };
-inline bool operator==(const TGuid &a, const TGuid &b) { return memcmp(&a, &b, sizeof(a)) == 0; }
-inline bool operator!=(const TGuid &a, const TGuid &b) { return !(a == b); }
+
+bool operator==(const TGuid &a, const TGuid &b);
+bool operator!=(const TGuid &a, const TGuid &b);
 
 struct TGuidHash
 {
-    int operator()(const TGuid &a) const { return a.parts[0] + a.parts[1] + a.parts[2] + a.parts[3]; }
+    int operator()(const TGuid &a) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

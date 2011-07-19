@@ -1,7 +1,6 @@
 #include "election_manager.h"
 #include "leader_lookup.h"
 
-#include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
@@ -121,7 +120,7 @@ private:
         THolder<TProxy> proxy(ElectionManager->CellManager->GetMasterProxy<TProxy>(id));
         TProxy::TReqPingFollower::TPtr request = proxy->PingFollower();
         request->SetLeaderId(ElectionManager->CellManager->GetSelfId());
-        request->SetEpoch(ProtoGuidFromGuid(ElectionManager->Epoch));
+        request->SetEpoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(TConfig::RpcTimeout),
             FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id));
@@ -306,7 +305,7 @@ private:
         TProxy::EState state = TProxy::EState(response->GetState());
         TMasterId vote = response->GetVoteId();
         TMasterPriority priority = response->GetPriority();
-        TMasterEpoch epoch = GuidFromProtoGuid(response->GetVoteEpoch());
+        TMasterEpoch epoch = TGuid::FromProto(response->GetVoteEpoch());
         
         LOG_DEBUG("Received status from master %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             masterId,
@@ -480,7 +479,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 {
     UNUSED(response);
 
-    TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
+    TMasterEpoch epoch = TGuid::FromProto(request->GetEpoch());
     TMasterId leaderId = request->GetLeaderId();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
@@ -529,7 +528,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
     response->SetState(State);
     response->SetVoteId(VoteId);
     response->SetPriority(priority);
-    response->SetVoteEpoch(ProtoGuidFromGuid(VoteEpoch));
+    response->SetVoteEpoch(VoteEpoch.ToProto());
 
     context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
         ~State.ToString(),

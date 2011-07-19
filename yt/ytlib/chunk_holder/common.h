@@ -3,8 +3,8 @@
 #include "chunk_holder.pb.h"
 #include "chunk_manager.pb.h"
 
+#include "../misc/guid.h"
 #include "../misc/common.h"
-#include "../misc/string.h"
 #include "../logging/log.h"
 
 namespace NYT {

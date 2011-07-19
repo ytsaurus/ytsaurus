@@ -1,7 +1,6 @@
 #include "client.h"
 
 #include "../misc/serialize.h"
-#include "../misc/string.h"
 #include "../logging/log.h"
 
 #include <contrib/libs/protobuf/message.h>
@@ -33,7 +32,7 @@ void TChannel::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     TResponseHeader header;
     DeserializeMessage(&header, parts[0]);
 
-    TRequestId requestId = GuidFromProtoGuid(header.GetRequestId());
+    TRequestId requestId = TGuid::FromProto(header.GetRequestId());
     TClientResponse::TPtr response = GetResponse(requestId);
     if (~response == NULL) {
         LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",

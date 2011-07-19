@@ -1,6 +1,5 @@
 #include "chunk_holder.h"
 
-#include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
 #include "../actions/parallel_awaiter.h"
@@ -93,7 +92,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     int windowSize = request->GetWindowSize();
 
     context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
@@ -112,7 +111,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
@@ -143,7 +142,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
     TBlockOffset startOffset = request->GetStartOffset();
 
@@ -178,7 +177,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
     i32 endBlockIndex = request->GetEndBlockIndex();
     Stroka destination = request->GetDestination();
@@ -196,7 +195,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
     TProxy::TReqPutBlocks::TPtr putRequest = TProxy(ChannelCache.GetChannel(destination)).PutBlocks();
-    putRequest->SetChunkId(ProtoGuidFromGuid(chunkId));
+    putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
     putRequest->SetStartOffset(startBlock->GetKey().Offset);
     
@@ -228,7 +227,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     int blockCount = static_cast<int>(request->BlocksSize());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
@@ -282,7 +281,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     int blockIndex = request->GetBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",

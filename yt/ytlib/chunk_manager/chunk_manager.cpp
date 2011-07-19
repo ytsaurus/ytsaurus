@@ -1,7 +1,6 @@
 #include "chunk_manager.h"
 
 #include "../misc/serialize.h"
-#include "../misc/string.h"
 #include "../misc/guid.h"
 
 namespace NYT {
@@ -236,7 +235,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     // TODO: refactor this once the state becomes persistent
     for (int i = 0; request->AddedChunksSize(); ++i) {
         const NProto::TChunkInfo& info = request->GetAddedChunks(i);
-        TChunkId chunkId = GuidFromProtoGuid(info.GetId());
+        TChunkId chunkId = TGuid::FromProto(info.GetId());
         i64 size = info.GetSize();
 
         bool firstSeen;
@@ -264,7 +263,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     }
 
     for (int i = 0; request->AddedChunksSize(); ++i) {
-        TChunkId chunkId = GuidFromProtoGuid(request->GetRemovedChunk(i));
+        TChunkId chunkId = TGuid::FromProto(request->GetRemovedChunk(i));
 
         // TODO: code here
 
@@ -278,7 +277,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
-    TTransactionId transactionId = GuidFromProtoGuid(request->GetTransactionId());
+    TTransactionId transactionId = TGuid::FromProto(request->GetTransactionId());
     int replicationFactor = request->GetReplicationFactor();
 
     context->SetRequestInfo("TransactionId: %s, ReplicationFactor: %d",
@@ -292,7 +291,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 
     transaction->AddedChunks().push_back(chunk->GetId());
 
-    response->SetChunkId(ProtoGuidFromGuid(chunk->GetId()));
+    response->SetChunkId(chunk->GetId().ToProto());
 
     THolderTracker::THolders holders = HolderTracker->GetTargetHolders(replicationFactor);
     for (THolderTracker::THolders::iterator it = holders.begin();
@@ -313,8 +312,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
 {
-    TTransactionId transactionId = GuidFromProtoGuid(request->GetTransactionId());
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TTransactionId transactionId = TGuid::FromProto(request->GetTransactionId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
 
     context->SetRequestInfo("TransactionId: %s, ChunkId: %s",
         ~transactionId.ToString(),

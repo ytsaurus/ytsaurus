@@ -343,7 +343,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartSession(i32 no
 {
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TProxy::TReqStartChunk::TPtr req = TProxy(channel).StartChunk();
-    req->SetChunkId(ProtoGuidFromGuid(TGuid::FromString(Id)));
+    req->SetChunkId(TGuid::FromString(Id).ToProto());
     req->SetWindowSize(Config.WinSize);
     LOG_DEBUG("Session %s, node %d start request", ~Id, node);
     return req->Invoke();
@@ -371,7 +371,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishSession(i32 
 {
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TReqFinishChunk::TPtr req = TProxy(channel).FinishChunk();
-    req->SetChunkId(ProtoGuidFromGuid(TGuid::FromString(Id)));
+    req->SetChunkId(TGuid::FromString(Id).ToProto());
     LOG_DEBUG("Session %s, node %d finish request", ~Id, node);
     return req->Invoke();
 }
@@ -393,7 +393,7 @@ void TRemoteChunkWriter::PutBlocks(i32 node, TGroupPtr group)
         ~Id, group->StartId, node);
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TReqPutBlocks::TPtr req = TProxy(channel).PutBlocks();
-    req->SetChunkId(ProtoGuidFromGuid(TGuid::FromString(Id)));
+    req->SetChunkId(TGuid::FromString(Id).ToProto());
     req->SetStartBlockIndex(group->StartId);
     req->SetStartOffset(group->Blocks.front()->Offset);
 
@@ -422,7 +422,7 @@ void TRemoteChunkWriter::SendBlocks(i32 node, i32 dst, TGroupPtr group)
         ~Id, group->StartId, node, dst);
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TProxy::TReqSendBlocks::TPtr req = TProxy(channel).SendBlocks();
-    req->SetChunkId(ProtoGuidFromGuid(TGuid::FromString(Id)));
+    req->SetChunkId(TGuid::FromString(Id).ToProto());
     req->SetStartBlockIndex(group->StartId);
     req->SetEndBlockIndex(group->GetEndId());
     req->SetDestination(Nodes[dst]->Address);
@@ -449,7 +449,7 @@ TRemoteChunkWriter::TInvFlushBlock::TPtr TRemoteChunkWriter::FlushBlocks(i32 nod
         ~Id, group->StartId, node);
     NRpc::TChannel::TPtr channel = ChannelCache.GetChannel(Nodes[node]->Address);
     TProxy::TReqFlushBlock::TPtr req = TProxy(channel).FlushBlock();
-    req->SetChunkId(ProtoGuidFromGuid(TGuid::FromString(Id)));
+    req->SetChunkId(TGuid::FromString(Id).ToProto());
     req->SetBlockIndex(group->GetEndId());
     return req->Invoke();
 }

@@ -183,19 +183,33 @@ static void InitGuidSeed()
 
 TGuid::TGuid(const TGUID& guid)
 {
-    memcpy(parts, guid.dw, sizeof(parts));
+    memcpy(Parts, guid.dw, sizeof(Parts));
 }
 
 TGuid::TGuid(const TGuid &guid)
 {
-    memcpy(parts, guid.parts, sizeof(parts));
+    memcpy(Parts, guid.Parts, sizeof(Parts));
 }
 
 TGuid::operator TGUID() const
 {
     TGUID guid;
-    memcpy(guid.dw, parts, sizeof(parts));
+    memcpy(guid.dw, Parts, sizeof(Parts));
     return guid;
+}
+
+bool TGuid::IsEmpty() const
+{
+    return (Parts[0] | Parts[1] | Parts[2] | Parts[3]) == 0;
+}
+
+bool operator==(const TGuid &a, const TGuid &b)
+{
+    return memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+bool operator!=(const TGuid &a, const TGuid &b) {
+    return !(a == b);
 }
 
 TGuid TGuid::Create()
@@ -210,9 +224,7 @@ TGuid TGuid::Create()
 
     long counter = AtomicAdd(Counter, 1);
 
-    ui64 fin;
-    //QueryPerformanceCounter((_LARGE_INTEGER*)&fin);
-    fin = GetCycleCount();
+    ui64 fin = GetCycleCount();
     const int N_ADD_BYTES = 12;
     char info[sizeof(GuidSeed) + N_ADD_BYTES];
     memcpy(info + N_ADD_BYTES, &GuidSeed, sizeof(GuidSeed));
@@ -221,24 +233,23 @@ TGuid TGuid::Create()
 
     TJenkinsHashFunc2 hf;
     hf.SetSeed(0x853122ef, 0x1c39dbb5);
-    hf.CalcHash(info, sizeof(info), &res.parts[0], &res.parts[1]);
-    res.parts[2] = MurmurHash<ui32>(info, sizeof(info));
-    res.parts[3] = counter;
+    hf.CalcHash(info, sizeof(info), &res.Parts[0], &res.Parts[1]);
+    res.Parts[2] = MurmurHash<ui32>(info, sizeof(info));
+    res.Parts[3] = counter;
     return res;
 }
 
 Stroka TGuid::ToString() const
 {
     char buf[1000];
-    sprintf(buf, "%x-%x-%x-%x", parts[0], parts[1], parts[2], parts[3]);
+    sprintf(buf, "%x-%x-%x-%x", Parts[0], Parts[1], Parts[2], Parts[3]);
     return buf;
 }
 
 TGuid TGuid::FromString(const Stroka& str)
 {
     TGuid guid;
-    if(sscanf(str.c_str(), "%x-%x-%x-%x",
-        &guid.parts[0], &guid.parts[1], &guid.parts[2], &guid.parts[3]) != 4)
+    if (!FromString(str, &guid))
     {
         ythrow yexception() << Sprintf("Can't parse guid from %s", ~str);
     }
@@ -247,12 +258,35 @@ TGuid TGuid::FromString(const Stroka& str)
 
 bool TGuid::FromString(const Stroka &str, TGuid* guid)
 {
-    try {
-        *guid = FromString(str);
-    } catch (const yexception& ex) {
+    if(sscanf(
+        str.c_str(),
+        "%x-%x-%x-%x",
+        &guid->Parts[0], &guid->Parts[1], &guid->Parts[2], &guid->Parts[3]) != 4)
+    {
         return false;
     }
     return true;
+}
+
+// we store TGuid in "bytes" protobuf type which is mapped to Stroka
+TGuid TGuid::FromProto(const Stroka& protoGuid)
+{
+    return *(TGuid*) protoGuid.data();
+}
+
+Stroka TGuid::ToProto() const
+{
+    Stroka protoGuid;
+    const char* p = (const char*) this;
+    protoGuid.assign(p, p + sizeof(TGuid));
+    return protoGuid;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TGuidHash::operator()(const TGuid &a) const
+{
+    return a.Parts[0] + a.Parts[1] + a.Parts[2] + a.Parts[3];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

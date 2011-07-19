@@ -1,7 +1,5 @@
 #include "chunk_store.h"
 
-#include "../misc/string.h"
-
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
@@ -92,7 +90,7 @@ IInvoker::TPtr TChunkStore::GetIOInvoker(int location)
 int TChunkStore::GetNewChunkLocation(const TChunkId& chunkId)
 {
     // TODO: code here
-    return chunkId.parts[0] % Config.Locations.ysize();
+    return chunkId.Parts[0] % Config.Locations.ysize();
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, int location)

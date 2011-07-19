@@ -4,7 +4,6 @@
 #include "leader_pinger.h"
 
 #include "../actions/action_util.h"
-#include "../misc/string.h"
 #include "../misc/serialize.h"
 #include "../misc/fs.h"
 #include "../misc/guid.h"
@@ -203,7 +202,7 @@ void TMasterStateManager::SendSync(TMasterId masterId, TMasterEpoch epoch)
     TProxy::TReqSync::TPtr request = proxy->Sync();
     request->SetSegmentId(stateId.SegmentId);
     request->SetChangeCount(stateId.ChangeCount);
-    request->SetEpoch(ProtoGuidFromGuid(epoch));
+    request->SetEpoch(epoch.ToProto());
     request->SetMaxSnapshotId(maxSnapshotId);
     request->Invoke();
 
@@ -221,7 +220,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, Sync)
     TMasterStateId stateId(
         request->GetSegmentId(),
         request->GetChangeCount());
-    TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
+    TMasterEpoch epoch = TGuid::FromProto(request->GetEpoch());
     i32 maxSnapshotId = request->GetMaxSnapshotId();
 
     context->SetRequestInfo("StateId: %s, Epoch: %s, MaxSnapshotId: %d",
@@ -399,7 +398,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ReadChangeLog)
 
 RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 {
-    TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
+    TMasterEpoch epoch = TGuid::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
@@ -496,7 +495,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, CreateSnapshot)
 {
     UNUSED(response);
 
-    TMasterEpoch epoch = GuidFromProtoGuid(request->GetEpoch());
+    TMasterEpoch epoch = TGuid::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 changeCount = request->GetChangeCount();
     TMasterStateId stateId(segmentId, changeCount);
@@ -570,7 +569,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
     UNUSED(response);
 
     TMasterId followerId = request->GetFollowerId();
-    TMasterEpoch followerEpoch = GuidFromProtoGuid(request->GetEpoch());
+    TMasterEpoch followerEpoch = TGuid::FromProto(request->GetEpoch());
     EState followerState = static_cast<EState>(request->GetState());
 
     context->SetRequestInfo("Id: %d, Epoch: %s, State: %s",

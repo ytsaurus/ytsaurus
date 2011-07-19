@@ -44,7 +44,7 @@ public:
             TProxy::TReqCreateSnapshot::TPtr request = proxy->CreateSnapshot();
             request->SetSegmentId(StateId.SegmentId);
             request->SetChangeCount(StateId.ChangeCount);
-            request->SetEpoch(ProtoGuidFromGuid(Creator->Epoch));
+            request->SetEpoch(Creator->Epoch.ToProto());
 
             Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
                 &TSession::OnRemote,

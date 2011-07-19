@@ -1,7 +1,6 @@
 #include "server.h"
 
 #include "../misc/serialize.h"
-#include "../misc/string.h"
 #include "../logging/log.h"
 
 namespace NYT {
@@ -52,7 +51,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TRequestId requestId = GuidFromProtoGuid(requestHeader.GetRequestId());
+    TRequestId requestId = TGuid::FromProto(requestHeader.GetRequestId());
     Stroka serviceName = requestHeader.GetServiceName();
     Stroka methodName = requestHeader.GetMethodName();
 

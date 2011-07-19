@@ -3,6 +3,7 @@
 #include "../misc/fs.h"
 #include "../misc/string.h"
 #include "../misc/serialize.h"
+#include "../misc/guid.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
 
@@ -308,7 +309,7 @@ void TChunkHolder::ReadBlocks(
     TCtxGetBlocks::TTypedRequest& req = context->Request();
     TCtxGetBlocks::TTypedResponse& rsp = context->Response();
 
-    TChunkId chunkId = GuidFromProtoGuid(req.GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(req.GetChunkId());
     TFile file(fileName, OpenExisting | RdOnly);
     // TODO: rename i and idx
     for (int i = 0; i < uncached.ysize(); ++i) {
@@ -447,7 +448,7 @@ void TChunkHolder::CancelSession(const TChunkId& chunkId)
 void TChunkHolder::PutBlocksCallback(TProxy::TRspPutBlocks::TPtr putResponse, TCtxSendBlocks::TPtr context)
 {
     TCtxSendBlocks::TTypedRequest& req = context->Request();
-    TChunkId chunkId = GuidFromProtoGuid(req.GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(req.GetChunkId());
     i32 start = req.GetStartBlockIndex();
     i32 end = req.GetEndBlockIndex();
     const Stroka& dst = req.GetDestination();
@@ -485,7 +486,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
 
     VerifyNoSession(chunkId);
     VerifyNoChunk(chunkId);
@@ -508,7 +509,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     TSessionMap::iterator it = GetSessionIter(chunkId);
     YASSERT(LocationMap.find(chunkId) == LocationMap.end());
 
@@ -535,7 +536,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     i32 startBlock = request->GetStartBlockIndex();
     TBlockOffset offset = request->GetStartOffset();
 
@@ -579,7 +580,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     i32 start = request->GetStartBlockIndex();
     i32 end = request->GetEndBlockIndex();
     const Stroka& dst = request->GetDestination();
@@ -602,7 +603,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     putReq->Invoke()->Subscribe(FromMethod(&TChunkHolder::PutBlocksCallback, this, context));
 
     LOG_DEBUG("Chunk %s: putting blocks to %s (BlockCount: %d, StartBlockIndex: %d, StartOffset: %" PRId64 ")",
-        ~StringFromProtoGuid(putReq->GetChunkId()), 
+        ~TGuid::FromProto(putReq->GetChunkId()).ToString(),
         ~request->GetDestination(),
         putReq->Attachments().ysize(), 
         putReq->GetStartBlockIndex(), 
@@ -613,7 +614,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
 
     LOG_DEBUG("Chunk %s: flushing blocks %d-%d",
         ~StringFromGuid(chunkId), request->GetStartBlockIndex(), request->GetEndBlockIndex());
@@ -625,7 +626,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlocks)
 
 RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
-    TChunkId chunkId = GuidFromProtoGuid(request->GetChunkId());
+    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     int blockCount = static_cast<int>(request->BlocksSize());
     
     LOG_DEBUG("Chunk %s: getting %d blocks (IsPrecharge: %d)",

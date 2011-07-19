@@ -62,7 +62,7 @@ void TLeaderPinger::SendPing()
     TMasterStateManager::EState state = MasterStateManager->GetState();
     TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     TProxy::TReqPingLeader::TPtr request = proxy->PingLeader();
-    request->SetEpoch(ProtoGuidFromGuid(Epoch));
+    request->SetEpoch(Epoch.ToProto());
     request->SetFollowerId(CellManager->GetSelfId());
     request->SetState(state);
     request->Invoke(Config.RpcTimeout)->Subscribe(
