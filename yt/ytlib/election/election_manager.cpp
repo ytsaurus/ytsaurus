@@ -488,20 +488,20 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
         leaderId);
 
     if (State != TProxy::EState::Following)
-        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+        ythrow TServiceException(EErrorCode::InvalidState) <<
                Sprintf("Ping from a leader while in an invalid state (LeaderId: %d, Epoch: %s, State: %s)",
                    leaderId,
                    ~StringFromGuid(epoch),
                    ~State.ToString());
 
     if (leaderId != LeaderId)
-        ythrow TServiceException(TProxy::EErrorCode::InvalidLeader) <<
+        ythrow TServiceException(EErrorCode::InvalidLeader) <<
                Sprintf("Ping from an invalid leader: expected %d, got %d",
                    LeaderId,
                    leaderId);
 
     if (epoch != Epoch)
-        ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
+        ythrow TServiceException(EErrorCode::InvalidEpoch) <<
                Sprintf("Ping with invalid epoch from leader %d: expected %s, got %s",
                    leaderId,
                    ~StringFromGuid(Epoch),
