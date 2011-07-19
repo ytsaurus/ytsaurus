@@ -334,8 +334,9 @@ TLazyPtr<TActionQueue> TRemoteChunkWriter::WriterThread;
 
 TRemoteChunkWriter::TRemoteChunkWriter(
     const TRemoteChunkWriter::TConfig& config, 
+    const TChunkId& chunkId,
     const yvector<Stroka>& nodes)
-    : ChunkId(TGuid::Create()) 
+    : ChunkId(chunkId) 
     , Config(config)
     , State(EWriterState::Starting)
     , WindowSlots(config.WindowSize)
@@ -374,11 +375,6 @@ TRemoteChunkWriter::~TRemoteChunkWriter()
 {
     //LOG_DEBUG("Chunk %s destructor", Id.c_str());
     YASSERT((Finishing && Window.empty()) || State == EWriterState::Failed);
-}
-
-TRemoteChunkWriter::TChunkId TRemoteChunkWriter::GetChunkId() const
-{
-    return ChunkId;
 }
 
 void TRemoteChunkWriter::ShiftWindow()

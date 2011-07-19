@@ -34,13 +34,14 @@ public:
     };
 
     // Client thread
-    TRemoteChunkWriter(const TConfig& config, const yvector<Stroka>& nodes);
+    TRemoteChunkWriter(
+        const TConfig& config, 
+        const TChunkId& chunkId,
+        const yvector<Stroka>& nodes);
 
     void AddBlock(const TSharedRef& data);
 
     void Close();
-
-    TChunkId GetChunkId() const;
 
     ~TRemoteChunkWriter();
 
