@@ -533,8 +533,9 @@ TSequenceId TBusClient::TBus::GenerateSequenceId()
 
 void TBusClient::TBus::ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
 {
+    UNUSED(sequenceId);
     // TODO: rearrangement is switched off, see YT-95
-    //MessageRearranger->EnqueueMessage(message, sequenceId);
+    // MessageRearranger->EnqueueMessage(message, sequenceId);
     Handler->OnMessage(message, this);
 }
 
