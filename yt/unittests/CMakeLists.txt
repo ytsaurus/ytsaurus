@@ -10,6 +10,7 @@ SRCS(
     ref_counted_tracker_ut.cpp
     pattern_formatter_ut.cpp
     enum_ut.cpp
+    yverify_ut.cpp
 )
 
 PEERDIR(
