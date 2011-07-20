@@ -1,21 +1,24 @@
 #pragma once
 
-#include "common.h"
+#include <util/system/yassert.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Evaluate the expression a. In debug mode throws an error if (a == false)
-#define YVERIFY( a ) do { \
-        try { \
-            if ( EXPECT_FALSE( !(a) ) ) { \
-                if (YaIsDebuggerPresent()) __debugbreak(); else assert(0&&(a)); \
-            } \
-        } catch (...) { \
-            if (YaIsDebuggerPresent()) __debugbreak(); else assert(false && "Exception during verification"); \
+//! Evaluates the expression #expr. In debug mode throws an error if (#expr == false)
+#define YVERIFY(expr) \
+do { \
+    try { \
+        if (EXPECT_FALSE( !(expr) )) { \
+            if (YaIsDebuggerPresent()) __debugbreak(); \
+            else assert(0&&(expr)); \
         } \
-    } while (0)
+    } catch (...) { \
+        if (YaIsDebuggerPresent()) __debugbreak(); \
+        else assert(false && "Exception during verification"); \
+    } \
+} while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 

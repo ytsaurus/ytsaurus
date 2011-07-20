@@ -136,8 +136,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         TItem* item = ItemMap.find(key)->Second();
         item->AsyncResult->Set(value);
 
-        // TODO: use YVERIFY
-        VERIFY(ValueMap.insert(MakePair(key, ~value)).second, "oops");
+        YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
     
         LruList.PushFront(item);
         ++LruListSize;
@@ -206,9 +205,8 @@ void TCacheBase<TKey, TValue, THash>::Trim()
         TItem* item = LruList.PopBack();
         --LruListSize;
         
-        // TODO: use YVERIFY
         TValuePtr value;
-        VERIFY(item->AsyncResult->TryGet(&value), "oops");
+        YVERIFY(item->AsyncResult->TryGet(&value));
 
         TKey key = value->GetKey();
         ItemMap.erase(key);

@@ -1,6 +1,7 @@
 #include "session.h"
 
 #include "../misc/fs.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -50,8 +51,7 @@ TSession::TPtr TSessionManager::StartSession(
         ->Via(ServiceInvoker));
     session->SetLease(lease);
 
-    // TODO: use YVERIFY
-    VERIFY(SessionMap.insert(MakePair(chunkId, session)).Second(), "oops");
+    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
 
     LOG_INFO("Session started (ChunkId: %s, Location: %d, WindowSize: %d)",
         ~chunkId.ToString(),
@@ -65,8 +65,7 @@ void TSessionManager::CancelSession(TSession::TPtr session)
 {
     TChunkId chunkId = session->GetChunkId();
 
-    // TODO: use YVERIFY
-    VERIFY(SessionMap.erase(chunkId) == 1, "oops");
+    YVERIFY(SessionMap.erase(chunkId) == 1);
 
     session->Cancel();
 
@@ -78,8 +77,7 @@ TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
 {
     TChunkId chunkId = session->GetChunkId();
 
-    // TODO: use YVERIFY
-    VERIFY(SessionMap.erase(chunkId) == 1, "oops");
+    YVERIFY(SessionMap.erase(chunkId) == 1);
 
     return session->Finish()->Apply(
         FromMethod(

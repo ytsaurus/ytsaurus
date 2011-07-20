@@ -1,6 +1,7 @@
 #include "transaction_manager.h"
 
 #include "../misc/serialize.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NTransaction {
@@ -25,16 +26,14 @@ public:
         
         TTransaction::TPtr transaction = new TTransaction(id);
 
-        // TOOD: use YVERIFY
-        VERIFY(Transactions.insert(MakePair(id, transaction)).Second(), "oops");
+        YVERIFY(Transactions.insert(MakePair(id, transaction)).Second());
 
         return transaction;
     }
 
     void RemoveTransaction(TTransaction::TPtr transaction)
     {
-        // TOOD: use YVERIFY
-        VERIFY(Transactions.erase(transaction->GetId()) == 1, "oops");
+        YVERIFY(Transactions.erase(transaction->GetId()) == 1);
     }
 
     TTransaction::TPtr FindTransaction(TTransactionId id, bool forUpdate = false)

@@ -2,6 +2,7 @@
 
 #include "../misc/serialize.h"
 #include "../misc/guid.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NChunkManager {
@@ -48,8 +49,7 @@ public:
     void RemoveChunk(TChunk::TPtr chunk)
     {
         // TODO: schedule removal on holders
-        // TOOD: use YVERIFY
-        VERIFY(Chunks.erase(chunk->GetId()) == 1, "oops");
+        YVERIFY(Chunks.erase(chunk->GetId()) == 1);
     }
 
     TChunk::TPtr FindChunk(const TChunkId& id, bool forUpdate = false)

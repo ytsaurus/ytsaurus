@@ -1,5 +1,7 @@
 #include "chunk_manager.h"
 
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NChunkManager {
 
@@ -38,8 +40,7 @@ THolder::TPtr THolderTracker::RegisterHolder(
     holder->SetLease(lease);
     holder->SetPreferenceIterator(PreferenceMap.end());
 
-    // TODO: use YVERIFY
-    VERIFY(Holders.insert(MakePair(id, holder)).Second(), "oops");
+    YVERIFY(Holders.insert(MakePair(id, holder)).Second());
 
     UpdateHolderPreference(holder);
 
@@ -108,8 +109,7 @@ void THolderTracker::OnHolderExpired(THolder::TPtr holder)
     if (!IsHolderAlive(id))
         return;
 
-    // TODO: use YVERIFY
-    VERIFY(Holders.erase(id) == 1, "oops");
+    YVERIFY(Holders.erase(id) == 1);
 
     if (holder->GetPreferenceIterator() != PreferenceMap.end()) {
         PreferenceMap.erase(holder->GetPreferenceIterator());

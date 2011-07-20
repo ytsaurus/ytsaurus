@@ -3,6 +3,7 @@
 
 #include "../misc/serialize.h"
 #include "../misc/metric.h"
+#include "../misc/assert.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
 #include "../actions/parallel_awaiter.h"
@@ -389,7 +390,7 @@ void TRemoteChunkWriter::ShiftWindow()
                 group->GetEndBlockIndex());
 
             for (int i = 0; i < group->GetBlockCount(); ++i)
-                VERIFY(WindowSlots.Release(), "");
+                YVERIFY(WindowSlots.Release());
 
             Window.pop_front();
         } else

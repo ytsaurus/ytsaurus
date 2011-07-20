@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../actions/async_result.h"
+#include "../misc/assert.h"
 
 #include <util/system/yield.h>
 

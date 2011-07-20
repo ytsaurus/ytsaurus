@@ -1,5 +1,7 @@
 #include "message_rearranger.h"
 
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NBus {
 
@@ -50,9 +52,7 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
         ScheduleTimeout();
     }
 
-    VERIFY(
-        MessageMap.insert(MakePair(sequenceId, message)).second,
-        "Duplicate sequence id");
+    YVERIFY(MessageMap.insert(MakePair(sequenceId, message)).second);
 }
 
 void TMessageRearranger::OnTimeout()

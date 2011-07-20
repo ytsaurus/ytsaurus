@@ -1,6 +1,8 @@
 #include "block_store.h"
 #include "chunk_store.h"
 
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -98,8 +100,7 @@ public:
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
         TInsertCookie cookie(blockId);
-        // TODO: use YVERIFY
-        VERIFY(BeginInsert(&cookie), "oops");
+        YVERIFY(BeginInsert(&cookie));
         TCachedBlock::TPtr block = new TCachedBlock(blockId, data);
         EndInsert(block, &cookie);
         return block;

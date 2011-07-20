@@ -4,6 +4,7 @@
 
 #include "../actions/action_util.h"
 #include "../logging/log.h"
+#include "../misc/assert.h"
 
 #include <util/generic/singleton.h>
 #include <util/generic/list.h>
@@ -481,8 +482,8 @@ void TBusServer::UnregisterSession(TIntrusivePtr<TSession> session)
 {
     session->Finalize();
 
-    VERIFY(SessionMap.erase(session->GetSessionId()) == 1, "Failed to erase a session");
-    VERIFY(PingMap.erase(session->GetPingId()) == 1, "Failed to erase a session ping");
+    YVERIFY(SessionMap.erase(session->GetSessionId()) == 1);
+    YVERIFY(PingMap.erase(session->GetPingId()) == 1);
 
     LOG_DEBUG("Session unregistered (SessionId: %s)",
         ~session->GetSessionId().ToString());
