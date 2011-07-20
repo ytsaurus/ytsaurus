@@ -17,6 +17,7 @@ private:
     int Sum;
     int SumSquares;
 
+    //! The length of segment which correpsonds to one bucket.
     int Delta;
 
     //! Contains values from (-oo, MinValue).

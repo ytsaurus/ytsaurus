@@ -39,7 +39,7 @@ double TMetric2::GetStdDev() const
         return 0;
     }
     double mean = GetMean();
-    return sqrt( (SumSquares - mean) / NumValues );
+    return sqrt(abs(SumSquares / NumValues - mean * mean));
 }
 
 Stroka TMetric2::GetDebugInfo() const
