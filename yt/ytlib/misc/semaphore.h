@@ -1,22 +1,31 @@
 ﻿#pragma once
+
 #include "common.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Custom semaphore class on Events and Atomics
-class TSemaphore {
+//! Custom semaphore class on Events and Atomics.
+/*!
+ *  This class was brought into existence primarily because of instability of util's analogue.
+ */
+class TSemaphore
+{
 public:
-    TSemaphore(int maxFreeSlots);
+    explicit TSemaphore(int maxFreeSlots);
 
-    //! Increases the semaphore counter.
-    //! Returns 'true' if the semaphore counter increased
-    bool Release();
-
-    //! Decreases counter
-    //! Keeps a thread blocked while the semaphore counter is equal 0.
+    //! Decreases the counter.
+    /*!
+     *  Keeps a thread blocked while the semaphore counter is equal 0.
+     */
     void Acquire();
+
+    //! Increases the counter.
+    /*!
+     *  Returns 'true' if the semaphore counter has increased.
+     */
+    bool Release();
 
 /*  ToDo: Maybe later
 
@@ -27,10 +36,10 @@ public:
 
 private:
     const int MaxFreeSlots;
-    TAtomic NumFreeSlots;
+    TAtomic FreeSlotCount;
     Event FreeSlotExists;
-};
 
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
