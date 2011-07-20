@@ -2,6 +2,7 @@ SET(YT_SOURCE_FILES
     common.h
     lease_manager.cpp
     metric.h
+    metric2.cpp
     config.h
     cache.h
     cache-inl.h
