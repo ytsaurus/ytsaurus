@@ -101,8 +101,8 @@ TRemoteChunkWriter::TGroup::TGroup(
     TBlockOffset startOffset, 
     TRemoteChunkWriter::TPtr writer)
     : States(numNodes)
-    , StartBlockIndex(startBlockIndex)
     , StartOffset(startOffset)
+    , StartBlockIndex(startBlockIndex)
     , Size(0)
     , Writer(writer)
 { }
@@ -405,7 +405,7 @@ void TRemoteChunkWriter::SetFinishFlag()
 {
     LOG_DEBUG("Chunk %s, set finish flag", ~ChunkId.ToString());
     Finishing = true;
-    if (Window.Empty())
+    if (Window.empty())
         FinishSession();
 }
 
