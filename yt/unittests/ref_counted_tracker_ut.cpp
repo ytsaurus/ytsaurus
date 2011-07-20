@@ -6,31 +6,30 @@
 #include "framework/framework.h"
 
 namespace NYT {
+namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    class TSimpleObject : public NYT::TRefCountedBase
+class TSimpleObject : public NYT::TRefCountedBase
+{
+    ui32 Foo;
+    ui32 Bar;
+
+public:
+    typedef TIntrusivePtr<TSimpleObject> TPtr;
+
+    static int GetAliveCount()
     {
-        ui32 Foo;
-        ui32 Bar;
+        return TRefCountedTracker::Get()->
+            GetAliveObjects(typeid(TSimpleObject));
+    }
 
-    public:
-        typedef TIntrusivePtr<TSimpleObject> TPtr;
-
-        static int GetAliveCount()
-        {
-            return TRefCountedTracker::Get()->
-                GetAliveObjects(typeid(TSimpleObject));
-        }
-
-        static int GetTotalCount()
-        {
-            return TRefCountedTracker::Get()->
-                GetTotalObjects(typeid(TSimpleObject));
-        }
-    };
-}
+    static int GetTotalCount()
+    {
+        return TRefCountedTracker::Get()->
+            GetTotalObjects(typeid(TSimpleObject));
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,5 +68,6 @@ TEST(TRefCountedTrackerTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NUnitTest
 } // namespace NYT
 

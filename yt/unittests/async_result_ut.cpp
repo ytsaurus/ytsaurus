@@ -5,6 +5,7 @@
 #include "framework/framework.h"
 
 namespace NYT {
+namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +38,6 @@ class TMockSubscriber : public IParamAction<int>
 {
 public:
     typedef TIntrusivePtr<TMockSubscriber> TPtr;
-
     MOCK_METHOD1(Do, void(int value));
 };
 
@@ -83,5 +83,6 @@ TEST_F(TAsyncResultTest, SubscribeWithAsynchronousSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NUnitTest
 } // namespace NYT
 

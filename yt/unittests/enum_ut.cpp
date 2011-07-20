@@ -3,35 +3,34 @@
 #include "framework/framework.h"
 
 namespace NYT {
+namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    DECLARE_ENUM(ESimple, (X)(Y)(Z));
-    DECLARE_ENUM(EColor,
-        ((Red)  (10))
-        ((Green)(20))
-        ((Blue) (30))
-         (Black)
-         (White)
-    );
+DECLARE_ENUM(ESimple, (X)(Y)(Z));
+DECLARE_ENUM(EColor,
+    ((Red)  (10))
+    ((Green)(20))
+    ((Blue) (30))
+     (Black)
+     (White)
+);
 
-    // Mix-in implicit constructor to allow implicit conversions.
-    BEGIN_DECLARE_ENUM(EMyBase,
-        ((Chip)(1))
-    )
-        MIXIN_ENUM__IMPLICIT_INT_CONSTRUCTOR(EMyBase)
-    END_DECLARE_ENUM();
+// Mix-in implicit constructor to allow implicit conversions.
+BEGIN_DECLARE_ENUM(EMyBase,
+    ((Chip)(1))
+)
+    MIXIN_ENUM__IMPLICIT_INT_CONSTRUCTOR(EMyBase)
+END_DECLARE_ENUM();
 
-    // By default, explicit constructor is prefered.
-    BEGIN_DECLARE_DERIVED_ENUM(EMyBase, EMyDerived,
-        ((Dale)(2))
-    )
-        MIXIN_ENUM__EXPLICIT_INT_CONSTRUCTOR(EMyDerived)
-    END_DECLARE_ENUM();
+// By default, explicit constructor is prefered.
+BEGIN_DECLARE_DERIVED_ENUM(EMyBase, EMyDerived,
+    ((Dale)(2))
+)
+    MIXIN_ENUM__EXPLICIT_INT_CONSTRUCTOR(EMyDerived)
+END_DECLARE_ENUM();
 
-    DECLARE_DERIVED_ENUM(EMyBase, EMyOtherDerived, ((Jack)(3)));
-}
+DECLARE_DERIVED_ENUM(EMyBase, EMyOtherDerived, ((Jack)(3)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,5 +117,6 @@ TEST(TEnumTest, Derived)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NUnitTest
 } // namespace NYT
 
