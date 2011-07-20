@@ -405,6 +405,8 @@ void TRemoteChunkWriter::SetFinishFlag()
 {
     LOG_DEBUG("Chunk %s, set finish flag", ~ChunkId.ToString());
     Finishing = true;
+    if (Window.Empty())
+        FinishSession();
 }
 
 void TRemoteChunkWriter::AddGroup(TGroupPtr group)
