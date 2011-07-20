@@ -8,10 +8,12 @@ TMetric2::TMetric2(double minValue, double maxValue, int bucketCount)
     : MinValue(minValue)
     , MaxValue(maxValue)
     , BucketCount(bucketCount)
-    , Buckets(bucketCount)
     , NumValues(0)
     , Sum(0)
     , SumSquares(0)
+    , MinimalBucket(0)
+    , MaximalBucket(0)
+    , Buckets(bucketCount)
 {
     Delta = (MaxValue - MinValue) / BucketCount;
 }
