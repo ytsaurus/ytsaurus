@@ -19,6 +19,7 @@ SET(YT_SOURCE_FILES
     delayed_invoker.cpp
 	semaphore.cpp
     guid.cpp
+    assert.h
 
     ${SRCDIR}/preprocessor-gen.h
 )
