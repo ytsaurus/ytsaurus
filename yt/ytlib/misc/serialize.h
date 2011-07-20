@@ -2,8 +2,6 @@
 
 #include "common.h"
 
-#include "guid.h"
-
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/file.h>

@@ -24,15 +24,16 @@ struct TGuid
     //! Conversion to quality/Misc/TGUID.
     operator TGUID() const;
 
+    //! Checks if TGuid hasn't been created yet.
     bool IsEmpty() const;
 
-    //! Creates new instance.
+    //! Creates a new instance.
     static TGuid Create();
 
     //! Conversion to Stroka.
     Stroka ToString() const;
 
-    //! Conversion from Stroka, throws ans exception if something went wrong.
+    //! Conversion from Stroka, throws an exception if something went wrong.
     static TGuid FromString(const Stroka& str);
 
     //! Conversion from Stroka, returns true if everything was ok.
