@@ -14,7 +14,18 @@ namespace NStl {
     }
 }
 
-#include <util/random/random.h>
+// A tiny helper function to generate random file names.
+#include <util/generic/stroka.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GenerateRandomFileName(const char* prefix);
+
+////////////////////////////////////////////////////////////////////////////////
+ 
+} // namespace NYT
 
 #include "framework/gtest.h"
 #include "framework/gmock.h"
@@ -23,20 +34,4 @@ namespace NStl {
 #define EXPECT_TRUE(x) EXPECT_IS_TRUE(x)
 #undef EXPECT_FALSE
 #define EXPECT_FALSE(x) EXPECT_IS_FALSE(x)
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-Stroka GenerateRandomFileName(const char* prefix)
-{
-    return Sprintf("%s-%016" PRIx64 "-%016" PRIx64,
-        prefix
-        MicroSeconds(),
-        RandomNumber<ui64>());
-}
-
-////////////////////////////////////////////////////////////////////////////////
- 
-} // namespace NYT
 
