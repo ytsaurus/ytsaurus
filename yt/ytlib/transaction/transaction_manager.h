@@ -71,6 +71,9 @@ private:
     //! Registered handlers.
     THandlers Handlers;
 
+    //! Registers RPC methods.
+    void RegisterMethods();
+
     TTransaction::TPtr DoStartTransaction();
     void DoCommitTransaction(TTransaction::TPtr transaction);
     void DoAbortTransaction(TTransaction::TPtr transaction);

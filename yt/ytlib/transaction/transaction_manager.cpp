@@ -79,7 +79,16 @@ TTransactionManager::TTransactionManager(
     , LeaseManager(new TLeaseManager())
     , State(new TState())
 {
+    RegisterMethods();
     server->RegisterService(this);
+}
+
+void TTransactionManager::RegisterMethods()
+{
+    RPC_REGISTER_METHOD(TTransactionManager, StartTransaction);
+    RPC_REGISTER_METHOD(TTransactionManager, CommitTransaction);
+    RPC_REGISTER_METHOD(TTransactionManager, AbortTransaction);
+    RPC_REGISTER_METHOD(TTransactionManager, RenewTransactionLease);
 }
 
 void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
