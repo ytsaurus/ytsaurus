@@ -169,7 +169,7 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(node));
+        ~Writer->GetNodeAddress(node));
 
     TReqPutBlocks::TPtr req = Writer->GetProxy(node).PutBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
@@ -189,7 +189,7 @@ void TRemoteChunkWriter::TGroup::OnPutBlocks(int node)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(node));    
+        ~Writer->GetNodeAddress(node));
 }
 
 void TRemoteChunkWriter::TGroup::Send(int srcNode)
@@ -223,8 +223,8 @@ TRemoteChunkWriter::TGroup::SendBlocks(int srcNode, int dstNode)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(srcNode),
-        Writer->GetNodeAddress(dstNode));
+        ~Writer->GetNodeAddress(srcNode),
+        ~Writer->GetNodeAddress(dstNode));
 
     TProxy::TReqSendBlocks::TPtr req = Writer->GetProxy(srcNode).SendBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
@@ -241,8 +241,8 @@ void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(srcNode),
-        Writer->GetNodeAddress(dstNode));
+        ~Writer->GetNodeAddress(srcNode),
+        ~Writer->GetNodeAddress(dstNode));
 }
 
 void TRemoteChunkWriter::TGroup::Flush()
@@ -274,7 +274,7 @@ TRemoteChunkWriter::TGroup::FlushBlock(int node)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(node));
+        ~Writer->GetNodeAddress(node));
 
     TProxy::TReqFlushBlock::TPtr req = Writer->GetProxy(node).FlushBlock();
     req->SetChunkId(Writer->ChunkId.ToProto());
@@ -289,7 +289,7 @@ void TRemoteChunkWriter::TGroup::OnFlushedBlock(int node)
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
-        Writer->GetNodeAddress(node));
+        ~Writer->GetNodeAddress(node));
 }
 
 void TRemoteChunkWriter::TGroup::Process()
@@ -435,7 +435,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
 
         LOG_INFO("Chunk %s, node %s died. %d alive nodes left", 
             ~ChunkId.ToString(), 
-            GetNodeAddress(node), 
+            ~GetNodeAddress(node),
             AliveNodes);
 
         if (State != EWriterState::Failed && AliveNodes == 0) {
@@ -493,7 +493,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartChunk(int node
 {
     LOG_DEBUG("Chunk %s, node %s start request", 
         ~ChunkId.ToString(), 
-        GetNodeAddress(node));
+        ~GetNodeAddress(node));
 
     TProxy::TReqStartChunk::TPtr req = GetProxy(node).StartChunk();
     req->SetChunkId(ChunkId.ToProto());
@@ -506,7 +506,7 @@ void TRemoteChunkWriter::OnStartedChunk(int node)
     Nodes[node]->State = TNode::ENodeState::Alive;
     LOG_DEBUG("Chunk %s, node %s started successfully", 
         ~ChunkId.ToString(), 
-        GetNodeAddress(node));
+        ~GetNodeAddress(node));
 }
 
 void TRemoteChunkWriter::OnStartedSession()
@@ -548,7 +548,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
     req->SetChunkId(ChunkId.ToProto());
     LOG_DEBUG("Chunk %s, node %s finish request", 
         ~ChunkId.ToString(), 
-        GetNodeAddress(node));
+        ~GetNodeAddress(node));
     return req->Invoke(Config.RpcTimeout);
 }
 
@@ -557,7 +557,7 @@ void TRemoteChunkWriter::OnFinishedChunk(int node)
     Nodes[node]->State = TNode::ENodeState::Closed;
     LOG_DEBUG("Chunk %s, node %s finished successfully", 
         ~ChunkId.ToString(), 
-        GetNodeAddress(node));
+        ~GetNodeAddress(node));
 }
 
 void TRemoteChunkWriter::OnFinishedSession()
