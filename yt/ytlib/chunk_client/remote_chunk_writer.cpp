@@ -339,6 +339,8 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     : ChunkId(chunkId) 
     , Config(config)
     , State(EWriterState::Starting)
+    , Finishing(false)
+    , IsFinished(new TAsyncResult<TVoid>())
     , WindowSlots(config.WindowSize)
     , AliveNodes(nodes.ysize())
     , NewGroup(new TGroup(AliveNodes, 0, 0, this))
