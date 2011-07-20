@@ -22,6 +22,11 @@ public:
 
 class TMockCallee : public TCallee {
 public:
+    TMockCallee()
+    {
+        ON_CALL(*this, F(A<bool>(), _))
+            .WillByDefault(ReturnArg<0>());
+    }
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
@@ -29,8 +34,7 @@ TEST(TVerifyDeathTest, NoCrushForTruthExpression)
 {
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _))
-        .Times(1)
-        .WillOnce(ReturnArg<0>());
+        .Times(1);
 
     YVERIFY(callee.F(true, "This should be okay."));
     SUCCEED();
@@ -39,8 +43,6 @@ TEST(TVerifyDeathTest, NoCrushForTruthExpression)
 TEST(TVerifyDeathTest, CrushForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
-    ON_CALL(callee, F(A<bool>(), _))
-        .WillByDefault(ReturnArg<0>());
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(false, "Cheshire Cat")); },
