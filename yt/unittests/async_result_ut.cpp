@@ -24,12 +24,12 @@ TEST_F(TAsyncResultTest, SimpleTryGet)
 {
     int value = 17;
 
-    EXPECT_FALSE(Result.TryGet(&value));
+    EXPECT_IS_FALSE(Result.TryGet(&value));
     EXPECT_EQ(17, value);
 
     Result.Set(42);
 
-    EXPECT_TRUE(Result.TryGet(&value));
+    EXPECT_IS_TRUE(Result.TryGet(&value));
     EXPECT_EQ(42, value);
 }
 

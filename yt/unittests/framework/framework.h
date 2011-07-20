@@ -30,8 +30,3 @@ Stroka GenerateRandomFileName(const char* prefix);
 #include "framework/gtest.h"
 #include "framework/gmock.h"
 
-#undef EXPECT_TRUE
-#define EXPECT_TRUE(x) EXPECT_IS_TRUE(x)
-#undef EXPECT_FALSE
-#define EXPECT_FALSE(x) EXPECT_IS_FALSE(x)
-
