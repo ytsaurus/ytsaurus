@@ -17,20 +17,20 @@ TEST_F(TAsyncResultTest, SimpleGet)
 {
     Result.Set(57);
 
-    ASSERT_EQ(57, Result.Get());
+    EXPECT_EQ(57, Result.Get());
 }
 
 TEST_F(TAsyncResultTest, SimpleTryGet)
 {
     int value = 17;
 
-    ASSERT_FALSE(Result.TryGet(&value));
-    ASSERT_EQ(17, value);
+    EXPECT_FALSE(Result.TryGet(&value));
+    EXPECT_EQ(17, value);
 
     Result.Set(42);
 
-    ASSERT_TRUE(Result.TryGet(&value));
-    ASSERT_EQ(42, value);
+    EXPECT_TRUE(Result.TryGet(&value));
+    EXPECT_EQ(42, value);
 }
 
 class TMockSubscriber : public IParamAction<int>

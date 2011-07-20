@@ -14,5 +14,29 @@ namespace NStl {
     }
 }
 
+#include <util/random/random.h>
+
 #include "framework/gtest.h"
 #include "framework/gmock.h"
+
+#undef EXPECT_TRUE
+#define EXPECT_TRUE(x) EXPECT_IS_TRUE(x)
+#undef EXPECT_FALSE
+#define EXPECT_FALSE(x) EXPECT_IS_FALSE(x)
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GenerateRandomFileName(const char* prefix)
+{
+    return Sprintf("%s-%016" PRIx64 "-%016" PRIx64,
+        prefix
+        MicroSeconds(),
+        RandomNumber<ui64>());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+ 
+} // namespace NYT
+

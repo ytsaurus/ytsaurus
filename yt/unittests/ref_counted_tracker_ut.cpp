@@ -39,32 +39,32 @@ TEST(TRefCountedTrackerTest, Simple)
     yvector<TSimpleObject::TPtr> container;
     container.reserve(2000);
 
-    ASSERT_EQ(   0, TSimpleObject::GetAliveCount());
-    ASSERT_EQ(   0, TSimpleObject::GetTotalCount());
+    EXPECT_EQ(   0, TSimpleObject::GetAliveCount());
+    EXPECT_EQ(   0, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
         container.push_back(new TSimpleObject());
     }
 
-    ASSERT_EQ(1000, TSimpleObject::GetAliveCount());
-    ASSERT_EQ(1000, TSimpleObject::GetTotalCount());
+    EXPECT_EQ(1000, TSimpleObject::GetAliveCount());
+    EXPECT_EQ(1000, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
         container.push_back(new TSimpleObject());
     }
 
-    ASSERT_EQ(2000, TSimpleObject::GetAliveCount());
-    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+    EXPECT_EQ(2000, TSimpleObject::GetAliveCount());
+    EXPECT_EQ(2000, TSimpleObject::GetTotalCount());
 
     container.resize(1000);
 
-    ASSERT_EQ(1000, TSimpleObject::GetAliveCount());
-    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+    EXPECT_EQ(1000, TSimpleObject::GetAliveCount());
+    EXPECT_EQ(2000, TSimpleObject::GetTotalCount());
 
     container.resize(0);
 
-    ASSERT_EQ(   0, TSimpleObject::GetAliveCount());
-    ASSERT_EQ(2000, TSimpleObject::GetTotalCount());
+    EXPECT_EQ(   0, TSimpleObject::GetAliveCount());
+    EXPECT_EQ(2000, TSimpleObject::GetTotalCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

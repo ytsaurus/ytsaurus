@@ -15,10 +15,12 @@ protected:
     
     virtual void SetUp()
     {
-        TemporaryFile.Reset(new TTempFile(
-            Sprintf("Snapshot-%08" PRIx64 "-%08" PRIx64,
-                MicroSeconds(),
-                RandomNumber<ui64>())));
+        TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("Snapshot")));
+    }
+
+    virtual void TearDown()
+    {
+        TemporaryFile.Reset(0);
     }
 };
 
@@ -61,8 +63,8 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
         i32 data;
         i32 bytesRead = inputStream.Load(&data, sizeof(i32));
 
-        ASSERT_EQ(static_cast<i32>(sizeof(i32)), bytesRead);
-        ASSERT_EQ(i, data);
+        EXPECT_EQ(static_cast<i32>(sizeof(i32)), bytesRead);
+        EXPECT_EQ(i, data);
     }
 
     reader.Close();
