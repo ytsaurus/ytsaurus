@@ -21,7 +21,7 @@ public:
     TValuePtr Find(const TKey& key, bool forUpdate = false)
     {
         UNUSED(forUpdate);
-        TMap::iterator it = Map.find(key);
+        typename TMap::iterator it = Map.find(key);
         if (it == Map.end())
             return NULL;
         else
