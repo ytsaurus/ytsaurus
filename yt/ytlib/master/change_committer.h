@@ -11,6 +11,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: split into TLeaderCommitter and TFollowerCommitter
 class TChangeCommitter
     : public TRefCountedBase
 {
@@ -30,15 +31,17 @@ public:
         TDecoratedMasterState::TPtr masterState,
         TChangeLogCache::TPtr changeLogCache,
         IInvoker::TPtr serviceInvoker,
-        IInvoker::TPtr workInvoker,
         const TMasterEpoch& epoch);
 
-    TResult::TPtr CommitDistributed(TSharedRef change);
+    TResult::TPtr CommitLeader(
+        IAction::TPtr changeAction,
+        TSharedRef changeData);
 
-    TResult::TPtr CommitLocal(
+    TResult::TPtr CommitFollower(
         TMasterStateId stateId,
-        TSharedRef change);
+        TSharedRef changeData);
 
+    // TODO: refactor this
     TDuration GetTimeout() const;
     void SetTimeout(TDuration timeout);
 
@@ -48,16 +51,19 @@ private:
     class TSession;
     typedef TMasterStateManagerProxy TProxy;
 
-    TResult::TPtr DoCommitLocal(
+    TResult::TPtr DoCommitLeader(
+        IAction::TPtr changeAction,
+        TSharedRef changeData);
+    TResult::TPtr DoCommitFollower(
         TMasterStateId stateId,
-        const TSharedRef& changeData);
+        TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
     TCellManager::TPtr CellManager;
     TDecoratedMasterState::TPtr MasterState;
     TChangeLogCache::TPtr ChangeLogCache;
     IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr WorkInvoker;
+    IInvoker::TPtr StateInvoker;
     TMasterEpoch Epoch;
     IAction::TPtr OnApplyChange;
     // TODO: refactor this

@@ -39,7 +39,10 @@ TElectionManager::TElectionManager(
     IInvoker::TPtr invoker,
     IElectionCallbacks::TPtr electionCallbacks,
     NRpc::TServer::TPtr server)
-    : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
+    : TServiceBase(
+        invoker,
+        TProxy::GetServiceName(),
+        Logger.GetCategory())
     , State(TProxy::EState::Stopped)
     , VoteId(InvalidMasterId)
     , Config(config)

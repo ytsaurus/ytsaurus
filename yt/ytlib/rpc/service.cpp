@@ -197,8 +197,12 @@ void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TServiceBase(Stroka serviceName, Stroka loggingCategory)
-    : ServiceLogger(loggingCategory)
+TServiceBase::TServiceBase(
+    IInvoker::TPtr serviceInvoker,
+    Stroka serviceName,
+    Stroka loggingCategory)
+    : ServiceInvoker(serviceInvoker)
+    , ServiceLogger(loggingCategory)
     , ServiceName(serviceName)
 { }
 
@@ -228,7 +232,8 @@ void TServiceBase::OnRequest(TServiceContext::TPtr context)
     }
 
     THandler::TPtr handler = it->Second();
-    context->Wrap(handler->Bind(context))->Do();
+    IAction::TPtr wrappedHandler = context->Wrap(handler->Bind(context));
+    ServiceInvoker->Invoke(wrappedHandler);
 }
 
 Stroka TServiceBase::GetServiceName() const

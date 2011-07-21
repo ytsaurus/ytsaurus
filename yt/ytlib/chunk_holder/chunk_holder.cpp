@@ -15,8 +15,10 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TChunkHolder::TChunkHolder(
     const TConfig& config,
+    IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)
     : NRpc::TServiceBase(
+        serviceInvoker,
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
@@ -29,13 +31,13 @@ TChunkHolder::TChunkHolder(
         Config,
         BlockStore,
         ChunkStore,
-        server->GetInvoker());
+        serviceInvoker);
 
     if (!Config.MasterAddress.Empty()) {
         MasterConnector = new TMasterConnector(
             Config,
             ChunkStore,
-            server->GetInvoker());
+            serviceInvoker);
         MasterConnector->Initialize();
     }
 

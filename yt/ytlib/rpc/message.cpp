@@ -15,6 +15,8 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to misc/serialize.h/cpp
+// TODO: use these functions in TMetaStatePart
 bool SerializeMessage(google::protobuf::Message* message, TBlob* data)
 {
     int size = message->ByteSize();

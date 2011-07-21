@@ -67,8 +67,10 @@ struct TChunkHolderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Identified a chunk.
+//! Identifies a chunk.
 typedef TGuid TChunkId;
+
+// TODO: typedef TGuidHash TChunkIdHash;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;

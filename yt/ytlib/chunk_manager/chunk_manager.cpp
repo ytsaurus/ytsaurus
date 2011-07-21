@@ -87,14 +87,15 @@ private:
 
 TChunkManager::TChunkManager(
     const TConfig& config,
+    IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TServiceBase(
+        serviceInvoker,
         TChunkManagerProxy::GetServiceName(),
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ServiceInvoker(server->GetInvoker())
     , State(new TState())
     , HolderTracker(new THolderTracker(
         Config,
@@ -226,14 +227,14 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
         holderId,
         ~statistics.ToString(),
         request->AddedChunksSize(),
-        request->RemovedChunkSize());
+        request->RemovedChunksSize());
 
     THolder::TPtr holder = HolderTracker->GetHolder(holderId);
     holder->SetStatistics(statistics);
     HolderTracker->UpdateHolderPreference(holder);
 
     // TODO: refactor this once the state becomes persistent
-    for (int i = 0; request->AddedChunksSize(); ++i) {
+    for (int i = 0; i < static_cast<int>(request->AddedChunksSize()); ++i) {
         const NProto::TChunkInfo& info = request->GetAddedChunks(i);
         TChunkId chunkId = TGuid::FromProto(info.GetId());
         i64 size = info.GetSize();
@@ -245,7 +246,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
             chunk = State->RegisterChunk(chunkId, size);
         } else {
             firstSeen = false;
-            if (chunk->GetSize() != size) {
+            if (chunk->GetSize() != size && chunk->GetSize() != TChunk::UnknownSize) {
                 LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
                     ~chunkId.ToString(),
                     chunk->GetSize(),
@@ -262,8 +263,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
             static_cast<int>(firstSeen));
     }
 
-    for (int i = 0; request->AddedChunksSize(); ++i) {
-        TChunkId chunkId = TGuid::FromProto(request->GetRemovedChunk(i));
+    for (int i = 0; i < static_cast<int>(request->RemovedChunksSize()); ++i) {
+        TChunkId chunkId = TGuid::FromProto(request->GetRemovedChunks(i));
 
         // TODO: code here
 

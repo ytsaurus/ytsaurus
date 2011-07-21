@@ -22,13 +22,16 @@ TMasterStateManager::TMasterStateManager(
     IInvoker::TPtr serviceInvoker,
     IMasterState::TPtr masterState,
     NRpc::TServer::TPtr server)
-    : TServiceBase(TProxy::GetServiceName(), Logger.GetCategory())
+    : TServiceBase(
+        serviceInvoker,
+        TProxy::GetServiceName(),
+        Logger.GetCategory())
     , State(EState::Stopped)
     , Config(config)
     , LeaderId(InvalidMasterId)
     , CellManager(cellManager)
     , ServiceInvoker(serviceInvoker)
-    , WorkQueue(new TActionQueue())
+    , StateInvoker(masterState->GetInvoker())
 {
     RegisterMethods();
 
@@ -76,8 +79,10 @@ void TMasterStateManager::Restart()
     ElectionManager->Restart();
 }
 
-TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
-    TSharedRef change)
+TMasterStateManager::TCommitResult::TPtr
+TMasterStateManager::CommitChange(
+    IAction::TPtr changeAction,
+    TSharedRef changeData)
 {
     if (State != EState::Leading) {
         return new TCommitResult(ECommitResult::InvalidState);
@@ -89,7 +94,7 @@ TMasterStateManager::TCommitResult::TPtr TMasterStateManager::CommitChange(
 
     return
         ChangeCommitter
-        ->CommitDistributed(change)
+        ->CommitLeader(changeAction, changeData)
         ->Apply(FromMethod(&TMasterStateManager::OnChangeCommit, TPtr(this)));
 }
 
@@ -132,18 +137,11 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
 
     MyEpoch = TGuid::Create();
 
-    TChangeLogDownloader::TConfig changeLogDownloaderConfig;
-    // TODO: fill config
-
-    TSnapshotDownloader::TConfig snapshotDownloaderConfig;
-    // TODO: fill config
-
     ChangeCommitter = new TChangeCommitter(
         CellManager,
         ~MasterState,
         ChangeLogCache,
         ServiceInvoker,
-        WorkQueue,
         Epoch);
 
     SnapshotCreator = new TSnapshotCreator(
@@ -153,8 +151,7 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
         ChangeLogCache,
         ~SnapshotStore,
         Epoch,
-        ServiceInvoker,
-        WorkQueue);
+        ServiceInvoker);
 }
 
 void TMasterStateManager::StopEpoch()
@@ -186,7 +183,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ScheduleSync)
 
     context->Reply();
 
-    WorkQueue->Invoke(FromMethod(
+    StateInvoker->Invoke(FromMethod(
         &TMasterStateManager::SendSync,
         TPtr(this),
         masterId,
@@ -427,7 +424,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
         case EState::Following:
             LOG_DEBUG("ApplyChange: applying change");
 
-            ChangeCommitter->CommitLocal(stateId, changeData)->Subscribe(FromMethod(
+            ChangeCommitter->CommitFollower(stateId, changeData)->Subscribe(FromMethod(
                 &TMasterStateManager::OnLocalCommit,
                 TPtr(this),
                 context,
@@ -611,8 +608,7 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
         Epoch,
         LeaderId,
         ServiceInvoker,
-        EpochInvoker,
-        WorkQueue);
+        EpochInvoker);
 
     LeaderRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnLeaderRecovery, TPtr(this))
@@ -687,8 +683,7 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
         Epoch,
         LeaderId,
         ServiceInvoker,
-        EpochInvoker,
-        WorkQueue);
+        EpochInvoker);
 
     FollowerRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnFollowerRecovery, TPtr(this))

@@ -20,6 +20,8 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TChangeLogCache::TPtr changeLogCache);
 
+    IInvoker::TPtr GetInvoker() const;
+
     TMasterStateId GetStateId() const;
     TMasterStateId GetAvailableStateId() const;
 
@@ -31,12 +33,14 @@ public:
     TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream& input);
     
     void ApplyChange(const TSharedRef& changeData);
-    TAsyncChangeLog::TAppendResult::TPtr LogAndApplyChange(const TSharedRef& changeData);
+    void ApplyChange(IAction::TPtr changeAction);
+    TAsyncChangeLog::TAppendResult::TPtr LogChange(const TSharedRef& changeData);
     
     void AdvanceSegment();
     void RotateChangeLog();
 
 private:
+    void AdvanceChangeCount();
     void ComputeAvailableStateId();
     void UpdateStateId(const TMasterStateId& newStateId);
     TVoid OnSave(TVoid, TInstant started);

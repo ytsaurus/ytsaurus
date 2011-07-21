@@ -57,8 +57,7 @@ public:
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
         TMasterEpoch epoch,
-        IInvoker::TPtr serviceInvoker,
-        IInvoker::TPtr workInvoker);
+        IInvoker::TPtr serviceInvoker);
 
     void CreateDistributed(TMasterStateId stateId);
     TAsyncLocalResult::TPtr CreateLocal(TMasterStateId stateId);
@@ -75,7 +74,7 @@ private:
     TChangeLogCache::TPtr ChangeLogCache;
     TMasterEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr WorkInvoker;
+    IInvoker::TPtr StateInvoker;
 
     TAsyncLocalResult::TPtr DoCreateLocal(TMasterStateId stateId);
 

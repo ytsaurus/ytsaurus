@@ -12,29 +12,22 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServer::TServer(int port, IInvoker::TPtr invoker)
-    : Invoker(invoker)
-    , BusServer(new TBusServer(port, this))
+TServer::TServer(int port)
+    : BusServer(new TBusServer(port, this))
+    , Started(false)
 { }
 
 void TServer::RegisterService(IService::TPtr service)
 {
-    Stroka name = service->GetServiceName();
-    TGuard<TSpinLock> guard(SpinLock);
-    bool inserted = Services.insert(MakePair(name, service)).Second();
-    if (!inserted) {
-        throw yexception() << "Service " << name << " is already registered";
-    }
+    YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
+    LOG_INFO("Registered RPC service %s", ~service->GetServiceName());
 }
 
-void TServer::UnregisterService(IService::TPtr service)
+void TServer::Start()
 {
-    Stroka name = service->GetServiceName();
-    TGuard<TSpinLock> guard(SpinLock);
-    TServiceMap::size_type erased = Services.erase(name);
-    if (erased == 0) {
-        throw yexception() << "Service " << name << " is not registered";
-    }
+    YASSERT(!Started);
+    Started = true;
+    LOG_INFO("RPC server started");
 }
 
 void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
@@ -60,15 +53,24 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~methodName,
         ~requestId.ToString());
 
+    if (!Started) {
+        IMessage::TPtr errorMessage = new TRpcErrorResponseMessage(
+            requestId,
+            EErrorCode::Unavailable);
+        replyBus->Send(errorMessage);
+
+        LOG_DEBUG("Server is not started");
+        return;
+    }
+
     IService::TPtr service = GetService(serviceName);
     if (~service == NULL) {
-        LOG_WARNING("Unknown service (ServiceName: %s)",
-            ~serviceName);
-
         IMessage::TPtr errorMessage = new TRpcErrorResponseMessage(
             requestId,
             EErrorCode::NoService);
         replyBus->Send(errorMessage);
+
+        LOG_WARNING("Unknown service (ServiceName: %s)", ~serviceName);
         return;
     }
 
@@ -79,20 +81,11 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         message,
         replyBus);
 
-    Invoker->Invoke(FromMethod(
-        &TServer::OnRequest,
-        service,
-        context));
-}
-
-void TServer::OnRequest(IService::TPtr service, TServiceContext::TPtr context)
-{
     service->OnRequest(context);
 }
 
 IService::TPtr TServer::GetService(Stroka serviceName)
 {
-    TGuard<TSpinLock> guard(SpinLock);
     TServiceMap::iterator it = Services.find(serviceName);
     if (it == Services.end()) {
         return NULL;
@@ -103,11 +96,6 @@ IService::TPtr TServer::GetService(Stroka serviceName)
 Stroka TServer::GetDebugInfo()
 {
     return BusServer->GetDebugInfo();
-}
-
-IInvoker::TPtr TServer::GetInvoker()
-{
-    return Invoker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

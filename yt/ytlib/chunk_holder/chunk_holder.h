@@ -26,6 +26,7 @@ public:
     //! Creates an instance.
     TChunkHolder(
         const TConfig& config,
+        IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server);
     ~TChunkHolder();
 

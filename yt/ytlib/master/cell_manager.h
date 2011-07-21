@@ -1,7 +1,10 @@
 #pragma once
 
 #include "common.h"
+
 #include "../rpc/client.h"
+
+#include "../misc/config.h"
 
 namespace NYT {
 
@@ -15,12 +18,18 @@ public:
 
     struct TConfig
     {
-        TConfig()
-            : Id(InvalidMasterId)
-        {}
-
         yvector<Stroka> MasterAddresses;
         TMasterId Id;
+
+        TConfig()
+            : Id(InvalidMasterId)
+        { }
+
+        void Read(TJsonObject* json)
+        {
+            NYT::TryRead(json, L"Id", &Id);
+            NYT::TryRead(json, L"MasterAddresses", &MasterAddresses);
+        }
     };
 
     TCellManager(const TConfig& config);

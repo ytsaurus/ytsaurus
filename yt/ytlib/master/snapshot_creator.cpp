@@ -122,8 +122,7 @@ TSnapshotCreator::TSnapshotCreator(
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
     TMasterEpoch epoch,
-    IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr workInvoker)
+    IInvoker::TPtr serviceInvoker)
     : Config(config)
     , CellManager(cellManager)
     , MasterState(masterState)
@@ -131,7 +130,7 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , WorkInvoker(workInvoker)
+    , StateInvoker(masterState->GetInvoker())
 { }
 
 void TSnapshotCreator::CreateDistributed(TMasterStateId stateId)
@@ -150,7 +149,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
             &TSnapshotCreator::DoCreateLocal,
             TPtr(this),
             stateId)
-        ->AsyncVia(WorkInvoker)
+        ->AsyncVia(StateInvoker)
         ->Do();
 }
 

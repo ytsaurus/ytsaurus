@@ -3,7 +3,9 @@
 #include "common.h"
 #include "transaction.h"
 #include "transaction_manager_rpc.h"
-#include "transaction_manager.pb.h"
+
+#include "../master/master_state_manager.h"
+#include "../master/composite_meta_state.h"
 
 #include "../rpc/service.h"
 #include "../rpc/server.h"
@@ -14,10 +16,10 @@ namespace NYT {
 namespace NTransaction {
 
 ////////////////////////////////////////////////////////////////////////////////
-
+    
 //! Manages user transactions.
 class TTransactionManager
-    : public NRpc::TServiceBase
+    : public TMetaStateServiceBase
 {
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -34,6 +36,9 @@ public:
     //! Creates an instance.
     TTransactionManager(
         const TConfig& config,
+        TMasterStateManager::TPtr metaStateManager,
+        TCompositeMetaState::TPtr metaState,
+        IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server);
 
     //! Registers a handler.
@@ -46,46 +51,37 @@ public:
     /*!
      * If a transaction is found, its lease is renewed automatically.
      */
-    TTransaction::TPtr FindTransaction(TTransactionId id, bool forUpdate = false);
+    TTransaction::TPtr FindTransaction(const TTransactionId& id, bool forUpdate = false);
 
 private:
+    typedef TTransactionManager TThis;
     typedef TTransactionManagerProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     class TState;
     
-    typedef yvector<ITransactionHandler::TPtr> THandlers;
-
-    //! Configuration.
-    TConfig Config;
-
-    //! All state modifications are carried out via this invoker.
-    IInvoker::TPtr ServiceInvoker;
-
-    //! Controls leases of running transactions.
-    TLeaseManager::TPtr LeaseManager;
-
     //! Meta-state.
     TIntrusivePtr<TState> State;
 
-    //! Registered handlers.
-    THandlers Handlers;
+    RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);
+    void OnTransactionStarted(
+        TTransaction::TPtr transaction,
+        TCtxStartTransaction::TPtr context);
+
+    RPC_SERVICE_METHOD_DECL(NProto, CommitTransaction);
+    void OnTransactionCommitted(
+        TVoid,
+        TCtxCommitTransaction::TPtr context);
+
+    RPC_SERVICE_METHOD_DECL(NProto, AbortTransaction);
+    void OnTransactionAborted(
+        TVoid,
+        TCtxAbortTransaction::TPtr context);
+
+    RPC_SERVICE_METHOD_DECL(NProto, RenewTransactionLease);
 
     //! Registers RPC methods.
     void RegisterMethods();
-
-    TTransaction::TPtr DoStartTransaction();
-    void DoCommitTransaction(TTransaction::TPtr transaction);
-    void DoAbortTransaction(TTransaction::TPtr transaction);
-    void DoRenewTransactionLease(TTransaction::TPtr transaction);
-
-    void OnTransactionExpired(TTransaction::TPtr transaction);
-
-    RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, CommitTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, AbortTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, RenewTransactionLease);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,16 @@ package NYT.NRpcMasterStateManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move!
+
+message TMsgChangeHeader
+{
+    required bytes PartName = 1;
+    required bytes ChangeType = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqScheduleSync
 {
     optional int32 MasterId = 1;

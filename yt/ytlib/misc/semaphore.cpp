@@ -23,7 +23,7 @@ bool TSemaphore::Release()
         } else {
             return false;
         }
-        ThreadYield();
+        SpinLockPause();
     }
 }
 
@@ -37,7 +37,7 @@ void TSemaphore::Acquire()
         if (AtomicCas(&FreeSlotCount, FreeSlotCount - 1, FreeSlotCount)) {
             return;    
         }
-        ThreadYield();
+        SpinLockPause();
     }
 }
 

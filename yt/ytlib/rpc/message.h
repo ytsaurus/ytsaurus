@@ -27,6 +27,7 @@ BEGIN_DECLARE_ENUM(EErrorCode,
     ((NoMethod)(-4))
     ((Timeout)(-5))
     ((ServiceError)(-6))
+    ((Unavailable)(-7))
 )
 public:
     // Allow implicit construction of error code from integer value.

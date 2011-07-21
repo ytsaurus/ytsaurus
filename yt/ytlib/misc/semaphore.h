@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Custom semaphore class on Events and Atomics.
+//! Custom semaphore class based on Event and CAS operations.
 /*!
  *  This class was brought into existence primarily because of instability of util's analogue.
  */
@@ -17,7 +17,7 @@ public:
 
     //! Decreases the counter.
     /*!
-     *  Keeps a thread blocked while the semaphore counter is equal 0.
+     *  Keeps a thread blocked while the semaphore counter is 0.
      */
     void Acquire();
 
@@ -29,8 +29,8 @@ public:
 
 /*  ToDo: Maybe later
 
-    //! Tries to enter the semaphore gate. A non-blocking variant of Acquire.
-    //! Returns 'true' if the semaphore counter decreased
+    //! Tries to enter the semaphore gate. A non-blocking variant of #Acquire.
+    //! Returns 'true' if the semaphore counter has decreased.
     bool TryAcquire();
 */
 

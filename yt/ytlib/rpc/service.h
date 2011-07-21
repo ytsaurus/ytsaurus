@@ -69,9 +69,6 @@ struct IService
     virtual Stroka GetLoggingCategory() const = 0;
 
     virtual void OnRequest(TIntrusivePtr<TServiceContext> context) = 0;
-
-    virtual ~IService()
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,6 +269,11 @@ public:
         return Context->GetResponseInfo();
     }
 
+    TServiceContext::TPtr GetUntypedContext() const
+    {
+        return Context;
+    }
+
 private:
     NLog::TLogger& Logger;
     TServiceContext::TPtr Context;
@@ -286,16 +288,17 @@ class TServiceBase
     : public IService
 {
 protected:
-    TServiceBase(Stroka serviceName, Stroka loggingCategory);
-
-    virtual ~TServiceBase()
-    { }
-
     typedef IParamAction<TServiceContext::TPtr> THandler;
+
+    TServiceBase(
+        IInvoker::TPtr serviceInvoker,
+        Stroka serviceName,
+        Stroka loggingCategory);
 
     void RegisterHandler(Stroka methodName, THandler::TPtr handler);
 
     NLog::TLogger ServiceLogger;
+    IInvoker::TPtr ServiceInvoker;
 
 private:
     typedef yhash_map<Stroka, THandler::TPtr> THandlerMap;

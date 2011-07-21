@@ -126,7 +126,7 @@ void TMasterConnector::SendHeartbeat()
             it != RemovedChunks.end();
             ++it)
         {
-            request->AddRemovedChunk((*it)->GetId().ToProto());
+            request->AddRemovedChunks((*it)->GetId().ToProto());
         }
     } else {
         TChunks chunks = ChunkStore->GetChunks();
@@ -149,7 +149,7 @@ void TMasterConnector::SendHeartbeat()
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d)",
         ~statistics.ToString(),
         static_cast<int>(request->AddedChunksSize()),
-        static_cast<int>(request->RemovedChunkSize()));
+        static_cast<int>(request->RemovedChunksSize()));
 }
 
 void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response)

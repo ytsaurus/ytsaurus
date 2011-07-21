@@ -25,52 +25,84 @@ void RunChunkHolder(const TChunkHolderConfig& config)
 
     IInvoker::TPtr serviceInvoker = new TActionQueue();
 
-    NRpc::TServer::TPtr server = new NRpc::TServer(
-        config.Port,
-        serviceInvoker);
+    NRpc::TServer::TPtr server = new NRpc::TServer(config.Port);
 
     TChunkHolder::TPtr chunkHolder = new TChunkHolder(
         config,
+        serviceInvoker,
         server);
+
+    server->Start();
 }
 
 // TODO: move to a proper place
 //! Describes a configuration of TCellMaster.
 struct TCellMasterConfig
 {
-    //! Port number to listen.
-    int Port;
+    //! Cell configuration.
+    TCellManager::TConfig Cell;
+
+    //! Meta state configuration.
+    TMasterStateManager::TConfig MetaState;
 
     TCellMasterConfig()
-        : Port(9001)
     { }
 
     //! Reads configuration from JSON.
-    void Read(const TJsonObject* json)
+    void Read(TJsonObject* json)
     {
-        // TODO
+        TJsonObject* cellJson = GetSubTree(json, "Cell");
+        if (cellJson != NULL) {
+            Cell.Read(cellJson);
+        }
+
+        TJsonObject* metaStateJson = GetSubTree(json, "MetaState");
+        if (metaStateJson != NULL) {
+            MetaState.Read(metaStateJson);
+        }
     }
 };
 
-void RunMaster(const TCellMasterConfig& config)
+void RunCellMaster(const TCellMasterConfig& config)
 {
-    LOG_INFO("Starting cell master on port %d",
-        config.Port);
+    // TODO: extract method
+    Stroka address = config.Cell.MasterAddresses.at(config.Cell.Id);
+    size_t index = address.find_last_of(":");
+    int port = FromString<int>(address.substr(index + 1));
 
-    IInvoker::TPtr serviceInvoker = new TActionQueue();
+    LOG_INFO("Starting cell master on port %d", port);
 
-    NRpc::TServer::TPtr server = new NRpc::TServer(
-        config.Port,
-        serviceInvoker);
+    TCompositeMetaState::TPtr metaState = new TCompositeMetaState();
+
+    IInvoker::TPtr liteInvoker = new TActionQueue();
+    IInvoker::TPtr metaStateInvoker = metaState->GetInvoker();
+
+    NRpc::TServer::TPtr server = new NRpc::TServer(port);
+
+    TCellManager::TPtr cellManager = new TCellManager(config.Cell);
+
+    TMasterStateManager::TPtr metaStateManager = new TMasterStateManager(
+        config.MetaState,
+        cellManager,
+        liteInvoker,
+        ~metaState,
+        server);
 
     TTransactionManager::TPtr transactionManager = new TTransactionManager(
         TTransactionManager::TConfig(),
+        metaStateManager,
+        metaState,
+        metaStateInvoker,
         server);
 
     TChunkManager::TPtr chunkManager = new TChunkManager(
         TChunkManagerConfig(),
+        metaStateInvoker,
         server,
         transactionManager);
+
+    metaStateManager->Start();
+    server->Start();
 }
 
 int main(int argc, const char *argv[])
@@ -81,11 +113,11 @@ int main(int argc, const char *argv[])
 
         opts.AddHelpOption();
         
-        opts.AddLongOption("chunk-holder", "start chunk holder")
+        const TOpt& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
             .NoArgument()
             .Optional();
         
-        opts.AddLongOption("master", "start master")
+        const TOpt& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
             .NoArgument()
             .Optional();
 
@@ -95,6 +127,12 @@ int main(int argc, const char *argv[])
             .RequiredArgument("PORT")
             .StoreResult(&port);
 
+        TMasterId masterId = InvalidMasterId;
+        opts.AddLongOption("id", "master id")
+            .Optional()
+            .RequiredArgument("ID")
+            .StoreResult(&masterId);
+
         Stroka configFileName;
         opts.AddLongOption("config", "configuration file")
             .RequiredArgument("FILE")
@@ -102,15 +140,15 @@ int main(int argc, const char *argv[])
 
         TOptsParseResult results(&opts, argc, argv);
 
-        bool isMaster = results.Has("master");
-        bool isChunkHolder = results.Has("chunk-holder");
+        bool isCellMaster = results.Has(&cellMasterOpt);
+        bool isChunkHolder = results.Has(&chunkHolderOpt);
 
         int modeCount = 0;
         if (isChunkHolder) {
             ++modeCount;
         }
 
-        if (isMaster) {
+        if (isCellMaster) {
             ++modeCount;
         }
 
@@ -134,12 +172,18 @@ int main(int argc, const char *argv[])
             RunChunkHolder(config);
         }
 
-        if (isMaster) {
+        if (isCellMaster) {
             TCellMasterConfig config;
-            if (port >= 0) {
-                config.Port = port;
+            config.Read(configRoot);
+
+            if (masterId >= 0) {
+                // TODO: check id
+
+                config.Cell.Id = masterId;
             }
-            RunMaster(config);
+
+            // TODO: check that config.Cell.Id is initialized
+            RunCellMaster(config);
         }
 
         Cin.ReadLine();

@@ -15,26 +15,22 @@ class TServer
 public:
     typedef TIntrusivePtr<TServer> TPtr;
 
-    TServer(int port, IInvoker::TPtr invoker);
+    TServer(int port);
 
     void RegisterService(IService::TPtr service);
-    void UnregisterService(IService::TPtr service);
-
-    IInvoker::TPtr GetInvoker();
+    void Start();
 
     Stroka GetDebugInfo();
 
 private:
     typedef yhash_map<Stroka, IService::TPtr> TServiceMap;
 
-    IInvoker::TPtr Invoker;
     TBusServer::TPtr BusServer;
     TServiceMap Services;
-    TSpinLock SpinLock; // protects Services
+    volatile bool Started;
 
     IService::TPtr GetService(Stroka serviceName);
     virtual void OnMessage(IMessage::TPtr message, IBus::TPtr replyBus);
-    static void OnRequest(IService::TPtr service, TServiceContext::TPtr context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

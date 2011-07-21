@@ -18,4 +18,6 @@ SET(YT_SOURCE_FILES
     follower_state_tracker.cpp
     cell_manager.cpp
     leader_pinger.cpp
+    map.h
+    composite_meta_state.h
 )

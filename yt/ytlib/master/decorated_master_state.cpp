@@ -24,6 +24,11 @@ TDecoratedMasterState::TDecoratedMasterState(
     ComputeAvailableStateId();
 }
 
+IInvoker::TPtr TDecoratedMasterState::GetInvoker() const
+{
+    return State->GetInvoker();
+}
+
 IMasterState::TPtr TDecoratedMasterState::GetState() const
 {
     return State;
@@ -73,10 +78,21 @@ TVoid TDecoratedMasterState::OnLoad(TVoid, TInstant started)
 void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
 {
     State->ApplyChange(changeData);
+    AdvanceChangeCount();
+}
+
+void TDecoratedMasterState::ApplyChange(IAction::TPtr changeAction)
+{
+    changeAction->Do();
+    AdvanceChangeCount();
+}
+
+void TDecoratedMasterState::AdvanceChangeCount()
+{
     UpdateStateId(TMasterStateId(StateId.SegmentId, StateId.ChangeCount + 1));
 }
 
-TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
+TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogChange(
     const TSharedRef& changeData)
 {
     TCachedAsyncChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
@@ -84,13 +100,9 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogAndApplyChange(
         LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
     }
 
-    TAsyncChangeLog::TAppendResult::TPtr appendResult = cachedChangeLog->Append(
+    return cachedChangeLog->Append(
         StateId.ChangeCount,
         changeData);
-
-    ApplyChange(changeData);
-
-    return appendResult;
 }
 
 void TDecoratedMasterState::AdvanceSegment()

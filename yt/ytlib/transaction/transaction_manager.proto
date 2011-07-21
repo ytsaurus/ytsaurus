@@ -2,46 +2,20 @@ package NYT.NTransaction.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartTransaction
-{
-}
-
-message TRspStartTransaction
+message TMsgCreateTransaction
 {
     required bytes TransactionId = 1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCommitTransaction
+message TMsgCommitTransaction
 {
     required bytes TransactionId = 1;
 }
 
-message TRspCommitTransaction
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqAbortTransaction
+message TMsgAbortTransaction
 {
     required bytes TransactionId = 1;
 }
 
-message TRspAbortTransaction
-{
-}
 
-////////////////////////////////////////////////////////////////////////////////
 
-message TReqRenewTransactionLease
-{
-    required bytes TransactionId = 1;
-}
-
-message TRspRenewTransactionLease
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,14 @@
 #include "transaction_manager.h"
+#include "transaction_manager.pb.h"
+
+#include "../master/map.h"
 
 #include "../misc/serialize.h"
-#include "../misc/assert.h"
 
 namespace NYT {
 namespace NTransaction {
+
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,41 +17,121 @@ static NLog::TLogger& Logger = TransactionLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TState
-    : public TRefCountedBase
+    : public TMetaStatePart
 {
 public:
-    TTransaction::TPtr CreateTransaction()
-    {
-        // Don't trust anyone!
-        TTransactionId id;
-        do {
-            id = TGuid::Create();
-        } while (Transactions.find(id) != Transactions.end());
-        
-        TTransaction::TPtr transaction = new TTransaction(id);
+    typedef TIntrusivePtr<TState> TPtr;
 
-        YVERIFY(Transactions.insert(MakePair(id, transaction)).Second());
+    TState(
+        const TConfig& config,
+        TMasterStateManager::TPtr stateManager,
+        IInvoker::TPtr serviceInvoker)
+        : TMetaStatePart(stateManager)
+        , Config(config)
+        , ServiceInvoker(serviceInvoker)
+        , LeaseManager(new TLeaseManager())
+    {
+        METASTATE_REGISTER_METHOD(StartTransaction);
+        METASTATE_REGISTER_METHOD(CommitTransaction);
+        METASTATE_REGISTER_METHOD(AbortTransaction);
+    }
+
+    TTransaction::TPtr StartTransaction(const TMsgCreateTransaction& message)
+    {
+        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+
+        TTransaction::TPtr transaction = new TTransaction(id);
+        if (IsLeader()) {
+            TLeaseManager::TLease lease = LeaseManager->CreateLease(
+                Config.TransactionTimeout,
+                FromMethod(
+                    &TState::OnTransactionExpired,
+                    TPtr(this),
+                    transaction)
+                ->Via(ServiceInvoker));
+            transaction->SetLease(lease);
+        }
+
+        YVERIFY(Transactions.Insert(id, transaction));
+
+        for (THandlers::iterator it = Handlers.begin();
+             it != Handlers.end();
+             ++it)
+        {
+            (*it)->OnTransactionStarted(transaction);
+        }
+
+        LOG_INFO("Transaction started (TransactionId: %s)",
+            ~id.ToString());
 
         return transaction;
     }
 
-    void RemoveTransaction(TTransaction::TPtr transaction)
+    TVoid CommitTransaction(const TMsgCommitTransaction& message)
     {
-        YVERIFY(Transactions.erase(transaction->GetId()) == 1);
+        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+
+        TTransaction::TPtr transaction = FindTransaction(id);
+        YASSERT(~transaction != NULL);
+
+        // TODO: timing
+        for (THandlers::iterator it = Handlers.begin();
+                it != Handlers.end();
+                ++it)
+        {
+            (*it)->OnTransactionCommitted(transaction);
+        }
+
+        YASSERT(Transactions.Remove(id));
+
+        if (IsLeader()) {
+            LeaseManager->CloseLease(transaction->GetLease());
+        }
+
+        LOG_INFO("Transaction committed (TransactionId: %s)",
+            ~transaction->GetId().ToString());
+
+        return TVoid();
+    }
+    
+    TVoid AbortTransaction(const TMsgAbortTransaction& message)
+    {
+        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+
+        TTransaction::TPtr transaction = FindTransaction(id);
+        YASSERT(~transaction != NULL);
+
+        // TODO: timing
+        for (THandlers::iterator it = Handlers.begin();
+                it != Handlers.end();
+                ++it)
+        {
+            (*it)->OnTransactionAborted(transaction);
+        }
+
+        YASSERT(Transactions.Remove(id));
+
+        if (IsLeader()) {
+            LeaseManager->CloseLease(transaction->GetLease());
+        }
+
+        LOG_INFO("Transaction aborted (TransactionId: %s)",
+            ~transaction->GetId().ToString());
+
+        return TVoid();
     }
 
-    TTransaction::TPtr FindTransaction(TTransactionId id, bool forUpdate = false)
-    {
-        UNUSED(forUpdate);
 
-        TTransactionMap::iterator it = Transactions.find(id);
-        if (it == Transactions.end())
-            return NULL;
-        else
-            return it->Second();
+    TTransaction::TPtr FindTransaction(const TTransactionId& id, bool forUpdate = false)
+    {
+        TTransaction::TPtr transaction = Transactions.Find(id, forUpdate);
+        if (~transaction != NULL && IsLeader()) {
+            RenewTransactionLease(transaction);
+        }
+        return transaction;
     }
 
-    TTransaction::TPtr GetTransaction(TTransactionId id, bool forUpdate = false)
+    TTransaction::TPtr GetTransaction(const TTransactionId& id, bool forUpdate = false)
     {
         TTransaction::TPtr transaction = FindTransaction(id, forUpdate);
         if (~transaction == NULL) {
@@ -58,27 +142,103 @@ public:
         return transaction;
     }
 
-private:
-    typedef yhash_map<TTransactionId, TTransaction::TPtr, TGuidHash> TTransactionMap;
+    void RenewTransactionLease(TTransaction::TPtr transaction)
+    {
+        YASSERT(IsLeader());
+        LeaseManager->RenewLease(transaction->GetLease());
+    }
 
+
+    void RegisterHander(ITransactionHandler::TPtr handler)
+    {
+        Handlers.push_back(handler);
+    }
+
+private:
+    typedef TState TThis;
+    typedef TMetaStateMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
+    typedef yvector<ITransactionHandler::TPtr> THandlers;
+
+    //! Configuration.
+    TConfig Config;
+
+    IInvoker::TPtr ServiceInvoker;
+
+    //! Controls leases of running transactions.
+    TLeaseManager::TPtr LeaseManager;
+
+    //! Active transaction.
     TTransactionMap Transactions;
 
+    //! Registered handlers.
+    THandlers Handlers;
+
+
+    void OnTransactionExpired(TTransaction::TPtr transaction)
+    {
+        TTransactionId id = transaction->GetId();
+
+        // Check if the transaction is still registered.
+        if (!Transactions.Contains(id))
+            return;
+
+        LOG_INFO("Transaction expired (TransactionId: %s)",
+            ~id.ToString());
+
+        TMsgAbortTransaction message;
+        message.SetTransactionId(id.ToProto());
+        ApplyChange(message, FromMethod(&TState::AbortTransaction, TPtr(this)));
+    }
+    
+
+    // TMetaStatePart overrides.
+    virtual Stroka GetPartName() const
+    {
+        return "TransactionManager";
+    }
+
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& stream)
+    {
+        return Transactions.Save(SnapshotInvoker, stream);
+    }
+
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
+    {
+        return Transactions.Load(SnapshotInvoker, stream)
+               ->Apply(FromMethod(&TState::OnLoaded, TPtr(this)));
+    }
+
+    TVoid OnLoaded(TVoid)
+    {
+        // TODO: extend all leases
+        return TVoid();
+    }
+
+    virtual void Clear()
+    {
+        Transactions.Clear();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
+    TMasterStateManager::TPtr metaStateManager,
+    TCompositeMetaState::TPtr metaState,
+    IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)
-    : TServiceBase(
+    : TMetaStateServiceBase(
+        serviceInvoker,
         TTransactionManagerProxy::GetServiceName(),
         TransactionLogger.GetCategory())
-    , Config(config)
-    , ServiceInvoker(server->GetInvoker())
-    , LeaseManager(new TLeaseManager())
-    , State(new TState())
+    , State(new TState(
+        config,
+        metaStateManager,
+        serviceInvoker))
 {
     RegisterMethods();
+    metaState->RegisterPart(~State);
     server->RegisterService(this);
 }
 
@@ -92,97 +252,14 @@ void TTransactionManager::RegisterMethods()
 
 void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
 {
-    Handlers.push_back(handler);
+    State->RegisterHander(handler);
 }
 
-TTransaction::TPtr TTransactionManager::FindTransaction(TTransactionId id, bool forUpdate)
+TTransaction::TPtr TTransactionManager::FindTransaction(
+    const TTransactionId& id,
+    bool forUpdate)
 {
-    TTransaction::TPtr transaction = State->FindTransaction(id, forUpdate);
-    if (~transaction != NULL) {
-        DoRenewTransactionLease(transaction);
-    }
-    return transaction;
-}
-
-TTransaction::TPtr TTransactionManager::DoStartTransaction()
-{
-    TTransaction::TPtr transaction = State->CreateTransaction();
-    TLeaseManager::TLease lease = LeaseManager->CreateLease(
-        Config.TransactionTimeout,
-        FromMethod(
-            &TTransactionManager::OnTransactionExpired,
-            TPtr(this),
-            transaction)
-        ->Via(ServiceInvoker));
-    transaction->SetLease(lease);
-
-    for (THandlers::iterator it = Handlers.begin();
-         it != Handlers.end();
-         ++it)
-    {
-        (*it)->OnTransactionStarted(transaction);
-    }
-
-    LOG_INFO("Transaction started (TransactionId: %s)",
-        ~transaction->GetId().ToString());
-
-    return transaction;
-}
-
-void TTransactionManager::DoCommitTransaction(TTransaction::TPtr transaction)
-{
-    // TODO: timing
-    for (THandlers::iterator it = Handlers.begin();
-         it != Handlers.end();
-         ++it)
-    {
-        (*it)->OnTransactionCommitted(transaction);
-    }
-
-    State->RemoveTransaction(transaction);
-
-    LeaseManager->CloseLease(transaction->GetLease());
-
-    LOG_INFO("Transaction committed (TransactionId: %s)",
-        ~transaction->GetId().ToString());
-}
-
-void TTransactionManager::DoAbortTransaction(TTransaction::TPtr transaction)
-{
-    // TODO: timing
-    for (THandlers::iterator it = Handlers.begin();
-         it != Handlers.end();
-         ++it)
-    {
-        (*it)->OnTransactionAborted(transaction);
-    }
-
-    State->RemoveTransaction(transaction);
-
-    LeaseManager->CloseLease(transaction->GetLease());
-
-    LOG_INFO("Transaction aborted (TransactionId: %s)",
-        ~transaction->GetId().ToString());
-}
-
-void TTransactionManager::DoRenewTransactionLease(TTransaction::TPtr transaction)
-{
-    TLeaseManager::TLease lease = transaction->GetLease();
-    LeaseManager->RenewLease(lease);
-}
-
-void TTransactionManager::OnTransactionExpired( TTransaction::TPtr transaction )
-{
-    TTransactionId id = transaction->GetId();
-
-    // Check if the transaction is still registered.
-    if (~State->FindTransaction(id) == NULL)
-        return;
-
-    LOG_INFO("Transaction expired (TransactionId: %s)",
-        ~id.ToString());
-
-    DoAbortTransaction(transaction);
+    return State->FindTransaction(id, forUpdate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,10 +267,20 @@ void TTransactionManager::OnTransactionExpired( TTransaction::TPtr transaction )
 RPC_SERVICE_METHOD_IMPL(TTransactionManager, StartTransaction)
 {
     UNUSED(request);
+    UNUSED(response);
 
     context->SetRequestInfo("");
 
-    TTransaction::TPtr transaction = DoStartTransaction();
+    TMsgCreateTransaction message;
+    message.SetTransactionId(TTransactionId::Create().ToProto());
+    METASTATE_APPLY_RPC_CHANGE(StartTransaction, OnTransactionStarted);
+}
+
+void TTransactionManager::OnTransactionStarted(
+    TTransaction::TPtr transaction,
+    TCtxStartTransaction::TPtr context)
+{
+    TRspStartTransaction* response = &context->Response();
 
     response->SetTransactionId(transaction->GetId().ToProto());
 
@@ -212,9 +299,17 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
-    TTransaction::TPtr transaction = State->GetTransaction(id, true);
-    DoCommitTransaction(transaction);
+    State->GetTransaction(id);
 
+    TMsgCommitTransaction message;
+    message.SetTransactionId(id.ToProto());
+    METASTATE_APPLY_RPC_CHANGE(CommitTransaction, OnTransactionCommitted);
+}
+
+void TTransactionManager::OnTransactionCommitted(
+    TVoid,
+    TCtxCommitTransaction::TPtr context)
+{
     context->Reply();
 }
 
@@ -226,10 +321,18 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
+    
+    State->GetTransaction(id);
 
-    TTransaction::TPtr transaction = State->GetTransaction(id, true);
-    DoAbortTransaction(transaction);
+    TMsgAbortTransaction message;
+    message.SetTransactionId(id.ToProto());
+    METASTATE_APPLY_RPC_CHANGE(AbortTransaction, OnTransactionAborted);
+}
 
+void TTransactionManager::OnTransactionAborted(
+    TVoid,
+    TCtxAbortTransaction::TPtr context)
+{
     context->Reply();
 }
 
@@ -241,9 +344,9 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
-
+    
     TTransaction::TPtr transaction = State->GetTransaction(id);
-    DoRenewTransactionLease(transaction);
+    State->RenewTransactionLease(transaction);
 
     context->Reply();
 }

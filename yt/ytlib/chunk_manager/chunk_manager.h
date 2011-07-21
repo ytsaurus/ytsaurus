@@ -27,6 +27,7 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
+        IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
  
@@ -40,9 +41,6 @@ private:
     TConfig Config;
 
     TTransactionManager::TPtr TransactionManager;
-
-    //! All state modifications are carried out via this invoker.
-    IInvoker::TPtr ServiceInvoker;
 
     //! Meta-state.
     TIntrusivePtr<TState> State;

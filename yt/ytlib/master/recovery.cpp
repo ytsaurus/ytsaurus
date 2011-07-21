@@ -26,8 +26,7 @@ TRecovery::TRecovery(
     TMasterEpoch epoch,
     TMasterId leaderId,
     IInvoker::TPtr invoker,
-    IInvoker::TPtr epochInvoker,
-    IInvoker::TPtr workQueue)
+    IInvoker::TPtr epochInvoker)
     : CellManager(cellManager)
     , MasterState(masterState)
     , ChangeLogCache(changeLogCache)
@@ -36,7 +35,7 @@ TRecovery::TRecovery(
     , LeaderId(leaderId)
     , ServiceInvoker(invoker)
     , EpochInvoker(epochInvoker)
-    , WorkQueue(workQueue)
+    , StateInvoker(masterState->GetInvoker())
 { }
 
 TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
@@ -96,7 +95,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                   TPtr(this),
                   snapshotReader,
                   targetStateId,
-                  snapshotReader->GetPrevRecordCount())->AsyncVia(WorkQueue));
+                  snapshotReader->GetPrevRecordCount())->AsyncVia(StateInvoker));
     } else {
         // Recovery solely using changelogs.
         LOG_DEBUG("No snapshot is used for recovery");
@@ -275,8 +274,7 @@ TLeaderRecovery::TLeaderRecovery(
     TMasterEpoch epoch,
     TMasterId leaderId,
     IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr epochInvoker,
-    IInvoker::TPtr workQueue)
+    IInvoker::TPtr epochInvoker)
     : TRecovery(
         cellManager,
         masterState,
@@ -285,8 +283,7 @@ TLeaderRecovery::TLeaderRecovery(
         epoch,
         leaderId,
         serviceInvoker,
-        epochInvoker,
-        workQueue)
+        epochInvoker)
 { }
 
 TRecovery::TResult::TPtr TLeaderRecovery::Run()
@@ -302,7 +299,7 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
                stateId,
                maxAvailableSnapshotId)
            ->AsyncVia(EpochInvoker)
-           ->AsyncVia(WorkQueue)
+           ->AsyncVia(StateInvoker)
            ->Do();
 }
 
@@ -321,8 +318,7 @@ TFollowerRecovery::TFollowerRecovery(
     TMasterEpoch epoch,
     TMasterId leaderId,
     IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr epochInvoker,
-    IInvoker::TPtr workQueue)
+    IInvoker::TPtr epochInvoker)
     : TRecovery(
         cellManager,
         masterState,
@@ -331,8 +327,7 @@ TFollowerRecovery::TFollowerRecovery(
         epoch,
         leaderId,
         serviceInvoker,
-        epochInvoker,
-        workQueue)
+        epochInvoker)
     , Result(new TResult())
     , SyncReceived(false)
 { }
@@ -391,7 +386,7 @@ void TFollowerRecovery::Sync(
         PostponedStateId,
         snapshotId)
     ->AsyncVia(EpochInvoker)
-    ->AsyncVia(WorkQueue)
+    ->AsyncVia(StateInvoker)
     ->Do()->Apply(FromMethod(
         &TFollowerRecovery::OnSyncReached,
         TPtr(this)))
@@ -432,7 +427,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::CapturePostponedChanges()
                TPtr(this),
                changes)
            ->AsyncVia(EpochInvoker)
-           ->AsyncVia(WorkQueue)
+           ->AsyncVia(StateInvoker)
            ->Do();
 }
 
@@ -448,7 +443,8 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
         const TPostponedChange& change = *it;
         switch (change.Type) {
             case TPostponedChange::EType::Change:
-                MasterState->LogAndApplyChange(change.ChangeData);
+                MasterState->LogChange(change.ChangeData);
+                MasterState->ApplyChange(change.ChangeData);
                 break;
 
             case TPostponedChange::EType::SegmentAdvance:

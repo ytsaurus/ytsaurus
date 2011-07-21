@@ -18,20 +18,22 @@ public:
 
     TSession(
         TChangeCommitter::TPtr committer,
-        TSharedRef data,
-        TResult::TPtr result)
+        IAction::TPtr changeAction,
+        TSharedRef changeData)
         : Committer(committer)
-        , Data(data)
-        , Result(result)
+        , ChangeAction(changeAction)
+        , ChangeData(changeData)
+        , Result(new TResult())
         , Awaiter(new TParallelAwaiter(committer->ServiceInvoker))
-        , CommitCount(0)
+        // Change is always committed locally.
+        , CommitCount(1)
     { }
 
-    void Run() // WorkQueue thread
+    TResult::TPtr Run() // WorkQueue thread
     {
         StateId = Committer->MasterState->GetStateId();
 
-        TCellManager* cellManager = ~Committer->CellManager;
+        TCellManager::TPtr cellManager = Committer->CellManager;
 
         for (TMasterId id = 0; id < cellManager->GetMasterCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
@@ -42,23 +44,38 @@ public:
             request->SetSegmentId(StateId.SegmentId);
             request->SetChangeCount(StateId.ChangeCount);
             request->SetEpoch(Committer->Epoch.ToProto());
-            request->Attachments().push_back(Data);
+            request->Attachments().push_back(ChangeData);
             
             Awaiter->Await(
                 request->Invoke(Committer->Timeout),
-                FromMethod(&TSession::OnRemoteCommit, TPtr(this), id));
+                FromMethod(&TSession::OnCommitted, TPtr(this), id));
         }
 
-        Awaiter->Await(
-            Committer->DoCommitLocal(StateId, Data),
-            FromMethod(&TSession::OnLocalCommit, TPtr(this)));
+        Committer->DoCommitLeader(ChangeAction, ChangeData);
+        LOG_DEBUG("Change %s is committed locally", ~StateId.ToString());
 
-        Awaiter->Complete(
-            FromMethod(&TSession::OnFail, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TSession::OnCompleted, TPtr(this)));
+
+        return Result;
     }
 
 private:
-    void OnRemoteCommit(TProxy::TRspApplyChange::TPtr response, TMasterId masterId) // Service thread
+    // Service thread
+    bool CheckQuorum()
+    {
+        if (CommitCount < Committer->CellManager->GetQuorum())
+            return false;
+
+        Result->Set(EResult::Committed);
+        Awaiter->Cancel();
+        
+        LOG_DEBUG("Change %s is committed by quorum",
+            ~StateId.ToString());
+
+        return true;
+    }
+
+    void OnCommitted(TProxy::TRspApplyChange::TPtr response, TMasterId masterId)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error %s committing change %s at master %d",
@@ -73,35 +90,20 @@ private:
                 ~StateId.ToString(),
                 masterId);
 
-            OnCommit();
+            ++CommitCount;
+            CheckQuorum();
         } else {
-            LOG_DEBUG("Change %s is acknowledged but not commited by master %d",
+            LOG_DEBUG("Change %s is acknowledged but not committed by master %d",
                 ~StateId.ToString(),
                 masterId);
         }
     }
 
-    void OnLocalCommit(EResult result) // Service thread
+    void OnCompleted()
     {
-        YASSERT(result == EResult::Committed);
-        LOG_DEBUG("Change %s is committed locally",
-            ~StateId.ToString());
-        OnCommit();
-    }
+        if (CheckQuorum())
+            return;
 
-    void OnCommit() // Service thread
-    {
-        ++CommitCount;
-        if (CommitCount >= Committer->CellManager->GetQuorum()) {
-            LOG_DEBUG("Change %s is committed by quorum",
-                ~StateId.ToString());
-            Result->Set(EResult::Committed);
-            Awaiter->Cancel();
-        }
-    }
-
-    void OnFail()
-    {
         LOG_WARNING("Change %s is uncertain, committed by %d master(s)",
             ~StateId.ToString(), CommitCount);
         Result->Set(EResult::MaybeCommitted);
@@ -109,7 +111,8 @@ private:
 
 private:
     TChangeCommitter::TPtr Committer;
-    TSharedRef Data;
+    IAction::TPtr ChangeAction;
+    TSharedRef ChangeData;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
     i32 CommitCount; // Service thread
@@ -123,13 +126,12 @@ TChangeCommitter::TChangeCommitter(
     TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
     IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr workInvoker,
     const TMasterEpoch& epoch)
     : CellManager(cellManager)
     , MasterState(masterState)
     , ChangeLogCache(changeLogCache)
     , ServiceInvoker(serviceInvoker)
-    , WorkInvoker(workInvoker)
+    , StateInvoker(masterState->GetInvoker())
     , Epoch(epoch)
     , Timeout(TDuration::Seconds(10))
 { }
@@ -149,38 +151,40 @@ void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
     OnApplyChange = onApplyChange;
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::CommitDistributed(
-    TSharedRef change)
+TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
+    IAction::TPtr changeAction,
+    TSharedRef changeData)
 {
-    TResult::TPtr result = new TResult();
-    TSession::TPtr session = new TSession(this, change, result);
-    WorkInvoker->Invoke(FromMethod(&TSession::Run, session));
-    return result;
+    TSession::TPtr session = new TSession(
+        this,
+        changeAction,
+        changeData);
+    return session->Run();
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLocal(
+TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
     TMasterStateId stateId,
-    TSharedRef change)
+    TSharedRef changeData)
 {
     return
         FromMethod(
-            &TChangeCommitter::DoCommitLocal,
+            &TChangeCommitter::DoCommitFollower,
             TPtr(this),
             stateId,
-            change)
-        ->AsyncVia(WorkInvoker)
+            changeData)
+        ->AsyncVia(StateInvoker)
         ->Do();
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
-    TMasterStateId stateId,
-    const TSharedRef& changeData)
+TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
+    IAction::TPtr changeAction,
+    TSharedRef changeData)
 {
-    if (MasterState->GetStateId() != stateId) {
-        return new TResult(EResult::InvalidStateId);
-    }
+    TChangeCommitter::TResult::TPtr appendResult = MasterState
+        ->LogChange(changeData)
+        ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
-    TAsyncChangeLog::TAppendResult::TPtr appendResult = MasterState->LogAndApplyChange(changeData);
+    MasterState->ApplyChange(changeAction);
 
     // OnApplyChange can be modified concurrently.
     IAction::TPtr onApplyChange = OnApplyChange;
@@ -188,7 +192,22 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLocal(
         onApplyChange->Do();
     }
 
-    return appendResult->Apply(FromMethod(&TChangeCommitter::OnAppend));
+    return appendResult;
+}
+
+TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
+    TMasterStateId stateId,
+    TSharedRef changeData)
+{
+    if (MasterState->GetStateId() != stateId) {
+        return new TResult(EResult::InvalidStateId);
+    }
+
+    MasterState->ApplyChange(changeData);
+
+    return MasterState
+           ->LogChange(changeData)
+           ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 }
 
 TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)

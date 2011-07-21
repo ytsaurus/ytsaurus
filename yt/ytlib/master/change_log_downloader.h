@@ -38,7 +38,9 @@ public:
         (RemoteError)
     );
 
-    TChangeLogDownloader(const TConfig& config, TCellManager::TPtr cellManager);
+    TChangeLogDownloader(
+        const TConfig& config,
+        TCellManager::TPtr cellManager);
 
     EResult Download(TMasterStateId stateId, TAsyncChangeLog& changeLog);
 

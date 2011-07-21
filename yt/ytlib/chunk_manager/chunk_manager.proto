@@ -37,7 +37,7 @@ message TReqHolderHeartbeat
     required THolderStatistics Statistics = 2;
 
     repeated TChunkInfo AddedChunks = 3;
-    repeated bytes RemovedChunk = 4;
+    repeated bytes RemovedChunks = 4;
 }
 
 message TRspHolderHeartbeat

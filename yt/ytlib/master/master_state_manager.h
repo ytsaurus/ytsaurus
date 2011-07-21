@@ -39,8 +39,16 @@ public:
         i32 MaxChangeCount;
 
         TConfig()
-            : MaxChangeCount(1000)
+            : LogLocation(".")
+            , SnapshotLocation(".")
+            , MaxChangeCount(1000)
         { }
+
+        void Read(TJsonObject* json)
+        {
+            TryRead(json, L"LogLocation", &LogLocation);
+            TryRead(json, L"SnapshotLocation", &SnapshotLocation);
+        }
     };
 
     TMasterStateManager(
@@ -76,7 +84,9 @@ public:
 
     typedef TAsyncResult<ECommitResult> TCommitResult;
 
-    TCommitResult::TPtr CommitChange(TSharedRef change);
+    TCommitResult::TPtr CommitChange(
+        IAction::TPtr changeAction,
+        TSharedRef changeData);
 
 private:
     typedef TMasterStateManagerProxy TProxy;
@@ -117,7 +127,7 @@ private:
         TSnapshotCreator::TLocalResult result,
         TCtxCreateSnapshot::TPtr context);
 
-    // Work thread.
+    // State invoker.
     void OnApplyChange();
 
     // TODO: which thread?
@@ -136,7 +146,7 @@ private:
     TMasterId LeaderId;
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr WorkQueue;
+    IInvoker::TPtr StateInvoker;
     TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;

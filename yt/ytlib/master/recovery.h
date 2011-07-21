@@ -41,8 +41,7 @@ public:
         TMasterEpoch epoch,
         TMasterId leaderId,
         IInvoker::TPtr serviceInvoker,
-        IInvoker::TPtr epochInvoker,
-        IInvoker::TPtr workQueue);
+        IInvoker::TPtr epochInvoker);
 
 protected:
     friend class TLeaderRecovery;
@@ -74,7 +73,7 @@ protected:
     TMasterId LeaderId;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr EpochInvoker;
-    IInvoker::TPtr WorkQueue;
+    IInvoker::TPtr StateInvoker;
 
 };
 
@@ -94,8 +93,7 @@ public:
         TMasterEpoch epoch,
         TMasterId leaderId,
         IInvoker::TPtr serviceInvoker,
-        IInvoker::TPtr epochInvoker,
-        IInvoker::TPtr workQueue);
+        IInvoker::TPtr epochInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
     TResult::TPtr Run();
@@ -121,8 +119,7 @@ public:
         TMasterEpoch epoch,
         TMasterId leaderId,
         IInvoker::TPtr serviceInvoker,
-        IInvoker::TPtr epochInvoker,
-        IInvoker::TPtr workQueue);
+        IInvoker::TPtr epochInvoker);
 
     //! Performs follower recovery brining the follower up-to-date and synched with the leader.
     TResult::TPtr Run();

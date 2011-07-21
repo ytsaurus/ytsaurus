@@ -18,6 +18,10 @@ public:
     typedef TIntrusivePtr<TTransaction> TPtr;
     typedef yvector<NChunkHolder::TChunkId> TChunks;
 
+    //! For serialization.
+    TTransaction()
+    { }
+
     TTransaction(const TTransactionId& id)
         : Id(id)
     { }
@@ -47,7 +51,24 @@ private:
     TLeaseManager::TLease Lease;
     TChunks AddedChunks_;
 
+    friend TOutputStream& operator << (TOutputStream& stream, const TTransaction& transaction);
+    friend TInputStream& operator >> (TInputStream& stream, TTransaction& transaction);
+
 };
+
+inline TOutputStream& operator << (TOutputStream& stream, const TTransaction& transaction)
+{
+    stream << transaction.Id
+           << transaction.AddedChunks_;
+    return stream;
+}
+
+inline TInputStream& operator >> (TInputStream& stream, TTransaction& transaction)
+{
+    stream >> transaction.Id
+           >> transaction.AddedChunks_;
+    return stream;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
