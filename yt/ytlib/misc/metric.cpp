@@ -27,6 +27,16 @@ void TMetric::AddValue(double value)
     IncrementBucket(value);
 }
 
+void TMetric::AddValue(TDuration duration)
+{
+    AddValue(duration.MilliSeconds());
+}
+
+void TMetric::AddValue(TInstant start)
+{
+    AddValue(start - TInstant::Now());
+}
+
 double TMetric::GetMean() const
 {
     if (ValueCount == 0) {

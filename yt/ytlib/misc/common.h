@@ -11,6 +11,8 @@
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 
+#include <util/datetime/base.h>
+
 #include <util/string/printf.h>
 
 #include <string>

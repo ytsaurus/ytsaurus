@@ -15,6 +15,12 @@ public:
     //! Adds value to analysis.
     void AddValue(double value);
 
+    //! Adds duraion in milliseconds to analysis.
+    void AddValue(TDuration duration);
+
+    //! Adds time passed from #start to now to analysis.
+    void AddValue(TInstant start);
+
     //! Returns mean of all values.
     double GetMean() const;
 
