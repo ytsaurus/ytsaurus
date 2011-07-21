@@ -7,29 +7,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMetric2
+    : private TNonCopyable
 {
-private:
-    double MinValue;
-    double MaxValue;
-    int BucketCount;
-
-    int NumValues;
-    int Sum;
-    int SumSquares;
-
-    //! The length of segment which correpsonds to one bucket.
-    int Delta;
-
-    //! Contains values from (-oo, MinValue).
-    int MinimalBucket;
-
-    //! Contains values from (MaxValue, oo).
-    int MaximalBucket;
-
-    //! Contains values fro [MinValue, MaxValue]
-    yvector<int> Buckets;
-
-
 public:
     TMetric2(double minValue, double maxValue, int bucketCount);
 
@@ -40,14 +19,39 @@ public:
     double GetMean() const;
 
     //! Returns standart deviation of all values.
-    double GetStdDev() const;
+    double GetStd() const;
 
     //! Returns information about all values.
     Stroka GetDebugInfo() const;
 
 private:
-    //! Puts the #value to appropriate bucket.
-    void UpdateBuckets(double value);
+    double MinValue;
+    double MaxValue;
+    int BucketCount;
+
+    //! Number of added values.
+    int ValueCount;
+
+    //! Sum of added values.
+    double Sum;
+
+    //! Sum of squares of added values.
+    double SumSquares;
+
+    //! The length of segment correpsonding to one bucket.
+    int Delta;
+
+    //! Contains number of values from (-inf, #MinValue).
+    int MinBucket;
+
+    //! Contains number of values from (#MaxValue, inf).
+    int MaxBucket;
+
+    //! Contains number of values from [#MinValue, #MaxValue]
+    yvector<int> Buckets;
+
+    //! Puts the #value into an appropriate bucket.
+    void IncrementBucket(double value);
 };
 
 

@@ -8,11 +8,11 @@ TMetric2::TMetric2(double minValue, double maxValue, int bucketCount)
     : MinValue(minValue)
     , MaxValue(maxValue)
     , BucketCount(bucketCount)
-    , NumValues(0)
+    , ValueCount(0)
     , Sum(0)
     , SumSquares(0)
-    , MinimalBucket(0)
-    , MaximalBucket(0)
+    , MinBucket(0)
+    , MaxBucket(0)
     , Buckets(bucketCount)
 {
     Delta = (MaxValue - MinValue) / BucketCount;
@@ -22,40 +22,39 @@ void TMetric2::AddValue(double value)
 {
     Sum += value;
     SumSquares += value * value;
-    NumValues += 1;
+    ValueCount++;
 
-    UpdateBuckets(value);
+    IncrementBuckets(value);
 }
 
 double TMetric2::GetMean() const
 {
-    if (NumValues == 0) {
+    if (ValueCount == 0) {
         return 0;
     }
-    return Sum / NumValues;
+    return Sum / ValueCount;
 }
 
-double TMetric2::GetStdDev() const
+double TMetric2::GetStd() const
 {
-    if (NumValues == 0) {
+    if (ValueCount == 0) {
         return 0;
     }
     double mean = GetMean();
-    return sqrt(abs(SumSquares / NumValues - mean * mean));
+    return sqrt(abs(SumSquares / ValueCount - mean * mean));
 }
 
 Stroka TMetric2::GetDebugInfo() const
 {
-    // TODO: implement
-    return "";
+    return Sprintf("Mean: %lf, Std: %lf", GetMean(), GetStd());
 }
 
-void TMetric2::UpdateBuckets(double value)
+void TMetric2::IncrementBuckets(double value)
 {
     if (value < MinValue) {
-        MinimalBucket += 1;
+        MinBucket += 1;
     } else if (value > MaxValue) {
-        MaximalBucket += 1;
+        MaxBucket += 1;
     } else {
         int BucketId = (value - MinValue) / Delta;
 
