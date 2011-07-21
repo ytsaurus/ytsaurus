@@ -107,7 +107,7 @@ public:
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
         IAction::TPtr errorHandler = NULL)
     {
-        TUpdate<TMessage, TResult>::TPtr update = new TUpdate<TMessage, TResult>(
+        typename TUpdate<TMessage, TResult>::TPtr update = new TUpdate<TMessage, TResult>(
             StateManager,
             GetPartName(),
             message,
