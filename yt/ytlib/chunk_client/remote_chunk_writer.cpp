@@ -96,14 +96,15 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteChunkWriter::TGroup::TGroup(
-    int numNodes, 
+    int nodeCount, 
     int startBlockIndex, 
     TBlockOffset startOffset, 
     TRemoteChunkWriter::TPtr writer)
-    : States(numNodes, EGroupState::No)
+    : States(nodeCount, EGroupState::No)
     , StartOffset(startOffset)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
+    , NodeCount(nodeCount)
     , Writer(writer)
 { }
 
