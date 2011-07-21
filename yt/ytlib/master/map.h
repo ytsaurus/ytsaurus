@@ -7,7 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: document and implement
-template <class TKey, class TValue, class THash = ::THash<TKey>>
+template <class TKey, class TValue, class THash = ::THash<TKey> >
 class TMetaStateMap
 {
 public:
