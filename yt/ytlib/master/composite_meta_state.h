@@ -18,17 +18,9 @@ protected:
     TMetaStateServiceBase(
         IInvoker::TPtr serviceInvoker,
         Stroka serviceName,
-        Stroka loggingCategory)
-        : NRpc::TServiceBase(
-            serviceInvoker,
-            serviceName,
-            loggingCategory)
-    { }
+        Stroka loggingCategory);
 
-    void OnCommitError(NRpc::TServiceContext::TPtr context)
-    {
-        context->Reply(NRpc::EErrorCode::ServiceError);
-    }
+    void OnCommitError(NRpc::TServiceContext::TPtr context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,50 +38,16 @@ struct TFixedChangeHeader
 template <class TMessage>
 TBlob SerializeChange(
     const NRpcMasterStateManager::TMsgChangeHeader& header,
-    const TMessage& message)
-{
-    TFixedChangeHeader fixedHeader;
-    fixedHeader.HeaderSize = header.ByteSize();
-    fixedHeader.MessageSize = message.ByteSize();
+    const TMessage& message);
 
-    TBlob data(sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize + fixedHeader.MessageSize);
-    
-    Copy(
-        reinterpret_cast<char*>(&fixedHeader),
-        sizeof (TFixedChangeHeader),
-        data.begin());
-    YVERIFY(header.SerializeToArray(
-        data.begin() + sizeof (TFixedChangeHeader),
-        fixedHeader.HeaderSize));
-    YVERIFY(message.SerializeToArray(
-        data.begin() + sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize,
-        fixedHeader.MessageSize));
-    return data;
-}
-
-inline void DeserializeChangeHeader(
+void DeserializeChangeHeader(
     TRef changeData,
-    NRpcMasterStateManager::TMsgChangeHeader* header)
-{
-    TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(header->ParseFromArray(
-        changeData.Begin() + sizeof (fixedHeader),
-        fixedHeader->HeaderSize));
-}
+    NRpcMasterStateManager::TMsgChangeHeader* header);
 
-inline void DeserializeChange(
+void DeserializeChange(
     TRef changeData,
     NRpcMasterStateManager::TMsgChangeHeader* header,
-    TRef* messageData)
-{
-    TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(header->ParseFromArray(
-        changeData.Begin() + sizeof (TFixedChangeHeader),
-        fixedHeader->HeaderSize));
-    *messageData = TRef(
-        changeData.Begin() + sizeof (TFixedChangeHeader) + fixedHeader->HeaderSize,
-        fixedHeader->MessageSize);
-}
+    TRef* messageData);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,46 +63,16 @@ public:
     typename TAsyncResult<TResult>::TPtr ApplyChange(
         const TMessage& message,
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-        IAction::TPtr errorHandler = NULL)
-    {
-        typename TUpdate<TMessage, TResult>::TPtr update = new TUpdate<TMessage, TResult>(
-            StateManager,
-            GetPartName(),
-            message,
-            changeMethod,
-            errorHandler);
-        return update->Run();
-    }
+        IAction::TPtr errorHandler = NULL);
 
 protected:
-    TMetaStatePart(TMasterStateManager::TPtr stateManager)
-        : StateManager(stateManager)
-    { }
+    TMetaStatePart(TMasterStateManager::TPtr stateManager);
 
     template<class TMessage, class TResult>
-    void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
-    {
-        Stroka changeType = TMessage().GetTypeName();
-        IParamAction<const TRef&>::TPtr action = FromMethod(
-            &TMetaStatePart::MethodThunk<TMessage, TResult>,
-            this,
-            changeMethod);
-        YVERIFY(Methods.insert(MakePair(changeType, action)).Second() == 1);
-    }
+    void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
-    bool IsLeader() const
-    {
-        TMasterStateManager::EState state = StateManager->GetState();
-        return state == TMasterStateManager::EState::Leading ||
-               state == TMasterStateManager::EState::LeaderRecovery;
-    }
-
-    bool IsFolllower() const
-    {
-        TMasterStateManager::EState state = StateManager->GetState();
-        return state == TMasterStateManager::EState::Following ||
-               state == TMasterStateManager::EState::FollowerRecovery;
-    }
+    bool IsLeader() const;
+    bool IsFolllower() const;
 
     virtual Stroka GetPartName() const = 0;
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
@@ -157,96 +85,17 @@ protected:
 private:
     friend class TCompositeMetaState;
 
-    void OnRegistered(IInvoker::TPtr snapshotInvoker)
-    {
-        SnapshotInvoker = snapshotInvoker;
-    }
+    void OnRegistered(IInvoker::TPtr snapshotInvoker);
 
-    void ApplyChange(Stroka changeType, TRef changeData)
-    {
-        TMethodMap::iterator it = Methods.find(changeType);
-        YASSERT(it != Methods.end());
-        it->Second()->Do(changeData);
-    }
+    void ApplyChange(Stroka changeType, TRef changeData);
 
     template<class TMessage, class TResult>
     void MethodThunk(
         const TRef& changeData,
-        typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
-    {
-        google::protobuf::io::ArrayInputStream ais(changeData.Begin(), changeData.Size());
-        TMessage message;
-        YVERIFY(message.ParseFromZeroCopyStream(&ais));
-
-        changeMethod->Do(message);
-    }
+        typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod);
 
     template<class TMessage, class TResult>
-    class TUpdate
-        : public TRefCountedBase
-    {
-    public:
-        typedef TIntrusivePtr<TUpdate> TPtr;
-
-        TUpdate(
-            TMasterStateManager::TPtr stateManager,
-            Stroka partName,
-            const TMessage& message,
-            typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod,
-            IAction::TPtr errorHandler)
-            : StateManager(stateManager)
-            , PartName(partName)
-            , Message(message)
-            , ChangeMethod(changeMethod)
-            , ErrorHandler(errorHandler)
-            , AsyncResult(new TAsyncResult<TResult>())
-        { }
-
-        typename TAsyncResult<TResult>::TPtr Run()
-        {
-            // TODO: change ns
-            NRpcMasterStateManager::TMsgChangeHeader header;
-            header.SetPartName(PartName);
-            header.SetChangeType(Message.GetTypeName());
-
-            TBlob changeData = SerializeChange(header, Message);
-
-            StateManager
-                ->CommitChange(
-                    FromMethod(&TUpdate::InvokeChangeMethod, TPtr(this)),
-                    TSharedRef(changeData))
-                ->Subscribe(
-                    FromMethod(&TUpdate::OnCommitted, TPtr(this)));
-
-            return AsyncResult;
-        }
-
-    private:
-        void InvokeChangeMethod()
-        {
-            Result = ChangeMethod->Do(Message);
-        }
-
-        void OnCommitted(TMasterStateManager::ECommitResult commitResult)
-        {
-            if (commitResult == TMasterStateManager::ECommitResult::Committed) {
-                AsyncResult->Set(Result);
-            } else if (~ErrorHandler != NULL) {
-                ErrorHandler->Do();
-            }
-        }
-
-        TMasterStateManager::TPtr StateManager;
-        Stroka PartName;
-        TMessage Message;
-        Stroka MethodName;
-        typename IParamFunc<const TMessage&, TResult>::TPtr ChangeMethod;
-        IAction::TPtr ErrorHandler;
-        typename TAsyncResult<TResult>::TPtr AsyncResult;
-        TResult Result;
-
-    };
-
+    class TUpdate;
 
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
@@ -261,22 +110,11 @@ class TCompositeMetaState
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
 
-    TCompositeMetaState()
-        : StateInvoker(new TActionQueue())
-        , SnapshotInvoker(new TActionQueue())
-    { }
+    TCompositeMetaState();
 
-    void RegisterPart(TMetaStatePart::TPtr part)
-    {
-        Stroka partName = part->GetPartName();
-        YVERIFY(Parts.insert(MakePair(partName, part)).Second());
-        part->OnRegistered(SnapshotInvoker);
-    }
+    void RegisterPart(TMetaStatePart::TPtr part);
 
-    virtual IInvoker::TPtr GetInvoker() const
-    {
-        return StateInvoker;
-    }
+    virtual IInvoker::TPtr GetInvoker() const;
 
 private:
     IInvoker::TPtr StateInvoker;
@@ -285,58 +123,10 @@ private:
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output)
-    {
-        TAsyncResult<TVoid>::TPtr result;
-        for (TPartMap::iterator it = Parts.begin();
-             it != Parts.end();
-             ++it)
-        {
-            result = it->Second()->Save(output);
-        }
-        return result;
-    }
-
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input)
-    {
-        TAsyncResult<TVoid>::TPtr result;
-        for (TPartMap::iterator it = Parts.begin();
-             it != Parts.end();
-             ++it)
-        {
-            result = it->Second()->Load(input);
-        }
-        return result;
-    }
-
-    virtual void ApplyChange(TRef changeData)
-    {
-        NRpcMasterStateManager::TMsgChangeHeader header;
-        TRef messageData;
-        DeserializeChange(
-            changeData,
-            &header,
-            &messageData);
-
-        Stroka partName = header.GetPartName();
-        Stroka changeType = header.GetChangeType();
-
-        TPartMap::iterator it = Parts.find(partName);
-        YASSERT(it != Parts.end());
-
-        TMetaStatePart::TPtr part = it->Second();
-        part->ApplyChange(changeType, messageData);
-    }
-
-    virtual void Clear()
-    {
-        for (TPartMap::iterator it = Parts.begin();
-             it != Parts.end();
-             ++it)
-        {
-            it->Second()->Clear();
-        }
-    }
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input);
+    virtual void ApplyChange(TRef changeData);
+    virtual void Clear();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,3 +146,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define COMPOSITE_META_STATE_INL_H_
+#include "composite_meta_state-inl.h"
+#undef COMPOSITE_META_STATE_INL_H_

@@ -19,5 +19,6 @@ SET(YT_SOURCE_FILES
     cell_manager.cpp
     leader_pinger.cpp
     map.h
-    composite_meta_state.h
+    composite_meta_state-inl.h
+    composite_meta_state.cpp
 )
