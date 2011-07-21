@@ -203,11 +203,13 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
         return new TResult(EResult::InvalidStateId);
     }
 
+    TChangeCommitter::TResult::TPtr appendResult = MasterState
+        ->LogChange(changeData)
+        ->Apply(FromMethod(&TChangeCommitter::OnAppend));
+
     MasterState->ApplyChange(changeData);
 
-    return MasterState
-           ->LogChange(changeData)
-           ->Apply(FromMethod(&TChangeCommitter::OnAppend));
+    return appendResult;
 }
 
 TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)

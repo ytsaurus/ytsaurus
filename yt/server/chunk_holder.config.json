@@ -1,5 +1,5 @@
 {
-  Locations : ["node1"],
+  Locations : ["node0"],
   MasterAddress : "localhost:9001",
 
   Logging: {

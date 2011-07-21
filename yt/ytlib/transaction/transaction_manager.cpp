@@ -31,9 +31,9 @@ public:
         , ServiceInvoker(serviceInvoker)
         , LeaseManager(new TLeaseManager())
     {
-        METASTATE_REGISTER_METHOD(StartTransaction);
-        METASTATE_REGISTER_METHOD(CommitTransaction);
-        METASTATE_REGISTER_METHOD(AbortTransaction);
+        RegisterMethod(this, &TState::StartTransaction);
+        RegisterMethod(this, &TState::CommitTransaction);
+        RegisterMethod(this, &TState::AbortTransaction);
     }
 
     TTransaction::TPtr StartTransaction(const TMsgCreateTransaction& message)
@@ -155,7 +155,6 @@ public:
     }
 
 private:
-    typedef TState TThis;
     typedef TMetaStateMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
@@ -187,7 +186,7 @@ private:
 
         TMsgAbortTransaction message;
         message.SetTransactionId(id.ToProto());
-        ApplyChange(message, FromMethod(&TState::AbortTransaction, TPtr(this)));
+        CommitChange(message, FromMethod(&TState::AbortTransaction, TPtr(this)));
     }
     
 
@@ -273,7 +272,11 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, StartTransaction)
 
     TMsgCreateTransaction message;
     message.SetTransactionId(TTransactionId::Create().ToProto());
-    METASTATE_APPLY_RPC_CHANGE(StartTransaction, OnTransactionStarted);
+
+    CommitChange(
+        this, context, State, message,
+        &TState::StartTransaction,
+        &TThis::OnTransactionStarted);
 }
 
 void TTransactionManager::OnTransactionStarted(
@@ -303,14 +306,10 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
 
     TMsgCommitTransaction message;
     message.SetTransactionId(id.ToProto());
-    METASTATE_APPLY_RPC_CHANGE(CommitTransaction, OnTransactionCommitted);
-}
 
-void TTransactionManager::OnTransactionCommitted(
-    TVoid,
-    TCtxCommitTransaction::TPtr context)
-{
-    context->Reply();
+    CommitChange(
+        this, context, State, message,
+        &TState::CommitTransaction);
 }
 
 RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
@@ -326,14 +325,10 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
 
     TMsgAbortTransaction message;
     message.SetTransactionId(id.ToProto());
-    METASTATE_APPLY_RPC_CHANGE(AbortTransaction, OnTransactionAborted);
-}
 
-void TTransactionManager::OnTransactionAborted(
-    TVoid,
-    TCtxAbortTransaction::TPtr context)
-{
-    context->Reply();
+    CommitChange(
+        this, context, State, message,
+        &TState::AbortTransaction);
 }
 
 RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)

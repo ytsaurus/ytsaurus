@@ -33,7 +33,7 @@ TBlob SerializeChange(
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TMessage, class TResult>
-typename TAsyncResult<TResult>::TPtr TMetaStatePart::ApplyChange(
+typename TAsyncResult<TResult>::TPtr TMetaStatePart::CommitChange(
     const TMessage& message,
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
     IAction::TPtr errorHandler)

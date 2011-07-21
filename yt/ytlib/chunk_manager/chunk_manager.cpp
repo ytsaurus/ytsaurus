@@ -256,7 +256,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
         AddChunkLocation(chunk, holder);
 
-        LOG_DEBUG("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ", FirstSeen: %d)",
+        LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ", FirstSeen: %d)",
             holderId,
             ~chunkId.ToString(),
             size,

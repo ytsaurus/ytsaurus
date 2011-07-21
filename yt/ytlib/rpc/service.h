@@ -86,7 +86,7 @@ public:
         IMessage::TPtr message,
         IBus::TPtr replyBus);
     
-    void Reply(EErrorCode errorCode);
+    void Reply(EErrorCode errorCode = EErrorCode::OK);
 
     TSharedRef GetRequestBody() const;
     void SetResponseBody(TBlob* responseBody);

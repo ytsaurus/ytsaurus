@@ -14,11 +14,6 @@ TMetaStateServiceBase::TMetaStateServiceBase(
         loggingCategory)
 { }
 
-void TMetaStateServiceBase::OnCommitError(NRpc::TServiceContext::TPtr context)
-{
-    context->Reply(NRpc::EErrorCode::ServiceError);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 void DeserializeChangeHeader(
@@ -70,7 +65,7 @@ void TMetaStatePart::OnRegistered(IInvoker::TPtr snapshotInvoker)
     SnapshotInvoker = snapshotInvoker;
 }
 
-void TMetaStatePart::ApplyChange(Stroka changeType, TRef changeData)
+void TMetaStatePart::CommitChange(Stroka changeType, TRef changeData)
 {
     TMethodMap::iterator it = Methods.find(changeType);
     YASSERT(it != Methods.end());
@@ -136,7 +131,7 @@ void TCompositeMetaState::ApplyChange(TRef changeData)
     YASSERT(it != Parts.end());
 
     TMetaStatePart::TPtr part = it->Second();
-    part->ApplyChange(changeType, messageData);
+    part->CommitChange(changeType, messageData);
 }
 
 void TCompositeMetaState::Clear()
