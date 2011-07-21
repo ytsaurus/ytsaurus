@@ -12,7 +12,7 @@ class TMetric
 public:
     TMetric(double minValue, double maxValue, int bucketCount);
 
-    //! Adds value to analyzis.
+    //! Adds value to analysis.
     void AddValue(double value);
 
     //! Returns mean of all values.

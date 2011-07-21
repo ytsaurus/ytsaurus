@@ -1,5 +1,5 @@
 #ifndef COMPOSITE_META_STATE_INL_H_
-#error "Direct inclusion of this file is not allowed, include action.h"
+#error "Direct inclusion of this file is not allowed, include composite_meta_state.h"
 #endif
 
 namespace NYT {
