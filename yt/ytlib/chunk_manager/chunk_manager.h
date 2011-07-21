@@ -6,6 +6,10 @@
 #include "holder_tracker.h"
 #include "chunk.h"
 
+#include "../master/master_state_manager.h"
+#include "../master/composite_meta_state.h"
+#include "../master/meta_state_service.h"
+
 #include "../transaction/transaction_manager.h"
 
 #include "../rpc/service.h"
@@ -17,8 +21,7 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager
-    : public NRpc::TServiceBase
-    , public NTransaction::ITransactionHandler
+    : public TMetaStateServiceBase
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
@@ -27,11 +30,14 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
+        TMasterStateManager::TPtr metaStateManager,
+        TCompositeMetaState::TPtr metaState,
         IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
  
 private:
+    typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
@@ -58,14 +64,15 @@ private:
     void AddChunkLocation(TChunk::TPtr chunk, THolder::TPtr holder);
 
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
+    
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);
+    
     RPC_SERVICE_METHOD_DECL(NProto, AddChunk);
+    void OnChunkAdded(
+        TChunk::TPtr chunk,
+        TCtxAddChunk::TPtr context);
+    
     RPC_SERVICE_METHOD_DECL(NProto, FindChunk);
-
-    // ITransactionHandler
-    virtual void OnTransactionStarted(TTransaction::TPtr transaction);
-    virtual void OnTransactionCommitted(TTransaction::TPtr transaction);
-    virtual void OnTransactionAborted(TTransaction::TPtr transaction);
 
 };
 

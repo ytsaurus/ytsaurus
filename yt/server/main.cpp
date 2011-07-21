@@ -97,6 +97,8 @@ void RunCellMaster(const TCellMasterConfig& config)
 
     TChunkManager::TPtr chunkManager = new TChunkManager(
         TChunkManagerConfig(),
+        metaStateManager,
+        metaState,
         metaStateInvoker,
         server,
         transactionManager);

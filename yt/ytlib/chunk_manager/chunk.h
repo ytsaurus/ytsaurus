@@ -18,11 +18,9 @@ public:
 
     static const i64 UnknownSize = -1;
 
-    TChunk(
-        TChunkId id,
-        i64 size = UnknownSize)
+    TChunk(TChunkId id)
         : Id(id)
-        , Size(size)
+        , Size_(UnknownSize)
     { }
 
     TChunkId GetId() const
@@ -30,30 +28,20 @@ public:
         return Id;
     }
 
-    NTransaction::TTransactionId GetTransactionId() const
+    TTransactionId& TransactionId()
     {
-        return TransactionId;
-    }
-
-    void SetTransactionId(NTransaction::TTransactionId transactionId)
-    {
-        TransactionId = transactionId;
-    }
-
-    void ResetTransactionId()
-    {
-        TransactionId = NTransaction::TTransactionId();
+        return TransactionId_;
     }
 
     bool IsVisible(NTransaction::TTransactionId transactionId) const
     {
-        return TransactionId != NTransaction::TTransactionId() ||
-               TransactionId == transactionId;
+        return TransactionId_ != NTransaction::TTransactionId() ||
+               TransactionId_ == transactionId;
     }
 
-    i64 GetSize() const
+    i64& Size()
     {
-        return Size;
+        return Size_;
     }
 
     TLocations& Locations()
@@ -63,9 +51,8 @@ public:
 
 private:
     TChunkId Id;
-    i64 Size;
-
-    NTransaction::TTransactionId TransactionId;
+    i64 Size_;
+    NTransaction::TTransactionId TransactionId_;
     TLocations Locations_; 
 
 };

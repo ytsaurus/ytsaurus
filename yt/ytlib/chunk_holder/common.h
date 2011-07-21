@@ -1,7 +1,7 @@
 #pragma once
 
 #include "chunk_holder.pb.h"
-#include "chunk_manager.pb.h"
+#include "chunk_manager_rpc.pb.h"
 
 #include "../misc/guid.h"
 #include "../misc/common.h"
@@ -69,8 +69,7 @@ struct TChunkHolderConfig
 
 //! Identifies a chunk.
 typedef TGuid TChunkId;
-
-// TODO: typedef TGuidHash TChunkIdHash;
+typedef TGuidHash TChunkIdHash;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_manager.pb.h"
+#include "chunk_manager_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"

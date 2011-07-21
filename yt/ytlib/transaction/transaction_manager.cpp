@@ -24,11 +24,10 @@ public:
 
     TState(
         const TConfig& config,
-        TMasterStateManager::TPtr stateManager,
-        IInvoker::TPtr serviceInvoker)
-        : TMetaStatePart(stateManager)
+        TMasterStateManager::TPtr metaStateManager,
+        TCompositeMetaState::TPtr metaState)
+        : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
-        , ServiceInvoker(serviceInvoker)
         , LeaseManager(new TLeaseManager())
     {
         RegisterMethod(this, &TState::StartTransaction);
@@ -42,14 +41,7 @@ public:
 
         TTransaction::TPtr transaction = new TTransaction(id);
         if (IsLeader()) {
-            TLeaseManager::TLease lease = LeaseManager->CreateLease(
-                Config.TransactionTimeout,
-                FromMethod(
-                    &TState::OnTransactionExpired,
-                    TPtr(this),
-                    transaction)
-                ->Via(ServiceInvoker));
-            transaction->SetLease(lease);
+            CreateTransactionLease(transaction);
         }
 
         YVERIFY(Transactions.Insert(id, transaction));
@@ -85,7 +77,7 @@ public:
         YASSERT(Transactions.Remove(id));
 
         if (IsLeader()) {
-            LeaseManager->CloseLease(transaction->GetLease());
+            CloseTransactionLease(transaction);
         }
 
         LOG_INFO("Transaction committed (TransactionId: %s)",
@@ -112,7 +104,7 @@ public:
         YASSERT(Transactions.Remove(id));
 
         if (IsLeader()) {
-            LeaseManager->CloseLease(transaction->GetLease());
+            CloseTransactionLease(transaction);
         }
 
         LOG_INFO("Transaction aborted (TransactionId: %s)",
@@ -161,8 +153,6 @@ private:
     //! Configuration.
     TConfig Config;
 
-    IInvoker::TPtr ServiceInvoker;
-
     //! Controls leases of running transactions.
     TLeaseManager::TPtr LeaseManager;
 
@@ -172,6 +162,22 @@ private:
     //! Registered handlers.
     THandlers Handlers;
 
+    void CreateTransactionLease(TTransaction::TPtr transaction)
+    {
+        TLeaseManager::TLease lease = LeaseManager->CreateLease(
+            Config.TransactionTimeout,
+            FromMethod(
+            &TState::OnTransactionExpired,
+            TPtr(this),
+            transaction)
+            ->Via(GetStateInvoker()));
+        transaction->SetLease(lease);
+    }
+
+    void CloseTransactionLease(TTransaction::TPtr transaction)
+    {
+        LeaseManager->CloseLease(transaction->GetLease());
+    }
 
     void OnTransactionExpired(TTransaction::TPtr transaction)
     {
@@ -198,23 +204,41 @@ private:
 
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& stream)
     {
-        return Transactions.Save(SnapshotInvoker, stream);
+        return Transactions.Save(GetSnapshotInvoker(), stream);
     }
 
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
     {
-        return Transactions.Load(SnapshotInvoker, stream)
+        return Transactions.Load(GetSnapshotInvoker(), stream)
                ->Apply(FromMethod(&TState::OnLoaded, TPtr(this)));
     }
 
     TVoid OnLoaded(TVoid)
     {
-        // TODO: extend all leases
+        // Extend all leases
+        if (IsLeader()) {
+            TTransactionMap::TValues transactions = Transactions.GetValues();
+            for (TTransactionMap::TValues::iterator it = transactions.begin();
+                it != transactions.end();
+                ++it)
+            {
+                CreateTransactionLease(*it);
+            }
+        }
         return TVoid();
     }
 
     virtual void Clear()
     {
+        if (IsLeader()) {
+            TTransactionMap::TValues transactions = Transactions.GetValues();
+            for (TTransactionMap::TValues::iterator it = transactions.begin();
+                it != transactions.end();
+                ++it)
+            {
+                CloseTransactionLease(*it);
+            }
+        }
         Transactions.Clear();
     }
 };
@@ -234,7 +258,7 @@ TTransactionManager::TTransactionManager(
     , State(new TState(
         config,
         metaStateManager,
-        serviceInvoker))
+        metaState))
 {
     RegisterMethods();
     metaState->RegisterPart(~State);

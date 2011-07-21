@@ -21,6 +21,7 @@ extern NLog::TLogger ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkHolder::TChunkId;
+using NChunkHolder::TChunkIdHash;
 using NTransaction::TTransactionId;
 using NTransaction::TTransaction;
 using NTransaction::TTransactionManager;

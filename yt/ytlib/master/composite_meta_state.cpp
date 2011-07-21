@@ -4,18 +4,6 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMetaStateServiceBase::TMetaStateServiceBase(
-    IInvoker::TPtr serviceInvoker,
-    Stroka serviceName,
-    Stroka loggingCategory)
-    : NRpc::TServiceBase(
-        serviceInvoker,
-        serviceName,
-        loggingCategory)
-{ }
-
-///////////////////////////////////////////////////////////////////////////////
-
 void DeserializeChangeHeader(
     TRef changeData,
     NRpcMasterStateManager::TMsgChangeHeader* header)
@@ -42,34 +30,35 @@ void DeserializeChange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMetaStatePart::TMetaStatePart(TMasterStateManager::TPtr stateManager)
-    : StateManager(stateManager)
+TMetaStatePart::TMetaStatePart(
+    TMasterStateManager::TPtr metaStateManager,
+    TCompositeMetaState::TPtr metaState)
+    : MetaStateManager(metaStateManager)
+    , MetaState(metaState)
 { }
 
 bool TMetaStatePart::IsLeader() const
 {
-    TMasterStateManager::EState state = StateManager->GetState();
+    TMasterStateManager::EState state = MetaStateManager->GetState();
     return state == TMasterStateManager::EState::Leading ||
            state == TMasterStateManager::EState::LeaderRecovery;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
-    TMasterStateManager::EState state = StateManager->GetState();
+    TMasterStateManager::EState state = MetaStateManager->GetState();
     return state == TMasterStateManager::EState::Following ||
            state == TMasterStateManager::EState::FollowerRecovery;
 }
 
-void TMetaStatePart::OnRegistered(IInvoker::TPtr snapshotInvoker)
+IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
 {
-    SnapshotInvoker = snapshotInvoker;
+    return MetaState->SnapshotInvoker;
 }
 
-void TMetaStatePart::CommitChange(Stroka changeType, TRef changeData)
+IInvoker::TPtr TMetaStatePart::GetStateInvoker() const
 {
-    TMethodMap::iterator it = Methods.find(changeType);
-    YASSERT(it != Methods.end());
-    it->Second()->Do(changeData);
+    return MetaState->StateInvoker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +72,6 @@ void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 {
     Stroka partName = part->GetPartName();
     YVERIFY(Parts.insert(MakePair(partName, part)).Second());
-    part->OnRegistered(SnapshotInvoker);
 }
 
 IInvoker::TPtr TCompositeMetaState::GetInvoker() const
@@ -124,14 +112,12 @@ void TCompositeMetaState::ApplyChange(TRef changeData)
         &header,
         &messageData);
 
-    Stroka partName = header.GetPartName();
     Stroka changeType = header.GetChangeType();
 
-    TPartMap::iterator it = Parts.find(partName);
-    YASSERT(it != Parts.end());
+    TMethodMap::iterator it = Methods.find(changeType);
+    YASSERT(it != Methods.end());
 
-    TMetaStatePart::TPtr part = it->Second();
-    part->CommitChange(changeType, messageData);
+    it->Second()->Do(messageData);
 }
 
 void TCompositeMetaState::Clear()

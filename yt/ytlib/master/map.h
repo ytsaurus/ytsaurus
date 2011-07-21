@@ -12,6 +12,7 @@ class TMetaStateMap
 {
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;
+    typedef yvector<TValuePtr> TValues;
 
     bool Insert(const TKey& key, TValuePtr value)
     {
@@ -43,6 +44,18 @@ public:
         Map.clear();
     }
 
+    TValues GetValues()
+    {
+        TValues values;
+        values.reserve(Map.ysize());
+        for (TMap::iterator it = Map.begin();
+             it != Map.end();
+             ++it)
+        {
+            values.push_back(it->Second());
+        }
+        return values;
+    }
 
     TAsyncResult<TVoid>::TPtr Save(
         IInvoker::TPtr invoker,

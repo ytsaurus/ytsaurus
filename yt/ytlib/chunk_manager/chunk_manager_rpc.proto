@@ -1,0 +1,75 @@
+package NYT.NChunkManager.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message THolderStatistics
+{
+    required int64 AvailableSpace = 1;
+    required int64 UsedSpace = 2;
+    required int32 ChunkCount = 3;
+}
+
+message TChunkInfo
+{
+    required bytes Id = 1;
+    required int64 Size = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterHolder
+{
+    required bytes Address = 1;
+    required THolderStatistics Statistics = 2;
+}
+
+message TRspRegisterHolder
+{
+    required int32 HolderId = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHolderHeartbeat
+{
+    required int32 HolderId = 1;
+
+    required THolderStatistics Statistics = 2;
+
+    repeated TChunkInfo AddedChunks = 3;
+    repeated bytes RemovedChunks = 4;
+}
+
+message TRspHolderHeartbeat
+{
+    repeated bytes ChunksToRemove = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddChunk
+{
+    required bytes TransactionId = 1;
+    required int32 ReplicationFactor = 2;
+}
+
+message TRspAddChunk
+{
+    required bytes ChunkId = 1;
+    repeated bytes HolderAddresses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFindChunk
+{
+    required bytes TransactionId = 1;
+    required bytes ChunkId = 2;
+}
+
+message TRspFindChunk
+{
+    repeated bytes HolderAddresses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

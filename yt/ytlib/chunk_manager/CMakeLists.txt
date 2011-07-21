@@ -1,5 +1,6 @@
 SET(YT_SOURCE_FILES
     chunk_manager.proto
+    chunk_manager_rpc.proto
     common.cpp
     chunk.cpp
     chunk_manager.cpp

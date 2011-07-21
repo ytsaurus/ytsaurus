@@ -11,88 +11,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetaStateServiceBase
-    : public NRpc::TServiceBase
-{
-protected:
-    typedef TIntrusivePtr<TMetaStateServiceBase> TPtr;
-
-    TMetaStateServiceBase(
-        IInvoker::TPtr serviceInvoker,
-        Stroka serviceName,
-        Stroka loggingCategory);
-
-    template <
-        class TState,
-        class TMessage,
-        class TThis,
-        class TResult,
-        class TContext
-    >
-    static void CommitChange(
-        TThis* this_,
-        TContext context,
-        TIntrusivePtr<TState> state,
-        const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&),
-        void (TThis::* handlerMethod)(TResult result, TContext context))
-    {
-        state
-            ->CommitChange(
-                message,
-                FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, this_, context->GetUntypedContext()))
-            ->Subscribe(
-                FromMethod(handlerMethod, this_, context));
-    }
-
-    template <
-        class TState,
-        class TMessage,
-        class TThis,
-        class TResult,
-        class TContext
-    >
-    static void CommitChange(
-        TThis* this_,
-        TContext context,
-        TIntrusivePtr<TState> state,
-        const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&))
-    {
-        TIntrusivePtr<TThis> intrusiveThis(this_);
-        NRpc::TServiceContext::TPtr untypedContext(context->GetUntypedContext());
-        state
-            ->CommitChange(
-                message,
-                FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext))
-            ->Subscribe(
-                FromMethod(&TMetaStateServiceBase::OnCommitSuccess<TResult>, intrusiveThis, untypedContext));
-    }
-
-private:
-    void OnCommitError(NRpc::TServiceContext::TPtr context)
-    {
-        context->Reply(NRpc::EErrorCode::ServiceError);
-    }
-
-    template<class TResult>
-    void OnCommitSuccess(TResult, NRpc::TServiceContext::TPtr context)
-    {
-        context->Reply();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TCompositeMetaState;
 
 class TMetaStatePart
-    : public TRefCountedBase
+    : public virtual TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TMetaStatePart> TPtr;
+
+    TMetaStatePart(
+        TMasterStateManager::TPtr metaStateManager,
+        TIntrusivePtr<TCompositeMetaState> metaState);
 
     template<class TMessage, class TResult>
     typename TAsyncResult<TResult>::TPtr CommitChange(
@@ -101,8 +31,6 @@ public:
         IAction::TPtr errorHandler = NULL);
 
 protected:
-    TMetaStatePart(TMasterStateManager::TPtr stateManager);
-
     template<class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
@@ -117,18 +45,19 @@ protected:
     bool IsLeader() const;
     bool IsFolllower() const;
 
+    IInvoker::TPtr GetSnapshotInvoker() const;
+    IInvoker::TPtr GetStateInvoker() const;
+
     virtual Stroka GetPartName() const = 0;
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;
     virtual void Clear() = 0;
 
-    TMasterStateManager::TPtr StateManager;
-    IInvoker::TPtr SnapshotInvoker;
+    TMasterStateManager::TPtr MetaStateManager;
+    TIntrusivePtr<TCompositeMetaState> MetaState;
 
 private:
     friend class TCompositeMetaState;
-
-    void OnRegistered(IInvoker::TPtr snapshotInvoker);
 
     void CommitChange(Stroka changeType, TRef changeData);
 
@@ -139,9 +68,6 @@ private:
 
     template<class TMessage, class TResult>
     class TUpdate;
-
-    typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
-    TMethodMap Methods;
 
 };
 
@@ -155,13 +81,18 @@ public:
 
     TCompositeMetaState();
 
-    void RegisterPart(TMetaStatePart::TPtr part);
-
     virtual IInvoker::TPtr GetInvoker() const;
 
+    void RegisterPart(TMetaStatePart::TPtr part);
+
 private:
+    friend class TMetaStatePart;
+
     IInvoker::TPtr StateInvoker;
     IInvoker::TPtr SnapshotInvoker;
+
+    typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
+    TMethodMap Methods;
 
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;

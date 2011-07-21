@@ -39,7 +39,7 @@ typename TAsyncResult<TResult>::TPtr TMetaStatePart::CommitChange(
     IAction::TPtr errorHandler)
 {
     typename TUpdate<TMessage, TResult>::TPtr update = new TUpdate<TMessage, TResult>(
-        StateManager,
+        MetaStateManager,
         GetPartName(),
         message,
         changeMethod,
@@ -55,7 +55,7 @@ void TMetaStatePart::RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, T
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         this,
         changeMethod);
-    YVERIFY(Methods.insert(MakePair(changeType, action)).Second() == 1);
+    YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).Second() == 1);
 }
 
 template<class TMessage, class TResult>
@@ -95,7 +95,6 @@ public:
     {
         // TODO: change ns
         NRpcMasterStateManager::TMsgChangeHeader header;
-        header.SetPartName(PartName);
         header.SetChangeType(Message.GetTypeName());
 
         TBlob changeData = SerializeChange(header, Message);

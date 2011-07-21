@@ -1,4 +1,7 @@
 #include "chunk_manager.h"
+#include "chunk_manager.pb.h"
+
+#include "../master/map.h"
 
 #include "../misc/serialize.h"
 #include "../misc/guid.h"
@@ -14,53 +17,57 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TState
-    : public TRefCountedBase
+    : public TMetaStatePart
+    , public NTransaction::ITransactionHandler
 {
 public:
-    TChunk::TPtr AddChunk()
+    TState(
+        TMasterStateManager::TPtr metaStateManager,
+        TCompositeMetaState::TPtr metaState,
+        TTransactionManager::TPtr transactionManager)
+        : TMetaStatePart(metaStateManager, metaState)
+        , TransactionManager(transactionManager)
     {
-        // Don't trust anyone!
-        TChunkId id;
-        do {
-            id = TGuid::Create();
-        } while (Chunks.find(id) != Chunks.end());
+        RegisterMethod(this, &TState::AddChunk);
+        RegisterMethod(this, &TState::RemoveChunk);
 
-        TChunk::TPtr chunk = new TChunk(id);
-        Chunks.insert(MakePair(id, chunk));
+        transactionManager->RegisterHander(this);
+    }
+
+    TChunk::TPtr AddChunk(const NProto::TMsgAddChunk& message)
+    {
+        TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
+        TTransactionId transactionId = TTransactionId::FromProto(message.GetTransactionId());
+        
+        TChunk::TPtr chunk = new TChunk(chunkId);
+        chunk->TransactionId() = transactionId;
+
+        TTransaction::TPtr transaction = TransactionManager->FindTransaction(transactionId, true);
+        YASSERT(~transaction != NULL);
+        transaction->AddedChunks().push_back(chunk->GetId());
+
+        Chunks.Insert(chunkId, chunk);
 
         LOG_INFO("Chunk added (ChunkId: %s)",
+            ~chunkId.ToString());
+
+        return chunk;
+    }
+
+    TVoid RemoveChunk(const NProto::TMsgRemoveChunk& message)
+    {
+        TChunkId id = TGuid::FromProto(message.GetChunkId());
+        
+        YVERIFY(Chunks.Remove(id));
+        
+        LOG_INFO("Chunk removed (ChunkId: %s)",
             ~id.ToString());
-
-        return chunk;
-    }
-
-    TChunk::TPtr RegisterChunk(const TChunkId& id, i64 size)
-    {
-        TChunk::TPtr chunk = new TChunk(id, size);
-        Chunks.insert(MakePair(id, chunk));
-
-        LOG_INFO("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
-            ~id.ToString(),
-            size);
-
-        return chunk;
-    }
-
-    void RemoveChunk(TChunk::TPtr chunk)
-    {
-        // TODO: schedule removal on holders
-        YVERIFY(Chunks.erase(chunk->GetId()) == 1);
+        return TVoid();
     }
 
     TChunk::TPtr FindChunk(const TChunkId& id, bool forUpdate = false)
     {
-        UNUSED(forUpdate);
-
-        TChunkMap::iterator it = Chunks.find(id);
-        if (it == Chunks.end())
-            return NULL;
-        else
-            return it->Second();
+        return Chunks.Find(id, forUpdate);
     }
 
     TChunk::TPtr GetChunk(
@@ -77,33 +84,102 @@ public:
     }
 
 private:
-    typedef yhash_map<TChunkId, TChunk::TPtr, TGuidHash> TChunkMap;
-    
+    TTransactionManager::TPtr TransactionManager;
+
+    typedef TMetaStateMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
     TChunkMap Chunks;
 
+    // TMetaStatePart overrides.
+    virtual Stroka GetPartName() const
+    {
+        return "ChunkManager";
+    }
+
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& stream)
+    {
+        return Chunks.Save(GetSnapshotInvoker(), stream);
+    }
+
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
+    {
+        return Chunks.Load(GetSnapshotInvoker(), stream);
+    }
+
+    virtual void Clear()
+    {
+        Chunks.Clear();
+    }
+
+    // ITransactionHandler overrides.
+    void OnTransactionStarted(TTransaction::TPtr transaction)
+    {
+        UNUSED(transaction);
+    }
+
+    void OnTransactionCommitted(TTransaction::TPtr transaction)
+    {
+        TTransaction::TChunks& addedChunks = transaction->AddedChunks();
+        for (TTransaction::TChunks::iterator it = addedChunks.begin();
+            it != addedChunks.end();
+            ++it)
+        {
+            TChunk::TPtr chunk = Chunks.Find(*it, true);
+            YASSERT(~chunk != NULL);
+
+            chunk->TransactionId() = TTransactionId();
+
+            LOG_DEBUG("Chunk committed (ChunkId: %s)",
+                ~chunk->GetId().ToString());
+        }
+
+        // TODO: handle removed chunks
+    }
+
+    void OnTransactionAborted(TTransaction::TPtr transaction)
+    {
+        TTransaction::TChunks& addedChunks = transaction->AddedChunks();
+        for (TTransaction::TChunks::iterator it = addedChunks.begin();
+            it != addedChunks.end();
+            ++it)
+        {
+            TChunk::TPtr chunk = Chunks.Find(*it);
+            YASSERT(~chunk != NULL);
+
+            YVERIFY(Chunks.Remove(chunk->GetId()));
+
+            LOG_DEBUG("Chunk aborted (ChunkId: %s)",
+                ~chunk->GetId().ToString());
+        }
+        // TODO: handle removed chunks
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
     const TConfig& config,
+    TMasterStateManager::TPtr metaStateManager,
+    TCompositeMetaState::TPtr metaState,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
-    : TServiceBase(
+    : TMetaStateServiceBase(
         serviceInvoker,
         TChunkManagerProxy::GetServiceName(),
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , State(new TState())
+    , State(new TState(
+        metaStateManager,
+        metaState,
+        transactionManager))
     , HolderTracker(new THolderTracker(
         Config,
         ServiceInvoker))
 {
     RegisterMethods();
+    metaState->RegisterPart(~State);
     server->RegisterService(this);
-    transactionManager->RegisterHander(this);
 }
 
 void TChunkManager::RegisterMethods()
@@ -154,49 +230,6 @@ void TChunkManager::AddChunkLocation(TChunk::TPtr chunk, THolder::TPtr holder)
     }
 }
 
-void TChunkManager::OnTransactionStarted(TTransaction::TPtr transaction)
-{
-    UNUSED(transaction);
-}
-
-void TChunkManager::OnTransactionCommitted(TTransaction::TPtr transaction)
-{
-    TTransaction::TChunks& addedChunks = transaction->AddedChunks();
-    for (TTransaction::TChunks::iterator it = addedChunks.begin();
-         it != addedChunks.end();
-         ++it)
-    {
-        TChunk::TPtr chunk = State->FindChunk(*it, true);
-        YASSERT(~chunk != NULL);
-
-        chunk->SetTransactionId(TTransactionId());
-
-        LOG_DEBUG("Chunk committed (ChunkId: %s)",
-            ~chunk->GetId().ToString());
-    }
-
-    // TODO: handle removed chunks
-}
-
-void TChunkManager::OnTransactionAborted(TTransaction::TPtr transaction)
-{
-    TTransaction::TChunks& addedChunks = transaction->AddedChunks();
-    for (TTransaction::TChunks::iterator it = addedChunks.begin();
-         it != addedChunks.end();
-         ++it)
-    {
-        TChunk::TPtr chunk = State->FindChunk(*it);
-        YASSERT(~chunk != NULL);
-
-        State->RemoveChunk(chunk);
-
-        LOG_DEBUG("Chunk aborted (ChunkId: %s)",
-            ~chunk->GetId().ToString());
-    }
-
-    // TODO: handle removed chunks
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, RegisterHolder)
@@ -217,7 +250,6 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, RegisterHolder)
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 {
-    // TODO: fixme
     UNUSED(response);
 
     int holderId = request->GetHolderId();
@@ -233,34 +265,33 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     holder->SetStatistics(statistics);
     HolderTracker->UpdateHolderPreference(holder);
 
-    // TODO: refactor this once the state becomes persistent
     for (int i = 0; i < static_cast<int>(request->AddedChunksSize()); ++i) {
         const NProto::TChunkInfo& info = request->GetAddedChunks(i);
         TChunkId chunkId = TGuid::FromProto(info.GetId());
         i64 size = info.GetSize();
 
-        bool firstSeen;
         TChunk::TPtr chunk = State->FindChunk(chunkId);
         if (~chunk == NULL) {
-            firstSeen = true;
-            chunk = State->RegisterChunk(chunkId, size);
-        } else {
-            firstSeen = false;
-            if (chunk->GetSize() != size && chunk->GetSize() != TChunk::UnknownSize) {
-                LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-                    ~chunkId.ToString(),
-                    chunk->GetSize(),
-                    size);
-            }
+            LOG_ERROR("Unknown chunk reported by holder (HolderId: %d, ChunkId: %s Size: %" PRId64 ")",
+                holderId,
+                ~chunkId.ToString(),
+                size);
+            continue;
+        }
+
+        if (chunk->Size() != size && chunk->Size() != TChunk::UnknownSize) {
+            LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
+                ~chunkId.ToString(),
+                chunk->Size(),
+                size);
         }
 
         AddChunkLocation(chunk, holder);
 
-        LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ", FirstSeen: %d)",
+        LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
             holderId,
             ~chunkId.ToString(),
-            size,
-            static_cast<int>(firstSeen));
+            size);
     }
 
     for (int i = 0; i < static_cast<int>(request->RemovedChunksSize()); ++i) {
@@ -285,28 +316,38 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
         ~transactionId.ToString(),
         replicationFactor);
 
-    TTransaction::TPtr transaction = GetTransaction(transactionId, true);
-
-    TChunk::TPtr chunk = State->AddChunk();
-    chunk->SetTransactionId(transactionId);
-
-    transaction->AddedChunks().push_back(chunk->GetId());
-
-    response->SetChunkId(chunk->GetId().ToProto());
-
     THolderTracker::THolders holders = HolderTracker->GetTargetHolders(replicationFactor);
     for (THolderTracker::THolders::iterator it = holders.begin();
-         it != holders.end();
-         ++it)
+        it != holders.end();
+        ++it)
     {
         THolder::TPtr holder = *it;
         response->AddHolderAddresses(holder->GetAddress());
     }
 
+    TChunkId chunkId = TChunkId::Create();
+
+    NProto::TMsgAddChunk message;
+    message.SetChunkId(chunkId.ToProto());
+    message.SetTransactionId(transactionId.ToProto());
+
+    CommitChange(
+        this, context, State, message,
+        &TState::AddChunk,
+        &TThis::OnChunkAdded);
+}
+
+void TChunkManager::OnChunkAdded(
+    TChunk::TPtr chunk,
+    TCtxAddChunk::TPtr context)
+{
+    TRspAddChunk* response = &context->Response();
+    response->SetChunkId(chunk->GetId().ToProto());
+
     // TODO: probably log holder addresses
     context->SetResponseInfo("ChunkId: %s, HolderCount: %d",
         ~chunk->GetId().ToString(),
-        holders.ysize());
+        static_cast<int>(response->HolderAddressesSize()));
 
     context->Reply();
 }
