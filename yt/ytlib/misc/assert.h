@@ -11,12 +11,18 @@ namespace NYT {
 do { \
     try { \
         if (EXPECT_FALSE( !(expr) )) { \
-            if (YaIsDebuggerPresent()) __debugbreak(); \
-            else assert(0&&(expr)); \
+            if (YaIsDebuggerPresent()) { \
+                __debugbreak(); \
+            } else { \
+                assert(0&&(expr)); \
+            } \
         } \
     } catch (...) { \
-        if (YaIsDebuggerPresent()) __debugbreak(); \
-        else assert(false && "Exception during verification"); \
+        if (YaIsDebuggerPresent()) { \
+            __debugbreak(); \
+        } else { \
+            assert(false && "Exception during verification"); \
+        } \
     } \
 } while (0)
 
