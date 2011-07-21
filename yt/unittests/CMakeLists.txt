@@ -11,6 +11,7 @@ SRCS(
     pattern_formatter_ut.cpp
     enum_ut.cpp
     yverify_ut.cpp
+    metric_ut.cpp
 )
 
 PEERDIR(
