@@ -1,6 +1,7 @@
 #include "server.h"
 
 #include "../misc/serialize.h"
+#include "../misc/assert.h"
 #include "../logging/log.h"
 
 namespace NYT {
