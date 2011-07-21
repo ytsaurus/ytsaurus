@@ -100,7 +100,7 @@ TRemoteChunkWriter::TGroup::TGroup(
     int startBlockIndex, 
     TBlockOffset startOffset, 
     TRemoteChunkWriter::TPtr writer)
-    : States(numNodes)
+    : States(numNodes, EGroupState::No)
     , StartOffset(startOffset)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
@@ -349,6 +349,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , BlockOffset(0)
 {
     LOG_DEBUG("Start writing chunk %s", ~ChunkId.ToString());
+    YVERIFY(AliveNodes > 0);
 
     NRpc::TChannelCache channelCache;
     yvector<Stroka>::const_iterator it = nodes.begin();

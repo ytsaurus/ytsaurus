@@ -85,8 +85,8 @@ void THolderTracker::RenewHolderLease(THolder::TPtr holder)
 yvector<THolder::TPtr> THolderTracker::GetTargetHolders(int count)
 {
     yvector<THolder::TPtr> result;
-    THolder::TPreferenceMap::reverse_iterator it = PreferenceMap.rend();
-    while (it != PreferenceMap.rbegin() && result.ysize() < count) {
+    THolder::TPreferenceMap::reverse_iterator it = PreferenceMap.rbegin();
+    while (it != PreferenceMap.rend() && result.ysize() < count) {
         result.push_back((*it++).second);
     }
     return result;
