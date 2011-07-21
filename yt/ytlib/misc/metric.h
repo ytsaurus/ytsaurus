@@ -1,50 +1,60 @@
 #pragma once
 
-#include <cmath>
-#include <util/system/atomic.h>
-#include <util/system/yassert.h>
+#include "common.h"
 
-// TODO: code review pending
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMetric
+    : private TNonCopyable
 {
-    TAtomic Sum;
-    TAtomic SumSq;
-    TAtomic Num;
-     
 public:
-    TMetric()
-       : Sum(0)
-       , SumSq(0)
-       , Num(0)
-    { }
+    TMetric(double minValue, double maxValue, int bucketCount);
 
-    inline void AddValue(ui64 v)
-    {
-        ui64 max = (1 << sizeof(TAtomic) * 8) - 1;
-        YASSERT(max - Sum > v);
-        YASSERT(max - SumSq > v * v);
-        AtomicAdd(Sum, v);
-        AtomicAdd(SumSq, v * v);
-        AtomicIncrement(Num);
-    }
+    //! Adds value to analyzis.
+    void AddValue(double value);
 
-    inline double GetMean()
-    {
-        if (!Num)
-            return 0.;
-        return (1. * Sum) / Num;
-    }
+    //! Returns mean of all values.
+    double GetMean() const;
 
-    inline double GetStd()
-    {
-        if (Num < 2)
-            return 0;
-        return sqrt(abs((1. * SumSq) / Num - GetMean()) * (Num / (Num - 1)));
-    }
+    //! Returns standart deviation of all values.
+    double GetStd() const;
 
-    inline ui64 GetNum()
-    {
-        return Num;
-    }
+    //! Returns information about all values.
+    Stroka GetDebugInfo() const;
+
+private:
+    double MinValue;
+    double MaxValue;
+    int BucketCount;
+
+    //! Number of added values.
+    int ValueCount;
+
+    //! Sum of added values.
+    double Sum;
+
+    //! Sum of squares of added values.
+    double SumSquares;
+
+    //! The length of segment correpsonding to one bucket.
+    int Delta;
+
+    //! Contains number of values from (-inf, #MinValue).
+    int MinBucket;
+
+    //! Contains number of values from (#MaxValue, inf).
+    int MaxBucket;
+
+    //! Contains number of values from [#MinValue, #MaxValue]
+    yvector<int> Buckets;
+
+    //! Puts the #value into an appropriate bucket.
+    void IncrementBucket(double value);
 };
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

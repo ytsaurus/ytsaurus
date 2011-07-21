@@ -1,10 +1,10 @@
-#include "metric2.h"
+#include "metric.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMetric2::TMetric2(double minValue, double maxValue, int bucketCount)
+TMetric::TMetric(double minValue, double maxValue, int bucketCount)
     : MinValue(minValue)
     , MaxValue(maxValue)
     , BucketCount(bucketCount)
@@ -18,16 +18,16 @@ TMetric2::TMetric2(double minValue, double maxValue, int bucketCount)
     Delta = (MaxValue - MinValue) / BucketCount;
 }
 
-void TMetric2::AddValue(double value)
+void TMetric::AddValue(double value)
 {
     Sum += value;
     SumSquares += value * value;
     ValueCount++;
 
-    IncrementBuckets(value);
+    IncrementBucket(value);
 }
 
-double TMetric2::GetMean() const
+double TMetric::GetMean() const
 {
     if (ValueCount == 0) {
         return 0;
@@ -35,7 +35,7 @@ double TMetric2::GetMean() const
     return Sum / ValueCount;
 }
 
-double TMetric2::GetStd() const
+double TMetric::GetStd() const
 {
     if (ValueCount == 0) {
         return 0;
@@ -44,12 +44,12 @@ double TMetric2::GetStd() const
     return sqrt(abs(SumSquares / ValueCount - mean * mean));
 }
 
-Stroka TMetric2::GetDebugInfo() const
+Stroka TMetric::GetDebugInfo() const
 {
     return Sprintf("Mean: %lf, Std: %lf", GetMean(), GetStd());
 }
 
-void TMetric2::IncrementBuckets(double value)
+void TMetric::IncrementBucket(double value)
 {
     if (value < MinValue) {
         MinBucket += 1;

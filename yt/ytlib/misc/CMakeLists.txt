@@ -1,8 +1,7 @@
 SET(YT_SOURCE_FILES
     common.h
     lease_manager.cpp
-    metric.h
-    metric2.cpp
+    metric.cpp
     config.h
     cache.h
     cache-inl.h
@@ -18,7 +17,7 @@ SET(YT_SOURCE_FILES
     demangle.cpp
     ref_counted_tracker.cpp
     delayed_invoker.cpp
-	semaphore.cpp
+    semaphore.cpp
     guid.cpp
     assert.h
 
