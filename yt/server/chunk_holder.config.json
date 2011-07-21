@@ -1,0 +1,32 @@
+{
+  Locations : ["node1"],
+  MasterAddress : "localhost:9001",
+
+  Logging: {
+    Writers: [
+      {
+        Name : "StdErr",
+        Type : "StdErr",
+        Pattern : "$(datetime) $(level) $(category) $(message)"
+      },
+      {
+        Name : "File",
+        Type : "File",
+        FileName : "chunk_holder.log",
+        Pattern : "$(datetime) $(level) $(category) $(message)"
+      }
+    ],
+    Rules: [
+      {
+        Categories: [ "*" ], 
+        MinLevel : "Info", 
+        Writers: [ "StdErr" ] 
+      }, 
+      { 
+        Categories: [ "*" ], 
+        MinLevel : "Debug", 
+        Writers: [ "File" ] 
+      } 
+    ]
+  }
+}

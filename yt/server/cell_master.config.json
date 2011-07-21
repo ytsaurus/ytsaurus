@@ -1,0 +1,39 @@
+{
+  Cell: {
+    MasterAddresses : ["localhost:9001"],
+    Id: 0
+  },
+
+  MetaState: {
+    LogLocation: "logs",
+    SnapshotLocation: "snapshots"
+  },
+
+  Logging: {
+    Writers: [
+      {
+        Name : "StdErr",
+        Type : "StdErr",
+        Pattern : "$(datetime) $(level) $(category) $(message)"
+      },
+      {
+        Name : "File",
+        Type : "File",
+        FileName : "cell_master.log",
+        Pattern : "$(datetime) $(level) $(category) $(message)"
+      }
+    ],
+    Rules: [
+      {
+        Categories: [ "*" ], 
+        MinLevel : "Info", 
+        Writers: [ "StdErr" ] 
+      }, 
+      { 
+        Categories: [ "*" ], 
+        MinLevel : "Debug", 
+        Writers: [ "File" ] 
+      } 
+    ]
+  }
+}
