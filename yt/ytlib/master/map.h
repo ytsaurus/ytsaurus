@@ -48,7 +48,7 @@ public:
     {
         TValues values;
         values.reserve(Map.ysize());
-        for (TMap::iterator it = Map.begin();
+        for (typename TMap::iterator it = Map.begin();
              it != Map.end();
              ++it)
         {

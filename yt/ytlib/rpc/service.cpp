@@ -201,8 +201,8 @@ TServiceBase::TServiceBase(
     IInvoker::TPtr serviceInvoker,
     Stroka serviceName,
     Stroka loggingCategory)
-    : ServiceInvoker(serviceInvoker)
-    , ServiceLogger(loggingCategory)
+    : ServiceLogger(loggingCategory)
+    , ServiceInvoker(serviceInvoker)
     , ServiceName(serviceName)
 { }
 
