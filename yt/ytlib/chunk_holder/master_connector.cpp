@@ -43,7 +43,7 @@ void TMasterConnector::InitializeProxy()
 {
     NBus::TBusClient::TPtr busClient = new NBus::TBusClient(Config.MasterAddress);
     NRpc::TChannel::TPtr channel = new NRpc::TChannel(busClient);
-    Proxy.Reset(new TProxy(channel));
+    Proxy.Reset(new TProxy(~channel));
 }
 
 void TMasterConnector::InitializeAddress()

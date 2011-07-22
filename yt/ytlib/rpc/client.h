@@ -11,8 +11,6 @@
 namespace NYT {
 namespace NRpc {
 
-using namespace NBus;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientRequest;
@@ -35,13 +33,29 @@ class TTypedClientResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IChannel
+    : public virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IChannel> TPtr;
+
+    virtual void Send(
+        TIntrusivePtr<TClientRequest> request,
+        TIntrusivePtr<TClientResponse> response,
+        TDuration timeout) = 0;
+
+    virtual void Complete(const TRequestId& requestId) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChannel
-    : public IMessageHandler
+    : public IChannel
+    , public NBus::IMessageHandler
 {
 public:
     typedef TIntrusivePtr<TChannel> TPtr;
 
-    TChannel(TBusClient::TPtr client);
+    TChannel(NBus::TBusClient::TPtr client);
 
 private:
     friend class TClientRequest;
@@ -49,20 +63,22 @@ private:
 
     typedef yhash_map< TRequestId, TIntrusivePtr<TClientResponse>, TGuidHash > TRequestMap;
 
-    IBus::TPtr Bus;
+    NBus::IBus::TPtr Bus;
     TSpinLock SpinLock;
     TRequestMap ResponseMap;
 
-    void Send(
+    virtual void Send(
         TIntrusivePtr<TClientRequest> request,
         TIntrusivePtr<TClientResponse> response,
         TDuration timeout);
 
-    TRequestId RegisterResponse(TIntrusivePtr<TClientResponse> response);
-    void UnregisterResponse(TRequestId requestId);
-    TIntrusivePtr<TClientResponse> GetResponse(TRequestId id);
+    virtual void Complete(const TRequestId& requestId);
 
-    virtual void OnMessage(IMessage::TPtr message, IBus::TPtr replyBus);
+    TIntrusivePtr<TClientResponse> GetResponse(const TRequestId& id);
+
+    virtual void OnMessage(
+        NBus::IMessage::TPtr message,
+        NBus::IBus::TPtr replyBus);
 };          
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,9 +109,9 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(TChannel::TPtr channel, Stroka serviceName);
+    TProxyBase(IChannel::TPtr channel, Stroka serviceName);
 
-    TChannel::TPtr Channel;
+    IChannel::TPtr Channel;
     Stroka ServiceName;
 };          
 
@@ -110,10 +126,10 @@ public:
     yvector<TSharedRef>& Attachments();
 
 protected:
-    TChannel::TPtr Channel;
+    IChannel::TPtr Channel;
 
     TClientRequest(
-        TChannel::TPtr channel,
+        IChannel::TPtr channel,
         Stroka serviceName,
         Stroka methodName);
 
@@ -127,7 +143,7 @@ private:
     Stroka MethodName;
     yvector<TSharedRef> Attachments_;
 
-    IMessage::TPtr Serialize(TRequestId requestId);
+    NBus::IMessage::TPtr Serialize(TRequestId requestId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +164,7 @@ public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
     typedef TAsyncResult<typename TTypedResponse::TPtr> TInvokeResult;
 
-    TTypedClientRequest(TChannel::TPtr channel, Stroka serviceName, Stroka methodName)
+    TTypedClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
         : TClientRequest(channel, serviceName, methodName)
     { }
 
@@ -184,7 +200,7 @@ public:
     bool IsServiceError() const;
 
 protected:
-    TClientResponse(TChannel::TPtr channel);
+    TClientResponse(IChannel::TPtr channel);
 
     virtual void SetReady() = 0;
     virtual bool DeserializeBody(TRef data) = 0;
@@ -201,7 +217,7 @@ private:
 
     // Protects state.
     TSpinLock SpinLock;
-    TChannel::TPtr Channel;
+    IChannel::TPtr Channel;
     TRequestId RequestId;
     EState State;
     EErrorCode ErrorCode;
@@ -209,11 +225,11 @@ private:
     TDelayedInvoker::TCookie TimeoutCookie;
 
     void Prepare(TRequestId requestId, TDuration timeout);
-    void Deserialize(IMessage::TPtr message);
+    void Deserialize(NBus::IMessage::TPtr message);
     void Complete(EErrorCode errorCode);
-    void OnAcknowledgment(IBus::ESendResult sendResult);
+    void OnAcknowledgment(NBus::IBus::ESendResult sendResult);
     void OnTimeout();
-    void OnResponse(EErrorCode errorCode, IMessage::TPtr message);
+    void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,7 +247,7 @@ public:
     typedef TIntrusivePtr<TTypedClientResponse> TPtr;
 
     TTypedClientResponse(
-        TChannel::TPtr channel,
+        IChannel::TPtr channel,
         typename TAsyncResult<TPtr>::TPtr asyncResult)
         : TClientResponse(channel)
         , AsyncResult(asyncResult)

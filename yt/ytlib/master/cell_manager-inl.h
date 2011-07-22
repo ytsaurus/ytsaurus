@@ -10,7 +10,7 @@ namespace NYT {
 template <class TProxy>
 TAutoPtr<TProxy> TCellManager::GetMasterProxy(TMasterId id) const
 {
-    return new TProxy(ChannelCache.GetChannel(Config.MasterAddresses.at(id)));
+    return new TProxy(~ChannelCache.GetChannel(Config.MasterAddresses.at(id)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

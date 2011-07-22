@@ -29,9 +29,9 @@ public:
         return "MasterStateManager";
     }
 
-    TMasterStateManagerProxy(NRpc::TChannel::TPtr channel)
+    TMasterStateManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
-    {}
+    { }
 
     RPC_PROXY_METHOD(NRpcMasterStateManager, ScheduleSync);
     RPC_PROXY_METHOD(NRpcMasterStateManager, Sync);

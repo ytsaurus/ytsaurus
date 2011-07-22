@@ -5,6 +5,8 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NBus;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;

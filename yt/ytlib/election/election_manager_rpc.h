@@ -34,7 +34,7 @@ public:
         return "ElectionManager";
     }
 
-    TElectionManagerProxy(NRpc::TChannel::TPtr channel)
+    TElectionManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -30,7 +30,7 @@ struct TRemoteChunkWriter::TNode
     const Stroka Address;
     TProxy Proxy;
 
-    TNode(Stroka address, NRpc::TChannel::TPtr channel)
+    TNode(Stroka address, NRpc::IChannel::TPtr channel)
         : IsAlive(true)
         , Address(address)
         , Proxy(channel)
@@ -357,7 +357,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     NRpc::TChannelCache channelCache;
     yvector<Stroka>::const_iterator it = nodes.begin();
     for (; it != nodes.end(); ++it) {
-        Nodes.push_back(new TNode(*it, channelCache.GetChannel(*it)));
+        Nodes.push_back(new TNode(*it, ~channelCache.GetChannel(*it)));
     }
 
     StartSession();

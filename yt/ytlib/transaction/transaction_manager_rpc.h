@@ -26,7 +26,7 @@ public:
         return "TransactionManager";
     }
 
-    TTransactionManagerProxy(NRpc::TChannel::TPtr channel)
+    TTransactionManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

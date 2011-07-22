@@ -9,8 +9,6 @@
 namespace NYT {
 namespace NRpc {
 
-using namespace NBus;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SerializeMessage(google::protobuf::Message* message, TBlob* data);
@@ -59,7 +57,7 @@ typedef TGuid TRequestId;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcRequestMessage
-    : public IMessage
+    : public NBus::IMessage
 {
 public:
     TRpcRequestMessage(
@@ -79,7 +77,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcResponseMessage
-    : public IMessage
+    : public NBus::IMessage
 {
 public:
     TRpcResponseMessage(
@@ -98,7 +96,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcErrorResponseMessage
-    : public IMessage
+    : public NBus::IMessage
 {
 public:
     TRpcErrorResponseMessage(TRequestId requestId, EErrorCode errorCode);

@@ -83,8 +83,8 @@ public:
         IService::TPtr service,
         TRequestId requestId,
         Stroka methodName,
-        IMessage::TPtr message,
-        IBus::TPtr replyBus);
+        NBus::IMessage::TPtr message,
+        NBus::IBus::TPtr replyBus);
     
     void Reply(EErrorCode errorCode = EErrorCode::OK);
 
@@ -98,7 +98,7 @@ public:
     Stroka GetMethodName() const;
     const TRequestId& GetRequestId() const;
 
-    IBus::TPtr GetReplyBus() const;
+    NBus::IBus::TPtr GetReplyBus() const;
 
     void SetRequestInfo(const Stroka& info);
     Stroka GetRequestInfo() const;
@@ -119,7 +119,7 @@ protected:
     IService::TPtr Service;
     TRequestId RequestId;
     Stroka MethodName;
-    IBus::TPtr ReplyBus;
+    NBus::IBus::TPtr ReplyBus;
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
     NLog::TLogger ServiceLogger;

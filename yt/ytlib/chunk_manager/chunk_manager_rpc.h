@@ -27,7 +27,7 @@ public:
         return "ChunkManager";
     }
 
-    TChunkManagerProxy(NRpc::TChannel::TPtr channel)
+    TChunkManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

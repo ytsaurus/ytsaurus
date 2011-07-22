@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NBus;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
@@ -19,7 +21,9 @@ TChannel::TChannel(TBusClient::TPtr client)
     : Bus(client->CreateBus(this))
 { }
 
-void TChannel::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
+void TChannel::OnMessage(
+    IMessage::TPtr message,
+    IBus::TPtr replyBus)
 {
     UNUSED(replyBus);
 
@@ -43,7 +47,7 @@ void TChannel::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     response->OnResponse(header.GetErrorCode(), message);
 }
 
-TIntrusivePtr<TClientResponse> TChannel::GetResponse(TRequestId id)
+TIntrusivePtr<TClientResponse> TChannel::GetResponse(const TRequestId& id)
 {
     TGuard<TSpinLock> guard(&SpinLock);
     TRequestMap::iterator i = ResponseMap.find(id);
@@ -59,8 +63,14 @@ void TChannel::Send(
     TClientResponse::TPtr response,
     TDuration timeout)
 {
-    TRequestId requestId = RegisterResponse(response);
+    TRequestId requestId = TGuid::Create();
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        ResponseMap.insert(MakePair(requestId, response));
+    }
+    
     response->Prepare(requestId, timeout);
+
     IMessage::TPtr requestMessage = request->Serialize(requestId);
     Bus->Send(requestMessage)->Subscribe(FromMethod(
         &TClientResponse::OnAcknowledgment,
@@ -72,31 +82,19 @@ void TChannel::Send(
         ~requestId.ToString());
 }
 
-TRequestId TChannel::RegisterResponse(TClientResponse::TPtr response)
-{
-    TRequestId requestId = TGuid::Create();
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        ResponseMap.insert(MakePair(requestId, response));
-    }
-    LOG_DEBUG("Request registered (RequestId: %s)",
-        ~requestId.ToString());
-    return requestId;
-}
-
-void TChannel::UnregisterResponse(TRequestId requestId)
+void TChannel::Complete(const TRequestId& requestId)
 {
     {
         TGuard<TSpinLock> guard(&SpinLock);
         ResponseMap.erase(requestId);
     }
-    LOG_DEBUG("Request unregistered (RequestId: %s)",
+    LOG_DEBUG("Request complete (RequestId: %s)",
         ~requestId.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannel::TPtr TChannelCache::GetChannel( Stroka address )
+TChannel::TPtr TChannelCache::GetChannel(Stroka address)
 {
     TChannelMap::iterator it = ChannelMap.find(address);
     if (it != ChannelMap.end()) {
@@ -110,14 +108,14 @@ TChannel::TPtr TChannelCache::GetChannel( Stroka address )
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(TChannel::TPtr channel, Stroka serviceName)
+TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientRequest::TClientRequest(TChannel::TPtr channel, Stroka serviceName, Stroka methodName)
+TClientRequest::TClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
     : Channel(channel)
     , ServiceName(serviceName)
     , MethodName(methodName)
@@ -150,7 +148,7 @@ yvector<TSharedRef>& TClientRequest::Attachments()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(TChannel::TPtr channel)
+TClientResponse::TClientResponse(IChannel::TPtr channel)
     : Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
@@ -239,7 +237,7 @@ void TClientResponse::Complete(EErrorCode errorCode)
         TDelayedInvoker::Get()->Cancel(TimeoutCookie);
     }
 
-    Channel->UnregisterResponse(RequestId);
+    Channel->Complete(RequestId);
     ErrorCode = errorCode;
     State = EState::Done;
     TimeoutCookie = TDelayedInvoker::TCookie();

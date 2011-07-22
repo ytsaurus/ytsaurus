@@ -10,7 +10,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServer
-    : public IMessageHandler
+    : public NBus::IMessageHandler
 {
 public:
     typedef TIntrusivePtr<TServer> TPtr;
@@ -25,12 +25,14 @@ public:
 private:
     typedef yhash_map<Stroka, IService::TPtr> TServiceMap;
 
-    TBusServer::TPtr BusServer;
+    NBus::TBusServer::TPtr BusServer;
     TServiceMap Services;
     volatile bool Started;
 
     IService::TPtr GetService(Stroka serviceName);
-    virtual void OnMessage(IMessage::TPtr message, IBus::TPtr replyBus);
+    virtual void OnMessage(
+        NBus::IMessage::TPtr message,
+        NBus::IBus::TPtr replyBus);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

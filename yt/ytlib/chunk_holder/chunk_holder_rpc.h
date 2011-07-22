@@ -29,7 +29,7 @@ public:
         return "ChunkHolder";
     }
 
-    TChunkHolderProxy(NRpc::TChannel::TPtr channel)
+    TChunkHolderProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
