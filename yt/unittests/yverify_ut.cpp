@@ -15,18 +15,23 @@ namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCallee {
+class TCallee
+{
 public:
+    virtual ~TCallee() { }
     virtual bool F(bool passThrough, const char* comment) = 0;
 };
 
-class TMockCallee : public TCallee {
+class TMockCallee
+    : public TCallee
+{
 public:
     TMockCallee()
     {
         ON_CALL(*this, F(A<bool>(), _))
             .WillByDefault(ReturnArg<0>());
     }
+
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 

@@ -7,8 +7,8 @@ namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetricTest : public ::testing::Test {
-};
+class TMetricTest : public ::testing::Test
+{ };
 
 TEST_F(TMetricTest, ZeroValues)
 {
@@ -56,6 +56,7 @@ TEST_F(TMetricTest, ManyValues)
     for(int i = 0; i < x.ysize(); ++i) {
         sum += x[i];
     }
+
     double mean = sum / x.size();
 
     double sumDeltaSq = 0;
@@ -63,15 +64,13 @@ TEST_F(TMetricTest, ManyValues)
         double delta = (x[i] - mean);
         sumDeltaSq += delta * delta;
     }
+
     double std = sqrt(sumDeltaSq / x.size());
 
     double eps = 1e-10;
     EXPECT_TRUE( fabs(metric.GetMean()- mean) < eps);
     EXPECT_TRUE( fabs(metric.GetStd() - std) < eps);
 }
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
