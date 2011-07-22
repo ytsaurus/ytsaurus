@@ -183,13 +183,20 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
                     segmentId,
                     remoteRecordCount);
-            } else if (localRecordCount < remoteRecordCount) {
-                // TODO: extract method
+            }
+
+            // Do not download more than actually needed.
+            int desiredRecordCount =
+                segmentId == targetStateId.SegmentId
+                ? targetStateId.ChangeCount
+                : remoteRecordCount;
+            
+            if (localRecordCount < desiredRecordCount) {
                 TChangeLogDownloader changeLogDownloader(
                     TChangeLogDownloader::TConfig(),
                     CellManager);
                 TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
-                    TMasterStateId(segmentId, remoteRecordCount),
+                    TMasterStateId(segmentId, desiredRecordCount),
                     *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
@@ -206,12 +213,11 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             changeLog->Finalize();
         }
 
+        if (segmentId == targetStateId.SegmentId) {
+            YASSERT(changeLog->GetRecordCount() == targetStateId.ChangeCount);
+        }
 
-        ApplyChangeLog(
-            *changeLog,
-            segmentId == targetStateId.SegmentId
-            ? targetStateId.ChangeCount
-            : changeLog->GetRecordCount());
+        ApplyChangeLog(*changeLog, changeLog->GetRecordCount());
 
         if (!isFinal) {
             MasterState->AdvanceSegment();
