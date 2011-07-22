@@ -712,6 +712,8 @@ void TMasterStateManager::OnFollowerRecovery(TRecovery::EResult result)
         Epoch,
         EpochInvoker,
         ServiceInvoker);
+
+    LOG_INFO("Follower recovery complete");
 }
 
 void TMasterStateManager::StopFollowing()

@@ -29,9 +29,12 @@ public:
         , CommitCount(1)
     { }
 
-    TResult::TPtr Run() // WorkQueue thread
+    // State invoker
+    TResult::TPtr Run()
     {
         StateId = Committer->MasterState->GetStateId();
+
+        LOG_DEBUG("Starting commit of change %s", ~StateId.ToString());
 
         TCellManager::TPtr cellManager = Committer->CellManager;
 
@@ -49,6 +52,10 @@ public:
             Awaiter->Await(
                 request->Invoke(Committer->Timeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
+
+            LOG_DEBUG("Change %s is sent to master %d",
+                ~StateId.ToString(),
+                id);
         }
 
         Committer->DoCommitLeader(ChangeAction, ChangeData);
@@ -60,8 +67,8 @@ public:
     }
 
 private:
-    // Service thread
-    bool CheckQuorum()
+    // Service invoker
+    bool CheckCommitQuorum()
     {
         if (CommitCount < Committer->CellManager->GetQuorum())
             return false;
@@ -75,13 +82,14 @@ private:
         return true;
     }
 
+    // Service invoker
     void OnCommitted(TProxy::TRspApplyChange::TPtr response, TMasterId masterId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error %s committing change %s at master %d",
-                ~response->GetErrorCode().ToString(),
+            LOG_WARNING("Error committing change %s at master %d (ErrorCode: %s)",
                 ~StateId.ToString(),
-                masterId);
+                masterId,
+                ~response->GetErrorCode().ToString());
             return;
         }
 
@@ -91,7 +99,7 @@ private:
                 masterId);
 
             ++CommitCount;
-            CheckQuorum();
+            CheckCommitQuorum();
         } else {
             LOG_DEBUG("Change %s is acknowledged but not committed by master %d",
                 ~StateId.ToString(),
@@ -99,13 +107,16 @@ private:
         }
     }
 
+    // Service invoker
     void OnCompleted()
     {
-        if (CheckQuorum())
+        if (CheckCommitQuorum())
             return;
 
-        LOG_WARNING("Change %s is uncertain, committed by %d master(s)",
-            ~StateId.ToString(), CommitCount);
+        LOG_WARNING("Change %s is uncertain as it was committed by %d masters out of %d",
+            ~StateId.ToString(),
+            CommitCount,
+            Committer->CellManager->GetMasterCount());
         Result->Set(EResult::MaybeCommitted);
     }
 
