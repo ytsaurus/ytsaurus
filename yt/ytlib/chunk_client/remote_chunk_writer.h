@@ -29,7 +29,7 @@ public:
         //! Number of blocks in window.
         int WindowSize;
         //! Maximum group size (in bytes).
-        size_t GroupSize;
+        i64 GroupSize;
         TDuration RpcTimeout;
     };
 
@@ -76,17 +76,17 @@ private:
     const TConfig Config;
 
     DECLARE_ENUM(EWriterState,
-        (Starting)
-        (Ready)
+        (Initializing)
+        (Writing)
         (Failed)
     );
 
     //! Set in #WriterThread, read from client and writer threads
-    /*volatile*/ EWriterState State;
+    EWriterState State;
 
     //! This flag is raised whenever Close is invoked.
     //! All access to this flag happens from #WriterThread.
-    bool Finishing;
+    bool IsFinishRequested;
     TAsyncResult<TVoid>::TPtr IsFinished;
 
     TWindow Window;
@@ -99,20 +99,26 @@ private:
 
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
-    TGroupPtr NewGroup;
+    TGroupPtr CurrentGroup;
 
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
     //! The current offset inside the chunk that is being uploaded.
     TBlockOffset BlockOffset;
 
-private:
-    void SetFinishFlag();
-    void AddGroup(TGroupPtr group);
+    /* ToDo: implement metrics
 
-    bool IsNodeAlive(int node) const;
-    TProxy& GetProxy(int node) const;
-    const Stroka& GetNodeAddress(int node) const;
+    TMetric StartChunkTiming;
+    TMetric PutBlocksTiming;
+    TMetric SendBlocksTiming;
+    TMetric FlushBlockTiming;
+    TMetric FinishChunkTiming;*/
+
+private:
+    //! Sets IsFinishRequested flag
+    //! Is invoked from Close() through #WriterThread
+    void RequestFinalization();
+    void AddGroup(TGroupPtr group);
 
     void ShiftWindow();
     void OnNodeDied(int node);
@@ -130,7 +136,7 @@ private:
     void OnFinishedSession();
 
     template<class TResponse>
-    void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr action);
+    void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
