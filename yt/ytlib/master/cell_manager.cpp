@@ -23,6 +23,12 @@ TMasterId TCellManager::GetSelfId() const
     return Config.Id;
 }
 
+Stroka TCellManager::GetMasterAddress(TMasterId id) const
+{
+    return Config.MasterAddresses[id];
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

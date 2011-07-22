@@ -22,4 +22,5 @@ SET(YT_SOURCE_FILES
     composite_meta_state-inl.h
     composite_meta_state.cpp
     meta_state_service.h
+    cell_channel.cpp
 )

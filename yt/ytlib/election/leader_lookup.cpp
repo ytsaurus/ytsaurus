@@ -12,26 +12,30 @@ static NLog::TLogger Logger("LeaderLookup");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaderLookup::TLeaderLookup(
-    const TConfig& config,
-    TCellManager::TPtr cellManager)
+TLeaderLookup::TLeaderLookup(const TConfig& config)
     : Config(config)
-    , CellManager(cellManager)
-{}
+{ }
 
 TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
 {
     TLookupResult::TPtr asyncResult = new TLookupResult();
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
-    for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
-        LOG_DEBUG("Requesting leader from master %d", i);
+    for (yvector<Stroka>::iterator it = Config.MasterAddresses.begin();
+         it != Config.MasterAddresses.end();
+         ++it)
+    {
+        Stroka address = *it;
 
-        TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
-        TProxy::TReqGetStatus::TPtr request = proxy->GetStatus();
+        LOG_DEBUG("Requesting leader from master %s", ~address);
+
+        TProxy proxy(~ChannelCache.GetChannel(address));
+        TProxy::TReqGetStatus::TPtr request = proxy.GetStatus();
         awaiter->Await(request->Invoke(Config.Timeout), FromMethod(
             &TLeaderLookup::OnResponse,
-            awaiter, asyncResult, i));
+            awaiter,
+            asyncResult,
+            address));
     }
     
     awaiter->Complete(FromMethod(
@@ -44,55 +48,60 @@ void TLeaderLookup::OnResponse(
     TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TLookupResult::TPtr asyncResult,
-    TMasterId masterId)
+    Stroka address)
 {
     if (!response->IsOK()) {
-        LOG_WARNING("Error %s requesting leader from master %d",
-            ~response->GetErrorCode().ToString(),
-            masterId);
+        LOG_WARNING("Error requesting leader from master %s (ErrorCode: %s)",
+            address,
+            ~response->GetErrorCode().ToString());
         return;
     }
 
-    LOG_DEBUG("Reported status on master %d: "
-        "state = %d, vote = %d, priority = %" PRIx64 ", epoch %s",
-        masterId,
-        response->GetState(),
+    TMasterId voteId = response->GetVoteId();
+    TGuid epoch = TGuid::FromProto(response->GetVoteEpoch());
+
+    LOG_DEBUG("Received status from master %s (Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
+        ~address,
+        response->GetSelfId(),
+        ~TProxy::EState(response->GetState()).ToString(),
         response->GetVoteId(),
         response->GetPriority(),
-        ~TGuid::FromProto(response->GetVoteEpoch()).ToString());
+        ~epoch.ToString());
 
     switch (response->GetState()) {
         case TProxy::EState::Leading:
-            YASSERT(response->GetVoteId() == masterId);
+            YASSERT(voteId == response->GetSelfId());
             break;
+
         case TProxy::EState::Following:
             break;
+
         default:
             return;
     }
     
-    TMasterId leaderId = response->GetVoteId();
-    YASSERT(leaderId != InvalidMasterId);
-    TGuid epoch = TGuid::FromProto(response->GetVoteEpoch());
-
-    LOG_INFO("Obtained leader %d with epoch %s from master %d",
-        leaderId, ~epoch.ToString(), masterId);
+    YASSERT(voteId != InvalidMasterId);
 
     TResult result;
-    result.LeaderId = leaderId;
+    result.Address = address;
+    result.Id = voteId;
     result.Epoch = epoch;
     asyncResult->Set(result);
 
     awaiter->Cancel();
+
+    LOG_INFO("Leader found");
 }
 
 void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)
 {
-    LOG_INFO("No leader can be obtained from masters");
     TResult result;
-    result.LeaderId = InvalidMasterId;
-    result.Epoch = TGuid();
+    result.Address = "";
+    result.Id = InvalidMasterId;
+    result.Epoch = TMasterEpoch();
     asyncResult->Set(result);
+
+    LOG_INFO("No leader found");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -532,6 +532,10 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
     response->SetVoteId(VoteId);
     response->SetPriority(priority);
     response->SetVoteEpoch(VoteEpoch.ToProto());
+    response->SetSelfId(CellManager->GetSelfId());
+    for (TMasterId id = 0; id < CellManager->GetMasterCount(); ++id) {
+        response->AddMasterAddresses(CellManager->GetMasterAddress(id));
+    }
 
     context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
         ~State.ToString(),

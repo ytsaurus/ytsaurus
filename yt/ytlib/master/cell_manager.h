@@ -37,6 +37,7 @@ public:
     TMasterId GetSelfId() const;
     i32 GetMasterCount() const;
     i32 GetQuorum() const;
+    Stroka GetMasterAddress(TMasterId id) const;
 
     template <class TProxy>
     TAutoPtr<TProxy> GetMasterProxy(TMasterId id) const;

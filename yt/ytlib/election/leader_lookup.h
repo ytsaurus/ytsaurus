@@ -13,29 +13,37 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderLookup
-    : private TNonCopyable
+    : public TRefCountedBase
 {
 public:
+    typedef TIntrusivePtr<TLeaderLookup> TPtr;
+
     struct TConfig
     {
+        yvector<Stroka> MasterAddresses;
         TDuration Timeout;
 
         TConfig()
             : Timeout(TDuration::MilliSeconds(300))
-        {}
+        { }
+
+        void Read(TJsonObject* json)
+        {
+            // TODO: read timeout
+            NYT::TryRead(json, L"MasterAddresses", &MasterAddresses);
+        }
     };
 
     struct TResult
     {
-        TMasterId LeaderId;
+        Stroka Address;
+        TMasterId Id;
         TGuid Epoch;
     };
 
     typedef TAsyncResult<TResult> TLookupResult;
 
-    TLeaderLookup(
-        const TConfig& config,
-        TCellManager::TPtr cellManager);
+    TLeaderLookup(const TConfig& config);
 
     TLookupResult::TPtr GetLeader();
 
@@ -43,13 +51,13 @@ private:
     typedef TElectionManagerProxy TProxy;
 
     TConfig Config;
-    TCellManager::TPtr CellManager;
+    NRpc::TChannelCache ChannelCache;
     
     static void OnResponse(
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TLookupResult::TPtr asyncResult,
-        TMasterId masterId);
+        Stroka address);
     static void OnComplete(TLookupResult::TPtr asyncResult);
 };
 

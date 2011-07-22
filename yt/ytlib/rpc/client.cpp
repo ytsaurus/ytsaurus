@@ -18,8 +18,15 @@ static NLog::TLogger& Logger = RpcLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChannel::TChannel(TBusClient::TPtr client)
-    : Bus(client->CreateBus(this))
-{ }
+{
+    Bus = client->CreateBus(this);
+}
+
+TChannel::TChannel(Stroka address)
+{
+    TBusClient::TPtr client = new TBusClient(address);
+    Bus = client->CreateBus(this);
+}
 
 void TChannel::OnMessage(
     IMessage::TPtr message,
@@ -37,59 +44,102 @@ void TChannel::OnMessage(
     DeserializeMessage(&header, parts[0]);
 
     TRequestId requestId = TGuid::FromProto(header.GetRequestId());
-    TClientResponse::TPtr response = GetResponse(requestId);
-    if (~response == NULL) {
+    TEntry::TPtr entry = FindEntry(requestId);
+    if (~entry == NULL || !Unregister(entry->RequestId)) {
         LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
             ~requestId.ToString());
         return;
     }
 
-    response->OnResponse(header.GetErrorCode(), message);
+    entry->Response->OnResponse(header.GetErrorCode(), message);
+    entry->Ready->Set(TVoid());
 }
 
-TIntrusivePtr<TClientResponse> TChannel::GetResponse(const TRequestId& id)
+TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
 {
     TGuard<TSpinLock> guard(&SpinLock);
-    TRequestMap::iterator i = ResponseMap.find(id);
-    if (i == ResponseMap.end()) {
+    TEntries::iterator it = Entries.find(id);
+    if (it == Entries.end()) {
         return NULL;
     } else {
-        return i->Second();
+        return it->Second();
     }
 }
 
-void TChannel::Send(
+TAsyncResult<TVoid>::TPtr TChannel::Send(
     TClientRequest::TPtr request,
     TClientResponse::TPtr response,
     TDuration timeout)
 {
     TRequestId requestId = TGuid::Create();
+
+    TEntry::TPtr entry = new TEntry();
+    entry->RequestId = requestId;
+    entry->Response = response;
+    entry->Ready = new TAsyncResult<TVoid>();
+
+    if (timeout != TDuration::Zero()) {
+        entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
+            &TChannel::OnTimeout,
+            TPtr(this),
+            entry),
+            timeout);
+    }
+
     {
         TGuard<TSpinLock> guard(&SpinLock);
-        ResponseMap.insert(MakePair(requestId, response));
+        YVERIFY(Entries.insert(MakePair(requestId, entry)).Second());
     }
     
-    response->Prepare(requestId, timeout);
-
     IMessage::TPtr requestMessage = request->Serialize(requestId);
     Bus->Send(requestMessage)->Subscribe(FromMethod(
-        &TClientResponse::OnAcknowledgment,
-        response));
+        &TChannel::OnAcknowledgement,
+        TPtr(this),
+        entry));
 
     LOG_DEBUG("Request sent (ServiceName: %s, MethodName:%s, RequestId: %s)",
         ~request->ServiceName,
         ~request->MethodName,
         ~requestId.ToString());
+
+    return entry->Ready;
 }
 
-void TChannel::Complete(const TRequestId& requestId)
+void TChannel::OnAcknowledgement(
+    IBus::ESendResult sendResult,
+    TEntry::TPtr entry)
 {
+    if (sendResult == IBus::ESendResult::Failed) {
+        if (!Unregister(entry->RequestId))
+            return;
+        entry->Response->OnAcknowledgement(sendResult);
+        entry->Ready->Set(TVoid());
+    } else {
+        entry->Response->OnAcknowledgement(sendResult);
+    }
+}
+
+void TChannel::OnTimeout(TEntry::TPtr entry)
+{
+    if (!Unregister(entry->RequestId))
+        return;
+
+    entry->Response->OnTimeout();
+    entry->Ready->Set(TVoid());
+}
+
+bool TChannel::Unregister(const TRequestId& requestId)
+{
+    // TODO: cancel timeout cookie
     {
         TGuard<TSpinLock> guard(&SpinLock);
-        ResponseMap.erase(requestId);
+        if (Entries.erase(requestId) == 0)
+            return false;
     }
-    LOG_DEBUG("Request complete (RequestId: %s)",
+
+    LOG_DEBUG("Request unregistered (RequestId: %s)",
         ~requestId.ToString());
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,9 +186,11 @@ IMessage::TPtr TClientRequest::Serialize(TRequestId requestId)
         Attachments_);
 }
 
-void TClientRequest::DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout)
+TAsyncResult<TVoid>::TPtr TClientRequest::DoInvoke(
+    TClientResponse::TPtr response,
+    TDuration timeout)
 {
-    Channel->Send(this, response, timeout);
+    return Channel->Send(this, response, timeout);
 }
 
 yvector<TSharedRef>& TClientRequest::Attachments()
@@ -152,19 +204,7 @@ TClientResponse::TClientResponse(IChannel::TPtr channel)
     : Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
-{}
-
-void TClientResponse::Prepare(TRequestId requestId, TDuration timeout)
-{
-    YASSERT(RequestId == TGuid());
-    RequestId = requestId;
-    if (timeout != TDuration::Zero()) {
-        TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
-            &TClientResponse::OnTimeout,
-            TPtr(this)),
-            timeout);
-    }
-}
+{ }
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
 {
@@ -179,7 +219,7 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
     }
 }
 
-void TClientResponse::OnAcknowledgment(IBus::ESendResult sendResult)
+void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
 {
     LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
         ~RequestId.ToString(),
@@ -233,15 +273,8 @@ void TClientResponse::Complete(EErrorCode errorCode)
         ~RequestId.ToString(),
         ~errorCode.ToString());
 
-    if (errorCode != EErrorCode::Timeout && TimeoutCookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-    }
-
-    Channel->Complete(RequestId);
     ErrorCode = errorCode;
     State = EState::Done;
-    TimeoutCookie = TDelayedInvoker::TCookie();
-    SetReady();
 }
 
 bool TClientResponse::IsOK() const
@@ -267,6 +300,16 @@ yvector<TSharedRef>& TClientResponse::Attachments()
 EErrorCode TClientResponse::GetErrorCode() const
 {
     return ErrorCode;
+}
+
+void TClientResponse::SetRequestId(const TRequestId& requestId)
+{
+    RequestId = requestId;
+}
+
+TRequestId TClientResponse::GetRequestId() const
+{
+    return RequestId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

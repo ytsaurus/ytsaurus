@@ -24,6 +24,8 @@ message TRspGetStatus
     required int32 VoteId = 2;
     required bytes VoteEpoch = 3;
     required int64 Priority = 4;
+    required int32 SelfId = 5;
+    repeated bytes MasterAddresses = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
