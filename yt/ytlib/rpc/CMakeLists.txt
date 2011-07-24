@@ -1,6 +1,7 @@
 SET(YT_SOURCE_FILES
     common.cpp
     client.cpp
+    channel.cpp
     service.cpp
     server.cpp
     rpc.proto

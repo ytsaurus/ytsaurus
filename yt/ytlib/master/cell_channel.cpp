@@ -29,8 +29,6 @@ TAsyncResult<TVoid>::TPtr TCellChannel::OnGotChannel(
     TDuration timeout)
 {
     if (~channel == NULL) {
-        NRpc::TRequestId requestId = NRpc::TRequestId::Create();
-        response->SetRequestId(requestId);
         response->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
         return new TAsyncResult<TVoid>(TVoid());
     }

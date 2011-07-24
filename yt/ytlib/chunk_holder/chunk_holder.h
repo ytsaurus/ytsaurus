@@ -8,7 +8,6 @@
 #include "chunk_holder_rpc.h"
 #include "master_connector.h"
 
-#include "../rpc/service.h"
 #include "../rpc/server.h"
 
 namespace NYT {

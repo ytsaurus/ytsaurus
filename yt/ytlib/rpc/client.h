@@ -1,18 +1,18 @@
 #pragma once
 
-#include "common.h"
-#include "message.h"
-#include "rpc.pb.h"
+#include "channel.h"
 
 #include "../bus/bus_client.h"
 #include "../actions/async_result.h"
 #include "../misc/delayed_invoker.h"
 
-// TODO: fixme
-namespace NYT
-{
+// TODO: forward declaration for friends
+
+namespace NYT {
+
 class TCellChannel;
-}
+
+} // namespace NYT
 
 namespace NYT {
 namespace NRpc {
@@ -36,86 +36,6 @@ template<
     class TErrorCode = EErrorCode
 >
 class TTypedClientResponse;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IChannel
-    : public virtual TRefCountedBase
-{
-    typedef TIntrusivePtr<IChannel> TPtr;
-
-    virtual TAsyncResult<TVoid>::TPtr Send(
-        TIntrusivePtr<TClientRequest> request,
-        TIntrusivePtr<TClientResponse> response,
-        TDuration timeout) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChannel
-    : public IChannel
-    , public NBus::IMessageHandler
-{
-public:
-    typedef TIntrusivePtr<TChannel> TPtr;
-
-    TChannel(NBus::TBusClient::TPtr client);
-    TChannel(Stroka address);
-
-    virtual TAsyncResult<TVoid>::TPtr Send(
-        TIntrusivePtr<TClientRequest> request,
-        TIntrusivePtr<TClientResponse> response,
-        TDuration timeout);
-
-private:
-    friend class TClientRequest;
-    friend class TClientResponse;
-
-    struct TEntry
-        : public TRefCountedBase
-    {
-        typedef TIntrusivePtr<TEntry> TPtr;
-
-        TRequestId RequestId;
-        TIntrusivePtr<TClientResponse> Response;
-        TAsyncResult<TVoid>::TPtr Ready;
-        TDelayedInvoker::TCookie TimeoutCookie;
-    };
-
-    typedef yhash_map<TRequestId, TEntry::TPtr, TRequestIdHash> TEntries;
-
-    NBus::IBus::TPtr Bus;
-    TSpinLock SpinLock;
-    TEntries Entries;
-
-    void OnAcknowledgement(
-        NBus::IBus::ESendResult sendResult,
-        TEntry::TPtr entry);
-
-    bool Unregister(const TRequestId& requestId);
-
-    TEntry::TPtr FindEntry(const TRequestId& id);
-
-    virtual void OnMessage(
-        NBus::IMessage::TPtr message,
-        NBus::IBus::TPtr replyBus);
-
-    void OnTimeout(TEntry::TPtr entry);
-};          
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChannelCache
-    : private TNonCopyable
-{
-public:
-    TChannel::TPtr GetChannel(Stroka address);
-
-private:
-    typedef yhash_map<Stroka, TChannel::TPtr> TChannelMap;
-
-    TChannelMap ChannelMap;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +65,8 @@ class TClientRequest
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
 
+    TRequestId GetRequestId();
+
     yvector<TSharedRef>& Attachments();
 
 protected:
@@ -163,9 +85,11 @@ private:
 
     Stroka ServiceName;
     Stroka MethodName;
+    TRequestId RequestId;
+
     yvector<TSharedRef> Attachments_;
 
-    NBus::IMessage::TPtr Serialize(TRequestId requestId);
+    NBus::IMessage::TPtr Serialize();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +117,9 @@ public:
     typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
     {
         typename TInvokeResult::TPtr asyncResult = new TInvokeResult();
-        typename TTypedResponse::TPtr response = new TTypedResponse(Channel);
+        typename TTypedResponse::TPtr response = new TTypedResponse(
+            GetRequestId(),
+            Channel);
         DoInvoke(~response, timeout)->Subscribe(FromMethod(
             &TTypedClientRequest::OnReady,
             asyncResult,
@@ -226,16 +152,18 @@ public:
 
     yvector<TSharedRef>& Attachments();
 
+    TRequestId GetRequestId();
+
     EErrorCode GetErrorCode() const;
 
     bool IsOK() const;
     bool IsRpcError() const;
     bool IsServiceError() const;
 
-    TRequestId GetRequestId() const;
-
 protected:
-    TClientResponse(IChannel::TPtr channel);
+    TClientResponse(
+        const TRequestId& requestId,
+        IChannel::TPtr channel);
 
     virtual bool DeserializeBody(TRef data) = 0;
 
@@ -252,13 +180,12 @@ private:
 
     // Protects state.
     TSpinLock SpinLock;
-    IChannel::TPtr Channel;
     TRequestId RequestId;
+    IChannel::TPtr Channel;
     EState State;
     EErrorCode ErrorCode;
     yvector<TSharedRef> MyAttachments;
 
-    void SetRequestId(const TRequestId& requestId);
     void Deserialize(NBus::IMessage::TPtr message);
     void Complete(EErrorCode errorCode);
     void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
@@ -280,8 +207,12 @@ class TTypedClientResponse
 public:
     typedef TIntrusivePtr<TTypedClientResponse> TPtr;
 
-    TTypedClientResponse(IChannel::TPtr channel)
-        : TClientResponse(channel)
+    TTypedClientResponse(
+        const TRequestId& requestId,
+        IChannel::TPtr channel)
+        : TClientResponse(
+            requestId,
+            channel)
     { }
 
     TErrorCode GetErrorCode() const

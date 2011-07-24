@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../election/leader_lookup.h"
-
-#include "../rpc/client.h"
+#include "../rpc/channel.h"
 
 namespace NYT {
 

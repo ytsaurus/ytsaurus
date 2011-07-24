@@ -1,10 +1,5 @@
 #include "client.h"
-
-#include "../misc/serialize.h"
-#include "../logging/log.h"
-
-#include <contrib/libs/protobuf/message.h>
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include "message.h"
 
 namespace NYT {
 namespace NRpc {
@@ -17,146 +12,6 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannel::TChannel(TBusClient::TPtr client)
-{
-    Bus = client->CreateBus(this);
-}
-
-TChannel::TChannel(Stroka address)
-{
-    TBusClient::TPtr client = new TBusClient(address);
-    Bus = client->CreateBus(this);
-}
-
-void TChannel::OnMessage(
-    IMessage::TPtr message,
-    IBus::TPtr replyBus)
-{
-    UNUSED(replyBus);
-
-    const yvector<TSharedRef>& parts = message->GetParts();
-    if (parts.ysize() == 0) {
-        LOG_ERROR("Missing header part");
-        return;
-    }
-
-    TResponseHeader header;
-    DeserializeMessage(&header, parts[0]);
-
-    TRequestId requestId = TGuid::FromProto(header.GetRequestId());
-    TEntry::TPtr entry = FindEntry(requestId);
-    if (~entry == NULL || !Unregister(entry->RequestId)) {
-        LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
-            ~requestId.ToString());
-        return;
-    }
-
-    entry->Response->OnResponse(header.GetErrorCode(), message);
-    entry->Ready->Set(TVoid());
-}
-
-TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
-{
-    TGuard<TSpinLock> guard(&SpinLock);
-    TEntries::iterator it = Entries.find(id);
-    if (it == Entries.end()) {
-        return NULL;
-    } else {
-        return it->Second();
-    }
-}
-
-TAsyncResult<TVoid>::TPtr TChannel::Send(
-    TClientRequest::TPtr request,
-    TClientResponse::TPtr response,
-    TDuration timeout)
-{
-    TRequestId requestId = TGuid::Create();
-
-    TEntry::TPtr entry = new TEntry();
-    entry->RequestId = requestId;
-    entry->Response = response;
-    entry->Ready = new TAsyncResult<TVoid>();
-
-    if (timeout != TDuration::Zero()) {
-        entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
-            &TChannel::OnTimeout,
-            TPtr(this),
-            entry),
-            timeout);
-    }
-
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        YVERIFY(Entries.insert(MakePair(requestId, entry)).Second());
-    }
-    
-    IMessage::TPtr requestMessage = request->Serialize(requestId);
-    Bus->Send(requestMessage)->Subscribe(FromMethod(
-        &TChannel::OnAcknowledgement,
-        TPtr(this),
-        entry));
-
-    LOG_DEBUG("Request sent (ServiceName: %s, MethodName:%s, RequestId: %s)",
-        ~request->ServiceName,
-        ~request->MethodName,
-        ~requestId.ToString());
-
-    return entry->Ready;
-}
-
-void TChannel::OnAcknowledgement(
-    IBus::ESendResult sendResult,
-    TEntry::TPtr entry)
-{
-    if (sendResult == IBus::ESendResult::Failed) {
-        if (!Unregister(entry->RequestId))
-            return;
-        entry->Response->OnAcknowledgement(sendResult);
-        entry->Ready->Set(TVoid());
-    } else {
-        entry->Response->OnAcknowledgement(sendResult);
-    }
-}
-
-void TChannel::OnTimeout(TEntry::TPtr entry)
-{
-    if (!Unregister(entry->RequestId))
-        return;
-
-    entry->Response->OnTimeout();
-    entry->Ready->Set(TVoid());
-}
-
-bool TChannel::Unregister(const TRequestId& requestId)
-{
-    // TODO: cancel timeout cookie
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        if (Entries.erase(requestId) == 0)
-            return false;
-    }
-
-    LOG_DEBUG("Request unregistered (RequestId: %s)",
-        ~requestId.ToString());
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChannel::TPtr TChannelCache::GetChannel(Stroka address)
-{
-    TChannelMap::iterator it = ChannelMap.find(address);
-    if (it != ChannelMap.end()) {
-        return it->second;
-    }
-    TChannel::TPtr channel = new TChannel(address);
-    ChannelMap[address] = channel;
-    return channel;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
@@ -164,13 +19,17 @@ TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientRequest::TClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
+TClientRequest::TClientRequest(
+    IChannel::TPtr channel,
+    Stroka serviceName,
+    Stroka methodName)
     : Channel(channel)
     , ServiceName(serviceName)
     , MethodName(methodName)
+    , RequestId(TRequestId::Create())
 { }
 
-IMessage::TPtr TClientRequest::Serialize(TRequestId requestId)
+IMessage::TPtr TClientRequest::Serialize()
 {
     TBlob bodyData;
     if (!SerializeBody(&bodyData)) {
@@ -178,7 +37,7 @@ IMessage::TPtr TClientRequest::Serialize(TRequestId requestId)
     }
 
     return new TRpcRequestMessage(
-        requestId,
+        RequestId,
         ServiceName,
         MethodName,
         bodyData,
@@ -197,10 +56,18 @@ yvector<TSharedRef>& TClientRequest::Attachments()
     return Attachments_;
 }
 
+NYT::NRpc::TRequestId TClientRequest::GetRequestId()
+{
+    return RequestId;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(IChannel::TPtr channel)
-    : Channel(channel)
+TClientResponse::TClientResponse(
+    const TRequestId& requestId,
+    IChannel::TPtr channel)
+    : RequestId(requestId)
+    , Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
 { }
@@ -299,16 +166,6 @@ yvector<TSharedRef>& TClientResponse::Attachments()
 EErrorCode TClientResponse::GetErrorCode() const
 {
     return ErrorCode;
-}
-
-void TClientResponse::SetRequestId(const TRequestId& requestId)
-{
-    RequestId = requestId;
-}
-
-TRequestId TClientResponse::GetRequestId() const
-{
-    return RequestId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

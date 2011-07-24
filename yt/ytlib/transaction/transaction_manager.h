@@ -8,7 +8,6 @@
 #include "../master/composite_meta_state.h"
 #include "../master/meta_state_service.h"
 
-#include "../rpc/service.h"
 #include "../rpc/server.h"
 
 #include "../misc/lease_manager.h"

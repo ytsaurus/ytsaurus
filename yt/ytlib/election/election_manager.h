@@ -8,7 +8,6 @@
 #include "../misc/delayed_invoker.h"
 
 #include "../actions/invoker.h"
-#include "../rpc/service.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"
 

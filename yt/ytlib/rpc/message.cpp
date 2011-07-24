@@ -1,11 +1,6 @@
 #include "message.h"
 #include "rpc.pb.h"
 
-#include "../misc/serialize.h"
-#include "../logging/log.h"
-
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -15,22 +10,17 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to misc/serialize.h/cpp
-// TODO: use these functions in TMetaStatePart
 bool SerializeMessage(google::protobuf::Message* message, TBlob* data)
 {
     int size = message->ByteSize();
     data->resize(size);
-    google::protobuf::io::ArrayOutputStream aos(data->begin(), size);
-    return message->SerializeToZeroCopyStream(&aos);
+    return message->SerializeToArray(data->begin(), size);
 }
 
 bool DeserializeMessage(google::protobuf::Message* message, TRef data)
 {
-    google::protobuf::io::ArrayInputStream ais(data.Begin(), data.Size());
-    return message->ParseFromZeroCopyStream(&ais);
+    return message->ParseFromArray(data.Begin(), data.Size());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

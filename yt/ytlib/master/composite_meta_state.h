@@ -2,7 +2,6 @@
 
 #include "master_state_manager.h"
 
-#include "../rpc/service.h"
 #include "../rpc/server.h"
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>

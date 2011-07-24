@@ -12,7 +12,6 @@
 
 #include "../transaction/transaction_manager.h"
 
-#include "../rpc/service.h"
 #include "../rpc/server.h"
 
 namespace NYT {

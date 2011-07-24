@@ -1,0 +1,165 @@
+#include "channel.h"
+#include "client.h"
+#include "message.h"
+
+namespace NYT {
+namespace NRpc {
+
+using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = RpcLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChannel::TChannel(TBusClient::TPtr client)
+{
+    Bus = client->CreateBus(this);
+}
+
+TChannel::TChannel(Stroka address)
+{
+    TBusClient::TPtr client = new TBusClient(address);
+    Bus = client->CreateBus(this);
+}
+
+void TChannel::OnMessage(
+    IMessage::TPtr message,
+    IBus::TPtr replyBus)
+{
+    UNUSED(replyBus);
+
+    const yvector<TSharedRef>& parts = message->GetParts();
+    if (parts.ysize() == 0) {
+        LOG_ERROR("Missing header part");
+        return;
+    }
+
+    TResponseHeader header;
+    DeserializeMessage(&header, parts[0]);
+
+    TRequestId requestId = TGuid::FromProto(header.GetRequestId());
+    TEntry::TPtr entry = FindEntry(requestId);
+    if (~entry == NULL || !Unregister(entry->RequestId)) {
+        LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
+            ~requestId.ToString());
+        return;
+    }
+
+    entry->Response->OnResponse(header.GetErrorCode(), message);
+    entry->Ready->Set(TVoid());
+}
+
+TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
+{
+    TGuard<TSpinLock> guard(&SpinLock);
+    TEntries::iterator it = Entries.find(id);
+    if (it == Entries.end()) {
+        return NULL;
+    } else {
+        return it->Second();
+    }
+}
+
+TAsyncResult<TVoid>::TPtr TChannel::Send(
+    TClientRequest::TPtr request,
+    TClientResponse::TPtr response,
+    TDuration timeout)
+{
+    TRequestId requestId = request->GetRequestId();
+
+    TEntry::TPtr entry = new TEntry();
+    entry->RequestId = requestId;
+    entry->Response = response;
+    entry->Ready = new TAsyncResult<TVoid>();
+
+    if (timeout != TDuration::Zero()) {
+        entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
+            &TChannel::OnTimeout,
+            TPtr(this),
+            entry),
+            timeout);
+    }
+
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        YVERIFY(Entries.insert(MakePair(requestId, entry)).Second());
+    }
+    
+    IMessage::TPtr requestMessage = request->Serialize();
+    Bus->Send(requestMessage)->Subscribe(FromMethod(
+        &TChannel::OnAcknowledgement,
+        TPtr(this),
+        entry));
+
+    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
+        ~requestId.ToString(),
+        ~request->ServiceName,
+        ~request->MethodName);
+
+    return entry->Ready;
+}
+
+void TChannel::OnAcknowledgement(
+    IBus::ESendResult sendResult,
+    TEntry::TPtr entry)
+{
+    if (sendResult == IBus::ESendResult::Failed) {
+        if (!Unregister(entry->RequestId))
+            return;
+        entry->Response->OnAcknowledgement(sendResult);
+        entry->Ready->Set(TVoid());
+    } else {
+        entry->Response->OnAcknowledgement(sendResult);
+    }
+}
+
+void TChannel::OnTimeout(TEntry::TPtr entry)
+{
+    if (!Unregister(entry->RequestId))
+        return;
+    entry->Response->OnTimeout();
+    entry->Ready->Set(TVoid());
+}
+
+bool TChannel::Unregister(const TRequestId& requestId)
+{
+    TEntry::TPtr entry;
+
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        TEntries::iterator it = Entries.find(requestId);
+        if (it == Entries.end())
+            return false;
+
+        entry = it->Second();
+        Entries.erase(it);
+    }
+
+    if (entry->TimeoutCookie != TDelayedInvoker::TCookie()) {
+        TDelayedInvoker::Get()->Cancel(entry->TimeoutCookie);
+        entry->TimeoutCookie = TDelayedInvoker::TCookie();
+    }
+
+    LOG_DEBUG("Request unregistered (RequestId: %s)", ~requestId.ToString());
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChannel::TPtr TChannelCache::GetChannel(Stroka address)
+{
+    TChannelMap::iterator it = ChannelMap.find(address);
+    if (it != ChannelMap.end()) {
+        return it->second;
+    }
+    TChannel::TPtr channel = new TChannel(address);
+    ChannelMap[address] = channel;
+    return channel;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRpc
+} // namespace NYT
