@@ -150,8 +150,7 @@ TChannel::TPtr TChannelCache::GetChannel(Stroka address)
     if (it != ChannelMap.end()) {
         return it->second;
     }
-    TBusClient::TPtr client = new TBusClient(address);
-    TChannel::TPtr channel = new TChannel(client);
+    TChannel::TPtr channel = new TChannel(address);
     ChannelMap[address] = channel;
     return channel;
 }
