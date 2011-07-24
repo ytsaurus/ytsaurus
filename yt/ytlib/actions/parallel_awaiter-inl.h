@@ -13,8 +13,7 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
     , Terminated(false)
     , RequestCount(0)
     , ResponseCount(0)
-    , UserInvoker(invoker)
-    , CancelableInvoker(new TCancelableInvoker())
+    , CancelableInvoker(new TCancelableInvoker(invoker))
 { }
 
 
@@ -34,7 +33,7 @@ void TParallelAwaiter::Await(
         ++RequestCount;
 
         if (~onResult != NULL) {
-            wrappedOnResult = onResult->Via(~CancelableInvoker)->Via(UserInvoker);
+            wrappedOnResult = onResult->Via(~CancelableInvoker);
         }
     }
 
@@ -76,7 +75,7 @@ void TParallelAwaiter::OnResult(T result, typename IParamAction<T>::TPtr onResul
 inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
 {
     if (~onComplete != NULL) {
-        onComplete = onComplete->Via(~CancelableInvoker)->Via(UserInvoker);
+        onComplete = onComplete->Via(~CancelableInvoker);
     }
 
     bool invokeOnComplete;
@@ -119,7 +118,6 @@ inline bool TParallelAwaiter::IsCanceled() const
 inline void TParallelAwaiter::Terminate()
 {
     OnComplete.Drop();
-    UserInvoker.Drop();
     Terminated = true;
 }
 

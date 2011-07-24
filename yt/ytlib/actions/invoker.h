@@ -32,13 +32,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to separate h/cpp
 class TCancelableInvoker
     : public IInvoker
 {
 public:
     typedef TIntrusivePtr<TCancelableInvoker> TPtr;
 
-    explicit TCancelableInvoker();
+    explicit TCancelableInvoker(IInvoker::TPtr underlyingInvoker);
 
     virtual void Invoke(TIntrusivePtr<IAction> action);
 
@@ -47,6 +48,9 @@ public:
 
 private:
     volatile bool Canceled;
+    IInvoker::TPtr UnderlyingInvoker;
+
+    void ActionThunk(TIntrusivePtr<IAction> action);
 
 };
 

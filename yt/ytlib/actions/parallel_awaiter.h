@@ -33,7 +33,6 @@ private:
     i32 RequestCount;
     i32 ResponseCount;
     IAction::TPtr OnComplete;
-    IInvoker::TPtr UserInvoker;
     TCancelableInvoker::TPtr CancelableInvoker;
 
     void Terminate();

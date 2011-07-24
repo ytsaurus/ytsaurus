@@ -133,8 +133,7 @@ private:
     {
         TDelayedInvoker::Get()->Submit(
             FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
-            ->Via(~ElectionManager->EpochInvoker)
-            ->Via(ElectionManager->Invoker),
+            ->Via(~ElectionManager->EpochInvoker),
             TConfig::FollowerPingInterval);
     }
 
@@ -513,8 +512,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 
     PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
         FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~EpochInvoker)
-        ->Via(Invoker),
+        ->Via(~EpochInvoker),
         TConfig::FollowerPingTimeout);
 
     context->Reply();
@@ -618,7 +616,7 @@ void TElectionManager::StartVoteForSelf()
     VoteEpoch = TGuid::Create();
 
     YASSERT(~EpochInvoker == NULL);
-    EpochInvoker = new TCancelableInvoker();
+    EpochInvoker = new TCancelableInvoker(Invoker);
 
     TMasterPriority priority = ElectionCallbacks->GetPriority();
 
@@ -648,8 +646,7 @@ void TElectionManager::StartFollowing(
 
     PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
         FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~EpochInvoker)
-        ->Via(Invoker),
+        ->Via(~EpochInvoker),
         TConfig::ReadyToFollowTimeout);
 
     LOG_INFO("Starting following (LeaderId: %d, Epoch: %s)",

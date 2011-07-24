@@ -18,15 +18,27 @@ TSyncInvoker* TSyncInvoker::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCancelableInvoker::TCancelableInvoker()
+TCancelableInvoker::TCancelableInvoker(IInvoker::TPtr underlyingInvoker)
     : Canceled(false)
-{}
+    , UnderlyingInvoker(underlyingInvoker)
+
+{ }
 
 void TCancelableInvoker::Invoke(IAction::TPtr action)
 {
-    if (!Canceled) {
-        action->Do();
-    }
+    if (Canceled)
+        return;
+    UnderlyingInvoker->Invoke(FromMethod(
+        &TCancelableInvoker::ActionThunk,
+        TPtr(this),
+        action));
+}
+
+void TCancelableInvoker::ActionThunk(IAction::TPtr action)
+{
+    if (Canceled)
+        return;
+    action->Do();
 }
 
 void TCancelableInvoker::Cancel()

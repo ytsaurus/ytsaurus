@@ -62,6 +62,7 @@ public:
     void Stop();
     void Restart();
     
+    // TODO: get rid of this in public
     IInvoker::TPtr GetEpochInvoker() const;
 
 private:
