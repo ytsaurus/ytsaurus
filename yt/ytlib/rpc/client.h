@@ -169,7 +169,7 @@ protected:
 
 private:
     friend class TChannel;
-    friend class TCellChannel;
+    friend class ::NYT::TCellChannel;
     friend class TClientRequest;
 
     DECLARE_ENUM(EState,

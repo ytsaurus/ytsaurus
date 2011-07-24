@@ -52,7 +52,7 @@ void TLeaderLookup::OnResponse(
 {
     if (!response->IsOK()) {
         LOG_WARNING("Error requesting leader from master %s (ErrorCode: %s)",
-            address,
+            ~address,
             ~response->GetErrorCode().ToString());
         return;
     }

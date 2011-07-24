@@ -2,6 +2,8 @@
 #include "client.h"
 #include "message.h"
 
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NRpc {
 
