@@ -20,7 +20,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFollowerStateTracker;
+class TFollowerTracker;
 class TLeaderPinger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,8 +112,7 @@ private:
     // Service thread
     void OnLocalCommit(
         TChangeCommitter::EResult result,
-        TCtxApplyChange::TPtr context,
-        const TMasterEpoch& epoch);
+        TCtxApplyChange::TPtr context);
 
     // TODO: which thread?
     void Restart();
@@ -154,14 +153,12 @@ private:
 
     // Per epoch, service thread
     TMasterEpoch Epoch;
-    // TODO: refactor
-    TMasterEpoch MyEpoch;
-    IInvoker::TPtr EpochInvoker;
+    TCancelableInvoker::TPtr ServiceEpochInvoker;
     TSnapshotCreator::TPtr SnapshotCreator;
     TLeaderRecovery::TPtr LeaderRecovery;
     TFollowerRecovery::TPtr FollowerRecovery;
     TChangeCommitter::TPtr ChangeCommitter;
-    TIntrusivePtr<TFollowerStateTracker> FollowerStateTracker;
+    TIntrusivePtr<TFollowerTracker> FollowerTracker;
     TIntrusivePtr<TLeaderPinger> LeaderPinger;
 };
 

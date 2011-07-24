@@ -31,10 +31,9 @@ public:
         TCellManager::TPtr cellManager,
         TMasterId leaderId,
         TMasterEpoch epoch,
-        IInvoker::TPtr epochInvoker,
         IInvoker::TPtr serviceInvoker);
 
-    void Terminate();
+    void Stop();
 
 private:
     typedef TMasterStateManagerProxy TProxy;
@@ -48,9 +47,7 @@ private:
     TCellManager::TPtr CellManager;
     TMasterId LeaderId;
     TMasterEpoch Epoch;
-    IInvoker::TPtr EpochInvoker;
-    IInvoker::TPtr ServiceInvoker;
-    bool Terminated;
+    TCancelableInvoker::TPtr CancelableInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

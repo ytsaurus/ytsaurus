@@ -25,18 +25,22 @@ TRecovery::TRecovery(
     TSnapshotStore::TPtr snapshotStore,
     TMasterEpoch epoch,
     TMasterId leaderId,
-    IInvoker::TPtr invoker,
-    IInvoker::TPtr epochInvoker)
+    IInvoker::TPtr serviceInvoker)
     : CellManager(cellManager)
     , MasterState(masterState)
     , ChangeLogCache(changeLogCache)
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , LeaderId(leaderId)
-    , ServiceInvoker(invoker)
-    , EpochInvoker(epochInvoker)
-    , StateInvoker(masterState->GetInvoker())
+    , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
+    , CancelableStateInvoker(new TCancelableInvoker(masterState->GetInvoker()))
 { }
+
+void TRecovery::Stop()
+{
+    CancelableServiceInvoker->Cancel();
+    CancelableStateInvoker->Cancel();
+}
 
 TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
     TMasterStateId targetStateId,
@@ -90,12 +94,16 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
         TInputStream& stream = snapshotReader->GetStream();
 
         // The reader reference is being held by the closure action.
-        return MasterState->Load(snapshotId, stream)->Apply(FromMethod(
-                  &TRecovery::RecoverFromChangeLog,
-                  TPtr(this),
-                  snapshotReader,
-                  targetStateId,
-                  snapshotReader->GetPrevRecordCount())->AsyncVia(StateInvoker));
+        return MasterState
+            ->Load(snapshotId, stream)
+            ->Apply(
+                FromMethod(
+                    &TRecovery::RecoverFromChangeLog,
+                    TPtr(this),
+                    snapshotReader,
+                    targetStateId,
+                    snapshotReader->GetPrevRecordCount())
+                ->AsyncVia(~CancelableStateInvoker));
     } else {
         // Recovery solely using changelogs.
         LOG_DEBUG("No snapshot is used for recovery");
@@ -278,8 +286,7 @@ TLeaderRecovery::TLeaderRecovery(
     TSnapshotStore::TPtr snapshotStore,
     TMasterEpoch epoch,
     TMasterId leaderId,
-    IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr epochInvoker)
+    IInvoker::TPtr serviceInvoker)
     : TRecovery(
         cellManager,
         masterState,
@@ -287,8 +294,7 @@ TLeaderRecovery::TLeaderRecovery(
         snapshotStore,
         epoch,
         leaderId,
-        serviceInvoker,
-        epochInvoker)
+        serviceInvoker)
 { }
 
 TRecovery::TResult::TPtr TLeaderRecovery::Run()
@@ -303,8 +309,7 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
                TPtr(this),
                stateId,
                maxAvailableSnapshotId)
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(StateInvoker)
+           ->AsyncVia(~CancelableStateInvoker)
            ->Do();
 }
 
@@ -322,8 +327,7 @@ TFollowerRecovery::TFollowerRecovery(
     TSnapshotStore::TPtr snapshotStore,
     TMasterEpoch epoch,
     TMasterId leaderId,
-    IInvoker::TPtr serviceInvoker,
-    IInvoker::TPtr epochInvoker)
+    IInvoker::TPtr serviceInvoker)
     : TRecovery(
         cellManager,
         masterState,
@@ -331,8 +335,7 @@ TFollowerRecovery::TFollowerRecovery(
         snapshotStore,
         epoch,
         leaderId,
-        serviceInvoker,
-        epochInvoker)
+        serviceInvoker)
     , Result(new TResult())
     , SyncReceived(false)
 { }
@@ -342,7 +345,8 @@ TRecovery::TResult::TPtr TFollowerRecovery::Run()
     LOG_INFO("Requesting sync from leader");
 
     TDelayedInvoker::Get()->Submit(
-        FromMethod(&TFollowerRecovery::OnSyncTimeout, TPtr(this))->Via(ServiceInvoker),
+        FromMethod(&TFollowerRecovery::OnSyncTimeout, TPtr(this))
+        ->Via(~CancelableServiceInvoker),
         SyncTimeout);
 
     TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
@@ -390,8 +394,7 @@ void TFollowerRecovery::Sync(
         TPtr(this),
         PostponedStateId,
         snapshotId)
-    ->AsyncVia(EpochInvoker)
-    ->AsyncVia(StateInvoker)
+    ->AsyncVia(~CancelableStateInvoker)
     ->Do()->Apply(FromMethod(
         &TFollowerRecovery::OnSyncReached,
         TPtr(this)))
@@ -409,8 +412,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
     LOG_INFO("Sync reached");
 
     return FromMethod(&TFollowerRecovery::CapturePostponedChanges, TPtr(this))
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(ServiceInvoker)
+           ->AsyncVia(~CancelableServiceInvoker)
            ->Do();
 }
 
@@ -431,8 +433,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::CapturePostponedChanges()
                &TFollowerRecovery::ApplyPostponedChanges,
                TPtr(this),
                changes)
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(StateInvoker)
+           ->AsyncVia(~CancelableStateInvoker)
            ->Do();
 }
 
@@ -467,8 +468,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     return FromMethod(
                &TFollowerRecovery::CapturePostponedChanges,
                TPtr(this))
-           ->AsyncVia(EpochInvoker)
-           ->AsyncVia(ServiceInvoker)
+           ->AsyncVia(~CancelableServiceInvoker)
            ->Do();
 }
 

@@ -26,12 +26,24 @@ public:
 
     typedef TAsyncResult<EResult> TResult;
 
+    struct TConfig
+    {
+        TConfig()
+            : RpcTimeout(TDuration::Seconds(3))
+        { }
+
+        TDuration RpcTimeout;
+    };
+
     TChangeCommitter(
+        const TConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMasterState::TPtr masterState,
         TChangeLogCache::TPtr changeLogCache,
         IInvoker::TPtr serviceInvoker,
         const TMasterEpoch& epoch);
+
+    void Stop();
 
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
@@ -40,10 +52,6 @@ public:
     TResult::TPtr CommitFollower(
         TMasterStateId stateId,
         TSharedRef changeData);
-
-    // TODO: refactor this
-    TDuration GetTimeout() const;
-    void SetTimeout(TDuration timeout);
 
     void SetOnApplyChange(IAction::TPtr onApplyChange);
 
@@ -59,15 +67,14 @@ private:
         TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
+    TConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMasterState::TPtr MasterState;
     TChangeLogCache::TPtr ChangeLogCache;
-    IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr StateInvoker;
+    TCancelableInvoker::TPtr CancelableServiceInvoker;
     TMasterEpoch Epoch;
     IAction::TPtr OnApplyChange;
-    // TODO: refactor this
-    TDuration Timeout;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

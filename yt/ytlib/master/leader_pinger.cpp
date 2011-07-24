@@ -17,38 +17,29 @@ TLeaderPinger::TLeaderPinger(
     TCellManager::TPtr cellManager,
     TMasterId leaderId,
     TMasterEpoch epoch,
-    IInvoker::TPtr epochInvoker,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , MasterStateManager(masterStateManager)
     , CellManager(cellManager)
     , LeaderId(leaderId)
     , Epoch(epoch)
-    , EpochInvoker(epochInvoker)
-    , ServiceInvoker(serviceInvoker)
-    , Terminated(false)
+    , CancelableInvoker(new TCancelableInvoker(serviceInvoker))
 {
     SchedulePing();
 }
 
-void TLeaderPinger::Terminate()
+void TLeaderPinger::Stop()
 {
-    Terminated = true;
+    CancelableInvoker->Cancel();
+    CancelableInvoker.Drop();
     MasterStateManager.Drop();
-    CellManager.Drop();
-    EpochInvoker.Drop();
-    ServiceInvoker.Drop();
 }
 
 void TLeaderPinger::SchedulePing()
 {
-    if (Terminated)
-        return;
-
     TDelayedInvoker::Get()->Submit(
         FromMethod(&TLeaderPinger::SendPing, TPtr(this))
-        ->Via(~EpochInvoker)
-        ->Via(ServiceInvoker),
+        ->Via(~CancelableInvoker),
         Config.PingInterval);
 
     LOG_DEBUG("Leader ping scheduled");
@@ -56,9 +47,6 @@ void TLeaderPinger::SchedulePing()
 
 void TLeaderPinger::SendPing()
 {
-    if (Terminated)
-        return;
-
     TMasterStateManager::EState state = MasterStateManager->GetState();
     TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     TProxy::TReqPingLeader::TPtr request = proxy->PingLeader();
@@ -68,8 +56,7 @@ void TLeaderPinger::SendPing()
     request->Invoke(Config.RpcTimeout)->Subscribe(
         FromMethod(
         &TLeaderPinger::OnSendPing, TPtr(this))
-        ->Via(~EpochInvoker)
-        ->Via(ServiceInvoker));
+        ->Via(~CancelableInvoker));
 
     LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %s)",
         LeaderId,

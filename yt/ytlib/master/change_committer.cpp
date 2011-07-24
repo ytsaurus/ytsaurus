@@ -24,8 +24,8 @@ public:
         , ChangeAction(changeAction)
         , ChangeData(changeData)
         , Result(new TResult())
-        , Awaiter(new TParallelAwaiter(committer->ServiceInvoker))
-        // Change is always committed locally.
+        , Awaiter(new TParallelAwaiter(~committer->CancelableServiceInvoker))
+        // Count the local commit.
         , CommitCount(1)
     { }
 
@@ -50,7 +50,7 @@ public:
             request->Attachments().push_back(ChangeData);
             
             Awaiter->Await(
-                request->Invoke(Committer->Timeout),
+                request->Invoke(Committer->Config.RpcTimeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
 
             LOG_DEBUG("Change %s is sent to master %d",
@@ -133,28 +133,23 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChangeCommitter::TChangeCommitter(
+    const TConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMasterState::TPtr masterState,
     TChangeLogCache::TPtr changeLogCache,
     IInvoker::TPtr serviceInvoker,
     const TMasterEpoch& epoch)
-    : CellManager(cellManager)
+    : Config(config)
+    , CellManager(cellManager)
     , MasterState(masterState)
     , ChangeLogCache(changeLogCache)
-    , ServiceInvoker(serviceInvoker)
-    , StateInvoker(masterState->GetInvoker())
+    , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
     , Epoch(epoch)
-    , Timeout(TDuration::Seconds(10))
 { }
 
-TDuration TChangeCommitter::GetTimeout() const
+void TChangeCommitter::Stop()
 {
-    return Timeout;
-}
-
-void TChangeCommitter::SetTimeout(TDuration timeout)
-{
-    Timeout = timeout;
+    CancelableServiceInvoker->Cancel();
 }
 
 void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
@@ -183,7 +178,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
             TPtr(this),
             stateId,
             changeData)
-        ->AsyncVia(StateInvoker)
+        ->AsyncVia(MasterState->GetInvoker())
         ->Do();
 }
 

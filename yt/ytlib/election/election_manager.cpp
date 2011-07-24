@@ -711,11 +711,6 @@ void TElectionManager::StopFollowing()
     ElectionCallbacks->StopFollowing();
 }
 
-IInvoker::TPtr TElectionManager::GetEpochInvoker() const
-{
-    return ~EpochInvoker;
-}
-
 void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
 {
     LeaderId = leaderId;

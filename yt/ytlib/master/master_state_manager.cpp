@@ -1,5 +1,5 @@
 #include "master_state_manager.h"
-#include "follower_state_tracker.h"
+#include "follower_tracker.h"
 #include "change_committer.h"
 #include "leader_pinger.h"
 
@@ -72,10 +72,8 @@ void TMasterStateManager::RegisterMethods()
     RPC_REGISTER_METHOD(TMasterStateManager, PingLeader);
 }
 
-// TODO: cascading restart issue
 void TMasterStateManager::Restart()
 {
-    MyEpoch = TGuid();
     ElectionManager->Restart();
 }
 
@@ -88,7 +86,7 @@ TMasterStateManager::CommitChange(
         return new TCommitResult(ECommitResult::InvalidState);
     }
 
-    if (!FollowerStateTracker->HasActiveQuorum()) {
+    if (!FollowerTracker->HasActiveQuorum()) {
         return new TCommitResult(ECommitResult::NotCommitted);
     }
 
@@ -131,13 +129,12 @@ void TMasterStateManager::Start()
 
 void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
 {
-    YASSERT(~EpochInvoker == NULL);
-    EpochInvoker = ElectionManager->GetEpochInvoker();
+    YASSERT(~ServiceEpochInvoker == NULL);
+    ServiceEpochInvoker = new TCancelableInvoker(ServiceInvoker);
     Epoch = epoch;
 
-    MyEpoch = TGuid::Create();
-
     ChangeCommitter = new TChangeCommitter(
+        TChangeCommitter::TConfig(),
         CellManager,
         ~MasterState,
         ChangeLogCache,
@@ -156,13 +153,18 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
 
 void TMasterStateManager::StopEpoch()
 {
-    YASSERT(~EpochInvoker != NULL);
-
     LeaderId = InvalidMasterId;
-    EpochInvoker.Drop();
     Epoch = TMasterEpoch();
-    MyEpoch = TMasterEpoch();
+    
+    YASSERT(~ServiceEpochInvoker != NULL);
+    ServiceEpochInvoker->Cancel();
+    ServiceEpochInvoker.Drop();
+
+    YASSERT(~ChangeCommitter != NULL);
+    ChangeCommitter->Stop();
     ChangeCommitter.Drop();
+
+    YASSERT(~SnapshotCreator != NULL);
     SnapshotCreator.Drop();
 }
 
@@ -427,8 +429,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
             ChangeCommitter->CommitFollower(stateId, changeData)->Subscribe(FromMethod(
                 &TMasterStateManager::OnLocalCommit,
                 TPtr(this),
-                context,
-                MyEpoch)->Via(ServiceInvoker));
+                context)->Via(ServiceInvoker));
             break;
 
         case EState::FollowerRecovery: {
@@ -453,8 +454,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, ApplyChange)
 
 void TMasterStateManager::OnLocalCommit(
     TChangeCommitter::EResult result,
-    TCtxApplyChange::TPtr context,
-    const TMasterEpoch& myEpoch)
+    TCtxApplyChange::TPtr context)
 {
     TReqApplyChange& request = context->Request();
     TRspApplyChange& response = context->Response();
@@ -469,16 +469,10 @@ void TMasterStateManager::OnLocalCommit(
 
         case TChangeCommitter::EResult::InvalidStateId:
             context->Reply(TProxy::EErrorCode::InvalidStateId);
+            Restart();
 
-            if (myEpoch == MyEpoch) {
-                Restart();
-                LOG_WARNING("ApplyChange: change %s is unexpected, restarting",
-                    ~stateId.ToString());
-            } else {
-                LOG_WARNING("ApplyChange: change %s is unexpected",
-                    ~stateId.ToString());
-            }
-
+            LOG_WARNING("ApplyChange: change %s is unexpected, restarting",
+                ~stateId.ToString());
             break;
 
         default:
@@ -581,7 +575,7 @@ RPC_SERVICE_METHOD_IMPL(TMasterStateManager, PingLeader)
         LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
             ~Epoch.ToString());
     } else {
-        FollowerStateTracker->ProcessPing(followerId, followerState);
+        FollowerTracker->ProcessPing(followerId, followerState);
     }
 
     // Reply with OK in any case.
@@ -607,13 +601,11 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
         ~SnapshotStore,
         Epoch,
         LeaderId,
-        ServiceInvoker,
-        EpochInvoker);
+        ServiceInvoker);
 
     LeaderRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnLeaderRecovery, TPtr(this))
-        ->Via(EpochInvoker)
-        ->Via(ServiceInvoker));
+        ->Via(~ServiceEpochInvoker));
 }
 
 void TMasterStateManager::OnLeaderRecovery(TRecovery::EResult result)
@@ -629,10 +621,9 @@ void TMasterStateManager::OnLeaderRecovery(TRecovery::EResult result)
 
     State = EState::Leading;
     
-    FollowerStateTracker = new TFollowerStateTracker(
-        TFollowerStateTracker::TConfig(),
+    FollowerTracker = new TFollowerTracker(
+        TFollowerTracker::TConfig(),
         CellManager,
-        EpochInvoker,
         ServiceInvoker);
 
     ChangeCommitter->SetOnApplyChange(FromMethod(
@@ -661,9 +652,16 @@ void TMasterStateManager::StopLeading()
 
     StopEpoch();
 
-    LeaderRecovery.Drop();
+    if (~LeaderRecovery != NULL) {
+        LeaderRecovery->Stop();
+        LeaderRecovery.Drop();
+    }
+    
 
-    FollowerStateTracker.Drop();
+    if (~FollowerTracker != NULL) {
+        FollowerTracker->Stop();
+        FollowerTracker.Drop();
+    }
 }
 
 void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
@@ -682,13 +680,11 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
         ~SnapshotStore,
         Epoch,
         LeaderId,
-        ServiceInvoker,
-        EpochInvoker);
+        ServiceInvoker);
 
     FollowerRecovery->Run()->Subscribe(
         FromMethod(&TMasterStateManager::OnFollowerRecovery, TPtr(this))
-        ->Via(EpochInvoker)
-        ->Via(ServiceInvoker));
+        ->Via(~ServiceEpochInvoker));
 }
 
 void TMasterStateManager::OnFollowerRecovery(TRecovery::EResult result)
@@ -710,7 +706,6 @@ void TMasterStateManager::OnFollowerRecovery(TRecovery::EResult result)
         CellManager,
         LeaderId,
         Epoch,
-        EpochInvoker,
         ServiceInvoker);
 
     LOG_INFO("Follower recovery complete");
@@ -724,10 +719,13 @@ void TMasterStateManager::StopFollowing()
     
     StopEpoch();
 
-    FollowerRecovery.Drop();
+    if (~FollowerRecovery != NULL) {
+        FollowerRecovery->Stop();
+        FollowerRecovery.Drop();
+    }
 
     if (~LeaderPinger != NULL) {
-        LeaderPinger->Terminate();
+        LeaderPinger->Stop();
         LeaderPinger.Drop();
     }
 }

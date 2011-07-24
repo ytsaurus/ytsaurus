@@ -8,11 +8,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFollowerStateTracker
+class TFollowerTracker
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TFollowerStateTracker> TPtr;
+    typedef TIntrusivePtr<TFollowerTracker> TPtr;
 
     struct TConfig
     {
@@ -23,12 +23,12 @@ public:
         { }
     };
 
-    TFollowerStateTracker(
+    TFollowerTracker(
         const TConfig& config,
         TCellManager::TPtr cellManager,
-        IInvoker::TPtr epochInvoker,
         IInvoker::TPtr serviceInvoker);
 
+    void Stop();
     bool HasActiveQuorum();
     void ProcessPing(TMasterId followerId, TMasterStateManager::EState state);
 
@@ -48,8 +48,7 @@ private:
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    IInvoker::TPtr EpochInvoker;
-    IInvoker::TPtr ServiceInvoker;
+    TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;
     TLeaseManager::TPtr LeaseManager;
 };
