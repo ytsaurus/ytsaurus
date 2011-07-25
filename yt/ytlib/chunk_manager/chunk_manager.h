@@ -23,8 +23,7 @@ class TChunkManager
     : public TMetaStateServiceBase
 {
 public:
-    typedef TChunkManager TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
+    typedef TIntrusivePtr<TChunkManager> TPtr;
     typedef TChunkManagerConfig TConfig;
 
     //! Creates an instance.

@@ -514,7 +514,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, RegisterHolder)
     
     context->SetRequestInfo("Address: %s, %s",
         ~address,
-        statistics.ToString());
+        ~statistics.ToString());
 
     const NProto::TReqRegisterHolder& message = *request;
     CommitChange(
