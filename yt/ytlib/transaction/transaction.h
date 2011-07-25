@@ -26,19 +26,14 @@ public:
         : Id(id)
     { }
 
-    TLeaseManager::TLease GetLease() const
-    {
-        return Lease;
-    }
-
-    void SetLease(TLeaseManager::TLease lease)
-    {
-        Lease = lease;
-    }
-
     TTransactionId GetId() const
     {
         return Id;
+    }
+
+    TLeaseManager::TLease& Lease()
+    {
+        return Lease_;
     }
 
     TChunks& AddedChunks()
@@ -48,7 +43,7 @@ public:
 
 private:
     TTransactionId Id;
-    TLeaseManager::TLease Lease;
+    TLeaseManager::TLease Lease_;
     TChunks AddedChunks_;
 
     friend TOutputStream& operator << (TOutputStream& stream, const TTransaction& transaction);

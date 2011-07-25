@@ -3,7 +3,7 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 #include "chunk_manager.pb.h"
-#include "holder_tracker.h"
+#include "holder.h"
 #include "chunk.h"
 
 #include "../master/master_state_manager.h"
@@ -23,7 +23,8 @@ class TChunkManager
     : public TMetaStateServiceBase
 {
 public:
-    typedef TIntrusivePtr<TChunkManager> TPtr;
+    typedef TChunkManager TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
     typedef TChunkManagerConfig TConfig;
 
     //! Creates an instance.
@@ -39,32 +40,33 @@ private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
+    typedef yvector<THolder::TPtr> THolders;
 
     class TState;
     
     //! Configuration.
     TConfig Config;
 
+    //! Manages transactions.
     TTransactionManager::TPtr TransactionManager;
 
     //! Meta-state.
     TIntrusivePtr<TState> State;
-
-    //! Tracks holder liveness.
-    THolderTracker::TPtr HolderTracker;
 
     //! Registers RPC methods.
     void RegisterMethods();
 
     TTransaction::TPtr GetTransaction(const TTransactionId& id, bool forUpdate = false);
 
-    void UpdateChunk(TChunk::TPtr chunk);
-    void CleanupChunkLocations(TChunk::TPtr chunk);
-    void AddChunkLocation(TChunk::TPtr chunk, THolder::TPtr holder);
-
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
+    void OnHolderRegistered(
+        THolder::TPtr holder,
+        TCtxRegisterHolder::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);
+    void OnHolderUpdated(
+        THolder::TPtr holder,
+        TCtxRegisterHolder::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, AddChunk);
     void OnChunkAdded(

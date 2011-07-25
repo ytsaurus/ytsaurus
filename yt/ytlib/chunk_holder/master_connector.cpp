@@ -89,7 +89,7 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
     ScheduleHeartbeat();
 
     if (!response->IsOK()) {
-        OnError();
+        OnDisconnected();
 
         LOG_WARNING("Error registering at master (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
@@ -115,22 +115,25 @@ void TMasterConnector::SendHeartbeat()
     *request->MutableStatistics() = statistics.ToProto();
 
     if (IncrementalHeartbeat) {
-        for (TChunks::iterator it = AddedChunks.begin();
-            it != AddedChunks.end();
+        ReportedAdded = AddedSinceLastSuccess;
+        ReportedRemoved = RemovedSinceLastSuccess;
+
+        for (TChunks::iterator it = ReportedAdded.begin();
+            it != ReportedAdded.end();
             ++it)
         {
             *request->AddAddedChunks() = GetInfo(*it);
         }
 
-        for (TChunks::iterator it = RemovedChunks.begin();
-            it != RemovedChunks.end();
+        for (TChunks::iterator it = ReportedRemoved.begin();
+            it != ReportedRemoved.end();
             ++it)
         {
             request->AddRemovedChunks((*it)->GetId().ToProto());
         }
     } else {
-        TChunks chunks = ChunkStore->GetChunks();
-        for (TChunks::iterator it = chunks.begin();
+        TChunkStore::TChunks chunks = ChunkStore->GetChunks();
+        for (TChunkStore::TChunks::iterator it = chunks.begin();
              it != chunks.end();
              ++it)
         {
@@ -142,10 +145,6 @@ void TMasterConnector::SendHeartbeat()
         FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
         ->Via(ServiceInvoker));
 
-    IncrementalHeartbeat = true;
-    AddedChunks.clear();
-    RemovedChunks.clear();
-
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d)",
         ~statistics.ToString(),
         static_cast<int>(request->AddedChunksSize()),
@@ -155,14 +154,46 @@ void TMasterConnector::SendHeartbeat()
 void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response)
 {
     ScheduleHeartbeat();
-
-    if (!response->IsOK()) {
-        OnError();
-
+    
+    EErrorCode errorCode = response->GetErrorCode();
+    if (errorCode != EErrorCode::OK) {
         LOG_WARNING("Error sending heartbeat to master (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
 
+        // Don't panic upon getting TransportError or Unavailable.
+        if (errorCode != EErrorCode::TransportError && errorCode != EErrorCode::Unavailable) {
+            OnDisconnected();
+        }
+
         return;
+    }
+
+    if (IncrementalHeartbeat) {
+        TChunks newAddedSinceLastSuccess;
+        TChunks newRemovedSinceLastSuccess;
+
+        for (TChunks::iterator it = AddedSinceLastSuccess.begin();
+            it != AddedSinceLastSuccess.end();
+            ++it)
+        {
+            if (ReportedAdded.find(*it) == ReportedAdded.end()) {
+                newAddedSinceLastSuccess.insert(*it);
+            }
+        }
+
+        for (TChunks::iterator it = RemovedSinceLastSuccess.begin();
+            it != RemovedSinceLastSuccess.end();
+            ++it)
+        {
+            if (ReportedRemoved.find(*it) == ReportedRemoved.end()) {
+                newRemovedSinceLastSuccess.insert(*it);
+            }
+        }
+
+        AddedSinceLastSuccess.swap(newAddedSinceLastSuccess);
+        RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
+    } else {
+        IncrementalHeartbeat = true;
     }
 
     // TODO: handle chunk removals
@@ -170,11 +201,15 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     LOG_INFO("Successfully reported heartbeat to master");
 }
 
-void TMasterConnector::OnError()
+void TMasterConnector::OnDisconnected()
 {
     HolderId = InvalidHolderId;
     Registered = false;
     IncrementalHeartbeat = false;
+    ReportedAdded.clear();
+    ReportedRemoved.clear();
+    AddedSinceLastSuccess.clear();
+    RemovedSinceLastSuccess.clear();
 }
 
 NChunkManager::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
@@ -187,18 +222,38 @@ NChunkManager::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
 
 void TMasterConnector::RegisterAddedChunk(TChunk::TPtr chunk)
 {
-    AddedChunks.push_back(chunk);
+    if (!IncrementalHeartbeat)
+        return;
 
     LOG_DEBUG("Registered addition of chunk (ChunkId: %s)",
         ~chunk->GetId().ToString());
+
+    if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end())
+        return;
+
+    if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
+        RemovedSinceLastSuccess.erase(chunk);
+    }
+
+    AddedSinceLastSuccess.insert(chunk);
 }
 
 void TMasterConnector::RegisterRemovedChunk(TChunk::TPtr chunk)
 {
-    RemovedChunks.push_back(chunk);
+    if (!IncrementalHeartbeat)
+        return;
 
     LOG_DEBUG("Registered removal of chunk (ChunkId: %s)",
         ~chunk->GetId().ToString());
+
+    if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end())
+        return;
+
+    if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
+        AddedSinceLastSuccess.erase(chunk);
+    }
+
+    RemovedSinceLastSuccess.insert(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

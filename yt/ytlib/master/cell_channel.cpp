@@ -112,7 +112,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
 
     State = EState::Connected;
     Channel = new NRpc::TChannel(result.Address);
-    LeaderLookup.Drop();
+    LookupResult.Drop();
     return new TAsyncResult<NRpc::IChannel::TPtr>(~Channel);
 }
 

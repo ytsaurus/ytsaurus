@@ -137,7 +137,7 @@ public:
     void RenewTransactionLease(TTransaction::TPtr transaction)
     {
         YASSERT(IsLeader());
-        LeaseManager->RenewLease(transaction->GetLease());
+        LeaseManager->RenewLease(transaction->Lease());
     }
 
 
@@ -164,19 +164,22 @@ private:
 
     void CreateLease(TTransaction::TPtr transaction)
     {
-        TLeaseManager::TLease lease = LeaseManager->CreateLease(
+        YASSERT(IsLeader());
+        YASSERT(transaction->Lease() == TLeaseManager::TLease());
+        transaction->Lease() = LeaseManager->CreateLease(
             Config.TransactionTimeout,
             FromMethod(
             &TState::OnTransactionExpired,
             TPtr(this),
             transaction)
             ->Via(GetStateInvoker()));
-        transaction->SetLease(lease);
     }
 
     void CloseLease(TTransaction::TPtr transaction)
     {
-        LeaseManager->CloseLease(transaction->GetLease());
+        YASSERT(IsLeader());
+        YASSERT(transaction->Lease() != TLeaseManager::TLease());
+        LeaseManager->CloseLease(transaction->Lease());
     }
 
     void OnTransactionExpired(TTransaction::TPtr transaction)
@@ -203,6 +206,7 @@ private:
         {
             CreateLease(it->Second());
         }
+        LOG_INFO("Created fresh leases for all transactions");
     }
 
     void CloseAllLeases()
@@ -213,6 +217,7 @@ private:
         {
             CloseLease(it->Second());
         }
+        LOG_INFO("Closed all transaction leases");
     }
 
     // TMetaStatePart overrides.

@@ -2,8 +2,8 @@ SET(YT_SOURCE_FILES
     chunk_manager.proto
     chunk_manager_rpc.proto
     common.cpp
-    chunk.cpp
+    holder.h
+    chunk.h
     chunk_manager.cpp
     chunk_manager_rpc.h
-    holder_tracker.cpp
 )

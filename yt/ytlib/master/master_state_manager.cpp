@@ -43,7 +43,8 @@ TMasterStateManager::TMasterStateManager(
 
     MasterState = new TDecoratedMasterState(
         masterState,
-        ~SnapshotStore, ChangeLogCache);
+        SnapshotStore,
+        ChangeLogCache);
 
     // TODO: fill config
     ElectionManager = new TElectionManager(
@@ -139,7 +140,7 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
     ChangeCommitter = new TChangeCommitter(
         TChangeCommitter::TConfig(),
         CellManager,
-        ~MasterState,
+        MasterState,
         ChangeLogCache,
         ServiceInvoker,
         Epoch);
@@ -147,9 +148,9 @@ void TMasterStateManager::StartEpoch(const TMasterEpoch& epoch)
     SnapshotCreator = new TSnapshotCreator(
         TSnapshotCreator::TConfig(),
         CellManager,
-        ~MasterState,
+        MasterState,
         ChangeLogCache,
-        ~SnapshotStore,
+        SnapshotStore,
         Epoch,
         ServiceInvoker);
 }
@@ -599,9 +600,9 @@ void TMasterStateManager::StartLeading(TMasterEpoch epoch)
     YASSERT(~LeaderRecovery == NULL);
     LeaderRecovery = new TLeaderRecovery(
         CellManager,
-        ~MasterState,
+        MasterState,
         ChangeLogCache,
-        ~SnapshotStore,
+        SnapshotStore,
         Epoch,
         LeaderId,
         ServiceInvoker);
@@ -633,6 +634,8 @@ void TMasterStateManager::OnLeaderRecovery(TRecovery::EResult result)
         &TMasterStateManager::OnApplyChange,
         TPtr(this)));
 
+    MasterState->OnStartLeading();
+
     LOG_INFO("Leader recovery complete");
 }
 
@@ -650,6 +653,8 @@ void TMasterStateManager::StopLeading()
     LOG_INFO("Stopped leading");
     
     State = EState::Elections;
+
+    MasterState->OnStopLeading();
     
     ChangeCommitter->SetOnApplyChange(NULL);
 
@@ -659,7 +664,6 @@ void TMasterStateManager::StopLeading()
         LeaderRecovery->Stop();
         LeaderRecovery.Drop();
     }
-    
 
     if (~FollowerTracker != NULL) {
         FollowerTracker->Stop();
@@ -678,9 +682,9 @@ void TMasterStateManager::StartFollowing(TMasterId leaderId, TMasterEpoch epoch)
     YASSERT(~FollowerRecovery == NULL);
     FollowerRecovery = new TFollowerRecovery(
         CellManager,
-        ~MasterState,
+        MasterState,
         ChangeLogCache,
-        ~SnapshotStore,
+        SnapshotStore,
         Epoch,
         LeaderId,
         ServiceInvoker);
@@ -711,6 +715,8 @@ void TMasterStateManager::OnFollowerRecovery(TRecovery::EResult result)
         Epoch,
         ServiceInvoker);
 
+    MasterState->OnStartFollowing();
+
     LOG_INFO("Follower recovery complete");
 }
 
@@ -720,6 +726,8 @@ void TMasterStateManager::StopFollowing()
     
     State = EState::Elections;
     
+    MasterState->OnStopFollowing();
+
     StopEpoch();
 
     if (~FollowerRecovery != NULL) {

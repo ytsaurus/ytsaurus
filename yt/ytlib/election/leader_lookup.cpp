@@ -68,32 +68,22 @@ void TLeaderLookup::OnResponse(
         response->GetPriority(),
         ~epoch.ToString());
 
-    switch (response->GetState()) {
-        case TProxy::EState::Leading:
-            YASSERT(voteId == response->GetSelfId());
-            break;
+    if (response->GetState() == TProxy::EState::Leading) {
+        YASSERT(voteId == response->GetSelfId());
 
-        case TProxy::EState::Following:
-            break;
+        TResult result;
+        result.Address = address;
+        result.Id = voteId;
+        result.Epoch = epoch;
+        asyncResult->Set(result);
 
-        default:
-            return;
-    }
-    
-    YASSERT(voteId != InvalidMasterId);
+        awaiter->Cancel();
 
-    TResult result;
-    result.Address = address;
-    result.Id = voteId;
-    result.Epoch = epoch;
-    asyncResult->Set(result);
-
-    awaiter->Cancel();
-
-    LOG_INFO("Leader found at %s (Id: %d, Epoch: %s)",
-        ~address,
-        response->GetSelfId(),
-        ~epoch.ToString());
+        LOG_INFO("Leader found at %s (Id: %d, Epoch: %s)",
+            ~address,
+            response->GetSelfId(),
+            ~epoch.ToString());
+    }   
 }
 
 void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)

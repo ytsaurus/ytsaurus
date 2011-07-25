@@ -1,6 +1,13 @@
 package NYT.NChunkManager.NProto;
 
+import "chunk_manager_rpc.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMsgUnregisterHolder
+{
+    required int32 HolderId = 1;
+}
 
 message TMsgAddChunk
 {

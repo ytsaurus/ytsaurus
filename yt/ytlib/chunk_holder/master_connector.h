@@ -52,7 +52,8 @@ public:
     
 private:
     typedef NChunkManager::TChunkManagerProxy TProxy;
-    typedef yvector<TChunk::TPtr> TChunks;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef yhash_set<TChunk::TPtr, TIntrusivePtrHash<TChunk> > TChunks;
 
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
@@ -88,12 +89,17 @@ private:
      */
     Stroka Address;
     
-    //! The positive part of the chunk set delta.
-    TChunks AddedChunks;
+    //! Chunks that were added since the last successful heartbeat.
+    TChunks AddedSinceLastSuccess;
 
-    //! The negative part of the chunk set delta.
-    TChunks RemovedChunks;
+    //! Chunks that were removed since the last successful heartbeat.
+    TChunks RemovedSinceLastSuccess;
 
+    //! Chunks that were reported added at the last heartbeat (for which no reply is received yet).
+    TChunks ReportedAdded;
+
+    //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
+    TChunks ReportedRemoved;
 
     //! Initializes #Proxy.
     void InitializeProxy();
@@ -121,7 +127,7 @@ private:
     void OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response);
 
     //! Handles error during a registration or a heartbeat.
-    void OnError();
+    void OnDisconnected();
 
     //! Constructs a protobuf chunk info for a given chunk.
     static NChunkManager::NProto::TChunkInfo GetInfo(TChunk::TPtr chunk);

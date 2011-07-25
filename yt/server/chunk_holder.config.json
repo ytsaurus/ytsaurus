@@ -1,6 +1,8 @@
 {
-  Locations : ["node0"],
-  MasterAddress : "localhost:9001",
+  Locations : ["node1"],
+  Masters: {
+     Addresses: ["localhost:8000", "localhost:8001", "localhost:8002"]
+  },
 
   Logging: {
     Writers: [

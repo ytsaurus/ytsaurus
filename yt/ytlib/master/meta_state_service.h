@@ -79,7 +79,7 @@ protected:
 private:
     void OnCommitError(NRpc::TServiceContext::TPtr context)
     {
-        context->Reply(NRpc::EErrorCode::ServiceError);
+        context->Reply(NRpc::EErrorCode::Unavailable);
     }
 
     template<class TResult>

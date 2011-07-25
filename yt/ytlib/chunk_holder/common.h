@@ -161,7 +161,7 @@ struct THolderStatistics
         NChunkManager::NProto::THolderStatistics result;
         result.SetAvailableSpace(AvailableSpace);
         result.SetUsedSpace(UsedSpace);
-        result.SetChunkCount(0);
+        result.SetChunkCount(ChunkCount);
         return result;
     }
 

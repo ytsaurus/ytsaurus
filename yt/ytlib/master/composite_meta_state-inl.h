@@ -63,9 +63,8 @@ void TMetaStatePart::MethodThunk(
     const TRef& changeData,
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
 {
-    google::protobuf::io::ArrayInputStream ais(changeData.Begin(), changeData.Size());
     TMessage message;
-    YVERIFY(message.ParseFromZeroCopyStream(&ais));
+    YVERIFY(message.ParseFromArray(changeData.Begin(), changeData.Size()));
 
     changeMethod->Do(message);
 }

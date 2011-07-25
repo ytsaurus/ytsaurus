@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 
@@ -28,6 +29,14 @@ public:
             return NULL;
         else
             return it->Second();
+    }
+
+    TValuePtr Get(const TKey& key, bool forUpdate = false)
+    {
+        UNUSED(forUpdate);
+        TValuePtr value = Find(key);
+        YASSERT(~value != NULL);
+        return value;
     }
 
     bool Remove(const TKey& key)

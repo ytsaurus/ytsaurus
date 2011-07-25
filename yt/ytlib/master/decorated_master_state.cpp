@@ -175,6 +175,26 @@ void TDecoratedMasterState::UpdateStateId(const TMasterStateId& newStateId)
     AvailableStateId = Max(AvailableStateId, StateId);
 }
 
+void TDecoratedMasterState::OnStartLeading()
+{
+    State->OnStartLeading();
+}
+
+void TDecoratedMasterState::OnStopLeading()
+{
+    State->OnStopLeading();
+}
+
+void TDecoratedMasterState::OnStartFollowing()
+{
+    State->OnStartFollowing();
+}
+
+void TDecoratedMasterState::OnStopFollowing()
+{
+    State->OnStopFollowing();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

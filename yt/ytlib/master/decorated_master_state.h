@@ -39,6 +39,11 @@ public:
     void AdvanceSegment();
     void RotateChangeLog();
 
+    void OnStartLeading();
+    void OnStopLeading();
+    void OnStartFollowing();
+    void OnStopFollowing();
+
 private:
     void AdvanceChangeCount();
     void ComputeAvailableStateId();

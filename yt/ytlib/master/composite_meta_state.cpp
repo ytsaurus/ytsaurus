@@ -40,15 +40,13 @@ TMetaStatePart::TMetaStatePart(
 bool TMetaStatePart::IsLeader() const
 {
     TMasterStateManager::EState state = MetaStateManager->GetState();
-    return state == TMasterStateManager::EState::Leading ||
-           state == TMasterStateManager::EState::LeaderRecovery;
+    return state == TMasterStateManager::EState::Leading;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
     TMasterStateManager::EState state = MetaStateManager->GetState();
-    return state == TMasterStateManager::EState::Following ||
-           state == TMasterStateManager::EState::FollowerRecovery;
+    return state == TMasterStateManager::EState::Following;
 }
 
 IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
@@ -63,6 +61,7 @@ IInvoker::TPtr TMetaStatePart::GetStateInvoker() const
 
 IInvoker::TPtr TMetaStatePart::GetEpochStateInvoker() const
 {
+    YASSERT(~MetaState->EpochStateInvoker != NULL);
     return ~MetaState->EpochStateInvoker;
 }
 
