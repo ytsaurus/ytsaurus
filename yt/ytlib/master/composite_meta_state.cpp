@@ -98,7 +98,7 @@ IInvoker::TPtr TCompositeMetaState::GetInvoker() const
 TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream& output)
 {
     TAsyncResult<TVoid>::TPtr result;
-    for (auto it = Parts.begin(); it != Parts.end(); ++it)
+    for (TPartMap::iterator it = Parts.begin(); it != Parts.end(); ++it)
     {
         result = it->Second()->Save(output);
     }
