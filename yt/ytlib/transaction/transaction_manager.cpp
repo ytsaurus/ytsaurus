@@ -41,7 +41,7 @@ public:
 
         TTransaction::TPtr transaction = new TTransaction(id);
         if (IsLeader()) {
-            CreateTransactionLease(transaction);
+            CreateLease(transaction);
         }
 
         YVERIFY(Transactions.Insert(id, transaction));
@@ -68,8 +68,8 @@ public:
 
         // TODO: timing
         for (THandlers::iterator it = Handlers.begin();
-                it != Handlers.end();
-                ++it)
+             it != Handlers.end();
+             ++it)
         {
             (*it)->OnTransactionCommitted(transaction);
         }
@@ -77,7 +77,7 @@ public:
         YASSERT(Transactions.Remove(id));
 
         if (IsLeader()) {
-            CloseTransactionLease(transaction);
+            CloseLease(transaction);
         }
 
         LOG_INFO("Transaction committed (TransactionId: %s)",
@@ -95,8 +95,8 @@ public:
 
         // TODO: timing
         for (THandlers::iterator it = Handlers.begin();
-                it != Handlers.end();
-                ++it)
+             it != Handlers.end();
+             ++it)
         {
             (*it)->OnTransactionAborted(transaction);
         }
@@ -104,7 +104,7 @@ public:
         YASSERT(Transactions.Remove(id));
 
         if (IsLeader()) {
-            CloseTransactionLease(transaction);
+            CloseLease(transaction);
         }
 
         LOG_INFO("Transaction aborted (TransactionId: %s)",
@@ -147,7 +147,7 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
+    typedef TMetaStateRefMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
     //! Configuration.
@@ -162,7 +162,7 @@ private:
     //! Registered handlers.
     THandlers Handlers;
 
-    void CreateTransactionLease(TTransaction::TPtr transaction)
+    void CreateLease(TTransaction::TPtr transaction)
     {
         TLeaseManager::TLease lease = LeaseManager->CreateLease(
             Config.TransactionTimeout,
@@ -174,7 +174,7 @@ private:
         transaction->SetLease(lease);
     }
 
-    void CloseTransactionLease(TTransaction::TPtr transaction)
+    void CloseLease(TTransaction::TPtr transaction)
     {
         LeaseManager->CloseLease(transaction->GetLease());
     }
@@ -195,6 +195,25 @@ private:
         CommitChange(message, FromMethod(&TState::AbortTransaction, TPtr(this)));
     }
     
+    void CreateAllLeases()
+    {
+        for (TTransactionMap::TIterator it = Transactions.Begin();
+             it != Transactions.End();
+             ++it)
+        {
+            CreateLease(it->Second());
+        }
+    }
+
+    void CloseAllLeases()
+    {
+        for (TTransactionMap::TIterator it = Transactions.Begin();
+             it != Transactions.End();
+             ++it)
+        {
+            CloseLease(it->Second());
+        }
+    }
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -209,37 +228,25 @@ private:
 
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
     {
-        return Transactions.Load(GetSnapshotInvoker(), stream)
-               ->Apply(FromMethod(&TState::OnLoaded, TPtr(this)));
-    }
-
-    TVoid OnLoaded(TVoid)
-    {
-        // Extend all leases
-        if (IsLeader()) {
-            TTransactionMap::TValues transactions = Transactions.GetValues();
-            for (TTransactionMap::TValues::iterator it = transactions.begin();
-                it != transactions.end();
-                ++it)
-            {
-                CreateTransactionLease(*it);
-            }
-        }
-        return TVoid();
+        return Transactions.Load(GetSnapshotInvoker(), stream);
     }
 
     virtual void Clear()
     {
         if (IsLeader()) {
-            TTransactionMap::TValues transactions = Transactions.GetValues();
-            for (TTransactionMap::TValues::iterator it = transactions.begin();
-                it != transactions.end();
-                ++it)
-            {
-                CloseTransactionLease(*it);
-            }
+            CloseAllLeases();
         }
         Transactions.Clear();
+    }
+
+    virtual void OnStartLeading()
+    {
+        CreateAllLeases();
+    }
+
+    virtual void OnStopLeading()
+    {
+        CloseAllLeases();
     }
 };
 

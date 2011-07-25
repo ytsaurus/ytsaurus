@@ -51,17 +51,6 @@ public:
         }
     };
 
-    TMasterStateManager(
-        const TConfig& config,
-        TCellManager::TPtr cellManager,
-        IInvoker::TPtr serviceInvoker,
-        IMasterState::TPtr masterState,
-        NRpc::TServer::TPtr server);
-    ~TMasterStateManager();
-
-    // TODO: refactor; in-class declarations should be logically regroupped
-    void Start();
-
     DECLARE_ENUM(EState, 
         (Stopped)
         (Elections)
@@ -71,10 +60,6 @@ public:
         (Leading)
     );
 
-    // TODO: add paired setter
-    // TODO: force_inline
-    EState GetState() const;
-
     DECLARE_ENUM(ECommitResult,
         (Committed)
         (MaybeCommitted)
@@ -83,6 +68,18 @@ public:
     );
 
     typedef TAsyncResult<ECommitResult> TCommitResult;
+
+    TMasterStateManager(
+        const TConfig& config,
+        TCellManager::TPtr cellManager,
+        IInvoker::TPtr serviceInvoker,
+        IMasterState::TPtr masterState,
+        NRpc::TServer::TPtr server);
+    ~TMasterStateManager();
+
+    void Start();
+
+    EState GetState() const;
 
     TCommitResult::TPtr CommitChange(
         IAction::TPtr changeAction,
@@ -114,7 +111,7 @@ private:
         TChangeCommitter::EResult result,
         TCtxApplyChange::TPtr context);
 
-    // TODO: which thread?
+    // Thread-neutral.
     void Restart();
 
     // Service thread
@@ -129,7 +126,7 @@ private:
     // State invoker.
     void OnApplyChange();
 
-    // TODO: which thread?
+    // Thread-neutral.
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members

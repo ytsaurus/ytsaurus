@@ -74,6 +74,9 @@ void TMasterStateManager::RegisterMethods()
 
 void TMasterStateManager::Restart()
 {
+    // To prevent multiple restarts.
+    ServiceEpochInvoker->Cancel();
+
     ElectionManager->Restart();
 }
 

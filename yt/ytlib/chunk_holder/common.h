@@ -3,6 +3,7 @@
 #include "chunk_holder.pb.h"
 #include "chunk_manager_rpc.pb.h"
 
+#include "../election/leader_lookup.h"
 #include "../misc/guid.h"
 #include "../misc/common.h"
 #include "../logging/log.h"
@@ -32,9 +33,11 @@ struct TChunkHolderConfig
     //! Paths to storage locations.
     yvector<Stroka> Locations;
 
-    // TODO: replicated master;
-    //! Cell master address.
-    Stroka MasterAddress;
+    //! Masters configuration.
+    /*!
+     *  If no master addresses are given, the holder will operate in a standalone mode.
+     */
+    TLeaderLookup::TConfig Masters; 
     
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
@@ -62,7 +65,7 @@ struct TChunkHolderConfig
     }
 
     //! Reads configuration from JSON.
-    void Read(const TJsonObject* json);
+    void Read(TJsonObject* json);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

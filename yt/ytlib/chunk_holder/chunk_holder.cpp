@@ -33,7 +33,7 @@ TChunkHolder::TChunkHolder(
         ChunkStore,
         serviceInvoker);
 
-    if (!Config.MasterAddress.Empty()) {
+    if (!Config.Masters.Addresses.empty()) {
         MasterConnector = new TMasterConnector(
             Config,
             ChunkStore,

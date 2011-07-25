@@ -20,17 +20,33 @@ public:
 
     struct TConfig
     {
-        yvector<Stroka> MasterAddresses;
+        yvector<Stroka> Addresses;
         TDuration Timeout;
 
         TConfig()
             : Timeout(TDuration::MilliSeconds(300))
         { }
 
+        Stroka ToString()
+        {
+            Stroka result = "[";
+            for (yvector<Stroka>::iterator it = Addresses.begin();
+                it != Addresses.end();
+                ++it)
+            {
+                if (it != Addresses.begin()) {
+                    result.append(", ");
+                }
+                result.append(*it);
+            }
+            result.append("]");
+            return result;
+        }
+
         void Read(TJsonObject* json)
         {
             // TODO: read timeout
-            NYT::TryRead(json, L"MasterAddresses", &MasterAddresses);
+            NYT::TryRead(json, L"Addresses", &Addresses);
         }
     };
 

@@ -21,8 +21,8 @@ TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
     TLookupResult::TPtr asyncResult = new TLookupResult();
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
-    for (yvector<Stroka>::iterator it = Config.MasterAddresses.begin();
-         it != Config.MasterAddresses.end();
+    for (yvector<Stroka>::iterator it = Config.Addresses.begin();
+         it != Config.Addresses.end();
          ++it)
     {
         Stroka address = *it;
@@ -90,7 +90,10 @@ void TLeaderLookup::OnResponse(
 
     awaiter->Cancel();
 
-    LOG_INFO("Leader found");
+    LOG_INFO("Leader found at %s (Id: %d, Epoch: %s)",
+        ~address,
+        response->GetSelfId(),
+        ~epoch.ToString());
 }
 
 void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)

@@ -86,7 +86,7 @@ public:
 private:
     TTransactionManager::TPtr TransactionManager;
 
-    typedef TMetaStateMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
+    typedef TMetaStateRefMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
     TChunkMap Chunks;
 
     // TMetaStatePart overrides.

@@ -8,11 +8,12 @@ namespace NYT {
 
 // TODO: document and implement
 template <class TKey, class TValue, class THash = ::THash<TKey> >
-class TMetaStateMap
+class TMetaStateRefMap
 {
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;
-    typedef yvector<TValuePtr> TValues;
+    typedef yhash_map<TKey, TValuePtr, THash> TMap;
+    typedef typename TMap::iterator TIterator;
 
     bool Insert(const TKey& key, TValuePtr value)
     {
@@ -44,17 +45,14 @@ public:
         Map.clear();
     }
 
-    TValues GetValues()
+    TIterator Begin()
     {
-        TValues values;
-        values.reserve(Map.ysize());
-        for (typename TMap::iterator it = Map.begin();
-             it != Map.end();
-             ++it)
-        {
-            values.push_back(it->Second());
-        }
-        return values;
+        return Map.begin();
+    }
+
+    TIterator End()
+    {
+        return Map.end();
     }
 
     TAsyncResult<TVoid>::TPtr Save(
@@ -78,9 +76,7 @@ public:
         return new TAsyncResult<TVoid>(TVoid());
     }
     
-
 private:
-    typedef yhash_map<TKey, TValuePtr, THash> TMap;
     TMap Map;
 
 };

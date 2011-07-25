@@ -46,11 +46,19 @@ protected:
 
     IInvoker::TPtr GetSnapshotInvoker() const;
     IInvoker::TPtr GetStateInvoker() const;
+    IInvoker::TPtr GetEpochStateInvoker() const;
 
     virtual Stroka GetPartName() const = 0;
+
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;
+
     virtual void Clear() = 0;
+
+    virtual void OnStartLeading();
+    virtual void OnStopLeading();
+    virtual void OnStartFollowing();
+    virtual void OnStopFollowing();
 
     TMasterStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
@@ -89,6 +97,7 @@ private:
 
     IInvoker::TPtr StateInvoker;
     IInvoker::TPtr SnapshotInvoker;
+    TCancelableInvoker::TPtr EpochStateInvoker;
 
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
@@ -98,8 +107,19 @@ private:
 
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input);
-    virtual void ApplyChange(TRef changeData);
+
+    virtual void ApplyChange(const TRef& changeData);
+
     virtual void Clear();
+
+    virtual void OnStartLeading();
+    virtual void OnStopLeading();
+    virtual void OnStartFollowing();
+    virtual void OnStopFollowing();
+
+    void StartEpoch();
+    void StopEpoch();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

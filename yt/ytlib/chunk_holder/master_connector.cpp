@@ -3,6 +3,7 @@
 #include <util/system/hostname.h>
 
 #include "../rpc/client.h"
+#include "../master/cell_channel.h"
 
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"
@@ -34,14 +35,14 @@ void TMasterConnector::Initialize()
     InitializeAddress();
     OnHeartbeat();
 
-    LOG_INFO("Chunk holder address is %s, master address is %s",
+    LOG_INFO("Chunk holder address is %s, master addresses are %s",
         ~Address,
-        ~Config.MasterAddress);
+        ~Config.Masters.ToString());
 }
 
 void TMasterConnector::InitializeProxy()
 {
-    NRpc::TChannel::TPtr channel = new NRpc::TChannel(Config.MasterAddress);
+    NRpc::IChannel::TPtr channel = new TCellChannel(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
 }
 

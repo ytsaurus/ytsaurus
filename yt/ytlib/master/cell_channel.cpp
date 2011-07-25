@@ -63,26 +63,33 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
     TGuard<TSpinLock> guard(SpinLock);
     switch (State) {
         case EState::NotConnected:
-        case EState::Failed:
+        case EState::Failed: {
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel == NULL);
             State = EState::Connecting;
-            LookupResult = LeaderLookup->GetLeader();
-            return LookupResult->Apply(FromMethod(
+            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult = LeaderLookup->GetLeader();
+            guard.Release();
+
+            return lookupResult->Apply(FromMethod(
                 &TCellChannel::OnFirstLookupResult,
                 TPtr(this)));
+        }
 
         case EState::Connected:
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel != NULL);
             return new TAsyncResult<NRpc::IChannel::TPtr>(~Channel);
 
-        case EState::Connecting:
+        case EState::Connecting: {
             YASSERT(~LookupResult != NULL);
             YASSERT(~Channel == NULL);
-            return LookupResult->Apply(FromMethod(
+            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult;
+            guard.Release();
+
+            return lookupResult->Apply(FromMethod(
                 &TCellChannel::OnSecondLookupResult,
                 TPtr(this)));
+        }
 
         default:
             YASSERT(false);
@@ -99,12 +106,13 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
 
     if (result.Id == InvalidMasterId) {
         State = EState::Failed;
+        LookupResult.Drop();
         return new TAsyncResult<NRpc::IChannel::TPtr>(NULL);
     }
 
     State = EState::Connected;
     Channel = new NRpc::TChannel(result.Address);
-    LookupResult = NULL;
+    LeaderLookup.Drop();
     return new TAsyncResult<NRpc::IChannel::TPtr>(~Channel);
 }
 
