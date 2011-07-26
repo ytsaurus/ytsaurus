@@ -27,11 +27,11 @@ void TChunkStore::ScanChunks()
     for (int location = 0; location < Config.Locations.ysize(); ++location) {
         Stroka path = Config.Locations[location];
 
-        NFS::CleanTempFiles(path);
-
         // TODO: make a function in NYT::NFS
-        MakeDirIfNotExist(~Config.Locations[location]);
+        MakePathIfNotExist(~path);
 
+        NFS::CleanTempFiles(path);
+        
         LOG_INFO("Scanning location %s", ~path);
 
         TFileList fileList;
