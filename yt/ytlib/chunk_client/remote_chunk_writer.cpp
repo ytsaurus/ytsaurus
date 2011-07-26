@@ -301,8 +301,8 @@ void TRemoteChunkWriter::ShiftWindow()
     YASSERT(!Window.empty());
 
     int lastFlushableBlock = -1;
-    for (int i= 0; i < Window.size(); ++i) {
-        TGroupPtr group = Window[i];
+    for (TWindow::const_iterator it = Window.begin(); it != Window.end(); ++it) {
+        TGroupPtr group = *it;
         if (group->IsWritten()) {
             lastFlushableBlock = group->GetEndBlockIndex();
         } else {
