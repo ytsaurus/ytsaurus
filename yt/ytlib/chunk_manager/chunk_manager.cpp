@@ -196,11 +196,7 @@ public:
 
     THolder::TPtr FindHolder(int id)
     {
-        THolder::TPtr holder = Holders.Find(id);
-        if (~holder != NULL) {
-            RenewLease(holder);
-        }
-        return holder;
+        return Holders.Find(id);
     }
 
     THolder::TPtr GetHolder(int id)

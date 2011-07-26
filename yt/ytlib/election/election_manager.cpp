@@ -675,6 +675,7 @@ void TElectionManager::StartLeading()
     FollowerPinger->Run();
 
     LOG_INFO("Starting leading (Epoch: %s)", ~Epoch.ToString());
+    
     ElectionCallbacks->StartLeading(Epoch);
 }
 
@@ -685,6 +686,8 @@ void TElectionManager::StopLeading()
     LOG_INFO("Stopping leading (Epoch: %s)",
                ~Epoch.ToString());
 
+    ElectionCallbacks->StopLeading();
+
     YASSERT(~FollowerPinger != NULL);
     FollowerPinger->Cancel();
     FollowerPinger.Drop();
@@ -692,8 +695,6 @@ void TElectionManager::StopLeading()
     StopEpoch();
     
     Reset();
-
-    ElectionCallbacks->StopLeading();
 }
 
 void TElectionManager::StopFollowing()
@@ -703,12 +704,12 @@ void TElectionManager::StopFollowing()
     LOG_INFO("Stopping following (LeaderId: %d, Epoch: %s)",
         LeaderId,
         ~Epoch.ToString());
+        
+    ElectionCallbacks->StopFollowing();
     
     StopEpoch();
     
     Reset();
-    
-    ElectionCallbacks->StopFollowing();
 }
 
 void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
