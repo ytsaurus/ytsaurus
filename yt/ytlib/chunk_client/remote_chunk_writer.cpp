@@ -52,18 +52,13 @@ public:
     void AddBlock(const TSharedRef& block);
     void Process();
 
-    bool IsFlushed() const;
+    bool IsWritten() const;
     i64 GetSize() const;
     int GetEndBlockIndex() const;
     int GetBlockCount() const;
 
 private:
-    DECLARE_ENUM(EGroupState,
-        (Empty)
-        (InMemory)
-        (Flushed)
-    );
-    yvector<EGroupState> States;
+    yvector<bool> IsSent;
 
     yvector<TSharedRef> Blocks;
     TBlockOffset StartOffset;
@@ -80,10 +75,6 @@ private:
     void SendGroup(int srcNode);
     TInvSendBlocks::TPtr SendBlocks(int srcNode, int dstNode);
     void OnSentBlocks(int srcNode, int dstNode);
-
-    void FlushGroup();
-    TInvFlushBlock::TPtr FlushBlock(int node);
-    void OnFlushedBlock(int node);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,7 +84,7 @@ TRemoteChunkWriter::TGroup::TGroup(
     int startBlockIndex, 
     TBlockOffset startOffset, 
     TRemoteChunkWriter::TPtr writer)
-    : States(nodeCount, EGroupState::Empty)
+    : IsSent(nodeCount, false)
     , StartOffset(startOffset)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
@@ -121,13 +112,10 @@ int TRemoteChunkWriter::TGroup::GetBlockCount() const
     return Blocks.ysize();
 }
 
-bool TRemoteChunkWriter::TGroup::IsFlushed() const
+bool TRemoteChunkWriter::TGroup::IsWritten() const
 {
-    int nodeCount = States.ysize();
-    for (int node = 0; node < nodeCount; ++node) {
-        if (Writer->Nodes[node]->IsAlive && 
-            States[node] != EGroupState::Flushed) 
-        {
+    for (int node = 0; node < IsSent.ysize(); ++node) {
+        if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
             return false;
         }
     }
@@ -180,7 +168,7 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
 
 void TRemoteChunkWriter::TGroup::OnPutBlocks(int node)
 {
-    States[node] = EGroupState::InMemory;
+    IsSent[node] = true;
     LOG_DEBUG("Chunk %s, blocks %d-%d, node %s put success",
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
@@ -190,9 +178,9 @@ void TRemoteChunkWriter::TGroup::OnPutBlocks(int node)
 
 void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
 {
-    int nodeCount = States.ysize();
+    int nodeCount = IsSent.ysize();
     for (int node = 0; node < nodeCount; ++node) {
-        if (Writer->Nodes[node]->IsAlive && States[node] == EGroupState::Empty) {
+        if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
             TParallelAwaiter::TPtr awaiter = 
                 new TParallelAwaiter(~TRemoteChunkWriter::WriterThread);
             IAction::TPtr onSuccess = FromMethod(
@@ -233,61 +221,13 @@ TRemoteChunkWriter::TGroup::SendBlocks(int srcNode, int dstNode)
 
 void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
 {
-    States[dstNode] = TGroup::EGroupState::InMemory;
+    IsSent[dstNode] = true;
     LOG_DEBUG("Chunk %s, blocks %d-%d, node %s, send to %s success",
         ~Writer->ChunkId.ToString(), 
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[srcNode]->Address,
         ~Writer->Nodes[dstNode]->Address);
-}
-
-void TRemoteChunkWriter::TGroup::FlushGroup()
-{
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~Writer->WriterThread);
-    int nodeCount = States.ysize();
-    for (int node = 0; node < nodeCount; ++node) {
-        if (Writer->Nodes[node]->IsAlive && States[node] != EGroupState::Flushed) {
-            IAction::TPtr onSuccess = FromMethod(
-                &TGroup::OnFlushedBlock, 
-                TGroupPtr(this), 
-                node);
-            IParamAction<TRspFlushBlock::TPtr>::TPtr onResponse = FromMethod(
-                &TRemoteChunkWriter::CheckResponse<TRspFlushBlock>, 
-                Writer, 
-                node, 
-                onSuccess);
-            awaiter->Await(FlushBlock(node), onResponse);
-        }
-    }
-    awaiter->Complete(FromMethod(
-        &TRemoteChunkWriter::ShiftWindow, 
-        Writer));    
-}
-
-TRemoteChunkWriter::TInvFlushBlock::TPtr 
-TRemoteChunkWriter::TGroup::FlushBlock(int node)
-{
-    LOG_DEBUG("ChunkId %s, blocks %d-%d, node %s flush request",
-        ~Writer->ChunkId.ToString(), 
-        StartBlockIndex, 
-        GetEndBlockIndex(),
-        ~Writer->Nodes[node]->Address);
-
-    TProxy::TReqFlushBlock::TPtr req = Writer->Nodes[node]->Proxy.FlushBlock();
-    req->SetChunkId(Writer->ChunkId.ToProto());
-    req->SetBlockIndex(GetEndBlockIndex());
-    return req->Invoke(Writer->Config.RpcTimeout);
-}
-
-void TRemoteChunkWriter::TGroup::OnFlushedBlock(int node)
-{
-    States[node] = EGroupState::Flushed;
-    LOG_DEBUG("ChunkId %s, blocks %d-%d, node %s flush success",
-        ~Writer->ChunkId.ToString(), 
-        StartBlockIndex, 
-        GetEndBlockIndex(),
-        ~Writer->Nodes[node]->Address);
 }
 
 void TRemoteChunkWriter::TGroup::Process()
@@ -300,31 +240,19 @@ void TRemoteChunkWriter::TGroup::Process()
     int nodeWithBlocks = -1;
     bool emptyNodeExists = false;
 
-    int nodeCount = States.ysize();
+    int nodeCount = IsSent.ysize();
     for (int node = 0; node < nodeCount; ++node) {
         if (Writer->Nodes[node]->IsAlive) {
-            switch (States[node]) {
-                case EGroupState::InMemory:
-                    nodeWithBlocks = node;
-                    break;
-
-                case EGroupState::Empty:
-                    emptyNodeExists = true;
-                    break;
-
-                case EGroupState::Flushed:
-                    //Nothing to do here
-                    break;
-
-                default:
-                    YASSERT(false);
-                    break;
+            if (IsSent[node]) {
+                nodeWithBlocks = node;
+            } else {
+                emptyNodeExists = true;
             }
         }
     }
 
     if (!emptyNodeExists) {
-        FlushGroup();
+        Writer->ShiftWindow();
     } else if (nodeWithBlocks < 0) {
         PutGroup();
     } else {
@@ -369,10 +297,72 @@ TRemoteChunkWriter::~TRemoteChunkWriter()
 }
 
 void TRemoteChunkWriter::ShiftWindow()
+{ 
+    YASSERT(!Window.empty());
+
+    int lastFlushableBlock = -1;
+    for (int i= 0; i < Window.size(); ++i) {
+        TGroupPtr group = Window[i];
+        if (group->IsWritten()) {
+            lastFlushableBlock = group->GetEndBlockIndex();
+        } else {
+            break;
+        }
+    }
+
+    if (lastFlushableBlock < 0) {
+        return;
+    }
+
+    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~WriterThread);
+    for (int node = 0; node < Nodes.ysize(); ++node) {
+        if (Nodes[node]->IsAlive) {
+            IAction::TPtr onSuccess = FromMethod(
+                &TRemoteChunkWriter::OnFlushedBlock, 
+                TPtr(this), 
+                node,
+                lastFlushableBlock);
+            IParamAction<TRspFlushBlock::TPtr>::TPtr onResponse = FromMethod(
+                &TRemoteChunkWriter::CheckResponse<TRspFlushBlock>, 
+                TPtr(this), 
+                node, 
+                onSuccess);
+            awaiter->Await(FlushBlock(node, lastFlushableBlock), onResponse);
+        }
+    }
+    awaiter->Complete(FromMethod(
+        &TRemoteChunkWriter::OnShiftedWindow, 
+        TPtr(this),
+        lastFlushableBlock));
+}
+
+TRemoteChunkWriter::TInvFlushBlock::TPtr 
+TRemoteChunkWriter::FlushBlock(int node, int blockIndex)
+{
+    LOG_DEBUG("ChunkId %s, blocks up to %d, node %s flush request",
+        ~ChunkId.ToString(), 
+        blockIndex,
+        ~Nodes[node]->Address);
+
+    TProxy::TReqFlushBlock::TPtr req = Nodes[node]->Proxy.FlushBlock();
+    req->SetChunkId(ChunkId.ToProto());
+    req->SetBlockIndex(blockIndex);
+    return req->Invoke(Config.RpcTimeout);
+}
+
+void TRemoteChunkWriter::OnFlushedBlock(int node, int blockIndex)
+{
+    LOG_DEBUG("ChunkId %s, blocks up to %d, node %s flush success",
+        ~ChunkId.ToString(), 
+        blockIndex,
+        ~Nodes[node]->Address);
+}
+
+void TRemoteChunkWriter::OnShiftedWindow(int lastFlushedBlock)
 {
     while (!Window.empty()) {
         TGroupPtr group = Window.front();
-        if (!group->IsFlushed())
+        if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
         LOG_DEBUG("Chunk %s, blocks up to %d shifted out from window",

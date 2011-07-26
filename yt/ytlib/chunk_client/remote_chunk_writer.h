@@ -120,10 +120,14 @@ private:
     void RequestFinalization();
     void AddGroup(TGroupPtr group);
 
-    void ShiftWindow();
     void OnNodeDied(int node);
 
     void CheckStateAndThrow(); // client thread
+
+    void ShiftWindow();
+    TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+    void OnFlushedBlock(int node, int blockIndex);
+    void OnShiftedWindow(int blockIndex);
 
     void StartSession();
     TInvStartChunk::TPtr StartChunk(int node);
