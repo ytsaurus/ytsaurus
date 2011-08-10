@@ -43,7 +43,7 @@ struct TCellMasterConfig
     TCellManager::TConfig Cell;
 
     //! Meta state configuration.
-    TMasterStateManager::TConfig MetaState;
+    TMetaStateManager::TConfig MetaState;
 
     TCellMasterConfig()
     { }
@@ -66,7 +66,7 @@ struct TCellMasterConfig
 void RunCellMaster(const TCellMasterConfig& config)
 {
     // TODO: extract method
-    Stroka address = config.Cell.MasterAddresses.at(config.Cell.Id);
+    Stroka address = config.Cell.PeerAddresses.at(config.Cell.Id);
     size_t index = address.find_last_of(":");
     int port = FromString<int>(address.substr(index + 1));
 
@@ -81,7 +81,7 @@ void RunCellMaster(const TCellMasterConfig& config)
 
     TCellManager::TPtr cellManager = new TCellManager(config.Cell);
 
-    TMasterStateManager::TPtr metaStateManager = new TMasterStateManager(
+    TMetaStateManager::TPtr metaStateManager = new TMetaStateManager(
         config.MetaState,
         cellManager,
         liteInvoker,
@@ -129,11 +129,11 @@ int main(int argc, const char *argv[])
             .RequiredArgument("PORT")
             .StoreResult(&port);
 
-        TMasterId masterId = InvalidMasterId;
-        opts.AddLongOption("id", "master id")
+        TPeerId peerId = InvalidPeerId;
+        opts.AddLongOption("id", "peer id")
             .Optional()
             .RequiredArgument("ID")
-            .StoreResult(&masterId);
+            .StoreResult(&peerId);
 
         Stroka configFileName;
         opts.AddLongOption("config", "configuration file")
@@ -178,10 +178,10 @@ int main(int argc, const char *argv[])
             TCellMasterConfig config;
             config.Read(configRoot);
 
-            if (masterId >= 0) {
+            if (peerId >= 0) {
                 // TODO: check id
 
-                config.Cell.Id = masterId;
+                config.Cell.Id = peerId;
             }
 
             // TODO: check that config.Cell.Id is initialized
