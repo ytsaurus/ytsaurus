@@ -5,11 +5,12 @@
 #include "framework/framework.h"
 
 namespace NYT {
-namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncResultTest : public ::testing::Test {
+class TAsyncResultTest
+    : public ::testing::Test
+{
 protected:
     TAsyncResult<int> Result;
 };
@@ -83,6 +84,5 @@ TEST_F(TAsyncResultTest, SubscribeWithAsynchronousSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
 } // namespace NYT
 

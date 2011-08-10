@@ -3,11 +3,12 @@
 #include "framework/framework.h"
 
 namespace NYT {
-namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPatternFormatterTest : public ::testing::Test {
+class TPatternFormatterTest
+    : public ::testing::Test
+{
 protected:
     TPatternFormatter Formatter;
 };
@@ -94,6 +95,5 @@ TEST_F(TPatternFormatterTest, BadSyntax)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
 } // namespace NYT
 

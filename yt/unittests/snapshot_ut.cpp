@@ -6,11 +6,12 @@
 #include "framework/framework.h"
 
 namespace NYT {
-namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSnapshotTest : public ::testing::Test {
+class TSnapshotTest
+    : public ::testing::Test
+{
 protected:
     THolder<TTempFile> TemporaryFile;
     
@@ -73,6 +74,5 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
 } // namespace NYT
 

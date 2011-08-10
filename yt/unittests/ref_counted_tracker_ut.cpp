@@ -6,11 +6,11 @@
 #include "framework/framework.h"
 
 namespace NYT {
-namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleObject : public NYT::TRefCountedBase
+class TSimpleObject
+    : public NYT::TRefCountedBase
 {
     ui32 Foo;
     ui32 Bar;
@@ -68,6 +68,5 @@ TEST(TRefCountedTrackerTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
 } // namespace NYT
 
