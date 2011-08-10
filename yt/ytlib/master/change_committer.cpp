@@ -32,20 +32,20 @@ public:
     // State invoker
     TResult::TPtr Run()
     {
-        StateId = Committer->MasterState->GetStateId();
+        Version = Committer->MetaState->GetVersion();
 
-        LOG_DEBUG("Starting commit of change %s", ~StateId.ToString());
+        LOG_DEBUG("Starting commit of change %s", ~Version.ToString());
 
         TCellManager::TPtr cellManager = Committer->CellManager;
 
-        for (TMasterId id = 0; id < cellManager->GetMasterCount(); ++id) {
+        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
             
             THolder<TProxy> proxy(cellManager->GetMasterProxy<TProxy>(id));
             
             TProxy::TReqApplyChange::TPtr request = proxy->ApplyChange();
-            request->SetSegmentId(StateId.SegmentId);
-            request->SetChangeCount(StateId.ChangeCount);
+            request->SetSegmentId(Version.SegmentId);
+            request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Committer->Epoch.ToProto());
             request->Attachments().push_back(ChangeData);
             
@@ -53,13 +53,13 @@ public:
                 request->Invoke(Committer->Config.RpcTimeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
 
-            LOG_DEBUG("Change %s is sent to master %d",
-                ~StateId.ToString(),
+            LOG_DEBUG("Change %s is sent to peer %d",
+                ~Version.ToString(),
                 id);
         }
 
         Committer->DoCommitLeader(ChangeAction, ChangeData);
-        LOG_DEBUG("Change %s is committed locally", ~StateId.ToString());
+        LOG_DEBUG("Change %s is committed locally", ~Version.ToString());
 
         Awaiter->Complete(FromMethod(&TSession::OnCompleted, TPtr(this)));
 
@@ -77,33 +77,33 @@ private:
         Awaiter->Cancel();
         
         LOG_DEBUG("Change %s is committed by quorum",
-            ~StateId.ToString());
+            ~Version.ToString());
 
         return true;
     }
 
     // Service invoker
-    void OnCommitted(TProxy::TRspApplyChange::TPtr response, TMasterId masterId)
+    void OnCommitted(TProxy::TRspApplyChange::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error committing change %s at master %d (ErrorCode: %s)",
-                ~StateId.ToString(),
-                masterId,
+            LOG_WARNING("Error committing change %s at peer %d (ErrorCode: %s)",
+                ~Version.ToString(),
+                peerId,
                 ~response->GetErrorCode().ToString());
             return;
         }
 
         if (response->GetCommitted()) {
-            LOG_DEBUG("Change %s is committed by master %d",
-                ~StateId.ToString(),
-                masterId);
+            LOG_DEBUG("Change %s is committed by peer %d",
+                ~Version.ToString(),
+                peerId);
 
             ++CommitCount;
             CheckCommitQuorum();
         } else {
-            LOG_DEBUG("Change %s is acknowledged but not committed by master %d",
-                ~StateId.ToString(),
-                masterId);
+            LOG_DEBUG("Change %s is acknowledged but not committed by peer %d",
+                ~Version.ToString(),
+                peerId);
         }
     }
 
@@ -114,9 +114,9 @@ private:
             return;
 
         LOG_WARNING("Change %s is uncertain as it was committed by %d masters out of %d",
-            ~StateId.ToString(),
+            ~Version.ToString(),
             CommitCount,
-            Committer->CellManager->GetMasterCount());
+            Committer->CellManager->GetPeerCount());
         Result->Set(EResult::MaybeCommitted);
     }
 
@@ -127,7 +127,7 @@ private:
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
     i32 CommitCount; // Service thread
-    TMasterStateId StateId;
+    TMetaVersion Version;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,13 +135,13 @@ private:
 TChangeCommitter::TChangeCommitter(
     const TConfig& config,
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState::TPtr masterState,
+    TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
     IInvoker::TPtr serviceInvoker,
-    const TMasterEpoch& epoch)
+    const TEpoch& epoch)
     : Config(config)
     , CellManager(cellManager)
-    , MasterState(masterState)
+    , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
     , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
     , Epoch(epoch)
@@ -169,16 +169,16 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
-    TMasterStateId stateId,
+    TMetaVersion version,
     TSharedRef changeData)
 {
     return
         FromMethod(
             &TChangeCommitter::DoCommitFollower,
             TPtr(this),
-            stateId,
+            version,
             changeData)
-        ->AsyncVia(MasterState->GetInvoker())
+        ->AsyncVia(MetaState->GetInvoker())
         ->Do();
 }
 
@@ -186,11 +186,11 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
 {
-    TChangeCommitter::TResult::TPtr appendResult = MasterState
+    TChangeCommitter::TResult::TPtr appendResult = MetaState
         ->LogChange(changeData)
         ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
-    MasterState->ApplyChange(changeAction);
+    MetaState->ApplyChange(changeAction);
 
     // OnApplyChange can be modified concurrently.
     IAction::TPtr onApplyChange = OnApplyChange;
@@ -202,18 +202,18 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
-    TMasterStateId stateId,
+    TMetaVersion version,
     TSharedRef changeData)
 {
-    if (MasterState->GetStateId() != stateId) {
-        return new TResult(EResult::InvalidStateId);
+    if (MetaState->GetVersion() != version) {
+        return new TResult(EResult::InvalidVersion);
     }
 
-    TChangeCommitter::TResult::TPtr appendResult = MasterState
+    TChangeCommitter::TResult::TPtr appendResult = MetaState
         ->LogChange(changeData)
         ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
-    MasterState->ApplyChange(changeData);
+    MetaState->ApplyChange(changeData);
 
     return appendResult;
 }

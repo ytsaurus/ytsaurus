@@ -35,11 +35,11 @@ public:
 
     TRecovery(
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState::TPtr decoratedState,
+        TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
-        TMasterEpoch epoch,
-        TMasterId leaderId,
+        TEpoch epoch,
+        TPeerId leaderId,
         IInvoker::TPtr serviceInvoker);
 
     void Stop();
@@ -48,30 +48,30 @@ protected:
     friend class TLeaderRecovery;
     friend class TFollowerRecovery;
 
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     virtual bool IsLeader() const = 0;
 
     // Work thread
     TResult::TPtr RecoverFromSnapshot(
-        TMasterStateId targetStateId,
+        TMetaVersion targetVersion,
         i32 snapshotId);
     TResult::TPtr RecoverFromChangeLog(
         TVoid,
         TSnapshotReader::TPtr,
-        TMasterStateId targetStateId,
+        TMetaVersion targetVersion,
         i32 expectedPrevRecordCount);
     void ApplyChangeLog(
         TAsyncChangeLog& changeLog,
-        i32 targetChangeCount);
+        i32 targetRecordCount);
 
     // Thread-neutral.
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState::TPtr MasterState;
+    TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
-    TMasterEpoch Epoch;
-    TMasterId LeaderId;
+    TEpoch Epoch;
+    TPeerId LeaderId;
     TCancelableInvoker::TPtr CancelableServiceInvoker;
     TCancelableInvoker::TPtr CancelableStateInvoker;
 
@@ -87,11 +87,11 @@ public:
 
     TLeaderRecovery(
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState::TPtr decoratedState,
+        TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
-        TMasterEpoch epoch,
-        TMasterId leaderId,
+        TEpoch epoch,
+        TPeerId leaderId,
         IInvoker::TPtr serviceInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
@@ -112,11 +112,11 @@ public:
 
     TFollowerRecovery(
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState::TPtr decoratedState,
+        TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
-        TMasterEpoch epoch,
-        TMasterId leaderId,
+        TEpoch epoch,
+        TPeerId leaderId,
         IInvoker::TPtr serviceInvoker);
 
     //! Performs follower recovery brining the follower up-to-date and synched with the leader.
@@ -124,28 +124,28 @@ public:
 
     //! Postpones incoming request for advancing the current segment in the master state.
     /*!
-     * \param stateId State in which the segment should be changed.
+     * \param version State in which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed state
      * and postponing succeeded.
      */
-    EResult PostponeSegmentAdvance(const TMasterStateId& stateId);
+    EResult PostponeSegmentAdvance(const TMetaVersion& version);
     //! Postpones incoming change to the master state.
     /*!
      * \param change Incoming change.
-     * \param stateId State in which the change should be applied.
+     * \param version State in which the change should be applied.
      * \returns True when applicable change is coherent with the postponed state
      * and postponing succeeded.
      */
-    EResult PostponeChange(const TMasterStateId& stateId, const TSharedRef& change);
+    EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
     //! Handles sync response from the leader
     /*!
-     * \param stateId Current state at leader.
+     * \param version Current state at leader.
      * \param epoch Current epoch at leader.
      * \param maxSnapshotId Maximum snapshot id at leader.
      */
     void Sync(
-        const TMasterStateId& stateId,
-        const TMasterEpoch& epoch,
+        const TMetaVersion& version,
+        const TEpoch& epoch,
         i32 maxSnapshotId);
 
 private:
@@ -183,7 +183,7 @@ private:
 
     // Service thread
     TPostponedChanges PostponedChanges;
-    TMasterStateId PostponedStateId;
+    TMetaVersion PostponedVersion;
     bool SyncReceived;
 
      // Service thread

@@ -10,38 +10,38 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterStateManagerProxy
+class TMetaStateManagerProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TMasterStateManagerProxy> TPtr;
+    typedef TIntrusivePtr<TMetaStateManagerProxy> TPtr;
 
     DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
         ((InvalidSegmentId)(1))
         ((InvalidEpoch)(2))
-        ((InvalidStateId)(3))
+        ((InvalidVersion)(3))
         ((InvalidState)(4))
         ((IOError)(5))
     );
 
     static Stroka GetServiceName() 
     {
-        return "MasterStateManager";
+        return "MetaStateManager";
     }
 
-    TMasterStateManagerProxy(NRpc::IChannel::TPtr channel)
+    TMetaStateManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NRpcMasterStateManager, ScheduleSync);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, Sync);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, ReadSnapshot);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, ReadChangeLog);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, GetSnapshotInfo);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, GetChangeLogInfo);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, ApplyChange);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, CreateSnapshot);
-    RPC_PROXY_METHOD(NRpcMasterStateManager, PingLeader);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, ScheduleSync);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, Sync);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, ReadSnapshot);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, ReadChangeLog);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, GetSnapshotInfo);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, GetChangeLogInfo);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, ApplyChange);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, CreateSnapshot);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, PingLeader);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,7 +15,7 @@ TFollowerTracker::TFollowerTracker(
     : Config(config)
     , CellManager(cellManager)
     , EpochInvoker(new TCancelableInvoker(serviceInvoker))
-    , FollowerStates(cellManager->GetMasterCount())
+    , FollowerStates(cellManager->GetPeerCount())
     , LeaseManager(new TLeaseManager())
 {
     ResetFollowerStates();
@@ -29,9 +29,9 @@ void TFollowerTracker::Stop()
 bool TFollowerTracker::HasActiveQuorum()
 {
     int activeFollowerCount = 0;
-    for (int i = 0; i < CellManager->GetMasterCount(); ++i) {
+    for (int i = 0; i < CellManager->GetPeerCount(); ++i) {
         TFollowerState& followerState = FollowerStates[i];
-        if (followerState.State == TMasterStateManager::EState::Following) {
+        if (followerState.State == TMetaStateManager::EState::Following) {
             ++activeFollowerCount;
         }
     }
@@ -40,20 +40,20 @@ bool TFollowerTracker::HasActiveQuorum()
 
 void TFollowerTracker::ResetFollowerStates()
 {
-    for (TMasterId id = 0; id < CellManager->GetMasterCount(); ++id) {
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         ResetFollowerState(id);
     }
 }
 
 void TFollowerTracker::ResetFollowerState(int followerId)
 {
-    ChangeFollowerState(followerId, TMasterStateManager::EState::Stopped);
+    ChangeFollowerState(followerId, TMetaStateManager::EState::Stopped);
     FollowerStates[followerId].Lease = TLeaseManager::TLease();
 }
 
 void TFollowerTracker::ChangeFollowerState(
     int followerId,
-    TMasterStateManager::EState state)
+    TMetaStateManager::EState state)
 {
     TFollowerState& followerState = FollowerStates[followerId];
     if (followerState.State != state) {
@@ -65,12 +65,12 @@ void TFollowerTracker::ChangeFollowerState(
     }
 }
 
-void TFollowerTracker::OnLeaseExpired(TMasterId followerId)
+void TFollowerTracker::OnLeaseExpired(TPeerId followerId)
 {
     ResetFollowerState(followerId);
 }
 
-void TFollowerTracker::ProcessPing(TMasterId followerId, TMasterStateManager::EState state)
+void TFollowerTracker::ProcessPing(TPeerId followerId, TMetaStateManager::EState state)
 {
     ChangeFollowerState(followerId, state);
 

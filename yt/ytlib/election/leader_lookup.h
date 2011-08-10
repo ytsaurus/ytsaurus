@@ -53,7 +53,7 @@ public:
     struct TResult
     {
         Stroka Address;
-        TMasterId Id;
+        TPeerId Id;
         TGuid Epoch;
     };
 

@@ -13,13 +13,13 @@ static NLog::TLogger& Logger = MasterLogger;
 
 TLeaderPinger::TLeaderPinger(
     const TConfig& config,
-    TMasterStateManager::TPtr masterStateManager,
+    TMetaStateManager::TPtr metaStateManager,
     TCellManager::TPtr cellManager,
-    TMasterId leaderId,
-    TMasterEpoch epoch,
+    TPeerId leaderId,
+    TEpoch epoch,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
-    , MasterStateManager(masterStateManager)
+    , MetaStateManager(metaStateManager)
     , CellManager(cellManager)
     , LeaderId(leaderId)
     , Epoch(epoch)
@@ -32,7 +32,7 @@ void TLeaderPinger::Stop()
 {
     CancelableInvoker->Cancel();
     CancelableInvoker.Drop();
-    MasterStateManager.Drop();
+    MetaStateManager.Drop();
 }
 
 void TLeaderPinger::SchedulePing()
@@ -47,7 +47,7 @@ void TLeaderPinger::SchedulePing()
 
 void TLeaderPinger::SendPing()
 {
-    TMasterStateManager::EState state = MasterStateManager->GetState();
+    TMetaStateManager::EState state = MetaStateManager->GetState();
     TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     TProxy::TReqPingLeader::TPtr request = proxy->PingLeader();
     request->SetEpoch(Epoch.ToProto());

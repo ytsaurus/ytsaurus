@@ -6,7 +6,7 @@ namespace NYT {
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NRpcMasterStateManager::TMsgChangeHeader* header)
+    NRpcMetaStateManager::TMsgChangeHeader* header)
 {
     TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
     YVERIFY(header->ParseFromArray(
@@ -16,7 +16,7 @@ void DeserializeChangeHeader(
 
 void DeserializeChange(
     TRef changeData,
-    NRpcMasterStateManager::TMsgChangeHeader* header,
+    NRpcMetaStateManager::TMsgChangeHeader* header,
     TRef* messageData)
 {
     TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
@@ -31,7 +31,7 @@ void DeserializeChange(
 ////////////////////////////////////////////////////////////////////////////////
 
 TMetaStatePart::TMetaStatePart(
-    TMasterStateManager::TPtr metaStateManager,
+    TMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState)
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
@@ -39,14 +39,14 @@ TMetaStatePart::TMetaStatePart(
 
 bool TMetaStatePart::IsLeader() const
 {
-    TMasterStateManager::EState state = MetaStateManager->GetState();
-    return state == TMasterStateManager::EState::Leading;
+    TMetaStateManager::EState state = MetaStateManager->GetState();
+    return state == TMetaStateManager::EState::Leading;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
-    TMasterStateManager::EState state = MetaStateManager->GetState();
-    return state == TMasterStateManager::EState::Following;
+    TMetaStateManager::EState state = MetaStateManager->GetState();
+    return state == TMetaStateManager::EState::Following;
 }
 
 IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
@@ -119,7 +119,7 @@ TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream& input)
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
 {
-    NRpcMasterStateManager::TMsgChangeHeader header;
+    NRpcMetaStateManager::TMsgChangeHeader header;
     TRef messageData;
     DeserializeChange(
         changeData,

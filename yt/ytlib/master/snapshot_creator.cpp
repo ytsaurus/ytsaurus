@@ -22,37 +22,37 @@ public:
 
     TSession(
         TSnapshotCreator::TPtr creator,
-        TMasterStateId stateId)
+        TMetaVersion version)
         : Creator(creator)
-        , StateId(stateId)
+        , Version(version)
         , Awaiter(new TParallelAwaiter(Creator->ServiceInvoker))
-        , Checksums(Creator->CellManager->GetMasterCount())
+        , Checksums(Creator->CellManager->GetPeerCount())
     { }
 
     void CreateDistributed()
     {
         LOG_INFO("Creating a distributed snapshot for state %s",
-            ~StateId.ToString());
+            ~Version.ToString());
 
         const TConfig& config = Creator->Config;
-        for (TMasterId masterId = 0; masterId < Creator->CellManager->GetMasterCount(); ++masterId) {
-            if (masterId == Creator->CellManager->GetSelfId()) continue;
-            LOG_DEBUG("Requesting master %d to create a snapshot",
-                masterId);
+        for (TPeerId peerId = 0; peerId < Creator->CellManager->GetPeerCount(); ++peerId) {
+            if (peerId == Creator->CellManager->GetSelfId()) continue;
+            LOG_DEBUG("Requesting peer %d to create a snapshot",
+                peerId);
 
-            TAutoPtr<TProxy> proxy = Creator->CellManager->GetMasterProxy<TProxy>(masterId);
+            TAutoPtr<TProxy> proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
             TProxy::TReqCreateSnapshot::TPtr request = proxy->CreateSnapshot();
-            request->SetSegmentId(StateId.SegmentId);
-            request->SetChangeCount(StateId.ChangeCount);
+            request->SetSegmentId(Version.SegmentId);
+            request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Creator->Epoch.ToProto());
 
             Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
                 &TSession::OnRemote,
                 TPtr(this),
-                masterId));
+                peerId));
         }
 
-        TAsyncLocalResult::TPtr asyncResult = Creator->DoCreateLocal(StateId);
+        TAsyncLocalResult::TPtr asyncResult = Creator->DoCreateLocal(Version);
 
         Awaiter->Await(
             asyncResult,
@@ -64,8 +64,8 @@ public:
 private:
     void OnComplete()
     {
-        for (TMasterId id1 = 0; id1 < Checksums.ysize(); ++id1) {
-            for (TMasterId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
+        for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
+            for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
                 TPair<TChecksum, bool> checksum1 = Checksums[id1];
                 TPair<TChecksum, bool> checksum2 = Checksums[id2];
                 if (checksum1.Second() && checksum2.Second() && 
@@ -73,8 +73,8 @@ private:
                 {
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
-                        "master %d reported %" PRIx64 ", "
-                        "master %d reported %" PRIx64,
+                        "peer %d reported %" PRIx64 ", "
+                        "peer %d reported %" PRIx64,
                         id1, checksum1.First(),
                         id2, checksum2.First());
                 }
@@ -89,26 +89,26 @@ private:
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
-    void OnRemote(TProxy::TRspCreateSnapshot::TPtr response, TMasterId masterId)
+    void OnRemote(TProxy::TRspCreateSnapshot::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error %s requesting master %d to create a snapshot at state %s",
+            LOG_WARNING("Error %s requesting peer %d to create a snapshot at state %s",
                 ~response->GetErrorCode().ToString(),
-                masterId,
-                ~StateId.ToString());
+                peerId,
+                ~Version.ToString());
             return;
         }
 
         TChecksum checksum = response->GetChecksum();
-        LOG_INFO("Remote snapshot is created (MasterId: %d, Checksum: %" PRIx64 ")",
-            masterId,
+        LOG_INFO("Remote snapshot is created (PeerId: %d, Checksum: %" PRIx64 ")",
+            peerId,
             checksum);
 
-        Checksums[masterId] = MakePair(checksum, true);
+        Checksums[peerId] = MakePair(checksum, true);
     }
 
     TSnapshotCreator::TPtr Creator;
-    TMasterStateId StateId;
+    TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
     yvector< TPair<TChecksum, bool> > Checksums;
 };
@@ -118,63 +118,63 @@ private:
 TSnapshotCreator::TSnapshotCreator(
     const TConfig& config,
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState::TPtr masterState,
+    TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
-    TMasterEpoch epoch,
+    TEpoch epoch,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , CellManager(cellManager)
-    , MasterState(masterState)
+    , MetaState(metaState)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , StateInvoker(masterState->GetInvoker())
+    , StateInvoker(metaState->GetInvoker())
 { }
 
-void TSnapshotCreator::CreateDistributed(TMasterStateId stateId)
+void TSnapshotCreator::CreateDistributed(TMetaVersion version)
 {
-    TSession::TPtr session = new TSession(TPtr(this), stateId);
+    TSession::TPtr session = new TSession(TPtr(this), version);
     session->CreateDistributed();
 }
 
 TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
-    TMasterStateId stateId)
+    TMetaVersion version)
 {
     LOG_INFO("Creating a local snapshot for state (%d, %d)",
-               stateId.SegmentId, stateId.ChangeCount);
+               version.SegmentId, version.RecordCount);
     return 
         FromMethod(
             &TSnapshotCreator::DoCreateLocal,
             TPtr(this),
-            stateId)
+            version)
         ->AsyncVia(StateInvoker)
         ->Do();
 }
 
 TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
-    TMasterStateId stateId)
+    TMetaVersion version)
 {
     // TODO: handle IO errors
-    if (MasterState->GetStateId() != stateId) {
-        LOG_WARNING("Invalid state id, snapshot creation canceled: expected %s, found %s",
-            ~stateId.ToString(),
-            ~MasterState->GetStateId().ToString());
-        return new TAsyncLocalResult(TLocalResult(EResultCode::InvalidStateId));
+    if (MetaState->GetVersion() != version) {
+        LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, found %s",
+            ~version.ToString(),
+            ~MetaState->GetVersion().ToString());
+        return new TAsyncLocalResult(TLocalResult(EResultCode::InvalidVersion));
     }
 
     // Prepare writer.
-    i32 snapshotId = stateId.SegmentId + 1;
+    i32 snapshotId = version.SegmentId + 1;
     TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(snapshotId);
-    writer->Open(stateId.ChangeCount);
+    writer->Open(version.RecordCount);
     TOutputStream& output = writer->GetStream();
 
     // Start an async snapshot creation process.
-    TAsyncResult<TVoid>::TPtr saveResult = MasterState->Save(output);
+    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(output);
 
     // Switch to a new changelog.
-    MasterState->RotateChangeLog();
+    MetaState->RotateChangeLog();
 
     // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(

@@ -8,24 +8,24 @@ TCellManager::TCellManager(const TConfig& config)
     : Config(config)
 { }
 
-i32 TCellManager::GetMasterCount() const
+i32 TCellManager::GetPeerCount() const
 {
-    return Config.MasterAddresses.ysize();
+    return Config.PeerAddresses.ysize();
 }
 
 i32 TCellManager::GetQuorum() const
 {
-    return GetMasterCount() / 2 + 1;
+    return GetPeerCount() / 2 + 1;
 }
 
-TMasterId TCellManager::GetSelfId() const
+TPeerId TCellManager::GetSelfId() const
 {
     return Config.Id;
 }
 
-Stroka TCellManager::GetMasterAddress(TMasterId id) const
+Stroka TCellManager::GetPeerAddress(TPeerId id) const
 {
-    return Config.MasterAddresses[id];
+    return Config.PeerAddresses[id];
 }
 
 

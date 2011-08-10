@@ -21,7 +21,7 @@ public:
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
-        (InvalidStateId)
+        (InvalidVersion)
     );
 
     typedef TAsyncResult<EResult> TResult;
@@ -38,10 +38,10 @@ public:
     TChangeCommitter(
         const TConfig& config,
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState::TPtr masterState,
+        TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
         IInvoker::TPtr serviceInvoker,
-        const TMasterEpoch& epoch);
+        const TEpoch& epoch);
 
     void Stop();
 
@@ -50,29 +50,29 @@ public:
         TSharedRef changeData);
 
     TResult::TPtr CommitFollower(
-        TMasterStateId stateId,
+        TMetaVersion version,
         TSharedRef changeData);
 
     void SetOnApplyChange(IAction::TPtr onApplyChange);
 
 private:
     class TSession;
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     TResult::TPtr DoCommitLeader(
         IAction::TPtr changeAction,
         TSharedRef changeData);
     TResult::TPtr DoCommitFollower(
-        TMasterStateId stateId,
+        TMetaVersion version,
         TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState::TPtr MasterState;
+    TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
     TCancelableInvoker::TPtr CancelableServiceInvoker;
-    TMasterEpoch Epoch;
+    TEpoch Epoch;
     IAction::TPtr OnApplyChange;
 
 };

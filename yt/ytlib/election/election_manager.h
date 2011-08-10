@@ -20,12 +20,12 @@ struct IElectionCallbacks
 {
     typedef TIntrusivePtr<IElectionCallbacks> TPtr;
 
-    virtual void StartLeading(TMasterEpoch epoch) = 0;
+    virtual void StartLeading(TEpoch epoch) = 0;
     virtual void StopLeading() = 0;
-    virtual void StartFollowing(TMasterId leaderId, TMasterEpoch epoch) = 0;
+    virtual void StartFollowing(TPeerId leaderId, TEpoch epoch) = 0;
     virtual void StopFollowing() = 0;
-    virtual TMasterPriority GetPriority() = 0;
-    virtual Stroka FormatPriority(TMasterPriority priority) = 0;
+    virtual TPeerPriority GetPriority() = 0;
+    virtual Stroka FormatPriority(TPeerPriority priority) = 0;
 
     virtual ~IElectionCallbacks() { }
 };
@@ -73,18 +73,18 @@ private:
     TProxy::EState State;
     
     // Voting parameters.
-    TMasterId VoteId;
-    TMasterEpoch VoteEpoch;
+    TPeerId VoteId;
+    TEpoch VoteEpoch;
 
     // Epoch parameters.
-    TMasterId LeaderId;
+    TPeerId LeaderId;
     TGuid Epoch;
     TInstant EpochStart;
     TCancelableInvoker::TPtr EpochInvoker;
     
-    typedef yhash_set<TMasterId> TMasterSet;
-    TMasterSet AliveFollowers;
-    TMasterSet PotentialFollowers;
+    typedef yhash_set<TPeerId> TPeerSet;
+    TPeerSet AliveFollowers;
+    TPeerSet PotentialFollowers;
 
     TDelayedInvoker::TCookie PingTimeoutCookie;
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
@@ -107,13 +107,13 @@ private:
     void DoStop(); // Invoker thread
 
     void StartVotingRound(); // Invoker thread
-    void StartVoteFor(TMasterId voteId, const TMasterEpoch& voteEpoch); // Invoker thread
+    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch); // Invoker thread
     void StartVoteForSelf(); // Invoker thread
     void StartLeading(); // Invoker thread
-    void StartFollowing(TMasterId leaderId, const TMasterEpoch& epoch); // Invoker thread
+    void StartFollowing(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
     void StopLeading(); // Invoker thread
     void StopFollowing(); // Invoker thread
-    void StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch); // Invoker thread
+    void StartEpoch(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
     void StopEpoch(); // Invoker thread
 };
 

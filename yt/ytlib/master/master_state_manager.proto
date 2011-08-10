@@ -1,4 +1,4 @@
-package NYT.NRpcMasterStateManager;
+package NYT.NRpcMetaStateManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +13,7 @@ message TMsgChangeHeader
 
 message TReqScheduleSync
 {
-    optional int32 MasterId = 1;
+    optional int32 PeerId = 1;
 }
 
 message TRspScheduleSync
@@ -25,7 +25,7 @@ message TRspScheduleSync
 message TReqSync
 {
     optional int32 SegmentId = 1;
-    optional int32 ChangeCount = 2;
+    optional int32 RecordCount = 2;
     optional bytes Epoch = 3;
     optional int32 MaxSnapshotId = 4;
 }
@@ -109,7 +109,7 @@ message TRspPingLeader
 message TReqApplyChange
 {
     required int32 SegmentId = 1;
-    required int32 ChangeCount = 2;
+    required int32 RecordCount = 2;
     required bytes Epoch = 3;
     // Change data is passed via attachment.
 }
@@ -124,7 +124,7 @@ message TRspApplyChange
 message TReqCreateSnapshot
 {
     required int32 SegmentId = 1;
-    required int32 ChangeCount = 2;
+    required int32 RecordCount = 2;
     required bytes Epoch = 3;
 }
 

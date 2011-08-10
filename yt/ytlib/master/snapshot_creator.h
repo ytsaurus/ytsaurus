@@ -32,7 +32,7 @@ public:
 
     DECLARE_ENUM(EResultCode,
         (OK)
-        (InvalidStateId)
+        (InvalidVersion)
     );
 
     struct TLocalResult
@@ -53,30 +53,30 @@ public:
     TSnapshotCreator(
         const TConfig& config,
         TCellManager::TPtr cellManager,
-        TDecoratedMasterState::TPtr masterState,
+        TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
-        TMasterEpoch epoch,
+        TEpoch epoch,
         IInvoker::TPtr serviceInvoker);
 
-    void CreateDistributed(TMasterStateId stateId);
-    TAsyncLocalResult::TPtr CreateLocal(TMasterStateId stateId);
+    void CreateDistributed(TMetaVersion version);
+    TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
 
 private:
     class TSession;
 
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMasterState::TPtr MasterState;
+    TDecoratedMetaState::TPtr MetaState;
     TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
-    TMasterEpoch Epoch;
+    TEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
 
-    TAsyncLocalResult::TPtr DoCreateLocal(TMasterStateId stateId);
+    TAsyncLocalResult::TPtr DoCreateLocal(TMetaVersion version);
 
     static TLocalResult OnSave(
         TVoid /* fake */,

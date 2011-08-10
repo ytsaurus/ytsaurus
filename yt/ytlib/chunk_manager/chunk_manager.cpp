@@ -25,7 +25,7 @@ public:
 
     TState(
         const TConfig& config,
-        TMasterStateManager::TPtr metaStateManager,
+        TMetaStateManager::TPtr metaStateManager,
         TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager)
         : TMetaStatePart(metaStateManager, metaState)
@@ -245,7 +245,8 @@ private:
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& stream)
     {
         IInvoker::TPtr invoker = GetSnapshotInvoker();
-        invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
+        //TODO: fix this under gcc
+        //invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
         Holders.Save(invoker, stream);
         return Chunks.Save(invoker, stream);
     }
@@ -259,7 +260,8 @@ private:
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
     {
         IInvoker::TPtr invoker = GetSnapshotInvoker();
-        invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
+        //TODO: fix this under gcc
+        //invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
         Holders.Load(invoker, stream);
         return Chunks.Load(invoker, stream)->Apply(FromMethod(
             &TState::OnLoaded,
@@ -459,7 +461,7 @@ private:
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    TMasterStateManager::TPtr metaStateManager,
+    TMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server,

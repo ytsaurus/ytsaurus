@@ -30,21 +30,21 @@ public:
 
     void Stop();
     bool HasActiveQuorum();
-    void ProcessPing(TMasterId followerId, TMasterStateManager::EState state);
+    void ProcessPing(TPeerId followerId, TMetaStateManager::EState state);
 
 private:
     struct TFollowerState
     {
-        TMasterStateManager::EState State;
+        TMetaStateManager::EState State;
         TLeaseManager::TLease Lease;
     };
 
     void ChangeFollowerState(
         int followerId,
-        TMasterStateManager::EState state);
+        TMetaStateManager::EState state);
     void ResetFollowerState(int followerId);
     void ResetFollowerStates();
-    void OnLeaseExpired(TMasterId followerId);
+    void OnLeaseExpired(TPeerId followerId);
 
     TConfig Config;
     TCellManager::TPtr CellManager;

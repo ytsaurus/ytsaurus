@@ -18,7 +18,7 @@ public:
     typedef TIntrusivePtr<TMetaStatePart> TPtr;
 
     TMetaStatePart(
-        TMasterStateManager::TPtr metaStateManager,
+        TMetaStateManager::TPtr metaStateManager,
         TIntrusivePtr<TCompositeMetaState> metaState);
 
     template<class TMessage, class TResult>
@@ -58,7 +58,7 @@ protected:
     virtual void OnStartFollowing();
     virtual void OnStopFollowing();
 
-    TMasterStateManager::TPtr MetaStateManager;
+    TMetaStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
 
 private:
@@ -79,7 +79,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompositeMetaState
-    : public IMasterState 
+    : public IMetaState 
 {
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
@@ -134,16 +134,16 @@ struct TFixedChangeHeader
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMasterStateManager::TMsgChangeHeader& header,
+    const NRpcMetaStateManager::TMsgChangeHeader& header,
     const TMessage& message);
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NRpcMasterStateManager::TMsgChangeHeader* header);
+    NRpcMetaStateManager::TMsgChangeHeader* header);
 
 void DeserializeChange(
     TRef changeData,
-    NRpcMasterStateManager::TMsgChangeHeader* header,
+    NRpcMetaStateManager::TMsgChangeHeader* header,
     TRef* messageData);
 
 ////////////////////////////////////////////////////////////////////////////////

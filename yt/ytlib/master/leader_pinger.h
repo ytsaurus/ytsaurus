@@ -27,26 +27,26 @@ public:
 
     TLeaderPinger(
         const TConfig& config,
-        TMasterStateManager::TPtr masterStateManager,
+        TMetaStateManager::TPtr metaStateManager,
         TCellManager::TPtr cellManager,
-        TMasterId leaderId,
-        TMasterEpoch epoch,
+        TPeerId leaderId,
+        TEpoch epoch,
         IInvoker::TPtr serviceInvoker);
 
     void Stop();
 
 private:
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     void SchedulePing();
     void SendPing();
     void OnSendPing(TProxy::TRspPingLeader::TPtr response);
 
     TConfig Config;
-    TMasterStateManager::TPtr MasterStateManager;
+    TMetaStateManager::TPtr MetaStateManager;
     TCellManager::TPtr CellManager;
-    TMasterId LeaderId;
-    TMasterEpoch Epoch;
+    TPeerId LeaderId;
+    TEpoch Epoch;
     TCancelableInvoker::TPtr CancelableInvoker;
 };
 

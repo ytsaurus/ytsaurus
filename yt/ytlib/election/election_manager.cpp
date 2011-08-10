@@ -44,7 +44,7 @@ TElectionManager::TElectionManager(
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , State(TProxy::EState::Stopped)
-    , VoteId(InvalidMasterId)
+    , VoteId(InvalidPeerId)
     , Config(config)
     , CellManager(cellManager)
     , Invoker(invoker)
@@ -98,7 +98,7 @@ public:
     void Run()
     {
         TCellManager::TPtr cellManager = ElectionManager->CellManager;
-        for (TMasterId i = 0; i < cellManager->GetMasterCount(); ++i) {
+        for (TPeerId i = 0; i < cellManager->GetPeerCount(); ++i) {
             if (i == cellManager->GetSelfId()) continue;
             SendPing(i);
         }
@@ -113,7 +113,7 @@ private:
     TElectionManager* ElectionManager;
     TParallelAwaiter::TPtr Awaiter;
 
-    void SendPing(TMasterId id)
+    void SendPing(TPeerId id)
     {
         if (Awaiter->IsCanceled())
             return;
@@ -129,7 +129,7 @@ private:
             FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id));
     }
 
-    void SchedulePing(TMasterId id)
+    void SchedulePing(TPeerId id)
     {
         TDelayedInvoker::Get()->Submit(
             FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
@@ -137,7 +137,7 @@ private:
             TConfig::FollowerPingInterval);
     }
 
-    void OnResponse(TProxy::TRspPingFollower::TPtr response, TMasterId id)
+    void OnResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
     {
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
 
@@ -232,7 +232,7 @@ public:
         IElectionCallbacks::TPtr callbacks = ElectionManager->ElectionCallbacks;
         TCellManager::TPtr cellManager = ElectionManager->CellManager;
         
-        TMasterPriority priority = callbacks->GetPriority();
+        TPeerPriority priority = callbacks->GetPriority();
 
         LOG_DEBUG("New voting round started (Round: %p, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             this,
@@ -248,7 +248,7 @@ public:
                 priority,
                 ElectionManager->VoteEpoch));
 
-        for (TMasterId id = 0; id < cellManager->GetMasterCount(); ++id) {
+        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
 
             THolder<TProxy> proxy(cellManager->GetMasterProxy<TProxy>(id));
@@ -265,15 +265,15 @@ private:
     struct TStatus
     {
         TProxy::EState State;
-        TMasterId VoteId;
-        TMasterPriority Priority;
-        TMasterEpoch VoteEpoch;
+        TPeerId VoteId;
+        TPeerPriority Priority;
+        TEpoch VoteEpoch;
 
         TStatus(
             TProxy::EState state = TProxy::EState::Stopped,
-            TMasterId vote = InvalidMasterId,
-            TMasterPriority priority = -1,
-            TMasterEpoch epoch = TMasterEpoch())
+            TPeerId vote = InvalidPeerId,
+            TPeerPriority priority = -1,
+            TEpoch epoch = TEpoch())
             : State(state)
             , VoteId(vote)
             , Priority(priority)
@@ -281,43 +281,43 @@ private:
         { }
     };
 
-    typedef yhash_map<TMasterId, TStatus> TStatusTable;
+    typedef yhash_map<TPeerId, TStatus> TStatusTable;
 
     TElectionManager::TPtr ElectionManager;
     TParallelAwaiter::TPtr Awaiter;
     TCancelableInvoker::TPtr EpochInvoker;
     TStatusTable StatusTable;
 
-    bool ProcessVote(TMasterId id, const TStatus& status)
+    bool ProcessVote(TPeerId id, const TStatus& status)
     {
         StatusTable[id] = status;
         return CheckForLeader();
     }
 
-    void OnResponse(TProxy::TRspGetStatus::TPtr response, TMasterId masterId)
+    void OnResponse(TProxy::TRspGetStatus::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
-            LOG_INFO("Error requesting status from master %d (Round: %p, ErrorCode: %s)",
-                       masterId,
+            LOG_INFO("Error requesting status from peer %d (Round: %p, ErrorCode: %s)",
+                       peerId,
                        this,
                        ~response->GetErrorCode().ToString());
             return;
         }
 
         TProxy::EState state = TProxy::EState(response->GetState());
-        TMasterId vote = response->GetVoteId();
-        TMasterPriority priority = response->GetPriority();
-        TMasterEpoch epoch = TGuid::FromProto(response->GetVoteEpoch());
+        TPeerId vote = response->GetVoteId();
+        TPeerPriority priority = response->GetPriority();
+        TEpoch epoch = TGuid::FromProto(response->GetVoteEpoch());
         
-        LOG_DEBUG("Received status from master %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
-            masterId,
+        LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
+            peerId,
             this,
             ~state.ToString(),
             vote,
             ~ElectionManager->ElectionCallbacks->FormatPriority(priority),
             ~epoch.ToString());
 
-        ProcessVote(masterId, TStatus(state, vote, priority, epoch));
+        ProcessVote(peerId, TStatus(state, vote, priority, epoch));
     }
 
     bool CheckForLeader()
@@ -338,7 +338,7 @@ private:
     }
 
     bool CheckForLeader(
-        TMasterId candidateId,
+        TPeerId candidateId,
         const TStatus& candidateStatus)
     {
         if (!IsFeasibleCandidate(candidateId, candidateStatus)) {
@@ -351,7 +351,7 @@ private:
         // Compute candidate epoch.
         // Use the local one for self
         // (others may still be following with an outdated epoch).
-        TMasterEpoch candidateEpoch =
+        TEpoch candidateEpoch =
             candidateId == ElectionManager->CellManager->GetSelfId()
             ? ElectionManager->VoteEpoch
             : candidateStatus.VoteEpoch;
@@ -397,8 +397,8 @@ private:
     }
 
     int CountVotes(
-        TMasterId candidateId,
-        const TMasterEpoch& epoch) const
+        TPeerId candidateId,
+        const TEpoch& epoch) const
     {
         int count = 0;
         for (TStatusTable::const_iterator it = StatusTable.begin();
@@ -415,7 +415,7 @@ private:
     }
 
     bool IsFeasibleCandidate(
-        TMasterId candidateId,
+        TPeerId candidateId,
         const TStatus& candidateStatus) const
     {
         // He must be voting for himself.
@@ -481,8 +481,8 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 {
     UNUSED(response);
 
-    TMasterEpoch epoch = TGuid::FromProto(request->GetEpoch());
-    TMasterId leaderId = request->GetLeaderId();
+    TEpoch epoch = TGuid::FromProto(request->GetEpoch());
+    TPeerId leaderId = request->GetLeaderId();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
         ~epoch.ToString(),
@@ -524,15 +524,15 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 
     context->SetRequestInfo("");
 
-    TMasterPriority priority = ElectionCallbacks->GetPriority();
+    TPeerPriority priority = ElectionCallbacks->GetPriority();
 
     response->SetState(State);
     response->SetVoteId(VoteId);
     response->SetPriority(priority);
     response->SetVoteEpoch(VoteEpoch.ToProto());
     response->SetSelfId(CellManager->GetSelfId());
-    for (TMasterId id = 0; id < CellManager->GetMasterCount(); ++id) {
-        response->AddMasterAddresses(CellManager->GetMasterAddress(id));
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        response->AddPeerAddresses(CellManager->GetPeerAddress(id));
     }
 
     context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
@@ -549,8 +549,8 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 void TElectionManager::Reset()
 {
     State = TProxy::EState::Stopped;
-    VoteId = InvalidMasterId;
-    LeaderId = InvalidMasterId;
+    VoteId = InvalidPeerId;
+    LeaderId = InvalidPeerId;
     VoteEpoch = TGuid();
     Epoch = TGuid();
     EpochStart = TInstant();
@@ -601,7 +601,7 @@ void TElectionManager::DoStop()
     }
 }
 
-void TElectionManager::StartVoteFor(TMasterId voteId, const TMasterEpoch& voteEpoch)
+void TElectionManager::StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch)
 {
     State = TProxy::EState::Voting;
     VoteId = voteId;
@@ -618,7 +618,7 @@ void TElectionManager::StartVoteForSelf()
     YASSERT(~EpochInvoker == NULL);
     EpochInvoker = new TCancelableInvoker(Invoker);
 
-    TMasterPriority priority = ElectionCallbacks->GetPriority();
+    TPeerPriority priority = ElectionCallbacks->GetPriority();
 
     LOG_DEBUG("Voting for self (Priority: %s, VoteEpoch: %s)",
                 ~ElectionCallbacks->FormatPriority(priority),
@@ -635,8 +635,8 @@ void TElectionManager::StartVotingRound()
 }
 
 void TElectionManager::StartFollowing(
-    TMasterId leaderId,
-    const TMasterEpoch& epoch)
+    TPeerId leaderId,
+    const TEpoch& epoch)
 {
     State = TProxy::EState::Following;
     VoteId = leaderId;
@@ -662,7 +662,7 @@ void TElectionManager::StartLeading()
     YASSERT(VoteId == CellManager->GetSelfId());
 
     // Initialize followers state.
-    for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
+    for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         AliveFollowers.insert(i);
         PotentialFollowers.insert(i);
     }
@@ -712,7 +712,7 @@ void TElectionManager::StopFollowing()
     Reset();
 }
 
-void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
+void TElectionManager::StartEpoch(TPeerId leaderId, const TEpoch& epoch)
 {
     LeaderId = leaderId;
     Epoch = epoch;
@@ -721,7 +721,7 @@ void TElectionManager::StartEpoch(TMasterId leaderId, const TMasterEpoch& epoch)
 
 void TElectionManager::StopEpoch()
 {
-    LeaderId = InvalidMasterId;
+    LeaderId = InvalidPeerId;
     Epoch = TGuid();
     EpochStart = TInstant();
 }

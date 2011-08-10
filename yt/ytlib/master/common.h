@@ -13,72 +13,72 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: move?
-struct TMasterStateId
+struct TMetaVersion
 {
     i32 SegmentId;
-    i32 ChangeCount;
+    i32 RecordCount;
 
-    TMasterStateId();
-    TMasterStateId(i32 segmentId, i32 ChangeCount);
+    TMetaVersion();
+    TMetaVersion(i32 segmentId, i32 recordCount);
 
-    bool operator < (const TMasterStateId& other) const;
-    bool operator == (const TMasterStateId& other) const;
-    bool operator != (const TMasterStateId& other) const;
-    bool operator > (const TMasterStateId& other) const;
-    bool operator <= (const TMasterStateId& other) const;
-    bool operator >= (const TMasterStateId& other) const;
+    bool operator < (const TMetaVersion& other) const;
+    bool operator == (const TMetaVersion& other) const;
+    bool operator != (const TMetaVersion& other) const;
+    bool operator > (const TMetaVersion& other) const;
+    bool operator <= (const TMetaVersion& other) const;
+    bool operator >= (const TMetaVersion& other) const;
 
     Stroka ToString() const
     {
-        return Sprintf("%d:%d", SegmentId, ChangeCount);
+        return Sprintf("%d:%d", SegmentId, RecordCount);
     }
 };
 
-inline TMasterStateId::TMasterStateId()
+inline TMetaVersion::TMetaVersion()
     : SegmentId(0)
-    , ChangeCount(0)
+    , RecordCount(0)
 {  }
 
-inline TMasterStateId::TMasterStateId(i32 segmentId, i32 recordCount)
+inline TMetaVersion::TMetaVersion(i32 segmentId, i32 recordCount)
     : SegmentId(segmentId)
-    , ChangeCount(recordCount)
+    , RecordCount(recordCount)
 {  }
 
-inline bool TMasterStateId::operator < (const TMasterStateId& other) const
+inline bool TMetaVersion::operator < (const TMetaVersion& other) const
 {
     return ((SegmentId < other.SegmentId) ||
-        (SegmentId == other.SegmentId && ChangeCount < other.ChangeCount));
+        (SegmentId == other.SegmentId && RecordCount < other.RecordCount));
 }
 
-inline bool TMasterStateId::operator == (const TMasterStateId& other) const
+inline bool TMetaVersion::operator == (const TMetaVersion& other) const
 {
-    return (SegmentId == other.SegmentId && ChangeCount == other.ChangeCount);
+    return (SegmentId == other.SegmentId && RecordCount == other.RecordCount);
 }
 
-inline bool TMasterStateId::operator != (const TMasterStateId& other) const
+inline bool TMetaVersion::operator != (const TMetaVersion& other) const
 {
     return !(*this == other);
 }
 
-inline bool TMasterStateId::operator > (const TMasterStateId& other) const
+inline bool TMetaVersion::operator > (const TMetaVersion& other) const
 {
     return !(*this <= other);
 }
 
-inline bool TMasterStateId::operator <= (const TMasterStateId& other) const
+inline bool TMetaVersion::operator <= (const TMetaVersion& other) const
 {
     return (*this < other || *this == other);
 }
 
-inline bool TMasterStateId::operator >= (const TMasterStateId& other) const
+inline bool TMetaVersion::operator >= (const TMetaVersion& other) const
 {
     return !(*this < other);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef i32 TMasterId;
-const TMasterId InvalidMasterId = -1;
+typedef i32 TPeerId;
+const TPeerId InvalidPeerId = -1;
 
 const i32 NonexistingPrevRecordCount = -1;
 const i32 UnknownPrevRecordCount = -2;

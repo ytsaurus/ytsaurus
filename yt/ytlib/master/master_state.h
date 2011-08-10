@@ -11,10 +11,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMasterState
+struct IMetaState
     : public virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IMasterState> TPtr;
+    typedef TIntrusivePtr<IMetaState> TPtr;
 
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;

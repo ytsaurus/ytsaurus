@@ -57,7 +57,7 @@ void TLeaderLookup::OnResponse(
         return;
     }
 
-    TMasterId voteId = response->GetVoteId();
+    TPeerId voteId = response->GetVoteId();
     TGuid epoch = TGuid::FromProto(response->GetVoteEpoch());
 
     LOG_DEBUG("Received status from master %s (Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
@@ -90,8 +90,8 @@ void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)
 {
     TResult result;
     result.Address = "";
-    result.Id = InvalidMasterId;
-    result.Epoch = TMasterEpoch();
+    result.Id = InvalidPeerId;
+    result.Epoch = TEpoch();
     asyncResult->Set(result);
 
     LOG_INFO("No leader found");

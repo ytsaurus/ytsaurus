@@ -8,9 +8,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TProxy>
-TAutoPtr<TProxy> TCellManager::GetMasterProxy(TMasterId id) const
+TAutoPtr<TProxy> TCellManager::GetMasterProxy(TPeerId id) const
 {
-    return new TProxy(~ChannelCache.GetChannel(Config.MasterAddresses.at(id)));
+    return new TProxy(~ChannelCache.GetChannel(Config.PeerAddresses.at(id)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

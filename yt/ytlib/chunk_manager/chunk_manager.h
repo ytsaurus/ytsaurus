@@ -29,7 +29,7 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMasterStateManager::TPtr metaStateManager,
+        TMetaStateManager::TPtr metaStateManager,
         TCompositeMetaState::TPtr metaState,
         IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server,

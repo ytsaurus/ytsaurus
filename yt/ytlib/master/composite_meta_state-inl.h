@@ -8,7 +8,7 @@ namespace NYT {
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMasterStateManager::TMsgChangeHeader& header,
+    const NRpcMetaStateManager::TMsgChangeHeader& header,
     const TMessage& message)
 {
     TFixedChangeHeader fixedHeader;
@@ -77,7 +77,7 @@ public:
     typedef TIntrusivePtr<TUpdate> TPtr;
 
     TUpdate(
-        TMasterStateManager::TPtr stateManager,
+        TMetaStateManager::TPtr stateManager,
         Stroka partName,
         const TMessage& message,
         typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod,
@@ -93,7 +93,7 @@ public:
     typename TAsyncResult<TResult>::TPtr Run()
     {
         // TODO: change ns
-        NRpcMasterStateManager::TMsgChangeHeader header;
+        NRpcMetaStateManager::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
         TBlob changeData = SerializeChange(header, Message);
@@ -114,16 +114,16 @@ private:
         Result = ChangeMethod->Do(Message);
     }
 
-    void OnCommitted(TMasterStateManager::ECommitResult commitResult)
+    void OnCommitted(TMetaStateManager::ECommitResult commitResult)
     {
-        if (commitResult == TMasterStateManager::ECommitResult::Committed) {
+        if (commitResult == TMetaStateManager::ECommitResult::Committed) {
             AsyncResult->Set(Result);
         } else if (~ErrorHandler != NULL) {
             ErrorHandler->Do();
         }
     }
 
-    TMasterStateManager::TPtr StateManager;
+    TMetaStateManager::TPtr StateManager;
     Stroka PartName;
     TMessage Message;
     Stroka MethodName;

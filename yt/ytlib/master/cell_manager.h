@@ -18,29 +18,29 @@ public:
 
     struct TConfig
     {
-        yvector<Stroka> MasterAddresses;
-        TMasterId Id;
+        yvector<Stroka> PeerAddresses;
+        TPeerId Id;
 
         TConfig()
-            : Id(InvalidMasterId)
+            : Id(InvalidPeerId)
         { }
 
         void Read(TJsonObject* json)
         {
             NYT::TryRead(json, L"Id", &Id);
-            NYT::TryRead(json, L"MasterAddresses", &MasterAddresses);
+            NYT::TryRead(json, L"PeerAddresses", &PeerAddresses);
         }
     };
 
     TCellManager(const TConfig& config);
 
-    TMasterId GetSelfId() const;
-    i32 GetMasterCount() const;
+    TPeerId GetSelfId() const;
+    i32 GetPeerCount() const;
     i32 GetQuorum() const;
-    Stroka GetMasterAddress(TMasterId id) const;
+    Stroka GetPeerAddress(TPeerId id) const;
 
     template <class TProxy>
-    TAutoPtr<TProxy> GetMasterProxy(TMasterId id) const;
+    TAutoPtr<TProxy> GetMasterProxy(TPeerId id) const;
 
 private:
     TConfig Config;

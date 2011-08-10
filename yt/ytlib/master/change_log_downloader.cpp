@@ -17,46 +17,46 @@ TChangeLogDownloader::TChangeLogDownloader(
 { }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
-    TMasterStateId stateId,
+    TMetaVersion version,
     TAsyncChangeLog& changeLog)
 {
     LOG_INFO("Requested %d records in changelog %d",
-        stateId.ChangeCount,
-        stateId.SegmentId);
+        version.RecordCount,
+        version.SegmentId);
 
-    YASSERT(changeLog.GetId() == stateId.SegmentId);
+    YASSERT(changeLog.GetId() == version.SegmentId);
 
-    if (changeLog.GetRecordCount() >= stateId.ChangeCount) {
+    if (changeLog.GetRecordCount() >= version.RecordCount) {
         LOG_INFO("Local changelog already contains %d records, no download needed",
             changeLog.GetRecordCount());
         return EResult::OK;
     }
 
-    TMasterId sourceId = GetChangeLogSource(stateId);
-    if (sourceId == InvalidMasterId) {
+    TPeerId sourceId = GetChangeLogSource(version);
+    if (sourceId == InvalidPeerId) {
         return EResult::ChangeLogNotFound;
     }
 
-    return DownloadChangeLog(stateId, sourceId, changeLog);
+    return DownloadChangeLog(version, sourceId, changeLog);
 }
 
-TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
+TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    TAsyncResult<TMasterId>::TPtr asyncResult = new TAsyncResult<TMasterId>();
+    TAsyncResult<TPeerId>::TPtr asyncResult = new TAsyncResult<TPeerId>();
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
-    for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
-        LOG_INFO("Requesting changelog info from master %d", i);
+    for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
+        LOG_INFO("Requesting changelog info from peer %d", i);
 
         TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
         TProxy::TReqGetChangeLogInfo::TPtr request = proxy->GetChangeLogInfo();
-        request->SetSegmentId(stateId.SegmentId);
+        request->SetSegmentId(version.SegmentId);
         awaiter->Await(request->Invoke(Config.LookupTimeout), FromMethod(
             &TChangeLogDownloader::OnResponse,
             awaiter,
             asyncResult,
             i,
-            stateId));
+            version));
     }
 
     awaiter->Complete(FromMethod(
@@ -67,25 +67,25 @@ TMasterId TChangeLogDownloader::GetChangeLogSource(TMasterStateId stateId)
 }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
-    TMasterStateId stateId,
-    TMasterId sourceId,
+    TMetaVersion version,
+    TPeerId sourceId,
     TAsyncChangeLog& changeLog)
 {
     i32 downloadedRecordCount = changeLog.GetRecordCount();
 
-    LOG_INFO("Started downloading records %d-%d from master %d",
+    LOG_INFO("Started downloading records %d-%d from peer %d",
         changeLog.GetRecordCount(),
-        stateId.ChangeCount - 1,
+        version.RecordCount - 1,
         sourceId);
 
     TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    while (downloadedRecordCount < stateId.ChangeCount) {
+    while (downloadedRecordCount < version.RecordCount) {
         TProxy::TReqReadChangeLog::TPtr request = proxy->ReadChangeLog();
-        request->SetSegmentId(stateId.SegmentId);
+        request->SetSegmentId(version.SegmentId);
         request->SetStartRecordId(downloadedRecordCount);
         i32 desiredChunkSize = Min(
             Config.RecordsPerRequest,
-            stateId.ChangeCount - downloadedRecordCount);
+            version.RecordCount - downloadedRecordCount);
         request->SetRecordCount(desiredChunkSize);
 
         LOG_DEBUG("Requesting records %d-%d",
@@ -100,25 +100,25 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                 // TODO: drop ToValue()
                 switch (errorCode.ToValue()) {
                     case TProxy::EErrorCode::InvalidSegmentId:
-                        LOG_WARNING("Master %d does not have changelog %d anymore",
+                        LOG_WARNING("Peer %d does not have changelog %d anymore",
                             sourceId,
-                            stateId.SegmentId);
+                            version.SegmentId);
                         return EResult::ChangeLogUnavailable;
 
                     case TProxy::EErrorCode::IOError:
-                        LOG_WARNING("IO error occurred on master %d during downloading changelog %d",
+                        LOG_WARNING("IO error occurred on peer %d during downloading changelog %d",
                             sourceId,
-                            stateId.SegmentId);
+                            version.SegmentId);
                         return EResult::RemoteError;
 
                     default:
-                        LOG_FATAL("Unknown error code %s received from master %d",
+                        LOG_FATAL("Unknown error code %s received from peer %d",
                             ~errorCode.ToString(),
                             sourceId);
                         break;
                 }
             } else {
-                LOG_WARNING("Error %s reading snapshot from master %d",
+                LOG_WARNING("Error %s reading snapshot from peer %d",
                     ~errorCode.ToString(),
                     sourceId);
                 return EResult::RemoteError;
@@ -127,10 +127,10 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
         yvector<TSharedRef>& attachments = response->Attachments();
         if (attachments.ysize() == 0) {
-            LOG_WARNING("Master %d does not have %d records of changelog %d anymore",
+            LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",
                 sourceId,
-                stateId.ChangeCount,
-                stateId.SegmentId);
+                version.RecordCount,
+                version.SegmentId);
             return EResult::ChangeLogUnavailable;
         }
 
@@ -160,41 +160,41 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 void TChangeLogDownloader::OnResponse(
     TProxy::TRspGetChangeLogInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TMasterId>::TPtr asyncResult,
-    TMasterId masterId,
-    TMasterStateId stateId)
+    TAsyncResult<TPeerId>::TPtr asyncResult,
+    TPeerId peerId,
+    TMetaVersion version)
 {
     if (!response->IsOK()) {
-        LOG_INFO("Error %s requesting info on changelog %d from master %d",
+        LOG_INFO("Error %s requesting info on changelog %d from peer %d",
             ~response->GetErrorCode().ToString(),
-            stateId.SegmentId,
-            masterId);
+            version.SegmentId,
+            peerId);
         return;
     }
 
     i32 recordCount = response->GetRecordCount();
-    if (recordCount < stateId.ChangeCount) {
-        LOG_INFO("Master %d has only %d records while %d records needed",
-            masterId,
+    if (recordCount < version.RecordCount) {
+        LOG_INFO("Peer %d has only %d records while %d records needed",
+            peerId,
             recordCount,
-            stateId.ChangeCount);
+            version.RecordCount);
         return;
     }
 
-    LOG_INFO("An appropriate download source found (MasterId: %d, RecordCount: %d)",
-        masterId,
+    LOG_INFO("An appropriate download source found (PeerId: %d, RecordCount: %d)",
+        peerId,
         recordCount);
 
-    asyncResult->Set(masterId);
+    asyncResult->Set(peerId);
     awaiter->Cancel();
 }
 
 void TChangeLogDownloader::OnComplete(
-    TAsyncResult<TMasterId>::TPtr asyncResult)
+    TAsyncResult<TPeerId>::TPtr asyncResult)
 {
     LOG_INFO("Unable to find requested records at any master");
 
-    asyncResult->Set(InvalidMasterId);
+    asyncResult->Set(InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

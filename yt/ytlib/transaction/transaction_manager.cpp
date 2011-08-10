@@ -24,7 +24,7 @@ public:
 
     TState(
         const TConfig& config,
-        TMasterStateManager::TPtr metaStateManager,
+        TMetaStateManager::TPtr metaStateManager,
         TCompositeMetaState::TPtr metaState)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
@@ -259,7 +259,7 @@ private:
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
-    TMasterStateManager::TPtr metaStateManager,
+    TMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)

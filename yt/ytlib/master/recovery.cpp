@@ -20,20 +20,20 @@ static TDuration SyncTimeout = TDuration::MilliSeconds(5000);
 
 TRecovery::TRecovery(
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState::TPtr masterState,
+    TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
-    TMasterEpoch epoch,
-    TMasterId leaderId,
+    TEpoch epoch,
+    TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
     : CellManager(cellManager)
-    , MasterState(masterState)
+    , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , LeaderId(leaderId)
     , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
-    , CancelableStateInvoker(new TCancelableInvoker(masterState->GetInvoker()))
+    , CancelableStateInvoker(new TCancelableInvoker(metaState->GetInvoker()))
 { }
 
 void TRecovery::Stop()
@@ -43,18 +43,18 @@ void TRecovery::Stop()
 }
 
 TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
-    TMasterStateId targetStateId,
+    TMetaVersion targetVersion,
     i32 snapshotId)
 {
     LOG_INFO("Recovering state from %s to %s",
-        ~MasterState->GetStateId().ToString(),
-        ~targetStateId.ToString());
+        ~MetaState->GetVersion().ToString(),
+        ~targetVersion.ToString());
 
-    YASSERT(MasterState->GetStateId() <= targetStateId);
+    YASSERT(MetaState->GetVersion() <= targetVersion);
 
     // Check if loading a snapshot is preferable.
     // Currently this is done by comparing segmentIds and is subject to further optimization.
-    if (snapshotId != NonexistingSnapshotId && MasterState->GetStateId().SegmentId < snapshotId)
+    if (snapshotId != NonexistingSnapshotId && MetaState->GetVersion().SegmentId < snapshotId)
     {
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
@@ -94,14 +94,14 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
         TInputStream& stream = snapshotReader->GetStream();
 
         // The reader reference is being held by the closure action.
-        return MasterState
+        return MetaState
             ->Load(snapshotId, stream)
             ->Apply(
                 FromMethod(
                     &TRecovery::RecoverFromChangeLog,
                     TPtr(this),
                     snapshotReader,
-                    targetStateId,
+                    targetVersion,
                     snapshotReader->GetPrevRecordCount())
                 ->AsyncVia(~CancelableStateInvoker));
     } else {
@@ -109,14 +109,14 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
         LOG_DEBUG("No snapshot is used for recovery");
 
         i32 prevRecordCount =
-            targetStateId.SegmentId == 0
+            targetVersion.SegmentId == 0
             ? NonexistingPrevRecordCount
             : UnknownPrevRecordCount;
 
         return RecoverFromChangeLog(
             TVoid(),
             TSnapshotReader::TPtr(),
-            targetStateId,
+            targetVersion,
             prevRecordCount);
     }
 }
@@ -124,16 +124,16 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
 TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
     TVoid,
     TSnapshotReader::TPtr,
-    TMasterStateId targetStateId,
+    TMetaVersion targetVersion,
     i32 expectedPrevRecordCount)
 {
     // Iterate through the segments and apply the changelogs.
-    for (i32 segmentId = MasterState->GetStateId().SegmentId;
-         segmentId <= targetStateId.SegmentId;
+    for (i32 segmentId = MetaState->GetVersion().SegmentId;
+         segmentId <= targetVersion.SegmentId;
          ++segmentId)
     {
-        bool isFinal = segmentId == targetStateId.SegmentId;
-        bool mayBeMissing = isFinal && targetStateId.ChangeCount == 0 || !IsLeader();
+        bool isFinal = segmentId == targetVersion.SegmentId;
+        bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
 
         TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
@@ -179,8 +179,8 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 localRecordCount,
                 remoteRecordCount);
 
-            if (segmentId == targetStateId.SegmentId &&
-                remoteRecordCount < targetStateId.ChangeCount)
+            if (segmentId == targetVersion.SegmentId &&
+                remoteRecordCount < targetVersion.RecordCount)
             {
                 LOG_FATAL("Remote changelog has insufficient records to reach the requested state");
             }
@@ -195,8 +195,8 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
 
             // Do not download more than actually needed.
             int desiredRecordCount =
-                segmentId == targetStateId.SegmentId
-                ? targetStateId.ChangeCount
+                segmentId == targetVersion.SegmentId
+                ? targetVersion.RecordCount
                 : remoteRecordCount;
             
             if (localRecordCount < desiredRecordCount) {
@@ -204,7 +204,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                     TChangeLogDownloader::TConfig(),
                     CellManager);
                 TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
-                    TMasterStateId(segmentId, desiredRecordCount),
+                    TMetaVersion(segmentId, desiredRecordCount),
                     *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
@@ -221,39 +221,39 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             changeLog->Finalize();
         }
 
-        if (segmentId == targetStateId.SegmentId) {
-            YASSERT(changeLog->GetRecordCount() == targetStateId.ChangeCount);
+        if (segmentId == targetVersion.SegmentId) {
+            YASSERT(changeLog->GetRecordCount() == targetVersion.RecordCount);
         }
 
         ApplyChangeLog(*changeLog, changeLog->GetRecordCount());
 
         if (!isFinal) {
-            MasterState->AdvanceSegment();
+            MetaState->AdvanceSegment();
         }
 
         expectedPrevRecordCount = changeLog->GetRecordCount();
     }
 
-    YASSERT(MasterState->GetStateId() == targetStateId);
+    YASSERT(MetaState->GetVersion() == targetVersion);
 
     return new TResult(EResult::OK);
 }
 
 void TRecovery::ApplyChangeLog(
     TAsyncChangeLog& changeLog,
-    i32 targetChangeCount)
+    i32 targetRecordCount)
 {
-    YASSERT(MasterState->GetStateId().SegmentId == changeLog.GetId());
+    YASSERT(MetaState->GetVersion().SegmentId == changeLog.GetId());
     
-    i32 startRecordId = MasterState->GetStateId().ChangeCount;
-    i32 recordCount = targetChangeCount - startRecordId;
+    i32 startRecordId = MetaState->GetVersion().RecordCount;
+    i32 recordCount = targetRecordCount - startRecordId;
 
     if (recordCount == 0)
         return;
 
     LOG_INFO("Reading records %d-%d from changelog %d",
         startRecordId,
-        targetChangeCount - 1, 
+        targetRecordCount - 1, 
         changeLog.GetId());
 
     yvector<TSharedRef> records;
@@ -268,10 +268,10 @@ void TRecovery::ApplyChangeLog(
     }
 
     // TODO: timing
-    LOG_INFO("Applying changes to master state");
+    LOG_INFO("Applying changes to meta state");
 
     for (i32 i = 0; i < recordCount; ++i)  {
-        MasterState->ApplyChange(records[i]);
+        MetaState->ApplyChange(records[i]);
     }
 
     LOG_INFO("Finished applying changes");
@@ -281,15 +281,15 @@ void TRecovery::ApplyChangeLog(
 
 TLeaderRecovery::TLeaderRecovery(
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState::TPtr masterState,
+    TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
-    TMasterEpoch epoch,
-    TMasterId leaderId,
+    TEpoch epoch,
+    TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
     : TRecovery(
         cellManager,
-        masterState,
+        metaState,
         changeLogCache,
         snapshotStore,
         epoch,
@@ -299,15 +299,15 @@ TLeaderRecovery::TLeaderRecovery(
 
 TRecovery::TResult::TPtr TLeaderRecovery::Run()
 {
-    TMasterStateId stateId = MasterState->GetAvailableStateId();
+    TMetaVersion version = MetaState->GetNextVersion();
 
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
-    YASSERT(maxAvailableSnapshotId <= stateId.SegmentId);
+    YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 
     return FromMethod(
                &TRecovery::RecoverFromSnapshot,
                TPtr(this),
-               stateId,
+               version,
                maxAvailableSnapshotId)
            ->AsyncVia(~CancelableStateInvoker)
            ->Do();
@@ -322,15 +322,15 @@ bool TLeaderRecovery::IsLeader() const
 
 TFollowerRecovery::TFollowerRecovery(
     TCellManager::TPtr cellManager,
-    TDecoratedMasterState::TPtr masterState,
+    TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
-    TMasterEpoch epoch,
-    TMasterId leaderId,
+    TEpoch epoch,
+    TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
     : TRecovery(
         cellManager,
-        masterState,
+        metaState,
         changeLogCache,
         snapshotStore,
         epoch,
@@ -351,7 +351,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::Run()
 
     TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     TProxy::TReqScheduleSync::TPtr request = leaderProxy->ScheduleSync();
-    request->SetMasterId(CellManager->GetSelfId());
+    request->SetPeerId(CellManager->GetSelfId());
     request->Invoke();
 
     return Result;
@@ -368,8 +368,8 @@ void TFollowerRecovery::OnSyncTimeout()
 }
 
 void TFollowerRecovery::Sync(
-    const TMasterStateId& stateId,
-    const TMasterEpoch& epoch,
+    const TMetaVersion& version,
+    const TEpoch& epoch,
     i32 maxSnapshotId)
 {
     if (SyncReceived) {
@@ -379,12 +379,12 @@ void TFollowerRecovery::Sync(
         
     SyncReceived = true;
 
-    LOG_INFO("Sync received (StateId: %s, Epoch: %s, MaxSnapshotId: %d)",
-        ~stateId.ToString(),
+    LOG_INFO("Sync received (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+        ~version.ToString(),
         ~epoch.ToString(),
         maxSnapshotId);
 
-    PostponedStateId = stateId;
+    PostponedVersion = version;
     YASSERT(PostponedChanges.ysize() == 0);
 
     i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
@@ -392,7 +392,7 @@ void TFollowerRecovery::Sync(
     FromMethod(
         &TRecovery::RecoverFromSnapshot,
         TPtr(this),
-        PostponedStateId,
+        PostponedVersion,
         snapshotId)
     ->AsyncVia(~CancelableStateInvoker)
     ->Do()->Apply(FromMethod(
@@ -449,12 +449,12 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
         const TPostponedChange& change = *it;
         switch (change.Type) {
             case TPostponedChange::EType::Change:
-                MasterState->LogChange(change.ChangeData);
-                MasterState->ApplyChange(change.ChangeData);
+                MetaState->LogChange(change.ChangeData);
+                MetaState->ApplyChange(change.ChangeData);
                 break;
 
             case TPostponedChange::EType::SegmentAdvance:
-                MasterState->RotateChangeLog();
+                MetaState->RotateChangeLog();
                 break;
 
             default:
@@ -473,33 +473,33 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 }
 
 TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
-    const TMasterStateId& stateId)
+    const TMetaVersion& version)
 {
     if (!SyncReceived) {
         LOG_DEBUG("Postponed segment advance received before sync, ignored");
         return EResult::OK;
     }
 
-    if (PostponedStateId != stateId) {
-        LOG_WARNING("Out-of-order postponed segment advance received (ExpectedStateId: %s, StateId: %s)",
-            ~PostponedStateId.ToString(),
-            ~stateId.ToString());
+    if (PostponedVersion != version) {
+        LOG_WARNING("Out-of-order postponed segment advance received (ExpectedVersion: %s, Version: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
         return EResult::Failed;
     }
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
     
     LOG_DEBUG("Enqueued postponed segment advance %s",
-        ~PostponedStateId.ToString());
+        ~PostponedVersion.ToString());
 
-    ++PostponedStateId.SegmentId;
-    PostponedStateId.ChangeCount = 0;
+    ++PostponedVersion.SegmentId;
+    PostponedVersion.RecordCount = 0;
     
     return EResult::OK;
 }
 
 TRecovery::EResult TFollowerRecovery::PostponeChange(
-    const TMasterStateId& stateId,
+    const TMetaVersion& version,
     const TSharedRef& changeData)
 {
     if (!SyncReceived) {
@@ -507,19 +507,19 @@ TRecovery::EResult TFollowerRecovery::PostponeChange(
         return EResult::OK;
     }
 
-    if (PostponedStateId != stateId) {
-        LOG_WARNING("Out-of-order postponed change received (ExpectedStateId: %s, StateId: %s)",
-            ~PostponedStateId.ToString(),
-            ~stateId.ToString());
+    if (PostponedVersion != version) {
+        LOG_WARNING("Out-of-order postponed change received (ExpectedVersion: %s, Version: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
         return EResult::Failed;
     }
 
     PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
     
     LOG_DEBUG("Enqueued postponed change %s",
-        ~PostponedStateId.ToString());
+        ~PostponedVersion.ToString());
 
-    ++PostponedStateId.ChangeCount;
+    ++PostponedVersion.RecordCount;
 
     return EResult::OK;
 }

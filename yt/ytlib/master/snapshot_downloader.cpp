@@ -27,8 +27,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     TSnapshotWriter* snapshotWriter)
 {
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
-    TMasterId sourceId = snapshotInfo.SourceId;
-    if (sourceId == InvalidMasterId) {
+    TPeerId sourceId = snapshotInfo.SourceId;
+    if (sourceId == InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
     
@@ -45,8 +45,8 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     TAsyncResult<TSnapshotInfo>::TPtr asyncResult = new TAsyncResult<TSnapshotInfo>();
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
-    for (TMasterId i = 0; i < CellManager->GetMasterCount(); ++i) {
-        LOG_INFO("Requesting snapshot info from master %d", i);
+    for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
+        LOG_INFO("Requesting snapshot info from peer %d", i);
 
         TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
         TProxy::TReqGetSnapshotInfo::TPtr request = proxy->GetSnapshotInfo();
@@ -68,13 +68,13 @@ void TSnapshotDownloader::OnResponse(
     TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
-    TMasterId masterId)
+    TPeerId peerId)
 {
     if (!response->IsOK()) {
         // We have no snapshot id to log it here
-        LOG_INFO("Error %s requesting snapshot info from master %d",
+        LOG_INFO("Error %s requesting snapshot info from peer %d",
             ~response->GetErrorCode().ToString(),
-            masterId);
+            peerId);
         return;
     }
     
@@ -82,12 +82,12 @@ void TSnapshotDownloader::OnResponse(
     ui64 checksum = response->GetChecksum();
     i32 prevRecordCount = response->GetPrevRecordCount();
     
-    LOG_INFO("Got snapshot info from master %d (Length: %" PRId64 ", Checksum: %" PRIx64 ")",
-        masterId,
+    LOG_INFO("Got snapshot info from peer %d (Length: %" PRId64 ", Checksum: %" PRIx64 ")",
+        peerId,
         length,
         checksum);
 
-    asyncResult->Set(TSnapshotInfo(masterId, length, prevRecordCount, checksum));
+    asyncResult->Set(TSnapshotInfo(peerId, length, prevRecordCount, checksum));
     awaiter->Cancel();
 }
 
@@ -97,7 +97,7 @@ void TSnapshotDownloader::OnComplete(
 {
     LOG_INFO("Could not get snapshot %d info from masters", segmentId);
 
-    asyncResult->Set(TSnapshotInfo(InvalidMasterId, -1, 0, 0));
+    asyncResult->Set(TSnapshotInfo(InvalidPeerId, -1, 0, 0));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
@@ -107,7 +107,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
 {
     YASSERT(snapshotInfo.Length >= 0);
     
-    TMasterId sourceId = snapshotInfo.SourceId;
+    TPeerId sourceId = snapshotInfo.SourceId;
     try {
         snapshotWriter->Open(snapshotInfo.PrevRecordCount);
     } catch (const yexception& ex) {
@@ -130,7 +130,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
 
     if (snapshotWriter->GetChecksum() != snapshotInfo.Checksum) {
         LOG_ERROR(
-            "Incorrect checksum in snapshot %d from master %d, "
+            "Incorrect checksum in snapshot %d from peer %d, "
             "expected %" PRIx64 ", got %" PRIx64,
             segmentId, sourceId, snapshotInfo.Checksum, snapshotWriter->GetChecksum());
         return EResult::IncorrectChecksum;
@@ -145,7 +145,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i32 sourceId,
     TOutputStream& output)
 {
-    LOG_INFO("Started downloading snapshot (SnapshotId: %d, Length: %" PRId64 ", MasterId: %d)",
+    LOG_INFO("Started downloading snapshot (SnapshotId: %d, Length: %" PRId64 ", PeerId: %d)",
             snapshotId,
             snapshotLength,
             sourceId);
@@ -167,26 +167,26 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                 switch (errorCode.ToValue()) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
-                            "Master %d does not have snapshot %d anymore",
+                            "Peer %d does not have snapshot %d anymore",
                             sourceId,
                             snapshotId);
                         return EResult::SnapshotUnavailable;
 
                     case TProxy::EErrorCode::IOError:
                         LOG_WARNING(
-                            "IO error occurred on master %d during downloading snapshot %d",
+                            "IO error occurred on peer %d during downloading snapshot %d",
                             sourceId,
                             snapshotId);
                         return EResult::RemoteError;
 
                     default:
-                        LOG_FATAL("Unknown error code %s received from master %d",
+                        LOG_FATAL("Unknown error code %s received from peer %d",
                             ~errorCode.ToString(),
                             sourceId);
                         break;
                 }
             } else {
-                LOG_WARNING("RPC error %s reading snapshot from master %d",
+                LOG_WARNING("RPC error %s reading snapshot from peer %d",
                     ~errorCode.ToString(),
                     sourceId);
                 return EResult::RemoteError;

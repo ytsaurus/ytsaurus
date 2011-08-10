@@ -104,7 +104,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
 
     YASSERT(State == EState::Connecting);
 
-    if (result.Id == InvalidMasterId) {
+    if (result.Id == InvalidPeerId) {
         State = EState::Failed;
         LookupResult.Drop();
         return new TAsyncResult<NRpc::IChannel::TPtr>(NULL);

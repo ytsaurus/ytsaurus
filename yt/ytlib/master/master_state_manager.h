@@ -25,23 +25,23 @@ class TLeaderPinger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterStateManager
+class TMetaStateManager
     : public NRpc::TServiceBase
     , public IElectionCallbacks
 {
 public:
-    typedef TIntrusivePtr<TMasterStateManager> TPtr;
+    typedef TIntrusivePtr<TMetaStateManager> TPtr;
 
     struct TConfig
     {
         Stroka LogLocation;
         Stroka SnapshotLocation;
-        i32 MaxChangeCount;
+        i32 MaxRecordCount;
 
         TConfig()
             : LogLocation(".")
             , SnapshotLocation(".")
-            , MaxChangeCount(1000)
+            , MaxRecordCount(1000)
         { }
 
         void Read(TJsonObject* json)
@@ -69,13 +69,13 @@ public:
 
     typedef TAsyncResult<ECommitResult> TCommitResult;
 
-    TMasterStateManager(
+    TMetaStateManager(
         const TConfig& config,
         TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker,
-        IMasterState::TPtr masterState,
+        IMetaState::TPtr metaState,
         NRpc::TServer::TPtr server);
-    ~TMasterStateManager();
+    ~TMetaStateManager();
 
     void Start();
 
@@ -86,21 +86,21 @@ public:
         TSharedRef changeData);
 
 private:
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
     typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ScheduleSync);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, Sync);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetSnapshotInfo);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ReadSnapshot);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, GetChangeLogInfo);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ReadChangeLog);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, ApplyChange);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, CreateSnapshot);
-    RPC_SERVICE_METHOD_DECL(NRpcMasterStateManager, PingLeader);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ScheduleSync);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, Sync);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetSnapshotInfo);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadSnapshot);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetChangeLogInfo);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadChangeLog);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChange);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, CreateSnapshot);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, PingLeader);
 
     void RegisterMethods();
-    void SendSync(TMasterId masterId, TMasterEpoch epoch);
+    void SendSync(TPeerId peerId, TEpoch epoch);
 
     // Service thread
     void OnLeaderRecovery(TRecovery::EResult result);
@@ -115,7 +115,7 @@ private:
     void Restart();
 
     // Service thread
-    void StartEpoch(const TMasterEpoch& epoch);
+    void StartEpoch(const TEpoch& epoch);
     void StopEpoch();
 
     // Thread-neutral.
@@ -130,26 +130,26 @@ private:
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members
-    virtual void StartLeading(TMasterEpoch epoch);
+    virtual void StartLeading(TEpoch epoch);
     virtual void StopLeading();
-    virtual void StartFollowing(TMasterId leaderId, TMasterEpoch myEpoch);
+    virtual void StartFollowing(TPeerId leaderId, TEpoch myEpoch);
     virtual void StopFollowing();
-    virtual TMasterPriority GetPriority();
-    virtual Stroka FormatPriority(TMasterPriority priority);
+    virtual TPeerPriority GetPriority();
+    virtual Stroka FormatPriority(TPeerPriority priority);
 
     EState State;
     TConfig Config;
-    TMasterId LeaderId;
+    TPeerId LeaderId;
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
     TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
-    TDecoratedMasterState::TPtr MasterState;
+    TDecoratedMetaState::TPtr MetaState;
 
     // Per epoch, service thread
-    TMasterEpoch Epoch;
+    TEpoch Epoch;
     TCancelableInvoker::TPtr ServiceEpochInvoker;
     TSnapshotCreator::TPtr SnapshotCreator;
     TLeaderRecovery::TPtr LeaderRecovery;

@@ -12,8 +12,8 @@ static NLog::TLogger& Logger = MasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDecoratedMasterState::TDecoratedMasterState(
-    IMasterState::TPtr state,
+TDecoratedMetaState::TDecoratedMetaState(
+    IMetaState::TPtr state,
     TSnapshotStore::TPtr snapshotStore,
     TChangeLogCache::TPtr changeLogCache)
     : State(state)
@@ -21,110 +21,110 @@ TDecoratedMasterState::TDecoratedMasterState(
     , ChangeLogCache(changeLogCache)
 {
     state->Clear();
-    ComputeAvailableStateId();
+    ComputeNextVersion();
 }
 
-IInvoker::TPtr TDecoratedMasterState::GetInvoker() const
+IInvoker::TPtr TDecoratedMetaState::GetInvoker() const
 {
     return State->GetInvoker();
 }
 
-IMasterState::TPtr TDecoratedMasterState::GetState() const
+IMetaState::TPtr TDecoratedMetaState::GetState() const
 {
     return State;
 }
 
-TVoid TDecoratedMasterState::Clear()
+TVoid TDecoratedMetaState::Clear()
 {
     State->Clear();
-    StateId = TMasterStateId();
+    Version = TMetaVersion();
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Save(TOutputStream& output)
+TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream& output)
 {
     LOG_INFO("Started saving snapshot");
 
     return State->Save(output)->Apply(FromMethod(
-        &TDecoratedMasterState::OnSave,
+        &TDecoratedMetaState::OnSave,
         TPtr(this),
         TInstant::Now()));
 }
 
-TVoid TDecoratedMasterState::OnSave(TVoid, TInstant started)
+TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
 {
     TInstant finished = TInstant::Now();
     LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMasterState::Load(i32 segmentId, TInputStream& input)
+TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(i32 segmentId, TInputStream& input)
 {
     LOG_INFO("Started loading snapshot %d", segmentId);
-    UpdateStateId(TMasterStateId(segmentId, 0));
+    UpdateVersion(TMetaVersion(segmentId, 0));
     return State->Load(input)->Apply(FromMethod(
-        &TDecoratedMasterState::OnLoad,
+        &TDecoratedMetaState::OnLoad,
         TPtr(this),
         TInstant::Now()));
 }
 
-TVoid TDecoratedMasterState::OnLoad(TVoid, TInstant started)
+TVoid TDecoratedMetaState::OnLoad(TVoid, TInstant started)
 {
     TInstant finished = TInstant::Now();
     LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
     return TVoid();
 }
 
-void TDecoratedMasterState::ApplyChange(const TSharedRef& changeData)
+void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 {
     State->ApplyChange(changeData);
-    AdvanceChangeCount();
+    IncrementRecordCount();
 }
 
-void TDecoratedMasterState::ApplyChange(IAction::TPtr changeAction)
+void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 {
     changeAction->Do();
-    AdvanceChangeCount();
+    IncrementRecordCount();
 }
 
-void TDecoratedMasterState::AdvanceChangeCount()
+void TDecoratedMetaState::IncrementRecordCount()
 {
-    UpdateStateId(TMasterStateId(StateId.SegmentId, StateId.ChangeCount + 1));
+    UpdateVersion(TMetaVersion(Version.SegmentId, Version.RecordCount + 1));
 }
 
-TAsyncChangeLog::TAppendResult::TPtr TDecoratedMasterState::LogChange(
+TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TSharedRef& changeData)
 {
-    TCachedAsyncChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(StateId.SegmentId);
+    TCachedAsyncChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(Version.SegmentId);
     if (~cachedChangeLog == NULL) {
-        LOG_FATAL("The current changelog %d is missing", StateId.SegmentId);
+        LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
     }
 
     return cachedChangeLog->Append(
-        StateId.ChangeCount,
+        Version.RecordCount,
         changeData);
 }
 
-void TDecoratedMasterState::AdvanceSegment()
+void TDecoratedMetaState::AdvanceSegment()
 {
-    UpdateStateId(TMasterStateId(StateId.SegmentId + 1, 0));
+    UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
-    LOG_INFO("Switched to a new segment %d", StateId.SegmentId);
+    LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
-void TDecoratedMasterState::RotateChangeLog()
+void TDecoratedMetaState::RotateChangeLog()
 {
-    TCachedAsyncChangeLog::TPtr currentChangeLog = ChangeLogCache->Get(StateId.SegmentId);
+    TCachedAsyncChangeLog::TPtr currentChangeLog = ChangeLogCache->Get(Version.SegmentId);
     YASSERT(~currentChangeLog != NULL);
 
     currentChangeLog->Finalize();
 
     AdvanceSegment();
 
-    ChangeLogCache->Create(StateId.SegmentId, currentChangeLog->GetRecordCount());
+    ChangeLogCache->Create(Version.SegmentId, currentChangeLog->GetRecordCount());
 }
 
-void TDecoratedMasterState::ComputeAvailableStateId()
+void TDecoratedMetaState::ComputeNextVersion()
 {
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
     if (maxSnapshotId == NonexistingSnapshotId) {
@@ -136,12 +136,12 @@ void TDecoratedMasterState::ComputeAvailableStateId()
         LOG_INFO("Latest snapshot is %d", maxSnapshotId);
     }
 
-    TMasterStateId currentStateId = TMasterStateId(maxSnapshotId, 0);
+    TMetaVersion currentVersion = TMetaVersion(maxSnapshotId, 0);
 
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
         TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
-            AvailableStateId = currentStateId;
+            NextVersion = currentVersion;
             break;
         }
 
@@ -153,44 +153,44 @@ void TDecoratedMasterState::ComputeAvailableStateId()
             changeLog->GetPrevRecordCount(),
             ~ToString(isFinal));
 
-        currentStateId = TMasterStateId(segmentId, changeLog->GetRecordCount());
+        currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }
 
-    LOG_INFO("Available state is %s", ~AvailableStateId.ToString());
+    LOG_INFO("Available state is %s", ~NextVersion.ToString());
 }         
 
-TMasterStateId TDecoratedMasterState::GetStateId() const
+TMetaVersion TDecoratedMetaState::GetVersion() const
 {
-    return StateId;
+    return Version;
 }
 
-TMasterStateId TDecoratedMasterState::GetAvailableStateId() const
+TMetaVersion TDecoratedMetaState::GetNextVersion() const
 {
-    return AvailableStateId;
+    return NextVersion;
 }
 
-void TDecoratedMasterState::UpdateStateId(const TMasterStateId& newStateId)
+void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
 {
-    StateId = newStateId;
-    AvailableStateId = Max(AvailableStateId, StateId);
+    Version = newVersion;
+    NextVersion = Max(NextVersion, Version);
 }
 
-void TDecoratedMasterState::OnStartLeading()
+void TDecoratedMetaState::OnStartLeading()
 {
     State->OnStartLeading();
 }
 
-void TDecoratedMasterState::OnStopLeading()
+void TDecoratedMetaState::OnStopLeading()
 {
     State->OnStopLeading();
 }
 
-void TDecoratedMasterState::OnStartFollowing()
+void TDecoratedMetaState::OnStartFollowing()
 {
     State->OnStartFollowing();
 }
 
-void TDecoratedMasterState::OnStopFollowing()
+void TDecoratedMetaState::OnStopFollowing()
 {
     State->OnStopFollowing();
 }

@@ -42,29 +42,29 @@ public:
         const TConfig& config,
         TCellManager::TPtr cellManager);
 
-    EResult Download(TMasterStateId stateId, TAsyncChangeLog& changeLog);
+    EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
 
 private:
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     TConfig Config;
     TCellManager::TPtr CellManager;
 
-    TMasterId GetChangeLogSource(TMasterStateId stateId);
+    TPeerId GetChangeLogSource(TMetaVersion version);
 
     EResult DownloadChangeLog(
-        TMasterStateId stateId,
-        TMasterId sourceId,
+        TMetaVersion version,
+        TPeerId sourceId,
         TAsyncChangeLog& changeLog);
 
     static void OnResponse(
         TProxy::TRspGetChangeLogInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TMasterId>::TPtr asyncResult,
-        TMasterId masterId,
-        TMasterStateId stateId);
+        TAsyncResult<TPeerId>::TPtr asyncResult,
+        TPeerId peerId,
+        TMetaVersion version);
     static void OnComplete(
-        TAsyncResult<TMasterId>::TPtr asyncResult);
+        TAsyncResult<TPeerId>::TPtr asyncResult);
 
 };
 

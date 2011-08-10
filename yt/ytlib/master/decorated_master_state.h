@@ -9,23 +9,23 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedMasterState
+class TDecoratedMetaState
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TDecoratedMasterState> TPtr;
+    typedef TIntrusivePtr<TDecoratedMetaState> TPtr;
 
-    TDecoratedMasterState(
-        IMasterState::TPtr state,
+    TDecoratedMetaState(
+        IMetaState::TPtr state,
         TSnapshotStore::TPtr snapshotStore,
         TChangeLogCache::TPtr changeLogCache);
 
     IInvoker::TPtr GetInvoker() const;
 
-    TMasterStateId GetStateId() const;
-    TMasterStateId GetAvailableStateId() const;
+    TMetaVersion GetVersion() const;
+    TMetaVersion GetNextVersion() const;
 
-    IMasterState::TPtr GetState() const;
+    IMetaState::TPtr GetState() const;
 
     TVoid Clear();
     
@@ -45,18 +45,18 @@ public:
     void OnStopFollowing();
 
 private:
-    void AdvanceChangeCount();
-    void ComputeAvailableStateId();
-    void UpdateStateId(const TMasterStateId& newStateId);
+    void IncrementRecordCount();
+    void ComputeNextVersion();
+    void UpdateVersion(const TMetaVersion& newVersion);
     TVoid OnSave(TVoid, TInstant started);
     TVoid OnLoad(TVoid, TInstant started);
 
-    IMasterState::TPtr State;
+    IMetaState::TPtr State;
     TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
 
-    TMasterStateId StateId;
-    TMasterStateId AvailableStateId;
+    TMetaVersion Version;
+    TMetaVersion NextVersion;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

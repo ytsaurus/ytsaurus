@@ -46,14 +46,14 @@ public:
 private:
     struct TSnapshotInfo
     {
-        TMasterId SourceId;
+        TPeerId SourceId;
         i64 Length;
         i32 PrevRecordCount;
         ui64 Checksum;
 
         TSnapshotInfo() {}
 
-        TSnapshotInfo(TMasterId owner, i64 length, i32 prevRecordCount, ui64 checksum)
+        TSnapshotInfo(TPeerId owner, i64 length, i32 prevRecordCount, ui64 checksum)
             : SourceId(owner)
             , Length(length)
             , PrevRecordCount(prevRecordCount)
@@ -61,7 +61,7 @@ private:
         {}
     };
 
-    typedef TMasterStateManagerProxy TProxy;
+    typedef TMetaStateManagerProxy TProxy;
 
     TConfig Config;
     TCellManager::TPtr CellManager;
@@ -71,7 +71,7 @@ private:
         TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
-        TMasterId masterId);
+        TPeerId peerId);
     static void OnComplete(
         i32 segmentId,
         TAsyncResult<TSnapshotInfo>::TPtr asyncResult);
