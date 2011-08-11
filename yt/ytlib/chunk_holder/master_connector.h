@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_store.h"
+#include "replicator.h"
 
 #include "../chunk_manager/chunk_manager_rpc.h"
 
@@ -27,6 +28,7 @@ public:
     TMasterConnector(
         const TConfig& config,
         TChunkStore::TPtr chunkStore,
+        TReplicator::TPtr replicator,
         IInvoker::TPtr serviceInvoker);
 
     //! Initializes the instance.
@@ -61,7 +63,8 @@ private:
     TConfig Config;
     
     TChunkStore::TPtr ChunkStore;
-    
+    TReplicator::TPtr Replicator;
+
     //! All state modifications are carried out via this invoker.
     IInvoker::TPtr ServiceInvoker;
     
@@ -107,11 +110,10 @@ private:
     //! Computes #Address.
     void InitializeAddress();
 
-    
     //! Schedules a heartbeat via TDelayedInvoker.
     void ScheduleHeartbeat();
 
-    //! Gets invoked when a heartbeat must be sent.
+    //! Invoked when a heartbeat must be sent.
     void OnHeartbeat();
 
     //! Sends out a registration request.

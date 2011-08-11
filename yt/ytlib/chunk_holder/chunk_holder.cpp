@@ -31,13 +31,18 @@ TChunkHolder::TChunkHolder(
         Config,
         BlockStore,
         ChunkStore,
-        serviceInvoker);
+        ServiceInvoker);
+
+    Replicator = new TReplicator(
+        BlockStore,
+        ServiceInvoker);
 
     if (!Config.Masters.Addresses.empty()) {
         MasterConnector = new TMasterConnector(
             Config,
             ChunkStore,
-            serviceInvoker);
+            Replicator,
+            ServiceInvoker);
         MasterConnector->Initialize();
     }
 

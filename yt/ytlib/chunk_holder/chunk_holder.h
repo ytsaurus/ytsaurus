@@ -7,6 +7,7 @@
 #include "chunk_store.h"
 #include "chunk_holder_rpc.h"
 #include "master_connector.h"
+#include "replicator.h"
 
 #include "../rpc/server.h"
 
@@ -47,6 +48,9 @@ private:
 
     //! Caches channels that are used for sending blocks to other holders.
     NRpc::TChannelCache ChannelCache;
+
+    //! Manages chunk replication.
+    TReplicator::TPtr Replicator;
 
     //! Manages connection between chunk holder and master.
     TMasterConnector::TPtr MasterConnector;

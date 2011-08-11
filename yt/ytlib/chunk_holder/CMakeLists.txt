@@ -7,6 +7,7 @@ SET(YT_SOURCE_FILES
     chunk_store.cpp
     session.cpp
     master_connector.cpp
+    replicator.cpp
 )
 
 

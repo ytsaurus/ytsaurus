@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NChunkManager::NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
@@ -20,9 +22,11 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(
     const TConfig& config,
     TChunkStore::TPtr chunkStore,
+    TReplicator::TPtr replicator,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
+    , Replicator(Replicator)
     , ServiceInvoker(serviceInvoker)
     , Registered(false)
     , IncrementalHeartbeat(false)
@@ -141,14 +145,26 @@ void TMasterConnector::SendHeartbeat()
         }
     }
 
+    yvector<TJob::TPtr> jobs = Replicator->GetAllJobs();
+    for (yvector<TJob::TPtr>::iterator it = jobs.begin();
+         it != jobs.end();
+         ++it)
+    {
+        TJob::TPtr job = *it;
+        TJobInfo* info = request->AddJobs();
+        info->SetId(job->GetJobId());
+        info->SetState(job->GetState());
+    }
+
     request->Invoke(Config.RpcTimeout)->Subscribe(
         FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
         ->Via(ServiceInvoker));
 
-    LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d)",
+    LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~statistics.ToString(),
         static_cast<int>(request->AddedChunksSize()),
-        static_cast<int>(request->RemovedChunksSize()));
+        static_cast<int>(request->RemovedChunksSize()),
+        static_cast<int>(request->JobsSize()));
 }
 
 void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response)
@@ -167,6 +183,8 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
 
         return;
     }
+
+    LOG_INFO("Successfully reported heartbeat to master");
 
     if (IncrementalHeartbeat) {
         TChunks newAddedSinceLastSuccess;
@@ -198,7 +216,48 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
 
     // TODO: handle chunk removals
 
-    LOG_INFO("Successfully reported heartbeat to master");
+    for (int jobIndex = 0;
+         jobIndex < static_cast<int>(response->JobsToStopSize());
+         ++jobIndex)
+    {
+        int jobId = response->GetJobsToStop(jobIndex);
+        TJob::TPtr job = Replicator->FindJob(jobId);
+        if (~job == NULL) {
+            LOG_WARNING("Request to stop a non-existing job (JobId: %d)",
+                jobId);
+            continue;
+        }
+
+        Replicator->StopJob(job);
+    }
+
+    for (int jobIndex = 0;
+         jobIndex < static_cast<int>(response->JobsToStartSize());
+         ++jobIndex)
+    {
+        const TJobStartInfo& info = response->GetJobsToStart(jobIndex);
+        TChunkId chunkId = TChunkId::FromProto(info.GetChunkId());
+        
+        TChunk::TPtr chunk = ChunkStore->FindChunk(chunkId);
+        if (~chunk == NULL) {
+            LOG_WARNING("Request to replicate a non-existing chunk is ignored (ChunkId: %s)",
+                ~chunkId.ToString());
+            continue;
+        }
+
+        yvector<Stroka> targetAddresses;
+        for (int addressIndex = 0;
+             addressIndex < static_cast<int>(info.TargetAddressesSize());
+             ++addressIndex)
+        {
+            targetAddresses.push_back(info.GetTargetAddresses(addressIndex));
+        }
+
+        Replicator->StartJob(
+            info.GetJobId(),
+            chunk,
+            targetAddresses);
+    }
 }
 
 void TMasterConnector::OnDisconnected()

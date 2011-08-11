@@ -26,11 +26,24 @@ public:
 
     struct TConfig
     {
-        //! Number of blocks in window.
+        //! Maximum number of blocks that may be concurrently present in the window.
         int WindowSize;
+        
         //! Maximum group size (in bytes).
         i64 GroupSize;
+        
+        //! RPC requests timeout.
+        /*!
+         *  This timeout is especially useful for PutBlocks calls to ensure that
+         *  uploading is not stalled.
+         */
         TDuration RpcTimeout;
+
+        TConfig()
+            : WindowSize(16)
+            , GroupSize(1024 * 1024)
+            , RpcTimeout(TDuration::Seconds(5))
+        { }
     };
 
     // Client thread
