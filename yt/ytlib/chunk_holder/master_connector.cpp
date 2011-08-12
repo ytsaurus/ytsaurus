@@ -152,7 +152,7 @@ void TMasterConnector::SendHeartbeat()
     {
         TJob::TPtr job = *it;
         TJobInfo* info = request->AddJobs();
-        info->SetId(job->GetJobId());
+        info->SetJobId(job->GetJobId().ToProto());
         info->SetState(job->GetState());
     }
 
