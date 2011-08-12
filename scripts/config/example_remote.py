@@ -29,7 +29,7 @@ class Base(AggrBase):
 	path = opts.get_string('--name', 'control')
 	
 class Server(Base):
-	bin_path = '../server/server'
+	bin_path = '/home/psushin/yt/trunk/yt/server/server'
 	
 	def get_log(cls, fd):
 		print >>fd, shebang
