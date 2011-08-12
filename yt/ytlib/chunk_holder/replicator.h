@@ -4,6 +4,7 @@
 #include "chunk_store.h"
 #include "block_store.h"
 
+#include "../misc/guid.h"
 #include "../chunk_client/chunk_writer.h"
 
 namespace NYT {
@@ -21,15 +22,21 @@ DECLARE_ENUM(EJobState,
 
 class TReplicator;
 
-//! Represent a replication job on a chunk holder.
+//! Id of a job.
+typedef TGuid TJobId;
+
+//! Hash for job ids.
+typedef TGuidHash TJobIdHash;
+
+//! Represents a replication job on a chunk holder.
 class TJob
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TJob> TPtr;
 
-    //! Returns job id.
-    int GetJobId() const;
+    //! Returns the id.
+    TJobId GetJobId() const;
 
     //! Returns the current state.
     EJobState GetState() const;
@@ -44,7 +51,7 @@ private:
     friend class TReplicator;
 
     TBlockStore::TPtr BlockStore;
-    int JobId;
+    TJobId JobId;
     EJobState State;
     TChunk::TPtr Chunk;
     yvector<Stroka> TargetAddresses;
@@ -54,7 +61,7 @@ private:
     TJob(
         IInvoker::TPtr serviceInvoker,
         TBlockStore::TPtr blockStore,
-        int jobId,
+        const TJobId& jobId,
         TChunk::TPtr chunk,
         const yvector<Stroka>& targetAddresses);
 
@@ -66,6 +73,7 @@ private:
         TCachedBlock::TPtr cachedBlock,
         int blockIndex);
     void OnWriterClosed(TVoid);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +83,7 @@ private:
  *  Each chunk holder has a set of currently active replication jobs.
  *  These jobs are started by the master and are used for two purposes:
  *  making additional replicas of chunks lacking enough of them and
- *  redistributing the chunks among chunk holders to ensure even distribution.
+ *  moving chunks around chunk holders to ensure even distribution.
  *  
  *  Each job is represented by an instance of TJob class.
  *  A job is created by calling #StartJob and stopped by calling #StopJob methods.
@@ -84,13 +92,12 @@ private:
  *  Completed and failed job do not vanish automatically. It is the responsibility
  *  of the master to stop them.
  *  
- *  The status of all jobs is send to the master with each heartbeat.
- *  This way the master obtains the outcomes of each started jobs.
+ *  The status of all jobs is propagated to the master with each heartbeat.
+ *  This way the master obtains the outcomes of each job it had started.
  * 
- *  A job is identified by its id. This id is assigned by the master when a job is started.
- *  Using master-controlled id assigned eliminates the need for additional RPC roundtrips
+ *  A job is identified by its id, which is assigned by the master when a job is started.
+ *  Using master-controlled id assignment eliminates the need for additional RPC round-trips
  *  for getting these ids from the holder.
- *  
  */
 class TReplicator
     : public TRefCountedBase
@@ -105,7 +112,7 @@ public:
     
     //! Starts a new job with the given parameters.
     TJob::TPtr StartJob(
-        int jobId,
+        const TJobId& jobId,
         TChunk::TPtr chunk,
         const yvector<Stroka>& targetAddresses);
 
@@ -116,14 +123,14 @@ public:
     //! Stop all currently active jobs.
     void StopAllJobs();
 
-    //! Finds job by its id. Return NULL if no job is found.
-    TJob::TPtr FindJob(int jobId);
+    //! Finds job by its id. Returns NULL if no job is found.
+    TJob::TPtr FindJob(const TJobId& jobId);
 
     //! Gets all active jobs.
     yvector<TJob::TPtr> GetAllJobs();
 
 private:
-    typedef yhash_map<int, TJob::TPtr> TJobMap;
+    typedef yhash_map<TJobId, TJob::TPtr, TJobIdHash> TJobMap;
 
     TBlockStore::TPtr BlockStore;
     IInvoker::TPtr ServiceInvoker;

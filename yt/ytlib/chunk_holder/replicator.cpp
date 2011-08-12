@@ -15,7 +15,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TJob::TJob(
     IInvoker::TPtr serviceInvoker,
     TBlockStore::TPtr blockStore,
-    int jobId,
+    const TJobId& jobId,
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
     : BlockStore(blockStore)
@@ -32,7 +32,7 @@ TJob::TJob(
         targetAddresses);
 }
 
-int TJob::GetJobId() const
+TJobId TJob::GetJobId() const
 {
     return JobId;
 }
@@ -72,8 +72,8 @@ bool TJob::ReplicateBlock(int blockIndex)
     TBlockId blockId(Chunk->GetId(), BlockSize * blockIndex);
     i64 blockSize = Min(BlockSize, Chunk->GetSize() - blockId.Offset);
     if (blockSize <= 0) {
-        LOG_DEBUG("All blocks are enqueued for replication (JobId: %d)",
-            JobId);
+        LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
+            ~JobId.ToString());
 
         Writer->_Close()->Subscribe(
             FromMethod(
@@ -83,8 +83,8 @@ bool TJob::ReplicateBlock(int blockIndex)
         return false;
     }
 
-    LOG_DEBUG("Retrieving block for replication (JobId: %d, BlockIndex: %d)",
-        JobId, 
+    LOG_DEBUG("Retrieving block for replication (JobId: %s, BlockIndex: %d)",
+        ~JobId.ToString(), 
         blockIndex);
 
     BlockStore->FindBlock(blockId, BlockSize)->Subscribe(
@@ -103,16 +103,16 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
         cachedBlock->GetData(),
         &ready))
     {
-        LOG_DEBUG("Block is enqueued to replication writer (JobId: %d, BlockIndex: %d)",
-            JobId,
+        LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
+            ~JobId.ToString(),
             blockIndex);
 
         ReplicateBlock(blockIndex + 1);
     }
     else
     {
-        LOG_DEBUG("Replication writer window overflow (JobId: %d, BlockIndex: %d)",
-            JobId,
+        LOG_DEBUG("Replication writer window overflow (JobId: %s, BlockIndex: %d)",
+            ~JobId.ToString(),
             blockIndex);
 
         ready->Subscribe(
@@ -128,8 +128,8 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 
 void TJob::OnWriterClosed(TVoid)
 {
-    LOG_DEBUG("Replication job completed (JobId: %d)",
-        JobId);
+    LOG_DEBUG("Replication job completed (JobId: %s)",
+        ~JobId.ToString());
 
     State = EJobState::Completed;
 }
@@ -144,7 +144,7 @@ TReplicator::TReplicator(
 { }
 
 TJob::TPtr TReplicator::StartJob(
-    int jobId,
+    const TJobId& jobId,
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
 {
@@ -157,8 +157,8 @@ TJob::TPtr TReplicator::StartJob(
     YVERIFY(Jobs.insert(MakePair(jobId, job)).Second());
     job->Start();
 
-    LOG_INFO("Replication job started (JobId: %d, TargetAddresses: [%s], ChunkId: %s)",
-        jobId,
+    LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
+        ~jobId.ToString(),
         ~JoinStroku(targetAddresses, ", "),
         ~chunk->GetId().ToString());
     
@@ -170,12 +170,12 @@ void TReplicator::StopJob(TJob::TPtr job)
     job->Stop();
     YVERIFY(Jobs.erase(job->GetJobId()) == 1);
     
-    LOG_INFO("Replication job stopped (JobId: %d, State: %s)",
-        job->GetJobId(),
+    LOG_INFO("Replication job stopped (JobId: %s, State: %s)",
+        ~job->GetJobId().ToString(),
         ~job->GetState().ToString());
 }
 
-TJob::TPtr TReplicator::FindJob(int jobId)
+TJob::TPtr TReplicator::FindJob(const TJobId& jobId)
 {
     TJobMap::iterator it = Jobs.find(jobId);
     if (it == Jobs.end())

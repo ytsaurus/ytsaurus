@@ -220,11 +220,11 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
          jobIndex < static_cast<int>(response->JobsToStopSize());
          ++jobIndex)
     {
-        int jobId = response->GetJobsToStop(jobIndex);
+        TJobId jobId = TJobId::FromProto(response->GetJobsToStop(jobIndex));
         TJob::TPtr job = Replicator->FindJob(jobId);
         if (~job == NULL) {
-            LOG_WARNING("Request to stop a non-existing job (JobId: %d)",
-                jobId);
+            LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
+                ~jobId.ToString());
             continue;
         }
 
@@ -254,7 +254,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         }
 
         Replicator->StartJob(
-            info.GetJobId(),
+            TJobId::FromProto(info.GetJobId()),
             chunk,
             targetAddresses);
     }

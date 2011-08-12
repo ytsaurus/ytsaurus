@@ -32,13 +32,13 @@ message TRspRegisterHolder
 
 message TJobInfo
 {
-    required int32 Id = 1;
+    required bytes JobId = 1;
     required int32 State = 2;    
 }
 
 message TJobStartInfo
 {
-    required int32 JobId = 1;
+    required bytes JobId = 1;
     required bytes ChunkId = 2;
     repeated bytes TargetAddresses = 3;
 }
@@ -59,7 +59,7 @@ message TRspHolderHeartbeat
 {
     repeated bytes ChunksToRemove = 1;
     repeated TJobStartInfo JobsToStart = 2;
-    repeated int32 JobsToStop = 3;
+    repeated bytes JobsToStop = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
