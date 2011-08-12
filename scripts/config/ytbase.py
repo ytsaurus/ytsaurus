@@ -84,7 +84,28 @@ class ServerNode(Node):
         return int(cls.address.split(':')[1])
         
 ##################################################################
-        
+    
+def make_aggregate(node, runcmd):
+    if node.__leafs:
+        # make list of file descriptions
+        names = set()
+        for l in node.__leafs:
+            for descr in l.files:
+                if 'aggregate' in descr.attrs:
+                    assert 'exec' in descr.attrs
+                    names.add(descr.name)
+
+        for name in names:
+            with open(node.local_path(name + '.' + SCRIPT_EXT), 'w') as fd:
+                for l in node.__leafs:
+                    for descr in l.files:
+                        if name == descr.name:
+                            print >>fd, runcmd(l.local_path(descr.filename))
+            make_executable(fd.name)
+
+    for scls in node.__subclasses__():
+        make_aggregate(scls, runcmd)
+
 def make_files(root):
     # make file for each node
     def traverse_leafs(node):
@@ -102,28 +123,4 @@ def make_files(root):
         return leafs
 
     traverse_leafs(root)
-
-    # make aggregate files
-    def make_aggregate(node):
-        if node.__leafs:
-            # make list of file descriptions
-            names = set()
-            for l in node.__leafs:
-                for descr in l.files:
-                    if 'aggregate' in descr.attrs:
-                        assert 'exec' in descr.attrs
-                        names.add(descr.name)
-
-            for name in names:
-                with open(node.local_path(name + '.' + SCRIPT_EXT), 'w') as fd:
-                    for l in node.__leafs:
-                        for descr in l.files:
-                            if name == descr.name:
-                                print >>fd, l.local_path(descr.filename)                                
-                make_executable(fd.name)
-
-        for scls in node.__subclasses__():
-            make_aggregate(scls)
-
-    make_aggregate(root)
     

@@ -32,7 +32,7 @@ class RemoteNode(Node):
 				setattr(cls, '_'.join((descr.name, 'path')),
 						cls.remote_path(descr.filename))
 			else:
-				setattr(cls, '_'.join(('remote', descr.name, 'path')),
+				setattr(cls, '_'.join((descr.name, 'path')),
 						cls.local_path(descr.filename))
 						
 		
@@ -76,9 +76,11 @@ class RemoteNode(Node):
 class RemoteServer(RemoteNode, ServerNode):
 	pass
 							
-##################################################################	
+##################################################################
+
 def configure(root):
 	make_files(root)
+	make_aggregate(root, lambda x:x)
 	
 	hosts = set()
 	def append_hosts(node):

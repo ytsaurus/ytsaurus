@@ -1,4 +1,6 @@
 #!/usr/bin/python
+#!-*-coding:utf-8-*-
+
 from ytwin import *
 import opts
 
@@ -45,11 +47,11 @@ class Master(WinNode, Server):
 
 	config = Template({
 		'Cell' : {
-			'MasterAddresses' : MasterAddresses
+			'PeerAddresses' : MasterAddresses
 		},
 		'MetaState' : {
-			'SnapshotLocation' : '%(work_dir)s/snapshots',
-			'LogLocation' : '%(work_dir)s/logs',
+			'SnapshotLocation' : r'%(work_dir)s\snapshots',
+			'LogLocation' : r'%(work_dir)s\logs',
 		},			
 		'Logging' : Logging
 	})
@@ -67,20 +69,20 @@ class Master(WinNode, Server):
 	
 class Holder(WinNode, Server):
 	address = Subclass(opts.limit_iter('--holders',
-			[HostPattern % (x, Port) for x in xrange(5, 10)]))
+			[('localhost:%d' % p) for p in range(9000, 9004)]))
 	
 	params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
 	
 	config = Template({ 
 		'Masters' : MasterAddresses,
-		'Locations' : ['%(work_dir)s/node'],
+		'Locations' : [r'%(work_dir)s\node'],
 		'Logging' : Logging
 	})
 	
-	def do_clean(cls, fd):
-		print >>fd, 'del %s' % cls.log_file
+	def clean(cls, fd):
+		print >>fd, 'del %s' % cls.log_path
 		for location in cls.config['Locations']:
 			print >>fd, 'rmdir /S /Q   %s' % location
-		
+
 configure(Base)
 	
