@@ -30,5 +30,5 @@ class WinNode(ServerNode):
 
 def configure(root):
 	make_files(root)
-	make_aggregate(root, lambda x: 'START /B ' + x)
+	make_aggregate(root, lambda x: 'call ' + x)
 	
