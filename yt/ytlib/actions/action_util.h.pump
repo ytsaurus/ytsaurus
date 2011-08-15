@@ -116,7 +116,7 @@ public:
 
 // Corresponding wrapper.
 template <class TTargetPtr, class TUnderlying$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 IAction::TPtr FromMethod(
     void (TUnderlying::* method)($TArgs),
     TTargetPtr target$wrap_args)
@@ -162,7 +162,7 @@ public:
 
 // Corresponding wrapper.
 template <class TResult, class TTargetPtr, class TUnderlying$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IFunc<TResult>::TPtr FromMethod(
     TResult (TUnderlying::* method)($TArgs),
     TTargetPtr target$wrap_args)
@@ -208,7 +208,7 @@ public:
 
 // Corresponding wrapper.
 template <class TParam, class TTargetPtr, class TUnderlying$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IParamAction<TParam>::TPtr FromMethod(
     void (TUnderlying::* method)(TParam$_and_$TArgs),
     TTargetPtr target$wrap_args)
@@ -254,7 +254,7 @@ public:
 
 // Corresponding wrapper.
 template <class TParam, class TResult, class TTargetPtr, class TUnderlying$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IParamFunc<TParam, TResult>::TPtr FromMethod(
     TResult (TUnderlying::* method)(TParam$_and_$TArgs),
     TTargetPtr target$wrap_args)
@@ -303,7 +303,7 @@ public:
 template <$tmpl_args>
 
 ]]]]
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 IAction::TPtr FromMethod(
     void (* method)($TArgs)$wrap_args)
 {
@@ -345,7 +345,7 @@ public:
 
 // Corresponding wrapper.
 template <class TResult$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IFunc<TResult>::TPtr FromMethod(
     TResult (* method)($TArgs)$wrap_args)
 {
@@ -387,7 +387,7 @@ public:
 
 // Corresponding wrapper.
 template <class TParam$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IParamAction<TParam>::TPtr FromMethod(
     void (* method)(TParam$_and_$TArgs)$wrap_args)
 {
@@ -429,7 +429,7 @@ public:
 
 // Corresponding wrapper.
 template <class TParam, class TResult$_and_$tmpl_args>
-FORCED_INLINE
+inline // TODO: FORCED_INLINE
 typename IParamFunc<TParam, TResult>::TPtr FromMethod(
     TResult (* method)(TParam$_and_$TArgs)$wrap_args)
 {
