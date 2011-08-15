@@ -1,7 +1,7 @@
 from ytbase import *
 
-cmd_run = '''TASKLIST /FI "WINDOWTITLE eq %(path)s"
-IF ERRORLEVEL 0 (START "%(path)s" %(bin_path)s %(params)s)
+cmd_run = '''TASKLIST /FI "WINDOWTITLE eq %(path)s" | find /I "PID"
+IF ERRORLEVEL 1 (START "%(path)s" %(bin_path)s %(params)s)
 '''
 
 cmd_stop = 'TASKKILL /F /T /FI "WINDOWTITLE eq %(path)s"'
