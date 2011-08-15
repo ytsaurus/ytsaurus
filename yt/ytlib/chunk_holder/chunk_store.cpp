@@ -15,9 +15,64 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TCachedReader
+    : public TCacheValueBase<TChunkId, TCachedReader, TChunkIdHash>
+    , public TFileChunkReader
+{
+public:
+    typedef TIntrusivePtr<TCachedReader> TPtr;
+
+    TCachedReader(const TChunkId& chunkId, Stroka fileName)
+        : TCacheValueBase<TChunkId, TCachedReader, TGuidHash>(chunkId)
+        , TFileChunkReader(fileName)
+    { }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TReaderCache
+    : public TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>
+{
+public:
+    typedef TIntrusivePtr<TReaderCache> TPtr;
+
+    TReaderCache(
+        const TChunkHolderConfig& config,
+        TChunkStore::TPtr chunkStore)
+        : TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>(config.MaxCachedFiles)
+        , ChunkStore(chunkStore)
+    { }
+
+    TCachedReader::TPtr Get(TChunk::TPtr chunk)
+    {
+        TInsertCookie cookie(chunk->GetId());
+        if (BeginInsert(&cookie)) {
+            // TODO: IO exceptions and error checking
+            TCachedReader::TPtr file = new TCachedReader(
+                chunk->GetId(),
+                ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
+            EndInsert(file, &cookie);
+        }
+        return cookie.GetAsyncResult()->Get();
+    }
+
+private:
+    TChunkStore::TPtr ChunkStore;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStore::TChunkStore(const TChunkHolderConfig& config)
     : Config(config)
+{ }
+
+void TChunkStore::Initialize()
 {
+    ReaderCache = new TReaderCache(Config, this);
     ScanChunks(); 
     InitIOQueues();
 }
@@ -119,6 +174,36 @@ NYT::NChunkHolder::TChunkStore::TChunks TChunkStore::GetChunks()
         result.push_back(it->Second());
     }
     return result;
+}
+
+TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)
+{
+    TChunkMeta::TPtr meta = chunk->Meta;
+    if (~meta != NULL) {
+        return new TAsyncResult<TChunkMeta::TPtr>(meta);
+    }
+
+    IInvoker::TPtr invoker = GetIOInvoker(chunk->GetLocation());
+    return
+        FromMethod(
+            &TChunkStore::DoGetChunkMeta,
+            TPtr(this),
+            chunk)
+        ->AsyncVia(invoker)
+        ->Do();
+}
+
+TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
+{
+    TFileChunkReader::TPtr reader = GetChunkReader(chunk);
+    TChunkMeta::TPtr meta = new TChunkMeta(reader);
+    chunk->Meta = meta;
+    return meta;
+}
+
+TFileChunkReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
+{
+    return ~ReaderCache->Get(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

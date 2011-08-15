@@ -26,55 +26,6 @@ TSharedRef TCachedBlock::GetData() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TCachedReader
-    : public TCacheValueBase<TChunkId, TCachedReader, TChunkIdHash>
-    , public TFileChunkReader
-{
-public:
-    typedef TIntrusivePtr<TCachedReader> TPtr;
-
-    TCachedReader(const TChunkId& chunkId, Stroka fileName)
-        : TCacheValueBase<TChunkId, TCachedReader, TGuidHash>(chunkId)
-        , TFileChunkReader(fileName)
-    { }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBlockStore::TReaderCache
-    : public TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>
-{
-public:
-    typedef TIntrusivePtr<TReaderCache> TPtr;
-
-    TReaderCache(
-        const TChunkHolderConfig& config,
-        TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>(config.MaxCachedFiles)
-        , ChunkStore(chunkStore)
-    { }
-
-    TCachedReader::TPtr Get(TChunk::TPtr chunk)
-    {
-        TInsertCookie cookie(chunk->GetId());
-        if (BeginInsert(&cookie)) {
-            // TODO: IO exceptions and error checking
-            TCachedReader::TPtr file = new TCachedReader(
-                chunk->GetId(),
-                ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
-            EndInsert(file, &cookie);
-        }
-        return cookie.GetAsyncResult()->Get();
-    }
-
-private:
-    TChunkStore::TPtr ChunkStore;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBlockStore::TBlockCache 
     : public TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>
 {
@@ -83,11 +34,9 @@ public:
 
     TBlockCache(
         const TChunkHolderConfig& config,
-        TChunkStore::TPtr chunkStore,
-        TReaderCache::TPtr fileCache)
+        TChunkStore::TPtr chunkStore)
         : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.MaxCachedBlocks)
         , ChunkStore(chunkStore)
-        , ReaderCache(fileCache)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
@@ -131,7 +80,6 @@ public:
 
 private:
     TChunkStore::TPtr ChunkStore;
-    TReaderCache::TPtr ReaderCache;
 
     void ReadBlock(
         TChunk::TPtr chunk,
@@ -139,7 +87,7 @@ private:
         TAutoPtr<TInsertCookie> cookie)
     {
         try {
-            TCachedReader::TPtr reader = ReaderCache->Get(chunk);
+            TFileChunkReader::TPtr reader = ChunkStore->GetChunkReader(chunk);
             TSharedRef data = reader->ReadBlock(blockId.BlockIndex);
             if (data != TSharedRef()) {
                 TCachedBlock::TPtr cachedBlock = new TCachedBlock(blockId, data);
@@ -162,8 +110,7 @@ private:
 TBlockStore::TBlockStore(
     const TChunkHolderConfig& config,
     TChunkStore::TPtr chunkStore)
-    : FileCache(new TReaderCache(config, chunkStore))
-    , BlockCache(new TBlockCache(config, chunkStore, FileCache))
+    : BlockCache(new TBlockCache(config, chunkStore))
 { }
 
 TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)

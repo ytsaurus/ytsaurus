@@ -50,6 +50,7 @@ public:
 private:
     friend class TReplicator;
 
+    TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;
     TJobId JobId;
     EJobState State;
@@ -57,9 +58,11 @@ private:
     yvector<Stroka> TargetAddresses;
     IChunkWriter::TPtr Writer;
     TCancelableInvoker::TPtr CancelableInvoker;
+    TChunkMeta::TPtr Meta;
     
     TJob(
         IInvoker::TPtr serviceInvoker,
+        TChunkStore::TPtr chunkStore,
         TBlockStore::TPtr blockStore,
         const TJobId& jobId,
         TChunk::TPtr chunk,
@@ -68,6 +71,7 @@ private:
     void Start();
     void Stop();
 
+    void OnGotMeta(TChunkMeta::TPtr meta);
     bool ReplicateBlock(int blockIndex);
     void OnBlockLoaded(
         TCachedBlock::TPtr cachedBlock,
@@ -107,6 +111,7 @@ public:
 
     //! Constructs a new instance.
     TReplicator(
+        TChunkStore::TPtr chunkStore,
         TBlockStore::TPtr blockStore,
         IInvoker::TPtr serviceInvoker);
     
@@ -132,6 +137,7 @@ public:
 private:
     typedef yhash_map<TJobId, TJob::TPtr, TJobIdHash> TJobMap;
 
+    TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;
     IInvoker::TPtr ServiceInvoker;
 

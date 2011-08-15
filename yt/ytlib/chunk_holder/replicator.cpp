@@ -14,11 +14,13 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TJob::TJob(
     IInvoker::TPtr serviceInvoker,
+    TChunkStore::TPtr chunkStore,
     TBlockStore::TPtr blockStore,
     const TJobId& jobId,
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
-    : BlockStore(blockStore)
+    : ChunkStore(chunkStore)
+    , BlockStore(blockStore)
     , JobId(jobId)
     , State(EJobState::Running)
     , Chunk(chunk)
@@ -54,9 +56,18 @@ TChunk::TPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
-    ReplicateBlock(0);
+    ChunkStore->GetChunkMeta(Chunk)->Subscribe(
+        FromMethod(
+            &TJob::OnGotMeta,
+            TPtr(this))
+        ->Via(~CancelableInvoker));
 }
 
+void TJob::OnGotMeta(TChunkMeta::TPtr meta)
+{
+    Meta = meta;
+    ReplicateBlock(0);
+}
 
 void TJob::Stop()
 {
@@ -67,8 +78,7 @@ void TJob::Stop()
 // TODO: handle errors
 bool TJob::ReplicateBlock(int blockIndex)
 {
-    // TODO: use block count
-    if (blockIndex >= 10) {
+    if (blockIndex >= Meta->GetBlockCount()) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
 
@@ -131,9 +141,11 @@ void TJob::OnWriterClosed(TVoid)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicator::TReplicator(
+    TChunkStore::TPtr chunkStore,
     TBlockStore::TPtr blockStore,
     IInvoker::TPtr serviceInvoker)
-    : BlockStore(blockStore)
+    : ChunkStore(chunkStore)
+    , BlockStore(blockStore)
     , ServiceInvoker(serviceInvoker)
 { }
 
@@ -144,6 +156,7 @@ TJob::TPtr TReplicator::StartJob(
 {
     TJob::TPtr job = new TJob(
         ServiceInvoker,
+        ChunkStore,
         BlockStore,
         jobId,
         chunk,

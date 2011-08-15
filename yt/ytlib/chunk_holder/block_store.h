@@ -57,15 +57,9 @@ public:
     TCachedBlock::TPtr PutBlock(const TBlockId& blockId, const TSharedRef& data);
 
 private:
-    class TCachedReader;
-    class TReaderCache;
-
     class TBlockCache;
 
     friend class TBlockCache;
-
-    //! Caches opened chunk files.
-    TIntrusivePtr<TReaderCache> FileCache;
 
     //! Caches blocks.
     TIntrusivePtr<TBlockCache> BlockCache;

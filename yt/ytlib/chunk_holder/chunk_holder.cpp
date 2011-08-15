@@ -24,6 +24,7 @@ TChunkHolder::TChunkHolder(
     , Config(config)
 {
     ChunkStore = new TChunkStore(Config);
+    ChunkStore->Initialize();
 
     BlockStore = new TBlockStore(Config, ChunkStore);
 
@@ -34,6 +35,7 @@ TChunkHolder::TChunkHolder(
         ServiceInvoker);
 
     Replicator = new TReplicator(
+        ChunkStore,
         BlockStore,
         ServiceInvoker);
 
