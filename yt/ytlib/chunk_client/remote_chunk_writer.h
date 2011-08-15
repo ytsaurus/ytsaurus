@@ -5,7 +5,7 @@
 #include "../misc/lazy_ptr.h"
 #include "../misc/semaphore.h"
 #include "../rpc/client.h"
-#include "../chunk_holder/common.h"
+#include "../chunk_client/common.h"
 #include "../chunk_holder/chunk_holder_rpc.h"
 #include "../actions/action_queue.h"
 
@@ -21,8 +21,6 @@ class TRemoteChunkWriter
 {
 public:
     typedef TIntrusivePtr<TRemoteChunkWriter> TPtr;
-    typedef NChunkHolder::TChunkId TChunkId;
-    typedef NChunkHolder::TBlockOffset TBlockOffset;
 
     struct TConfig
     {

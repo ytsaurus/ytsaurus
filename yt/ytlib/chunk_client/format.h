@@ -6,6 +6,9 @@
 
 namespace NYT {
 
+//! Represents an offset inside a chunk.
+typedef i64 TBlockOffset;
+
 // Use 8-bytes alignment mainly because of checksums.
 #pragma pack(push, 8)
 
@@ -30,7 +33,7 @@ struct TBlockInfo
  */
 struct TChunkFooter
 {
-    static const ui32 ExpectedSignature = 0x7a568bf4;
+    static const ui32 ExpectedSignature = 0x46435459; // YTCF
     
     ui32 Singature;
     i32 BlockCount;

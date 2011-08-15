@@ -36,5 +36,25 @@ void Write(TFile& file, const T& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Alignment size; measured in bytes and must be a power of two.
+const size_t YTAlignment = 8;
+
+STATIC_ASSERT(!(YTAlignment & (YTAlignment - 1)));
+
+//! Returns padding size: number of bytes required to make size
+//! a factor of #ALIGNMENT.
+int GetPaddingSize(i64 size);
+
+//! Rounds up the #size to the nearest factor of #ALIGNMENT.
+i64 AlignUp(i64 size);
+
+//! Writes padding zeros.
+void WritePadding(TOutputStream& output, i64 recordSize);
+
+//! Writes padding zeros.
+void WritePadding(TFile& file, i64 recordSize);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 

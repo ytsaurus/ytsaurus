@@ -16,7 +16,7 @@ class TTransaction
 {
 public:
     typedef TIntrusivePtr<TTransaction> TPtr;
-    typedef yvector<NChunkHolder::TChunkId> TChunks;
+    typedef yvector<TChunkId> TChunks;
 
     //! For serialization.
     TTransaction()

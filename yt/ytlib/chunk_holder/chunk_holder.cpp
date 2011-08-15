@@ -44,6 +44,8 @@ TChunkHolder::TChunkHolder(
             Replicator,
             ServiceInvoker);
         MasterConnector->Initialize();
+    } else {
+        LOG_INFO("Running in standalone mode");
     }
 
     RegisterMethods();
@@ -167,8 +169,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
         TBlob data = it->ToBlob();
-        TBlockId blockId(chunkId, blockIndex);
-        session->PutBlock(blockIndex, blockId, data);
+        session->PutBlock(blockIndex, TSharedRef(data));
         ++blockIndex;
     }
     

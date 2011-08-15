@@ -22,6 +22,7 @@ struct IChunkWriter
 {
     typedef TIntrusivePtr<IChunkWriter> TPtr;
 
+    // TODO: consider renaming to AsyncWriteBlock
     //! Called when the client wants to upload a new block.
     /*!
      *  This call returns true if the block is added to the queue. Otherwise it returns false

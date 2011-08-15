@@ -44,6 +44,8 @@ TSession::TPtr TSessionManager::StartSession(
     int location = ChunkStore->GetNewChunkLocation(chunkId);
 
     TSession::TPtr session = new TSession(this, chunkId, location, windowSize);
+    session->Initialize();
+
     TLeaseManager::TLease lease = LeaseManager->CreateLease(
         Config.SessionTimeout,
         FromMethod(
@@ -131,7 +133,11 @@ TSession::TSession(
     for (int index = 0; index < windowSize; ++index) {
         Window.push_back(TSlot());
     }
+}
 
+void TSession::Initialize()
+{
+    // This cannot be done in ctor since it takes a smartpointer to this.
     OpenFile();
 }
 
@@ -170,7 +176,7 @@ i64 TSession::GetSize() const
     return Size;
 }
 
-TCachedBlock::TPtr TSession::GetBlock(int blockIndex)
+TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
 
@@ -193,11 +199,10 @@ TCachedBlock::TPtr TSession::GetBlock(int blockIndex)
     return slot.Block;
 }
 
-void TSession::PutBlock(
-    i32 blockIndex,
-    const TBlockId& blockId,
-    const TSharedRef& data)
+void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 {
+    TBlockId blockId(ChunkId, blockIndex);
+
     VerifyInWindow(blockIndex);
 
     RenewLease();
@@ -205,11 +210,10 @@ void TSession::PutBlock(
     TSlot& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
         ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("putting an already received block received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
+            << Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+            ~blockId.ToString(),
             WindowStart,
-            Window.ysize(),
-            blockIndex);
+            Window.ysize());
     }
 
     slot.State = ESlotState::Received;
@@ -217,11 +221,7 @@ void TSession::PutBlock(
 
     Size += data.Size();
 
-    LOG_DEBUG("Chunk block received (ChunkId: %s, BlockIndex: %d, BlockId: %s, BlockSize: %" PRISZT ")",
-        ~ChunkId.ToString(),
-        blockIndex,
-        ~blockId.ToString(),
-        data.Size());
+    LOG_DEBUG("Chunk block received (BlockId: %s)", ~blockId.ToString());
 
     EnqueueWrites();
 }
@@ -229,7 +229,7 @@ void TSession::PutBlock(
 void TSession::EnqueueWrites()
 {
     while (IsInWindow(FirstUnwritten)) {
-        int blockIndex = FirstUnwritten;
+        i32 blockIndex = FirstUnwritten;
 
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Received)
@@ -252,7 +252,7 @@ void TSession::EnqueueWrites()
     }
 }
 
-TVoid TSession::DoWrite(TCachedBlock::TPtr block, int blockIndex)
+TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 {
     try {
         Writer->AddBlock(block->GetData());
@@ -270,7 +270,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, int blockIndex)
     return TVoid();
 }
 
-void TSession::OnBlockWritten(TVoid, int blockIndex)
+void TSession::OnBlockWritten(TVoid, i32 blockIndex)
 {
     TSlot& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
@@ -278,7 +278,7 @@ void TSession::OnBlockWritten(TVoid, int blockIndex)
     slot.IsWritten->Set(TVoid());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::FlushBlock(int blockIndex)
+TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
 
@@ -301,7 +301,7 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(int blockIndex)
             blockIndex));
 }
 
-TVoid TSession::OnBlockFlushed(TVoid, int blockIndex)
+TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
 {
     RotateWindow(blockIndex);
     return TVoid();
@@ -311,7 +311,7 @@ TAsyncResult<TVoid>::TPtr TSession::Finish()
 {
     CloseLease();
 
-    for (int blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
+    for (i32 blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(TErrorCode::WindowError)
@@ -397,7 +397,7 @@ TVoid TSession::DoCloseFile()
     return TVoid();
 }
 
-void TSession::RotateWindow(int flushedBlockIndex)
+void TSession::RotateWindow(i32 flushedBlockIndex)
 {
     YASSERT(WindowStart <= flushedBlockIndex);
 
@@ -411,12 +411,12 @@ void TSession::RotateWindow(int flushedBlockIndex)
         WindowStart);
 }
 
-bool TSession::IsInWindow(int blockIndex)
+bool TSession::IsInWindow(i32 blockIndex)
 {
     return blockIndex >= WindowStart && blockIndex < WindowStart + Window.ysize();
 }
 
-void TSession::VerifyInWindow(int blockIndex)
+void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(TErrorCode::WindowError)
@@ -428,10 +428,10 @@ void TSession::VerifyInWindow(int blockIndex)
     }
 }
 
-TSession::TSlot& TSession::GetSlot(int index)
+TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
-    YASSERT(IsInWindow(index));
-    return Window[index % Window.ysize()];
+    YASSERT(IsInWindow(blockIndex));
+    return Window[blockIndex % Window.ysize()];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

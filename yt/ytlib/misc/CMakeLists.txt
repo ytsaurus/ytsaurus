@@ -5,7 +5,7 @@ SET(YT_SOURCE_FILES
     config.h
     cache.h
     cache-inl.h
-    serialize.h
+    serialize.cpp
     lazy_ptr.h
     hash.h
     fs.cpp

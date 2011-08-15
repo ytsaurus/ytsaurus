@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../misc/cache.h"
+#include "../chunk_client/common.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -56,15 +57,15 @@ public:
     TCachedBlock::TPtr PutBlock(const TBlockId& blockId, const TSharedRef& data);
 
 private:
-    class TCachedFile;
-    class TFileCache;
+    class TCachedReader;
+    class TReaderCache;
 
     class TBlockCache;
 
     friend class TBlockCache;
 
     //! Caches opened chunk files.
-    TIntrusivePtr<TFileCache> FileCache;
+    TIntrusivePtr<TReaderCache> FileCache;
 
     //! Caches blocks.
     TIntrusivePtr<TBlockCache> BlockCache;

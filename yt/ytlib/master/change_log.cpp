@@ -22,34 +22,6 @@ namespace {
 
 static const char* const IndexSuffix = ".index";
 
-//! Alignment size; measured in bytes and must be a power of two.
-const size_t ALIGNMENT = 4;
-
-//! Auxiliary padding zeros.
-const ui8 PADDING[ALIGNMENT] = { 0 };
-
-STATIC_ASSERT(!(ALIGNMENT & (ALIGNMENT - 1)));
-
-//! Returns padding size: number of bytes required to make size
-//! a factor of #ALIGNMENT.
-size_t GetPaddingSize(size_t size)
-{
-    size_t res = size % ALIGNMENT;
-    return res == 0 ? 0 : ALIGNMENT - res;
-}
-
-//! Rounds up the #size to the nearest factor of #ALIGNMENT.
-size_t AlignUp(size_t size)
-{
-    return size + GetPaddingSize(size);
-}
-
-//! Writes padding zeros.
-void WritePadding(TOutputStream& output, size_t recordSize)
-{
-    output.Write(&PADDING, GetPaddingSize(recordSize));
-}
-
 } // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////

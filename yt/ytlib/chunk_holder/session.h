@@ -21,13 +21,6 @@ class TSession
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
-    //! Constructs a new session.
-    TSession(
-        TIntrusivePtr<TSessionManager> sessionManager,
-        const TChunkId& chunkId,
-        int location,
-        int windowSize);
-
     //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 
@@ -38,13 +31,10 @@ public:
     i64 GetSize() const;
 
     //! Returns a cached block that is still in the session window.
-    TCachedBlock::TPtr GetBlock(int blockIndex);
+    TCachedBlock::TPtr GetBlock(i32 blockIndex);
 
     //! Puts a block into the window.
-    void PutBlock(
-        i32 blockIndex,
-        const TBlockId& blockId,
-        const TSharedRef& data);
+    void PutBlock(i32 blockIndex, const TSharedRef& data);
 
     //! Flushes a block and moves the window
     /*!
@@ -52,7 +42,7 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TAsyncResult<TVoid>::TPtr FlushBlock(int blockIndex);
+    TAsyncResult<TVoid>::TPtr FlushBlock(i32 blockIndex);
 
 private:
     friend class TSessionManager;
@@ -86,14 +76,22 @@ private:
     int Location;
     
     TWindow Window;
-    int WindowStart;
-    int FirstUnwritten;
+    i32 WindowStart;
+    i32 FirstUnwritten;
     i64 Size;
 
     Stroka FileName;
     TFileChunkWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
+
+    TSession(
+        TIntrusivePtr<TSessionManager> sessionManager,
+        const TChunkId& chunkId,
+        int location,
+        int windowSize);
+
+    void Initialize();
 
     TAsyncResult<TVoid>::TPtr Finish();
     void Cancel();
@@ -102,10 +100,10 @@ private:
     void RenewLease();
     void CloseLease();
 
-    bool IsInWindow(int blockIndex);
-    void VerifyInWindow(int blockIndex);
-    TSlot& GetSlot(int index);
-    void RotateWindow(int flushedBlockIndex);
+    bool IsInWindow(i32 blockIndex);
+    void VerifyInWindow(i32 blockIndex);
+    TSlot& GetSlot(i32 blockIndex);
+    void RotateWindow(i32 flushedBlockIndex);
 
     IInvoker::TPtr GetInvoker();
 
@@ -119,10 +117,10 @@ private:
     TVoid DoCloseFile();
 
     void EnqueueWrites();
-    TVoid DoWrite(TCachedBlock::TPtr block, int blockIndex);
-    void OnBlockWritten(TVoid, int blockIndex);
+    TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
+    void OnBlockWritten(TVoid, i32 blockIndex);
 
-    TVoid OnBlockFlushed(TVoid, int blockIndex);
+    TVoid OnBlockFlushed(TVoid, i32 blockIndex);
 
 };
 

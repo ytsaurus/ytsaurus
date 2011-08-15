@@ -1,6 +1,8 @@
 #include "block_store.h"
 #include "chunk_store.h"
 
+#include "../chunk_client/file_chunk_reader.h"
+
 #include "../misc/assert.h"
 
 namespace NYT {
@@ -24,50 +26,41 @@ TSharedRef TCachedBlock::GetData() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TCachedFile
-    : public TCacheValueBase<TChunkId, TCachedFile, TGuidHash>
+class TBlockStore::TCachedReader
+    : public TCacheValueBase<TChunkId, TCachedReader, TChunkIdHash>
+    , public TFileChunkReader
 {
 public:
-    typedef TIntrusivePtr<TCachedFile> TPtr;
+    typedef TIntrusivePtr<TCachedReader> TPtr;
 
-    TCachedFile(const TChunkId& chunkId, Stroka fileName)
-        : TCacheValueBase<TChunkId, TCachedFile, TGuidHash>(chunkId)
-        , File_(fileName, OpenExisting|RdOnly)
+    TCachedReader(const TChunkId& chunkId, Stroka fileName)
+        : TCacheValueBase<TChunkId, TCachedReader, TGuidHash>(chunkId)
+        , TFileChunkReader(fileName)
     { }
-
-
-    TFile& File()
-    {
-        return File_;
-    }
-
-private:
-    TFile File_;
 
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TFileCache
-    : public TCapacityLimitedCache<TChunkId, TCachedFile, TGuidHash>
+class TBlockStore::TReaderCache
+    : public TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>
 {
 public:
-    typedef TIntrusivePtr<TFileCache> TPtr;
+    typedef TIntrusivePtr<TReaderCache> TPtr;
 
-    TFileCache(
+    TReaderCache(
         const TChunkHolderConfig& config,
         TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TChunkId, TCachedFile, TGuidHash>(config.MaxCachedFiles)
+        : TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>(config.MaxCachedFiles)
         , ChunkStore(chunkStore)
     { }
 
-    TCachedFile::TPtr Get(TChunk::TPtr chunk)
+    TCachedReader::TPtr Get(TChunk::TPtr chunk)
     {
         TInsertCookie cookie(chunk->GetId());
         if (BeginInsert(&cookie)) {
             // TODO: IO exceptions and error checking
-            TCachedFile::TPtr file = new TCachedFile(
+            TCachedReader::TPtr file = new TCachedReader(
                 chunk->GetId(),
                 ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
             EndInsert(file, &cookie);
@@ -91,10 +84,10 @@ public:
     TBlockCache(
         const TChunkHolderConfig& config,
         TChunkStore::TPtr chunkStore,
-        TFileCache::TPtr fileCache)
+        TReaderCache::TPtr fileCache)
         : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.MaxCachedBlocks)
         , ChunkStore(chunkStore)
-        , FileCache(fileCache)
+        , ReaderCache(fileCache)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
@@ -138,28 +131,29 @@ public:
 
 private:
     TChunkStore::TPtr ChunkStore;
-    TFileCache::TPtr FileCache;
+    TReaderCache::TPtr ReaderCache;
 
     void ReadBlock(
         TChunk::TPtr chunk,
         const TBlockId& blockId,
         TAutoPtr<TInsertCookie> cookie)
     {
-        // TODO: read
-        // TODO: IO exceptions and error checking
-/*
-        TFile& file = FileCache->Get(chunk)->File();
-        TBlob data(blockSize);
-        file.Pread(data.begin(), blockSize, blockId.Offset);
-        
-        TCachedBlock::TPtr block = new TCachedBlock(blockId, data);
-        
-        EndInsert(block, ~cookie);
+        try {
+            TCachedReader::TPtr reader = ReaderCache->Get(chunk);
+            TSharedRef data = reader->ReadBlock(blockId.BlockIndex);
+            if (data != TSharedRef()) {
+                TCachedBlock::TPtr cachedBlock = new TCachedBlock(blockId, data);
+                EndInsert(cachedBlock, ~cookie);
 
-        LOG_DEBUG("Finished loading block into cache (BlockId: %s, BlockSize: %d)",
-            ~blockId.ToString(),
-            blockSize);
-            */
+                LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
+            } else {
+                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)", ~blockId.ToString());
+            }
+        } catch (...) {
+            LOG_FATAL("Error loading block into cache (BlockId: %s, What: %s)",
+                ~blockId.ToString(),
+                ~CurrentExceptionMessage());
+        }
     }
 };
 
@@ -168,7 +162,7 @@ private:
 TBlockStore::TBlockStore(
     const TChunkHolderConfig& config,
     TChunkStore::TPtr chunkStore)
-    : FileCache(new TFileCache(config, chunkStore))
+    : FileCache(new TReaderCache(config, chunkStore))
     , BlockCache(new TBlockCache(config, chunkStore, FileCache))
 { }
 

@@ -26,7 +26,7 @@ TMasterConnector::TMasterConnector(
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
-    , Replicator(Replicator)
+    , Replicator(replicator)
     , ServiceInvoker(serviceInvoker)
     , Registered(false)
     , IncrementalHeartbeat(false)
@@ -37,11 +37,12 @@ void TMasterConnector::Initialize()
 {
     InitializeProxy();
     InitializeAddress();
-    OnHeartbeat();
 
     LOG_INFO("Chunk holder address is %s, master addresses are %s",
         ~Address,
         ~Config.Masters.ToString());
+
+    OnHeartbeat();
 }
 
 void TMasterConnector::InitializeProxy()

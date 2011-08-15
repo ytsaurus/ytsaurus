@@ -157,6 +157,16 @@ public:
         return TBlob(Begin(), End());
     }
 
+    bool operator == (const TRef& other) const
+    {
+        return Data == other.Data && Size_ == other.Size_;
+    }
+
+    bool operator != (const TRef& other) const
+    {
+        return !(*this == other);
+    }
+
 private:
     char* Data;
     size_t Size_;
@@ -170,7 +180,7 @@ class TSharedRef
 public:
     typedef TSharedPtr<TBlob, TAtomicCounter> TBlobPtr;
 
-    TSharedRef(TBlob& blob)
+    explicit TSharedRef(TBlob& blob)
         : Blob(new TBlob())
     {
         Blob->swap(blob);
@@ -219,6 +229,16 @@ public:
     TBlob ToBlob()
     {
         return Ref.ToBlob();
+    }
+
+    bool operator == (const TSharedRef& other) const
+    {
+        return Blob == other.Blob && Ref == other.Ref;
+    }
+
+    bool operator != (const TSharedRef& other) const
+    {
+        return !(*this == other);
     }
 
 private:

@@ -3,6 +3,8 @@
 #include "chunk_writer.h"
 #include "format.h"
 
+#include "../misc/serialize.h"
+
 #include <util/system/file.h>
 
 namespace NYT
@@ -11,6 +13,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 // TODO: move impl to cpp
+//! Provides a local and synchronous implementation of IChunkWriter.
 class TFileChunkWriter
     : public IChunkWriter
 {
@@ -22,6 +25,7 @@ public:
         File.Reset(new TFile(fileName, CreateAlways|WrOnly|Seq));
     }
 
+    //! A synchronous version of #AsyncAddBlock.
     void AddBlock(const TSharedRef& data)
     {
         TBlockInfo blockInfo;
@@ -33,6 +37,7 @@ public:
         File->Flush();
     }
 
+    //! Implements IChunkWriter and calls #AddBlock.
     virtual bool AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
     {
         UNUSED(ready);
@@ -40,14 +45,34 @@ public:
         return true;
     }
 
+    //! A synchronous version of #Close.
     void Close()
     {
-        // TODO: write more
+        WritePadding(*File, File->GetLength());
+
+        TChunkFooter footer;
+        footer.Singature = TChunkFooter::ExpectedSignature;
+        footer.BlockInfoOffset = File->GetLength();
+        footer.BlockCount = BlockInfos.ysize();
+
+        TBlockInfo* infoBegin = &*BlockInfos.begin();
+        TBlockInfo* infoEnd = &*BlockInfos.end();
+
+        // Check alignment.
+        YASSERT(
+            static_cast<i64>(reinterpret_cast<char*>(infoEnd) - reinterpret_cast<char*>(infoBegin)) ==
+            footer.BlockCount * sizeof (TBlockInfo));
+
+        File->Write(infoBegin, footer.BlockCount * sizeof (TBlockInfo));
+
+        File->Write(&footer, sizeof (footer));
+
         File->Flush();
         File->Close();
         File.Destroy();
     }
 
+    //! Implements IChunkWriter and calls #Close.
     virtual TAsyncResult<TVoid>::TPtr AsyncClose()
     {
         Close();
