@@ -51,11 +51,11 @@ class Master(RemoteServer, Server):
 		'Logging' : Logging
 	})
 	
-	def do_start(cls, fd):
+	def do_run(cls, fd):
 		print >>fd, shebang
 		print >>fd, 'mkdir -p %s' % cls.config['MetaState']['SnapshotLocation']
 		print >>fd, 'mkdir -p %s' % cls.config['MetaState']['LogLocation']
-		print >>fd, cls.start_tmpl
+		print >>fd, cls.run_tmpl
 		
 	def do_clean(cls, fd):
 		print >>fd, shebang

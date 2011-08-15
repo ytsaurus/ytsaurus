@@ -56,10 +56,10 @@ class Master(WinNode, Server):
 		'Logging' : Logging
 	})
 	
-	def start(cls, fd):
+	def run(cls, fd):
 		print >>fd, 'mkdir %s' % cls.config['MetaState']['SnapshotLocation']
 		print >>fd, 'mkdir %s' % cls.config['MetaState']['LogLocation']
-		print >>fd, cls.start_tmpl
+		print >>fd, cls.run_tmpl
 		
 	def clean(cls, fd):
 		print >>fd, 'del %s' % cls.log_path

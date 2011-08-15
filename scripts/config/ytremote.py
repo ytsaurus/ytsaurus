@@ -2,16 +2,16 @@ from ytbase import *
 
 GetLog = FileDescr('get_log', ('aggregate', 'exec'))
 Prepare = FileDescr('prepare', ('aggregate', 'exec', ))
-DoStart = FileDescr('do_start', ('remote', 'exec'))
+DoRun = FileDescr('do_run', ('remote', 'exec'))
 DoStop = FileDescr('do_stop', ('remote', 'exec'))
 DoClean = FileDescr('do_clean', ('remote', 'exec'))
 
-Files = [Config, Prepare, DoStart, Start, DoStop, Stop, Clean, DoClean, GetLog]
+Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog]
 
 #################################################################
 
 shebang = '#!/bin/bash -v'
-cmd_start = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
+cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
 			'--pidfile %(work_dir)s/pid -m -S -- %(params)s'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
@@ -50,14 +50,14 @@ class RemoteNode(Node):
 					(os.path.join(cls.local_path(descr.filename)),
 					 cls.host, cls.remote_dir)
 				
-	start_tmpl = Template(cmd_start)
-	def do_start(cls, fd):
+	run_tmpl = Template(cmd_run)
+	def do_run(cls, fd):
 		print >>fd, shebang
-		print >>fd, cls.start_tmpl
+		print >>fd, cls.run_tmpl
 	
-	def start(cls, fd):
+	def run(cls, fd):
 		print >>fd, shebang
-		print >>fd, 'ssh %s %s' % (cls.host, cls.do_start_path)
+		print >>fd, 'ssh %s %s' % (cls.host, cls.do_run_path)
 		
 	stop_tmpl = Template(cmd_stop)
 	def do_stop(cls, fd):

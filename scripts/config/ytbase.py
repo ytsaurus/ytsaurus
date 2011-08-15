@@ -27,7 +27,7 @@ class FileDescr(object):
             self.method= method
 
 Config = FileDescr('config', ('remote', ), 'json', 'makeConfig')
-Start = FileDescr('start', ('aggregate', 'exec', ))
+Run = FileDescr('run', ('aggregate', 'exec', ))
 Stop = FileDescr('stop', ('aggregate', 'exec', ))
 Clean = FileDescr('clean', ('aggregate', 'exec', ))
 

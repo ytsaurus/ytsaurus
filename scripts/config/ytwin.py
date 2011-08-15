@@ -1,10 +1,13 @@
 from ytbase import *
 
-cmd_start = 'START "%(path)s" %(bin_path)s %(params)s'
+cmd_run = '''TASKLIST /FI "WINDOWTITLE eq %(path)s"
+IF ERRORLEVEL 0 (START "%(path)s" %(bin_path)s %(params)s)
+'''
+
 cmd_stop = 'TASKKILL /F /T /FI "WINDOWTITLE eq %(path)s"'
 
 class WinNode(ServerNode):
-	files = [Config, Start, Clean, Stop]
+	files = [Config, Run, Clean, Stop]
 	
 	@initmethod
 	def init(cls):
@@ -13,9 +16,9 @@ class WinNode(ServerNode):
 			setattr(cls, '_'.join((descr.name, 'path')),
 					cls.local_path(descr.filename))
 	
-	start_tmpl = Template(cmd_start)
-	def start(cls, fd):
-		print >>fd, cls.start_tmpl
+	run_tmpl = Template(cmd_run)
+	def run(cls, fd):
+		print >>fd, cls.run_tmpl
 
 	stop_tmpl = Template(cmd_stop)
 	def stop(cls, fd):
