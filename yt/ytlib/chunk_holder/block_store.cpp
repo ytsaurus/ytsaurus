@@ -106,13 +106,12 @@ public:
         return block;
     }
 
-    TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId, i32 blockSize)
+    TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId)
     {
         TAutoPtr<TInsertCookie> cookie = new TInsertCookie(blockId);
         if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Got cached block from store (BlockId: %s, BlockSize: %d)",
-                ~blockId.ToString(),
-                blockSize);
+            LOG_DEBUG("Got cached block from store (BlockId: %s)",
+                ~blockId.ToString());
             return cookie->GetAsyncResult();
         }
 
@@ -120,9 +119,8 @@ public:
         if (~chunk == NULL)
             return NULL;
         
-        LOG_DEBUG("Loading block into cache (BlockId: %s, BlockSize: %d)",
-            ~blockId.ToString(),
-            blockSize);
+        LOG_DEBUG("Loading block into cache (BlockId: %s)",
+            ~blockId.ToString());
 
         TCachedBlock::TAsync::TPtr result = cookie->GetAsyncResult();
 
@@ -133,7 +131,6 @@ public:
             TPtr(this),
             chunk,
             blockId,
-            blockSize,
             cookie));
 
         return result;
@@ -146,11 +143,11 @@ private:
     void ReadBlock(
         TChunk::TPtr chunk,
         const TBlockId& blockId,
-        i32 blockSize,
         TAutoPtr<TInsertCookie> cookie)
     {
+        // TODO: read
         // TODO: IO exceptions and error checking
-
+/*
         TFile& file = FileCache->Get(chunk)->File();
         TBlob data(blockSize);
         file.Pread(data.begin(), blockSize, blockId.Offset);
@@ -162,6 +159,7 @@ private:
         LOG_DEBUG("Finished loading block into cache (BlockId: %s, BlockSize: %d)",
             ~blockId.ToString(),
             blockSize);
+            */
     }
 };
 
@@ -174,13 +172,11 @@ TBlockStore::TBlockStore(
     , BlockCache(new TBlockCache(config, chunkStore, FileCache))
 { }
 
-TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId, i32 blockSize)
+TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
 {
-    LOG_DEBUG("Getting block from store (BlockId: %s, BlockSize: %d)",
-        ~blockId.ToString(),
-        blockSize);
+    LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
 
-    return BlockCache->Find(blockId, blockSize);
+    return BlockCache->Find(blockId);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)

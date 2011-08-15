@@ -1,10 +1,10 @@
 #pragma once
 
-#include "common.h"
 #include "block_store.h"
 #include "chunk_store.h"
 #include "chunk_holder_rpc.h"
 
+#include "../chunk_client/file_chunk_writer.h"
 #include "../misc/lease_manager.h"
 
 namespace NYT {
@@ -91,7 +91,7 @@ private:
     i64 Size;
 
     Stroka FileName;
-    THolder<TFile> File;
+    TFileChunkWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
 

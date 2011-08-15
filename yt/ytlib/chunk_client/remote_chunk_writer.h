@@ -116,8 +116,6 @@ private:
 
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
-    //! The current offset inside the chunk that is being uploaded.
-    TBlockOffset BlockOffset;
 
     /* ToDo: implement metrics
 

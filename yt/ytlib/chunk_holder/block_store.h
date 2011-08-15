@@ -51,7 +51,7 @@ public:
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.
      */
-    TCachedBlock::TAsync::TPtr FindBlock(const TBlockId& blockId, i32 blockSize);
+    TCachedBlock::TAsync::TPtr FindBlock(const TBlockId& blockId);
 
     TCachedBlock::TPtr PutBlock(const TBlockId& blockId, const TSharedRef& data);
 

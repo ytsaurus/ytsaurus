@@ -81,9 +81,7 @@ typedef i64 TBlockOffset;
 
 //! Identifies a block.
 /*!
- * Each block is identified by (chunkId, offset) pair.
- * Note that block's size is not part of its id.
- * Hence to fetch a block, the client must know its size.
+ * Each block is identified by its chunk id and block index (0-based).
  */
 struct TBlockId
 {
@@ -91,19 +89,19 @@ struct TBlockId
     TChunkId ChunkId;
 
     //! An offset where the block starts.
-    TBlockOffset Offset;
+    i32 BlockIndex;
 
-    TBlockId(TChunkId chunkId, TBlockOffset offset)
+    TBlockId(const TChunkId& chunkId, i32 blockIndex)
         : ChunkId(chunkId)
-        , Offset(offset)
+        , BlockIndex(blockIndex)
     { }
 
     //! Formats the id into the string (for debugging and logging purposes mainly).
     Stroka ToString() const
     {
-        return Sprintf("%s:%" PRId64,
+        return Sprintf("%s:%d",
             ~ChunkId.ToString(),
-            Offset);
+            BlockIndex);
     }
 };
 
@@ -111,7 +109,7 @@ struct TBlockId
 inline bool operator==(const TBlockId& blockId1, const TBlockId& blockId2)
 {
     return blockId1.ChunkId == blockId2.ChunkId &&
-           blockId1.Offset == blockId2.Offset;
+           blockId1.BlockIndex == blockId2.BlockIndex;
 }
 
 //! Compares TBlockId s for inequality.
@@ -128,7 +126,7 @@ struct TBlockIdHash
     i32 operator()(const TBlockId& blockId) const
     {
         static TGuidHash hash;
-        return hash(blockId.ChunkId) * 497 + (i32) blockId.Offset;
+        return hash(blockId.ChunkId) * 497 + (i32) blockId.BlockIndex;
     }
 };
 

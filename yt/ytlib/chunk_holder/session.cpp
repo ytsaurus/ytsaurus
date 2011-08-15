@@ -3,6 +3,8 @@
 #include "../misc/fs.h"
 #include "../misc/assert.h"
 
+#include <util/generic/yexception.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -212,6 +214,7 @@ void TSession::PutBlock(
 
     slot.State = ESlotState::Received;
     slot.Block = SessionManager->BlockStore->PutBlock(blockId, data);
+
     Size += data.Size();
 
     LOG_DEBUG("Chunk block received (ChunkId: %s, BlockIndex: %d, BlockId: %s, BlockSize: %" PRISZT ")",
@@ -251,9 +254,14 @@ void TSession::EnqueueWrites()
 
 TVoid TSession::DoWrite(TCachedBlock::TPtr block, int blockIndex)
 {
-    // TODO: IO exceptions
-    File->Write(block->GetData().Begin(), block->GetData().Size());
-    File->Flush();
+    try {
+        Writer->AddBlock(block->GetData());
+    } catch (...) {
+        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d, What: %s)",
+            ~ChunkId.ToString(),
+            blockIndex,
+            ~CurrentExceptionMessage());
+    }
 
     LOG_DEBUG("Chunk block written (ChunkId: %s, BlockIndex: %d)",
         ~ChunkId.ToString(),
@@ -333,7 +341,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    File.Reset(new TFile(FileName + NFS::TempFileSuffix, CreateAlways|WrOnly|Seq));
+    Writer = new TFileChunkWriter(FileName + NFS::TempFileSuffix);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -348,10 +356,12 @@ void TSession::DeleteFile()
 
 void TSession::DoDeleteFile()
 {
-    File.Destroy();
+    Writer->Cancel();
 
-    // TODO: check error code
-    NFS::Remove(FileName + NFS::TempFileSuffix);
+    if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
+        LOG_FATAL("Error deleting chunk file (ChunkId: %s)",
+            ~ChunkId.ToString());
+    }
 
     LOG_DEBUG("Chunk file deleted (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -369,12 +379,17 @@ TAsyncResult<TVoid>::TPtr TSession::CloseFile()
 
 TVoid TSession::DoCloseFile()
 {
-    // TODO: IO exceptions
-    File->Flush();
-    File.Destroy();
+    try {
+        Writer->Close();
+    } catch (...) {
+        LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
+            ~ChunkId.ToString());
+    }
 
-    // TODO: check error code
-    NFS::Rename(FileName + NFS::TempFileSuffix, FileName);
+    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
+        LOG_FATAL("Error renaming temp chunk file (ChunkId: %s)",
+            ~ChunkId.ToString());
+    }
 
     LOG_DEBUG("Chunk file closed (ChunkId: %s)",
         ~ChunkId.ToString());

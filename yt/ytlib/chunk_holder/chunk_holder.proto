@@ -29,7 +29,6 @@ message TReqPutBlocks
 {
     required bytes ChunkId = 1;
     required int32 StartBlockIndex = 2;
-    required int64 StartOffset = 3;
 }
 
 message TRspPutBlocks
@@ -41,10 +40,9 @@ message TRspPutBlocks
 message TReqSendBlocks
 {
     required bytes ChunkId = 1;
-    required string Destination = 2;
+    required string Address = 2;
     required int32 StartBlockIndex = 3;
-    required int32 EndBlockIndex = 4;
-
+    required int32 BlockCount = 4;
 }
 
 message TRspSendBlocks
@@ -65,16 +63,10 @@ message TRspFlushBlock
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TBlockInfo
-{
-    required int64 Offset = 1;
-    required int32 Size = 2;
-}
-
 message TReqGetBlocks
 {
     required bytes ChunkId = 1;
-    repeated TBlockInfo Blocks = 2;
+    repeated int32 BlockIndexes = 2;
 }
 
 message TRspGetBlocks

@@ -61,37 +61,36 @@ void TJob::Start()
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
-    Writer->_Cancel();
+    Writer->Cancel();
 }
 
+// TODO: handle errors
 bool TJob::ReplicateBlock(int blockIndex)
 {
-    // TODO: use proper block partitioning
-    const i64 BlockSize = 1024 * 1024;
-
-    TBlockId blockId(Chunk->GetId(), BlockSize * blockIndex);
-    i64 blockSize = Min(BlockSize, Chunk->GetSize() - blockId.Offset);
-    if (blockSize <= 0) {
+    // TODO: use block count
+    if (blockIndex >= 10) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
 
-        Writer->_Close()->Subscribe(
+        Writer->AsyncClose()->Subscribe(
             FromMethod(
-            &TJob::OnWriterClosed,
-            TPtr(this))
+                &TJob::OnWriterClosed,
+                TPtr(this))
             ->Via(~CancelableInvoker));
         return false;
     }
+
+    TBlockId blockId(Chunk->GetId(), blockIndex);
 
     LOG_DEBUG("Retrieving block for replication (JobId: %s, BlockIndex: %d)",
         ~JobId.ToString(), 
         blockIndex);
 
-    BlockStore->FindBlock(blockId, BlockSize)->Subscribe(
+    BlockStore->FindBlock(blockId)->Subscribe(
         FromMethod(
-        &TJob::OnBlockLoaded,
-        TPtr(this),
-        blockIndex)
+            &TJob::OnBlockLoaded,
+            TPtr(this),
+            blockIndex)
         ->Via(~CancelableInvoker));
     return true;
 }
@@ -99,28 +98,23 @@ bool TJob::ReplicateBlock(int blockIndex)
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
     TAsyncResult<TVoid>::TPtr ready;
-    if (Writer->_AddBlock(
-        cachedBlock->GetData(),
-        &ready))
-    {
+    if (Writer->AsyncAddBlock(cachedBlock->GetData(), &ready)) {
         LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
             ~JobId.ToString(),
             blockIndex);
 
         ReplicateBlock(blockIndex + 1);
-    }
-    else
-    {
+    } else {
         LOG_DEBUG("Replication writer window overflow (JobId: %s, BlockIndex: %d)",
             ~JobId.ToString(),
             blockIndex);
 
         ready->Subscribe(
             FromMethod(
-            &TJob::OnBlockLoaded,
-            TPtr(this),
-            cachedBlock,
-            blockIndex)
+                &TJob::OnBlockLoaded,
+                TPtr(this),
+                cachedBlock,
+                blockIndex)
             ->ToParamAction<TVoid>()
             ->Via(~CancelableInvoker));
     }

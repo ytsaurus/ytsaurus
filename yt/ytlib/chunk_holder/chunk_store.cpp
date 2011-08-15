@@ -38,7 +38,7 @@ void TChunkStore::ScanChunks()
         fileList.Fill(Config.Locations[location]);
         const char* fileName;
         while ((fileName = fileList.Next()) != NULL) {
-            TChunkId id = TGuid::FromString(fileName);
+            TChunkId id = TChunkId::FromString(fileName);
             if (!id.IsEmpty()) {
                 Stroka fullName = path + "/" + fileName;
                 // TODO: make a function in NYT::NFS

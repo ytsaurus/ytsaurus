@@ -29,14 +29,14 @@ struct IChunkWriter
      *  that gets set when a free queue slot becomes available. The client must subscribe
      *  to the latter result and retry when it is set.
      */
-    virtual bool _AddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
+    virtual bool AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
     {
         UNUSED(data);
         UNUSED(ready);
         return true;
     }
 
-    // TODO: replace with async AddBlock
+    // TODO: replace with AsyncAddBlock
     virtual void AddBlock(const TSharedRef& data) = 0;
 
     //! Called when the client has added all the blocks and is willing to
@@ -45,18 +45,17 @@ struct IChunkWriter
      *  The call completes immediately but returns a result that gets set
      *  when the session is complete.
      */
-    virtual TAsyncResult<TVoid>::TPtr _Close()
+    virtual TAsyncResult<TVoid>::TPtr AsyncClose()
     {
         return NULL;
     }
 
-    // TODO: replace with async Close
+    // TODO: replace with AsyncClose
     virtual void Close() = 0;
-
 
     // TODO: implement
     //! Cancels upload.
-    virtual void _Cancel()
+    virtual void Cancel()
     {
     }
 };

@@ -46,7 +46,6 @@ public:
     TGroup(
         int nodeCount, 
         int startBlockIndex, 
-        TBlockOffset startOffset, 
         TRemoteChunkWriter::TPtr writer);
 
     void AddBlock(const TSharedRef& block);
@@ -61,7 +60,6 @@ private:
     yvector<bool> IsSent;
 
     yvector<TSharedRef> Blocks;
-    TBlockOffset StartOffset;
     int StartBlockIndex;
 
     i64 Size;
@@ -82,10 +80,8 @@ private:
 TRemoteChunkWriter::TGroup::TGroup(
     int nodeCount, 
     int startBlockIndex, 
-    TBlockOffset startOffset, 
     TRemoteChunkWriter::TPtr writer)
     : IsSent(nodeCount, false)
-    , StartOffset(startOffset)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
     , Writer(writer)
@@ -158,10 +154,10 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
     TReqPutBlocks::TPtr req = Writer->Nodes[node]->Proxy.PutBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
     req->SetStartBlockIndex(StartBlockIndex);
-    req->SetStartOffset(StartOffset);
 
-    for (int i = 0; i < Blocks.ysize(); ++i)
+    for (int i = 0; i < Blocks.ysize(); ++i) {
         req->Attachments().push_back(Blocks[i]);
+    }
 
     return req->Invoke(Writer->Config.RpcTimeout);
 }
@@ -214,8 +210,8 @@ TRemoteChunkWriter::TGroup::SendBlocks(int srcNode, int dstNode)
     TProxy::TReqSendBlocks::TPtr req = Writer->Nodes[srcNode]->Proxy.SendBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
     req->SetStartBlockIndex(StartBlockIndex);
-    req->SetEndBlockIndex(GetEndBlockIndex());
-    req->SetDestination(Writer->Nodes[dstNode]->Address);
+    req->SetBlockCount(Blocks.ysize());
+    req->SetAddress(Writer->Nodes[dstNode]->Address);
     return req->Invoke(Writer->Config.RpcTimeout);
 }
 
@@ -275,9 +271,8 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , IsFinished(new TAsyncResult<TVoid>())
     , WindowSlots(config.WindowSize)
     , AliveNodes(nodes.ysize())
-    , CurrentGroup(new TGroup(AliveNodes, 0, 0, this))
+    , CurrentGroup(new TGroup(AliveNodes, 0, this))
     , BlockCount(0)
-    , BlockOffset(0)
 {
     LOG_DEBUG("Start writing chunk %s", ~ChunkId.ToString());
     YVERIFY(AliveNodes > 0);
@@ -560,7 +555,6 @@ void TRemoteChunkWriter::AddBlock(const TSharedRef& data)
     LOG_DEBUG("Chunk %s, client adds new block", ~ChunkId.ToString());
 
     CurrentGroup->AddBlock(data);
-    BlockOffset += data.Size();
     ++BlockCount;
 
     if (CurrentGroup->GetSize() >= Config.GroupSize) {
@@ -568,7 +562,7 @@ void TRemoteChunkWriter::AddBlock(const TSharedRef& data)
             &TRemoteChunkWriter::AddGroup, 
             TPtr(this), 
             CurrentGroup));
-        TGroupPtr group = new TGroup(Nodes.ysize(), BlockCount, BlockOffset, this);
+        TGroupPtr group = new TGroup(Nodes.ysize(), BlockCount, this);
         CurrentGroup.Swap(group);
     }
 }

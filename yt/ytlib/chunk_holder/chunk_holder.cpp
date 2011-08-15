@@ -151,18 +151,15 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 
     TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
-    TBlockOffset startOffset = request->GetStartOffset();
 
-    context->SetRequestInfo("ChunkId: %s, BlockCount: %d, StartBlockIndex: %d, StartOffset: %" PRId64,
+    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
         ~chunkId.ToString(),
-        request->Attachments().ysize(),
         startBlockIndex,
-        startOffset);
+        request->Attachments().ysize());
 
     TSession::TPtr session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    TBlockOffset offset = startOffset;
     for (yvector<TSharedRef>::iterator it = request->Attachments().begin();
          it != request->Attachments().end();
          ++it)
@@ -170,9 +167,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
         TBlob data = it->ToBlob();
-        TBlockId blockId(chunkId, offset);
-        // Increment offset before PutBlocks, hence data will be swapped out
-        offset += data.ysize();         
+        TBlockId blockId(chunkId, blockIndex);
         session->PutBlock(blockIndex, blockId, data);
         ++blockIndex;
     }
@@ -184,30 +179,27 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
-    i32 endBlockIndex = request->GetEndBlockIndex();
-    Stroka destination = request->GetDestination();
+    i32 blockCount = request->GetBlockCount();
+    Stroka address = request->GetAddress();
 
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, EndBlockIndex: %d, Destination: %s",
+    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, Address: %s",
         ~chunkId.ToString(),
         startBlockIndex,
-        endBlockIndex,
-        ~destination);
-
-    // TODO: (first, end) vs (first, count)?
+        blockCount,
+        ~address);
 
     TSession::TPtr session = GetSession(chunkId);
 
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(~ChannelCache.GetChannel(destination));
+    TProxy proxy(~ChannelCache.GetChannel(address));
     TProxy::TReqPutBlocks::TPtr putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
-    putRequest->SetStartOffset(startBlock->GetKey().Offset);
     
-    for (int blockIndex = startBlockIndex; blockIndex <= endBlockIndex; ++blockIndex) {
+    for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
         TCachedBlock::TPtr block = session->GetBlock(blockIndex);
         putRequest->Attachments().push_back(block->GetData());
     }
@@ -236,7 +228,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
     UNUSED(response);
 
     TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
-    int blockCount = static_cast<int>(request->BlocksSize());
+    int blockCount = static_cast<int>(request->BlockIndexesSize());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
         ~chunkId.ToString(),
@@ -246,22 +238,18 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 
     TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
 
-    for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-        const NProto::TBlockInfo& info = request->GetBlocks(blockIndex);
+    for (int index = 0; index < blockCount; ++index) {
+        i32 blockIndex = request->GetBlockIndexes(index);
 
-        LOG_DEBUG("GetBlocks: (Index: %d, Offset: %" PRId64 ", Size: %d)",
-            blockIndex,
-            info.GetOffset(),
-            info.GetSize());
+        LOG_DEBUG("GetBlocks: (Index: %d)", blockIndex);
 
-        TBlockId blockId(chunkId, info.GetOffset());
-
+        TBlockId blockId(chunkId, blockIndex);
         awaiter->Await(
-            BlockStore->FindBlock(blockId, info.GetSize()),
+            BlockStore->FindBlock(blockId),
             FromMethod(
                 &TChunkHolder::OnGotBlock,
                 TPtr(this),
-                blockIndex,
+                index,
                 context));
     }
 

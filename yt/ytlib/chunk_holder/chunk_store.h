@@ -9,7 +9,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes an already uploaded chunk.
+//! Describes a chunk at a chunk holder.
 class TChunk
     : public TRefCountedBase
 {
