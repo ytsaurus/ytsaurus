@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/enum.h"
 #include "../misc/ptr.h"
 #include "../actions/async_result.h"
 
@@ -22,6 +23,12 @@ struct IChunkWriter
 {
     typedef TIntrusivePtr<IChunkWriter> TPtr;
 
+    DECLARE_ENUM(EResult,
+        (OK)
+        (TryLater)
+        (Failed)
+    );
+
     // TODO: consider renaming to AsyncWriteBlock
     //! Called when the client wants to upload a new block.
     /*!
@@ -30,12 +37,7 @@ struct IChunkWriter
      *  that gets set when a free queue slot becomes available. The client must subscribe
      *  to the latter result and retry when it is set.
      */
-    virtual bool AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
-    {
-        UNUSED(data);
-        UNUSED(ready);
-        return true;
-    }
+    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready) = 0;
 
     // TODO: replace with AsyncAddBlock
     virtual void AddBlock(const TSharedRef& data) = 0;
@@ -46,10 +48,7 @@ struct IChunkWriter
      *  The call completes immediately but returns a result that gets set
      *  when the session is complete.
      */
-    virtual TAsyncResult<TVoid>::TPtr AsyncClose()
-    {
-        return NULL;
-    }
+    virtual TAsyncResult<EResult>::TPtr AsyncClose() = 0;
 
     // TODO: replace with AsyncClose
     virtual void Close() = 0;

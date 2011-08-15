@@ -268,11 +268,12 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , Config(config)
     , State(EWriterState::Initializing)
     , IsFinishRequested(false)
-    , IsFinished(new TAsyncResult<TVoid>())
+    , IsFinished(new TAsyncResult<EResult>())
     , WindowSlots(config.WindowSize)
     , AliveNodes(nodes.ysize())
     , CurrentGroup(new TGroup(AliveNodes, 0, this))
     , BlockCount(0)
+    , WindowReady(NULL)
 {
     LOG_DEBUG("Start writing chunk %s", ~ChunkId.ToString());
     YVERIFY(AliveNodes > 0);
@@ -288,7 +289,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
 
 TRemoteChunkWriter::~TRemoteChunkWriter()
 {
-    YASSERT((IsFinishRequested && Window.empty()) || State == EWriterState::Failed);
+    YASSERT((IsFinishRequested && Window.empty()) || State == EWriterState::Terminated);
 }
 
 void TRemoteChunkWriter::ShiftWindow()
@@ -364,14 +365,26 @@ void TRemoteChunkWriter::OnShiftedWindow(int lastFlushedBlock)
             ~ChunkId.ToString(), 
             group->GetEndBlockIndex());
 
-        for (int i = 0; i < group->GetBlockCount(); ++i)
-            YVERIFY(WindowSlots.Release());
+        ReleaseSlots(group->GetBlockCount());
 
         Window.pop_front();
     }
 
     if (IsFinishRequested) {
         FinishSession();
+    }
+}
+
+void TRemoteChunkWriter::ReleaseSlots(int count)
+{
+    for (int i = 0; i < count; ++i) {
+        YVERIFY(WindowSlots.Release());
+    }
+
+    if (WindowReady != NULL) {
+        TAsyncResult<TVoid>::TPtr* ready = WindowReady;
+        WindowReady = NULL;
+        (*ready)->Set(TVoid());
     }
 }
 
@@ -383,15 +396,19 @@ void TRemoteChunkWriter::RequestFinalization()
         FinishSession();
 }
 
+void TRemoteChunkWriter::Terminate()
+{
+    LOG_DEBUG("Chunk %s, writer terminated by client", ~ChunkId.ToString());
+    State = EWriterState::Terminated;
+}
+
 void TRemoteChunkWriter::AddGroup(TGroupPtr group)
 {
     YASSERT(!IsFinishRequested);
 
-    if (State == EWriterState::Failed) {
+    if (State == EWriterState::Terminated) {
         // Release client thread if it is blocked inside AddBlock.
-        for (int i = 0; i < group->GetBlockCount(); ++i) {
-            WindowSlots.Release();
-        }
+        ReleaseSlots(group->GetBlockCount());
     } else {
         LOG_DEBUG("Chunk %s, added blocks up to %d", 
             ~ChunkId.ToString(), 
@@ -414,9 +431,9 @@ void TRemoteChunkWriter::OnNodeDied(int node)
             ~Nodes[node]->Address,
             AliveNodes);
 
-        if (State != EWriterState::Failed && AliveNodes == 0) {
-            State = EWriterState::Failed;
-            IsFinished->Set(TVoid());
+        if (State != EWriterState::Terminated && AliveNodes == 0) {
+            State = EWriterState::Terminated;
+            IsFinished->Set(EResult::Failed);
             LOG_WARNING("Chunk %s writing failed", ~ChunkId.ToString());
             // Release client thread if it is blocked inside AddBlock.
             WindowSlots.Release();
@@ -521,7 +538,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
 {
     TReqFinishChunk::TPtr req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
-    LOG_DEBUG("Chunk %s, node %s finish request", 
+    LOG_DEBUG("Chunk %s, node %s finish request",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
     return req->Invoke(Config.RpcTimeout);
@@ -529,64 +546,128 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
 
 void TRemoteChunkWriter::OnFinishedChunk(int node)
 {
-    LOG_DEBUG("Chunk %s, node %s finished successfully", 
+    LOG_DEBUG("Chunk %s, node %s finished successfully",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
 }
 
 void TRemoteChunkWriter::OnFinishedSession()
 {
-    IsFinished->Set(TVoid());
+    IsFinished->Set(EResult::OK);
 }
 
-void TRemoteChunkWriter::CheckStateAndThrow()
+void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr* windowReady)
 {
-    // ToDo: more info in exception.
-    if (State == EWriterState::Failed)
-        ythrow yexception() << "Chunk write session failed!";
+    YASSERT(WindowReady == NULL);
+    if (WindowSlots.GetCount() > 0) {
+        (*windowReady)->Set(TVoid());
+    } else {
+        WindowReady = windowReady;
+    }
+}
+
+IChunkWriter::EResult TRemoteChunkWriter::AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
+{
+    if (State == EWriterState::Terminated) {
+        return EResult::Failed;
+    }
+
+    if (WindowSlots.TryAcquire()) {
+        LOG_DEBUG("Chunk %s, client adds new block", ~ChunkId.ToString());
+        CurrentGroup->AddBlock(data);
+        ++BlockCount;
+
+        if (CurrentGroup->GetSize() >= Config.GroupSize) {
+            WriterThread->Invoke(FromMethod(
+                &TRemoteChunkWriter::AddGroup, 
+                TPtr(this),
+                CurrentGroup));
+            TGroupPtr group = new TGroup(Nodes.ysize(), BlockCount, this);
+            CurrentGroup.Swap(group);
+        }
+
+        return EResult::OK;
+    } else {
+        LOG_DEBUG("Chunk %s, window is full", ~ChunkId.ToString());
+        WriterThread->Invoke(FromMethod(
+            &TRemoteChunkWriter::RegisterReadyEvent,
+            TPtr(this),
+            ready));
+        return EResult::TryLater;
+    }
 }
 
 void TRemoteChunkWriter::AddBlock(const TSharedRef& data)
 {
-    CheckStateAndThrow();
+    while (true) {
+        TAsyncResult<TVoid>::TPtr ready = new TAsyncResult<TVoid>();
+        EResult result = AsyncAddBlock(data, &ready);
 
-    WindowSlots.Acquire();
+        switch (result) {
+        case EResult::OK:
+            return;
 
-    LOG_DEBUG("Chunk %s, client adds new block", ~ChunkId.ToString());
+        case EResult::Failed:
+            ythrow yexception() << 
+                Sprintf("Chunk %s write session terminated!", ~ChunkId.ToString());
 
-    CurrentGroup->AddBlock(data);
-    ++BlockCount;
+        case EResult::TryLater:
+            ready->Get();
+            break;
 
-    if (CurrentGroup->GetSize() >= Config.GroupSize) {
-        WriterThread->Invoke(FromMethod(
-            &TRemoteChunkWriter::AddGroup, 
-            TPtr(this), 
-            CurrentGroup));
-        TGroupPtr group = new TGroup(Nodes.ysize(), BlockCount, this);
-        CurrentGroup.Swap(group);
+        default:
+            YASSERT(false);
+        }
     }
 }
 
-void TRemoteChunkWriter::Close()
+TAsyncResult<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
 {
     LOG_DEBUG("Chunk %s, client thread closing writer", ~ChunkId.ToString());
 
     if (CurrentGroup->GetSize() != 0) {
         WriterThread->Invoke(FromMethod(
-            &TRemoteChunkWriter::AddGroup, 
+            &TRemoteChunkWriter::AddGroup,
             TPtr(this), 
             CurrentGroup));
     }
+
+    // Remove cyclic reference
+    CurrentGroup.Drop();
 
     // Set IsFinishRequested via queue to ensure that the flag will be set
     // after all block appends.
     WriterThread->Invoke(FromMethod(
         &TRemoteChunkWriter::RequestFinalization, 
         TPtr(this)));
-    IsFinished->Get();
 
-    CheckStateAndThrow();
-    LOG_DEBUG("Chunk %s, client thread complete.", ~ChunkId.ToString());
+    return IsFinished;
+}
+
+void TRemoteChunkWriter::Close()
+{
+    switch (AsyncClose()->Get()) {
+    case EResult::OK:
+        LOG_DEBUG("Chunk %s, client thread complete.", ~ChunkId.ToString());
+        return;
+
+    case EResult::Failed:
+        ythrow yexception() << 
+            Sprintf("Chunk %s write session terminated!", ~ChunkId.ToString());
+
+    default:
+        YASSERT(false);
+    }
+}
+
+void TRemoteChunkWriter::Cancel()
+{
+    LOG_DEBUG("Chunk %s, client cancels writing.", ~ChunkId.ToString());
+    // Remove cyclic reference
+    CurrentGroup.Drop();
+    WriterThread->Invoke(FromMethod(
+        &TRemoteChunkWriter::Terminate, 
+        TPtr(this)));
 }
 
 Stroka TRemoteChunkWriter::GetDebugInfo()

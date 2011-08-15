@@ -51,8 +51,12 @@ public:
         const yvector<Stroka>& nodes);
 
     void AddBlock(const TSharedRef& data);
+    EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
     void Close();
+    TAsyncResult<EResult>::TPtr AsyncClose();
+
+    void Cancel();
 
     ~TRemoteChunkWriter();
 
@@ -86,10 +90,11 @@ private:
 
     const TConfig Config;
 
-    DECLARE_ENUM(EWriterState,
+
+    volatile DECLARE_ENUM(EWriterState,
         (Initializing)
         (Writing)
-        (Failed)
+        (Terminated)
     );
 
     //! Set in #WriterThread, read from client and writer threads
@@ -98,7 +103,7 @@ private:
     //! This flag is raised whenever Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsFinishRequested;
-    TAsyncResult<TVoid>::TPtr IsFinished;
+    TAsyncResult<EResult>::TPtr IsFinished;
 
     TWindow Window;
     TSemaphore WindowSlots;
@@ -115,6 +120,8 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
+    TAsyncResult<TVoid>::TPtr* WindowReady;
+
     /* ToDo: implement metrics
 
     TMetric StartChunkTiming;
@@ -128,10 +135,11 @@ private:
     //! Is invoked from Close() through #WriterThread
     void RequestFinalization();
     void AddGroup(TGroupPtr group);
+    void Terminate();
+    void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr* windowReady);
 
     void OnNodeDied(int node);
-
-    void CheckStateAndThrow(); // client thread
+    void ReleaseSlots(int count);
 
     void ShiftWindow();
     TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);

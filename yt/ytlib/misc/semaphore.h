@@ -27,12 +27,11 @@ public:
      */
     bool Release();
 
-/*  ToDo: Maybe later
-
     //! Tries to enter the semaphore gate. A non-blocking variant of #Acquire.
     //! Returns 'true' if the semaphore counter has decreased.
     bool TryAcquire();
-*/
+
+    int GetCount();
 
 private:
     const int MaxFreeSlots;

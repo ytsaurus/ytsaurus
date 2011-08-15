@@ -107,6 +107,7 @@ bool TJob::ReplicateBlock(int blockIndex)
 
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
+    // ToDo: exception handling
     TAsyncResult<TVoid>::TPtr ready;
     if (Writer->AsyncAddBlock(cachedBlock->GetData(), &ready)) {
         LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
@@ -130,8 +131,11 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
     }
 }
 
-void TJob::OnWriterClosed(TVoid)
+void TJob::OnWriterClosed(IChunkWriter::EResult result)
 {
+    //ToDo: replace assert with proper error handling
+    YASSERT(result == IChunkWriter::EResult::OK);
+
     LOG_DEBUG("Replication job completed (JobId: %s)",
         ~JobId.ToString());
 

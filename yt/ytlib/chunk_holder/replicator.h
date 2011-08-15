@@ -76,7 +76,7 @@ private:
     void OnBlockLoaded(
         TCachedBlock::TPtr cachedBlock,
         int blockIndex);
-    void OnWriterClosed(TVoid);
+    void OnWriterClosed(IChunkWriter::EResult result);
 
 };
 

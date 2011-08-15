@@ -29,16 +29,31 @@ bool TSemaphore::Release()
 
 void TSemaphore::Acquire()
 {
-    YASSERT(FreeSlotCount >= 0);
     while (true) {
-        while (FreeSlotCount == 0) {
+        if (!TryAcquire()) {
             FreeSlotExists.Wait();
         }
+    }
+}
+
+bool TSemaphore::TryAcquire()
+{
+    YASSERT(FreeSlotCount >= 0);
+    while (true) {
+        if (FreeSlotCount == 0) {
+            return false;
+        }
+
         if (AtomicCas(&FreeSlotCount, FreeSlotCount - 1, FreeSlotCount)) {
-            return;    
+            return true;
         }
         SpinLockPause();
     }
+}
+
+int TSemaphore::GetCount()
+{
+    return FreeSlotCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

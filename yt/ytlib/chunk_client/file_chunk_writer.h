@@ -38,11 +38,11 @@ public:
     }
 
     //! Implements IChunkWriter and calls #AddBlock.
-    virtual bool AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
+    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
     {
         UNUSED(ready);
         AddBlock(data);
-        return true;
+        return EResult::OK;
     }
 
     //! A synchronous version of #Close.
@@ -73,10 +73,10 @@ public:
     }
 
     //! Implements IChunkWriter and calls #Close.
-    virtual TAsyncResult<TVoid>::TPtr AsyncClose()
+    virtual TAsyncResult<EResult>::TPtr AsyncClose()
     {
         Close();
-        return new TAsyncResult<TVoid>(TVoid());
+        return new TAsyncResult<EResult>(EResult::OK);
     }
 
     virtual void Cancel()
