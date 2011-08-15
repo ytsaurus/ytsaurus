@@ -43,7 +43,7 @@ public:
         // Check alignment.
         YASSERT(
             static_cast<i64>(reinterpret_cast<char*>(infoEnd) - reinterpret_cast<char*>(infoBegin)) ==
-            footer.BlockCount * sizeof (TBlockInfo));
+            static_cast<i64>(footer.BlockCount * sizeof (TBlockInfo)));
 
         File->Seek(footer.BlockInfoOffset, sSet);
         File->Read(infoBegin, footer.BlockCount * sizeof (TBlockInfo));
