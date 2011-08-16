@@ -91,7 +91,7 @@ private:
     const TConfig Config;
 
 
-    volatile DECLARE_ENUM(EWriterState,
+    DECLARE_ENUM(EWriterState,
         (Initializing)
         (Writing)
         (Terminated)
