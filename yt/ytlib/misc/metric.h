@@ -45,7 +45,7 @@ private:
     double SumSquares;
 
     //! The length of segment correpsonding to one bucket.
-    int Delta;
+    double Delta;
 
     //! Contains number of values from (-inf, #MinValue).
     int MinBucket;
