@@ -43,6 +43,10 @@ class AggrBase(ConfigBase):
         cls.work_dir = cls.local_dir
         if not os.path.exists(cls.local_dir):
             os.makedirs(cls.local_dir)
+
+        for descr in cls.files:
+            setattr(cls, '_'.join((descr.name, 'path')),
+                    cls.local_path(descr.filename))
             
     def local_path(cls, filename):
         return os.path.join(cls.local_dir, filename)
