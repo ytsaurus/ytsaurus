@@ -21,7 +21,8 @@ class THolder
 {
 public:
     typedef TIntrusivePtr<THolder> TPtr;
-    typedef NStl::multimap<double, THolder::TPtr> TPreferenceMap;
+    typedef NStl::multimap< double, THolder::TPtr, TGreater<double> > TPreferenceMap;
+    typedef yhash_set<TChunkId, TChunkIdHash> TChunkIds;
 
     THolder(int id, Stroka address)
         : Id(id)
@@ -50,7 +51,7 @@ public:
 
     double GetPreference() const
     {
-        return -(1.0 + Statistics_.UsedSpace) / (1.0 + Statistics_.UsedSpace + Statistics_.AvailableSpace);
+        return (1.0 + Statistics_.UsedSpace) / (1.0 + Statistics_.UsedSpace + Statistics_.AvailableSpace);
     }
 
     TPreferenceMap::iterator& PreferenceIterator()
@@ -64,6 +65,8 @@ private:
     TLeaseManager::TLease Lease_;
     THolderStatistics Statistics_;
     TPreferenceMap::iterator PreferenceIterator_;
+    TChunkIds UnderreplicatedChunks;
+    TChunkIds OverreplicatedChunks;
 
 };
 

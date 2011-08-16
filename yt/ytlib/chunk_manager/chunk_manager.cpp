@@ -55,7 +55,7 @@ public:
         YASSERT(~transaction != NULL);
         transaction->AddedChunks().push_back(chunk->GetId());
 
-        Chunks.Insert(chunkId, chunk);
+        ChunkMap.Insert(chunkId, chunk);
 
         LOG_INFO("Chunk added (ChunkId: %s)",
             ~chunkId.ToString());
@@ -67,7 +67,7 @@ public:
     {
         TChunkId id = TGuid::FromProto(message.GetChunkId());
         
-        YVERIFY(Chunks.Remove(id));
+        YVERIFY(ChunkMap.Remove(id));
         
         LOG_INFO("Chunk removed (ChunkId: %s)",
             ~id.ToString());
@@ -76,7 +76,7 @@ public:
 
     TChunk::TPtr FindChunk(const TChunkId& id, bool forUpdate = false)
     {
-        return Chunks.Find(id, forUpdate);
+        return ChunkMap.Find(id, forUpdate);
     }
 
     TChunk::TPtr GetChunk(
@@ -96,41 +96,40 @@ public:
     {
         Stroka address = message.GetAddress();
         THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
-        
+    
         int id = CurrentHolderId++;
     
-        THolder::TPtr holder = new THolder(id, address);
-        holder->Statistics() = statistics;
-        if (IsLeader()) {
-            CreateLease(holder);
+        THolder::TPtr existingHolder = FindHolder(address);
+        if (~existingHolder != NULL) {
+            LOG_INFO("Holder kicked off due to address conflict (HolderId: %d)",
+                existingHolder->GetId());
+            DoUnregisterHolder(existingHolder);
         }
 
-        YVERIFY(Holders.Insert(id, holder));
+        THolder::TPtr newHolder = new THolder(id, address);
+        newHolder->Statistics() = statistics;
+        if (IsLeader()) {
+            CreateLease(newHolder);
+        }
 
-        UpdatePreference(holder);
+        YVERIFY(HolderMap.Insert(id, newHolder));
+        YVERIFY(HolderAddressMap.insert(MakePair(address, newHolder)).Second());
+
+        UpdatePreference(newHolder);
 
         LOG_INFO("Holder registered (HolderId: %d, Address: %s, %s)",
-            holder->GetId(),
-            ~holder->GetAddress(),
-            ~holder->Statistics().ToString());
+            newHolder->GetId(),
+            ~newHolder->GetAddress(),
+            ~newHolder->Statistics().ToString());
 
-        return holder;
+        return newHolder;
     }
 
     TVoid UnregisterHolder(const NProto::TMsgUnregisterHolder& message)
     { 
         int id = message.GetHolderId();
-
-        THolder::TPtr holder = Holders.Get(id);
-        YVERIFY(Holders.Remove(id));
-
-        if (holder->PreferenceIterator() != THolder::TPreferenceMap::iterator()) {
-            PreferenceMap.erase(holder->PreferenceIterator());
-            holder->PreferenceIterator() = THolder::TPreferenceMap::iterator();
-        }
-
-        LOG_INFO("Holder unregistered (HolderId: %d)", id);
-
+        THolder::TPtr holder = GetHolder(id);
+        DoUnregisterHolder(holder);
         return TVoid();
     }
 
@@ -139,7 +138,7 @@ public:
         int holderId = message.GetHolderId();
         THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
 
-        THolder::TPtr holder = Holders.Get(holderId, true);
+        THolder::TPtr holder = HolderMap.Get(holderId, true);
         holder->Statistics() = statistics;
 
         if (IsLeader()) {
@@ -196,7 +195,16 @@ public:
 
     THolder::TPtr FindHolder(int id)
     {
-        return Holders.Find(id);
+        return HolderMap.Find(id);
+    }
+
+    THolder::TPtr FindHolder(Stroka address)
+    {
+        THolderAddressMap::iterator it = HolderAddressMap.find(address);
+        if (it == HolderAddressMap.end())
+            return NULL;
+        else
+            return it->Second();
     }
 
     THolder::TPtr GetHolder(int id)
@@ -227,13 +235,15 @@ public:
 private:
     typedef TMetaStateRefMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
     typedef TMetaStateRefMap<int, THolder> THolderMap;
+    typedef yhash_map<Stroka, THolder::TPtr> THolderAddressMap;
 
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
     TLeaseManager::TPtr HolderLeaseManager;
     int CurrentHolderId;
-    TChunkMap Chunks;
-    THolderMap Holders;
+    TChunkMap ChunkMap;
+    THolderMap HolderMap;
+    THolderAddressMap HolderAddressMap;
     THolder::TPreferenceMap PreferenceMap;
 
     // TMetaStatePart overrides.
@@ -247,8 +257,8 @@ private:
         IInvoker::TPtr invoker = GetSnapshotInvoker();
         //TODO: fix this under gcc
         //invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
-        Holders.Save(invoker, stream);
-        return Chunks.Save(invoker, stream);
+        HolderMap.Save(invoker, stream);
+        return ChunkMap.Save(invoker, stream);
     }
 
     //! Saves the local state (not including the maps).
@@ -262,8 +272,8 @@ private:
         IInvoker::TPtr invoker = GetSnapshotInvoker();
         //TODO: fix this under gcc
         //invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
-        Holders.Load(invoker, stream);
-        return Chunks.Load(invoker, stream)->Apply(FromMethod(
+        HolderMap.Load(invoker, stream);
+        return ChunkMap.Load(invoker, stream)->Apply(FromMethod(
             &TState::OnLoaded,
             TPtr(this)));
     }
@@ -277,6 +287,7 @@ private:
     TVoid OnLoaded(TVoid)
     {
         UpdateAllPreferences();
+        // TODO: reconstruct HolderAddressMap
         return TVoid();
     }
 
@@ -285,8 +296,9 @@ private:
         if (IsLeader()) {
             CloseAllLeases();
         }
-        Holders.Clear();
-        Chunks.Clear();
+        HolderMap.Clear();
+        HolderAddressMap.clear();
+        ChunkMap.Clear();
         PreferenceMap.clear();
     }
 
@@ -328,8 +340,8 @@ private:
 
     void CreateAllLeases()
     {
-        for (THolderMap::TIterator it = Holders.Begin();
-             it != Holders.End();
+        for (THolderMap::TIterator it = HolderMap.Begin();
+             it != HolderMap.End();
              ++it)
         {
             CreateLease(it->Second());
@@ -339,8 +351,8 @@ private:
 
     void CloseAllLeases()
     {
-        for (THolderMap::TIterator it = Holders.Begin();
-             it != Holders.End();
+        for (THolderMap::TIterator it = HolderMap.Begin();
+             it != HolderMap.End();
              ++it)
         {
             CloseLease(it->Second());
@@ -353,14 +365,14 @@ private:
         int holderId = holder->GetId();
         
         // Check if the holder is still registered.
-        if (!Holders.Contains(holderId))
+        if (!HolderMap.Contains(holderId))
             return;
+
+        LOG_INFO("Holder expired (HolderId: %d)", holderId);
 
         NProto::TMsgUnregisterHolder message;
         message.SetHolderId(holderId);
         CommitChange(message, FromMethod(&TState::UnregisterHolder, TPtr(this)));
-
-        LOG_INFO("Holder expired (HolderId: %d)", holderId);
     }
 
 
@@ -377,7 +389,7 @@ private:
             it != addedChunks.end();
             ++it)
         {
-            TChunk::TPtr chunk = Chunks.Find(*it, true);
+            TChunk::TPtr chunk = ChunkMap.Find(*it, true);
             YASSERT(~chunk != NULL);
 
             chunk->TransactionId() = TTransactionId();
@@ -396,10 +408,10 @@ private:
             it != addedChunks.end();
             ++it)
         {
-            TChunk::TPtr chunk = Chunks.Find(*it);
+            TChunk::TPtr chunk = ChunkMap.Find(*it);
             YASSERT(~chunk != NULL);
 
-            YVERIFY(Chunks.Remove(chunk->GetId()));
+            YVERIFY(ChunkMap.Remove(chunk->GetId()));
 
             LOG_DEBUG("Chunk aborted (ChunkId: %s)",
                 ~chunk->GetId().ToString());
@@ -408,10 +420,25 @@ private:
     }
 
     
+    void DoUnregisterHolder(THolder::TPtr holder)
+    { 
+        int id = holder->GetId();
+
+        YVERIFY(HolderMap.Remove(id));
+        YVERIFY(HolderAddressMap.erase(holder->GetAddress()) == 1);
+
+        if (holder->PreferenceIterator() != THolder::TPreferenceMap::iterator()) {
+            PreferenceMap.erase(holder->PreferenceIterator());
+            holder->PreferenceIterator() = THolder::TPreferenceMap::iterator();
+        }
+
+        LOG_INFO("Holder unregistered (HolderId: %d)", id);
+    }
+
     void UpdateAllPreferences()
     {
-        for (THolderMap::TIterator it = Holders.Begin();
-             it != Holders.End();
+        for (THolderMap::TIterator it = HolderMap.Begin();
+             it != HolderMap.End();
              ++it)
         {
             UpdatePreference(it->Second());
@@ -446,7 +473,7 @@ private:
         TChunk::TLocations::iterator writer = locations.begin();
         while (reader != locations.end()) {
             int holderId = *reader;
-            if (Holders.Contains(holderId)) {
+            if (HolderMap.Contains(holderId)) {
                 *writer++ = holderId;
             }
             ++reader;
@@ -513,9 +540,9 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, RegisterHolder)
         ~address,
         ~statistics.ToString());
 
-    const NProto::TReqRegisterHolder& message = *request;
+    const NProto::TReqRegisterHolder& unregisterMessage = *request;
     CommitChange(
-        this, context, State, message,
+        this, context, State, unregisterMessage,
         &TState::RegisterHolder,
         &TThis::OnHolderRegistered);
 }
