@@ -16,9 +16,11 @@ public:
     typedef TIntrusivePtr<TServer> TPtr;
 
     TServer(int port);
+    ~TServer();
 
     void RegisterService(IService::TPtr service);
     void Start();
+    void Stop();
 
     Stroka GetDebugInfo();
 

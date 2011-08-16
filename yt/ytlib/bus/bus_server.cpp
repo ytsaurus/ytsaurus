@@ -206,6 +206,8 @@ void TBusServer::Terminate()
     SessionMap.clear();
 
     PingMap.clear();
+
+    Handler.Drop();
 }
 
 void* TBusServer::ThreadFunc(void* param)

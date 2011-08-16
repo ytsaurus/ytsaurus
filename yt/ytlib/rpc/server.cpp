@@ -20,6 +20,10 @@ TServer::TServer(int port)
     , Started(false)
 { }
 
+TServer::~TServer()
+{
+}
+
 void TServer::RegisterService(IService::TPtr service)
 {
     YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
@@ -31,6 +35,13 @@ void TServer::Start()
     YASSERT(!Started);
     Started = true;
     LOG_INFO("RPC server started");
+}
+
+void TServer::Stop()
+{
+    Started = false;
+    BusServer->Terminate();
+    LOG_INFO("RPC server stopped");
 }
 
 void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
