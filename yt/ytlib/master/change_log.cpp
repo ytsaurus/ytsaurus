@@ -322,8 +322,8 @@ void TChangeLog::TImpl::Open()
             break;
         }
 
-        size_t size = AlignUp(sizeof(recordHeader) + (size_t) recordHeader.DataLength);
-        if ((i64) CurrentFilePosition + (i64) size > fileLength) {
+        i32 size = AlignUp(static_cast<i32>(sizeof(recordHeader)) + recordHeader.DataLength);
+        if (CurrentFilePosition + size > fileLength) {
             LOG_WARNING("Cannot read data of record %d at %" PRISZT " (ChangeLogId: %d)",
                 recordId,
                 CurrentFilePosition,
@@ -331,7 +331,7 @@ void TChangeLog::TImpl::Open()
             break;
         }
 
-        buffer.resize(size - sizeof(recordHeader));
+        buffer.resize(static_cast<size_t>(size) - sizeof(recordHeader));
         fileInput.Load(buffer.begin(), buffer.size());
         void* ptr = (void *) buffer.begin();
         TChecksum checksum = GetChecksum(TRef(ptr, (size_t) recordHeader.DataLength));
@@ -348,7 +348,7 @@ void TChangeLog::TImpl::Open()
         if(!Index.empty() && Index.back().RecordId == recordId) {
             // Do not handle record we just seeked to.
             ++RecordCount;
-            AtomicAdd(CurrentFilePosition, size);
+            AtomicAdd(CurrentFilePosition, static_cast<intptr_t>(size));
         } else {
             HandleRecord(recordId, size);
         }
@@ -435,7 +435,7 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
     FileOutput->Write(recordData.Begin(), recordData.Size());
     recordSize += recordData.Size();
     WritePadding(*FileOutput, recordSize);
-    recordSize = AlignUp(recordSize);
+    recordSize = static_cast<i64>(AlignUp(recordSize));
 
     HandleRecord(recordId, recordSize);
 }
@@ -524,7 +524,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
             ++currentRecordId;
         }
 
-        position += AlignUp(sizeof(TRecordHeader) + (size_t) header->DataLength);
+        position += AlignUp(static_cast<i32>(sizeof(TRecordHeader)) + header->DataLength);
     }
 }
 
@@ -580,7 +580,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
         }
         ++currentRecordId;
 
-        position += AlignUp(sizeof(TRecordHeader) + (size_t) header->DataLength);
+        position += AlignUp(static_cast<i32>(sizeof(TRecordHeader)) + header->DataLength);
     }
 
     CurrentBlockSize = position;

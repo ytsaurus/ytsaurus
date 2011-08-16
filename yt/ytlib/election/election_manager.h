@@ -20,10 +20,11 @@ struct IElectionCallbacks
 {
     typedef TIntrusivePtr<IElectionCallbacks> TPtr;
 
-    virtual void StartLeading(TEpoch epoch) = 0;
-    virtual void StopLeading() = 0;
-    virtual void StartFollowing(TPeerId leaderId, TEpoch epoch) = 0;
-    virtual void StopFollowing() = 0;
+    virtual void OnStartLeading(TEpoch epoch) = 0;
+    virtual void OnStopLeading() = 0;
+    virtual void OnStartFollowing(TPeerId leaderId, TEpoch epoch) = 0;
+    virtual void OnStopFollowing() = 0;
+
     virtual TPeerPriority GetPriority() = 0;
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
 

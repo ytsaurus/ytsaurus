@@ -300,7 +300,6 @@ private:
         CloseAllLeases();
     }
 
-
     void CreateLease(THolder::TPtr holder)
     {
         YASSERT(IsLeader());
@@ -322,9 +321,9 @@ private:
 
     void CloseLease(THolder::TPtr holder)
     {
-        YASSERT(IsLeader());
         YASSERT(holder->Lease() != TLeaseManager::TLease());
         HolderLeaseManager->CloseLease(holder->Lease());
+        holder->Lease().Drop();
     }
 
     void CreateAllLeases()

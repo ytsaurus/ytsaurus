@@ -8,6 +8,7 @@
 #endif
 
 #include <util/stream/str.h>
+#include <util/system/atexit.h>
 
 namespace NYT {
 
@@ -87,11 +88,40 @@ private:
 template<class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
-    // Copied from util/generic/singleton.h.
-    static TIntrusivePtr<T> instance;
-    if (EXPECT_FALSE(!instance))
-        instance = SingletonInt<T>();
+    static T* volatile instance;
+
+    YASSERT(instance != reinterpret_cast<T*>(-1));
+
+    if (EXPECT_TRUE(instance != NULL)) {
+        return instance;
+    }
+
+    static TSpinLock spinLock;
+    TGuard<TSpinLock> guard(spinLock);
+
+    if (instance != NULL) {
+        return instance;
+    }
+
+    T* obj = new T();
+    obj->Ref();
+
+    instance = obj;
+
+    AtExit(
+        RefCountedSingletonDestroyer<T>,
+        const_cast<T**>(&instance),
+        TSingletonTraits<T>::Priority);
+
     return instance;
+}
+
+template<class T>
+void RefCountedSingletonDestroyer(void* ctx)
+{
+    T** obj = reinterpret_cast<T**>(ctx);
+    (*obj)->UnRef();
+    *obj = reinterpret_cast<T*>(-1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

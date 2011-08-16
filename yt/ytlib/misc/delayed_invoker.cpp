@@ -56,10 +56,10 @@ TDelayedInvoker::TDelayedInvoker()
 
 TDelayedInvoker::~TDelayedInvoker()
 {
-    Thread.Detach();
+    //Thread.Detach();
     // TODO: the following code causes a crash during termination. Investigate this.
-    //Finished = true;
-    //Thread.Join();
+    Finished = true;
+    Thread.Join();
 }
 
 TDelayedInvoker* TDelayedInvoker::Get()

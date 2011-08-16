@@ -2,8 +2,7 @@
 
 #include "chunk_writer.h"
 #include "format.h"
-
-#include "../misc/serialize.h"
+#include "chunk.pb.h"
 
 #include <util/system/file.h>
 
@@ -12,7 +11,6 @@ namespace NYT
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impl to cpp
 //! Provides a local and synchronous implementation of IChunkWriter.
 class TFileChunkWriter
     : public IChunkWriter
@@ -20,73 +18,26 @@ class TFileChunkWriter
 public:
     typedef TIntrusivePtr<TFileChunkWriter> TPtr;
 
-    TFileChunkWriter(Stroka fileName)
-    {
-        File.Reset(new TFile(fileName, CreateAlways|WrOnly|Seq));
-    }
+    //! Creates a new writer.
+    TFileChunkWriter(Stroka fileName);
 
     //! A synchronous version of #AsyncAddBlock.
-    void AddBlock(const TSharedRef& data)
-    {
-        TBlockInfo blockInfo;
-        blockInfo.Size = data.Size();
-        blockInfo.Checksum = GetChecksum(data);
-        BlockInfos.push_back(blockInfo);
-
-        File->Write(data.Begin(), data.Size());
-        File->Flush();
-    }
+    void AddBlock(const TSharedRef& data);
 
     //! Implements IChunkWriter and calls #AddBlock.
-    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
-    {
-        UNUSED(ready);
-        AddBlock(data);
-        return EResult::OK;
-    }
+    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+
 
     //! A synchronous version of #Close.
-    void Close()
-    {
-        WritePadding(*File, File->GetLength());
-
-        TChunkFooter footer;
-        footer.Singature = TChunkFooter::ExpectedSignature;
-        footer.BlockInfoOffset = File->GetLength();
-        footer.BlockCount = BlockInfos.ysize();
-
-        TBlockInfo* infoBegin = &*BlockInfos.begin();
-        TBlockInfo* infoEnd = &*BlockInfos.end();
-
-        // Check alignment.
-        YASSERT(
-            static_cast<i64>(reinterpret_cast<char*>(infoEnd) - reinterpret_cast<char*>(infoBegin)) ==
-            static_cast<i64>(footer.BlockCount * sizeof (TBlockInfo)));
-
-        File->Write(infoBegin, footer.BlockCount * sizeof (TBlockInfo));
-
-        File->Write(&footer, sizeof (footer));
-
-        File->Flush();
-        File->Close();
-        File.Destroy();
-    }
-
+    void Close();
     //! Implements IChunkWriter and calls #Close.
-    virtual TAsyncResult<EResult>::TPtr AsyncClose()
-    {
-        Close();
-        return new TAsyncResult<EResult>(EResult::OK);
-    }
-
-    virtual void Cancel()
-    {
-        File.Destroy();
-    }
+    virtual TAsyncResult<EResult>::TPtr AsyncClose();
+    virtual void Cancel();
 
 private:
+    Stroka FileName;
     THolder<TFile> File;
-    yvector<TBlockInfo> BlockInfos;
+    NChunkClient::NProto::TChunkMeta Meta;
 
 };
 

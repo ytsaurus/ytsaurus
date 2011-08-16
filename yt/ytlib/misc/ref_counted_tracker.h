@@ -10,9 +10,9 @@ namespace NYT {
 
 // Reference tracking relies on uniqueness of std::type_info objects.
 // Without uniqueness reference tracking is still functional but lacks precision
-// (i. e. some types may have duplicate entries in accumulated table).
+// (i. e. some types may have duplicate entries in the accumulated table).
 // GCC guarantees std::type_info uniqueness starting from version 3.0
-// due to so called vague linking.
+// due to the so-called vague linking.
 //
 // See also: http://gcc.gnu.org/faq.html#dso
 // See also: http://www.codesourcery.com/public/cxx-abi/
@@ -103,6 +103,7 @@ public:
     unsigned int GetTotalObjects(const std::type_info& typeInfo) const;
 
     Stroka GetDebugInfo(int sortByColumn = -1) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

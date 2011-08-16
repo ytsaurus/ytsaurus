@@ -589,7 +589,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, PingLeader)
 ////////////////////////////////////////////////////////////////////////////////
 // IElectionCallbacks members
 
-void TMetaStateManager::StartLeading(TEpoch epoch)
+void TMetaStateManager::OnStartLeading(TEpoch epoch)
 {
     LOG_INFO("Starting leader recovery");
 
@@ -623,8 +623,6 @@ void TMetaStateManager::OnLeaderRecovery(TRecovery::EResult result)
         return;
     }
 
-    State = EState::Leading;
-    
     FollowerTracker = new TFollowerTracker(
         TFollowerTracker::TConfig(),
         CellManager,
@@ -634,9 +632,11 @@ void TMetaStateManager::OnLeaderRecovery(TRecovery::EResult result)
         &TMetaStateManager::OnApplyChange,
         TPtr(this)));
 
-    MetaState->OnStartLeading();
+    State = EState::Leading;
 
     LOG_INFO("Leader recovery complete");
+
+    MetaState->OnStartLeading();
 }
 
 void TMetaStateManager::OnApplyChange()
@@ -648,14 +648,14 @@ void TMetaStateManager::OnApplyChange()
     }
 }
 
-void TMetaStateManager::StopLeading()
+void TMetaStateManager::OnStopLeading()
 {
     LOG_INFO("Stopped leading");
     
-    State = EState::Elections;
-
     MetaState->OnStopLeading();
     
+    State = EState::Elections;
+
     ChangeCommitter->SetOnApplyChange(NULL);
 
     StopEpoch();
@@ -671,7 +671,7 @@ void TMetaStateManager::StopLeading()
     }
 }
 
-void TMetaStateManager::StartFollowing(TPeerId leaderId, TEpoch epoch)
+void TMetaStateManager::OnStartFollowing(TPeerId leaderId, TEpoch epoch)
 {
     LOG_INFO("Starting follower state recovery");
     
@@ -705,8 +705,6 @@ void TMetaStateManager::OnFollowerRecovery(TRecovery::EResult result)
         return;
     }
 
-    State = EState::Following;
-
     LeaderPinger = new TLeaderPinger(
         TLeaderPinger::TConfig(),
         this,
@@ -715,19 +713,21 @@ void TMetaStateManager::OnFollowerRecovery(TRecovery::EResult result)
         Epoch,
         ServiceInvoker);
 
-    MetaState->OnStartFollowing();
+    State = EState::Following;
 
     LOG_INFO("Follower recovery complete");
+
+    MetaState->OnStartFollowing();
 }
 
-void TMetaStateManager::StopFollowing()
+void TMetaStateManager::OnStopFollowing()
 {
     LOG_INFO("Stopped following");
     
-    State = EState::Elections;
-    
     MetaState->OnStopFollowing();
 
+    State = EState::Elections;
+    
     StopEpoch();
 
     if (~FollowerRecovery != NULL) {

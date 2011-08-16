@@ -9,8 +9,11 @@ namespace NYT {
 
 // TODO: What are the guarantees?
 // Shall forUpdate alter the behaviour of Find and Get to wait until snapshot would be created?
+// NO, it should return a copy
 // Shall Load/Save do all work via passed invoker?
+// YES
 // Shall Load guarantee that map swap will be atomic?
+// NO, there will be no concurrent access at this time
 
 //! Snapshotable map which keeps values by pointers.
 /*

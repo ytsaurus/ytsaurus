@@ -42,11 +42,14 @@ const size_t YTAlignment = 8;
 STATIC_ASSERT(!(YTAlignment & (YTAlignment - 1)));
 
 //! Returns padding size: number of bytes required to make size
-//! a factor of #ALIGNMENT.
+//! a factor of #YTAlignment.
 int GetPaddingSize(i64 size);
 
-//! Rounds up the #size to the nearest factor of #ALIGNMENT.
+//! Rounds up the #size to the nearest factor of #YTAlignment.
 i64 AlignUp(i64 size);
+
+//! Rounds up the #size to the nearest factor of #YTAlignment.
+i32 AlignUp(i32 size);
 
 //! Writes padding zeros.
 void WritePadding(TOutputStream& output, i64 recordSize);

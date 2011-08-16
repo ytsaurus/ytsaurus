@@ -56,6 +56,8 @@ public:
     int GetEndBlockIndex() const;
     int GetBlockCount() const;
 
+    bool IsFlushing;
+
 private:
     yvector<bool> IsSent;
 
@@ -81,7 +83,8 @@ TRemoteChunkWriter::TGroup::TGroup(
     int nodeCount, 
     int startBlockIndex, 
     TRemoteChunkWriter::TPtr writer)
-    : IsSent(nodeCount, false)
+    : IsFlushing(false)
+    , IsSent(nodeCount, false)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
     , Writer(writer)
@@ -299,10 +302,13 @@ void TRemoteChunkWriter::ShiftWindow()
     int lastFlushableBlock = -1;
     for (TWindow::const_iterator it = Window.begin(); it != Window.end(); ++it) {
         TGroupPtr group = *it;
-        if (group->IsWritten()) {
-            lastFlushableBlock = group->GetEndBlockIndex();
-        } else {
-            break;
+        if (!group->IsFlushing) {
+            if (group->IsWritten()) {
+                lastFlushableBlock = group->GetEndBlockIndex();
+                group->IsFlushing = true;
+            } else {
+                break;
+            }
         }
     }
 

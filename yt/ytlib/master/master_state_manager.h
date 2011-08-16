@@ -130,10 +130,10 @@ private:
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members
-    virtual void StartLeading(TEpoch epoch);
-    virtual void StopLeading();
-    virtual void StartFollowing(TPeerId leaderId, TEpoch myEpoch);
-    virtual void StopFollowing();
+    virtual void OnStartLeading(TEpoch epoch);
+    virtual void OnStopLeading();
+    virtual void OnStartFollowing(TPeerId leaderId, TEpoch myEpoch);
+    virtual void OnStopFollowing();
     virtual TPeerPriority GetPriority();
     virtual Stroka FormatPriority(TPeerPriority priority);
 

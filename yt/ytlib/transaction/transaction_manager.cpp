@@ -180,6 +180,7 @@ private:
         YASSERT(IsLeader());
         YASSERT(transaction->Lease() != TLeaseManager::TLease());
         LeaseManager->CloseLease(transaction->Lease());
+        transaction->Lease().Drop();
     }
 
     void OnTransactionExpired(TTransaction::TPtr transaction)

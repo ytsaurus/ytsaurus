@@ -22,6 +22,11 @@ i64 AlignUp(i64 size)
     return size + GetPaddingSize(size);
 }
 
+i32 AlignUp(i32 size)
+{
+    return size + GetPaddingSize(size);
+}
+
 void WritePadding(TOutputStream& output, i64 recordSize)
 {
     output.Write(&Padding, GetPaddingSize(recordSize));

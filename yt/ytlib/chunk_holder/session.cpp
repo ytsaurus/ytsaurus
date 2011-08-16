@@ -303,7 +303,9 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
 TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
 {
-    RotateWindow(blockIndex);
+    if (blockIndex > WindowStart) {
+        RotateWindow(blockIndex);
+    }
     return TVoid();
 }
 

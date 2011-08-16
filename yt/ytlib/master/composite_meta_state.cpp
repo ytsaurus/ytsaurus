@@ -196,9 +196,10 @@ void TCompositeMetaState::StartEpoch()
 
 void TCompositeMetaState::StopEpoch()
 {
-    YASSERT(~EpochStateInvoker != NULL);
-    EpochStateInvoker->Cancel();
-    EpochStateInvoker.Drop();
+    if (~EpochStateInvoker != NULL) {
+        EpochStateInvoker->Cancel();
+        EpochStateInvoker.Drop();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -653,7 +653,7 @@ void TElectionManager::StartFollowing(
         LeaderId,
         ~Epoch.ToString());
 
-    ElectionCallbacks->StartFollowing(LeaderId, Epoch);
+    ElectionCallbacks->OnStartFollowing(LeaderId, Epoch);
 }
 
 void TElectionManager::StartLeading()
@@ -676,7 +676,7 @@ void TElectionManager::StartLeading()
 
     LOG_INFO("Starting leading (Epoch: %s)", ~Epoch.ToString());
     
-    ElectionCallbacks->StartLeading(Epoch);
+    ElectionCallbacks->OnStartLeading(Epoch);
 }
 
 void TElectionManager::StopLeading()
@@ -684,9 +684,9 @@ void TElectionManager::StopLeading()
     YASSERT(State == TProxy::EState::Leading);
     
     LOG_INFO("Stopping leading (Epoch: %s)",
-               ~Epoch.ToString());
+        ~Epoch.ToString());
 
-    ElectionCallbacks->StopLeading();
+    ElectionCallbacks->OnStopLeading();
 
     YASSERT(~FollowerPinger != NULL);
     FollowerPinger->Cancel();
@@ -705,7 +705,7 @@ void TElectionManager::StopFollowing()
         LeaderId,
         ~Epoch.ToString());
         
-    ElectionCallbacks->StopFollowing();
+    ElectionCallbacks->OnStopFollowing();
     
     StopEpoch();
     

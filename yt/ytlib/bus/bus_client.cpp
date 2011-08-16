@@ -434,17 +434,22 @@ public:
 
     ~TClientDispatcher()
     {
+        Shutdown();
+    }
+
+    static TClientDispatcher* Get()
+    {
+        return Singleton<TClientDispatcher>();
+    }
+
+    void Shutdown()
+    {
         Terminated = true;
         Thread.Join();
 
         Requester->StopNoWait();
 
         // NB: cannot use log here
-    }
-
-    static TClientDispatcher* Get()
-    {
-        return Singleton<TClientDispatcher>();
     }
 
     IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage::TPtr message)
@@ -493,6 +498,14 @@ public:
         return "ClientDispatcher info:\n" + Requester->GetDebugInfo();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: hack
+void ShutdownClientDispatcher()
+{
+    TClientDispatcher::Get()->Shutdown();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

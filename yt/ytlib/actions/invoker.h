@@ -27,7 +27,7 @@ class TSyncInvoker
 public:
     virtual void Invoke(TIntrusivePtr<IAction> action);
 
-    static TSyncInvoker* Get();
+    static IInvoker::TPtr Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
