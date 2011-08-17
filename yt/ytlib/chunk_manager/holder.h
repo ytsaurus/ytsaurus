@@ -59,14 +59,24 @@ public:
         return PreferenceIterator_;
     }
 
+    TChunkIds& UnderreplicatedChunks()
+    {
+        return UnderreplicatedChunks_;
+    }
+
+    TChunkIds& OverreplicatedChunks()
+    {
+        return OverreplicatedChunks_;
+    }
+
 private:
     int Id;
     Stroka Address;
     TLeaseManager::TLease Lease_;
     THolderStatistics Statistics_;
     TPreferenceMap::iterator PreferenceIterator_;
-    TChunkIds UnderreplicatedChunks;
-    TChunkIds OverreplicatedChunks;
+    TChunkIds UnderreplicatedChunks_;
+    TChunkIds OverreplicatedChunks_;
 
 };
 

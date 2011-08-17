@@ -6,6 +6,8 @@
 #include <util/stream/output.h>
 #include <util/stream/file.h>
 
+#include <contrib/libs/protobuf/repeated_field.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,26 @@ void WritePadding(TOutputStream& output, i64 recordSize);
 
 //! Writes padding zeros.
 void WritePadding(TFile& file, i64 recordSize);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: to cpp
+inline void ToProto(const yvector<Stroka>& array, ::google::protobuf::RepeatedPtrField<TProtoStringType>& proto)
+{
+    for (int i = 0; i < array.ysize(); ++i) {
+        *proto.Add() = array[i];
+    }
+}
+
+// TODO: to cpp
+inline yvector<Stroka> FromProto(const ::google::protobuf::RepeatedPtrField<TProtoStringType>& proto)
+{
+    yvector<Stroka> array(proto.size());
+    for (int i = 0; i < proto.size(); ++i) {
+        array[i] = proto.Get(i);
+    }
+    return array;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
