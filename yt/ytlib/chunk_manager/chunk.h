@@ -137,12 +137,22 @@ public:
 
     static const i64 UnknownSize = -1;
 
+    //! For seralization
+    TChunk()
+    { }
 
     TChunk(const TChunkId& id)
         : Id(id)
         , Size_(UnknownSize)
     { }
 
+    //! For putting in TMetaStateRefMap
+    TChunk(TChunk& chunk)
+        : Id(chunk.Id)
+        , Size_(chunk.Size_)
+        , TransactionId_(chunk.TransactionId_)
+        , Locations_(chunk.Locations_)
+    { }
 
     TChunkId GetId() const
     {

@@ -22,6 +22,13 @@ public:
     TTransaction()
     { }
 
+    //! For putting in TMetaStateRefMap
+    TTransaction(TTransaction& transaction)
+        : Id(transaction.Id)
+        , Lease_(transaction.Lease_)
+        , AddedChunks_(transaction.AddedChunks_)
+    { }
+
     TTransaction(const TTransactionId& id)
         : Id(id)
     { }

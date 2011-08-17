@@ -29,6 +29,21 @@ public:
         , Address(address)
     { }
 
+    //! For serialization
+    THolder()
+    { }
+
+    //! For putting in TMetaStateRefMap
+    THolder(THolder& holder)
+        : Id(holder.Id)
+        , Address(holder.Address)
+        , Lease_(holder.Lease_)
+        , Statistics_(holder.Statistics_)
+        , PreferenceIterator_(holder.PreferenceIterator_)
+        , UnderreplicatedChunks_(holder.UnderreplicatedChunks_)
+        , OverreplicatedChunks_(holder.OverreplicatedChunks_)
+    { }
+
     int GetId() const
     {
         return Id;

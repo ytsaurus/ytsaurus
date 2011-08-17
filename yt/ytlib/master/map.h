@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "../misc/enum.h"
 #include "../misc/assert.h"
 
 namespace NYT {
@@ -15,6 +16,21 @@ namespace NYT {
 // Shall Load guarantee that map swap will be atomic?
 // NO, there will be no concurrent access at this time
 
+// Guarantees:
+// All public functions will be called from one thread
+
+// hack to use smart enums
+class TMetaStateRefMapBase
+{
+protected:
+    DECLARE_ENUM(EState,
+        (Normal)
+        (SavingSnapshot)
+        (SavedSnapshot)
+    );
+    EState State;
+};
+
 //! Snapshotable map which keeps values by pointers.
 /*
  * \tparam TKey Type of the key.
@@ -23,18 +39,32 @@ namespace NYT {
  */
 template <class TKey, class TValue, class THash = ::THash<TKey> >
 class TMetaStateRefMap
+    : public TMetaStateRefMapBase
 {
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef yhash_map<TKey, TValuePtr, THash> TMap;
+    typedef yhash_set<TKey, THash> TSet;
     typedef typename TMap::iterator TIterator;
 
-    //! Inserts or updates a key-value pair.
-    /*! \returns True iff the key is new.
+    //! Inserts a key-value pair.
+    /*!
+     * Does nothing if the key is already in map
+     * \returns True iff the key is new.
      */
     bool Insert(const TKey& key, TValuePtr value)
     {
-        return Map.insert(MakePair(key, value)).Second();
+        if (State == EState::SavedSnapshot) {
+            MergeTempTables();
+        }
+        if (State == EState::Normal) {
+            return Map.insert(MakePair(key, value)).second;
+        }
+        bool isAlreadyDeleted = (DeletionsSet.erase(key) == 1);
+        if (isAlreadyDeleted || Map.find(key) == Map.end()) {
+            return InsertsMap.insert(MakePair(key, value)).second;
+        }
+        return false;
     }
 
     //! Tries to find the key in the map.
@@ -45,12 +75,26 @@ public:
      */
     TValuePtr Find(const TKey& key, bool forUpdate = false)
     {
-        UNUSED(forUpdate);
+        if (State != EState::Normal) {
+            typename TMap::iterator insertsIt = InsertsMap.find(key);
+            if (insertsIt != InsertsMap.end()) {
+                return insertsIt->second;
+            }
+            typename TSet::iterator deletionsIt = DeletionsSet.find(key);
+            if (deletionsIt != DeletionsSet.end()) {
+                return NULL;
+            }
+        }
         typename TMap::iterator it = Map.find(key);
-        if (it == Map.end())
+        if (it == Map.end()) {
             return NULL;
-        else
-            return it->Second();
+        }
+        if (forUpdate) {
+            TValuePtr newValue = new TValue(*it->second);
+            YVERIFY(InsertsMap.insert(MakePair(key, newValue)).second);
+            return newValue;
+        }
+        return it->second;
     }
 
     //! Returns the value corresponding to the key.
@@ -63,29 +107,50 @@ public:
      */
     TValuePtr Get(const TKey& key, bool forUpdate = false)
     {
-        UNUSED(forUpdate);
-        TValuePtr value = Find(key);
+        TValuePtr value = Find(key, forUpdate);
         YASSERT(~value != NULL);
         return value;
     }
 
     //! Removes the key from the map.
+    /*! \returns True iff the key was in map
+     */
     bool Remove(const TKey& key)
     {
-        return Map.erase(key) == 1;
+        if (State == EState::SavedSnapshot) {
+            MergeTempTables();
+        }
+        if (State == EState::Normal) {
+            return Map.erase(key) == 1;
+        }
+        bool wasInInserts = (InsertsMap.erase(key) == 1);
+        if (Map.find(key) != Map.end()) {
+            DeletionsSet.insert(key).second;
+            return true;
+        }
+        return wasInInserts;
     }
 
     //! Checks whether the key exists in the map.
-    bool Contains(const TKey& key) const
+    bool Contains(const TKey& key)
     {
-        return Map.find(key) != Map.end();
+        return (~Find(key) != NULL);
     }
 
     //! Removes all keys from the map (hence effectively dropping smart pointers
     //! to the corresponding values).
     void Clear()
     {
-        Map.clear();
+        if (State == EState::Normal) {
+            Map.clear();
+            return;
+        }
+
+        InsertsMap.clear();
+        for (TIterator it = Map.begin(); it != Map.end(); ++it) {
+            const TKey& key = it->first;
+            DeletionsSet.insert(key);
+        }
     }
 
     //! (Unordered) begin()-iterator.
@@ -112,10 +177,14 @@ public:
         IInvoker::TPtr invoker,
         TOutputStream& stream)
     {
-        // TODO: implement
-        UNUSED(invoker);
-        UNUSED(stream);
-        return new TAsyncResult<TVoid>(TVoid());
+        YASSERT(State == EState::Normal);
+        YASSERT(InsertsMap.size() == 0);
+        YASSERT(DeletionsSet.size() == 0);
+        State = EState::SavingSnapshot;
+        return
+            FromMethod(&TMetaStateRefMap::DoSave, this, stream)
+            ->AsyncVia(invoker)
+            ->Do();
     }
 
     //! Asynchronously loads the map from the stream.
@@ -130,15 +199,67 @@ public:
         IInvoker::TPtr invoker,
         TInputStream& stream)
     {
-        // TODO: implement
-        UNUSED(invoker);
-        UNUSED(stream);
+        YASSERT(State == EState::Normal);
+        YASSERT(InsertsMap.size() == 0);
+        YASSERT(DeletionsSet.size() == 0);
         Map.clear();
-        return new TAsyncResult<TVoid>(TVoid());
+        return
+            FromMethod(&TMetaStateRefMap::DoLoad, this, stream)
+            ->AsyncVia(invoker)
+            ->Do();
     }
     
 private:
     TMap Map;
+    TMap InsertsMap;
+    TSet DeletionsSet;
+
+    typedef TPair<TKey, TValuePtr> TItem;
+    bool TItemComparer(const TItem& i1, const TItem& i2) {
+        return (i1.first < i2.first);
+    }
+
+    TVoid DoSave(TOutputStream& stream) {
+        stream << Map.size();
+
+        yvector<TItem> items(Map.begin(), Map.end());
+        // TODO: fix this
+        //std::sort(items.begin(), items.end(), TItemComparer);
+        for (typename yvector<TItem>::iterator it = items.begin();
+            it != items.end();
+            ++it) {
+            stream << it->first << *it->second;
+        }
+        State = EState::SavedSnapshot;
+        return TVoid();
+    }
+
+    TVoid DoLoad(TInputStream& stream) {
+        size_t size;
+        stream >> size;
+        for (size_t i = 0; i < size; ++i) {
+            TKey key;
+            TValue value;
+            stream >> key >> value;
+            Map.insert(MakePair(key, TValuePtr(&value)));
+        }
+        return TVoid();
+    }
+
+    void MergeTempTables() {
+        for (TIterator it = InsertsMap.begin(); it != InsertsMap.end(); ++it) {
+            Map[it->first] = it->second;
+        }
+        InsertsMap.clear();
+
+        for (typename TSet::iterator it = DeletionsSet.begin();
+            it != DeletionsSet.end();
+            ++it)
+        {
+            Map.erase(*it);
+        }
+        DeletionsSet.clear();
+    }
 
 };
 
