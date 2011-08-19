@@ -227,7 +227,8 @@ private:
         std::sort(items.begin(), items.end(), ItemComparer);
         for (typename yvector<TItem>::iterator it = items.begin();
             it != items.end();
-            ++it) {
+            ++it)
+        {
             //TODO: fix this when operator << is implemented
             //stream << it->first << *it->second;
         }
