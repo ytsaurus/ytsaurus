@@ -177,7 +177,7 @@ public:
         TChangeLogQueue::TPtr queue;
 
         if (it == ChangeLogQueues.end()) {
-            queue = new TChangeLogQueue(changeLog);
+            queue = New<TChangeLogQueue>(changeLog);
             it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
         } else {
             queue = it->second;
@@ -269,7 +269,7 @@ TAsyncChangeLog::~TAsyncChangeLog()
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId, TSharedRef data)
 {
-    TAppendResult::TPtr result = new TAppendResult();
+    TAppendResult::TPtr result = New<TAppendResult>();
     Impl->Append(ChangeLog, recordId, data, result);
     return result;
 }

@@ -43,14 +43,14 @@ public:
     {
         TInsertCookie cookie(blockId);
         YVERIFY(BeginInsert(&cookie));
-        TCachedBlock::TPtr block = new TCachedBlock(blockId, data);
+        TCachedBlock::TPtr block = New<TCachedBlock>(blockId, data);
         EndInsert(block, &cookie);
         return block;
     }
 
     TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId)
     {
-        TAutoPtr<TInsertCookie> cookie = new TInsertCookie(blockId);
+        TAutoPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
             LOG_DEBUG("Got cached block from store (BlockId: %s)",
                 ~blockId.ToString());
@@ -90,7 +90,7 @@ private:
             TFileChunkReader::TPtr reader = ChunkStore->GetChunkReader(chunk);
             TSharedRef data = reader->ReadBlock(blockId.BlockIndex);
             if (data != TSharedRef()) {
-                TCachedBlock::TPtr cachedBlock = new TCachedBlock(blockId, data);
+                TCachedBlock::TPtr cachedBlock = New<TCachedBlock>(blockId, data);
                 EndInsert(cachedBlock, ~cookie);
 
                 LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
@@ -110,7 +110,7 @@ private:
 TBlockStore::TBlockStore(
     const TChunkHolderConfig& config,
     TChunkStore::TPtr chunkStore)
-    : BlockCache(new TBlockCache(config, chunkStore))
+    : BlockCache(New<TBlockCache>(config, chunkStore))
 { }
 
 TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)

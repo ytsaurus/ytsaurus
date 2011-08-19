@@ -23,7 +23,7 @@ TSessionManager::TSessionManager(
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)
     , ServiceInvoker(serviceInvoker)
-    , LeaseManager(new TLeaseManager())
+    , LeaseManager(New<TLeaseManager>())
 { }
 
 TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
@@ -43,8 +43,7 @@ TSession::TPtr TSessionManager::StartSession(
 {
     int location = ChunkStore->GetNewChunkLocation(chunkId);
 
-    TSession::TPtr session = new TSession(this, chunkId, location, windowSize);
-    session->Initialize();
+    TSession::TPtr session = New<TSession>(this, chunkId, location, windowSize);
 
     TLeaseManager::TLease lease = LeaseManager->CreateLease(
         Config.SessionTimeout,
@@ -133,11 +132,7 @@ TSession::TSession(
     for (int index = 0; index < windowSize; ++index) {
         Window.push_back(TSlot());
     }
-}
 
-void TSession::Initialize()
-{
-    // This cannot be done in ctor since it takes a smartpointer to this.
     OpenFile();
 }
 
@@ -280,6 +275,8 @@ void TSession::OnBlockWritten(TVoid, i32 blockIndex)
 
 TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 {
+    // TODO: verify monotonicity of blockIndex
+
     VerifyInWindow(blockIndex);
 
     RenewLease();
@@ -303,9 +300,7 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
 TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
 {
-    if (blockIndex > WindowStart) {
-        RotateWindow(blockIndex);
-    }
+    RotateWindow(blockIndex);
     return TVoid();
 }
 
@@ -343,7 +338,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = new TFileChunkWriter(FileName + NFS::TempFileSuffix);
+    Writer = New<TFileChunkWriter>(FileName + NFS::TempFileSuffix);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());

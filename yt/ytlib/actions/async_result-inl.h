@@ -104,7 +104,7 @@ template <class TOther>
 TIntrusivePtr< TAsyncResult<TOther> >
 TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
 {
-    typename TAsyncResult<TOther>::TPtr otherResult = new TAsyncResult<TOther>();
+    typename TAsyncResult<TOther>::TPtr otherResult = New< TAsyncResult<TOther> >();
     Subscribe(FromMethod(&ApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }
@@ -124,7 +124,7 @@ template <class TOther>
 TIntrusivePtr< TAsyncResult<TOther> >
 TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TAsyncResult<TOther> > > > func)
 {
-    typename TAsyncResult<TOther>::TPtr otherResult = new TAsyncResult<TOther>();
+    typename TAsyncResult<TOther>::TPtr otherResult = New< TAsyncResult<TOther> >();
     Subscribe(FromMethod(&AsyncApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }

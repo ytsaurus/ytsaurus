@@ -8,6 +8,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: get rid of TODOS :)
+// 
 // TODO: What are the guarantees?
 // Shall forUpdate alter the behaviour of Find and Get to wait until snapshot would be created?
 // NO, it should return a copy
@@ -19,8 +21,9 @@ namespace NYT {
 // Guarantees:
 // All public functions will be called from one thread
 
-// hack to use smart enums
+// Hack to use smart enums.
 class TMetaStateRefMapBase
+    : private TNonCopyable
 {
 protected:
     DECLARE_ENUM(EState,
@@ -85,16 +88,23 @@ public:
                 return NULL;
             }
         }
+
         typename TMap::iterator it = Map.find(key);
         if (it == Map.end()) {
             return NULL;
         }
-        if (forUpdate) {
-            TValuePtr newValue = new TValue(*it->second);
-            YVERIFY(InsertsMap.insert(MakePair(key, newValue)).second);
-            return newValue;
+
+        TValuePtr value = it->Second();
+
+        if (State != EState::SavingSnapshot || !forUpdate) {
+            return value;
         }
-        return it->second;
+
+        // TODO: uncomment when copy ctors are ready
+        //TValuePtr newValue = New<TValue>(*it->second);
+        TValuePtr newValue = NULL;
+        YVERIFY(InsertsMap.insert(MakePair(key, newValue)).second);
+        return newValue;
     }
 
     //! Returns the value corresponding to the key.
@@ -168,15 +178,17 @@ public:
     //! Asynchronously saves the map to the stream.
     /*
      * This method saves the snapshot of the map as it seen at the moment of
-     * invokation. All further updates are accepted but kept in-memory.
+     * invocation. All further updates are accepted but kept in-memory.
      * \param invoker Invoker for actual heavy work.
      * \param stream Output stream.
      * \return Callback on successful save.
      */
     TAsyncResult<TVoid>::TPtr Save(
         IInvoker::TPtr invoker,
-        TOutputStream& stream)
+        TOutputStream* stream)
     {
+        // TODO: sorry, no shapshots yet
+        YASSERT(false);
         YASSERT(State == EState::Normal);
         YASSERT(InsertsMap.size() == 0);
         YASSERT(DeletionsSet.size() == 0);
@@ -197,8 +209,10 @@ public:
      */
     TAsyncResult<TVoid>::TPtr Load(
         IInvoker::TPtr invoker,
-        TInputStream& stream)
+        TInputStream* stream)
     {
+        // TODO: sorry, no shapshots yet
+        YASSERT(false);
         YASSERT(State == EState::Normal);
         YASSERT(InsertsMap.size() == 0);
         YASSERT(DeletionsSet.size() == 0);
@@ -215,38 +229,50 @@ private:
     TSet DeletionsSet;
 
     typedef TPair<TKey, TValuePtr> TItem;
-    bool TItemComparer(const TItem& i1, const TItem& i2) {
-        return (i1.first < i2.first);
+    static bool ItemComparer(const TItem& i1, const TItem& i2)
+    {
+        return i1.first < i2.first;
     }
 
-    TVoid DoSave(TOutputStream& stream) {
-        stream << Map.size();
+    TVoid DoSave(TOutputStream* stream)
+    {
+        *stream << static_cast<i64>(Map.size());
 
         yvector<TItem> items(Map.begin(), Map.end());
-        // TODO: fix this
-        //std::sort(items.begin(), items.end(), TItemComparer);
+        std::sort(items.begin(), items.end(), ItemComparer);
+
         for (typename yvector<TItem>::iterator it = items.begin();
             it != items.end();
-            ++it) {
-            stream << it->first << *it->second;
+            ++it)
+        {
+            //TODO: fix this when operator << is implemented
+            //stream << it->first << *it->second;
         }
+
         State = EState::SavedSnapshot;
         return TVoid();
     }
 
-    TVoid DoLoad(TInputStream& stream) {
-        size_t size;
-        stream >> size;
-        for (size_t i = 0; i < size; ++i) {
-            TKey key;
-            TValue value;
-            stream >> key >> value;
-            Map.insert(MakePair(key, TValuePtr(&value)));
+    TVoid DoLoad(TInputStream* stream)
+    {
+        i64 size;
+        *stream >> size;
+
+        YASSERT(size >= 0);
+
+        for (i64 index = 0; index < size; ++index) {
+            //TODO: uncomment this when operator >> is implemented
+            //TKey key;
+            //TValuePtr value = New<TValue>();
+            //stream >> key >> *value;
+            //Map.insert(MakePair(key, value));
         }
+
         return TVoid();
     }
 
-    void MergeTempTables() {
+    void MergeTempTables()
+    {
         for (TIterator it = InsertsMap.begin(); it != InsertsMap.end(); ++it) {
             Map[it->first] = it->second;
         }
@@ -258,6 +284,7 @@ private:
         {
             Map.erase(*it);
         }
+
         DeletionsSet.clear();
     }
 

@@ -41,7 +41,7 @@ TVoid TDecoratedMetaState::Clear()
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream& output)
+TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 {
     LOG_INFO("Started saving snapshot");
 
@@ -58,7 +58,9 @@ TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(i32 segmentId, TInputStream& input)
+TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(
+    i32 segmentId,
+    TInputStream* input)
 {
     LOG_INFO("Started loading snapshot %d", segmentId);
     UpdateVersion(TMetaVersion(segmentId, 0));

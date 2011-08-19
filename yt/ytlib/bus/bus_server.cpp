@@ -30,9 +30,9 @@ struct TBusServer::TReply
 {
     typedef TIntrusivePtr<TReply> TPtr;
 
-    TReply(TBlob& data)
+    TReply(TBlob* data)
     {
-        Data.swap(data);
+        Data.swap(*data);
     }
 
     TBlob Data;
@@ -57,15 +57,10 @@ public:
         , PingId(pingId)
         , Terminated(false)
         , SequenceId(0)
-    { }
-
-    void Initialize()
-    {
-        // Cannot do this in ctor since a smartpointer for this is needed.
-        MessageRearranger.Reset(new TMessageRearranger(
+        , MessageRearranger(new TMessageRearranger(
             FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
-            MessageRearrangeTimeout));
-    }
+            MessageRearrangeTimeout))
+    { }
 
     void Finalize()
     {
@@ -112,7 +107,7 @@ public:
         EncodeMessagePacket(message, SessionId, sequenceId, &data);
         int dataSize = data.ysize();
 
-        TReply::TPtr reply = new TReply(data);
+        TReply::TPtr reply = New<TReply>(&data);
         server->EnqueueReply(this, reply);
 
         LOG_DEBUG("Reply enqueued (SessionId: %s, Reply: %p, PacketSize: %d)",
@@ -462,12 +457,11 @@ TIntrusivePtr<TBusServer::TSession> TBusServer::RegisterSession(
     CreatePacket(sessionId, TPacketHeader::EType::Ping, &data);
     TGuid pingId = Requester->SendRequest(clientAddress, "", &data);
 
-    TSession::TPtr session = new TSession(
+    TSession::TPtr session = New<TSession>(
         this,
         sessionId,
         clientAddress,
         pingId);
-    session->Initialize();
 
     PingMap.insert(MakePair(pingId, session));
     SessionMap.insert(MakePair(sessionId, session));

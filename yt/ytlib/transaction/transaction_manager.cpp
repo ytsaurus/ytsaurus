@@ -28,7 +28,7 @@ public:
         TCompositeMetaState::TPtr metaState)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
-        , LeaseManager(new TLeaseManager())
+        , LeaseManager(New<TLeaseManager>())
     {
         RegisterMethod(this, &TState::StartTransaction);
         RegisterMethod(this, &TState::CommitTransaction);
@@ -39,7 +39,7 @@ public:
     {
         TTransactionId id = TGuid::FromProto(message.GetTransactionId());
 
-        TTransaction::TPtr transaction = new TTransaction(id);
+        TTransaction::TPtr transaction = New<TTransaction>(id);
         if (IsLeader()) {
             CreateLease(transaction);
         }
@@ -227,12 +227,12 @@ private:
         return "TransactionManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& stream)
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
     {
         return Transactions.Save(GetSnapshotInvoker(), stream);
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& stream)
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
     {
         return Transactions.Load(GetSnapshotInvoker(), stream);
     }
@@ -268,7 +268,7 @@ TTransactionManager::TTransactionManager(
         serviceInvoker,
         TTransactionManagerProxy::GetServiceName(),
         TransactionLogger.GetCategory())
-    , State(new TState(
+    , State(New<TState>(
         config,
         metaStateManager,
         metaState))

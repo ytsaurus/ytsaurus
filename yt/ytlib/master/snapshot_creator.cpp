@@ -25,11 +25,11 @@ public:
         TMetaVersion version)
         : Creator(creator)
         , Version(version)
-        , Awaiter(new TParallelAwaiter(Creator->ServiceInvoker))
+        , Awaiter(New<TParallelAwaiter>(Creator->ServiceInvoker))
         , Checksums(Creator->CellManager->GetPeerCount())
     { }
 
-    void CreateDistributed()
+    void Run()
     {
         LOG_INFO("Creating a distributed snapshot for state %s",
             ~Version.ToString());
@@ -135,8 +135,7 @@ TSnapshotCreator::TSnapshotCreator(
 
 void TSnapshotCreator::CreateDistributed(TMetaVersion version)
 {
-    TSession::TPtr session = new TSession(TPtr(this), version);
-    session->CreateDistributed();
+    New<TSession>(this, version)->Run();
 }
 
 TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
@@ -161,17 +160,18 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, found %s",
             ~version.ToString(),
             ~MetaState->GetVersion().ToString());
-        return new TAsyncLocalResult(TLocalResult(EResultCode::InvalidVersion));
+        return New<TAsyncLocalResult>(TLocalResult(EResultCode::InvalidVersion));
     }
 
     // Prepare writer.
     i32 snapshotId = version.SegmentId + 1;
     TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(snapshotId);
     writer->Open(version.RecordCount);
-    TOutputStream& output = writer->GetStream();
+    
+    TOutputStream* stream = &writer->GetStream();
 
     // Start an async snapshot creation process.
-    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(output);
+    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(stream);
 
     // Switch to a new changelog.
     MetaState->RotateChangeLog();

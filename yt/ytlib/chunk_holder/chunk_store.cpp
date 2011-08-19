@@ -51,7 +51,7 @@ public:
         TInsertCookie cookie(chunk->GetId());
         if (BeginInsert(&cookie)) {
             // TODO: IO exceptions and error checking
-            TCachedReader::TPtr file = new TCachedReader(
+            TCachedReader::TPtr file = New<TCachedReader>(
                 chunk->GetId(),
                 ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
             EndInsert(file, &cookie);
@@ -68,11 +68,8 @@ private:
 
 TChunkStore::TChunkStore(const TChunkHolderConfig& config)
     : Config(config)
-{ }
-
-void TChunkStore::Initialize()
+    , ReaderCache(New<TReaderCache>(Config, this))
 {
-    ReaderCache = new TReaderCache(Config, this);
     ScanChunks(); 
     InitIOQueues();
 }
@@ -109,7 +106,7 @@ void TChunkStore::ScanChunks()
 void TChunkStore::InitIOQueues()
 {
     for (int location = 0; location < Config.Locations.ysize(); ++location) {
-        IOInvokers.push_back(new TActionQueue());
+        IOInvokers.push_back(~New<TActionQueue>());
     }
 }
 
@@ -118,7 +115,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     i64 size,
     int location)
 {
-    TChunk::TPtr chunk = new TChunk(chunkId, size, location);
+    TChunk::TPtr chunk = New<TChunk>(chunkId, size, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
@@ -180,7 +177,7 @@ TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chun
 {
     TChunkMeta::TPtr meta = chunk->Meta;
     if (~meta != NULL) {
-        return new TAsyncResult<TChunkMeta::TPtr>(meta);
+        return New< TAsyncResult<TChunkMeta::TPtr> >(meta);
     }
 
     IInvoker::TPtr invoker = GetIOInvoker(chunk->GetLocation());
@@ -196,7 +193,7 @@ TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chun
 TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 {
     TFileChunkReader::TPtr reader = GetChunkReader(chunk);
-    TChunkMeta::TPtr meta = new TChunkMeta(reader);
+    TChunkMeta::TPtr meta = New<TChunkMeta>(reader);
     chunk->Meta = meta;
     return meta;
 }

@@ -37,19 +37,19 @@ void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 
 void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
-    // Failure here means that Reply is called twice.
+    // Failure here means that #Reply is called twice.
     YASSERT(State == EState::Received);
 
     IMessage::TPtr message;
     if (errorCode.IsRpcError()) {
-        message = new TRpcErrorResponseMessage(
+        message = ~New<TRpcErrorResponseMessage>(
             RequestId,
             errorCode);
     } else {
-        message = new TRpcResponseMessage(
+        message = ~New<TRpcResponseMessage>(
             RequestId,
             errorCode,
-            ResponseBody,
+            &ResponseBody,
             ResponseAttachments);
     }
 
@@ -226,7 +226,7 @@ void TServiceBase::OnRequest(TServiceContext::TPtr context)
     if (it == Handlers.end()) {
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName, ~methodName);
-        IMessage::TPtr errorMessage = new TRpcErrorResponseMessage(
+        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             context->GetRequestId(),
             EErrorCode::NoMethod);
         context->GetReplyBus()->Send(errorMessage);

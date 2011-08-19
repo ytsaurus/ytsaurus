@@ -48,8 +48,8 @@ protected:
 
     virtual Stroka GetPartName() const = 0;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output) = 0;
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input) = 0;
 
     virtual void Clear() = 0;
 
@@ -103,8 +103,8 @@ private:
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input);
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output);
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input);
 
     virtual void ApplyChange(const TRef& changeData);
 

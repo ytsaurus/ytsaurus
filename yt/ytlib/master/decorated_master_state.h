@@ -29,8 +29,8 @@ public:
 
     TVoid Clear();
     
-    TAsyncResult<TVoid>::TPtr Save(TOutputStream& output);
-    TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream& input);
+    TAsyncResult<TVoid>::TPtr Save(TOutputStream* output);
+    TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream* input);
     
     void ApplyChange(const TSharedRef& changeData);
     void ApplyChange(IAction::TPtr changeAction);

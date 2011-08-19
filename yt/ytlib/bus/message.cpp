@@ -15,15 +15,15 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobMessage::TBlobMessage(TBlob& blob)
+TBlobMessage::TBlobMessage(TBlob* blob)
 {
-    Parts.push_back(TSharedRef(blob));
+    Parts.push_back(TSharedRef(*blob));
 }
 
-TBlobMessage::TBlobMessage(TBlob& blob, yvector<TRef>& parts)
+TBlobMessage::TBlobMessage(TBlob* blob, const yvector<TRef>& parts)
 {
     TSharedRef::TBlobPtr sharedBlob = new TBlob();
-    blob.swap(*sharedBlob);
+    blob->swap(*sharedBlob);
     for (yvector<TRef>::const_iterator it = parts.begin();
          it != parts.end();
          ++it)

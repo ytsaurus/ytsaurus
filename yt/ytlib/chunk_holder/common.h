@@ -25,7 +25,7 @@ struct TChunkHolderConfig
 
     //! Upload session timeout.
     /*!
-     * Some activity must be happening is a session on a regular basis (i.e. new
+     * Some activity must be happening in a session regularly (i.e. new
      * blocks uploaded or sent to other chunk holders). Otherwise
      * the session expires.
      */

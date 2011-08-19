@@ -33,7 +33,6 @@ public:
     typedef TIntrusivePtr<TBus> TPtr;
 
     TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler);
-    void Initialize();
 
     void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId);
 
@@ -71,11 +70,11 @@ class TClientDispatcher
 
         TRequest(
             const TSessionId& sessionId,
-            TBlob& data)
+            TBlob* data)
             : SessionId(sessionId)
-            , Result(new IBus::TSendResult())
+            , Result(New<IBus::TSendResult>())
         {
-            Data.swap(data);
+            Data.swap(*data);
         }
 
         TSessionId SessionId;
@@ -465,7 +464,7 @@ public:
             throw yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
-        TRequest::TPtr request = new TRequest(bus->SessionId, data);
+        TRequest::TPtr request = New<TRequest>(bus->SessionId, &data);
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
@@ -518,16 +517,11 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
     , Handler(handler)
     , Terminated(false)
     , SequenceId(0)
+    , MessageRearranger(new TMessageRearranger(
+        FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
+        MessageRearrangeTimeout))
 {
     SessionId = TGuid::Create();
-}
-
-void TBusClient::TBus::Initialize()
-{
-    // Cannot do this in ctor since a smartpointer for this is needed.
-    MessageRearranger.Reset(new TMessageRearranger(
-        FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
-        MessageRearrangeTimeout));
 }
 
 IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
@@ -571,8 +565,7 @@ TBusClient::TBusClient(Stroka address)
 
 IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
-    TBus::TPtr bus = new TBus(this, handler);
-    bus->Initialize();
+    TBus::TPtr bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);
     return ~bus;
 }

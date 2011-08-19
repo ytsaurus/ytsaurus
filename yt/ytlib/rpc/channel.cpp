@@ -22,8 +22,7 @@ TChannel::TChannel(TBusClient::TPtr client)
 
 TChannel::TChannel(Stroka address)
 {
-    TBusClient::TPtr client = new TBusClient(address);
-    Bus = client->CreateBus(this);
+    Bus = New<TBusClient>(address)->CreateBus(this);
 }
 
 void TChannel::OnMessage(
@@ -71,10 +70,10 @@ TAsyncResult<TVoid>::TPtr TChannel::Send(
 {
     TRequestId requestId = request->GetRequestId();
 
-    TEntry::TPtr entry = new TEntry();
+    TEntry::TPtr entry = New<TEntry>();
     entry->RequestId = requestId;
     entry->Response = response;
-    entry->Ready = new TAsyncResult<TVoid>();
+    entry->Ready = New< TAsyncResult<TVoid> >();
 
     if (timeout != TDuration::Zero()) {
         entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
@@ -153,12 +152,10 @@ bool TChannel::Unregister(const TRequestId& requestId)
 TChannel::TPtr TChannelCache::GetChannel(Stroka address)
 {
     TChannelMap::iterator it = ChannelMap.find(address);
-    if (it != ChannelMap.end()) {
-        return it->second;
+    if (it == ChannelMap.end()) {
+        it = ChannelMap.insert(MakePair(address, New<TChannel>(address))).First();
     }
-    TChannel::TPtr channel = new TChannel(address);
-    ChannelMap[address] = channel;
-    return channel;
+    return it->Second();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

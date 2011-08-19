@@ -330,7 +330,7 @@ private:
 #define RPC_SERVICE_METHOD_IMPL(type, method) \
     void type::method##Thunk(::NYT::NRpc::TServiceContext::TPtr context) \
     { \
-        TCtx##method::TPtr typedContext = new TCtx##method(context); \
+        TCtx##method::TPtr typedContext = New<TCtx##method>(context); \
         method( \
             &typedContext->Request(), \
             &typedContext->Response(), \

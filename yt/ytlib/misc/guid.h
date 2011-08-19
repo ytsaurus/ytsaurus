@@ -48,6 +48,7 @@ struct TGuid
 
 bool operator==(const TGuid &a, const TGuid &b);
 bool operator!=(const TGuid &a, const TGuid &b);
+bool operator<(const TGuid &a, const TGuid &b);
 
 struct TGuidHash
 {

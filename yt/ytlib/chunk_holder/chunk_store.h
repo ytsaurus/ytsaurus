@@ -24,6 +24,10 @@ class TChunkMeta
 public:
     typedef TIntrusivePtr<TChunkMeta> TPtr;
 
+    TChunkMeta(TFileChunkReader::TPtr reader)
+        : BlockCount(reader->GetBlockCount())
+    { }
+
     i32 GetBlockCount() const
     {
         return BlockCount;
@@ -33,10 +37,6 @@ private:
     friend class TChunkStore;
 
     i32 BlockCount;
-
-    TChunkMeta(TFileChunkReader::TPtr reader)
-        : BlockCount(reader->GetBlockCount())
-    { }
 
 };
 
@@ -48,6 +48,15 @@ class TChunk
 {
 public:
     typedef TIntrusivePtr<TChunk> TPtr;
+
+    TChunk(
+        const TChunkId& id,
+        i64 size,
+        int location)
+        : Id(id)
+        , Size(size)
+        , Location(location)
+    { }
 
     //! Returns chunk id.
     TChunkId GetId() const
@@ -75,15 +84,6 @@ private:
     int Location;
     TChunkMeta::TPtr Meta;
 
-    TChunk(
-        const TChunkId& id,
-        i64 size,
-        int location)
-        : Id(id)
-        , Size(size)
-        , Location(location)
-    { }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,8 +98,6 @@ public:
 
     //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
-
-    void Initialize();
 
     //! Registers a just-uploaded chunk for further usage.
     TChunk::TPtr RegisterChunk(

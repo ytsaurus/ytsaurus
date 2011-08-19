@@ -121,11 +121,11 @@ void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
                 ythrow yexception() <<
                     Sprintf("Couldn't read property FileName at writer %s", ~name);
             }
-            Writers[name] = new TFileLogWriter(fileName, pattern);
+            Writers[name] = ~New<TFileLogWriter>(fileName, pattern);
         } else if (type == "StdErr") {
-            Writers[name] = new TStdErrLogWriter(pattern);
+            Writers[name] = ~New<TStdErrLogWriter>(pattern);
         } else if (type == "StdOut") {
-            Writers[name] = new TStdOutLogWriter(pattern);
+            Writers[name] = ~New<TStdOutLogWriter>(pattern);
         } else {
             ythrow yexception() <<
                 Sprintf("%s is unknown type of writer", ~type);
@@ -183,7 +183,7 @@ TLogManager::TConfig::TConfig()
 {
     Writers.insert(MakePair(
         DefaultStdErrWriterName,
-        new TStdErrLogWriter(SystemPattern)));
+        ~New<TStdErrLogWriter>(SystemPattern)));
 
     TRule stdErrRule;
     stdErrRule.AllCategories = true;
@@ -193,7 +193,7 @@ TLogManager::TConfig::TConfig()
 
     Writers.insert(MakePair(
         DefaultFileWriterName,
-        new TFileLogWriter(DefaultFileName, DefaultFilePattern)));
+        ~New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
 
     TRule fileRule;
     fileRule.AllCategories = true;
@@ -215,7 +215,7 @@ TLogManager::TConfig::TConfig(const TJsonObject* root)
 
 TLogManager::TLogManager()
     : ConfigVersion(0)
-    , Queue(new TActionQueue(false))
+    , Queue(New<TActionQueue>(false))
 {
     ConfigureSystem();
     ConfigureDefault();
@@ -364,11 +364,7 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 void TLogManager::Configure(TJsonObject* root)
 {
     TGuard<TSpinLock> guard(&SpinLock);
-
-    TConfig::TPtr newConfig;
-    newConfig = new TConfig(root);
-
-    Configuration = newConfig;
+    Configuration = New<TConfig>(root);
     AtomicIncrement(ConfigVersion);
 }
 
@@ -388,13 +384,12 @@ void TLogManager::Configure(Stroka fileName, Stroka rootPath)
 
 void TLogManager::ConfigureSystem()
 {
-    SystemWriters.push_back(new TStdErrLogWriter(SystemPattern));
+    SystemWriters.push_back(~New<TStdErrLogWriter>(SystemPattern));
 }
 
 void TLogManager::ConfigureDefault()
 {
     TGuard<TSpinLock> guard(&SpinLock);
-
     Configuration = new TConfig();
     AtomicIncrement(ConfigVersion);
 }

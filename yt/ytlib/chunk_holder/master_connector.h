@@ -31,13 +31,6 @@ public:
         TReplicator::TPtr replicator,
         IInvoker::TPtr serviceInvoker);
 
-    //! Initializes the instance.
-    /*!
-     *  The instance cannot be fully initialized within ctor hence
-     *  it needs to produce smart-pointers to this.
-     */
-    void Initialize();
-
     //! Registers a chunk that was just fully uploaded.
     /*!
      *  This call places the chunk into a list and reports its arrival

@@ -24,12 +24,20 @@ public:
         if (~Value == NULL) {
             TGuard<TLock> guard(Lock);
             if (~Value == NULL) {
-                Value = new T();
+                Value = New<T>();
             }
         }
         return ~Value;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+T* operator ~ (const TLazyPtr<T>& ptr)
+{
+    return ptr.Get();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

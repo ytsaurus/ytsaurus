@@ -29,7 +29,7 @@ void TMetric::AddValue(double value)
 
 void TMetric::AddValue(TDuration duration)
 {
-    AddValue(duration.MilliSeconds());
+    AddValue(static_cast<double>(duration.MilliSeconds()));
 }
 
 void TMetric::AddValue(TInstant start)
@@ -66,7 +66,7 @@ void TMetric::IncrementBucket(double value)
     } else if (value > MaxValue) {
         MaxBucket += 1;
     } else {
-        int BucketId = (value - MinValue) / Delta;
+        int BucketId = static_cast<int>((value - MinValue) / Delta);
 
         // in case of roundings errors
         if (BucketId < 0) BucketId = 0;

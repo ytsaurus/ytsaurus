@@ -16,8 +16,8 @@ struct IMetaState
 {
     typedef TIntrusivePtr<IMetaState> TPtr;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream& output) = 0;
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream& input) = 0;
+    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output) = 0;
+    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input) = 0;
 
     virtual void ApplyChange(const TRef& changeData) = 0;
 

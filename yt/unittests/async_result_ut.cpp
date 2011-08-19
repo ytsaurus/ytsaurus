@@ -44,8 +44,8 @@ public:
 
 TEST_F(TAsyncResultTest, Subscribe)
 {
-    TMockSubscriber::TPtr firstSubscriber = new TMockSubscriber();
-    TMockSubscriber::TPtr secondSubscriber = new TMockSubscriber();
+    TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
+    TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();
 
     EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
     EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
@@ -67,8 +67,8 @@ static void* AsynchronousSetter(void* param)
 
 TEST_F(TAsyncResultTest, SubscribeWithAsynchronousSet)
 {
-    TMockSubscriber::TPtr firstSubscriber = new TMockSubscriber();
-    TMockSubscriber::TPtr secondSubscriber = new TMockSubscriber();
+    TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
+    TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();
 
     EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
     EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);

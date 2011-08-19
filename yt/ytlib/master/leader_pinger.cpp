@@ -23,7 +23,7 @@ TLeaderPinger::TLeaderPinger(
     , CellManager(cellManager)
     , LeaderId(leaderId)
     , Epoch(epoch)
-    , CancelableInvoker(new TCancelableInvoker(serviceInvoker))
+    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
     SchedulePing();
 }

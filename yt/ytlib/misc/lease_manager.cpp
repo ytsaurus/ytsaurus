@@ -16,9 +16,9 @@ void TLeaseManager::ExpireLease(TLease lease)
 
 TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction::TPtr onExpire)
 {
-    TEntry* entry = new TEntry(timeout, onExpire);
+    TLease entry = New<TEntry>(timeout, onExpire);
     entry->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TLeaseManager::ExpireLease, this, TLease(entry)),
+        FromMethod(&TLeaseManager::ExpireLease, TPtr(this), entry),
         timeout);
     {
         TGuard<TSpinLock> guard(SpinLock);

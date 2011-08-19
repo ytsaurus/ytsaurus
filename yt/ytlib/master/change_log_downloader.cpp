@@ -42,8 +42,8 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    TAsyncResult<TPeerId>::TPtr asyncResult = new TAsyncResult<TPeerId>();
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
+    TAsyncResult<TPeerId>::TPtr asyncResult = New< TAsyncResult<TPeerId> >();
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         LOG_INFO("Requesting changelog info from peer %d", i);

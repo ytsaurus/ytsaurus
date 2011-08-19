@@ -25,10 +25,10 @@ TJob::TJob(
     , State(EJobState::Running)
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
-    , CancelableInvoker(new TCancelableInvoker(serviceInvoker))
+    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
     // TODO: provide proper configuration
-    Writer = new TRemoteChunkWriter(
+    Writer = ~New<TRemoteChunkWriter>(
         TRemoteChunkWriter::TConfig(),
         chunk->GetId(),
         targetAddresses);
@@ -158,7 +158,7 @@ TJob::TPtr TReplicator::StartJob(
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
 {
-    TJob::TPtr job = new TJob(
+    TJob::TPtr job = New<TJob>(
         ServiceInvoker,
         ChunkStore,
         BlockStore,

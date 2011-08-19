@@ -62,7 +62,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(TKey key)
         TIntrusivePtr<TValue> value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
         if (~value != NULL) {
             TItem* item = new TItem();
-            item->AsyncResult = new TAsyncResult<TValuePtr>();
+            item->AsyncResult = New< TAsyncResult<TValuePtr> >();
             item->AsyncResult->Set(value);
             LruList.PushFront(item);
             ++LruListSize;
@@ -94,7 +94,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
         }
 
         TItem* item = new TItem();
-        item->AsyncResult = new TAsyncResult<TValuePtr>();
+        item->AsyncResult = New< TAsyncResult<TValuePtr> >();
         cookie->AsyncResult = item->AsyncResult;
         ItemMap.insert(MakePair(key, item));
 

@@ -38,13 +38,14 @@ typename TAsyncResult<TResult>::TPtr TMetaStatePart::CommitChange(
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
     IAction::TPtr errorHandler)
 {
-    typename TUpdate<TMessage, TResult>::TPtr update = new TUpdate<TMessage, TResult>(
-        MetaStateManager,
-        GetPartName(),
-        message,
-        changeMethod,
-        errorHandler);
-    return update->Run();
+    return
+        New< TUpdate<TMessage, TResult> >(
+            MetaStateManager,
+            GetPartName(),
+            message,
+            changeMethod,
+            errorHandler)
+        ->Run();
 }
 
 template<class TMessage, class TResult>
@@ -87,7 +88,7 @@ public:
         , Message(message)
         , ChangeMethod(changeMethod)
         , ErrorHandler(errorHandler)
-        , AsyncResult(new TAsyncResult<TResult>())
+        , AsyncResult(New< TAsyncResult<TResult> >())
     { }
 
     typename TAsyncResult<TResult>::TPtr Run()

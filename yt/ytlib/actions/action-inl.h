@@ -24,7 +24,7 @@ struct TAsyncFuncTraits
         TIntrusivePtr< IFunc<TResult> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = new TAsyncResult<TResult>();
+        TAsync result = New< TAsyncResult<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, func, result));
         return result;
     }
@@ -47,7 +47,7 @@ struct TAsyncFuncTraits< TIntrusivePtr< TAsyncResult<TResult> > >
         TIntrusivePtr< IFunc<TAsync> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = new TAsyncResult<TResult>();
+        TAsync result = New< TAsyncResult<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, func, result));
         return result;
     }
@@ -120,7 +120,7 @@ struct TAsyncParamFuncTraits
         TIntrusivePtr< IParamFunc<TParam, TResult> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = new TAsyncResult<TResult>();
+        TAsync result = New< TAsyncResult<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, param, func, result));
         return result;
     }
@@ -146,7 +146,7 @@ struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TAsyncResult<TResult> > >
         TIntrusivePtr< IParamFunc<TParam, TAsync> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = new TAsyncResult<TResult>();
+        TAsync result = New< TAsyncResult<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, param, func, result));
         return result;
     }

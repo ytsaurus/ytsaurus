@@ -74,10 +74,12 @@ TDelayedInvoker* TDelayedInvoker::Get()
 
 TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TDuration delay)
 {
-    TEntry::TPtr entry = new TEntry(action, delay.ToDeadLine());
+    TEntry::TPtr entry = New<TEntry>(action, delay.ToDeadLine());
 
     LOG_DEBUG("Submitted task %p with action %p for %s",
-                ~entry, ~action, ~entry->Deadline.ToString());
+        ~entry,
+        ~action,
+        ~entry->Deadline.ToString());
 
     TGuard<TSpinLock> guard(SpinLock);
     Entries.insert(entry);
@@ -91,9 +93,7 @@ bool TDelayedInvoker::Cancel(TCookie cookie)
         TGuard<TSpinLock> guard(SpinLock);
         result = Entries.erase(cookie) != 0;
     }
-    if (result) {
-        LOG_DEBUG("Task %p is canceled", ~cookie);
-    }
+    LOG_DEBUG_IF(result, "Task %p is canceled", ~cookie);
     return result;
 }
 

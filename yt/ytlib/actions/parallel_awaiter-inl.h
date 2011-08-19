@@ -13,7 +13,7 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
     , Terminated(false)
     , RequestCount(0)
     , ResponseCount(0)
-    , CancelableInvoker(new TCancelableInvoker(invoker))
+    , CancelableInvoker(New<TCancelableInvoker>(invoker))
 { }
 
 
