@@ -54,12 +54,17 @@ TDelayedInvoker::TDelayedInvoker()
     Thread.Start();
 }
 
+void TDelayedInvoker::Shutdown()
+{
+    Finished = true;
+    Thread.Join();
+}
+
 TDelayedInvoker::~TDelayedInvoker()
 {
     //Thread.Detach();
     // TODO: the following code causes a crash during termination. Investigate this.
-    Finished = true;
-    Thread.Join();
+    Shutdown();
 }
 
 TDelayedInvoker* TDelayedInvoker::Get()

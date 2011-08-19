@@ -54,6 +54,7 @@ public:
 
     TCookie Submit(IAction::TPtr action, TDuration delay);
     bool Cancel(TCookie cookie);
+    void Shutdown();
 
 private:
     static void* ThreadFunc(void* param);
