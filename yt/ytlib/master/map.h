@@ -215,7 +215,7 @@ private:
     TSet DeletionsSet;
 
     typedef TPair<TKey, TValuePtr> TItem;
-    bool TItemComparer(const TItem& i1, const TItem& i2) {
+    static bool ItemComparer(const TItem& i1, const TItem& i2) {
         return (i1.first < i2.first);
     }
 
@@ -223,12 +223,10 @@ private:
         stream << Map.size();
 
         yvector<TItem> items(Map.begin(), Map.end());
-        // TODO: fix this
-        //std::sort(items.begin(), items.end(), TItemComparer);
+        std::sort(items.begin(), items.end(), ItemComparer);
         for (typename yvector<TItem>::iterator it = items.begin();
             it != items.end();
             ++it) {
-
             //TODO: fix this when operator << is implemented
             //stream << it->first << *it->second;
         }

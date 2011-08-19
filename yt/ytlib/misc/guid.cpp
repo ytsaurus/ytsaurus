@@ -282,6 +282,10 @@ bool operator!=(const TGuid &a, const TGuid &b) {
     return !(a == b);
 }
 
+bool operator<(const TGuid &a, const TGuid &b) {
+    return TGuidHash()(a) < TGuidHash()(b);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int TGuidHash::operator()(const TGuid &a) const
