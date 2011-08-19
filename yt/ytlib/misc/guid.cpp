@@ -203,15 +203,6 @@ bool TGuid::IsEmpty() const
     return (Parts[0] | Parts[1] | Parts[2] | Parts[3]) == 0;
 }
 
-bool operator==(const TGuid &a, const TGuid &b)
-{
-    return memcmp(&a, &b, sizeof(a)) == 0;
-}
-
-bool operator!=(const TGuid &a, const TGuid &b) {
-    return !(a == b);
-}
-
 TGuid TGuid::Create()
 {
     TGuid res;
@@ -280,6 +271,15 @@ Stroka TGuid::ToProto() const
     const char* p = (const char*) this;
     protoGuid.assign(p, p + sizeof(TGuid));
     return protoGuid;
+}
+
+bool operator==(const TGuid &a, const TGuid &b)
+{
+    return memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+bool operator!=(const TGuid &a, const TGuid &b) {
+    return !(a == b);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -228,7 +228,9 @@ private:
         for (typename yvector<TItem>::iterator it = items.begin();
             it != items.end();
             ++it) {
-            stream << it->first << *it->second;
+
+            //TODO: fix this when operator << is implemented
+            //stream << it->first << *it->second;
         }
         State = EState::SavedSnapshot;
         return TVoid();
@@ -240,7 +242,8 @@ private:
         for (size_t i = 0; i < size; ++i) {
             TKey key;
             TValue value;
-            stream >> key >> value;
+            //TODO: fix this when operator >> is implemented
+            //stream >> key >> value;
             Map.insert(MakePair(key, TValuePtr(&value)));
         }
         return TVoid();
