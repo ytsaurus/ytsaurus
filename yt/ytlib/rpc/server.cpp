@@ -16,7 +16,7 @@ static NLog::TLogger& Logger = RpcLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServer::TServer(int port)
-    : BusServer(new TBusServer(port, this))
+    : BusServer(New<TBusServer>(port, this))
     , Started(false)
 { }
 
@@ -57,7 +57,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~requestId.ToString());
 
     if (!Started) {
-        IMessage::TPtr errorMessage = new TRpcErrorResponseMessage(
+        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::Unavailable);
         replyBus->Send(errorMessage);
@@ -68,7 +68,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 
     IService::TPtr service = GetService(serviceName);
     if (~service == NULL) {
-        IMessage::TPtr errorMessage = new TRpcErrorResponseMessage(
+        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::NoService);
         replyBus->Send(errorMessage);
@@ -77,13 +77,12 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TServiceContext::TPtr context = new TServiceContext(
+    TServiceContext::TPtr context = New<TServiceContext>(
         service,
         requestId,
         methodName,
         message,
         replyBus);
-
     service->OnRequest(context);
 }
 

@@ -15,7 +15,7 @@ class TPrioritizedActionQueue::TQueueInvoker
     : public IInvoker
 {
 public:
-    TQueueInvoker(TQueue* queue, Event& wakeupEvent)
+    TQueueInvoker(TQueue* queue, Event* wakeupEvent)
         : Queue(queue)
         , WakeupEvent(wakeupEvent)
     { }
@@ -23,11 +23,11 @@ public:
     virtual void Invoke(IAction::TPtr action) {
         LOG_DEBUG("Enqueued action %p", ~action);
         Queue->Enqueue(action);
-        WakeupEvent.Signal();
+        WakeupEvent->Signal();
     }
 private:
     TQueue* Queue;
-    Event& WakeupEvent;
+    Event* WakeupEvent;
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -51,7 +51,7 @@ TPrioritizedActionQueue::TPrioritizedActionQueue(i32 priorityCount)
 {
     for (i32 i = 0; i < PriorityCount; ++i) {
         Queues[i].Reset(new TQueue());
-        Invokers[i].Reset(new TQueueInvoker(~Queues[i], WakeupEvent));
+        Invokers[i].Reset(~New<TQueueInvoker>(~Queues[i], &WakeupEvent));
     }
 
     Thread.Start();

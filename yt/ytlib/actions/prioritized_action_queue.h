@@ -24,7 +24,8 @@ public:
     TPrioritizedActionQueue(i32 priorityCount);
 
     ~TPrioritizedActionQueue();
-    
+
+    // BUG: return smartpointer
     IInvoker* GetInvoker(i32 priority);
     void Shutdown();
 

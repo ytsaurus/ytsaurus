@@ -28,8 +28,8 @@ TRpcRequestMessage::TRpcRequestMessage(
     TRequestId requestId,
     Stroka serviceName,
     Stroka methodName,
-    TBlob& body,
-    yvector<TSharedRef>& attachments)
+    TBlob* body,
+    const yvector<TSharedRef>& attachments)
 {
     TRequestHeader requestHeader;
     requestHeader.SetRequestId(requestId.ToProto());
@@ -42,9 +42,9 @@ TRpcRequestMessage::TRpcRequestMessage(
     }
 
     Parts.push_back(TSharedRef(header));
-    Parts.push_back(TSharedRef(body));
+    Parts.push_back(TSharedRef(*body));
 
-    for (yvector<TSharedRef>::iterator it = attachments.begin();
+    for (yvector<TSharedRef>::const_iterator it = attachments.begin();
          it != attachments.end();
          ++it)
     {
@@ -62,8 +62,8 @@ const yvector<TSharedRef>& TRpcRequestMessage::GetParts()
 TRpcResponseMessage::TRpcResponseMessage(
     TRequestId requestId,
     EErrorCode errorCode,
-    TBlob& body,
-    yvector<TSharedRef>& attachments)
+    TBlob* body,
+    const yvector<TSharedRef>& attachments)
 {
     TResponseHeader responseHeader;
     responseHeader.SetRequestId(requestId.ToProto());
@@ -75,9 +75,9 @@ TRpcResponseMessage::TRpcResponseMessage(
     }
 
     Parts.push_back(TSharedRef(header));
-    Parts.push_back(TSharedRef(body));
+    Parts.push_back(TSharedRef(*body));
 
-    for (yvector<TSharedRef>::iterator it = attachments.begin();
+    for (yvector<TSharedRef>::const_iterator it = attachments.begin();
         it != attachments.end();
         ++it)
     {

@@ -35,6 +35,14 @@ class TJob
 public:
     typedef TIntrusivePtr<TJob> TPtr;
 
+    TJob(
+        IInvoker::TPtr serviceInvoker,
+        TChunkStore::TPtr chunkStore,
+        TBlockStore::TPtr blockStore,
+        const TJobId& jobId,
+        TChunk::TPtr chunk,
+        const yvector<Stroka>& targetAddresses);
+
     //! Returns the id.
     TJobId GetJobId() const;
 
@@ -60,14 +68,6 @@ private:
     TCancelableInvoker::TPtr CancelableInvoker;
     TChunkMeta::TPtr Meta;
     
-    TJob(
-        IInvoker::TPtr serviceInvoker,
-        TChunkStore::TPtr chunkStore,
-        TBlockStore::TPtr blockStore,
-        const TJobId& jobId,
-        TChunk::TPtr chunk,
-        const yvector<Stroka>& targetAddresses);
-
     void Start();
     void Stop();
 

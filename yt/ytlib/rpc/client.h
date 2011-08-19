@@ -116,8 +116,8 @@ public:
 
     typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
     {
-        typename TInvokeResult::TPtr asyncResult = new TInvokeResult();
-        typename TTypedResponse::TPtr response = new TTypedResponse(
+        typename TInvokeResult::TPtr asyncResult = NYT::New<TInvokeResult>();
+        typename TTypedResponse::TPtr response = NYT::New<TTypedResponse>(
             GetRequestId(),
             Channel);
         DoInvoke(~response, timeout)->Subscribe(FromMethod(
@@ -239,7 +239,7 @@ private:
     \
     TReq##method::TPtr method() \
     { \
-        return new TReq##method(Channel, ServiceName, #method); \
+        return New<TReq##method>(Channel, ServiceName, #method); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

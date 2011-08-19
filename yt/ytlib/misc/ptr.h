@@ -14,35 +14,63 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: consider making Ref, UnRef, and AfterConstruct private and
+// declare appropriate friends.
+//! Provides a common base for all reference-counted objects within YT.
 class TRefCountedBase
     : private TNonCopyable
 {
 public:
+    //! Constructs an instance.
     TRefCountedBase()
-        : RefCounter(0)
+        // Counter is initially set to 1, see #AfterConstruct.
+        : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , TypeInfo(NULL)
 #endif
     { }
 
+    //! Destroys the instance.
     virtual ~TRefCountedBase()
-    { }
+    {
+        // Failure within this line means an object is being
+        // destroyed by other than calling #UnRef, e.g. is was allocated on stack.
+        YASSERT(RefCounter == 0);
+    }
 
+    //! Called from #New functions to kill the initial fake reference.
+    void AfterConstruct()
+    {
+        YASSERT(RefCounter >= 1);
+        UnRef();
+    }
+
+    //! Increments the reference counter.
+    /*!
+     *  When reference tracking is enabled, this call also registers the instance with the tracker
+     *  if the counter reaches 2 (i.e. the first non-fake reference is created).
+     */
     inline void Ref() throw()
     {
+        // Failure within this line means a zombie is being resurrected.
+        YASSERT(RefCounter > 0);
+
+        AtomicIncrement(RefCounter);
+
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        if (AtomicIncrement(RefCounter) == 1) {
-            // Failure within this line means
-            // a zombie is being resurrected!
+        if (TypeInfo == NULL) {
             YASSERT(TypeInfo == NULL);
             TypeInfo = &typeid (*this);
             TRefCountedTracker::Get()->Increment(TypeInfo);
         }
-#else
-        AtomicIncrement(RefCounter);
 #endif
     }
 
+    //! Decrements the reference counter.
+    /*!
+     *  When this counter reaches 0, the object also kills itself by calling "delete this".
+     *  When reference tracking is enabled, this call also unregisters the instance from the tracker.
+     */
     inline void UnRef() throw()
     {
         if (AtomicDecrement(RefCounter) == 0) {
@@ -54,6 +82,19 @@ public:
         }
     }
 
+    //! Tries to obtain an intrusive pointer for an object that
+    //! may had already lost all of its references and, thus, is about to be deleted.
+    /*!
+     *  You may call this method at any time provided that you have a valid raw pointer to an object.
+     *  The call either returns an intrusive pointer for the object
+     *  (thus ensuring that the object won't be destroyed until you're holding this pointer)
+     *  or NULL indicating that the last reference had already been lost and the object is on
+     *  its way to heavens. All these steps happen atomically.
+     *  
+     *  Under all circumstances it full caller's responsibility the make sure that the object
+     *  is not destroyed during the call to #DangerousGetPtr. Typically this is achieved
+     *  by taking a lock in object's destructor and unregistering it there.
+     */
     template<class T>
     static TIntrusivePtr<T> DangerousGetPtr(T* obj)
     {
@@ -82,6 +123,171 @@ private:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: generate with pump
+
+template<class TResult>
+inline TIntrusivePtr<TResult> New()
+{
+    TIntrusivePtr<TResult> result = new TResult();
+    result->UnRef();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3,
+    class TArg4
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3,
+    const TArg4& arg4)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3,
+        arg4);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3,
+    class TArg4,
+    class TArg5
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3,
+    const TArg4& arg4,
+    const TArg5& arg5)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3,
+        arg4,
+        arg5);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3,
+    class TArg4,
+    class TArg5,
+    class TArg6
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3,
+    const TArg4& arg4,
+    const TArg5& arg5,
+    const TArg6& arg6)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3,
+        arg4,
+        arg5,
+        arg6);
+    result->AfterConstruct();
+    return result;
+}
+
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3,
+    class TArg4,
+    class TArg5,
+    class TArg6,
+    class TArg7
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3,
+    const TArg4& arg4,
+    const TArg5& arg5,
+    const TArg6& arg6,
+    const TArg7& arg7)
+{
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3,
+        arg4,
+        arg5,
+        arg6,
+        arg7);
+    result->AfterConstruct();
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

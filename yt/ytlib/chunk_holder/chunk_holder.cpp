@@ -23,29 +23,26 @@ TChunkHolder::TChunkHolder(
         Logger.GetCategory())
     , Config(config)
 {
-    ChunkStore = new TChunkStore(Config);
-    ChunkStore->Initialize();
+    ChunkStore = New<TChunkStore>(Config);
+    BlockStore = New<TBlockStore>(Config, ChunkStore);
 
-    BlockStore = new TBlockStore(Config, ChunkStore);
-
-    SessionManager = new TSessionManager(
+    SessionManager = New<TSessionManager>(
         Config,
         BlockStore,
         ChunkStore,
         ServiceInvoker);
 
-    Replicator = new TReplicator(
+    Replicator = New<TReplicator>(
         ChunkStore,
         BlockStore,
         ServiceInvoker);
 
     if (!Config.Masters.Addresses.empty()) {
-        MasterConnector = new TMasterConnector(
+        MasterConnector = New<TMasterConnector>(
             Config,
             ChunkStore,
             Replicator,
             ServiceInvoker);
-        MasterConnector->Initialize();
     } else {
         LOG_INFO("Running in standalone mode");
     }
@@ -239,7 +236,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 
     response->Attachments().yresize(blockCount);
 
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
 
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->GetBlockIndexes(index);

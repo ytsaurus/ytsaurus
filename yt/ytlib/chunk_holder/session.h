@@ -21,6 +21,12 @@ class TSession
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
+    TSession(
+        TIntrusivePtr<TSessionManager> sessionManager,
+        const TChunkId& chunkId,
+        int location,
+        int windowSize);
+
     //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 
@@ -61,7 +67,7 @@ private:
         TSlot()
             : State(ESlotState::Empty)
             , Block(NULL)
-            , IsWritten(new TAsyncResult<TVoid>())
+            , IsWritten(New< TAsyncResult<TVoid> >())
         { }
 
         ESlotState State;
@@ -84,14 +90,6 @@ private:
     TFileChunkWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
-
-    TSession(
-        TIntrusivePtr<TSessionManager> sessionManager,
-        const TChunkId& chunkId,
-        int location,
-        int windowSize);
-
-    void Initialize();
 
     TAsyncResult<TVoid>::TPtr Finish();
     void Cancel();

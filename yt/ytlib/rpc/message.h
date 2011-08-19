@@ -25,8 +25,8 @@ public:
         TRequestId requestId,
         Stroka serviceName,
         Stroka methodName,
-        TBlob& body,
-        yvector<TSharedRef>& attachments);
+        TBlob* body,
+        const yvector<TSharedRef>& attachments);
 
     virtual const yvector<TSharedRef>& GetParts();
 
@@ -44,8 +44,8 @@ public:
     TRpcResponseMessage(
         TRequestId requestId,
         EErrorCode errorCode,
-        TBlob& body,
-        yvector<TSharedRef>& attachments);
+        TBlob* body,
+        const yvector<TSharedRef>& attachments);
 
     virtual const yvector<TSharedRef>& GetParts();
 

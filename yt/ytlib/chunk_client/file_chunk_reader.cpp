@@ -57,7 +57,7 @@ TFileChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
         result.Blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return new TAsyncResult<TReadResult>(result);
+    return New< TAsyncResult<TReadResult> >(result);
 }
 
 NYT::TSharedRef TFileChunkReader::ReadBlock(int blockIndex)

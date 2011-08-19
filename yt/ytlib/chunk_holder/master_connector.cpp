@@ -31,9 +31,6 @@ TMasterConnector::TMasterConnector(
     , Registered(false)
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
-{ }
-
-void TMasterConnector::Initialize()
 {
     InitializeProxy();
     InitializeAddress();
@@ -47,7 +44,7 @@ void TMasterConnector::Initialize()
 
 void TMasterConnector::InitializeProxy()
 {
-    NRpc::IChannel::TPtr channel = new TCellChannel(Config.Masters);
+    NRpc::IChannel::TPtr channel = ~New<TCellChannel>(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
 }
 

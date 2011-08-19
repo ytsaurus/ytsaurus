@@ -31,7 +31,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
             return NULL;
         }
 
-        TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
+        TChangeLog::TPtr changeLog = New<TChangeLog>(fileName, segmentId);
 
         try {
             changeLog->Open();
@@ -42,7 +42,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
             return NULL;
         }
 
-        EndInsert(new TCachedAsyncChangeLog(changeLog), &cookie);
+        EndInsert(New<TCachedAsyncChangeLog>(changeLog), &cookie);
     }
 
     return cookie.GetAsyncResult()->Get();
@@ -58,7 +58,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
     }
 
     Stroka fileName = GetChangeLogFileName(segmentId);
-    TChangeLog::TPtr changeLog(new TChangeLog(fileName, segmentId));
+    TChangeLog::TPtr changeLog = New<TChangeLog>(fileName, segmentId);
 
     try {
         changeLog->Create(prevRecordCount);
@@ -68,7 +68,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
             ex.what());
     }
 
-    EndInsert(new TCachedAsyncChangeLog(changeLog), &cookie);
+    EndInsert(New<TCachedAsyncChangeLog>(changeLog), &cookie);
 
     return cookie.GetAsyncResult()->Get();
 }

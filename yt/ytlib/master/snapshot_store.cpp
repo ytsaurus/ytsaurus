@@ -34,14 +34,14 @@ TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId)
     Stroka fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName))
         return NULL;
-    return new TSnapshotReader(fileName, snapshotId);
+    return New<TSnapshotReader>(fileName, snapshotId);
 }
 
 TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId)
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
-    return new TSnapshotWriter(fileName, snapshotId);
+    return New<TSnapshotWriter>(fileName, snapshotId);
 }
 
 i32 TSnapshotStore::GetMaxSnapshotId()

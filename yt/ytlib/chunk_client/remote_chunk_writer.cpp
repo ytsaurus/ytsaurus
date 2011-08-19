@@ -129,7 +129,7 @@ void TRemoteChunkWriter::TGroup::PutGroup()
         YASSERT(node < Writer->Nodes.ysize());
     }
 
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~Writer->WriterThread);
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~Writer->WriterThread);
     IAction::TPtr onSuccess = FromMethod(
         &TGroup::OnPutBlocks, 
         TGroupPtr(this), 
@@ -180,8 +180,8 @@ void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
     int nodeCount = IsSent.ysize();
     for (int node = 0; node < nodeCount; ++node) {
         if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
-            TParallelAwaiter::TPtr awaiter = 
-                new TParallelAwaiter(~TRemoteChunkWriter::WriterThread);
+            TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(
+                ~TRemoteChunkWriter::WriterThread);
             IAction::TPtr onSuccess = FromMethod(
                 &TGroup::OnSentBlocks, 
                 TGroupPtr(this), 
@@ -271,10 +271,10 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , Config(config)
     , State(EWriterState::Initializing)
     , IsFinishRequested(false)
-    , IsFinished(new TAsyncResult<EResult>())
+    , IsFinished(New< TAsyncResult<EResult> >())
     , WindowSlots(config.WindowSize)
     , AliveNodes(nodes.ysize())
-    , CurrentGroup(new TGroup(AliveNodes, 0, this))
+    , CurrentGroup(New<TGroup>(AliveNodes, 0, this))
     , BlockCount(0)
     , WindowReady(NULL)
 {
@@ -284,7 +284,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     NRpc::TChannelCache channelCache;
     yvector<Stroka>::const_iterator it = nodes.begin();
     for (; it != nodes.end(); ++it) {
-        Nodes.push_back(new TNode(*it, ~channelCache.GetChannel(*it)));
+        Nodes.push_back(New<TNode>(*it, ~channelCache.GetChannel(*it)));
     }
 
     StartSession();
@@ -316,7 +316,7 @@ void TRemoteChunkWriter::ShiftWindow()
         return;
     }
 
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~WriterThread);
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~WriterThread);
     for (int node = 0; node < Nodes.ysize(); ++node) {
         if (Nodes[node]->IsAlive) {
             IAction::TPtr onSuccess = FromMethod(
@@ -472,7 +472,7 @@ void TRemoteChunkWriter::CheckResponse(typename TResponse::TPtr rsp, int node, I
 
 void TRemoteChunkWriter::StartSession()
 {
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~WriterThread);
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~WriterThread);
     for (int node = 0; node < Nodes.ysize(); ++node) {
         IAction::TPtr onSuccess = FromMethod(
             &TRemoteChunkWriter::OnStartedChunk, 
@@ -521,7 +521,7 @@ void TRemoteChunkWriter::OnStartedSession()
 
 void TRemoteChunkWriter::FinishSession()
 {
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter(~WriterThread);
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~WriterThread);
     for (int node = 0; node < Nodes.ysize(); ++node) {
         if (Nodes[node]->IsAlive) {
             IAction::TPtr onSuccess = FromMethod(
@@ -588,7 +588,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncAddBlock(const TSharedRef& data, 
                 &TRemoteChunkWriter::AddGroup, 
                 TPtr(this),
                 CurrentGroup));
-            TGroupPtr group = new TGroup(Nodes.ysize(), BlockCount, this);
+            TGroupPtr group = New<TGroup>(Nodes.ysize(), BlockCount, this);
             CurrentGroup.Swap(group);
         }
 
@@ -606,7 +606,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncAddBlock(const TSharedRef& data, 
 void TRemoteChunkWriter::AddBlock(const TSharedRef& data)
 {
     while (true) {
-        TAsyncResult<TVoid>::TPtr ready = new TAsyncResult<TVoid>();
+        TAsyncResult<TVoid>::TPtr ready = New< TAsyncResult<TVoid> >();
         EResult result = AsyncAddBlock(data, &ready);
 
         switch (result) {

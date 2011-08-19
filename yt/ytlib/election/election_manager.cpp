@@ -92,7 +92,7 @@ public:
 
     TFollowerPinger(TElectionManager* electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(new TParallelAwaiter(electionManager->Invoker))
+        , Awaiter(New<TParallelAwaiter>(electionManager->Invoker))
     { }
 
     void Run()
@@ -221,7 +221,7 @@ public:
 
     TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(new TParallelAwaiter(electionManager->Invoker))
+        , Awaiter(New<TParallelAwaiter>(electionManager->Invoker))
         , EpochInvoker(electionManager->EpochInvoker)
     { }
 
@@ -616,7 +616,7 @@ void TElectionManager::StartVoteForSelf()
     VoteEpoch = TGuid::Create();
 
     YASSERT(~EpochInvoker == NULL);
-    EpochInvoker = new TCancelableInvoker(Invoker);
+    EpochInvoker = New<TCancelableInvoker>(Invoker);
 
     TPeerPriority priority = ElectionCallbacks->GetPriority();
 
@@ -630,8 +630,7 @@ void TElectionManager::StartVoteForSelf()
 void TElectionManager::StartVotingRound()
 {
     YASSERT(State == TProxy::EState::Voting);
-    TVotingRound::TPtr round = new TVotingRound(this);
-    round->Run();
+    New<TVotingRound>(this)->Run();
 }
 
 void TElectionManager::StartFollowing(
@@ -671,7 +670,7 @@ void TElectionManager::StartLeading()
 
     // Send initial pings.
     YASSERT(~FollowerPinger == NULL);
-    FollowerPinger = new TFollowerPinger(this);
+    FollowerPinger = New<TFollowerPinger>(this);
     FollowerPinger->Run();
 
     LOG_INFO("Starting leading (Epoch: %s)", ~Epoch.ToString());

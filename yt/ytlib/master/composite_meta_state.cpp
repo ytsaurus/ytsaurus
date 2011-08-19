@@ -80,8 +80,8 @@ void TMetaStatePart::OnStopFollowing()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeMetaState::TCompositeMetaState()
-    : StateInvoker(new TActionQueue())
-    , SnapshotInvoker(new TActionQueue())
+    : StateInvoker(~New<TActionQueue>())
+    , SnapshotInvoker(~New<TActionQueue>())
 { }
 
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
@@ -95,7 +95,7 @@ IInvoker::TPtr TCompositeMetaState::GetInvoker() const
     return StateInvoker;
 }
 
-TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream& output)
+TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 {
     TAsyncResult<TVoid>::TPtr result;
     for (TPartMap::iterator it = Parts.begin(); it != Parts.end(); ++it)
@@ -105,7 +105,7 @@ TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream& output)
     return result;
 }
 
-TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream& input)
+TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input)
 {
     TAsyncResult<TVoid>::TPtr result;
     for (TPartMap::iterator it = Parts.begin();
@@ -191,7 +191,7 @@ void TCompositeMetaState::OnStopFollowing()
 void TCompositeMetaState::StartEpoch()
 {
     YASSERT(~EpochStateInvoker == NULL);
-    EpochStateInvoker = new TCancelableInvoker(StateInvoker);
+    EpochStateInvoker = New<TCancelableInvoker>(StateInvoker);
 }
 
 void TCompositeMetaState::StopEpoch()

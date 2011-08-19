@@ -51,7 +51,7 @@ bool DecodeMessagePacket(
         ptr += partSize;
     }
 
-    *message = new TBlobMessage(data, parts);
+    *message = ~New<TBlobMessage>(&data, parts);
     *sequenceId = header->SequenceId;
 
     return true;

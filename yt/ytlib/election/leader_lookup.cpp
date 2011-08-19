@@ -18,8 +18,8 @@ TLeaderLookup::TLeaderLookup(const TConfig& config)
 
 TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
 {
-    TLookupResult::TPtr asyncResult = new TLookupResult();
-    TParallelAwaiter::TPtr awaiter = new TParallelAwaiter();
+    TLookupResult::TPtr asyncResult = New<TLookupResult>();
+    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
 
     for (yvector<Stroka>::iterator it = Config.Addresses.begin();
          it != Config.Addresses.end();

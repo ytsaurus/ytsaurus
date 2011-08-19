@@ -14,9 +14,9 @@ TFollowerTracker::TFollowerTracker(
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , CellManager(cellManager)
-    , EpochInvoker(new TCancelableInvoker(serviceInvoker))
+    , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
     , FollowerStates(cellManager->GetPeerCount())
-    , LeaseManager(new TLeaseManager())
+    , LeaseManager(New<TLeaseManager>())
 {
     ResetFollowerStates();
 }

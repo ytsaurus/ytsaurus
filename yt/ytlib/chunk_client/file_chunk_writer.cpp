@@ -56,7 +56,7 @@ void TFileChunkWriter::Close()
 TAsyncResult<IChunkWriter::EResult>::TPtr TFileChunkWriter::AsyncClose()
 {
     Close();
-    return new TAsyncResult<EResult>(EResult::OK);
+    return New< TAsyncResult<EResult> >(EResult::OK);
 }
 
 void TFileChunkWriter::Cancel()

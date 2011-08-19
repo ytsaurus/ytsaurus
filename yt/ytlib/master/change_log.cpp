@@ -459,7 +459,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     if (RecordCount == 0)
         return;
 
-    TSharedRef::TBlobPtr data(new TBlob());
+    TSharedRef::TBlobPtr data = new TBlob();
     result->clear();
 
     i32 lastRecordId = firstRecordId + recordCount - 1;

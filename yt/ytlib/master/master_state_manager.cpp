@@ -36,18 +36,18 @@ TMetaStateManager::TMetaStateManager(
     RegisterMethods();
 
     NFS::CleanTempFiles(config.LogLocation);
-    ChangeLogCache = new TChangeLogCache(Config.LogLocation);
+    ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
 
     NFS::CleanTempFiles(config.SnapshotLocation);
-    SnapshotStore = new TSnapshotStore(Config.SnapshotLocation);
+    SnapshotStore = New<TSnapshotStore>(Config.SnapshotLocation);
 
-    MetaState = new TDecoratedMetaState(
+    MetaState = New<TDecoratedMetaState>(
         metaState,
         SnapshotStore,
         ChangeLogCache);
 
     // TODO: fill config
-    ElectionManager = new TElectionManager(
+    ElectionManager = New<TElectionManager>(
         TElectionManager::TConfig(),
         CellManager,
         serviceInvoker,
@@ -87,11 +87,11 @@ TMetaStateManager::CommitChange(
     TSharedRef changeData)
 {
     if (State != EState::Leading) {
-        return new TCommitResult(ECommitResult::InvalidState);
+        return New<TCommitResult>(ECommitResult::InvalidState);
     }
 
     if (!FollowerTracker->HasActiveQuorum()) {
-        return new TCommitResult(ECommitResult::NotCommitted);
+        return New<TCommitResult>(ECommitResult::NotCommitted);
     }
 
     return
@@ -134,10 +134,10 @@ void TMetaStateManager::Start()
 void TMetaStateManager::StartEpoch(const TEpoch& epoch)
 {
     YASSERT(~ServiceEpochInvoker == NULL);
-    ServiceEpochInvoker = new TCancelableInvoker(ServiceInvoker);
+    ServiceEpochInvoker = New<TCancelableInvoker>(ServiceInvoker);
     Epoch = epoch;
 
-    ChangeCommitter = new TChangeCommitter(
+    ChangeCommitter = New<TChangeCommitter>(
         TChangeCommitter::TConfig(),
         CellManager,
         MetaState,
@@ -145,7 +145,7 @@ void TMetaStateManager::StartEpoch(const TEpoch& epoch)
         ServiceInvoker,
         Epoch);
 
-    SnapshotCreator = new TSnapshotCreator(
+    SnapshotCreator = New<TSnapshotCreator>(
         TSnapshotCreator::TConfig(),
         CellManager,
         MetaState,
@@ -623,7 +623,7 @@ void TMetaStateManager::OnLeaderRecovery(TRecovery::EResult result)
         return;
     }
 
-    FollowerTracker = new TFollowerTracker(
+    FollowerTracker = New<TFollowerTracker>(
         TFollowerTracker::TConfig(),
         CellManager,
         ServiceInvoker);
@@ -680,7 +680,7 @@ void TMetaStateManager::OnStartFollowing(TPeerId leaderId, TEpoch epoch)
     StartEpoch(epoch);
 
     YASSERT(~FollowerRecovery == NULL);
-    FollowerRecovery = new TFollowerRecovery(
+    FollowerRecovery = New<TFollowerRecovery>(
         CellManager,
         MetaState,
         ChangeLogCache,
@@ -705,7 +705,7 @@ void TMetaStateManager::OnFollowerRecovery(TRecovery::EResult result)
         return;
     }
 
-    LeaderPinger = new TLeaderPinger(
+    LeaderPinger = New<TLeaderPinger>(
         TLeaderPinger::TConfig(),
         this,
         CellManager,

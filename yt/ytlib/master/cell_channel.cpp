@@ -5,7 +5,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
-    : LeaderLookup(new TLeaderLookup(config))
+    : LeaderLookup(New<TLeaderLookup>(config))
     , State(EState::NotConnected)
 { }
 
@@ -30,7 +30,7 @@ TAsyncResult<TVoid>::TPtr TCellChannel::OnGotChannel(
 {
     if (~channel == NULL) {
         response->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return new TAsyncResult<TVoid>(TVoid());
+        return New< TAsyncResult<TVoid> >(TVoid());
     }
 
     return
@@ -78,7 +78,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
         case EState::Connected:
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel != NULL);
-            return new TAsyncResult<NRpc::IChannel::TPtr>(~Channel);
+            return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
 
         case EState::Connecting: {
             YASSERT(~LookupResult != NULL);
@@ -107,13 +107,13 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
     if (result.Id == InvalidPeerId) {
         State = EState::Failed;
         LookupResult.Drop();
-        return new TAsyncResult<NRpc::IChannel::TPtr>(NULL);
+        return New< TAsyncResult<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
     }
 
     State = EState::Connected;
-    Channel = new NRpc::TChannel(result.Address);
+    Channel = New<NRpc::TChannel>(result.Address);
     LookupResult.Drop();
-    return new TAsyncResult<NRpc::IChannel::TPtr>(~Channel);
+    return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
 }
 
 TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(

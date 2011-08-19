@@ -32,8 +32,8 @@ TRecovery::TRecovery(
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , LeaderId(leaderId)
-    , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
-    , CancelableStateInvoker(new TCancelableInvoker(metaState->GetInvoker()))
+    , CancelableServiceInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , CancelableStateInvoker(New<TCancelableInvoker>(metaState->GetInvoker()))
 { }
 
 void TRecovery::Stop()
@@ -81,7 +81,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                 LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
                     snapshotId,
                     ~snapshotResult.ToString());
-                return new TResult(EResult::Failed);
+                return New<TResult>(EResult::Failed);
             }
 
             snapshotReader = SnapshotStore->GetReader(snapshotId);
@@ -91,7 +91,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
         }
 
         snapshotReader->Open();
-        TInputStream& stream = snapshotReader->GetStream();
+        TInputStream* stream = &snapshotReader->GetStream();
 
         // The reader reference is being held by the closure action.
         return MetaState
@@ -168,7 +168,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             TProxy::TRspGetChangeLogInfo::TPtr response = request->Invoke()->Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Could not get changelog %d info from leader", segmentId);
-                return new TResult(EResult::Failed);
+                return New<TResult>(EResult::Failed);
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -211,7 +211,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                     LOG_ERROR("Error downloading changelog (ChangeLogId: %d, Result: %s)",
                         segmentId,
                         ~changeLogResult.ToString());
-                    return new TResult(EResult::Failed);
+                    return New<TResult>(EResult::Failed);
                 }
             }
         }
@@ -236,7 +236,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
 
     YASSERT(MetaState->GetVersion() == targetVersion);
 
-    return new TResult(EResult::OK);
+    return New<TResult>(EResult::OK);
 }
 
 void TRecovery::ApplyChangeLog(
@@ -336,7 +336,7 @@ TFollowerRecovery::TFollowerRecovery(
         epoch,
         leaderId,
         serviceInvoker)
-    , Result(new TResult())
+    , Result(New<TResult>())
     , SyncReceived(false)
 { }
 
@@ -406,7 +406,7 @@ void TFollowerRecovery::Sync(
 TRecovery::TResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
 {
     if (result != EResult::OK) {
-        return new TResult(result);
+        return New<TResult>(result);
     }
 
     LOG_INFO("Sync reached");
@@ -421,7 +421,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     // TODO: use threshold?
     if (PostponedChanges.ysize() == 0) {
         LOG_INFO("No postponed changes left");
-        return new TResult(EResult::OK);
+        return New<TResult>(EResult::OK);
     }
 
     THolder<TPostponedChanges> changes(new TPostponedChanges());

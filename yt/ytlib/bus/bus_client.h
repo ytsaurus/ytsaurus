@@ -15,7 +15,7 @@ namespace NBus {
 class TClientDispatcher;
 
 class TBusClient
-    : public TThrRefBase
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TBusClient> TPtr;

@@ -23,8 +23,8 @@ public:
         : Committer(committer)
         , ChangeAction(changeAction)
         , ChangeData(changeData)
-        , Result(new TResult())
-        , Awaiter(new TParallelAwaiter(~committer->CancelableServiceInvoker))
+        , Result(New<TResult>())
+        , Awaiter(New<TParallelAwaiter>(~committer->CancelableServiceInvoker))
         // Count the local commit.
         , CommitCount(1)
     { }
@@ -143,7 +143,7 @@ TChangeCommitter::TChangeCommitter(
     , CellManager(cellManager)
     , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
-    , CancelableServiceInvoker(new TCancelableInvoker(serviceInvoker))
+    , CancelableServiceInvoker(New<TCancelableInvoker>(serviceInvoker))
     , Epoch(epoch)
 { }
 
@@ -161,11 +161,11 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
 {
-    TSession::TPtr session = new TSession(
+    return New<TSession>(
         this,
         changeAction,
-        changeData);
-    return session->Run();
+        changeData)
+    ->Run();
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
@@ -206,7 +206,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
     TSharedRef changeData)
 {
     if (MetaState->GetVersion() != version) {
-        return new TResult(EResult::InvalidVersion);
+        return New<TResult>(EResult::InvalidVersion);
     }
 
     TChangeCommitter::TResult::TPtr appendResult = MetaState

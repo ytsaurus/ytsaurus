@@ -25,8 +25,8 @@ private:
     yvector<TSharedRef> Parts;
 
 public:
-    TBlobMessage(TBlob& blob);
-    TBlobMessage(TBlob& blob, yvector<TRef>& parts);
+    TBlobMessage(TBlob* blob);
+    TBlobMessage(TBlob* blob, const yvector<TRef>& parts);
 
     const yvector<TSharedRef>& GetParts();
 };
