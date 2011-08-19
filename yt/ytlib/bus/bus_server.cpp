@@ -192,10 +192,10 @@ void TBusServer::Terminate()
     if (Terminated)
         return;
 
-    Requester->StopNoWait();
-
     Terminated = true;
     Thread.Join();
+
+    Requester->StopNoWait();
 
     for (TSessionMap::iterator it = SessionMap.begin();
          it != SessionMap.end();

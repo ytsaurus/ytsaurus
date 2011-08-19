@@ -447,7 +447,11 @@ public:
         Terminated = true;
         Thread.Join();
 
+        // NB: This doesn't actually stop NetLiba threads
         Requester->StopNoWait();
+
+        // Consider moving somewhere else
+        StopAllNetLibaThreads();
 
         // NB: cannot use log here
     }
