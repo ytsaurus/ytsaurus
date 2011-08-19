@@ -215,13 +215,14 @@ private:
     TSet DeletionsSet;
 
     typedef TPair<TKey, TValuePtr> TItem;
-    static bool ItemComparer(const TItem& i1, const TItem& i2) {
+    static bool ItemComparer(const TItem& i1, const TItem& i2)
+    {
         return (i1.first < i2.first);
     }
 
-    TVoid DoSave(TOutputStream& stream) {
+    TVoid DoSave(TOutputStream& stream)
+    {
         stream << Map.size();
-
         yvector<TItem> items(Map.begin(), Map.end());
         std::sort(items.begin(), items.end(), ItemComparer);
         for (typename yvector<TItem>::iterator it = items.begin();
@@ -234,7 +235,8 @@ private:
         return TVoid();
     }
 
-    TVoid DoLoad(TInputStream& stream) {
+    TVoid DoLoad(TInputStream& stream)
+    {
         size_t size;
         stream >> size;
         for (size_t i = 0; i < size; ++i) {
@@ -247,7 +249,8 @@ private:
         return TVoid();
     }
 
-    void MergeTempTables() {
+    void MergeTempTables()
+    {
         for (TIterator it = InsertsMap.begin(); it != InsertsMap.end(); ++it) {
             Map[it->first] = it->second;
         }

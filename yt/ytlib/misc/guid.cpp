@@ -278,11 +278,13 @@ bool operator==(const TGuid &a, const TGuid &b)
     return memcmp(&a, &b, sizeof(a)) == 0;
 }
 
-bool operator!=(const TGuid &a, const TGuid &b) {
+bool operator!=(const TGuid &a, const TGuid &b)
+{
     return !(a == b);
 }
 
-bool operator<(const TGuid &a, const TGuid &b) {
+bool operator<(const TGuid &a, const TGuid &b)
+{
     return TGuidHash()(a) < TGuidHash()(b);
 }
 
