@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "lazy_ptr.h"
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 #include "ref_counted_tracker.h"
@@ -499,12 +498,6 @@ T* operator ~ (const TAutoPtr<T>& ptr)
 
 template<class T>
 T* operator ~ (const THolder<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template<class T>
-T* operator ~ (const TLazyPtr<T>& ptr)
 {
     return ptr.Get();
 }
