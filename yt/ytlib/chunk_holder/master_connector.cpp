@@ -246,18 +246,10 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             continue;
         }
 
-        yvector<Stroka> targetAddresses;
-        for (int addressIndex = 0;
-             addressIndex < static_cast<int>(info.TargetAddressesSize());
-             ++addressIndex)
-        {
-            targetAddresses.push_back(info.GetTargetAddresses(addressIndex));
-        }
-
         Replicator->StartJob(
             TJobId::FromProto(info.GetJobId()),
             chunk,
-            targetAddresses);
+            FromProto(info.GetTargetAddresses()));
     }
 }
 

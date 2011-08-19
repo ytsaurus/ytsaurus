@@ -30,9 +30,11 @@ struct TChunkManagerConfig
 {
     TChunkManagerConfig()
         : HolderLeaseTimeout(TDuration::Seconds(60))
+        , ChunkGroupRefreshPeriod(TDuration::MilliSeconds(100))
     { }
 
-    TDuration HolderLeaseTimeout;    
+    TDuration HolderLeaseTimeout;
+    TDuration ChunkGroupRefreshPeriod;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

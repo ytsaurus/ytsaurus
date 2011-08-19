@@ -29,6 +29,21 @@ public:
         , Address(address)
     { }
 
+    //! For serialization
+    THolder()
+    { }
+
+    //! For putting in TMetaStateRefMap
+    THolder(THolder& holder)
+        : Id(holder.Id)
+        , Address(holder.Address)
+        , Lease_(holder.Lease_)
+        , Statistics_(holder.Statistics_)
+        , PreferenceIterator_(holder.PreferenceIterator_)
+        , UnderreplicatedChunks_(holder.UnderreplicatedChunks_)
+        , OverreplicatedChunks_(holder.OverreplicatedChunks_)
+    { }
+
     int GetId() const
     {
         return Id;
@@ -59,14 +74,24 @@ public:
         return PreferenceIterator_;
     }
 
+    TChunkIds& UnderreplicatedChunks()
+    {
+        return UnderreplicatedChunks_;
+    }
+
+    TChunkIds& OverreplicatedChunks()
+    {
+        return OverreplicatedChunks_;
+    }
+
 private:
     int Id;
     Stroka Address;
     TLeaseManager::TLease Lease_;
     THolderStatistics Statistics_;
     TPreferenceMap::iterator PreferenceIterator_;
-    TChunkIds UnderreplicatedChunks;
-    TChunkIds OverreplicatedChunks;
+    TChunkIds UnderreplicatedChunks_;
+    TChunkIds OverreplicatedChunks_;
 
 };
 

@@ -33,7 +33,7 @@ message TRspRegisterHolder
 message TJobInfo
 {
     required bytes JobId = 1;
-    required int32 State = 2;    
+    required int32 State = 2;
 }
 
 message TJobStartInfo
