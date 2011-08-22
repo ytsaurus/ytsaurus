@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <util/generic/typetraits.h>
 #include <quality/Misc/Guid.h>
 
 namespace NYT {
@@ -58,3 +59,6 @@ struct TGuidHash
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::TGuid)
+

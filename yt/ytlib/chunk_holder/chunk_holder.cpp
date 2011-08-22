@@ -66,7 +66,7 @@ void TChunkHolder::RegisterMethods()
     RPC_REGISTER_METHOD(TChunkHolder, GetBlocks);
 }
 
-void TChunkHolder::VerifyNoSession(const TChunkId& chunkId)
+void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 {
     if (~SessionManager->FindSession(chunkId) != NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
@@ -75,7 +75,7 @@ void TChunkHolder::VerifyNoSession(const TChunkId& chunkId)
     }
 }
 
-void TChunkHolder::VerifyNoChunk(const TChunkId& chunkId)
+void TChunkHolder::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (~ChunkStore->FindChunk(chunkId) != NULL) {
         ythrow TServiceException(TProxy::EErrorCode::ChunkAlreadyExists) <<
@@ -107,8 +107,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
         ~chunkId.ToString(),
         windowSize);
 
-    VerifyNoSession(chunkId);
-    VerifyNoChunk(chunkId);
+    ValidateNoSession(chunkId);
+    ValidateNoChunk(chunkId);
 
     SessionManager->StartSession(chunkId, windowSize);
 

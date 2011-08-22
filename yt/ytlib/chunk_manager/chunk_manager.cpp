@@ -1,8 +1,6 @@
 #include "chunk_manager.h"
 #include "chunk_manager.pb.h"
 
-#include "../master/map.h"
-
 #include "../misc/serialize.h"
 #include "../misc/guid.h"
 #include "../misc/assert.h"
@@ -16,6 +14,7 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 class TChunkManager::TState
     : public TMetaStatePart
     , public NTransaction::ITransactionHandler
@@ -28,11 +27,13 @@ public:
         TMetaStateManager::TPtr metaStateManager,
         TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
-        TChunkRefresh::TPtr chunkRefresh)
+        TChunkRefresh::TPtr chunkRefresh,
+        TChunkPlacement::TPtr chunkPlacement)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         , TransactionManager(transactionManager)
         , ChunkRefresh(chunkRefresh)
+        , ChunkPlacement(chunkPlacement)
         , HolderLeaseManager(New<TLeaseManager>())
         , CurrentHolderId(0)
     {
@@ -58,9 +59,9 @@ public:
         return result;
     }
     
-    yvector<TChunk::TPtr> GetChunkGroup(TChunkGroupId id)
+    yvector<TChunkId> GetChunkGroup(TChunkGroupId id)
     {
-        yvector<TChunk::TPtr> result;
+        yvector<TChunkId> result;
         
         TChunkGroupMap::iterator groupIt = ChunkGroupMap.find(id);
         if (groupIt == ChunkGroupMap.end())
@@ -71,102 +72,92 @@ public:
              chunkIt != group.end();
              ++chunkIt)
         {
-            result.push_back(ChunkMap.Get(*chunkIt));
+            result.push_back(*chunkIt);
         }
 
         return result;
     }
 
-    TChunk::TPtr AddChunk(const NProto::TMsgAddChunk& message)
+    TChunkId AddChunk(const NProto::TMsgAddChunk& message)
     {
         TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
         TTransactionId transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
-        TChunk::TPtr chunk = New<TChunk>(chunkId);
-        chunk->TransactionId() = transactionId;
+        TChunk chunk(chunkId, transactionId);
 
-        TTransaction::TPtr transaction = TransactionManager->FindTransaction(transactionId, true);
-        YASSERT(~transaction != NULL);
-        transaction->AddedChunks().push_back(chunk->GetId());
+        TTransaction& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        transaction.AddedChunks.push_back(chunkId);
 
         ChunkMap.Insert(chunkId, chunk);
 
-        TChunkGroup& group = ChunkGroupMap[chunk->GetGroupId()];
+        TChunkGroup& group = ChunkGroupMap[chunk.GetGroupId()];
         group.insert(chunkId);
 
         LOG_INFO("Chunk added (ChunkId: %s)",
             ~chunkId.ToString());
 
-        return chunk;
+        return chunkId;
     }
 
     TVoid RemoveChunk(const NProto::TMsgRemoveChunk& message)
     {
         TChunkId chunkId = TGuid::FromProto(message.GetChunkId());
         
-        TChunk::TPtr chunk = GetChunk(chunkId, false);
+        const TChunk& chunk = GetChunk(chunkId);
         DoRemoveChunk(chunk);
 
         return TVoid();
     }
 
-    TChunk::TPtr FindChunk(const TChunkId& id, bool forUpdate = false)
+    const THolder* FindHolder(Stroka address)
     {
-        return ChunkMap.Find(id, forUpdate);
+        THolderAddressMap::iterator it = HolderAddressMap.find(address);
+        return it == HolderAddressMap.end() ? NULL : FindHolder(it->Second());
     }
 
-    TChunk::TPtr GetChunk(
-        const TChunkId& id,
-        TTransaction::TPtr transaction,
-        bool forUpdate = false)
-    {
-        TChunk::TPtr chunk = FindChunk(id, forUpdate);
-        if (~chunk == NULL || !chunk->IsVisible(transaction->GetId())) {
-            ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-                Sprintf("invalid chunk %s", ~id.ToString());
-        }
-        return chunk;
-    }
+    METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(Holder, THolder, int);
 
-
-    THolder::TPtr RegisterHolder(const NProto::TReqRegisterHolder& message)
+    int RegisterHolder(const NProto::TReqRegisterHolder& message)
     {
         Stroka address = message.GetAddress();
         THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
     
         int id = CurrentHolderId++;
     
-        THolder::TPtr existingHolder = FindHolder(address);
-        if (~existingHolder != NULL) {
+        const THolder* existingHolder = FindHolder(address);
+        if (existingHolder != NULL) {
             LOG_INFO("Holder kicked off due to address conflict (HolderId: %d)",
-                existingHolder->GetId());
-            DoUnregisterHolder(existingHolder);
+                existingHolder->Id);
+            DoUnregisterHolder(*existingHolder);
         }
 
-        THolder::TPtr newHolder = New<THolder>(id, address);
-        newHolder->Statistics() = statistics;
+        THolder newHolder(id, address, statistics);
+
         if (IsLeader()) {
             CreateLease(newHolder);
+            ChunkPlacement->RegisterHolder(newHolder);
         }
 
         YVERIFY(HolderMap.Insert(id, newHolder));
-        YVERIFY(HolderAddressMap.insert(MakePair(address, newHolder)).Second());
-
-        UpdatePreference(newHolder);
+        YVERIFY(HolderAddressMap.insert(MakePair(address, id)).Second());
 
         LOG_INFO("Holder registered (HolderId: %d, Address: %s, %s)",
-            newHolder->GetId(),
-            ~newHolder->GetAddress(),
-            ~newHolder->Statistics().ToString());
+            id,
+            ~address,
+            ~statistics.ToString());
 
-        return newHolder;
+        return id;
     }
 
     TVoid UnregisterHolder(const NProto::TMsgUnregisterHolder& message)
     { 
         int id = message.GetHolderId();
-        THolder::TPtr holder = GetHolder(id);
+
+        const THolder& holder = GetHolder(id);
+
         DoUnregisterHolder(holder);
+
         return TVoid();
     }
 
@@ -176,22 +167,21 @@ public:
         int holderId = message.GetHolderId();
         THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
 
-        THolder::TPtr holder = HolderMap.Get(holderId, true);
-        holder->Statistics() = statistics;
+        THolder& holder = GetHolderForUpdate(holderId);
+        holder.Statistics = statistics;
 
         if (IsLeader()) {
             RenewLease(holder);
+            ChunkPlacement->UpdateHolder(holder);
         }
-
-        UpdatePreference(holder);
 
         for (int i = 0; i < static_cast<int>(message.AddedChunksSize()); ++i) {
             const NProto::TChunkInfo& info = message.GetAddedChunks(i);
             TChunkId chunkId = TGuid::FromProto(info.GetId());
             i64 size = info.GetSize();
 
-            TChunk::TPtr chunk = FindChunk(chunkId, true);
-            if (~chunk == NULL) {
+            TChunk* chunk = FindChunkForUpdate(chunkId);
+            if (chunk == NULL) {
                 // TODO: schedule removal
                 LOG_ERROR("Unknown chunk reported by holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
                     holderId,
@@ -200,10 +190,10 @@ public:
                 continue;
             }
 
-            if (chunk->Size() != size && chunk->Size() != TChunk::UnknownSize) {
+            if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
                 LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
                     ~chunkId.ToString(),
-                    chunk->Size(),
+                    chunk->Size,
                     size);
             }
 
@@ -237,14 +227,13 @@ public:
         int holderId = message.GetHolderId();
         THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
 
-        THolder::TPtr holder = HolderMap.Get(holderId, true);
-        holder->Statistics() = statistics;
+        THolder& holder = GetHolderForUpdate(holderId);
+        holder.Statistics = statistics;
 
         if (IsLeader()) {
             RenewLease(holder);
+            ChunkPlacement->UpdateHolder(holder);
         }
-
-        UpdatePreference(holder);
 
         for (int i = 0; i < static_cast<int>(message.AddedChunksSize()); ++i) {
             ProcessAddedChunk(holder, message.GetAddedChunks(i));
@@ -274,66 +263,14 @@ public:
     }
 
 
-    THolder::TPtr FindHolder(int id)    
-    {
-        return HolderMap.Find(id);
-    }
-
-    THolder::TPtr FindHolder(Stroka address)
-    {
-        THolderAddressMap::iterator it = HolderAddressMap.find(address);
-        if (it == HolderAddressMap.end())
-            return NULL;
-        else
-            return it->Second();
-    }
-
-    THolder::TPtr GetHolder(int id)
-    {
-        THolder::TPtr holder = FindHolder(id);
-        if (~holder == NULL) {
-            ythrow TServiceException(EErrorCode::NoSuchHolder) <<
-                Sprintf("invalid or expired holder id %d", id);
-        }
-        return holder;
-    }
-
-    THolders GetTargetHolders(int count)
-    {
-        yvector<THolder::TPtr> result;
-        THolder::TPreferenceMap::reverse_iterator it = PreferenceMap.rbegin();
-        while (it != PreferenceMap.rend() && result.ysize() < count) {
-            result.push_back((*it++).second);
-        }
-        return result;
-    }
-
-
-    TReplicationJob::TPtr FindJob(const TJobId& jobId)
-    {
-        TJobMap::iterator it = JobMap.find(jobId);
-        if (it == JobMap.end())
-            return NULL;
-        else
-            return it->Second();
-    }
-
-    TReplicationJob::TPtr GetJob(const TJobId& jobId)
-    {
-        TReplicationJob::TPtr job = FindJob(jobId);
-        YASSERT(~job != NULL);
-        return job;
-    }
-
-
 private:
-    typedef TMetaStateRefMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
+    typedef TMetaStateMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
     
-    typedef TMetaStateRefMap<int, THolder> THolderMap;
+    typedef TMetaStateMap<int, THolder> THolderMap;
     
-    typedef yhash_map<Stroka, THolder::TPtr> THolderAddressMap;
+    typedef yhash_map<Stroka, int> THolderAddressMap;
     
-    typedef yhash_map<TJobId, TReplicationJob::TPtr, TJobIdHash> TJobMap;
+    //typedef yhash_map<TJobId, TReplicationJob::TPtr, TJobIdHash> TJobMap;
     
     typedef yhash_set<TChunkId, TChunkIdHash> TChunkGroup;
     typedef yhash_map<TChunkGroupId, TChunkGroup> TChunkGroupMap;
@@ -341,14 +278,14 @@ private:
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
     TChunkRefresh::TPtr ChunkRefresh;
+    TChunkPlacement::TPtr ChunkPlacement;
     TLeaseManager::TPtr HolderLeaseManager;
     int CurrentHolderId;
     TChunkMap ChunkMap;
     TChunkGroupMap ChunkGroupMap;
     THolderMap HolderMap;
     THolderAddressMap HolderAddressMap;
-    THolder::TPreferenceMap PreferenceMap;
-    TJobMap JobMap;
+    //TJobMap JobMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -359,8 +296,7 @@ private:
     virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
     {
         IInvoker::TPtr invoker = GetSnapshotInvoker();
-        //TODO: fix this under gcc
-        //invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
+        invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
         HolderMap.Save(invoker, stream);
         return ChunkMap.Save(invoker, stream);
     }
@@ -374,8 +310,7 @@ private:
     virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
     {
         IInvoker::TPtr invoker = GetSnapshotInvoker();
-        //TODO: fix this under gcc
-        //invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
+        invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
         HolderMap.Load(invoker, stream);
         return ChunkMap.Load(invoker, stream)->Apply(FromMethod(
             &TState::OnLoaded,
@@ -390,7 +325,6 @@ private:
 
     TVoid OnLoaded(TVoid)
     {
-        UpdateAllPreferences();
         // TODO: reconstruct ChunkGroupMap
         // TODO: reconstruct HolderAddressMap
         // TODO: reconstruct JobMap
@@ -401,24 +335,23 @@ private:
     virtual void Clear()
     {
         if (IsLeader()) {
-            CloseAllLeases();
+            UnregisterAllHolders();
         }
         HolderMap.Clear();
         HolderAddressMap.clear();
         ChunkMap.Clear();
-        PreferenceMap.clear();
-        JobMap.clear();
+        //JobMap.clear();
     }
 
     virtual void OnStartLeading()
     {
-        CreateAllLeases();
+        RegisterAllHolders();
         ChunkRefresh->StartBackground(GetEpochStateInvoker());
     }
 
     virtual void OnStopLeading()
     {
-        CloseAllLeases();
+        UnregisterAllHolders();
         ChunkRefresh->StopBackground();
     }
 
@@ -433,11 +366,11 @@ private:
     }
 
 
-    void CreateLease(THolder::TPtr holder)
+    void CreateLease(THolder& holder)
     {
         YASSERT(IsLeader());
-        YASSERT(holder->Lease() == TLeaseManager::TLease());
-        holder->Lease() = HolderLeaseManager->CreateLease(
+        YASSERT(holder.Lease == TLeaseManager::TLease());
+        holder.Lease = HolderLeaseManager->CreateLease(
             Config.HolderLeaseTimeout,
             FromMethod(
                 &TState::OnHolderExpired,
@@ -446,44 +379,50 @@ private:
             ->Via(GetEpochStateInvoker()));
     }
 
-    void RenewLease(THolder::TPtr holder)
+    void RenewLease(THolder& holder)
     {
         YASSERT(IsLeader());
-        HolderLeaseManager->RenewLease(holder->Lease());
+        HolderLeaseManager->RenewLease(holder.Lease);
     }
 
-    void CloseLease(THolder::TPtr holder)
+    void CloseLease(THolder& holder)
     {
-        YASSERT(holder->Lease() != TLeaseManager::TLease());
-        HolderLeaseManager->CloseLease(holder->Lease());
-        holder->Lease().Drop();
+        YASSERT(holder.Lease != TLeaseManager::TLease());
+        HolderLeaseManager->CloseLease(holder.Lease);
+        holder.Lease.Drop();
     }
 
-    void CreateAllLeases()
+    void RegisterAllHolders()
     {
         for (THolderMap::TIterator it = HolderMap.Begin();
              it != HolderMap.End();
              ++it)
         {
-            CreateLease(it->Second());
+            THolder& holder = it->Second();
+            CreateLease(holder);
+            ChunkPlacement->RegisterHolder(holder);
         }
+
         LOG_INFO("Created fresh leases for all holders");
     }
 
-    void CloseAllLeases()
+    void UnregisterAllHolders()
     {
         for (THolderMap::TIterator it = HolderMap.Begin();
              it != HolderMap.End();
              ++it)
         {
-            CloseLease(it->Second());
+            THolder& holder = it->Second();
+            ChunkPlacement->UnregisterHolder(holder);
+            CloseLease(holder);
         }
+
         LOG_INFO("Closed all holder leases");
     }
 
-    void OnHolderExpired(THolder::TPtr holder)
+    void OnHolderExpired(const THolder& holder)
     {
-        int holderId = holder->GetId();
+        int holderId = holder.Id;
         
         // Check if the holder is still registered.
         if (!HolderMap.Contains(holderId))
@@ -498,38 +437,36 @@ private:
 
 
     // ITransactionHandler overrides.
-    void OnTransactionStarted(TTransaction::TPtr transaction)
+    virtual void OnTransactionStarted(TTransaction& transaction)
     {
         UNUSED(transaction);
     }
 
-    void OnTransactionCommitted(TTransaction::TPtr transaction)
+    virtual void OnTransactionCommitted(TTransaction& transaction)
     {
-        TTransaction::TChunks& addedChunks = transaction->AddedChunks();
+        TTransaction::TChunks& addedChunks = transaction.AddedChunks;
         for (TTransaction::TChunks::iterator it = addedChunks.begin();
             it != addedChunks.end();
             ++it)
         {
-            TChunk::TPtr chunk = ChunkMap.Find(*it, true);
-            YASSERT(~chunk != NULL);
-
-            chunk->TransactionId() = TTransactionId();
+            TChunk& chunk = GetChunkForUpdate(*it);
+            chunk.TransactionId = TTransactionId();
 
             LOG_DEBUG("Chunk committed (ChunkId: %s)",
-                ~chunk->GetId().ToString());
+                ~chunk.Id.ToString());
         }
 
         // TODO: handle removed chunks
     }
 
-    void OnTransactionAborted(TTransaction::TPtr transaction)
+    virtual void OnTransactionAborted(TTransaction& transaction)
     {
-        TTransaction::TChunks& addedChunks = transaction->AddedChunks();
+        TTransaction::TChunks& addedChunks = transaction.AddedChunks;
         for (TTransaction::TChunks::iterator it = addedChunks.begin();
             it != addedChunks.end();
             ++it)
         {
-            TChunk::TPtr chunk = ChunkMap.Get(*it);
+            const TChunk& chunk = GetChunk(*it);
             DoRemoveChunk(chunk);
         }
 
@@ -537,31 +474,31 @@ private:
     }
 
     
-    void DoUnregisterHolder(THolder::TPtr holder)
+    void DoUnregisterHolder(const THolder& holder)
     { 
-        int id = holder->GetId();
+        int id = holder.Id;
 
-        YVERIFY(HolderMap.Remove(id));
-        YVERIFY(HolderAddressMap.erase(holder->GetAddress()) == 1);
-
-        if (holder->PreferenceIterator() != THolder::TPreferenceMap::iterator()) {
-            PreferenceMap.erase(holder->PreferenceIterator());
-            holder->PreferenceIterator() = THolder::TPreferenceMap::iterator();
+        if (IsLeader()) {
+            ChunkPlacement->UnregisterHolder(holder);
         }
+
+        YVERIFY(HolderAddressMap.erase(holder.Address) == 1);
+        YVERIFY(HolderMap.Remove(id));
 
         LOG_INFO("Holder unregistered (HolderId: %d)", id);
     }
 
-    void DoRemoveChunk(TChunk::TPtr chunk)
+    void DoRemoveChunk(const TChunk& chunk)
     {
-        TChunkId chunkId = chunk->GetId();
+        TChunkId chunkId = chunk.Id;
+        TChunkGroupId groupId = chunk.GetGroupId();
         
         YVERIFY(ChunkMap.Remove(chunkId));
         
-        TChunkGroup& group = ChunkGroupMap[chunk->GetGroupId()];
+        TChunkGroup& group = ChunkGroupMap[groupId];
         YVERIFY(group.erase(chunkId) == 1);
         if (group.empty()) {
-            YVERIFY(ChunkGroupMap.erase(chunk->GetGroupId()) == 1);
+            YVERIFY(ChunkGroupMap.erase(groupId) == 1);
         }
 
         LOG_INFO("Chunk removed (ChunkId: %s)",
@@ -569,37 +506,16 @@ private:
     }
 
 
-    void UpdateAllPreferences()
-    {
-        for (THolderMap::TIterator it = HolderMap.Begin();
-             it != HolderMap.End();
-             ++it)
-        {
-            UpdatePreference(it->Second());
-        }
-    }
-
-    void UpdatePreference(THolder::TPtr holder)
-    {
-        if (holder->PreferenceIterator() != THolder::TPreferenceMap::iterator()) {
-            PreferenceMap.erase(holder->PreferenceIterator());
-        }
-
-        double preference = holder->GetPreference();
-        holder->PreferenceIterator() = PreferenceMap.insert(MakePair(preference, holder));
-    }
-
-
     void ProcessAddedChunk(
-        THolder::TPtr holder,
+        THolder& holder,
         const NProto::TChunkInfo& chunkInfo)
     {
-        int holderId = holder->GetId();
+        int holderId = holder.Id;
         TChunkId chunkId = TGuid::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
-        TChunk::TPtr chunk = FindChunk(chunkId, true);
-        if (~chunk == NULL) {
+        TChunk* chunk = FindChunkForUpdate(chunkId);
+        if (chunk == NULL) {
             LOG_ERROR("Unknown chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
                 holderId,
                 ~chunkId.ToString(),
@@ -607,16 +523,16 @@ private:
             return;
         }
 
-        if (chunk->Size() != size && chunk->Size() != TChunk::UnknownSize) {
+        if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
             LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
                 ~chunkId.ToString(),
-                chunk->Size(),
+                chunk->Size,
                 size);
         }
 
         chunk->AddLocation(holderId);
 
-        ChunkRefresh->RefreshChunk(chunk);
+        ChunkRefresh->RefreshChunk(*chunk);
 
         LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
             holderId,
@@ -625,13 +541,13 @@ private:
     }
 
     void ProcessRemovedChunk(
-        THolder::TPtr holder,
+        THolder& holder,
         const TChunkId& chunkId)
     {
-        int holderId = holder->GetId();
+        int holderId = holder.Id;
 
-        TChunk::TPtr chunk = FindChunk(chunkId, true);
-        if (~chunk == NULL) {
+        TChunk* chunk = FindChunkForUpdate(chunkId);
+        if (chunk == NULL) {
             LOG_ERROR("Unknown chunk removed at holder (HolderId: %d, ChunkId: %s)",
                 holderId,
                 ~chunkId.ToString());
@@ -640,7 +556,7 @@ private:
 
         chunk->RemoveLocation(holderId);
 
-        ChunkRefresh->RefreshChunk(chunk);
+        ChunkRefresh->RefreshChunk(*chunk);
 
         LOG_DEBUG("Chunk removed at holder (HolderId: %d, ChunkId: %s)",
              holderId,
@@ -650,54 +566,57 @@ private:
 
     void ProcessStartedJob(const NProto::TJobStartInfo& jobInfo)
     {
-        TChunkId chunkId = TChunkId::FromProto(jobInfo.GetChunkId());
-        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
-        
-        TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
-        
-        TReplicationJob::TPtr job = New<TReplicationJob>(
-            jobId,
-            chunkId,
-            FromProto(jobInfo.GetTargetAddresses()),
-            EJobState::Running);
+        //TChunkId chunkId = TChunkId::FromProto(jobInfo.GetChunkId());
+        //TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
+        //
+        //TChunk& chunk = GetChunkForUpdate(chunkId);
+        //
+        //TReplicationJob::TPtr job = New<TReplicationJob>(
+        //    jobId,
+        //    chunkId,
+        //    FromProto(jobInfo.GetTargetAddresses()),
+        //    EJobState::Running);
 
-        TChunkReplication* replication = chunk->GetReplication();
-        replication->StartJob(job);
+        //TChunkReplication* replication = chunk->GetReplication();
+        //replication->StartJob(job);
 
-        YVERIFY(JobMap.insert(MakePair(jobId, job)).Second());
+        //YVERIFY(JobMap.insert(MakePair(jobId, job)).Second());
 
         // TODO: logging
     }
 
     void ProcessUpdatedJob(const NProto::TJobInfo& jobInfo)
     {
-        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
+        //TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
 
-        TReplicationJob::TPtr job = GetJob(jobId);
-        TChunkId chunkId = job->GetChunkId();
-        TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
+        //TReplicationJob::TPtr job = GetJob(jobId);
+        //TChunkId chunkId = job->GetChunkId();
+        //TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
 
-        job->State() = EJobState(jobInfo.GetState());
+        //job->State() = EJobState(jobInfo.GetState());
 
         // TODO: logging
     }
 
     void ProcessStoppedJob(const TJobId& jobId)
     {
-        TReplicationJob::TPtr job = GetJob(jobId);
-        TChunkId chunkId = job->GetChunkId();
-        TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
+        //TReplicationJob::TPtr job = GetJob(jobId);
+        //TChunkId chunkId = job->GetChunkId();
+        //TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
 
-        TChunkReplication* replication = chunk->GetReplication();
-        YVERIFY(replication->StopJob(jobId));
+        //TChunkReplication* replication = chunk->GetReplication();
+        //YVERIFY(replication->StopJob(jobId));
 
-        YVERIFY(JobMap.erase(jobId) == 1);
+        //YVERIFY(JobMap.erase(jobId) == 1);
 
-        chunk->TryTrimReplication();
+        //chunk->TryTrimReplication();
         
         // TODO: logging
     }
 };
+
+METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Chunk, TChunk, TChunkId, ChunkMap)
+METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Holder, THolder, int, HolderMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,12 +636,14 @@ TChunkManager::TChunkManager(
     , ChunkRefresh(New<TChunkRefresh>(
         config,
         this))
+    , ChunkPlacement(New<TChunkPlacement>())
     , State(New<TState>(
         config,
         metaStateManager,
         metaState,
         transactionManager,
-        ChunkRefresh))
+        ChunkRefresh,
+        ChunkPlacement))
 {
     RegisterMethods();
     metaState->RegisterPart(~State);
@@ -742,35 +663,42 @@ yvector<TChunkGroupId> TChunkManager::GetChunkGroupIds()
     return State->GetChunkGroupIds();
 }
 
-yvector<TChunk::TPtr> TChunkManager::GetChunkGroup(TChunkGroupId id)
+yvector<TChunkId> TChunkManager::GetChunkGroup(TChunkGroupId id)
 {
     return State->GetChunkGroup(id);
 }
 
-TChunk::TPtr TChunkManager::FindChunk(const TChunkId& id, bool forUpdate /*= false*/)
+void TChunkManager::ValidateHolderId(int holderId)
 {
-    return State->FindChunk(id, forUpdate);
-}
-
-TChunk::TPtr TChunkManager::GetChunk(const TChunkId& id, TTransaction::TPtr transaction, bool forUpdate /*= false*/)
-{
-    return State->GetChunk(id, transaction, forUpdate);
-}
-
-THolder::TPtr TChunkManager::FindHolder(int id)
-{
-    return State->FindHolder(id);
-}
-
-TTransaction::TPtr TChunkManager::GetTransaction(const TTransactionId& id, bool forUpdate)
-{
-    TTransaction::TPtr transaction = TransactionManager->FindTransaction(id, forUpdate);
-    if (~transaction == NULL) {
-        ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-            Sprintf("invalid or expired transaction %s", ~id.ToString());
+    const THolder* holder = FindHolder(holderId);
+    if (holder == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
+            Sprintf("invalid or expired holder %d", holderId);
     }
-    return transaction;
 }
+
+void TChunkManager::ValidateChunkId(
+    const TChunkId& chunkId,
+    const TTransactionId& transactionId)
+{
+    const TChunk* chunk = FindChunk(chunkId);
+    if (chunk == NULL || !chunk->IsVisible(transactionId)) {
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
+            Sprintf("invalid chunk %s", ~chunkId.ToString());
+    }
+}
+
+void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
+{
+    const TTransaction* transaction = TransactionManager->FindTransaction(transactionId);
+    if (transaction == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
+            Sprintf("invalid transaction %s", ~transactionId.ToString());
+    }
+}
+
+METAMAP_ACCESSORS_FWD(TChunkManager, Chunk, TChunk, TChunkId, *State)
+METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, int, *State)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -793,12 +721,12 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, RegisterHolder)
 }
 
 void TChunkManager::OnHolderRegistered(
-    THolder::TPtr holder,
+    int id,
     TCtxRegisterHolder::TPtr context)
 {
     TRspRegisterHolder* response = &context->Response();
-    response->SetHolderId(holder->GetId());
-    context->SetResponseInfo("HolderId: %d", holder->GetId());
+    response->SetHolderId(id);
+    context->SetResponseInfo("HolderId: %d", id);
     context->Reply();
 }
 
@@ -808,7 +736,10 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     UNUSED(response);
 
     int holderId = request->GetHolderId();
-    State->GetHolder(holderId);
+
+    context->SetRequestInfo("HolderId: %d", holderId);
+
+    ValidateHolderId(holderId);
 
     const NProto::TReqHolderHeartbeat& message = *request;
     CommitChange(
@@ -819,19 +750,19 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
     TTransactionId transactionId = TGuid::FromProto(request->GetTransactionId());
-    int replicationFactor = request->GetReplicationFactor();
+    int replicaCount = request->GetReplicationFactor();
 
-    context->SetRequestInfo("TransactionId: %s, ReplicationFactor: %d",
+    context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
         ~transactionId.ToString(),
-        replicationFactor);
+        replicaCount);
 
-    THolders holders = State->GetTargetHolders(replicationFactor);
-    for (THolders::iterator it = holders.begin();
-        it != holders.end();
+    yvector<int> holderIds = ChunkPlacement->GetNewChunkPlacement(replicaCount);
+    for (yvector<int>::iterator it = holderIds.begin();
+        it != holderIds.end();
         ++it)
     {
-        THolder::TPtr holder = *it;
-        response->AddHolderAddresses(holder->GetAddress());
+        const THolder& holder = GetHolder(*it);
+        response->AddHolderAddresses(holder.Address);
     }
 
     TChunkId chunkId = TChunkId::Create();
@@ -847,15 +778,15 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 }
 
 void TChunkManager::OnChunkAdded(
-    TChunk::TPtr chunk,
+    TChunkId id,
     TCtxAddChunk::TPtr context)
 {
     TRspAddChunk* response = &context->Response();
-    response->SetChunkId(chunk->GetId().ToProto());
+    response->SetChunkId(id.ToProto());
 
     // TODO: probably log holder addresses
     context->SetResponseInfo("ChunkId: %s, HolderCount: %d",
-        ~chunk->GetId().ToString(),
+        ~id.ToString(),
         static_cast<int>(response->HolderAddressesSize()));
 
     context->Reply();
@@ -870,21 +801,21 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
         ~transactionId.ToString(),
         ~chunkId.ToString());
 
-    TTransaction::TPtr transaction = GetTransaction(transactionId);
-    
-    TChunk::TPtr chunk = State->GetChunk(chunkId, transaction, true);
+    ValidateTransactionId(transactionId);
+    ValidateChunkId(chunkId, transactionId);
+
+    TChunk& chunk = GetChunkForUpdate(chunkId);
+
     ChunkRefresh->RefreshChunk(chunk);
 
     // TODO: sort w.r.t. proximity
-    TChunk::TLocations& locations = chunk->Locations();
+    TChunk::TLocations& locations = chunk.Locations;
     for (TChunk::TLocations::iterator it = locations.begin();
          it != locations.end();
          ++it) 
     {
-        int holderId = *it;
-        THolder::TPtr holder = State->FindHolder(holderId);
-        YASSERT(~holder != NULL);
-        response->AddHolderAddresses(holder->GetAddress());
+        const THolder& holder = GetHolder(*it);
+        response->AddHolderAddresses(holder.Address);
     }
 
     context->SetResponseInfo("HolderCount: %d", locations.ysize());

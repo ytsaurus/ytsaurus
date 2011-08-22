@@ -65,8 +65,9 @@ private:
     //! Registers RPC methods.
     void RegisterMethods();
 
-    void VerifyNoSession(const TChunkId& chunkId);
-    void VerifyNoChunk(const TChunkId& chunkId);
+    void ValidateNoSession(const TChunkId& chunkId);
+    void ValidateNoChunk(const TChunkId& chunkId);
+
     TSession::TPtr GetSession(const TChunkId& chunkId);
 
     void OnFinishedChunk(

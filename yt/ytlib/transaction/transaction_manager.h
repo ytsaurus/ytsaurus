@@ -7,6 +7,7 @@
 #include "../master/master_state_manager.h"
 #include "../master/composite_meta_state.h"
 #include "../master/meta_state_service.h"
+#include "../master/map.h"
 
 #include "../rpc/server.h"
 
@@ -47,11 +48,7 @@ public:
      */
     void RegisterHander(ITransactionHandler::TPtr handler);
 
-    //! Finds transaction by id. Returns NULL if not found.
-    /*!
-     * If a transaction is found, its lease is renewed automatically.
-     */
-    TTransaction::TPtr FindTransaction(const TTransactionId& id, bool forUpdate = false);
+    METAMAP_ACCESSORS_DECL(Transaction, TTransaction, TTransactionId);
 
 private:
     typedef TTransactionManager TThis;
@@ -63,9 +60,11 @@ private:
     //! Meta-state.
     TIntrusivePtr<TState> State;
 
+    void ValidateTransactionId(const TTransactionId& id);
+
     RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);
     void OnTransactionStarted(
-        TTransaction::TPtr transaction,
+        TTransactionId id,
         TCtxStartTransaction::TPtr context);
 
     RPC_SERVICE_METHOD_DECL(NProto, CommitTransaction);
