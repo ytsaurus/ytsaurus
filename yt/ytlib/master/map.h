@@ -122,7 +122,7 @@ public:
             return &value;
         }
 
-        TPair<TMap::iterator, bool> insertionPair = InsertionMap.insert(MakePair(key, value));
+        TPair<typename TMap::iterator, bool> insertionPair = InsertionMap.insert(MakePair(key, value));
         YASSERT(insertionPair.second);
         return &insertionPair.First()->Second();
     }
