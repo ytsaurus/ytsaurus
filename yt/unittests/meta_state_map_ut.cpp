@@ -37,18 +37,18 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 {
     TMetaStateMap<TKey, TValue> map;
 
-    EXPECT_TRUE(map.Insert("a", TValue(42))); // add
+    EXPECT_IS_TRUE(map.Insert("a", TValue(42))); // add
     EXPECT_EQ(map.Find("a")->Value, 42);
 
     EXPECT_FALSE(map.Insert("a", TValue(21))); // add existing
     EXPECT_EQ(map.Find("a")->Value, 42);
 
-    EXPECT_TRUE(map.Remove("a")); // remove
+    EXPECT_IS_TRUE(map.Remove("a")); // remove
     EXPECT_EQ(map.Find("a") == NULL, true);
 
     EXPECT_FALSE(map.Remove("a")); // remove non exisiting
 
-    EXPECT_TRUE(map.Insert("a", TValue(10)));
+    EXPECT_IS_TRUE(map.Insert("a", TValue(10)));
     TValue* ptr = map.FindForUpdate("a");
     EXPECT_EQ(ptr->Value, 10);
     ptr->Value = 100; // update value
@@ -70,7 +70,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     TAsyncResult<TVoid>::TPtr asyncResult;
 
     asyncResult = map.Save(invoker, stream);
-    EXPECT_TRUE(map.Insert("b", TValue(42))); // add to temp table
+    EXPECT_IS_TRUE(map.Insert("b", TValue(42))); // add to temp table
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in temp tables
 
     asyncResult->Get();
@@ -82,7 +82,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in main table
 
     asyncResult = map.Save(invoker, stream);
-    EXPECT_TRUE(map.Remove("b")); // remove
+    EXPECT_IS_TRUE(map.Remove("b")); // remove
     EXPECT_EQ(map.Find("b") == NULL, true); // check find in temp table
 
     asyncResult->Get();
@@ -94,7 +94,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
 
     // update in temp table
     asyncResult = map.Save(invoker, stream);
-    EXPECT_TRUE(map.Insert("b", TValue(999)));
+    EXPECT_IS_TRUE(map.Insert("b", TValue(999)));
 
     TValue* ptr;
     ptr = map.FindForUpdate("b");
