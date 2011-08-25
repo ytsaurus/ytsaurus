@@ -246,7 +246,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         Replicator->StartJob(
             TJobId::FromProto(info.GetJobId()),
             chunk,
-            FromProto(info.GetTargetAddresses()));
+            FromProto<Stroka>(info.GetTargetAddresses()));
     }
 }
 

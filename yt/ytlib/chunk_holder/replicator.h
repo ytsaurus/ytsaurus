@@ -18,6 +18,11 @@ DECLARE_ENUM(EJobState,
     (Failed)
 );
 
+DECLARE_ENUM(EJobType,
+    (Replicate)
+    (Remove)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicator;

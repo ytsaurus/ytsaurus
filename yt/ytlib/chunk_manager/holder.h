@@ -37,6 +37,7 @@ struct THolder
         , Address(other.Address)
         , Lease(other.Lease)
         , Statistics(other.Statistics)
+        , RegularChunks(other.RegularChunks)
         , UnderreplicatedChunks(other.UnderreplicatedChunks)
         , OverreplicatedChunks(other.OverreplicatedChunks)
     { }
@@ -47,6 +48,15 @@ struct THolder
         YASSERT(false);
         return *this;
     }
+
+    int GetTotalChunkCount() const
+    {
+        return static_cast<int>(
+            RegularChunks.size() +
+            UnderreplicatedChunks.size() +
+            OverreplicatedChunks.size());
+    }
+
 
     int Id;
     Stroka Address;

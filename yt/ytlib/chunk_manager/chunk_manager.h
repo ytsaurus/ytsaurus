@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_manager_rpc.h"
+#include "chunk_manager_rpc.pb.h"
 #include "chunk_manager.pb.h"
 #include "holder.h"
 #include "chunk.h"
@@ -20,8 +21,9 @@ namespace NChunkManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkRefresh;
+//class TChunkRefresh;
 class TChunkPlacement;
+class TChunkReplication;
 
 class TChunkManager
     : public TMetaStateServiceBase
@@ -39,11 +41,13 @@ public:
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
 
-    yvector<TChunkGroupId> GetChunkGroupIds();
-    yvector<TChunkId> GetChunkGroup(TChunkGroupId id);
+    //yvector<TChunkGroupId> GetChunkGroupIds();
+    //yvector<TChunkId> GetChunkGroup(TChunkGroupId id);
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, int);
+    METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
+    METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
 private:
     typedef TChunkManager TThis;
@@ -60,10 +64,13 @@ private:
     TTransactionManager::TPtr TransactionManager;
 
     //! Manages refresh of chunk data.
-    TIntrusivePtr<TChunkRefresh> ChunkRefresh;
+    //TIntrusivePtr<TChunkRefresh> ChunkRefresh;
 
-    //! Manages placement of new chunks.
+    //! Manages placement of new chunks and rearranges existing ones.
     TIntrusivePtr<TChunkPlacement> ChunkPlacement;
+
+    //! Manages chunk replication.
+    TIntrusivePtr<TChunkReplication> ChunkReplication;
 
     //! Meta-state.
     TIntrusivePtr<TState> State;
@@ -149,129 +156,170 @@ private:
     }
 };
 
-// TODO: move to chunk_refresh.h/cpp
-class TChunkRefresh
+DECLARE_ENUM(EChunkState,
+    (Lost)
+    (Regular)
+    (Overreplicated)
+    (Underreplicated)
+);
+
+// TODO: move to chunk_replication.h/cpp
+class TChunkReplication
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TChunkRefresh> TPtr;
-    typedef TChunkManagerConfig TConfig;
+    typedef TIntrusivePtr<TChunkReplication> TPtr;
 
-    TChunkRefresh(
-        const TConfig& config,
-        TChunkManager::TPtr chunkManager)
-        : Config(config)
-        , ChunkManager(chunkManager)
-        , CurrentIndex(0)
+    TChunkReplication(TChunkManager::TPtr chunkManager)
+        : ChunkManager(chunkManager)
+    { }
+
+    int GetDesiredReplicaCount(const TChunk& chunk)
     {
+        // TODO: make configurable
+        return 3;
     }
 
-    void StartBackground(IInvoker::TPtr epochInvoker)
+    EChunkState GetState(const TChunk& chunk)
     {
-        YASSERT(~EpochInvoker == NULL);
-        EpochInvoker = epochInvoker;
-        RestartBackgroundRefresh();
-    }
-
-    void StopBackground()
-    {
-        EpochInvoker.Drop();
-    }
-
-    void RefreshChunk(TChunk& chunk)
-    {
-        RefreshChunkLocations(chunk);
-        //UpdateChunkReplicaStatus(chunk);
-    }   
-
-private:
-    TConfig Config;
-    TChunkManager::TPtr ChunkManager;
-    int CurrentIndex;
-    IInvoker::TPtr EpochInvoker;
-    yvector<TChunkGroupId> GroupIds;
-
-
-    void RestartBackgroundRefresh()
-    {
-        GroupIds = ChunkManager->GetChunkGroupIds();
-        ScheduleRefresh();
-    }
-
-    void ScheduleRefresh()
-    {
-        TDelayedInvoker::Get()->Submit(
-            FromMethod(
-                &TChunkRefresh::OnRefresh,
-                TPtr(this))
-            ->Via(EpochInvoker),
-            Config.ChunkGroupRefreshPeriod);
-    }
-
-    void OnRefresh()
-    {
-        if (CurrentIndex >= GroupIds.ysize()) {
-            RestartBackgroundRefresh();
-            return;
+        int actualReplicaCount = chunk.Locations.ysize();
+        if (actualReplicaCount == 0) {
+            return EChunkState::Lost;
         }
 
-        RefreshChunkGroup(GroupIds[CurrentIndex++]);
-
-        ScheduleRefresh();
+        int desiredReplicaCount = GetDesiredReplicaCount(chunk);
+        int potentialReplicaCount = actualReplicaCount + chunk.PendingReplicaCount;
+        if (potentialReplicaCount > desiredReplicaCount) {
+            return EChunkState::Overreplicated;
+        } else if (potentialReplicaCount < desiredReplicaCount) {
+            return EChunkState::Underreplicated;
+        } else {
+            return EChunkState::Regular;
+        }
     }
 
-
-    void RefreshChunkGroup(TChunkGroupId groupId)
+    void RegisterHolder(THolder& holder)
     {
-        yvector<TChunkId> chunkIds = ChunkManager->GetChunkGroup(groupId);
-        for (yvector<TChunkId>::iterator it = chunkIds.begin();
+        // Intentionally empty.
+        UNUSED(holder);
+    }
+
+    void UnregisterHolder(const THolder& holder)
+    {
+        yvector<TChunkId> chunkIds;
+        chunkIds.reserve(holder.GetTotalChunkCount());
+        NStl::copy(holder.RegularChunks.begin(), holder.RegularChunks.end(), NStl::back_inserter(chunkIds));
+        NStl::copy(holder.UnderreplicatedChunks.begin(), holder.UnderreplicatedChunks.end(), NStl::back_inserter(chunkIds));
+        NStl::copy(holder.OverreplicatedChunks.begin(), holder.OverreplicatedChunks.end(), NStl::back_inserter(chunkIds));
+
+        for (yvector<TChunkId>::const_iterator it = chunkIds.begin();
              it != chunkIds.end();
              ++it)
         {
-            TChunk& chunk = ChunkManager->GetChunkForUpdate(*it);
-            RefreshChunk(chunk);
+            const TChunkId& chunkId = *it;
+            TChunk& chunk = ChunkManager->GetChunkForUpdate(chunkId);
+            UnregisterReplica(chunk, holder);
         }
     }
 
-    void RefreshChunkLocations(TChunk& chunk)
+    void RegisterReplica(TChunk& chunk, const THolder& holder)
     {
-        TChunk::TLocations& locations = chunk.Locations;
-        TChunk::TLocations::iterator reader = locations.begin();
-        TChunk::TLocations::iterator writer = locations.begin();
-        while (reader != locations.end()) {
-            int holderId = *reader;
-            if (ChunkManager->FindHolder(holderId) != NULL) {
-                *writer++ = holderId;
-            }
-            ++reader;
-        } 
-        locations.erase(writer, locations.end());
+        EChunkState oldState = GetState(chunk);
+        chunk.AddLocation(holder.Id);
+        EChunkState newState = GetState(chunk);
+        MaybeUpdateState(chunk, oldState, newState);
+
+        // TODO: remove 
+        static NLog::TLogger& Logger = ChunkManagerLogger;
+
+        LOG_DEBUG("Chunk replica registered (HolderId: %d, ChunkId: %s, OldState: %s, NewState: %s, ReplicaCount: %d)",
+            holder.Id,
+            ~chunk.Id.ToString(),
+            ~oldState.ToString(),
+            ~newState.ToString(),
+            chunk.Locations.ysize());
     }
 
-    //void UpdateChunkReplicaStatus(TChunk::TPtr chunk)
-    //{
-    //    TChunkId chunkId = chunk->GetId();
-    //    int delta = chunk->GetReplicaDelta();
+    void UnregisterReplica(TChunk& chunk, const THolder& holder)
+    {
+        EChunkState oldState = GetState(chunk);
+        chunk.RemoveLocation(holder.Id);
+        EChunkState newState = GetState(chunk);
+        MaybeUpdateState(chunk, oldState, newState);
 
-    //    const TChunk::TLocations& locations = chunk->Locations();
-    //    for (TChunk::TLocations::const_iterator it = locations.begin();
-    //         it != locations.end();
-    //         ++it)
-    //    {
-    //        int holderId = *it;
-    //        THolder::TPtr holder = GetHolder(holderId);
-    //        if (delta < 0) {
-    //            holder->OverreplicatedChunks().erase(chunkId);
-    //            holder->UnderreplicatedChunks().insert(chunkId);
-    //        } else if (delta > 0) {
-    //            holder->OverreplicatedChunks().insert(chunkId);
-    //            holder->UnderreplicatedChunks().erase(chunkId);
-    //        } else {
-    //            holder->OverreplicatedChunks().erase(chunkId);
-    //            holder->UnderreplicatedChunks().erase(chunkId);
-    //        }
-    //    }
-    //}
+        // TODO: remove 
+        static NLog::TLogger& Logger = ChunkManagerLogger;
+
+        LOG_DEBUG("Chunk replica unregistered (HolderId: %d, ChunkId: %s, OldState: %s, NewState: %s, ReplicaCount: %d)",
+            holder.Id,
+            ~chunk.Id.ToString(),
+            ~oldState.ToString(),
+            ~newState.ToString(),
+            chunk.Locations.ysize());
+    }
+
+    void GetJobControl(
+        const THolder& holder,
+        yvector<NProto::TJobStartInfo>& jobsToStart,
+        yvector<TJobId>& jobsToStop)
+    {
+
+    }
+
+private:
+    TChunkManager::TPtr ChunkManager;
+
+    void MaybeUpdateState(
+        TChunk& chunk,
+        EChunkState oldState,
+        EChunkState newState)
+    {
+        if (newState == oldState)
+            return;
+
+        const TChunk::TLocations& locations = chunk.Locations;
+        for (TChunk::TLocations::const_iterator it = locations.begin();
+                it != locations.end();
+                ++it)
+        {
+            int holderId = *it;
+            THolder& holder = ChunkManager->GetHolderForUpdate(holderId);
+
+            switch (oldState) {
+                case EChunkState::Lost:
+                    break;
+                case EChunkState::Regular:
+                    YVERIFY(holder.RegularChunks.erase(chunk.Id) == 1);
+                    break;
+                case EChunkState::Overreplicated:
+                    YVERIFY(holder.OverreplicatedChunks.erase(chunk.Id) == 1);
+                    break;
+                case EChunkState::Underreplicated:
+                    YVERIFY(holder.UnderreplicatedChunks.erase(chunk.Id) == 1);
+                    break;
+                default:
+                    YASSERT(false);
+                    break;
+            }
+
+            switch (newState) {
+                case EChunkState::Lost:
+                    break;
+                case EChunkState::Regular:
+                    YVERIFY(holder.RegularChunks.insert(chunk.Id).Second());
+                    break;
+                case EChunkState::Overreplicated:
+                    YVERIFY(holder.OverreplicatedChunks.insert(chunk.Id).Second());
+                    break;
+                case EChunkState::Underreplicated:
+                    YVERIFY(holder.UnderreplicatedChunks.insert(chunk.Id).Second());
+                    break;
+                default:
+                    YASSERT(false);
+                    break;
+            }
+        }
+    }
 
 };
 
