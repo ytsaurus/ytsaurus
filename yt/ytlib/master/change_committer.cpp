@@ -28,7 +28,6 @@ public:
         , Version(version)
         , Result(New<TResult>())
         , Awaiter(New<TParallelAwaiter>(~committer->CancelableServiceInvoker))
-        , IsFinalizing(0)
         // Count the local commit.
         , CommitCount(1)
     { }
@@ -36,14 +35,15 @@ public:
     void AddChange(TSharedRef changeData)
     {
         BatchedChanges.push_back(changeData);
-        LOG_DEBUG("Added %d change from version %s to batch",
-            BatchedChanges.ysize(), ~Version.ToString());
+//        LOG_DEBUG("Added %d change from version %s to batch",
+//            BatchedChanges.ysize(), ~Version.ToString());
     }
 
     // Service invoker
     void SendChanges()
     {
-        LOG_DEBUG("Starting commit of change %s", ~Version.ToString());
+        LOG_DEBUG("Starting commit of %d changes of version %s",
+                  GetNumChanges(), ~Version.ToString());
 
         TCellManager::TPtr cellManager = Committer->CellManager;
 
@@ -179,17 +179,14 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
 {
     TGuard<TSpinLock> guard(SpinLock);
     TMetaVersion version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+    //LOG_DEBUG("Starting commit of change %s", ~version.ToString());
     if (~CurrentSession == NULL) {
         CurrentSession = New<TSession>(TPtr(this), version);
     }
 
     if (CurrentSession->GetNumChanges() > MaxBatchSize) {
-        AtomicIncrement(CurrentSession->IsFinalizing);
-        CancelableServiceInvoker->Invoke(FromMethod(
-            &TChangeCommitter::Finalize,
-            TPtr(this),
-            CurrentSession));
+        Finalize(CurrentSession);
+        CurrentSession = New<TSession>(TPtr(this), version);
     }
 
     if (CurrentSession->GetNumChanges() == 0) {
@@ -203,7 +200,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     CurrentSession->AddChange(changeData);
 
     DoCommitLeader(changeAction, changeData);
-    LOG_DEBUG("Change %s is committed locally", ~version.ToString());
+    //LOG_DEBUG("Change %s is committed locally", ~version.ToString());
     return CurrentSession->GetResult();
 }
 
@@ -270,15 +267,13 @@ void TChangeCommitter::Finalize(TSession::TPtr session)
 void TChangeCommitter::DelayedFinalize(TSession::TPtr session)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (session->IsFinalizing) {
+    if (~session == NULL || session != CurrentSession) {
         return;
     }
     TMetaVersion version = MetaState->GetVersion();
+    LOG_DEBUG("Batch timeout occured at version %s", ~version.ToString())
     CurrentSession = New<TSession>(TPtr(this), version);
-    CancelableServiceInvoker->Invoke(FromMethod(
-        &TChangeCommitter::Finalize,
-        this,
-        session));
+    Finalize(session);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
