@@ -19,11 +19,9 @@ class TChangeCommitter::TSession
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
-    TAtomic IsFinalizing;
-
     TSession(
         TChangeCommitter::TPtr committer,
-        TMetaVersion version)
+        const TMetaVersion& version)
         : Committer(committer)
         , Version(version)
         , Result(New<TResult>())
@@ -32,18 +30,21 @@ public:
         , CommitCount(1)
     { }
 
-    void AddChange(TSharedRef changeData)
+    TResult::TPtr AddChange(TSharedRef changeData)
     {
         BatchedChanges.push_back(changeData);
-//        LOG_DEBUG("Added %d change from version %s to batch",
-//            BatchedChanges.ysize(), ~Version.ToString());
+        LOG_DEBUG("Added %d change from version %s to batch",
+            GetChangeCount(),
+            ~Version.ToString());
+        return Result;
     }
 
     // Service invoker
     void SendChanges()
     {
         LOG_DEBUG("Starting commit of %d changes of version %s",
-                  GetNumChanges(), ~Version.ToString());
+            GetChangeCount(),
+            ~Version.ToString());
 
         TCellManager::TPtr cellManager = Committer->CellManager;
 
@@ -71,12 +72,7 @@ public:
         Awaiter->Complete(FromMethod(&TSession::OnCompleted, TPtr(this)));
     }
 
-    TResult::TPtr GetResult()
-    {
-        return Result;
-    }
-
-    int GetNumChanges()
+    int GetChangeCount() const
     {
         return BatchedChanges.ysize();
     }
@@ -179,29 +175,27 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
 {
     TGuard<TSpinLock> guard(SpinLock);
     TMetaVersion version = MetaState->GetVersion();
-    //LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
     if (~CurrentSession == NULL) {
         CurrentSession = New<TSession>(TPtr(this), version);
-    }
-
-    if (CurrentSession->GetNumChanges() > MaxBatchSize) {
-        Finalize(CurrentSession);
-        CurrentSession = New<TSession>(TPtr(this), version);
-    }
-
-    if (CurrentSession->GetNumChanges() == 0) {
-        TDelayedInvoker::Get()->Submit(
+        TimeoutCookie = TDelayedInvoker::Get()->Submit(
             FromMethod(
-                &TChangeCommitter::DelayedFinalize,
+                &TChangeCommitter::DelayedFlush,
                 TPtr(this),
                 CurrentSession),
             MaxBatchDelay);
     }
-    CurrentSession->AddChange(changeData);
+
+    TResult::TPtr result = CurrentSession->AddChange(changeData);
 
     DoCommitLeader(changeAction, changeData);
-    //LOG_DEBUG("Change %s is committed locally", ~version.ToString());
-    return CurrentSession->GetResult();
+    LOG_DEBUG("Change %s is committed locally", ~version.ToString());
+
+    if (CurrentSession->GetChangeCount() >= MaxBatchSize) {
+        FlushCurrentSession();
+        CurrentSession = NULL;
+    }
+    return result;
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
@@ -259,12 +253,15 @@ TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
     return EResult::Committed;
 }
 
-void TChangeCommitter::Finalize(TSession::TPtr session)
+void TChangeCommitter::FlushCurrentSession()
 {
-    session->SendChanges();
+    CurrentSession->SendChanges();
+    if (TimeoutCookie != TDelayedInvoker::TCookie()) {
+        TDelayedInvoker::Get()->Cancel(TimeoutCookie);
+    }
 }
 
-void TChangeCommitter::DelayedFinalize(TSession::TPtr session)
+void TChangeCommitter::DelayedFlush(TSession::TPtr session)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (~session == NULL || session != CurrentSession) {
@@ -272,8 +269,8 @@ void TChangeCommitter::DelayedFinalize(TSession::TPtr session)
     }
     TMetaVersion version = MetaState->GetVersion();
     LOG_DEBUG("Batch timeout occured at version %s", ~version.ToString())
-    CurrentSession = New<TSession>(TPtr(this), version);
-    Finalize(session);
+    FlushCurrentSession();
+    CurrentSession = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

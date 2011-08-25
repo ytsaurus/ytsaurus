@@ -67,8 +67,8 @@ private:
         TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
-    void DelayedFinalize(TIntrusivePtr<TSession> session);
-    void Finalize(TIntrusivePtr<TSession> session);
+    void DelayedFlush(TIntrusivePtr<TSession> session);
+    void FlushCurrentSession();
 
     TConfig Config;
     TCellManager::TPtr CellManager;
@@ -80,6 +80,7 @@ private:
 
     TIntrusivePtr<TSession> CurrentSession;
     TSpinLock SpinLock; // for work with session
+    TDelayedInvoker::TCookie TimeoutCookie; // for session
 };
 
 ////////////////////////////////////////////////////////////////////////////////

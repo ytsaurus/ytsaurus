@@ -111,7 +111,7 @@ message TReqApplyChanges
     required int32 SegmentId = 1;
     required int32 RecordCount = 2;
     required bytes Epoch = 3;
-    // Data of changes is passed via attachment.
+    // Data of changes are passed via attachment.
 }
 
 message TRspApplyChanges
