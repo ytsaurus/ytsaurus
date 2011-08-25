@@ -426,13 +426,14 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
     int numChanges = request->Attachments().size();
     switch (State) {
         case EState::Following: {
-            LOG_DEBUG("ApplyChange: applying change");
+            LOG_DEBUG("ApplyChange: applying %d changes", numChanges);
 
             for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
                 YASSERT(State == EState::Following);
+                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
                 TChangeCommitter::TResult::TPtr asyncResult =
-                    ChangeCommitter->CommitFollower(version, changeData);
+                    ChangeCommitter->CommitFollower(commitVersion, changeData);
 
                 // subscribe to last change
                 if (changeIndex == numChanges - 1) {
@@ -447,13 +448,15 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         }
 
         case EState::FollowerRecovery: {
-            LOG_DEBUG("ApplyChange: keeping postponed change");
+            LOG_DEBUG("ApplyChange: keeping %d postponed change", numChanges);
 
             YASSERT(~FollowerRecovery != NULL);
             for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
                 YASSERT(State == EState::FollowerRecovery);
+                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                TRecovery::EResult result = FollowerRecovery->PostponeChange(version, changeData);
+                TRecovery::EResult result = FollowerRecovery
+                    ->PostponeChange(commitVersion, changeData);
                 if (result != TRecovery::EResult::OK) {
                     Restart();
                     break;

@@ -36,7 +36,8 @@ public:
     void AddChange(TSharedRef changeData)
     {
         BatchedChanges.push_back(changeData);
-        LOG_DEBUG("Added %d change to batch", BatchedChanges.ysize());
+        LOG_DEBUG("Added %d change from version %s to batch",
+            BatchedChanges.ysize(), ~Version.ToString());
     }
 
     // Service invoker
@@ -62,7 +63,7 @@ public:
                 request->Invoke(Committer->Config.RpcTimeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
 
-            LOG_DEBUG("Change %s is sent to peer %d",
+            LOG_DEBUG("Change of %s is sent to peer %d",
                 ~Version.ToString(),
                 id);
         }
