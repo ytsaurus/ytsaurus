@@ -240,9 +240,8 @@ Stroka TGuid::ToString() const
 TGuid TGuid::FromString(const Stroka& str)
 {
     TGuid guid;
-    if (!FromString(str, &guid))
-    {
-        ythrow yexception() << Sprintf("Can't parse guid from %s", ~str);
+    if (!FromString(str, &guid)) { 
+        ythrow yexception() << Sprintf("Error parsing guid from %s", ~str.Quote());
     }
     return guid;
 }

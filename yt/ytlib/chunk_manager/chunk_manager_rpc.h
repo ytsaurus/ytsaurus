@@ -20,6 +20,7 @@ public:
     DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
         ((NoSuchTransaction)(1))
         ((NoSuchHolder)(2))
+        ((NoSuchChunk)(3))
     );
 
     static Stroka GetServiceName()

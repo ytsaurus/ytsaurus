@@ -11,7 +11,7 @@ namespace NYT {
 // TODO: get rid of TODOS :)
 // 
 // TODO: What are the guarantees?
-// Shall forUpdate alter the behaviour of Find and Get to wait until snapshot would be created?
+// Shall forUpdate alter the behavior of Find and Get to wait until snapshot would be created?
 // NO, it should return a copy
 // Shall Load/Save do all work via passed invoker?
 // YES
@@ -22,7 +22,7 @@ namespace NYT {
 // All public functions will be called from one thread
 
 // Hack to use smart enums.
-class TMetaStateRefMapBase
+class TMetaStateMapBase
     : private TNonCopyable
 {
 protected:
@@ -34,28 +34,28 @@ protected:
     EState State;
 };
 
-//! Snapshotable map which keeps values by pointers.
+//! Snapshotable map used to store various meta-state tables.
 /*
- * \tparam TKey Type of the key.
- * \tparam TValue Type of the value.
- * \tparam THash Hash function to be used.
+ * \tparam TKey Key type.
+ * \tparam TValue Value type.
+ * \tparam THash Hash function for keys.
  */
 template <class TKey, class TValue, class THash = ::THash<TKey> >
-class TMetaStateRefMap
-    : public TMetaStateRefMapBase
+class TMetaStateMap
+    : public TMetaStateMapBase
 {
 public:
-    typedef TIntrusivePtr<TValue> TValuePtr;
-    typedef yhash_map<TKey, TValuePtr, THash> TMap;
-    typedef yhash_set<TKey, THash> TSet;
+    typedef yhash_map<TKey, TValue, THash> TMap;
+    typedef yhash_set<TKey, THash> TKeySet;
     typedef typename TMap::iterator TIterator;
+    typedef typename TMap::iterator TConstIterator;
 
     //! Inserts a key-value pair.
     /*!
      * Does nothing if the key is already in map
      * \returns True iff the key is new.
      */
-    bool Insert(const TKey& key, TValuePtr value)
+    bool Insert(const TKey& key, const TValue& value)
     {
         if (State == EState::SavedSnapshot) {
             MergeTempTables();
@@ -63,67 +63,99 @@ public:
         if (State == EState::Normal) {
             return Map.insert(MakePair(key, value)).second;
         }
-        bool isAlreadyDeleted = (DeletionsSet.erase(key) == 1);
+        bool isAlreadyDeleted = (DeletionSet.erase(key) == 1);
         if (isAlreadyDeleted || Map.find(key) == Map.end()) {
-            return InsertsMap.insert(MakePair(key, value)).second;
+            return InsertionMap.insert(MakePair(key, value)).second;
         }
         return false;
     }
 
-    //! Tries to find the key in the map.
+    //! Tries to find a value by its key. The returned value is read-only.
     /*!
-     * \param key The key.
-     * \param forUpdate Hint whether the value will be altered.
-     * \return Pointer to the value if the key exists in the map, null otherwise.
+     * \param key A key.
+     * \return Pointer to the const value if found, NULL otherwise.
      */
-    TValuePtr Find(const TKey& key, bool forUpdate = false)
+    const TValue* Find(const TKey& key) const
     {
         if (State != EState::Normal) {
-            typename TMap::iterator insertsIt = InsertsMap.find(key);
-            if (insertsIt != InsertsMap.end()) {
-                return insertsIt->second;
+            typename TMap::const_iterator insertionIt = InsertionMap.find(key);
+            if (insertionIt != InsertionMap.end()) {
+                return &insertionIt->second;
             }
-            typename TSet::iterator deletionsIt = DeletionsSet.find(key);
-            if (deletionsIt != DeletionsSet.end()) {
+
+            typename TKeySet::const_iterator deletionIt = DeletionSet.find(key);
+            if (deletionIt != DeletionSet.end()) {
                 return NULL;
             }
         }
 
-        typename TMap::iterator it = Map.find(key);
-        if (it == Map.end()) {
+        typename TMap::const_iterator it = Map.find(key);
+        return it == Map.end() ? NULL : &it->Second();
+    }
+
+    //! Tries to find a value by its key. May return a modifiable copy if snapshot creation is in progress.
+    /*!
+     * \param key A key.
+     * \return Pointer to the value if found,  otherwise.
+     */
+    TValue* FindForUpdate(const TKey& key)
+    {
+        if (State != EState::Normal) {
+            typename TMap::iterator insertionIt = InsertionMap.find(key);
+            if (insertionIt != InsertionMap.end()) {
+                return &insertionIt->second;
+            }
+
+            typename TKeySet::iterator deletionIt = DeletionSet.find(key);
+            if (deletionIt != DeletionSet.end()) {
+                return NULL;
+            }
+        }
+
+        typename TMap::iterator mapIt = Map.find(key);
+        if (mapIt == Map.end()) {
             return NULL;
         }
 
-        TValuePtr value = it->Second();
-
-        if (State != EState::SavingSnapshot || !forUpdate) {
-            return value;
+        TValue& value = mapIt->Second();
+        if (State != EState::SavingSnapshot) {
+            return &value;
         }
 
-        // TODO: uncomment when copy ctors are ready
-        //TValuePtr newValue = New<TValue>(*it->second);
-        TValuePtr newValue = NULL;
-        YVERIFY(InsertsMap.insert(MakePair(key, newValue)).second);
-        return newValue;
+        TPair<typename TMap::iterator, bool> insertionPair = InsertionMap.insert(MakePair(key, value));
+        YASSERT(insertionPair.second);
+        return &insertionPair.First()->Second();
     }
 
-    //! Returns the value corresponding to the key.
+    //! Returns a read-only value corresponding to the key.
     /*!
-     * In contrast to #Find this method fails if the key does not exist in the
-     * map.
-     * \param key The key.
-     * \param forUpdate Hint whether the value will be altered.
-     * \returns Pointer to the value.
+     * In contrast to #Find this method fails if the key does not exist in the map.
+     * \param key A key.
+     * \returns Const reference to the value.
      */
-    TValuePtr Get(const TKey& key, bool forUpdate = false)
+    const TValue& Get(const TKey& key) const
     {
-        TValuePtr value = Find(key, forUpdate);
-        YASSERT(~value != NULL);
-        return value;
+        const TValue* value = Find(key);
+        YASSERT(value != NULL);
+        return *value;
+    }
+
+    //! Returns a modifiable value corresponding to the key.
+    /*!
+     * In contrast to #Find this method fails if the key does not exist in the map.
+     * \param key A key.
+     * \returns Reference to the value.
+     */
+    TValue& GetForUpdate(const TKey& key)
+    {
+        TValue* value = FindForUpdate(key);
+        YASSERT(value != NULL);
+        return *value;
     }
 
     //! Removes the key from the map.
-    /*! \returns True iff the key was in map
+    /*!
+     *  \returns True iff the key was in the map.
      */
     bool Remove(const TKey& key)
     {
@@ -133,22 +165,26 @@ public:
         if (State == EState::Normal) {
             return Map.erase(key) == 1;
         }
-        bool wasInInserts = (InsertsMap.erase(key) == 1);
+        bool wasInInserts = InsertionMap.erase(key) == 1;
         if (Map.find(key) != Map.end()) {
-            DeletionsSet.insert(key).second;
+            // TODO: WTF?
+            DeletionSet.insert(key).second;
             return true;
         }
         return wasInInserts;
     }
 
     //! Checks whether the key exists in the map.
-    bool Contains(const TKey& key)
+    /*!
+     *  \param key A key to check.
+     *  \return True iff the key exists in the map.
+     */
+    bool Contains(const TKey& key) const
     {
-        return (~Find(key) != NULL);
+        return Find(key) != NULL;
     }
 
-    //! Removes all keys from the map (hence effectively dropping smart pointers
-    //! to the corresponding values).
+    //! Clears the map.
     void Clear()
     {
         if (State == EState::Normal) {
@@ -156,21 +192,45 @@ public:
             return;
         }
 
-        InsertsMap.clear();
+        InsertionMap.clear();
         for (TIterator it = Map.begin(); it != Map.end(); ++it) {
             const TKey& key = it->first;
-            DeletionsSet.insert(key);
+            DeletionSet.insert(key);
         }
     }
 
     //! (Unordered) begin()-iterator.
+    /*
+     *  Iteration is only possible when no snapshot is being created.
+     */
     TIterator Begin()
     {
         return Map.begin();
     }
 
     //! (Unordered) end()-iterator.
+    /*
+     *  Iteration is only possible when no snapshot is being created.
+     */
     TIterator End()
+    {
+        return Map.end();
+    }
+
+    //! (Unordered) const begin()-iterator.
+    /*
+     *  Iteration is only possible when no snapshot is being created.
+     */
+    TConstIterator Begin() const
+    {
+        return Map.begin();
+    }
+
+    //! (Unordered) const end()-iterator.
+    /*
+     *  Iteration is only possible when no snapshot is being created.
+     */
+    TConstIterator End() const
     {
         return Map.end();
     }
@@ -187,14 +247,14 @@ public:
         IInvoker::TPtr invoker,
         TOutputStream* stream)
     {
-        // TODO: sorry, no shapshots yet
-        YASSERT(false);
-        YASSERT(State == EState::Normal);
-        YASSERT(InsertsMap.size() == 0);
-        YASSERT(DeletionsSet.size() == 0);
+        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        MaybeMergeTempTables();
+
+        YASSERT(InsertionMap.size() == 0);
+        YASSERT(DeletionSet.size() == 0);
         State = EState::SavingSnapshot;
         return
-            FromMethod(&TMetaStateRefMap::DoSave, this, stream)
+            FromMethod(&TMetaStateMap::DoSave, this, stream)
             ->AsyncVia(invoker)
             ->Do();
     }
@@ -211,24 +271,24 @@ public:
         IInvoker::TPtr invoker,
         TInputStream* stream)
     {
-        // TODO: sorry, no shapshots yet
-        YASSERT(false);
-        YASSERT(State == EState::Normal);
-        YASSERT(InsertsMap.size() == 0);
-        YASSERT(DeletionsSet.size() == 0);
+        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        MaybeMergeTempTables();
+
+        YASSERT(InsertionMap.empty());
+        YASSERT(DeletionSet.empty());
         Map.clear();
         return
-            FromMethod(&TMetaStateRefMap::DoLoad, this, stream)
+            FromMethod(&TMetaStateMap::DoLoad, this, stream)
             ->AsyncVia(invoker)
             ->Do();
     }
     
 private:
     TMap Map;
-    TMap InsertsMap;
-    TSet DeletionsSet;
+    TMap InsertionMap;
+    TKeySet DeletionSet;
 
-    typedef TPair<TKey, TValuePtr> TItem;
+    typedef TPair<TKey, TValue> TItem;
     static bool ItemComparer(const TItem& i1, const TItem& i2)
     {
         return i1.first < i2.first;
@@ -245,8 +305,7 @@ private:
             it != items.end();
             ++it)
         {
-            //TODO: fix this when operator << is implemented
-            //stream << it->first << *it->second;
+            //*stream << it->first << it->second;
         }
 
         State = EState::SavedSnapshot;
@@ -261,34 +320,96 @@ private:
         YASSERT(size >= 0);
 
         for (i64 index = 0; index < size; ++index) {
-            //TODO: uncomment this when operator >> is implemented
-            //TKey key;
-            //TValuePtr value = New<TValue>();
-            //stream >> key >> *value;
-            //Map.insert(MakePair(key, value));
+            TKey key;
+            TValue value;
+            //*stream >> key >> value;
+            Map.insert(MakePair(key, value));
         }
 
         return TVoid();
     }
 
+    void MaybeMergeTempTables()
+    {
+        if (State == EState::SavedSnapshot) {
+            MergeTempTables();
+        }
+    }
+
     void MergeTempTables()
     {
-        for (TIterator it = InsertsMap.begin(); it != InsertsMap.end(); ++it) {
+        YASSERT(State == EState::SavedSnapshot);
+
+        for (typename TMap::const_iterator it = InsertionMap.begin();
+             it != InsertionMap.end();
+             ++it)
+        {
             Map[it->first] = it->second;
         }
-        InsertsMap.clear();
+        InsertionMap.clear();
 
-        for (typename TSet::iterator it = DeletionsSet.begin();
-            it != DeletionsSet.end();
+        for (typename TKeySet::const_iterator it = DeletionSet.begin();
+            it != DeletionSet.end();
             ++it)
         {
             Map.erase(*it);
         }
+        DeletionSet.clear();
 
-        DeletionsSet.clear();
+        State = EState::Normal;
     }
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define METAMAP_ACCESSORS_DECL(entityName, entityType, idType) \
+    const entityType* Find ## entityName(const idType& id) const; \
+    entityType* Find ## entityName ## ForUpdate(const idType& id); \
+    const entityType& Get ## entityName(const idType& id) const; \
+    entityType& Get ## entityName ## ForUpdate(const idType& id)
+
+#define METAMAP_ACCESSORS_IMPL(declaringType, entityName, entityType, idType, map) \
+    const entityType* declaringType::Find ## entityName(const idType& id) const \
+    { \
+        return (map).Find(id); \
+    } \
+    \
+    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    { \
+        return (map).FindForUpdate(id); \
+    } \
+    \
+    const entityType& declaringType::Get ## entityName(const idType& id) const \
+    { \
+        return (map).Get(id); \
+    } \
+    \
+    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    { \
+        return (map).GetForUpdate(id); \
+    }
+
+#define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
+    const entityType* declaringType::Find ## entityName(const idType& id) const \
+    { \
+        return (fwd).Find ## entityName(id); \
+    } \
+    \
+    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    { \
+        return (fwd).Find ## entityName ## ForUpdate(id); \
+    } \
+    \
+    const entityType& declaringType::Get ## entityName(const idType& id) const \
+    { \
+        return (fwd).Get ## entityName(id); \
+    } \
+    \
+    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    { \
+        return (fwd).Get ## entityName ## ForUpdate(id); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

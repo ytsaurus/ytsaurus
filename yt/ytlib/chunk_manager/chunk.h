@@ -14,6 +14,7 @@ using NChunkHolder::EJobState;
 using NChunkHolder::TJobId;
 using NChunkHolder::TJobIdHash;
 
+/*
 class TReplicationJob
     : public TRefCountedBase
 {
@@ -58,9 +59,11 @@ private:
     EJobState State_;
 
 };
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 class TChunkReplication
     : public TNonCopyable
 {
@@ -123,40 +126,40 @@ private:
     TJobs Jobs;
 
 };
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef ui64 TChunkGroupId;
 
-class TChunk
-    : public TRefCountedBase
+struct TChunk
 {
-public:
-    typedef TIntrusivePtr<TChunk> TPtr;
     typedef yvector<int> TLocations;
 
     static const i64 UnknownSize = -1;
 
-    //! For seralization
     TChunk()
     { }
 
-    TChunk(const TChunkId& id)
+    TChunk(
+        const TChunkId& id,
+        const TTransactionId& transactionId)
         : Id(id)
-        , Size_(UnknownSize)
+        , Size(UnknownSize)
+        , TransactionId(transactionId)
     { }
 
-    //! For putting in TMetaStateRefMap
-    TChunk(TChunk& chunk)
-        : Id(chunk.Id)
-        , Size_(chunk.Size_)
-        , TransactionId_(chunk.TransactionId_)
-        , Locations_(chunk.Locations_)
+    TChunk(const TChunk& other)
+        : Id(other.Id)
+        , Size(other.Size)
+        , TransactionId(other.TransactionId)
+        , Locations(other.Locations)
     { }
 
-    TChunkId GetId() const
+    TChunk& operator = (const TChunk& other)
     {
-        return Id;
+        // TODO: implement
+        YASSERT(false);
+        return *this;
     }
 
     TChunkGroupId GetGroupId() const
@@ -164,94 +167,75 @@ public:
         return static_cast<ui64>(Id.Parts[0]) << 32 + static_cast<ui64>(Id.Parts[1]);
     }
 
-
-    i64& Size()
-    {
-        return Size_;
-    }
-
-
-    TTransactionId& TransactionId()
-    {
-        return TransactionId_;
-    }
-
-    bool IsVisible(NTransaction::TTransactionId transactionId) const
+    bool IsVisible(const NTransaction::TTransactionId& transactionId) const
     {
         return
-            TransactionId_ != NTransaction::TTransactionId() ||
-            TransactionId_ == transactionId;
+            TransactionId != NTransaction::TTransactionId() ||
+            TransactionId == transactionId;
     }
 
 
     void AddLocation(int holderId)
     {
-        if (!IsIn(Locations_, holderId)) {
-            Locations_.push_back(holderId);
+        if (!IsIn(Locations, holderId)) {
+            Locations.push_back(holderId);
         }
     }
 
     void RemoveLocation(int holderId)
     {
-        TLocations::iterator it = Find(Locations_.begin(), Locations_.end(), holderId);
-        if (it != Locations_.end()) {
-            Locations_.erase(it);
+        TLocations::iterator it = Find(Locations.begin(), Locations.end(), holderId);
+        if (it != Locations.end()) {
+            Locations.erase(it);
         }
     }
 
-    TLocations& Locations()
-    {
-        return Locations_;
-    }
+    //int GetTargetReplicaCount() const
+    //{
+    //    // TODO: make configurable
+    //    return 3;
+    //}
+
+    //int GetActualReplicaCount() const
+    //{
+    //    return Locations_.ysize();
+    //}
+
+    //int GetPotentialReplicaCount() const
+    //{
+    //    int result = GetActualReplicaCount();
+    //    if (~Replication != NULL) {
+    //        result += Replication->GetPotentialRepCount();
+    //    }
+    //    return result;
+    //}
+
+    //int GetReplicaDelta() const
+    //{
+    //    return GetPotentialReplicaCount() - GetTargetReplicaCount(); 
+    //}
 
 
-    int GetTargetReplicaCount() const
-    {
-        // TODO: make configurable
-        return 3;
-    }
+    //TChunkReplication* GetReplication()
+    //{
+    //    if (~Replication == NULL) {
+    //        Replication.Reset(new TChunkReplication());
+    //    }
+    //    return ~Replication;
+    //}
 
-    int GetActualReplicaCount() const
-    {
-        return Locations_.ysize();
-    }
+    //void TryTrimReplication()
+    //{
+    //    if (~Replication != NULL && Replication->IsEmpty()) {
+    //        Replication.Destroy();
+    //    }
+    //}
 
-    int GetPotentialReplicaCount() const
-    {
-        int result = GetActualReplicaCount();
-        if (~Replication != NULL) {
-            result += Replication->GetPotentialRepCount();
-        }
-        return result;
-    }
-
-    int GetReplicaDelta() const
-    {
-        return GetPotentialReplicaCount() - GetTargetReplicaCount(); 
-    }
-
-
-    TChunkReplication* GetReplication()
-    {
-        if (~Replication == NULL) {
-            Replication.Reset(new TChunkReplication());
-        }
-        return ~Replication;
-    }
-
-    void TryTrimReplication()
-    {
-        if (~Replication != NULL && Replication->IsEmpty()) {
-            Replication.Destroy();
-        }
-    }
-
-private:
     TChunkId Id;
-    i64 Size_;
-    NTransaction::TTransactionId TransactionId_;
-    TLocations Locations_;
-    ::THolder<TChunkReplication> Replication;
+    i64 Size;
+    NTransaction::TTransactionId TransactionId;
+    TLocations Locations;
+    //::THolder<TChunkReplication> Replication;
 
 };
 

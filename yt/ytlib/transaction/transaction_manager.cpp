@@ -1,8 +1,6 @@
 #include "transaction_manager.h"
 #include "transaction_manager.pb.h"
 
-#include "../master/map.h"
-
 #include "../misc/serialize.h"
 
 namespace NYT {
@@ -35,11 +33,11 @@ public:
         RegisterMethod(this, &TState::AbortTransaction);
     }
 
-    TTransaction::TPtr StartTransaction(const TMsgCreateTransaction& message)
+    TTransactionId StartTransaction(const TMsgCreateTransaction& message)
     {
         TTransactionId id = TGuid::FromProto(message.GetTransactionId());
 
-        TTransaction::TPtr transaction = New<TTransaction>(id);
+        TTransaction transaction(id);
         if (IsLeader()) {
             CreateLease(transaction);
         }
@@ -56,15 +54,14 @@ public:
         LOG_INFO("Transaction started (TransactionId: %s)",
             ~id.ToString());
 
-        return transaction;
+        return id;
     }
 
     TVoid CommitTransaction(const TMsgCommitTransaction& message)
     {
         TTransactionId id = TGuid::FromProto(message.GetTransactionId());
 
-        TTransaction::TPtr transaction = FindTransaction(id);
-        YASSERT(~transaction != NULL);
+        TTransaction& transaction = Transactions.GetForUpdate(id);
 
         // TODO: timing
         for (THandlers::iterator it = Handlers.begin();
@@ -74,14 +71,14 @@ public:
             (*it)->OnTransactionCommitted(transaction);
         }
 
-        YASSERT(Transactions.Remove(id));
-
         if (IsLeader()) {
             CloseLease(transaction);
         }
 
+        YASSERT(Transactions.Remove(id));
+
         LOG_INFO("Transaction committed (TransactionId: %s)",
-            ~transaction->GetId().ToString());
+            ~id.ToString());
 
         return TVoid();
     }
@@ -90,8 +87,7 @@ public:
     {
         TTransactionId id = TGuid::FromProto(message.GetTransactionId());
 
-        TTransaction::TPtr transaction = FindTransaction(id);
-        YASSERT(~transaction != NULL);
+        TTransaction& transaction = Transactions.GetForUpdate(id);
 
         // TODO: timing
         for (THandlers::iterator it = Handlers.begin();
@@ -101,43 +97,55 @@ public:
             (*it)->OnTransactionAborted(transaction);
         }
 
-        YASSERT(Transactions.Remove(id));
-
         if (IsLeader()) {
             CloseLease(transaction);
         }
 
+        YASSERT(Transactions.Remove(id));
+
         LOG_INFO("Transaction aborted (TransactionId: %s)",
-            ~transaction->GetId().ToString());
+            ~id.ToString());
 
         return TVoid();
     }
 
 
-    TTransaction::TPtr FindTransaction(const TTransactionId& id, bool forUpdate = false)
+    const TTransaction* FindTransaction(const TTransactionId& id)
     {
-        TTransaction::TPtr transaction = Transactions.Find(id, forUpdate);
-        if (~transaction != NULL && IsLeader()) {
-            RenewTransactionLease(transaction);
+        const TTransaction* transaction = Transactions.Find(id);
+        if (transaction != NULL && IsLeader()) {
+            RenewTransactionLease(*transaction);
         }
         return transaction;
     }
 
-    TTransaction::TPtr GetTransaction(const TTransactionId& id, bool forUpdate = false)
+    TTransaction* FindTransactionForUpdate(const TTransactionId& id)
     {
-        TTransaction::TPtr transaction = FindTransaction(id, forUpdate);
-        if (~transaction == NULL) {
-            ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-                Sprintf("unknown or expired transaction %s",
-                    ~id.ToString());
+        TTransaction* transaction = Transactions.FindForUpdate(id);
+        if (transaction != NULL && IsLeader()) {
+            RenewTransactionLease(*transaction);
         }
         return transaction;
     }
 
-    void RenewTransactionLease(TTransaction::TPtr transaction)
+    const TTransaction& GetTransaction(const TTransactionId& id)
+    {
+        const TTransaction* transaction = FindTransaction(id);
+        YASSERT(transaction != NULL);
+        return *transaction;
+    }
+
+    TTransaction& GetTransactionForUpdate(const TTransactionId& id)
+    {
+        TTransaction* transaction = FindTransactionForUpdate(id);
+        YASSERT(transaction != NULL);
+        return *transaction;
+    }
+
+    void RenewTransactionLease(const TTransaction& transaction)
     {
         YASSERT(IsLeader());
-        LeaseManager->RenewLease(transaction->Lease());
+        LeaseManager->RenewLease(transaction.Lease);
     }
 
 
@@ -147,7 +155,7 @@ public:
     }
 
 private:
-    typedef TMetaStateRefMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
+    typedef TMetaStateMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
     //! Configuration.
@@ -162,30 +170,30 @@ private:
     //! Registered handlers.
     THandlers Handlers;
 
-    void CreateLease(TTransaction::TPtr transaction)
+    void CreateLease(TTransaction& transaction)
     {
         YASSERT(IsLeader());
-        YASSERT(transaction->Lease() == TLeaseManager::TLease());
-        transaction->Lease() = LeaseManager->CreateLease(
+        YASSERT(transaction.Lease == TLeaseManager::TLease());
+        transaction.Lease = LeaseManager->CreateLease(
             Config.TransactionTimeout,
             FromMethod(
-            &TState::OnTransactionExpired,
-            TPtr(this),
-            transaction)
+                &TState::OnTransactionExpired,
+                TPtr(this),
+                transaction)
             ->Via(GetStateInvoker()));
     }
 
-    void CloseLease(TTransaction::TPtr transaction)
+    void CloseLease(TTransaction& transaction)
     {
         YASSERT(IsLeader());
-        YASSERT(transaction->Lease() != TLeaseManager::TLease());
-        LeaseManager->CloseLease(transaction->Lease());
-        transaction->Lease().Drop();
+        YASSERT(transaction.Lease != TLeaseManager::TLease());
+        LeaseManager->CloseLease(transaction.Lease);
+        transaction.Lease.Drop();
     }
 
-    void OnTransactionExpired(TTransaction::TPtr transaction)
+    void OnTransactionExpired(const TTransaction& transaction)
     {
-        TTransactionId id = transaction->GetId();
+        const TTransactionId& id = transaction.Id;
 
         // Check if the transaction is still registered.
         if (!Transactions.Contains(id))
@@ -291,12 +299,17 @@ void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
     State->RegisterHander(handler);
 }
 
-TTransaction::TPtr TTransactionManager::FindTransaction(
-    const TTransactionId& id,
-    bool forUpdate)
+void TTransactionManager::ValidateTransactionId(const TTransactionId& id)
 {
-    return State->FindTransaction(id, forUpdate);
+    const TTransaction* transaction = State->FindTransaction(id);
+    if (transaction == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
+            Sprintf("unknown or expired transaction %s",
+                ~id.ToString());
+    }
 }
+
+METAMAP_ACCESSORS_FWD(TTransactionManager, Transaction, TTransaction, TTransactionId, *State)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,15 +330,15 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, StartTransaction)
 }
 
 void TTransactionManager::OnTransactionStarted(
-    TTransaction::TPtr transaction,
+    TTransactionId id,
     TCtxStartTransaction::TPtr context)
 {
     TRspStartTransaction* response = &context->Response();
 
-    response->SetTransactionId(transaction->GetId().ToProto());
+    response->SetTransactionId(id.ToProto());
 
     context->SetResponseInfo("TransactionId: %s",
-        ~transaction->GetId().ToString());
+        ~id.ToString());
 
     context->Reply();
 }
@@ -339,7 +352,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
-    State->GetTransaction(id);
+    ValidateTransactionId(id);
 
     TMsgCommitTransaction message;
     message.SetTransactionId(id.ToProto());
@@ -358,7 +371,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
-    State->GetTransaction(id);
+    ValidateTransactionId(id);
 
     TMsgAbortTransaction message;
     message.SetTransactionId(id.ToProto());
@@ -377,7 +390,9 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
-    TTransaction::TPtr transaction = State->GetTransaction(id);
+    ValidateTransactionId(id);
+
+    const TTransaction& transaction = State->GetTransaction(id);
     State->RenewTransactionLease(transaction);
 
     context->Reply();
