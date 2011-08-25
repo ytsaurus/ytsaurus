@@ -67,6 +67,9 @@ private:
         TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
+    void DelayedFinalize(TIntrusivePtr<TSession> session);
+    void Finalize(TIntrusivePtr<TSession> session);
+
     TConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
@@ -75,6 +78,8 @@ private:
     TEpoch Epoch;
     IAction::TPtr OnApplyChange;
 
+    TIntrusivePtr<TSession> CurrentSession;
+    TSpinLock SpinLock; // for work with session
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,7 +39,7 @@ public:
     RPC_PROXY_METHOD(NRpcMetaStateManager, ReadChangeLog);
     RPC_PROXY_METHOD(NRpcMetaStateManager, GetSnapshotInfo);
     RPC_PROXY_METHOD(NRpcMetaStateManager, GetChangeLogInfo);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, ApplyChange);
+    RPC_PROXY_METHOD(NRpcMetaStateManager, ApplyChanges);
     RPC_PROXY_METHOD(NRpcMetaStateManager, CreateSnapshot);
     RPC_PROXY_METHOD(NRpcMetaStateManager, PingLeader);
 };

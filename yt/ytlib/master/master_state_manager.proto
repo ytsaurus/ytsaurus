@@ -106,15 +106,15 @@ message TRspPingLeader
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqApplyChange
+message TReqApplyChanges
 {
     required int32 SegmentId = 1;
     required int32 RecordCount = 2;
     required bytes Epoch = 3;
-    // Change data is passed via attachment.
+    // Data of changes is passed via attachment.
 }
 
-message TRspApplyChange
+message TRspApplyChanges
 {
     optional bool Committed = 1;
 }

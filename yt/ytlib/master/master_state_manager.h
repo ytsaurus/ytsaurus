@@ -95,7 +95,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadSnapshot);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetChangeLogInfo);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadChangeLog);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChange);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChanges);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, CreateSnapshot);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, PingLeader);
 
@@ -109,7 +109,7 @@ private:
     // Service thread
     void OnLocalCommit(
         TChangeCommitter::EResult result,
-        TCtxApplyChange::TPtr context);
+        TCtxApplyChanges::TPtr context);
 
     // Thread-neutral.
     void Restart();

@@ -8,6 +8,9 @@ namespace NYT {
 
 static NLog::TLogger& Logger = MasterLogger;
 
+static const TDuration MaxBatchDelay = TDuration::MilliSeconds(100);
+static const int MaxBatchSize = 100;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeCommitter::TSession
@@ -16,39 +19,45 @@ class TChangeCommitter::TSession
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
+    TAtomic IsFinalizing;
+
     TSession(
         TChangeCommitter::TPtr committer,
-        IAction::TPtr changeAction,
-        TSharedRef changeData)
+        TMetaVersion version)
         : Committer(committer)
-        , ChangeAction(changeAction)
-        , ChangeData(changeData)
+        , Version(version)
         , Result(New<TResult>())
         , Awaiter(New<TParallelAwaiter>(~committer->CancelableServiceInvoker))
+        , IsFinalizing(0)
         // Count the local commit.
         , CommitCount(1)
     { }
 
-    // State invoker
-    TResult::TPtr Run()
+    void AddChange(TSharedRef changeData)
     {
-        Version = Committer->MetaState->GetVersion();
+        BatchedChanges.push_back(changeData);
+        LOG_DEBUG("Added %d change to batch", BatchedChanges.ysize());
+    }
 
+    // Service invoker
+    void SendChanges()
+    {
         LOG_DEBUG("Starting commit of change %s", ~Version.ToString());
 
         TCellManager::TPtr cellManager = Committer->CellManager;
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
-            
+
             THolder<TProxy> proxy(cellManager->GetMasterProxy<TProxy>(id));
-            
-            TProxy::TReqApplyChange::TPtr request = proxy->ApplyChange();
+
+            TProxy::TReqApplyChanges::TPtr request = proxy->ApplyChanges();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Committer->Epoch.ToProto());
-            request->Attachments().push_back(ChangeData);
-            
+            for (int i = 0; i < BatchedChanges.ysize(); ++i) {
+                request->Attachments().push_back(BatchedChanges[i]);
+            }
             Awaiter->Await(
                 request->Invoke(Committer->Config.RpcTimeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
@@ -58,13 +67,19 @@ public:
                 id);
         }
 
-        Committer->DoCommitLeader(ChangeAction, ChangeData);
-        LOG_DEBUG("Change %s is committed locally", ~Version.ToString());
-
         Awaiter->Complete(FromMethod(&TSession::OnCompleted, TPtr(this)));
+    }
 
+    TResult::TPtr GetResult()
+    {
         return Result;
     }
+
+    int GetNumChanges()
+    {
+        return BatchedChanges.ysize();
+    }
+
 
 private:
     // Service invoker
@@ -83,7 +98,7 @@ private:
     }
 
     // Service invoker
-    void OnCommitted(TProxy::TRspApplyChange::TPtr response, TPeerId peerId)
+    void OnCommitted(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error committing change %s at peer %d (ErrorCode: %s)",
@@ -120,14 +135,14 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
-private:
+    yvector <TSharedRef> BatchedChanges;
+
     TChangeCommitter::TPtr Committer;
-    IAction::TPtr ChangeAction;
-    TSharedRef ChangeData;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
     i32 CommitCount; // Service thread
     TMetaVersion Version;
+    IInvoker::TPtr ServiceInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,11 +176,34 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
 {
-    return New<TSession>(
-        this,
-        changeAction,
-        changeData)
-    ->Run();
+    TGuard<TSpinLock> guard(SpinLock);
+    TMetaVersion version = MetaState->GetVersion();
+    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+    if (~CurrentSession == NULL) {
+        CurrentSession = New<TSession>(TPtr(this), version);
+    }
+
+    if (CurrentSession->GetNumChanges() > MaxBatchSize) {
+        AtomicIncrement(CurrentSession->IsFinalizing);
+        CancelableServiceInvoker->Invoke(FromMethod(
+            &TChangeCommitter::Finalize,
+            TPtr(this),
+            CurrentSession));
+    }
+
+    if (CurrentSession->GetNumChanges() == 0) {
+        TDelayedInvoker::Get()->Submit(
+            FromMethod(
+                &TChangeCommitter::DelayedFinalize,
+                TPtr(this),
+                CurrentSession),
+            MaxBatchDelay);
+    }
+    CurrentSession->AddChange(changeData);
+
+    DoCommitLeader(changeAction, changeData);
+    LOG_DEBUG("Change %s is committed locally", ~version.ToString());
+    return CurrentSession->GetResult();
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
@@ -221,6 +259,25 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
 TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 {
     return EResult::Committed;
+}
+
+void TChangeCommitter::Finalize(TSession::TPtr session)
+{
+    session->SendChanges();
+}
+
+void TChangeCommitter::DelayedFinalize(TSession::TPtr session)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    if (session->IsFinalizing) {
+        return;
+    }
+    TMetaVersion version = MetaState->GetVersion();
+    CurrentSession = New<TSession>(TPtr(this), version);
+    CancelableServiceInvoker->Invoke(FromMethod(
+        &TChangeCommitter::Finalize,
+        this,
+        session));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
