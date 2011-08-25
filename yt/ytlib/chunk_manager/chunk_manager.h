@@ -9,6 +9,7 @@
 #include "../master/master_state_manager.h"
 #include "../master/composite_meta_state.h"
 #include "../master/meta_state_service.h"
+#include "../master/map.h"
 
 #include "../transaction/transaction_manager.h"
 
@@ -20,6 +21,7 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkRefresh;
+class TChunkPlacement;
 
 class TChunkManager
     : public TMetaStateServiceBase
@@ -38,21 +40,16 @@ public:
         TTransactionManager::TPtr transactionManager);
 
     yvector<TChunkGroupId> GetChunkGroupIds();
-    yvector<TChunk::TPtr> GetChunkGroup(TChunkGroupId id);
+    yvector<TChunkId> GetChunkGroup(TChunkGroupId id);
 
-    TChunk::TPtr FindChunk(const TChunkId& id, bool forUpdate = false);
-    TChunk::TPtr GetChunk(
-        const TChunkId& id,
-        TTransaction::TPtr transaction,
-        bool forUpdate = false);
-
-    THolder::TPtr FindHolder(int id);
+    METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(Holder, THolder, int);
 
 private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
-    typedef yvector<THolder::TPtr> THolders;
+    typedef yvector<int> THolders;
 
     class TState;
     
@@ -65,34 +62,94 @@ private:
     //! Manages refresh of chunk data.
     TIntrusivePtr<TChunkRefresh> ChunkRefresh;
 
+    //! Manages placement of new chunks.
+    TIntrusivePtr<TChunkPlacement> ChunkPlacement;
+
     //! Meta-state.
     TIntrusivePtr<TState> State;
 
     //! Registers RPC methods.
     void RegisterMethods();
 
-    TTransaction::TPtr GetTransaction(const TTransactionId& id, bool forUpdate = false);
+    void ValidateHolderId(int holderId);
+    void ValidateTransactionId(const TTransactionId& transactionId);
+    void ValidateChunkId(const TChunkId& chunkId, const TTransactionId& transactionId);
 
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
     void OnHolderRegistered(
-        THolder::TPtr holder,
+        int id,
         TCtxRegisterHolder::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);
     void OnHolderUpdated(
-        THolder::TPtr holder,
+        TVoid,
         TCtxRegisterHolder::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, AddChunk);
     void OnChunkAdded(
-        TChunk::TPtr chunk,
+        TChunkId id,
         TCtxAddChunk::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, FindChunk);
 
 };
 
-// TODO: move!
+// TODO: move to chunk_placement.h/cpp
+class TChunkPlacement
+    : public TRefCountedBase
+{
+public:
+    typedef TIntrusivePtr<TChunkPlacement> TPtr;
+
+    void RegisterHolder(const THolder& holder)
+    {
+        double preference = GetPreference(holder);
+        TPreferenceMap::iterator it = PreferenceMap.insert(MakePair(preference, holder.Id));
+        YVERIFY(IteratorMap.insert(MakePair(holder.Id, it)).Second());
+    }
+
+    void UnregisterHolder(const THolder& holder)
+    {
+        TIteratorMap::iterator iteratorIt = IteratorMap.find(holder.Id);
+        YASSERT(iteratorIt != IteratorMap.end());
+        TPreferenceMap::iterator preferenceIt = iteratorIt->Second();
+        PreferenceMap.erase(preferenceIt);
+        IteratorMap.erase(iteratorIt);
+    }
+
+    void UpdateHolder(const THolder& holder)
+    {
+        UnregisterHolder(holder);
+        RegisterHolder(holder);
+    }
+
+    yvector<int> GetNewChunkPlacement(int replicaCount)
+    {
+        yvector<int> result;
+        TPreferenceMap::reverse_iterator it = PreferenceMap.rbegin();
+        while (it != PreferenceMap.rend() && result.ysize() < replicaCount) {
+            result.push_back((*it++).second);
+        }
+        return result;
+    }
+
+private:
+    typedef ymultimap<double, int> TPreferenceMap;
+    typedef yhash_map<int, TPreferenceMap::iterator> TIteratorMap;
+
+    TPreferenceMap PreferenceMap;
+    TIteratorMap IteratorMap;
+
+    static double GetPreference(const THolder& holder)
+    {
+        const THolderStatistics& statistics = holder.Statistics;
+        return
+            (1.0 + statistics.UsedSpace) /
+            (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
+    }
+};
+
+// TODO: move to chunk_refresh.h/cpp
 class TChunkRefresh
     : public TRefCountedBase
 {
@@ -121,10 +178,10 @@ public:
         EpochInvoker.Drop();
     }
 
-    void RefreshChunk(TChunk::TPtr chunk)
+    void RefreshChunk(TChunk& chunk)
     {
         RefreshChunkLocations(chunk);
-        //UpdateChunkReplicaStatus(chunk);p
+        //UpdateChunkReplicaStatus(chunk);
     }   
 
 private:
@@ -166,23 +223,24 @@ private:
 
     void RefreshChunkGroup(TChunkGroupId groupId)
     {
-        yvector<TChunk::TPtr> chunks = ChunkManager->GetChunkGroup(groupId);
-        for (yvector<TChunk::TPtr>::iterator it = chunks.begin();
-             it != chunks.end();
+        yvector<TChunkId> chunkIds = ChunkManager->GetChunkGroup(groupId);
+        for (yvector<TChunkId>::iterator it = chunkIds.begin();
+             it != chunkIds.end();
              ++it)
         {
-            RefreshChunk(*it);
+            TChunk& chunk = ChunkManager->GetChunkForUpdate(*it);
+            RefreshChunk(chunk);
         }
     }
 
-    void RefreshChunkLocations(TChunk::TPtr chunk)
+    void RefreshChunkLocations(TChunk& chunk)
     {
-        TChunk::TLocations& locations = chunk->Locations();
+        TChunk::TLocations& locations = chunk.Locations;
         TChunk::TLocations::iterator reader = locations.begin();
         TChunk::TLocations::iterator writer = locations.begin();
         while (reader != locations.end()) {
             int holderId = *reader;
-            if (~ChunkManager->FindHolder(holderId) != NULL) {
+            if (ChunkManager->FindHolder(holderId) != NULL) {
                 *writer++ = holderId;
             }
             ++reader;

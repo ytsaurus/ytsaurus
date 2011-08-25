@@ -16,82 +16,45 @@ using NChunkHolder::THolderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolder
-    : public TRefCountedBase
+struct THolder
 {
-public:
-    typedef TIntrusivePtr<THolder> TPtr;
-    typedef NStl::multimap< double, THolder::TPtr, TGreater<double> > TPreferenceMap;
     typedef yhash_set<TChunkId, TChunkIdHash> TChunkIds;
 
-    THolder(int id, Stroka address)
-        : Id(id)
-        , Address(address)
-    { }
-
-    //! For serialization
     THolder()
     { }
 
-    //! For putting in TMetaStateRefMap
-    THolder(THolder& holder)
-        : Id(holder.Id)
-        , Address(holder.Address)
-        , Lease_(holder.Lease_)
-        , Statistics_(holder.Statistics_)
-        , PreferenceIterator_(holder.PreferenceIterator_)
-        , UnderreplicatedChunks_(holder.UnderreplicatedChunks_)
-        , OverreplicatedChunks_(holder.OverreplicatedChunks_)
+    THolder(
+        int id,
+        Stroka address,
+        const THolderStatistics& statistics)
+        : Id(id)
+        , Address(address)
+        , Statistics(statistics)
     { }
 
-    int GetId() const
+    THolder(const THolder& other)
+        : Id(other.Id)
+        , Address(other.Address)
+        , Lease(other.Lease)
+        , Statistics(other.Statistics)
+        , UnderreplicatedChunks(other.UnderreplicatedChunks)
+        , OverreplicatedChunks(other.OverreplicatedChunks)
+    { }
+
+    THolder& operator = (const THolder& other)
     {
-        return Id;
+        // TODO: implement
+        YASSERT(false);
+        return *this;
     }
 
-    Stroka GetAddress() const
-    {
-        return Address;
-    }
-
-    TLeaseManager::TLease& Lease()
-    {
-        return Lease_;
-    }
-
-    THolderStatistics& Statistics()
-    {
-        return Statistics_;
-    }
-
-    double GetPreference() const
-    {
-        return (1.0 + Statistics_.UsedSpace) / (1.0 + Statistics_.UsedSpace + Statistics_.AvailableSpace);
-    }
-
-    TPreferenceMap::iterator& PreferenceIterator()
-    {
-        return PreferenceIterator_;
-    }
-
-    TChunkIds& UnderreplicatedChunks()
-    {
-        return UnderreplicatedChunks_;
-    }
-
-    TChunkIds& OverreplicatedChunks()
-    {
-        return OverreplicatedChunks_;
-    }
-
-private:
     int Id;
     Stroka Address;
-    TLeaseManager::TLease Lease_;
-    THolderStatistics Statistics_;
-    TPreferenceMap::iterator PreferenceIterator_;
-    TChunkIds UnderreplicatedChunks_;
-    TChunkIds OverreplicatedChunks_;
+    TLeaseManager::TLease Lease;
+    THolderStatistics Statistics;
+    TChunkIds RegularChunks;
+    TChunkIds UnderreplicatedChunks;
+    TChunkIds OverreplicatedChunks;
 
 };
 
