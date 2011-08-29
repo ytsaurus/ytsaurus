@@ -8,9 +8,6 @@ namespace NYT {
 
 static NLog::TLogger& Logger = MasterLogger;
 
-static const TDuration MaxBatchDelay = TDuration::MilliSeconds(100);
-static const int MaxBatchSize = 100;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeCommitter::TSession
@@ -183,7 +180,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
                 &TChangeCommitter::DelayedFlush,
                 TPtr(this),
                 CurrentSession),
-            MaxBatchDelay);
+            Config.MaxBatchDelay);
     }
 
     TResult::TPtr result = CurrentSession->AddChange(changeData);
@@ -191,9 +188,8 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     DoCommitLeader(changeAction, changeData);
     LOG_DEBUG("Change %s is committed locally", ~version.ToString());
 
-    if (CurrentSession->GetChangeCount() >= MaxBatchSize) {
+    if (CurrentSession->GetChangeCount() >= Config.MaxBatchSize) {
         FlushCurrentSession();
-        CurrentSession = NULL;
     }
     return result;
 }
@@ -256,21 +252,19 @@ TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 void TChangeCommitter::FlushCurrentSession()
 {
     CurrentSession->SendChanges();
-    if (TimeoutCookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-    }
+    TDelayedInvoker::Get()->Cancel(TimeoutCookie);
+    CurrentSession = NULL;
 }
 
 void TChangeCommitter::DelayedFlush(TSession::TPtr session)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (~session == NULL || session != CurrentSession) {
+    if (session != CurrentSession) {
         return;
     }
     TMetaVersion version = MetaState->GetVersion();
     LOG_DEBUG("Batch timeout occured at version %s", ~version.ToString())
     FlushCurrentSession();
-    CurrentSession = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

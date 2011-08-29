@@ -30,9 +30,13 @@ public:
     {
         TConfig()
             : RpcTimeout(TDuration::Seconds(3))
+            , MaxBatchDelay(TDuration::MilliSeconds(100))
+            , MaxBatchSize(100)
         { }
 
         TDuration RpcTimeout;
+        TDuration MaxBatchDelay;
+        int MaxBatchSize;
     };
 
     TChangeCommitter(
