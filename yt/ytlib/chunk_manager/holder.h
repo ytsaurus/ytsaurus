@@ -3,7 +3,7 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
-#include "../master/master_state_manager.h"
+#include "../master/meta_state_manager.h"
 #include "../master/composite_meta_state.h"
 
 #include "../chunk_holder/common.h"

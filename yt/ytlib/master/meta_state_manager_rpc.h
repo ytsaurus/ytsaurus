@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "master_state_manager.pb.h"
+#include "meta_state_manager.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"

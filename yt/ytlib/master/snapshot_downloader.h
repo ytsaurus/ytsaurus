@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "master_state_manager_rpc.h"
+#include "meta_state_manager_rpc.h"
 #include "snapshot.h"
 #include "cell_manager.h"
 

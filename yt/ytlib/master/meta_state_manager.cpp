@@ -1,4 +1,4 @@
-#include "master_state_manager.h"
+#include "meta_state_manager.h"
 #include "follower_tracker.h"
 #include "change_committer.h"
 #include "leader_pinger.h"
