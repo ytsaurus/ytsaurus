@@ -59,6 +59,9 @@ public:
 
     void SetOnApplyChange(IAction::TPtr onApplyChange);
 
+    //! Forcely send an rpc request with changes
+    void Flush();
+
 private:
     class TSession;
     typedef TMetaStateManagerProxy TProxy;

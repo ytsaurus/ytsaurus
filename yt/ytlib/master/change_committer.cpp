@@ -129,7 +129,7 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
-    yvector <TSharedRef> BatchedChanges;
+    yvector<TSharedRef> BatchedChanges;
 
     TChangeCommitter::TPtr Committer;
     TResult::TPtr Result;
@@ -166,6 +166,12 @@ void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
     OnApplyChange = onApplyChange;
 }
 
+void TChangeCommitter::Flush()
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    FlushCurrentSession();
+}
+
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
@@ -174,6 +180,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     TMetaVersion version = MetaState->GetVersion();
     LOG_DEBUG("Starting commit of change %s", ~version.ToString());
     if (~CurrentSession == NULL) {
+        YASSERT(~TimeoutCookie == NULL);
         CurrentSession = New<TSession>(TPtr(this), version);
         TimeoutCookie = TDelayedInvoker::Get()->Submit(
             FromMethod(
@@ -254,6 +261,7 @@ void TChangeCommitter::FlushCurrentSession()
     CurrentSession->SendChanges();
     TDelayedInvoker::Get()->Cancel(TimeoutCookie);
     CurrentSession = NULL;
+    TimeoutCookie = NULL;
 }
 
 void TChangeCommitter::DelayedFlush(TSession::TPtr session)
