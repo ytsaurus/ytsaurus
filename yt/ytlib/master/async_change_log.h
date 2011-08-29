@@ -52,7 +52,7 @@ public:
      *
      * \see TChangeLog::Append
      */
-    TAppendResult::TPtr Append(i32 recordId, TSharedRef data);
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush
