@@ -169,35 +169,41 @@ void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
 void TChangeCommitter::Flush()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    FlushCurrentSession();
+    if (~CurrentSession != NULL) {
+        FlushCurrentSession();
+    }
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
 {
-    TGuard<TSpinLock> guard(SpinLock);
     TMetaVersion version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
-    if (~CurrentSession == NULL) {
-        YASSERT(~TimeoutCookie == NULL);
-        CurrentSession = New<TSession>(TPtr(this), version);
-        TimeoutCookie = TDelayedInvoker::Get()->Submit(
-            FromMethod(
-                &TChangeCommitter::DelayedFlush,
-                TPtr(this),
-                CurrentSession),
-            Config.MaxBatchDelay);
-    }
+    TResult::TPtr result;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+        if (~CurrentSession == NULL) {
+            YASSERT(~TimeoutCookie == NULL);
+            CurrentSession = New<TSession>(TPtr(this), version);
+            TimeoutCookie = TDelayedInvoker::Get()->Submit(
+                FromMethod(
+                    &TChangeCommitter::DelayedFlush,
+                    TPtr(this),
+                    CurrentSession),
+                Config.MaxBatchDelay);
+        }
 
-    TResult::TPtr result = CurrentSession->AddChange(changeData);
+        result = CurrentSession->AddChange(changeData);
+
+        if (CurrentSession->GetChangeCount() >= Config.MaxBatchSize) {
+            FlushCurrentSession();
+        }
+    }
 
     DoCommitLeader(changeAction, changeData);
     LOG_DEBUG("Change %s is committed locally", ~version.ToString());
 
-    if (CurrentSession->GetChangeCount() >= Config.MaxBatchSize) {
-        FlushCurrentSession();
-    }
     return result;
 }
 
@@ -258,6 +264,7 @@ TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 
 void TChangeCommitter::FlushCurrentSession()
 {
+    YASSERT(~CurrentSession != NULL);
     CurrentSession->SendChanges();
     TDelayedInvoker::Get()->Cancel(TimeoutCookie);
     CurrentSession = NULL;

@@ -662,6 +662,7 @@ void TMetaStateManager::OnApplyChange()
     YASSERT(State == EState::Leading);
     TMetaVersion version = MetaState->GetVersion();
     if (version.RecordCount >= Config.MaxRecordCount) {
+        ChangeCommitter->Flush();
         SnapshotCreator->CreateDistributed(version);
     }
 }
