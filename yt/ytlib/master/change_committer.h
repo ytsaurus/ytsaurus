@@ -30,7 +30,7 @@ public:
     {
         TConfig()
             : RpcTimeout(TDuration::Seconds(3))
-            , MaxBatchDelay(TDuration::MilliSeconds(100))
+            , MaxBatchDelay(TDuration::MilliSeconds(10))
             , MaxBatchSize(100)
         { }
 
