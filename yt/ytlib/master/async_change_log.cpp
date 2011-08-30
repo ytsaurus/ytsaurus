@@ -82,16 +82,13 @@ public:
         }
 
         //! An unflushed record (auxiliary structure).
-        class TRecord : public TIntrusiveListItem<TRecord>
+        struct TRecord : public TIntrusiveListItem<TRecord>
         {
-        public:
             i32 Id;
             TSharedRef Data;
             TAsyncChangeLog::TAppendResult::TPtr Result;
-
             bool WaitingForSync;
 
-        public:
             TRecord(
                 i32 id,
                 const TSharedRef& data,
@@ -101,7 +98,7 @@ public:
                 , Result(result)
                 , WaitingForSync(false)
             { }
-        }; // class TRecord
+        }; // struct TRecord
 
         //! A list of unflushed records (auxiliary structure).
         /*!
