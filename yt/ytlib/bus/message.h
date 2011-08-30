@@ -12,7 +12,6 @@ struct IMessage
 {
     typedef TIntrusivePtr<IMessage> TPtr;
 
-    virtual ~IMessage() {}
     virtual const yvector<TSharedRef>& GetParts() = 0;
 };
 
@@ -21,7 +20,7 @@ struct IMessage
 class TBlobMessage
     : public IMessage
 {
-private:
+private: 
     yvector<TSharedRef> Parts;
 
 public:
