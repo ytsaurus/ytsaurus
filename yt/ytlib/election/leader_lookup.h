@@ -3,7 +3,7 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
-#include "../master/cell_manager.h"
+#include "../meta_state/cell_manager.h"
 #include "../actions/async_result.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"

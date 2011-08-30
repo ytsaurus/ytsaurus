@@ -3,7 +3,7 @@
 #include <util/system/hostname.h>
 
 #include "../rpc/client.h"
-#include "../master/cell_channel.h"
+#include "../meta_state/cell_channel.h"
 
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"

@@ -4,7 +4,7 @@
 #include "leader_lookup.h"
 #include "election_manager_rpc.h"
 
-#include "../master/cell_manager.h"
+#include "../meta_state/cell_manager.h"
 #include "../misc/delayed_invoker.h"
 
 #include "../actions/invoker.h"

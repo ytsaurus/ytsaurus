@@ -1,4 +1,4 @@
-#include "../ytlib/master/snapshot.h"
+#include "../ytlib/meta_state/snapshot.h"
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>

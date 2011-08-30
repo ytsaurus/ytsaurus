@@ -3,8 +3,8 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
-#include "../master/meta_state_manager.h"
-#include "../master/composite_meta_state.h"
+#include "../meta_state/meta_state_manager.h"
+#include "../meta_state/composite_meta_state.h"
 
 #include "../chunk_holder/common.h"
 #include "../misc/lease_manager.h"
