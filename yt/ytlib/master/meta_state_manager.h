@@ -41,7 +41,7 @@ public:
         TConfig()
             : LogLocation(".")
             , SnapshotLocation(".")
-            , MaxRecordCount(1000)
+            , MaxRecordCount(100000)
         { }
 
         void Read(TJsonObject* json)
