@@ -3,6 +3,7 @@
 #include "chunk_writer.h"
 
 #include "../misc/lazy_ptr.h"
+#include "../misc/config.h"
 #include "../misc/semaphore.h"
 #include "../rpc/client.h"
 #include "../chunk_client/common.h"
@@ -28,7 +29,7 @@ public:
         int WindowSize;
         
         //! Maximum group size (in bytes).
-        i64 GroupSize;
+        int GroupSize;
         
         //! RPC requests timeout.
         /*!
@@ -40,8 +41,16 @@ public:
         TConfig()
             : WindowSize(16)
             , GroupSize(1024 * 1024)
-            , RpcTimeout(TDuration::Seconds(5))
+            , RpcTimeout(TDuration::Seconds(30))
         { }
+
+        // ToDo: move to implementation
+        void Read(TJsonObject* config)
+        {
+            TryRead(config, L"WindowSize", &WindowSize);
+            TryRead(config, L"GroupSize", &GroupSize);
+            //ToDo: make timeout configurable
+        }
     };
 
     // Client thread
@@ -50,10 +59,8 @@ public:
         const TChunkId& chunkId,
         const yvector<Stroka>& nodes);
 
-    void AddBlock(const TSharedRef& data);
     EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
-    void Close();
     TAsyncResult<EResult>::TPtr AsyncClose();
 
     void Cancel();
@@ -120,7 +127,7 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    TAsyncResult<TVoid>::TPtr* WindowReady;
+    TAsyncResult<TVoid>::TPtr WindowReady;
 
     /* ToDo: implement metrics
 
@@ -136,7 +143,7 @@ private:
     void RequestFinalization();
     void AddGroup(TGroupPtr group);
     void Terminate();
-    void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr* windowReady);
+    void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady);
 
     void OnNodeDied(int node);
     void ReleaseSlots(int count);
