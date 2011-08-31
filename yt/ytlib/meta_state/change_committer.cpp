@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MasterLogger;
+static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,8 +267,8 @@ void TChangeCommitter::FlushCurrentSession()
     YASSERT(~CurrentSession != NULL);
     CurrentSession->SendChanges();
     TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-    CurrentSession = NULL;
-    TimeoutCookie = NULL;
+    CurrentSession.Drop();
+    TimeoutCookie = TDelayedInvoker::TCookie();
 }
 
 void TChangeCommitter::DelayedFlush(TSession::TPtr session)

@@ -53,6 +53,7 @@ public:
     static TDelayedInvoker* Get();
 
     TCookie Submit(IAction::TPtr action, TDuration delay);
+    TCookie Submit(IAction::TPtr action, TInstant deadline);
     bool Cancel(TCookie cookie);
     void Shutdown();
 

@@ -11,7 +11,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MasterLogger;
+static NLog::TLogger& Logger = MetaStateLogger;
 
 // TODO: make configurable
 static TDuration SyncTimeout = TDuration::MilliSeconds(5000);

@@ -85,7 +85,7 @@ const i32 UnknownPrevRecordCount = -2;
 
 const i32 NonexistingSnapshotId = -1;
 
-extern NLog::TLogger MasterLogger;
+extern NLog::TLogger MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

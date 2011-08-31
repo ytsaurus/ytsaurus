@@ -50,10 +50,16 @@ public:
     {
         TInsertCookie cookie(chunk->GetId());
         if (BeginInsert(&cookie)) {
-            // TODO: IO exceptions and error checking
-            TCachedReader::TPtr file = New<TCachedReader>(
-                chunk->GetId(),
-                ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
+            TCachedReader::TPtr file;
+            try {
+                file = New<TCachedReader>(
+                    chunk->GetId(),
+                    ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
+            } catch (...) {
+                LOG_FATAL("Error opening chunk (ChunkId: %s, What: %s)",
+                    ~chunk->GetId().ToString(),
+                    ~CurrentExceptionMessage());
+            }
             EndInsert(file, &cookie);
         }
         return cookie.GetAsyncResult()->Get();

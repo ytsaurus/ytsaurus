@@ -7,20 +7,19 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileChunkReader::TFileChunkReader( Stroka fileName )
+TFileChunkReader::TFileChunkReader(Stroka fileName)
     : FileName(fileName)
 {
     File.Reset(new TFile(fileName, OpenExisting|RdOnly));
 
     TChunkFooter footer;
-    File->Seek(sizeof (TChunkFooter), sEnd);
+    File->Seek(File->GetLength() - sizeof (footer), sSet);
     File->Read(&footer, sizeof (footer));
 
     if (footer.Singature != TChunkFooter::ExpectedSignature) {
         ythrow yexception() <<
             Sprintf("Chunk footer signature mismatch in %s", ~fileName.Quote());
     }
-
 
     YASSERT(footer.MetaSize >= 0);
     YASSERT(footer.MetaOffset >= 0);

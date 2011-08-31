@@ -99,7 +99,6 @@ void RunCellMaster(const TCellMasterConfig& config)
         TChunkManagerConfig(),
         metaStateManager,
         metaState,
-        metaStateInvoker,
         server,
         transactionManager);
 

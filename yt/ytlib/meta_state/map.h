@@ -296,8 +296,10 @@ private:
 
     TVoid DoSave(TOutputStream* stream)
     {
+        UNUSED(stream);
         YASSERT(false);
-
+        // TODO: implement
+        /*
         *stream << static_cast<i64>(Map.size());
 
         yvector<TItem> items(Map.begin(), Map.end());
@@ -307,17 +309,20 @@ private:
             it != items.end();
             ++it)
         {
-            //*stream << it->first << it->second;
+            *stream << it->first << it->second;
         }
 
         State = EState::SavedSnapshot;
+        */
         return TVoid();
     }
 
     TVoid DoLoad(TInputStream* stream)
     {
+        UNUSED(stream);
         YASSERT(false);
-
+        // TODO: implement
+        /*
         i64 size;
         *stream >> size;
 
@@ -326,10 +331,10 @@ private:
         for (i64 index = 0; index < size; ++index) {
             TKey key;
             TValue value;
-            //*stream >> key >> value;
+            *stream >> key >> value;
             Map.insert(MakePair(key, value));
         }
-
+        */
         return TVoid();
     }
 

@@ -31,11 +31,7 @@ public:
 
     //! Destroys the instance.
     virtual ~TRefCountedBase()
-    {
-        // Failure within this line means an object is being
-        // destroyed by other than calling #UnRef, e.g. is was allocated on stack.
-        YASSERT(RefCounter == 0);
-    }
+    { }
 
     //! Called from #New functions to kill the initial fake reference.
     void AfterConstruct()

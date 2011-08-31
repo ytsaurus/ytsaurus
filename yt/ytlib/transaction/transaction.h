@@ -31,6 +31,8 @@ struct TTransaction
     TTransaction& operator = (const TTransaction& other)
     {
         // TODO: implement
+        UNUSED(other);
+        UNUSED(other);
         YASSERT(false);
         return *this;
     }

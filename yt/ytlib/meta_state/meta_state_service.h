@@ -28,6 +28,21 @@ protected:
     template <
         class TState,
         class TMessage,
+        class TResult
+    >
+    static typename TAsyncResult<TResult>::TPtr CommitChange(
+        TIntrusivePtr<TState> state,
+        const TMessage& message,
+        TResult (TState::* changeMethod)(const TMessage&))
+    {
+        return state->CommitChange(
+            message,
+            FromMethod(changeMethod, state));
+    }
+
+    template <
+        class TState,
+        class TMessage,
         class TThis,
         class TResult,
         class TContext
