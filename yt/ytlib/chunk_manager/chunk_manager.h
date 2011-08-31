@@ -39,7 +39,7 @@ public:
         TTransactionManager::TPtr transactionManager);
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
-    METAMAP_ACCESSORS_DECL(Holder, THolder, int);
+    METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
@@ -47,7 +47,7 @@ private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
-    typedef yvector<int> THolders;
+    typedef yvector<THolderId> THolders;
 
     class TState;
     
@@ -69,13 +69,13 @@ private:
     //! Registers RPC methods.
     void RegisterMethods();
 
-    void ValidateHolderId(int holderId);
+    void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);
     void ValidateChunkId(const TChunkId& chunkId, const TTransactionId& transactionId);
 
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
     void OnHolderRegistered(
-        int id,
+        THolderId id,
         TCtxRegisterHolder::TPtr context);
     
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);

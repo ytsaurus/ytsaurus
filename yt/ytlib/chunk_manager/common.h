@@ -25,6 +25,7 @@ using NTransaction::TTransactionId;
 using NTransaction::TTransaction;
 using NTransaction::TTransactionManager;
 
+using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;

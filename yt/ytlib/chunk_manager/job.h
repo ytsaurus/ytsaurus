@@ -36,6 +36,7 @@ struct TJob
     TJob& operator = (const TJob& other)
     {
         // TODO: implement
+        UNUSED(other);
         YASSERT(false);
         return *this;
     }
@@ -47,6 +48,8 @@ struct TJob
     yvector<Stroka> TargetAddresses;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TJobList
 {
@@ -67,6 +70,7 @@ struct TJobList
     TJobList& operator = (const TJobList& other)
     {
         // TODO: implement
+        UNUSED(other);
         YASSERT(false);
         return *this;
     }
@@ -84,7 +88,6 @@ struct TJobList
         }
     }
     
-
     TChunkId ChunkId;
     TJobs Jobs;
 

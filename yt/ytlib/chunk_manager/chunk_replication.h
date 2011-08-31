@@ -87,7 +87,6 @@ private:
 
     int GetDesiredReplicaCount(const TChunk& chunk);
 
-    // TODO: optimize?
     void CountReplicas(
         const TChunk& chunk,
         int* real,

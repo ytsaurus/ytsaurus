@@ -9,7 +9,7 @@ namespace NChunkManager {
 
 struct TChunk
 {
-    typedef yvector<int> TLocations;
+    typedef yvector<THolderId> TLocations;
 
     static const i64 UnknownSize = -1;
 
@@ -34,6 +34,7 @@ struct TChunk
     TChunk& operator = (const TChunk& other)
     {
         // TODO: implement
+        UNUSED(other);
         YASSERT(false);
         return *this;
     }
@@ -46,14 +47,14 @@ struct TChunk
     }
 
 
-    void AddLocation(int holderId)
+    void AddLocation(THolderId holderId)
     {
         if (!IsIn(Locations, holderId)) {
             Locations.push_back(holderId);
         }
     }
 
-    void RemoveLocation(int holderId)
+    void RemoveLocation(THolderId holderId)
     {
         TLocations::iterator it = Find(Locations.begin(), Locations.end(), holderId);
         if (it != Locations.end()) {

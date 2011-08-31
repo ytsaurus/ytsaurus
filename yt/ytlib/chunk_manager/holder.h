@@ -12,8 +12,6 @@
 namespace NYT {
 namespace NChunkManager {
 
-using NChunkHolder::THolderStatistics;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int THolderId;
@@ -49,6 +47,7 @@ struct THolder
     THolder& operator = (const THolder& other)
     {
         // TODO: implement
+        UNUSED(other);
         YASSERT(false);
         return *this;
     }

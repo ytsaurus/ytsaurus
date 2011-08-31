@@ -153,11 +153,11 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
         }
     }
 
-    yvector<int> candidateHolders = ChunkPlacement->GetTargetHolders(
+    yvector<THolderId> candidateHolders = ChunkPlacement->GetTargetHolders(
         replicaCount + forbiddenAddresses.size());
 
     yvector<Stroka> targetAddresses;
-    for (yvector<int>::const_iterator it = candidateHolders.begin();
+    for (yvector<THolderId>::const_iterator it = candidateHolders.begin();
         it != candidateHolders.end();
         ++it)
     {
@@ -274,6 +274,7 @@ NYT::NChunkManager::EChunkState TChunkReplication::GetState(const TChunk& chunk)
     }
 }
 
+// TODO: optimize?
 void TChunkReplication::CountReplicas(
     const TChunk& chunk,
     int* real,
@@ -351,8 +352,7 @@ bool TChunkReplication::UpdateState(TChunk& chunk, EChunkState state)
         it != locations.end();
         ++it)
     {
-        int holderId = *it;
-        THolder& holder = ChunkManager->GetHolderForUpdate(holderId);
+        THolder& holder = ChunkManager->GetHolderForUpdate(*it);
 
         switch (state) {
         case EChunkState::OK:
