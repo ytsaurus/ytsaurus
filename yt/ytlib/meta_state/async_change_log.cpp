@@ -362,7 +362,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     i32 firstUnreadRecordId = firstRecordId + result->ysize();
 
     if (firstUnreadRecordId != firstUnflushedRecordId) {
-        LOG_FATAL("Gap found while reading changelog: (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
+        LOG_FATAL("Gap found while reading changelog (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
             firstUnreadRecordId,
             firstUnflushedRecordId);
     } else {
