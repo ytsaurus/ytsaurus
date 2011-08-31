@@ -40,19 +40,19 @@ public:
      * Internally, asynchronous append to the changelog goes as follows.
      * Firstly, the record is marked as 'Unflushed' and enqueued to the flush queue.
      * Secondly, as soon as the queue becomes synchronized with the disk state
-     * the promise is fulfiled. At this moment caller can determine whether
+     * the promise is fulfilled. At this moment caller can determine whether
      * the record was written to the disk.
      *
-     * Note that promise is not fulfiled when an error occures.
-     * In this case the promise is never fulfiled.
+     * Note that promise is not fulfilled when an error occurs.
+     * In this case the promise is never fulfilled.
      *
      * \param recordId Consecutive record id.
      * \param data Actual record content.
-     * \returns Promise to fulfil when the record will be flushed.
+     * \returns Promise to fulfill when the record will be flushed.
      *
      * \see TChangeLog::Append
      */
-    TAppendResult::TPtr Append(i32 recordId, TSharedRef data);
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush

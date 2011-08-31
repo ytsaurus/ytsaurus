@@ -11,63 +11,96 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkHolder::EJobState;
+using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;
 using NChunkHolder::TJobIdHash;
 
-/*
-class TReplicationJob
-    : public TRefCountedBase
+struct TJob
 {
-public:
-    typedef TIntrusivePtr<TReplicationJob> TPtr;
-
-    TReplicationJob(
-        const TJobId& jobId,
-        const TChunkId& chunkId,
-        const yvector<Stroka>& targetAddresses,
-        EJobState state)
-        : JobId(jobId)
-        , ChunkId(chunkId)
-        , TargetAddresses_(targetAddresses)
-        , State_(state)
+    TJob()
     { }
 
-    TJobId GetJobId() const
+    TJob(
+        EJobType type,
+        const TJobId& jobId,
+        const TChunkId& chunkId,
+        Stroka runnerAddress,
+        const yvector<Stroka>& targetAddresses,
+        EJobState state)
+        : Type(type)
+        , JobId(jobId)
+        , ChunkId(chunkId)
+        , RunnerAddress(runnerAddress)
+        , TargetAddresses(targetAddresses)
+        , State(state)
+    { }
+
+    TJob(const TJob& other)
+        : Type(other.Type)
+        , JobId(other.JobId)
+        , ChunkId(other.ChunkId)
+        , RunnerAddress(other.RunnerAddress)
+        , TargetAddresses(other.TargetAddresses)
+        , State(other.State)
+    { }
+
+    TJob& operator = (const TJob& other)
     {
-        return JobId;
+        // TODO: implement
+        YASSERT(false);
+        return *this;
     }
 
-    TChunkId GetChunkId() const
-    {
-        return ChunkId;
-    }
-
-    const yvector<Stroka>& TargetAddresses() const
-    {
-        return TargetAddresses_;
-    }
-
-    EJobState& State()
-    {
-        return State_;
-    }
-
-private:
+    EJobType Type;
     TJobId JobId;
     TChunkId ChunkId;
-    yvector<Stroka> TargetAddresses_;
-    EJobState State_;
+    Stroka RunnerAddress;
+    yvector<Stroka> TargetAddresses;
+    EJobState State;
 
 };
-*/
 
-////////////////////////////////////////////////////////////////////////////////
-
-/*
-class TChunkReplication
-    : public TNonCopyable
+struct TJobList
 {
-public:
+    typedef yvector<TJobId> TJobs;
+
+    TJobList()
+    { }
+
+    TJobList(const TChunkId& chunkId)
+        : ChunkId(chunkId)
+    { }
+
+    TJobList(const TJobList& other)
+        : ChunkId(other.ChunkId)
+        , Jobs(other.Jobs)
+    { }
+
+    TJobList& operator = (const TJobList& other)
+    {
+        // TODO: implement
+        YASSERT(false);
+        return *this;
+    }
+
+    void AddJob(const TJobId& id)
+    {
+        Jobs.push_back(id);
+    }
+
+    void RemoveJob(const TJobId& id)
+    {
+        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
+        if (it != Jobs.end()) {
+            Jobs.erase(it);
+        }
+    }
+    
+
+    TChunkId ChunkId;
+    TJobs Jobs;
+
+   /*
     typedef yvector<TReplicationJob::TPtr> TJobs;
 
     bool IsEmpty() const
@@ -124,12 +157,12 @@ public:
 
 private:
     TJobs Jobs;
-
+    */
 };
-*/
+
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef ui64 TChunkGroupId;
+//typedef ui64 TChunkGroupId;
 
 struct TChunk
 {
@@ -146,6 +179,7 @@ struct TChunk
         : Id(id)
         , Size(UnknownSize)
         , TransactionId(transactionId)
+        , PendingReplicaCount(0)
     { }
 
     TChunk(const TChunk& other)
@@ -153,6 +187,7 @@ struct TChunk
         , Size(other.Size)
         , TransactionId(other.TransactionId)
         , Locations(other.Locations)
+        , PendingReplicaCount(other.PendingReplicaCount)
     { }
 
     TChunk& operator = (const TChunk& other)
@@ -162,10 +197,10 @@ struct TChunk
         return *this;
     }
 
-    TChunkGroupId GetGroupId() const
-    {
-        return static_cast<ui64>(Id.Parts[0]) << 32 + static_cast<ui64>(Id.Parts[1]);
-    }
+    //TChunkGroupId GetGroupId() const
+    //{
+    //    return static_cast<ui64>(Id.Parts[0]) << 32 + static_cast<ui64>(Id.Parts[1]);
+    //}
 
     bool IsVisible(const NTransaction::TTransactionId& transactionId) const
     {
@@ -235,8 +270,7 @@ struct TChunk
     i64 Size;
     NTransaction::TTransactionId TransactionId;
     TLocations Locations;
-    //::THolder<TChunkReplication> Replication;
-
+    i8 PendingReplicaCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

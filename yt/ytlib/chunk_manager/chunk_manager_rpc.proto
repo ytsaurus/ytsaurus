@@ -38,9 +38,10 @@ message TJobInfo
 
 message TJobStartInfo
 {
-    required bytes JobId = 1;
-    required bytes ChunkId = 2;
-    repeated bytes TargetAddresses = 3;
+    required int32 Type = 1;
+    required bytes JobId = 2;
+    required bytes ChunkId = 3;
+    repeated bytes TargetAddresses = 4;
 }
 
 message TReqHolderHeartbeat
@@ -67,7 +68,7 @@ message TRspHolderHeartbeat
 message TReqAddChunk
 {
     required bytes TransactionId = 1;
-    required int32 ReplicationFactor = 2;
+    required int32 ReplicaCount = 2;
 }
 
 message TRspAddChunk

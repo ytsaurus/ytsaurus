@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "guid.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -61,20 +61,54 @@ void WritePadding(TFile& file, i64 recordSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: to cpp
-inline void ToProto(const yvector<Stroka>& array, ::google::protobuf::RepeatedPtrField<TProtoStringType>& proto)
+template<class T>
+struct TProtoTraits
+{
+    static const T& ToProto(const T& value)
+    {
+        return value;
+    }
+
+    static const T& FromProto(const T& value)
+    {
+        return value;
+    }
+};
+
+// TODO: generify for other classes providing their own ToProto/FromProto methods
+template<>
+struct TProtoTraits<TGuid>
+{
+    static Stroka ToProto(const TGuid& value)
+    {
+        return value.ToProto();
+    }
+
+    static TGuid FromProto(const Stroka& value)
+    {
+        return TGuid::FromProto(value);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TArrayItem, class TProtoItem>
+inline void ToProto(
+    ::google::protobuf::RepeatedPtrField<TProtoItem>& proto,
+    const yvector<TArrayItem>& array)
 {
     for (int i = 0; i < array.ysize(); ++i) {
-        *proto.Add() = array[i];
+        *proto.Add() = TProtoTraits<TArrayItem>::ToProto(array[i]);
     }
 }
 
-// TODO: to cpp
-inline yvector<Stroka> FromProto(const ::google::protobuf::RepeatedPtrField<TProtoStringType>& proto)
+template<class TArrayItem, class TProtoItem>
+inline yvector<TArrayItem> FromProto(
+    const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
 {
     yvector<Stroka> array(proto.size());
     for (int i = 0; i < proto.size(); ++i) {
-        array[i] = proto.Get(i);
+        array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
     }
     return array;
 }

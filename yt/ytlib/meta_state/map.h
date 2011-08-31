@@ -296,6 +296,8 @@ private:
 
     TVoid DoSave(TOutputStream* stream)
     {
+        YASSERT(false);
+
         *stream << static_cast<i64>(Map.size());
 
         yvector<TItem> items(Map.begin(), Map.end());
@@ -314,6 +316,8 @@ private:
 
     TVoid DoLoad(TInputStream* stream)
     {
+        YASSERT(false);
+
         i64 size;
         *stream >> size;
 

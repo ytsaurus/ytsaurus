@@ -27,12 +27,12 @@ public:
         TMetaStateManager::TPtr metaStateManager,
         TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
-        TChunkRefresh::TPtr chunkRefresh,
+        TChunkReplication::TPtr chunkReplication,
         TChunkPlacement::TPtr chunkPlacement)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         , TransactionManager(transactionManager)
-        , ChunkRefresh(chunkRefresh)
+        , ChunkReplication(chunkReplication)
         , ChunkPlacement(chunkPlacement)
         , HolderLeaseManager(New<TLeaseManager>())
         , CurrentHolderId(0)
@@ -40,43 +40,43 @@ public:
         RegisterMethod(this, &TState::AddChunk);
         RegisterMethod(this, &TState::RemoveChunk);
         RegisterMethod(this, &TState::RegisterHolder);
-        RegisterMethod(this, &TState::HolderHeartbeat);
         RegisterMethod(this, &TState::UnregisterHolder);
+        RegisterMethod(this, &TState::ProcessHeartbeat);
 
         transactionManager->RegisterHander(this);
     }
 
 
-    yvector<TChunkGroupId> GetChunkGroupIds()
-    {
-        yvector<TChunkGroupId> result;
-        for (TChunkGroupMap::iterator it = ChunkGroupMap.begin();
-            it != ChunkGroupMap.end();
-            ++it)
-        {
-            result.push_back(it->First());
-        }
-        return result;
-    }
-    
-    yvector<TChunkId> GetChunkGroup(TChunkGroupId id)
-    {
-        yvector<TChunkId> result;
-        
-        TChunkGroupMap::iterator groupIt = ChunkGroupMap.find(id);
-        if (groupIt == ChunkGroupMap.end())
-            return result;
+    //yvector<TChunkGroupId> GetChunkGroupIds()
+    //{
+    //    yvector<TChunkGroupId> result;
+    //    for (TChunkGroupMap::iterator it = ChunkGroupMap.begin();
+    //        it != ChunkGroupMap.end();
+    //        ++it)
+    //    {
+    //        result.push_back(it->First());
+    //    }
+    //    return result;
+    //}
+    //
+    //yvector<TChunkId> GetChunkGroup(TChunkGroupId id)
+    //{
+    //    yvector<TChunkId> result;
+    //    
+    //    TChunkGroupMap::iterator groupIt = ChunkGroupMap.find(id);
+    //    if (groupIt == ChunkGroupMap.end())
+    //        return result;
 
-        const TChunkGroup& group = groupIt->Second();
-        for (TChunkGroup::const_iterator chunkIt = group.begin();
-             chunkIt != group.end();
-             ++chunkIt)
-        {
-            result.push_back(*chunkIt);
-        }
+    //    const TChunkGroup& group = groupIt->Second();
+    //    for (TChunkGroup::const_iterator chunkIt = group.begin();
+    //         chunkIt != group.end();
+    //         ++chunkIt)
+    //    {
+    //        result.push_back(*chunkIt);
+    //    }
 
-        return result;
-    }
+    //    return result;
+    //}
 
     TChunkId AddChunk(const NProto::TMsgAddChunk& message)
     {
@@ -90,8 +90,8 @@ public:
 
         ChunkMap.Insert(chunkId, chunk);
 
-        TChunkGroup& group = ChunkGroupMap[chunk.GetGroupId()];
-        group.insert(chunkId);
+        //TChunkGroup& group = ChunkGroupMap[chunk.GetGroupId()];
+        //group.insert(chunkId);
 
         LOG_INFO("Chunk added (ChunkId: %s)",
             ~chunkId.ToString());
@@ -117,6 +117,8 @@ public:
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, int);
+    METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
+    METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
     int RegisterHolder(const NProto::TReqRegisterHolder& message)
     {
@@ -139,6 +141,8 @@ public:
             ChunkPlacement->RegisterHolder(newHolder);
         }
 
+        ChunkReplication->RegisterHolder(newHolder);
+
         YVERIFY(HolderMap.Insert(id, newHolder));
         YVERIFY(HolderAddressMap.insert(MakePair(address, id)).Second());
 
@@ -157,67 +161,6 @@ public:
         const THolder& holder = GetHolder(id);
 
         DoUnregisterHolder(holder);
-
-        return TVoid();
-    }
-
-    // TODO: remove
-    TVoid HolderHeartbeat(const NProto::TReqHolderHeartbeat& message)
-    {
-        int holderId = message.GetHolderId();
-        THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
-
-        THolder& holder = GetHolderForUpdate(holderId);
-        holder.Statistics = statistics;
-
-        if (IsLeader()) {
-            RenewLease(holder);
-            ChunkPlacement->UpdateHolder(holder);
-        }
-
-        for (int i = 0; i < static_cast<int>(message.AddedChunksSize()); ++i) {
-            const NProto::TChunkInfo& info = message.GetAddedChunks(i);
-            TChunkId chunkId = TGuid::FromProto(info.GetId());
-            i64 size = info.GetSize();
-
-            TChunk* chunk = FindChunkForUpdate(chunkId);
-            if (chunk == NULL) {
-                // TODO: schedule removal
-                LOG_ERROR("Unknown chunk reported by holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
-                    holderId,
-                    ~chunkId.ToString(),
-                    size);
-                continue;
-            }
-
-            if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
-                LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-                    ~chunkId.ToString(),
-                    chunk->Size,
-                    size);
-            }
-
-            chunk->AddLocation(holderId);
-
-            LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
-                holderId,
-                ~chunkId.ToString(),
-                size);
-        }
-
-        for (int i = 0; i < static_cast<int>(message.RemovedChunksSize()); ++i) {
-            TChunkId chunkId = TGuid::FromProto(message.GetRemovedChunks(i));
-
-            // TODO: code here
-
-            LOG_DEBUG("Chunk removed at holder (HolderId: %d, ChunkId: %s)",
-                holderId,
-                ~chunkId.ToString());
-        }
-
-        LOG_DEBUG("Holder updated (HolderId: %d, %s)",
-            holderId,
-            ~statistics.ToString());
 
         return TVoid();
     }
@@ -244,15 +187,15 @@ public:
         }
 
         for (int i = 0; i < static_cast<int>(message.StartedJobsSize()); ++i) {
-            ProcessStartedJob(message.GetStartedJobs(i));
+            ProcessStartedJob(holder, message.GetStartedJobs(i));
         }
 
         for (int i = 0; i < static_cast<int>(message.UpdatedJobsSize()); ++i) {
-            ProcessUpdatedJob(message.GetUpdatedJobs(i));
+            ProcessUpdatedJob(holder, message.GetUpdatedJobs(i));
         }
 
         for (int i = 0; i < static_cast<int>(message.StoppedJobsSize()); ++i) {
-            ProcessStoppedJob(TJobId::FromProto(message.GetStoppedJobs(i)));
+            ProcessStoppedJob(holder, TJobId::FromProto(message.GetStoppedJobs(i)));
         }
 
         LOG_DEBUG("Holder updated (HolderId: %d, %s)",
@@ -269,23 +212,26 @@ private:
     typedef TMetaStateMap<int, THolder> THolderMap;
     
     typedef yhash_map<Stroka, int> THolderAddressMap;
+
+    typedef TMetaStateMap<TChunkId, TJobList, TChunkIdHash> TJobListMap;
+
+    typedef TMetaStateMap<TJobId, TJob, TJobIdHash> TJobMap;
     
-    //typedef yhash_map<TJobId, TReplicationJob::TPtr, TJobIdHash> TJobMap;
-    
-    typedef yhash_set<TChunkId, TChunkIdHash> TChunkGroup;
-    typedef yhash_map<TChunkGroupId, TChunkGroup> TChunkGroupMap;
+    //typedef yhash_set<TChunkId, TChunkIdHash> TChunkGroup;
+    //typedef yhash_map<TChunkGroupId, TChunkGroup> TChunkGroupMap;
 
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
-    TChunkRefresh::TPtr ChunkRefresh;
+    TChunkReplication::TPtr ChunkReplication;
     TChunkPlacement::TPtr ChunkPlacement;
     TLeaseManager::TPtr HolderLeaseManager;
     int CurrentHolderId;
     TChunkMap ChunkMap;
-    TChunkGroupMap ChunkGroupMap;
+    //TChunkGroupMap ChunkGroupMap;
     THolderMap HolderMap;
     THolderAddressMap HolderAddressMap;
-    //TJobMap JobMap;
+    TJobListMap JobListMap;
+    TJobMap JobMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -340,29 +286,30 @@ private:
         HolderMap.Clear();
         HolderAddressMap.clear();
         ChunkMap.Clear();
-        //JobMap.clear();
+        JobListMap.Clear();
+        JobMap.Clear();
     }
 
     virtual void OnStartLeading()
     {
         RegisterAllHolders();
-        ChunkRefresh->StartBackground(GetEpochStateInvoker());
+        //ChunkReplication->StartBackground(GetEpochStateInvoker());
     }
 
     virtual void OnStopLeading()
     {
         UnregisterAllHolders();
-        ChunkRefresh->StopBackground();
+        //ChunkReplication->StopBackground();
     }
 
     virtual void OnStartFollowing()
     {
-        ChunkRefresh->StartBackground(GetEpochStateInvoker());
+        //ChunkReplication->StartBackground(GetEpochStateInvoker());
     }
 
     virtual void OnStopFollowing()
     {
-        ChunkRefresh->StopBackground();
+        //ChunkReplication->StopBackground();
     }
 
 
@@ -482,6 +429,8 @@ private:
             ChunkPlacement->UnregisterHolder(holder);
         }
 
+        ChunkReplication->UnregisterHolder(holder);
+
         YVERIFY(HolderAddressMap.erase(holder.Address) == 1);
         YVERIFY(HolderMap.Remove(id));
 
@@ -491,15 +440,15 @@ private:
     void DoRemoveChunk(const TChunk& chunk)
     {
         TChunkId chunkId = chunk.Id;
-        TChunkGroupId groupId = chunk.GetGroupId();
+        //TChunkGroupId groupId = chunk.GetGroupId();
         
         YVERIFY(ChunkMap.Remove(chunkId));
         
-        TChunkGroup& group = ChunkGroupMap[groupId];
-        YVERIFY(group.erase(chunkId) == 1);
-        if (group.empty()) {
-            YVERIFY(ChunkGroupMap.erase(groupId) == 1);
-        }
+        //TChunkGroup& group = ChunkGroupMap[groupId];
+        //YVERIFY(group.erase(chunkId) == 1);
+        //if (group.empty()) {
+        //    YVERIFY(ChunkGroupMap.erase(groupId) == 1);
+        //}
 
         LOG_INFO("Chunk removed (ChunkId: %s)",
             ~chunkId.ToString());
@@ -530,9 +479,7 @@ private:
                 size);
         }
 
-        chunk->AddLocation(holderId);
-
-        ChunkRefresh->RefreshChunk(*chunk);
+        ChunkReplication->RegisterReplica(*chunk, holder);
 
         LOG_INFO("Chunk added at holder (HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
             holderId,
@@ -556,7 +503,7 @@ private:
 
         chunk->RemoveLocation(holderId);
 
-        ChunkRefresh->RefreshChunk(*chunk);
+        ChunkReplication->UnregisterReplica(*chunk, holder);
 
         LOG_DEBUG("Chunk removed at holder (HolderId: %d, ChunkId: %s)",
              holderId,
@@ -564,59 +511,72 @@ private:
     }
 
 
-    void ProcessStartedJob(const NProto::TJobStartInfo& jobInfo)
+    void ProcessStartedJob(const THolder& holder, const NProto::TJobStartInfo& jobInfo)
     {
-        //TChunkId chunkId = TChunkId::FromProto(jobInfo.GetChunkId());
-        //TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
-        //
-        //TChunk& chunk = GetChunkForUpdate(chunkId);
-        //
-        //TReplicationJob::TPtr job = New<TReplicationJob>(
-        //    jobId,
-        //    chunkId,
-        //    FromProto(jobInfo.GetTargetAddresses()),
-        //    EJobState::Running);
+        TChunkId chunkId = TChunkId::FromProto(jobInfo.GetChunkId());
+        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
 
-        //TChunkReplication* replication = chunk->GetReplication();
-        //replication->StartJob(job);
+        TJob job(
+            EJobType(jobInfo.GetType()),
+            jobId,
+            chunkId,
+            holder.Address,
+            FromProto<Stroka>(jobInfo.GetTargetAddresses()),
+            EJobState::Running);
+        YVERIFY(JobMap.Insert(jobId, job));
 
-        //YVERIFY(JobMap.insert(MakePair(jobId, job)).Second());
+        TJobList& list = GetOrCreateJobListForUpdate(chunkId);
+        list.AddJob(jobId);
 
         // TODO: logging
     }
 
-    void ProcessUpdatedJob(const NProto::TJobInfo& jobInfo)
+    void ProcessUpdatedJob(const THolder& holder, const NProto::TJobInfo& jobInfo)
     {
-        //TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
+        UNUSED(holder);
 
-        //TReplicationJob::TPtr job = GetJob(jobId);
-        //TChunkId chunkId = job->GetChunkId();
-        //TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
-
-        //job->State() = EJobState(jobInfo.GetState());
+        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
+        TJob& job = GetJobForUpdate(jobId);
+        job.State = EJobState(jobInfo.GetState());
 
         // TODO: logging
     }
 
-    void ProcessStoppedJob(const TJobId& jobId)
+    void ProcessStoppedJob(const THolder& holder, const TJobId& jobId)
     {
-        //TReplicationJob::TPtr job = GetJob(jobId);
-        //TChunkId chunkId = job->GetChunkId();
-        //TChunk::TPtr chunk = ChunkMap.Get(chunkId, true);
+        UNUSED(holder);
 
-        //TChunkReplication* replication = chunk->GetReplication();
-        //YVERIFY(replication->StopJob(jobId));
+        const TJob& job = GetJob(jobId); 
+        TJobList& list = GetJobListForUpdate(job.ChunkId);
+        list.RemoveJob(jobId);
+        MaybeDropJobList(list);
 
-        //YVERIFY(JobMap.erase(jobId) == 1);
-
-        //chunk->TryTrimReplication();
-        
         // TODO: logging
+    }
+
+
+    TJobList& GetOrCreateJobListForUpdate(const TChunkId& id)
+    {
+        TJobList* list = FindJobListForUpdate(id);
+        if (list != NULL)
+            return *list;
+
+        YVERIFY(JobListMap.Insert(id, TJobList(id)));
+        return GetJobListForUpdate(id);
+    }
+
+    void MaybeDropJobList(const TJobList& list)
+    {
+        if (list.Jobs.empty()) {
+            JobListMap.Remove(list.ChunkId);
+        }
     }
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Chunk, TChunk, TChunkId, ChunkMap)
 METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Holder, THolder, int, HolderMap)
+METAMAP_ACCESSORS_IMPL(TChunkManager::TState, JobList, TJobList, TChunkId, JobListMap)
+METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Job, TJob, TJobId, JobMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -633,16 +593,18 @@ TChunkManager::TChunkManager(
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ChunkRefresh(New<TChunkRefresh>(
-        config,
-        this))
+    //, ChunkRefresh(New<TChunkRefresh>(
+    //    config,
+    //    this))
     , ChunkPlacement(New<TChunkPlacement>())
+    , ChunkReplication(New<TChunkReplication>(this))
     , State(New<TState>(
         config,
         metaStateManager,
         metaState,
         transactionManager,
-        ChunkRefresh,
+//        ChunkRefresh,
+        ChunkReplication,
         ChunkPlacement))
 {
     RegisterMethods();
@@ -658,16 +620,16 @@ void TChunkManager::RegisterMethods()
     RPC_REGISTER_METHOD(TChunkManager, FindChunk);
 }
 
-yvector<TChunkGroupId> TChunkManager::GetChunkGroupIds()
-{
-    return State->GetChunkGroupIds();
-}
-
-yvector<TChunkId> TChunkManager::GetChunkGroup(TChunkGroupId id)
-{
-    return State->GetChunkGroup(id);
-}
-
+//yvector<TChunkGroupId> TChunkManager::GetChunkGroupIds()
+//{
+//    return State->GetChunkGroupIds();
+//}
+//
+//yvector<TChunkId> TChunkManager::GetChunkGroup(TChunkGroupId id)
+//{
+//    return State->GetChunkGroup(id);
+//}
+//
 void TChunkManager::ValidateHolderId(int holderId)
 {
     const THolder* holder = FindHolder(holderId);
@@ -699,6 +661,8 @@ void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
 
 METAMAP_ACCESSORS_FWD(TChunkManager, Chunk, TChunk, TChunkId, *State)
 METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, int, *State)
+METAMAP_ACCESSORS_FWD(TChunkManager, JobList, TJobList, TChunkId, *State)
+METAMAP_ACCESSORS_FWD(TChunkManager, Job, TJob, TJobId, *State)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -741,16 +705,33 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
     ValidateHolderId(holderId);
 
-    const NProto::TReqHolderHeartbeat& message = *request;
+    const THolder& holder = GetHolder(holderId);
+
+    NProto::TMsgProcessHeartbeat message;
+    message.SetHolderId(holderId);
+    *message.MutableStatistics() = request->GetStatistics();
+    message.MutableAddedChunks()->MergeFrom(request->GetAddedChunks());
+    message.MutableAddedChunks()->MergeFrom(request->GetAddedChunks());
+
+    yvector<NProto::TJobStartInfo> jobsToStart;
+    yvector<TJobId> jobsToStop;
+    ChunkReplication->GetJobControl(
+        holder,
+        jobsToStart,
+        jobsToStop);
+
+    ToProto(*context->Response().MutableJobsToStart(), jobsToStart);
+    ToProto(*context->Response().MutableJobsToStop(), jobsToStop);
+
     CommitChange(
         this, context, State, message,
-        &TState::HolderHeartbeat);
+        &TState::ProcessHeartbeat);
 }
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
     TTransactionId transactionId = TGuid::FromProto(request->GetTransactionId());
-    int replicaCount = request->GetReplicationFactor();
+    int replicaCount = request->GetReplicaCount();
 
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
         ~transactionId.ToString(),
@@ -806,7 +787,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
 
     TChunk& chunk = GetChunkForUpdate(chunkId);
 
-    ChunkRefresh->RefreshChunk(chunk);
+    //ChunkRefresh->RefreshChunk(chunk);
 
     // TODO: sort w.r.t. proximity
     TChunk::TLocations& locations = chunk.Locations;

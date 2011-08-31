@@ -2,9 +2,9 @@ SET(YT_SOURCE_FILES
     common.cpp
     master_state.h
     decorated_master_state.cpp
-    master_state_manager.cpp
-    master_state_manager.proto
-    master_state_manager_rpc.h
+    meta_state_manager.cpp
+    meta_state_manager.proto
+    meta_state_manager_rpc.h
     snapshot.cpp
     change_log.cpp
     change_committer.cpp

@@ -4,7 +4,7 @@
 #include "change_log.h"
 #include "change_log_cache.h"
 #include "master_state.h"
-#include "master_state_manager_rpc.h"
+#include "meta_state_manager_rpc.h"
 #include "snapshot.h"
 #include "snapshot_creator.h"
 #include "recovery.h"
@@ -41,7 +41,7 @@ public:
         TConfig()
             : LogLocation(".")
             , SnapshotLocation(".")
-            , MaxRecordCount(1000)
+            , MaxRecordCount(100000)
         { }
 
         void Read(TJsonObject* json)
@@ -95,7 +95,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadSnapshot);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetChangeLogInfo);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadChangeLog);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChange);
+    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChanges);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, CreateSnapshot);
     RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, PingLeader);
 
@@ -109,7 +109,7 @@ private:
     // Service thread
     void OnLocalCommit(
         TChangeCommitter::EResult result,
-        TCtxApplyChange::TPtr context);
+        TCtxApplyChanges::TPtr context);
 
     // Thread-neutral.
     void Restart();

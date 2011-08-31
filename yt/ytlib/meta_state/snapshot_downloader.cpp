@@ -1,6 +1,6 @@
 #include "snapshot_downloader.h"
 #include "snapshot.h"
-#include "master_state_manager_rpc.h"
+#include "meta_state_manager_rpc.h"
 
 #include "../actions/action_util.h"
 #include "../actions/async_result.h"

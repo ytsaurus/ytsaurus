@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../master/common.h"
+#include "../meta_state/common.h"
 #include "../misc/guid.h"
 
 namespace NYT {

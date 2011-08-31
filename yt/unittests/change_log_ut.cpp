@@ -1,4 +1,4 @@
-#include "../ytlib/master/change_log.h"
+#include "../ytlib/meta_state/change_log.h"
 
 #include <library/unittest/registar.h>
 #include <util/system/tempfile.h>

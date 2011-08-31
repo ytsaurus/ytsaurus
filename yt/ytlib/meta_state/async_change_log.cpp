@@ -33,27 +33,72 @@ public:
     public:
         typedef TIntrusivePtr<TChangeLogQueue> TPtr;
 
-        //! An unflushed record (auxiliary structure).
-        class TRecord : public TIntrusiveListItem<TRecord>
+        //! Constructs an empty queue around underlying changelog.
+        TChangeLogQueue(TChangeLog::TPtr changeLog)
+            : ChangeLog(changeLog)
+            , UnflushedBytes(0)
+            , UnflushedRecords(0)
+        { }
+
+        //! Lazily appends the record to the changelog.
+        IAction::TPtr Append(
+            i32 recordId,
+            const TSharedRef& data,
+            const TAppendResult::TPtr& result)
         {
-        public:
+            THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
+            TRecord* record = recordHolder.Get();
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                Records.PushBack(recordHolder.Release());
+            }
+
+            return FromMethod(&TChangeLogQueue::DoAppend, this, record);
+        }
+
+        //! Flushes the underlying changelog.
+        void Flush()
+        {
+            ChangeLog->Flush();
+
+            UnflushedBytes = 0;
+            UnflushedRecords = 0;
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                // Curse you, arcadia/util!
+                Records.ForEach(SweepRecord);
+            }
+        }
+
+        //! Checks if the queue is empty. Note that despite the fact that this call locks
+        //! the list to perform the actual check, its result is only meaningful when
+        //! no additional records may be enqueued into it.
+        bool IsEmpty() const
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            return Records.Empty();
+        }
+
+        //! An unflushed record (auxiliary structure).
+        struct TRecord : public TIntrusiveListItem<TRecord>
+        {
             i32 Id;
             TSharedRef Data;
             TAsyncChangeLog::TAppendResult::TPtr Result;
-
             bool WaitingForSync;
 
-        public:
             TRecord(
                 i32 id,
-                TSharedRef data,
+                const TSharedRef& data,
                 const TAsyncChangeLog::TAppendResult::TPtr& result)
                 : Id(id)
                 , Data(data)
                 , Result(result)
                 , WaitingForSync(false)
             { }
-        }; // class TRecord
+        }; // struct TRecord
 
         //! A list of unflushed records (auxiliary structure).
         /*!
@@ -65,86 +110,39 @@ public:
          */
         class TRecords : public TIntrusiveListWithAutoDelete<TRecord, TDelete>
         {
-        public:
-            //! Sweep operation performed during the Flush().
-            struct TSweepWaitingForSync
-            {
-                inline void operator()(TRecord* record) const
-                {
-                    if (record->WaitingForSync) {
-                        record->Result->Set(TVoid());
-                        record->Unlink();
-
-                        delete record;
-                    }
-                }
-            };
         }; // class TRecords
 
         //! Underlying changelog.
         TChangeLog::TPtr ChangeLog;
-        //! Amount of currently unflushed bytes (since the last synchronization).
+
+        //! Number of currently unflushed bytes (since the last synchronization).
         i32 UnflushedBytes;
-        //! Amount of currently unflushed records (since the last synchronization).
+
+        //! Number of currently unflushed records (since the last synchronization).
         i32 UnflushedRecords;
 
         //! A list of unflushed records.
         TRecords Records;
 
-        //! Preverses the atomicity of the operations on the list.
-        TSpinLock SpinLock;
-
-        //! Constructs an empty queue around underlying changelog.
-        TChangeLogQueue(TChangeLog::TPtr changeLog)
-            : ChangeLog(changeLog)
-            , UnflushedBytes(0)
-            , UnflushedRecords(0)
-        { }
-
-        //! Lazily appends the record to the changelog.
-        IAction::TPtr Append(
-            i32 recordId,
-            TSharedRef data,
-            const TAppendResult::TPtr& result)
-        {
-            THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
-            TRecord* record = recordHolder.Get();
-
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                Records.PushBack(recordHolder.Release());
-            }
-
-            UnflushedBytes += data.Size();
-            UnflushedRecords += 1;
-
-            return FromMethod(&TChangeLogQueue::DoAppend, this, record);
-        }
-
-        //! Flushes the underlying changelog.
-        //! \returns True iff the queue has no pending records
-        //! (i. e. can be safely discarded).
-        bool Flush()
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-
-            ChangeLog->Flush();
-
-            UnflushedBytes = 0;
-            UnflushedRecords = 0;
-
-            // Curse you, arcadia/util!
-            TRecords::TSweepWaitingForSync sweepFunctor;
-            Records.ForEach(sweepFunctor);
-
-            return Records.Empty();
-        }
+        //! Preserves the atomicity of the operations on the list.
+        mutable TSpinLock SpinLock;
 
     private:
+        //! Sweep operation performed during #Flush.
+        static void SweepRecord(TRecord* record)
+        {
+            if (record->WaitingForSync) {
+                record->Result->Set(TVoid());
+                record->Unlink();
+
+                delete record;
+            }
+        }
+
         //! Actually appends the record and flushes the queue if required.
         void DoAppend(TRecord* record)
         {
-            YASSERT(record);
+            YASSERT(record != NULL);
             YASSERT(!record->WaitingForSync);
 
             ChangeLog->Append(record->Id, record->Data);
@@ -154,13 +152,16 @@ public:
                 record->WaitingForSync = true;
             }
 
-            if (
-                UnflushedBytes >= UnflushedBytesThreshold ||
+            UnflushedBytes += record->Data.Size();
+            UnflushedRecords += 1;
+
+            if (UnflushedBytes >= UnflushedBytesThreshold ||
                 UnflushedRecords >= UnflushedRecordsThreshold)
             {
                 Flush();
             }
         }
+
     }; // class TChangeLogQueue
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -168,7 +169,7 @@ public:
     void Append(
         TChangeLog::TPtr changeLog,
         i32 recordId,
-        TSharedRef data,
+        const TSharedRef& data,
         const TAppendResult::TPtr& result)
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -183,66 +184,77 @@ public:
             queue = it->second;
         }
 
-        queue->Append(recordId, data, result)->Via(this)->Do();
+        Invoke(queue->Append(recordId, data, result));
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
-
-        if (it != ChangeLogQueues.end()) {
-            if (it->second->Flush()) {
-                ChangeLogQueues.erase(it);
-            }
+        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        if (~queue != NULL) {
+            queue->Flush();
         }
-
         changeLog->Finalize();
         return TVoid();
     }
 
     TVoid Flush(TChangeLog::TPtr changeLog)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
-
-        if (it != ChangeLogQueues.end()) {
-            if (it->second->Flush()) {
-                ChangeLogQueues.erase(it);
-            }
+        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        if (~queue != NULL) {
+            queue->Flush();
         }
-
         changeLog->Flush();
         return TVoid();
     }
 
-    TChangeLogQueue::TPtr GetCorrespondingQueue(TChangeLog::TPtr changeLog)
+    TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
-
         return it != ChangeLogQueues.end() ? it->second : NULL;
     }
 
     virtual void OnIdle()
     {
-        // TODO: This method can lock for a while; consider more fine locking.
-        TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it, jt;
+        // Take a snapshot.
+        yvector<TChangeLogQueue::TPtr> queues;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            
+            if (ChangeLogQueues.empty()) {
+                // Hash map from arcadia/util does not support iteration over
+                // the empty map with iterators. It crashes with a dump assertion
+                // deeply within implementation details.
+                return;
+            }
 
-        if (ChangeLogQueues.empty()) {
-            // Hash map from arcadia/util does not support iteration over
-            // the empty map with iterators. It crashes with a dump assertion
-            // deeply within implementation details.
-            return;
+            for (TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
+                 it != ChangeLogQueues.end();
+                 ++it)
+            {
+                queues.push_back(it->Second());
+            }
         }
 
-        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/)
+        // Flush the queues in the snapshot.
+        for (yvector<TChangeLogQueue::TPtr>::iterator it = queues.begin();
+             it != queues.end();
+             ++it)
         {
-            jt = it++;
+            (*it)->Flush();
+        }
 
-            if (jt->second->Flush()) {
-                ChangeLogQueues.erase(jt);
+        // Sweep the empty queues.
+        {
+            // Taking this lock ensures that if a queue is found empty then it can be safely
+            // erased from the map.
+            TGuard<TSpinLock> guard(SpinLock);
+            TChangeLogQueueMap::iterator it, jt;
+            for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
+                jt = it++;
+                if (jt->second->IsEmpty()) {
+                    ChangeLogQueues.erase(jt);
+                }
             }
         }
     }
@@ -267,7 +279,8 @@ TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
-    i32 recordId, TSharedRef data)
+    i32 recordId,
+    const TSharedRef& data)
 {
     TAppendResult::TPtr result = New<TAppendResult>();
     Impl->Append(ChangeLog, recordId, data, result);
@@ -304,9 +317,9 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
         return;
     }
 
-    TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
+    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
 
-    if (~flushQueue == NULL) {
+    if (~queue == NULL) {
         ChangeLog->Read(firstRecordId, recordCount, result);
         return;
     }
@@ -314,15 +327,15 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     // Determine whether unflushed records intersect with requested records.
     // To achieve this we have to lock the queue in order to iterate
     // through currently flushing record.
-    TGuard<TSpinLock> guard(flushQueue->SpinLock);
+    TGuard<TSpinLock> guard(queue->SpinLock);
 
     i32 lastRecordId = firstRecordId + recordCount; // Non-inclusive.
     i32 firstUnflushedRecordId = lastRecordId;
 
     yvector<TSharedRef> unflushedRecords;
 
-    for (TImpl::TChangeLogQueue::TRecords::iterator it = flushQueue->Records.Begin();
-        it != flushQueue->Records.End();
+    for (TImpl::TChangeLogQueue::TRecords::iterator it = queue->Records.Begin();
+        it != queue->Records.End();
         ++it)
     {
         if (it->Id >= lastRecordId)
@@ -349,7 +362,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     i32 firstUnreadRecordId = firstRecordId + result->ysize();
 
     if (firstUnreadRecordId != firstUnflushedRecordId) {
-        LOG_FATAL("Gap found while reading changelog: (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
+        LOG_FATAL("Gap found while reading changelog (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
             firstUnreadRecordId,
             firstUnflushedRecordId);
     } else {
@@ -364,17 +377,17 @@ i32 TAsyncChangeLog::GetId() const
 
 i32 TAsyncChangeLog::GetRecordCount() const
 {
-    TImpl::TChangeLogQueue::TPtr flushQueue = Impl->GetCorrespondingQueue(ChangeLog);
+    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
 
-    if (~flushQueue == NULL) {
+    if (~queue == NULL) {
         return ChangeLog->GetRecordCount();
     }
     
-    TGuard<TSpinLock> guard(flushQueue->SpinLock);
-    if (flushQueue->Records.Empty()) {
+    TGuard<TSpinLock> guard(queue->SpinLock);
+    if (queue->Records.Empty()) {
         return ChangeLog->GetRecordCount();
     } else {
-        TImpl::TChangeLogQueue::TRecords::const_iterator it = flushQueue->Records.End();
+        TImpl::TChangeLogQueue::TRecords::const_iterator it = queue->Records.End();
         --it;
         return it->Id + 1;
     }

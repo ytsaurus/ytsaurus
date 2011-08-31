@@ -20,20 +20,17 @@ struct IBus
 
     typedef TAsyncResult<ESendResult> TSendResult;
 
-    virtual ~IBus() {}
     virtual TSendResult::TPtr Send(IMessage::TPtr message) = 0;
     virtual void Terminate() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: make refcounted
 struct IMessageHandler
     : public virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IMessageHandler> TPtr;
 
-    virtual ~IMessageHandler() {}
     virtual void OnMessage(
         IMessage::TPtr message,
         IBus::TPtr replyBus) = 0;

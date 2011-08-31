@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "master_state_manager_rpc.h"
+#include "meta_state_manager_rpc.h"
 #include "decorated_master_state.h"
 #include "change_log_cache.h"
 
@@ -30,9 +30,13 @@ public:
     {
         TConfig()
             : RpcTimeout(TDuration::Seconds(3))
+            , MaxBatchDelay(TDuration::MilliSeconds(10))
+            , MaxBatchSize(100)
         { }
 
         TDuration RpcTimeout;
+        TDuration MaxBatchDelay;
+        int MaxBatchSize;
     };
 
     TChangeCommitter(
@@ -55,6 +59,9 @@ public:
 
     void SetOnApplyChange(IAction::TPtr onApplyChange);
 
+    //! Forcely send an rpc request with changes
+    void Flush();
+
 private:
     class TSession;
     typedef TMetaStateManagerProxy TProxy;
@@ -67,6 +74,9 @@ private:
         TSharedRef changeData);
     static EResult OnAppend(TVoid);
 
+    void DelayedFlush(TIntrusivePtr<TSession> session);
+    void FlushCurrentSession();
+
     TConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
@@ -75,6 +85,9 @@ private:
     TEpoch Epoch;
     IAction::TPtr OnApplyChange;
 
+    TIntrusivePtr<TSession> CurrentSession;
+    TSpinLock SpinLock; // for work with session
+    TDelayedInvoker::TCookie TimeoutCookie; // for session
 };
 
 ////////////////////////////////////////////////////////////////////////////////

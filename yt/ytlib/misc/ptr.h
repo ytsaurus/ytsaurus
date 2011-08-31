@@ -90,9 +90,11 @@ public:
      *  or NULL indicating that the last reference had already been lost and the object is on
      *  its way to heavens. All these steps happen atomically.
      *  
-     *  Under all circumstances it full caller's responsibility the make sure that the object
+     *  Under all circumstances it is caller's responsibility the make sure that the object
      *  is not destroyed during the call to #DangerousGetPtr. Typically this is achieved
-     *  by taking a lock in object's destructor and unregistering it there.
+     *  by keeping a (lock-protected) collection of raw pointers,
+     *  taking a lock in object's destructor,
+     *  and unregistering its raw pointer from the collection there.
      */
     template<class T>
     static TIntrusivePtr<T> DangerousGetPtr(T* obj)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "master_state_manager.h"
+#include "meta_state_manager.h"
 
 #include "../misc/lease_manager.h"
 

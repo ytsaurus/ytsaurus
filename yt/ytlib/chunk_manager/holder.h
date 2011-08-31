@@ -3,8 +3,8 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
-#include "../master/master_state_manager.h"
-#include "../master/composite_meta_state.h"
+#include "../meta_state/meta_state_manager.h"
+#include "../meta_state/composite_meta_state.h"
 
 #include "../chunk_holder/common.h"
 #include "../misc/lease_manager.h"
@@ -37,6 +37,7 @@ struct THolder
         , Address(other.Address)
         , Lease(other.Lease)
         , Statistics(other.Statistics)
+        , RegularChunks(other.RegularChunks)
         , UnderreplicatedChunks(other.UnderreplicatedChunks)
         , OverreplicatedChunks(other.OverreplicatedChunks)
     { }
@@ -47,6 +48,15 @@ struct THolder
         YASSERT(false);
         return *this;
     }
+
+    int GetTotalChunkCount() const
+    {
+        return static_cast<int>(
+            RegularChunks.size() +
+            UnderreplicatedChunks.size() +
+            OverreplicatedChunks.size());
+    }
+
 
     int Id;
     Stroka Address;

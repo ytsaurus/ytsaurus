@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../master/master_state_manager.h"
+#include "../meta_state/meta_state_manager.h"
 
 namespace NYT {
 

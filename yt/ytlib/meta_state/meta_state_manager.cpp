@@ -1,4 +1,4 @@
-#include "master_state_manager.h"
+#include "meta_state_manager.h"
 #include "follower_tracker.h"
 #include "change_committer.h"
 #include "leader_pinger.h"
@@ -68,7 +68,7 @@ void TMetaStateManager::RegisterMethods()
     RPC_REGISTER_METHOD(TMetaStateManager, ReadSnapshot);
     RPC_REGISTER_METHOD(TMetaStateManager, GetChangeLogInfo);
     RPC_REGISTER_METHOD(TMetaStateManager, ReadChangeLog);
-    RPC_REGISTER_METHOD(TMetaStateManager, ApplyChange);
+    RPC_REGISTER_METHOD(TMetaStateManager, ApplyChanges);
     RPC_REGISTER_METHOD(TMetaStateManager, CreateSnapshot);
     RPC_REGISTER_METHOD(TMetaStateManager, PingLeader);
 }
@@ -399,7 +399,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
     }
 }
 
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChange)
+RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
 {
     TEpoch epoch = TGuid::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
@@ -423,26 +423,44 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChange)
                 ~epoch.ToString());
     }
     
-    YASSERT(request->Attachments().size() == 1);
-    const TSharedRef& changeData = request->Attachments().at(0);
-
+    int numChanges = request->Attachments().size();
     switch (State) {
-        case EState::Following:
-            LOG_DEBUG("ApplyChange: applying change");
+        case EState::Following: {
+            LOG_DEBUG("ApplyChange: applying %d changes", numChanges);
 
-            ChangeCommitter->CommitFollower(version, changeData)->Subscribe(FromMethod(
-                &TMetaStateManager::OnLocalCommit,
-                TPtr(this),
-                context)->Via(ServiceInvoker));
+            for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
+                YASSERT(State == EState::Following);
+                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
+                const TSharedRef& changeData = request->Attachments().at(changeIndex);
+                TChangeCommitter::TResult::TPtr asyncResult =
+                    ChangeCommitter->CommitFollower(commitVersion, changeData);
+
+                // subscribe to last change
+                if (changeIndex == numChanges - 1) {
+                    asyncResult->Subscribe(FromMethod(
+                            &TMetaStateManager::OnLocalCommit,
+                            TPtr(this),
+                            context)
+                        ->Via(ServiceInvoker));
+                }
+            }
             break;
+        }
 
         case EState::FollowerRecovery: {
-            LOG_DEBUG("ApplyChange: keeping postponed change");
-            
+            LOG_DEBUG("ApplyChange: keeping %d postponed change", numChanges);
+
             YASSERT(~FollowerRecovery != NULL);
-            TRecovery::EResult result = FollowerRecovery->PostponeChange(version, changeData);
-            if (result != TRecovery::EResult::OK) {
-                Restart();
+            for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
+                YASSERT(State == EState::FollowerRecovery);
+                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
+                const TSharedRef& changeData = request->Attachments().at(changeIndex);
+                TRecovery::EResult result = FollowerRecovery
+                    ->PostponeChange(commitVersion, changeData);
+                if (result != TRecovery::EResult::OK) {
+                    Restart();
+                    break;
+                }
             }
 
             response->SetCommitted(false);
@@ -458,10 +476,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChange)
 
 void TMetaStateManager::OnLocalCommit(
     TChangeCommitter::EResult result,
-    TCtxApplyChange::TPtr context)
+    TCtxApplyChanges::TPtr context)
 {
-    TReqApplyChange& request = context->Request();
-    TRspApplyChange& response = context->Response();
+    TReqApplyChanges& request = context->Request();
+    TRspApplyChanges& response = context->Response();
 
     TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
 
@@ -644,6 +662,7 @@ void TMetaStateManager::OnApplyChange()
     YASSERT(State == EState::Leading);
     TMetaVersion version = MetaState->GetVersion();
     if (version.RecordCount >= Config.MaxRecordCount) {
+        ChangeCommitter->Flush();
         SnapshotCreator->CreateDistributed(version);
     }
 }

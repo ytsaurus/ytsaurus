@@ -4,10 +4,10 @@
 #include "transaction.h"
 #include "transaction_manager_rpc.h"
 
-#include "../master/master_state_manager.h"
-#include "../master/composite_meta_state.h"
-#include "../master/meta_state_service.h"
-#include "../master/map.h"
+#include "../meta_state/meta_state_manager.h"
+#include "../meta_state/composite_meta_state.h"
+#include "../meta_state/meta_state_service.h"
+#include "../meta_state/map.h"
 
 #include "../rpc/server.h"
 
