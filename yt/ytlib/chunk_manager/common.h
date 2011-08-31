@@ -6,6 +6,7 @@
 #include "../logging/log.h"
 
 #include "../chunk_holder/common.h"
+#include "../chunk_holder/replicator.h"
 
 #include "../transaction/common.h"
 #include "../transaction/transaction.h"
@@ -23,6 +24,11 @@ extern NLog::TLogger ChunkManagerLogger;
 using NTransaction::TTransactionId;
 using NTransaction::TTransaction;
 using NTransaction::TTransactionManager;
+
+using NChunkHolder::EJobState;
+using NChunkHolder::EJobType;
+using NChunkHolder::TJobId;
+using NChunkHolder::TJobIdHash;
 
 ////////////////////////////////////////////////////////////////////////////////
 

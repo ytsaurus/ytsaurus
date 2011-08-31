@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MasterLogger;
+static NLog::TLogger& Logger = MetaStateLogger;
 
 // TODO: Extract these settings to the global configuration.
 static i32 UnflushedBytesThreshold = 1 << 20;

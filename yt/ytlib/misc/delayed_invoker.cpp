@@ -62,8 +62,6 @@ void TDelayedInvoker::Shutdown()
 
 TDelayedInvoker::~TDelayedInvoker()
 {
-    //Thread.Detach();
-    // TODO: the following code causes a crash during termination. Investigate this.
     Shutdown();
 }
 
@@ -74,7 +72,12 @@ TDelayedInvoker* TDelayedInvoker::Get()
 
 TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TDuration delay)
 {
-    TEntry::TPtr entry = New<TEntry>(action, delay.ToDeadLine());
+    return Submit(action, delay.ToDeadLine());
+}
+
+TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TInstant deadline)
+{
+    TEntry::TPtr entry = New<TEntry>(action, deadline);
 
     LOG_DEBUG("Submitted task %p with action %p for %s",
         ~entry,
@@ -85,6 +88,7 @@ TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TDuration
     Entries.insert(entry);
     return entry;
 }
+
 
 bool TDelayedInvoker::Cancel(TCookie cookie)
 {

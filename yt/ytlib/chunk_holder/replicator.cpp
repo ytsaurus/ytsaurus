@@ -28,8 +28,10 @@ TJob::TJob(
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
     // TODO: provide proper configuration
+    TRemoteChunkWriter::TConfig config;
+    config.WindowSize = 1 << 16;
     Writer = ~New<TRemoteChunkWriter>(
-        TRemoteChunkWriter::TConfig(),
+        config,
         chunk->GetId(),
         targetAddresses);
 }
@@ -109,37 +111,67 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
     // ToDo: exception handling
     TAsyncResult<TVoid>::TPtr ready;
-    if (Writer->AsyncAddBlock(cachedBlock->GetData(), &ready)) {
-        LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
-            ~JobId.ToString(),
-            blockIndex);
+    IChunkWriter::EResult result = Writer->AsyncAddBlock(cachedBlock->GetData(), &ready);
+    switch (result) {
+        case IChunkWriter::EResult::OK:
+            LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
+                    ~JobId.ToString(),
+                    blockIndex);
 
-        ReplicateBlock(blockIndex + 1);
-    } else {
-        LOG_DEBUG("Replication writer window overflow (JobId: %s, BlockIndex: %d)",
-            ~JobId.ToString(),
-            blockIndex);
+            ReplicateBlock(blockIndex + 1);
+            break;
 
-        ready->Subscribe(
-            FromMethod(
-                &TJob::OnBlockLoaded,
-                TPtr(this),
-                cachedBlock,
-                blockIndex)
-            ->ToParamAction<TVoid>()
-            ->Via(~CancelableInvoker));
+        case IChunkWriter::EResult::TryLater:
+            LOG_DEBUG("Replication writer window overflow (JobId: %s, BlockIndex: %d)",
+                ~JobId.ToString(),
+                blockIndex);
+
+            YASSERT(~ready != NULL);
+            ready->Subscribe(
+                FromMethod(
+                    &TJob::OnBlockLoaded,
+                    TPtr(this),
+                    cachedBlock,
+                    blockIndex)
+                ->ToParamAction<TVoid>()
+                ->Via(~CancelableInvoker));
+            break;
+
+        case IChunkWriter::EResult::Failed:
+            LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d)",
+                ~JobId.ToString(),
+                blockIndex);
+
+            State = EJobState::Failed;
+            break;
+
+        default:
+            YASSERT(false);
+            break;
     }
 }
 
 void TJob::OnWriterClosed(IChunkWriter::EResult result)
 {
-    //ToDo: replace assert with proper error handling
-    YASSERT(result == IChunkWriter::EResult::OK);
+    switch (result) {
+        case IChunkWriter::EResult::OK:
+            LOG_DEBUG("Replication job completed (JobId: %s)",
+                ~JobId.ToString());
 
-    LOG_DEBUG("Replication job completed (JobId: %s)",
-        ~JobId.ToString());
+            State = EJobState::Completed;
+            break;
 
-    State = EJobState::Completed;
+        case IChunkWriter::EResult::Failed:
+            LOG_WARNING("Replication failed (JobId: %s)",
+                ~JobId.ToString());
+
+            State = EJobState::Failed;
+            break;
+
+        default:
+            YASSERT(false);
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -233,8 +233,12 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
          jobIndex < static_cast<int>(response->JobsToStartSize());
          ++jobIndex)
     {
-        const TJobStartInfo& info = response->GetJobsToStart(jobIndex);
-        TChunkId chunkId = TChunkId::FromProto(info.GetChunkId());
+        const TJobStartInfo& startInfo = response->GetJobsToStart(jobIndex);
+
+        // TODO: fixme
+        YASSERT(startInfo.GetType() == EJobType::Replicate);
+
+        TChunkId chunkId = TChunkId::FromProto(startInfo.GetChunkId());
         
         TChunk::TPtr chunk = ChunkStore->FindChunk(chunkId);
         if (~chunk == NULL) {
@@ -244,9 +248,9 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         }
 
         Replicator->StartJob(
-            TJobId::FromProto(info.GetJobId()),
+            TJobId::FromProto(startInfo.GetJobId()),
             chunk,
-            FromProto<Stroka>(info.GetTargetAddresses()));
+            FromProto<Stroka>(startInfo.GetTargetAddresses()));
     }
 }
 

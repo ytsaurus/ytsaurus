@@ -58,7 +58,7 @@ struct TChunkHolderConfig
         : MaxCachedBlocks(1024)
         , MaxCachedFiles(256)
         , SessionTimeout(TDuration::Seconds(15))
-        , HeartbeatPeriod(TDuration::Seconds(15))
+        , HeartbeatPeriod(TDuration::Seconds(5))
         , RpcTimeout(TDuration::Seconds(5))
         , Port(9000)
     {

@@ -4,6 +4,9 @@ SET(YT_SOURCE_FILES
     common.cpp
     holder.h
     chunk.h
+    job.h
     chunk_manager.cpp
     chunk_manager_rpc.h
+    chunk_placement.cpp
+    chunk_replication.cpp
 )

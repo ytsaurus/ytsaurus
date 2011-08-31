@@ -16,15 +16,18 @@ using NChunkHolder::THolderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef int THolderId;
+
 struct THolder
 {
     typedef yhash_set<TChunkId, TChunkIdHash> TChunkIds;
+    typedef yvector<TJobId> TJobs;
 
     THolder()
     { }
 
     THolder(
-        int id,
+        THolderId id,
         Stroka address,
         const THolderStatistics& statistics)
         : Id(id)
@@ -37,9 +40,10 @@ struct THolder
         , Address(other.Address)
         , Lease(other.Lease)
         , Statistics(other.Statistics)
-        , RegularChunks(other.RegularChunks)
+        , Chunks(other.Chunks)
         , UnderreplicatedChunks(other.UnderreplicatedChunks)
         , OverreplicatedChunks(other.OverreplicatedChunks)
+        , Jobs(other.Jobs)
     { }
 
     THolder& operator = (const THolder& other)
@@ -49,22 +53,28 @@ struct THolder
         return *this;
     }
 
-    int GetTotalChunkCount() const
+    void AddJob(const TJobId& id)
     {
-        return static_cast<int>(
-            RegularChunks.size() +
-            UnderreplicatedChunks.size() +
-            OverreplicatedChunks.size());
+        Jobs.push_back(id);
+    }
+
+    void RemoveJob(const TJobId& id)
+    {
+        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
+        if (it != Jobs.end()) {
+            Jobs.erase(it);
+        }
     }
 
 
-    int Id;
+    THolderId Id;
     Stroka Address;
     TLeaseManager::TLease Lease;
     THolderStatistics Statistics;
-    TChunkIds RegularChunks;
+    TChunkIds Chunks;
     TChunkIds UnderreplicatedChunks;
     TChunkIds OverreplicatedChunks;
+    TJobs Jobs;
 
 };
 

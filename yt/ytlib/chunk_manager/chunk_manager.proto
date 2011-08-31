@@ -20,18 +20,19 @@ message TMsgRemoveChunk
     required bytes ChunkId = 1;
 }
 
-message TMsgProcessHeartbeat
+message TMsgHeartbeatRequest
 {
     required int32 HolderId = 1;
-
     required THolderStatistics Statistics = 2;
-
     repeated TChunkInfo AddedChunks = 3;
     repeated bytes RemovedChunks = 4;
+}
 
-    repeated TJobStartInfo StartedJobs = 5;
-    repeated bytes StoppedJobs = 6;
-    repeated TJobInfo UpdatedJobs = 7;
+message TMsgHeartbeatResponse
+{
+    required int32 HolderId = 1;
+    repeated TJobStartInfo StartedJobs = 2;
+    repeated bytes StoppedJobs = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
