@@ -49,6 +49,7 @@ public:
             TryRead(json, L"LogLocation", &LogLocation);
             TryRead(json, L"SnapshotLocation", &SnapshotLocation);
         }
+        TCellConfig CellConfig;
     };
 
     DECLARE_ENUM(EState, 
@@ -71,7 +72,6 @@ public:
 
     TMetaStateManager(
         const TConfig& config,
-        TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker,
         IMetaState::TPtr metaState,
         NRpc::TServer::TPtr server);

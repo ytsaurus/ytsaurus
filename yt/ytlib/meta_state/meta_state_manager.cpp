@@ -18,7 +18,6 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 TMetaStateManager::TMetaStateManager(
     const TConfig& config,
-    TCellManager::TPtr cellManager,
     IInvoker::TPtr serviceInvoker,
     IMetaState::TPtr metaState,
     NRpc::TServer::TPtr server)
@@ -29,7 +28,6 @@ TMetaStateManager::TMetaStateManager(
     , State(EState::Stopped)
     , Config(config)
     , LeaderId(InvalidPeerId)
-    , CellManager(cellManager)
     , ServiceInvoker(serviceInvoker)
     , StateInvoker(metaState->GetInvoker())
 {
@@ -45,6 +43,8 @@ TMetaStateManager::TMetaStateManager(
         metaState,
         SnapshotStore,
         ChangeLogCache);
+
+    CellManager = New<TCellManager>(Config.CellConfig);
 
     // TODO: fill config
     ElectionManager = New<TElectionManager>(

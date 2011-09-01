@@ -10,27 +10,30 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCellConfig
+{
+    yvector<Stroka> PeerAddresses;
+    TPeerId Id;
+
+    TCellConfig()
+        : Id(InvalidPeerId)
+    { }
+
+    void Read(TJsonObject* json)
+    {
+        NYT::TryRead(json, L"Id", &Id);
+        NYT::TryRead(json, L"PeerAddresses", &PeerAddresses);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellManager
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TCellManager> TPtr;
-
-    struct TConfig
-    {
-        yvector<Stroka> PeerAddresses;
-        TPeerId Id;
-
-        TConfig()
-            : Id(InvalidPeerId)
-        { }
-
-        void Read(TJsonObject* json)
-        {
-            NYT::TryRead(json, L"Id", &Id);
-            NYT::TryRead(json, L"PeerAddresses", &PeerAddresses);
-        }
-    };
+    typedef TCellConfig TConfig;
 
     TCellManager(const TConfig& config);
 
