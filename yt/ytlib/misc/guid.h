@@ -51,14 +51,23 @@ bool operator==(const TGuid &a, const TGuid &b);
 bool operator!=(const TGuid &a, const TGuid &b);
 bool operator<(const TGuid &a, const TGuid &b);
 
-struct TGuidHash
-{
-    int operator()(const TGuid &a) const;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A hasher for TGuid.
+template<>
+struct hash<NYT::TGuid>
+{
+    inline size_t operator()(const NYT::TGuid &a) const
+    {
+        return a.Parts[0] + a.Parts[1] + a.Parts[2] + a.Parts[3];
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PODTYPE(NYT::TGuid)
 

@@ -29,7 +29,6 @@ using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;
-using NChunkHolder::TJobIdHash;
 
 ////////////////////////////////////////////////////////////////////////////////
 

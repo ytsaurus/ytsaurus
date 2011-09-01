@@ -18,7 +18,7 @@ typedef int THolderId;
 
 struct THolder
 {
-    typedef yhash_set<TChunkId, TChunkIdHash> TChunkIds;
+    typedef yhash_set<TChunkId> TChunkIds;
     typedef yvector<TJobId> TJobs;
 
     THolder()

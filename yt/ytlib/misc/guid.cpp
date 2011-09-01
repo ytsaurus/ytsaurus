@@ -284,14 +284,7 @@ bool operator!=(const TGuid &a, const TGuid &b)
 
 bool operator<(const TGuid &a, const TGuid &b)
 {
-    return TGuidHash()(a) < TGuidHash()(b);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int TGuidHash::operator()(const TGuid &a) const
-{
-    return a.Parts[0] + a.Parts[1] + a.Parts[2] + a.Parts[3];
+    return THash<TGuid>()(a) < THash<TGuid>()(b);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

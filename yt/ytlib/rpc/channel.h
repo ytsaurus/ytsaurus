@@ -58,7 +58,7 @@ private:
         TDelayedInvoker::TCookie TimeoutCookie;
     };
 
-    typedef yhash_map<TRequestId, TEntry::TPtr, TRequestIdHash> TEntries;
+    typedef yhash_map<TRequestId, TEntry::TPtr> TEntries;
 
     NBus::IBus::TPtr Bus;
     TSpinLock SpinLock;

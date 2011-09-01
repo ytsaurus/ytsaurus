@@ -12,9 +12,6 @@ typedef i64 TBlockOffset;
 //! Identifies a chunk.
 typedef TGuid TChunkId;
 
-//! A hasher for TChunkId.
-typedef TGuidHash TChunkIdHash;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Identifies a block.
@@ -58,16 +55,19 @@ inline bool operator!=(const TBlockId& blockId1, const TBlockId& blockId2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An hasher for TBlockId.
-struct TBlockIdHash
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A hasher for TBlockId.
+template<>
+struct hash<NYT::TBlockId>
 {
-    i32 operator()(const TBlockId& blockId) const
+    i32 operator()(const NYT::TBlockId& blockId) const
     {
-        static TGuidHash hash;
-        return hash(blockId.ChunkId) * 497 + (i32) blockId.BlockIndex;
+        return (i32) THash<NYT::TGuid>()(blockId.ChunkId) * 497 + (i32) blockId.BlockIndex;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT

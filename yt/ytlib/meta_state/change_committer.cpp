@@ -20,9 +20,9 @@ public:
         TChangeCommitter::TPtr committer,
         const TMetaVersion& version)
         : Committer(committer)
-        , Version(version)
         , Result(New<TResult>())
         , Awaiter(New<TParallelAwaiter>(~committer->CancelableServiceInvoker))
+        , Version(version)
         // Count the local commit.
         , CommitCount(1)
     { }

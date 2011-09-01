@@ -30,9 +30,6 @@ class TReplicator;
 //! Id of a job.
 typedef TGuid TJobId;
 
-//! Hash for job ids.
-typedef TGuidHash TJobIdHash;
-
 //! Represents a replication job on a chunk holder.
 class TJob
     : public TRefCountedBase
@@ -140,7 +137,7 @@ public:
     yvector<TJob::TPtr> GetAllJobs();
 
 private:
-    typedef yhash_map<TJobId, TJob::TPtr, TJobIdHash> TJobMap;
+    typedef yhash_map<TJobId, TJob::TPtr> TJobMap;
 
     TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;

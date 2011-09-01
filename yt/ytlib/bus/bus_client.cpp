@@ -44,7 +44,7 @@ public:
 private:
     friend class TClientDispatcher;
 
-    typedef yhash_set<TGuid, TGuidHash> TRequestIdSet;
+    typedef yhash_set<TGuid> TRequestIdSet;
 
     TBusClient::TPtr Client;
     IMessageHandler::TPtr Handler;
@@ -82,8 +82,8 @@ class TClientDispatcher
         TBlob Data;
     };
 
-    typedef yhash_map<TSessionId, TBusClient::TBus::TPtr, TGuidHash > TBusMap;
-    typedef yhash_map<TGuid, TRequest::TPtr, TGuidHash> TRequestMap;
+    typedef yhash_map<TSessionId, TBusClient::TBus::TPtr> TBusMap;
+    typedef yhash_map<TGuid, TRequest::TPtr> TRequestMap;
 
     TThread Thread;
     volatile bool Terminated;

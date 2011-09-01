@@ -15,7 +15,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlock::TCachedBlock(const TBlockId& blockId, const TSharedRef& data)
-    : TCacheValueBase<TBlockId, TCachedBlock, TBlockIdHash>(blockId)
+    : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data(data)
 { }
 
@@ -27,7 +27,7 @@ TSharedRef TCachedBlock::GetData() const
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TBlockCache 
-    : public TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>
+    : public TCapacityLimitedCache<TBlockId, TCachedBlock>
 {
 public:
     typedef TIntrusivePtr<TBlockCache> TPtr;
@@ -35,7 +35,7 @@ public:
     TBlockCache(
         const TChunkHolderConfig& config,
         TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TBlockId, TCachedBlock, TBlockIdHash>(config.MaxCachedBlocks)
+        : TCapacityLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocks)
         , ChunkStore(chunkStore)
     { }
 

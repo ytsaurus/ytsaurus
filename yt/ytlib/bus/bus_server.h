@@ -32,8 +32,8 @@ private:
 
     friend class TSession;
 
-    typedef yhash_map<TSessionId, TIntrusivePtr<TSession>, TGuidHash> TSessionMap;
-    typedef yhash_map<TGuid, TIntrusivePtr<TSession>, TGuidHash> TPingMap;
+    typedef yhash_map<TSessionId, TIntrusivePtr<TSession> > TSessionMap;
+    typedef yhash_map<TGuid, TIntrusivePtr<TSession> > TPingMap;
 
     IMessageHandler::TPtr Handler;
     volatile bool Terminated;
