@@ -1,7 +1,7 @@
 SET(YT_SOURCE_FILES
     common.cpp
-    master_state.h
-    decorated_master_state.cpp
+    meta_state.h
+    decorated_meta_state.cpp
     meta_state_manager.cpp
     meta_state_manager.proto
     meta_state_manager_rpc.h

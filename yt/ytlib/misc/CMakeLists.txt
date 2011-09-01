@@ -20,7 +20,7 @@ SET(YT_SOURCE_FILES
     semaphore.cpp
     guid.cpp
     assert.h
-
+    ptr.h
     ${SRCDIR}/preprocessor-gen.h
 )
 

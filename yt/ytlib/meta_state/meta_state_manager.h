@@ -3,7 +3,7 @@
 #include "common.h"
 #include "change_log.h"
 #include "change_log_cache.h"
-#include "master_state.h"
+#include "meta_state.h"
 #include "meta_state_manager_rpc.h"
 #include "snapshot.h"
 #include "snapshot_creator.h"

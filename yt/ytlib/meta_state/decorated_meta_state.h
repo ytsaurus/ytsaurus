@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "master_state.h"
+#include "meta_state.h"
 #include "snapshot_store.h"
 #include "change_log_cache.h"
 

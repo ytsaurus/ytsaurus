@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "meta_state_manager_rpc.h"
-#include "decorated_master_state.h"
+#include "decorated_meta_state.h"
 #include "change_log_cache.h"
 
 #include "../election/election_manager.h"

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "master_state.h"
-#include "decorated_master_state.h"
+#include "meta_state.h"
+#include "decorated_meta_state.h"
 #include "meta_state_manager_rpc.h"
 #include "cell_manager.h"
 #include "async_change_log.h"
