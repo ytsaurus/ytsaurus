@@ -32,6 +32,7 @@ TServiceContext::TServiceContext(
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
     LogResponseInfo(errorCode);
+    Service->OnEndRequest(this);
     DoReply(errorCode);
 }
 
@@ -212,18 +213,19 @@ void TServiceBase::RegisterHandler(
     Stroka methodName,
     THandler::TPtr handler)
 {
-    bool inserted = Handlers.insert(MakePair(methodName, handler)).Second();
+    bool inserted = MethodInfos.insert(
+        MakePair(methodName, New<TMethodInfo>(handler))).Second();
     if (!inserted) {
         LOG_FATAL("Method is already registered (ServiceName: %s, MethodName: %s)",
             ~ServiceName, ~methodName);
     }
 }
 
-void TServiceBase::OnRequest(TServiceContext::TPtr context)
+void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
 {
     Stroka methodName = context->GetMethodName();
-    THandlerMap::iterator it = Handlers.find(methodName);
-    if (it == Handlers.end()) {
+    TMethodInfoMap::iterator it = MethodInfos.find(methodName);
+    if (it == MethodInfos.end()) {
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName, ~methodName);
         IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
@@ -232,10 +234,18 @@ void TServiceBase::OnRequest(TServiceContext::TPtr context)
         context->GetReplyBus()->Send(errorMessage);
         return;
     }
+    context->StartTime = TInstant::Now();
 
-    THandler::TPtr handler = it->Second();
+    THandler::TPtr handler = it->second->Handler;
     IAction::TPtr wrappedHandler = context->Wrap(handler->Bind(context));
     ServiceInvoker->Invoke(wrappedHandler);
+}
+
+void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
+{
+    Stroka methodName = context->GetMethodName();
+    TInstant startTime = context->StartTime;
+    MethodInfos[methodName]->ExecutionTimeAnalyzer.AddDelta(startTime);
 }
 
 Stroka TServiceBase::GetServiceName() const
@@ -246,6 +256,11 @@ Stroka TServiceBase::GetServiceName() const
 Stroka TServiceBase::GetLoggingCategory() const
 {
     return ServiceLogger.GetCategory();
+}
+
+Stroka TServiceBase::GetDebugInfo() const
+{
+    return "fixme pls";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

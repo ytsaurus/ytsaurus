@@ -4,6 +4,7 @@
 #include "client.h"
 #include "message.h"
 
+#include "../misc/metric.h"
 #include "../logging/log.h"
 
 #include <util/generic/yexception.h>
@@ -68,7 +69,8 @@ struct IService
     virtual Stroka GetServiceName() const = 0;
     virtual Stroka GetLoggingCategory() const = 0;
 
-    virtual void OnRequest(TIntrusivePtr<TServiceContext> context) = 0;
+    virtual void OnBeginRequest(TIntrusivePtr<TServiceContext> context) = 0;
+    virtual void OnEndRequest(TIntrusivePtr<TServiceContext> context) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +131,9 @@ protected:
 
     Stroka RequestInfo;
     Stroka ResponseInfo;
+
+    friend class TServiceBase;
+    TInstant StartTime;
 
 private:
     void DoReply(EErrorCode errorCode);
@@ -287,8 +292,11 @@ private:
 class TServiceBase
     : public IService
 {
+public:
+    Stroka GetDebugInfo() const;
+
 protected:
-    typedef IParamAction<TServiceContext::TPtr> THandler;
+    typedef IParamAction<TIntrusivePtr<TServiceContext> > THandler;
 
     TServiceBase(
         IInvoker::TPtr serviceInvoker,
@@ -301,12 +309,27 @@ protected:
     IInvoker::TPtr ServiceInvoker;
 
 private:
-    typedef yhash_map<Stroka, THandler::TPtr> THandlerMap;
+    struct TMethodInfo
+        : public TRefCountedBase
+    {
+        typedef TIntrusivePtr<TMethodInfo> TPtr;
+
+        THandler::TPtr Handler;
+        TMetric ExecutionTimeAnalyzer;
+
+        TMethodInfo(THandler::TPtr handler)
+            : Handler(handler)
+            , ExecutionTimeAnalyzer(0, 1000, 10) // TODO: think about initial values
+        { }
+    };
+
+    typedef yhash_map<Stroka, TMethodInfo::TPtr> TMethodInfoMap;
 
     Stroka ServiceName;
-    THandlerMap Handlers;
+    TMethodInfoMap MethodInfos;
 
-    virtual void OnRequest(TServiceContext::TPtr context);
+    virtual void OnBeginRequest(TServiceContext::TPtr context);
+    virtual void OnEndRequest(TServiceContext::TPtr context);
 
     virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;

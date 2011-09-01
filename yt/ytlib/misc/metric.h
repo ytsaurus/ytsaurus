@@ -19,7 +19,7 @@ public:
     void AddValue(TDuration duration);
 
     //! Adds time passed from #start to now to analysis.
-    void AddValue(TInstant start);
+    void AddDelta(TInstant start);
 
     //! Returns mean of all values.
     double GetMean() const;
