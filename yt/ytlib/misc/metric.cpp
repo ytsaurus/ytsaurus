@@ -32,7 +32,7 @@ void TMetric::AddValue(TDuration duration)
     AddValue(static_cast<double>(duration.MilliSeconds()));
 }
 
-void TMetric::AddValue(TInstant start)
+void TMetric::AddDelta(TInstant start)
 {
     AddValue(start - TInstant::Now());
 }

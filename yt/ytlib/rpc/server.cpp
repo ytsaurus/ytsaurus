@@ -83,7 +83,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         methodName,
         message,
         replyBus);
-    service->OnRequest(context);
+    service->OnBeginRequest(context);
 }
 
 IService::TPtr TServer::GetService(Stroka serviceName)
