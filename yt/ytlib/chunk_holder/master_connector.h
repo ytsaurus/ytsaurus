@@ -31,20 +31,6 @@ public:
         TReplicator::TPtr replicator,
         IInvoker::TPtr serviceInvoker);
 
-    //! Registers a chunk that was just fully uploaded.
-    /*!
-     *  This call places the chunk into a list and reports its arrival
-     *  to the master upon a next heartbeat.
-     */
-    void RegisterAddedChunk(TChunk::TPtr chunk);
-
-    //! Registers a chunk that was just removed.
-    /*!
-     *  This call places the chunk into a list and reports its removal
-     *  to the master upon a next heartbeat.
-     */
-    void RegisterRemovedChunk(TChunk::TPtr chunk);
-    
 private:
     typedef NChunkManager::TChunkManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
@@ -97,12 +83,6 @@ private:
     //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunks ReportedRemoved;
 
-    //! Initializes #Proxy.
-    void InitializeProxy();
-
-    //! Computes #Address.
-    void InitializeAddress();
-
     //! Schedules a heartbeat via TDelayedInvoker.
     void ScheduleHeartbeat();
 
@@ -127,6 +107,19 @@ private:
     //! Constructs a protobuf chunk info for a given chunk.
     static NChunkManager::NProto::TChunkInfo GetInfo(TChunk::TPtr chunk);
 
+    //! Handles registration of new chunks.
+    /*!
+     *  Places the chunk into a list and reports its arrival
+     *  to the master upon a next heartbeat.
+     */
+    void OnChunkAdded(TChunk::TPtr);
+
+    //! Handles removal of existing chunks.
+    /*!
+     *  Places the chunk into a list and reports its removal
+     *  to the master upon a next heartbeat.
+     */
+    void OnChunkRemoved(TChunk::TPtr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

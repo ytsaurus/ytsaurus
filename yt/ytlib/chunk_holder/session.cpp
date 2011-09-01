@@ -250,7 +250,7 @@ void TSession::EnqueueWrites()
 TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 {
     try {
-        Writer->AddBlock(block->GetData());
+        Writer->WriteBlock(block->GetData());
     } catch (...) {
         LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d, What: %s)",
             ~ChunkId.ToString(),

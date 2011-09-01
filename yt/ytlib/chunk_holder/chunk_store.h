@@ -118,6 +118,12 @@ public:
      */
     TFileChunkReader::TPtr GetChunkReader(TChunk::TPtr chunk);
 
+    //! Physically removes the chunk.
+    /*!
+     *  This call also evicts the reader from the cache thus hopefully closing the file.
+     */
+    void RemoveChunk(TChunk::TPtr chunk);
+
     //! Returns invoker for a given storage location.
     IInvoker::TPtr GetIOInvoker(int location);
 
@@ -127,17 +133,26 @@ public:
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const TChunkId& chunkId, int location);
 
+    //! Returns a full path to a chunk file.
+    Stroka GetChunkFileName(TChunk::TPtr chunk);
+
     //! Returns current statistics.
     THolderStatistics GetStatistics() const;
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
 
+    //! Raised when a chunk is added.
+    TParamSignal<TChunk::TPtr>& ChunkAdded();
+
+    //! Raised when a chunk is removed.
+    TParamSignal<TChunk::TPtr>& ChunkRemoved();
+
 private:
     class TCachedReader;
     class TReaderCache;
 
-    TChunkHolderConfig Config; // TODO: avoid copying
+    TChunkHolderConfig Config;
 
     //! Actions queues that handle IO requests to chunk storage locations.
     yvector<IInvoker::TPtr> IOInvokers;
@@ -147,6 +162,9 @@ private:
 
     //! Caches opened chunk files.
     TIntrusivePtr<TReaderCache> ReaderCache;
+
+    TParamSignal<TChunk::TPtr> ChunkAdded_;
+    TParamSignal<TChunk::TPtr> ChunkRemoved_;
 
     void ScanChunks();
     void InitIOQueues();

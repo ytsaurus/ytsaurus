@@ -41,9 +41,13 @@ public:
         IInvoker::TPtr serviceInvoker,
         TChunkStore::TPtr chunkStore,
         TBlockStore::TPtr blockStore,
+        EJobType jobType,
         const TJobId& jobId,
         TChunk::TPtr chunk,
         const yvector<Stroka>& targetAddresses);
+
+    //! Returns the type.
+    EJobType GetType() const;
 
     //! Returns the id.
     TJobId GetJobId() const;
@@ -62,6 +66,7 @@ private:
 
     TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;
+    EJobType JobType;
     TJobId JobId;
     EJobState State;
     TChunk::TPtr Chunk;
@@ -84,7 +89,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Controls chunk replication on a chunk holder.
+//! Controls chunk replication and removal on a chunk holder.
 /*!
  *  Each chunk holder has a set of currently active replication jobs.
  *  These jobs are started by the master and are used for two purposes:
@@ -119,6 +124,7 @@ public:
     
     //! Starts a new job with the given parameters.
     TJob::TPtr StartJob(
+        EJobType jobType,
         const TJobId& jobId,
         TChunk::TPtr chunk,
         const yvector<Stroka>& targetAddresses);

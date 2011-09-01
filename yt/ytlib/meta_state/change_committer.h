@@ -57,6 +57,7 @@ public:
         TMetaVersion version,
         TSharedRef changeData);
 
+    // TODO: use TSignal here
     void SetOnApplyChange(IAction::TPtr onApplyChange);
 
     //! Forcely send an rpc request with changes

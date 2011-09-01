@@ -4,7 +4,6 @@
 
 #include "../rpc/client.h"
 #include "../meta_state/cell_channel.h"
-
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"
 
@@ -32,25 +31,23 @@ TMasterConnector::TMasterConnector(
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    InitializeProxy();
-    InitializeAddress();
+    NRpc::IChannel::TPtr channel = ~New<TCellChannel>(Config.Masters);
+    Proxy.Reset(new TProxy(~channel));
+
+    Address = Sprintf("%s:%d", ~HostName(), Config.Port);
+
+    ChunkStore->ChunkAdded().Subscribe(FromMethod(
+        &TMasterConnector::OnChunkAdded,
+        TPtr(this)));
+    ChunkStore->ChunkRemoved().Subscribe(FromMethod(
+        &TMasterConnector::OnChunkRemoved,
+        TPtr(this)));
 
     LOG_INFO("Chunk holder address is %s, master addresses are %s",
         ~Address,
         ~Config.Masters.ToString());
 
     OnHeartbeat();
-}
-
-void TMasterConnector::InitializeProxy()
-{
-    NRpc::IChannel::TPtr channel = ~New<TCellChannel>(Config.Masters);
-    Proxy.Reset(new TProxy(~channel));
-}
-
-void TMasterConnector::InitializeAddress()
-{
-    Address = Sprintf("%s:%d", ~HostName(), Config.Port);
 }
 
 void TMasterConnector::ScheduleHeartbeat()
@@ -71,9 +68,9 @@ void TMasterConnector::OnHeartbeat()
 
 void TMasterConnector::SendRegister()
 {
-    TProxy::TReqRegisterHolder::TPtr request = Proxy->RegisterHolder();
+    auto request = Proxy->RegisterHolder();
     
-    THolderStatistics statistics = ChunkStore->GetStatistics();
+    auto statistics = ChunkStore->GetStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     request->SetAddress(Address);
@@ -108,26 +105,26 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
 
 void TMasterConnector::SendHeartbeat()
 {
-    TProxy::TReqHolderHeartbeat::TPtr request = Proxy->HolderHeartbeat();
+    auto request = Proxy->HolderHeartbeat();
 
     YASSERT(HolderId != InvalidHolderId);
     request->SetHolderId(HolderId);
 
-    THolderStatistics statistics = ChunkStore->GetStatistics();
+    auto statistics = ChunkStore->GetStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     if (IncrementalHeartbeat) {
         ReportedAdded = AddedSinceLastSuccess;
         ReportedRemoved = RemovedSinceLastSuccess;
 
-        for (TChunks::iterator it = ReportedAdded.begin();
+        for (auto it = ReportedAdded.begin();
             it != ReportedAdded.end();
             ++it)
         {
             *request->AddAddedChunks() = GetInfo(*it);
         }
 
-        for (TChunks::iterator it = ReportedRemoved.begin();
+        for (auto it = ReportedRemoved.begin();
             it != ReportedRemoved.end();
             ++it)
         {
@@ -135,7 +132,7 @@ void TMasterConnector::SendHeartbeat()
         }
     } else {
         TChunkStore::TChunks chunks = ChunkStore->GetChunks();
-        for (TChunkStore::TChunks::iterator it = chunks.begin();
+        for (auto it = chunks.begin();
              it != chunks.end();
              ++it)
         {
@@ -143,8 +140,8 @@ void TMasterConnector::SendHeartbeat()
         }
     }
 
-    yvector<TJob::TPtr> jobs = Replicator->GetAllJobs();
-    for (yvector<TJob::TPtr>::iterator it = jobs.begin();
+    auto jobs = Replicator->GetAllJobs();
+    for (auto it = jobs.begin();
          it != jobs.end();
          ++it)
     {
@@ -188,7 +185,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         TChunks newAddedSinceLastSuccess;
         TChunks newRemovedSinceLastSuccess;
 
-        for (TChunks::iterator it = AddedSinceLastSuccess.begin();
+        for (auto it = AddedSinceLastSuccess.begin();
             it != AddedSinceLastSuccess.end();
             ++it)
         {
@@ -197,7 +194,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             }
         }
 
-        for (TChunks::iterator it = RemovedSinceLastSuccess.begin();
+        for (auto it = RemovedSinceLastSuccess.begin();
             it != RemovedSinceLastSuccess.end();
             ++it)
         {
@@ -211,8 +208,6 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     } else {
         IncrementalHeartbeat = true;
     }
-
-    // TODO: handle chunk removals
 
     for (int jobIndex = 0;
          jobIndex < static_cast<int>(response->JobsToStopSize());
@@ -234,21 +229,20 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
          ++jobIndex)
     {
         const TJobStartInfo& startInfo = response->GetJobsToStart(jobIndex);
-
-        // TODO: fixme
-        YASSERT(startInfo.GetType() == EJobType::Replicate);
-
         TChunkId chunkId = TChunkId::FromProto(startInfo.GetChunkId());
+        TJobId jobId = TJobId::FromProto(startInfo.GetJobId());
         
         TChunk::TPtr chunk = ChunkStore->FindChunk(chunkId);
         if (~chunk == NULL) {
-            LOG_WARNING("Request to replicate a non-existing chunk is ignored (ChunkId: %s)",
-                ~chunkId.ToString());
+            LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s)",
+                ~chunkId.ToString(),
+                ~jobId.ToString());
             continue;
         }
 
         Replicator->StartJob(
-            TJobId::FromProto(startInfo.GetJobId()),
+            EJobType(startInfo.GetType()),
+            jobId,
             chunk,
             FromProto<Stroka>(startInfo.GetTargetAddresses()));
     }
@@ -273,7 +267,7 @@ NChunkManager::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
     return result;
 }
 
-void TMasterConnector::RegisterAddedChunk(TChunk::TPtr chunk)
+void TMasterConnector::OnChunkAdded(TChunk::TPtr chunk)
 {
     if (!IncrementalHeartbeat)
         return;
@@ -291,7 +285,7 @@ void TMasterConnector::RegisterAddedChunk(TChunk::TPtr chunk)
     AddedSinceLastSuccess.insert(chunk);
 }
 
-void TMasterConnector::RegisterRemovedChunk(TChunk::TPtr chunk)
+void TMasterConnector::OnChunkRemoved(TChunk::TPtr chunk)
 {
     if (!IncrementalHeartbeat)
         return;

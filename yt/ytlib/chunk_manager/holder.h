@@ -39,8 +39,6 @@ struct THolder
         , Lease(other.Lease)
         , Statistics(other.Statistics)
         , Chunks(other.Chunks)
-        , UnderreplicatedChunks(other.UnderreplicatedChunks)
-        , OverreplicatedChunks(other.OverreplicatedChunks)
         , Jobs(other.Jobs)
     { }
 
@@ -68,11 +66,9 @@ struct THolder
 
     THolderId Id;
     Stroka Address;
-    TLeaseManager::TLease Lease;
+    mutable TLeaseManager::TLease Lease;
     THolderStatistics Statistics;
     TChunkIds Chunks;
-    TChunkIds UnderreplicatedChunks;
-    TChunkIds OverreplicatedChunks;
     TJobs Jobs;
 
 };

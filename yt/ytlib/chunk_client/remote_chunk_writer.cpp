@@ -129,12 +129,12 @@ void TRemoteChunkWriter::TGroup::PutGroup()
         YASSERT(node < Writer->Nodes.ysize());
     }
 
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~Writer->WriterThread);
-    IAction::TPtr onSuccess = FromMethod(
+    auto awaiter = New<TParallelAwaiter>(~Writer->WriterThread);
+    auto onSuccess = FromMethod(
         &TGroup::OnPutBlocks, 
         TGroupPtr(this), 
         node);
-    IParamAction<TRspPutBlocks::TPtr>::TPtr onResponse = FromMethod(
+    auto onResponse = FromMethod(
         &TRemoteChunkWriter::CheckResponse<TRspPutBlocks>, 
         Writer, 
         node, 
@@ -154,7 +154,7 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
         GetEndBlockIndex(),
         ~Writer->Nodes[node]->Address);
 
-    TReqPutBlocks::TPtr req = Writer->Nodes[node]->Proxy.PutBlocks();
+    auto req = Writer->Nodes[node]->Proxy.PutBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
     req->SetStartBlockIndex(StartBlockIndex);
 
@@ -180,14 +180,13 @@ void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
     int nodeCount = IsSent.ysize();
     for (int node = 0; node < nodeCount; ++node) {
         if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
-            TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(
-                ~TRemoteChunkWriter::WriterThread);
-            IAction::TPtr onSuccess = FromMethod(
+            auto awaiter = New<TParallelAwaiter>(~TRemoteChunkWriter::WriterThread);
+            auto onSuccess = FromMethod(
                 &TGroup::OnSentBlocks, 
                 TGroupPtr(this), 
                 srcNode, 
                 node);
-            IParamAction<TRspSendBlocks::TPtr>::TPtr onResponse = FromMethod(
+            auto onResponse = FromMethod(
                 &TRemoteChunkWriter::CheckResponse<TRspSendBlocks>, 
                 Writer, 
                 srcNode, 
@@ -445,37 +444,33 @@ void TRemoteChunkWriter::OnNodeDied(int node)
 }
 
 template<class TResponse>
-void TRemoteChunkWriter::CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess)
+void TRemoteChunkWriter::CheckResponse(
+    typename TResponse::TPtr rsp,
+    int node,
+    IAction::TPtr onSuccess)
 {
     if (rsp->IsOK()) {
         onSuccess->Do();
-    } else if (rsp->IsServiceError()) {
-        // For now assume it means errors in client logic.
-        // ToDo: proper error handling, e.g lease expiration.
-        LOG_FATAL("Chunk %s, node %s returned soft error %s", 
-            ~ChunkId.ToString(),
-            ~Nodes[node]->Address, 
-            ~rsp->GetErrorCode().ToString());
-    } else {
-        // Node probably died or overloaded.
-        // ToDo: consider more detailed error handling for timeouts.
-        LOG_WARNING("Chunk %s, node %s returned rpc error %s", 
-            ~ChunkId.ToString(),
-            ~Nodes[node]->Address, 
-            ~rsp->GetErrorCode().ToString());
-        OnNodeDied(node);
-    }
+        return;
+    } 
+
+    // TODO: retry?
+    LOG_ERROR("Error reported by chunk holder (Address: %s, ChunkId: %s, ErrorCode: %s)", 
+        ~Nodes[node]->Address, 
+        ~ChunkId.ToString(),
+        ~rsp->GetErrorCode().ToString());
+    OnNodeDied(node);
 }
 
 void TRemoteChunkWriter::StartSession()
 {
     TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~WriterThread);
     for (int node = 0; node < Nodes.ysize(); ++node) {
-        IAction::TPtr onSuccess = FromMethod(
+        auto onSuccess = FromMethod(
             &TRemoteChunkWriter::OnStartedChunk, 
             TPtr(this), 
             node);
-        IParamAction<TRspStartChunk::TPtr>::TPtr onResponse = FromMethod(
+        auto onResponse = FromMethod(
             &TRemoteChunkWriter::CheckResponse<TRspStartChunk>, 
             TPtr(this), 
             node, 
@@ -491,7 +486,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartChunk(int node
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
 
-    TProxy::TReqStartChunk::TPtr req = Nodes[node]->Proxy.StartChunk();
+    auto req = Nodes[node]->Proxy.StartChunk();
     req->SetChunkId(ChunkId.ToProto());
     req->SetWindowSize(Config.WindowSize);
     return req->Invoke(Config.RpcTimeout);
@@ -572,7 +567,7 @@ void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowRead
     }
 }
 
-IChunkWriter::EResult TRemoteChunkWriter::AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
+IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
 {
     YASSERT(ready != NULL);
     YASSERT(ready->Get() == NULL);

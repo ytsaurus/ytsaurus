@@ -16,24 +16,23 @@ TJob::TJob(
     IInvoker::TPtr serviceInvoker,
     TChunkStore::TPtr chunkStore,
     TBlockStore::TPtr blockStore,
+    EJobType jobType,
     const TJobId& jobId,
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
     : ChunkStore(chunkStore)
     , BlockStore(blockStore)
+    , JobType(jobType)
     , JobId(jobId)
     , State(EJobState::Running)
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+{ }
+
+EJobType TJob::GetType() const
 {
-    // TODO: provide proper configuration
-    TRemoteChunkWriter::TConfig config;
-    config.WindowSize = 1 << 16;
-    Writer = ~New<TRemoteChunkWriter>(
-        config,
-        chunk->GetId(),
-        targetAddresses);
+    return JobType;
 }
 
 TJobId TJob::GetJobId() const
@@ -58,26 +57,59 @@ TChunk::TPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
-    ChunkStore->GetChunkMeta(Chunk)->Subscribe(
-        FromMethod(
-            &TJob::OnGotMeta,
-            TPtr(this))
-        ->Via(~CancelableInvoker));
+    switch (JobType) {
+        case EJobType::Remove:
+            LOG_INFO("Removal job started (JobId: %s, ChunkId: %s)",
+                ~JobId.ToString(),
+                ~Chunk->GetId().ToString());
+
+            ChunkStore->RemoveChunk(Chunk);
+
+            LOG_DEBUG("Removal job completed (JobId: %s)",
+                ~JobId.ToString());
+
+            State = EJobState::Completed;
+            break;
+
+        case EJobType::Replicate:
+            LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
+                ~JobId.ToString(),
+                ~JoinStroku(TargetAddresses, ", "),
+                ~Chunk->GetId().ToString());
+
+            ChunkStore->GetChunkMeta(Chunk)->Subscribe(
+                FromMethod(
+                &TJob::OnGotMeta,
+                TPtr(this))
+                ->Via(~CancelableInvoker));
+            break;
+
+        default:
+            YASSERT(false);
+            break;
+    }
 }
 
 void TJob::OnGotMeta(TChunkMeta::TPtr meta)
 {
     Meta = meta;
+
+    Writer = ~New<TRemoteChunkWriter>(
+        TRemoteChunkWriter::TConfig(),
+        Chunk->GetId(),
+        TargetAddresses);
+
     ReplicateBlock(0);
 }
 
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
-    Writer->Cancel();
+    if (~Writer != NULL) {
+        Writer->Cancel();
+    }
 }
 
-// TODO: handle errors
 bool TJob::ReplicateBlock(int blockIndex)
 {
     if (blockIndex >= Meta->GetBlockCount()) {
@@ -109,9 +141,8 @@ bool TJob::ReplicateBlock(int blockIndex)
 
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
-    // ToDo: exception handling
     TAsyncResult<TVoid>::TPtr ready;
-    IChunkWriter::EResult result = Writer->AsyncAddBlock(cachedBlock->GetData(), &ready);
+    IChunkWriter::EResult result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
     switch (result) {
         case IChunkWriter::EResult::OK:
             LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
@@ -158,13 +189,16 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
             LOG_DEBUG("Replication job completed (JobId: %s)",
                 ~JobId.ToString());
 
+            Writer.Drop();
             State = EJobState::Completed;
             break;
 
         case IChunkWriter::EResult::Failed:
-            LOG_WARNING("Replication failed (JobId: %s)",
+            LOG_WARNING("Replication job failed (JobId: %s)",
                 ~JobId.ToString());
 
+            Writer->Cancel();
+            Writer.Drop();
             State = EJobState::Failed;
             break;
 
@@ -186,6 +220,7 @@ TReplicator::TReplicator(
 { }
 
 TJob::TPtr TReplicator::StartJob(
+    EJobType jobType,
     const TJobId& jobId,
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
@@ -194,17 +229,13 @@ TJob::TPtr TReplicator::StartJob(
         ServiceInvoker,
         ChunkStore,
         BlockStore,
+        jobType,
         jobId,
         chunk,
         targetAddresses);
     YVERIFY(Jobs.insert(MakePair(jobId, job)).Second());
     job->Start();
 
-    LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
-        ~jobId.ToString(),
-        ~JoinStroku(targetAddresses, ", "),
-        ~chunk->GetId().ToString());
-    
     return job;
 }
 
@@ -220,11 +251,8 @@ void TReplicator::StopJob(TJob::TPtr job)
 
 TJob::TPtr TReplicator::FindJob(const TJobId& jobId)
 {
-    TJobMap::iterator it = Jobs.find(jobId);
-    if (it == Jobs.end())
-        return NULL;
-    else
-        return it->Second();
+    auto it = Jobs.find(jobId);
+    return it == Jobs.end() ? NULL : it->Second();
 }
 
 yvector<TJob::TPtr> TReplicator::GetAllJobs()
