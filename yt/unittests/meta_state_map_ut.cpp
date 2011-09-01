@@ -118,6 +118,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
 
 TEST_F(TMetaStateMapTest, SaveAndLoad)
 {
+    srand(42); // set seed
     TTempFileHandle file(GenerateRandomFileName("MetaStateMap"));
     yhash_map<TKey, int> checkMap;
     IInvoker::TPtr invoker = new TActionQueue();
@@ -167,6 +168,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
 
 TEST_F(TMetaStateMapTest, StressSave)
 {
+    srand(42); // set seed
     TTempFileHandle file(GenerateRandomFileName("MetaStateMap"));
     TBufferedFileOutput output(file);
     TOutputStream* stream = &output;
