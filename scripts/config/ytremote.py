@@ -8,7 +8,7 @@ DoClean = FileDescr('do_clean', ('remote', 'exec'))
 
 Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog]
 
-#################################################################
+################################################################
 
 shebang = '#!/bin/bash -v'
 cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \

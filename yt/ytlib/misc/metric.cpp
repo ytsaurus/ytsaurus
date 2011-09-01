@@ -34,7 +34,7 @@ void TMetric::AddValue(TDuration duration)
 
 void TMetric::AddDelta(TInstant start)
 {
-    AddValue(start - TInstant::Now());
+    AddValue(TInstant::Now() - start);
 }
 
 double TMetric::GetMean() const
@@ -56,14 +56,26 @@ double TMetric::GetStd() const
 
 Stroka TMetric::GetDebugInfo() const
 {
-    return Sprintf("Mean: %lf, Std: %lf", GetMean(), GetStd());
+    Stroka info = Sprintf("Count: %d, Mean: %lf, Std: %lf",
+        ValueCount, GetMean(), GetStd());
+//    info += Sprintf("%d values in (-inf, %lf)\n", MinBucket, MinValue);
+//    double left = MinValue;
+//    double right = left + Delta;
+//    for (int i = 0; i < Buckets.ysize(); ++i) {
+//        if (Buckets[i] == 0) continue;
+//        info += Sprintf("%d values in (%lf, %lf)\n", Buckets[i], left, right);
+//        left += Delta;
+//        right += Delta;
+//    }
+//    info += Sprintf("%d values in (%lf, +inf)\n", MaxBucket, MaxValue);
+    return info;
 }
 
 void TMetric::IncrementBucket(double value)
 {
     if (value < MinValue) {
         MinBucket += 1;
-    } else if (value > MaxValue) {
+    } else if (value >= MaxValue) {
         MaxBucket += 1;
     } else {
         int BucketId = static_cast<int>((value - MinValue) / Delta);

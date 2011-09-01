@@ -155,7 +155,7 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TTransactionId, TTransaction, TTransactionIdHash> TTransactionMap;
+    typedef TMetaStateMap<TTransactionId, TTransaction> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
     //! Configuration.

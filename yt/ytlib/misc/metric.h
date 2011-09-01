@@ -50,10 +50,10 @@ private:
     //! Contains number of values from (-inf, #MinValue).
     int MinBucket;
 
-    //! Contains number of values from (#MaxValue, inf).
+    //! Contains number of values from [#MaxValue, +inf).
     int MaxBucket;
 
-    //! Contains number of values from [#MinValue, #MaxValue]
+    //! Contains number of values from [#MinValue, #MaxValue)
     yvector<int> Buckets;
 
     //! Puts the #value into an appropriate bucket.

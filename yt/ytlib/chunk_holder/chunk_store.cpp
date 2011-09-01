@@ -18,14 +18,14 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TCachedReader
-    : public TCacheValueBase<TChunkId, TCachedReader, TChunkIdHash>
+    : public TCacheValueBase<TChunkId, TCachedReader>
     , public TFileChunkReader
 {
 public:
     typedef TIntrusivePtr<TCachedReader> TPtr;
 
     TCachedReader(const TChunkId& chunkId, Stroka fileName)
-        : TCacheValueBase<TChunkId, TCachedReader, TGuidHash>(chunkId)
+        : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TFileChunkReader(fileName)
     { }
 
@@ -34,7 +34,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TReaderCache
-    : public TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>
+    : public TCapacityLimitedCache<TChunkId, TCachedReader>
 {
 public:
     typedef TIntrusivePtr<TReaderCache> TPtr;
@@ -42,7 +42,7 @@ public:
     TReaderCache(
         const TChunkHolderConfig& config,
         TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TChunkId, TCachedReader, TGuidHash>(config.MaxCachedFiles)
+        : TCapacityLimitedCache<TChunkId, TCachedReader>(config.MaxCachedFiles)
         , ChunkStore(chunkStore)
     { }
 

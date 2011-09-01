@@ -39,9 +39,6 @@ void RunChunkHolder(const TChunkHolderConfig& config)
 //! Describes a configuration of TCellMaster.
 struct TCellMasterConfig
 {
-    //! Cell configuration.
-    TCellManager::TConfig Cell;
-
     //! Meta state configuration.
     TMetaStateManager::TConfig MetaState;
 
@@ -53,7 +50,7 @@ struct TCellMasterConfig
     {
         TJsonObject* cellJson = GetSubTree(json, "Cell");
         if (cellJson != NULL) {
-            Cell.Read(cellJson);
+            MetaState.CellConfig.Read(cellJson);
         }
 
         TJsonObject* metaStateJson = GetSubTree(json, "MetaState");
@@ -66,7 +63,7 @@ struct TCellMasterConfig
 void RunCellMaster(const TCellMasterConfig& config)
 {
     // TODO: extract method
-    Stroka address = config.Cell.PeerAddresses.at(config.Cell.Id);
+    Stroka address = config.MetaState.CellConfig.PeerAddresses.at(config.MetaState.CellConfig.Id);
     size_t index = address.find_last_of(":");
     int port = FromString<int>(address.substr(index + 1));
 
@@ -79,11 +76,8 @@ void RunCellMaster(const TCellMasterConfig& config)
 
     NRpc::TServer::TPtr server = New<NRpc::TServer>(port);
 
-    TCellManager::TPtr cellManager = New<TCellManager>(config.Cell);
-
     TMetaStateManager::TPtr metaStateManager = New<TMetaStateManager>(
         config.MetaState,
-        cellManager,
         liteInvoker,
         ~metaState,
         server);
@@ -179,8 +173,7 @@ int main(int argc, const char *argv[])
 
             if (peerId >= 0) {
                 // TODO: check id
-
-                config.Cell.Id = peerId;
+                config.MetaState.CellConfig.Id = peerId;
             }
 
             // TODO: check that config.Cell.Id is initialized

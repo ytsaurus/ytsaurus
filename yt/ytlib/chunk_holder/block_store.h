@@ -12,7 +12,7 @@ namespace NChunkHolder {
 
 //! Represents a cached block of chunk.
 class TCachedBlock
-    : public TCacheValueBase<TBlockId, TCachedBlock, TBlockIdHash>
+    : public TCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
     typedef TIntrusivePtr<TCachedBlock> TPtr;

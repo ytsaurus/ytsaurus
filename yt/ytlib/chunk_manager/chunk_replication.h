@@ -53,7 +53,7 @@ private:
     };
 
     IInvoker::TPtr Invoker;
-    yhash_set<TChunkId, TChunkIdHash> RefreshSet;
+    yhash_set<TChunkId> RefreshSet;
     ydeque<TRefreshEntry> RefreshList;
 
     void ProcessRunningJobs(

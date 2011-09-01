@@ -184,15 +184,15 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TChunkId, TChunk, TChunkIdHash> TChunkMap;
+    typedef TMetaStateMap<TChunkId, TChunk> TChunkMap;
     
     typedef TMetaStateMap<THolderId, THolder> THolderMap;
     
     typedef yhash_map<Stroka, THolderId> THolderAddressMap;
 
-    typedef TMetaStateMap<TChunkId, TJobList, TChunkIdHash> TJobListMap;
+    typedef TMetaStateMap<TChunkId, TJobList> TJobListMap;
 
-    typedef TMetaStateMap<TJobId, TJob, TJobIdHash> TJobMap;
+    typedef TMetaStateMap<TJobId, TJob> TJobMap;
     
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;

@@ -61,6 +61,8 @@ public:
 
 class TServiceContext;
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IService
     : public virtual TRefCountedBase
 {
@@ -71,6 +73,8 @@ struct IService
 
     virtual void OnBeginRequest(TIntrusivePtr<TServiceContext> context) = 0;
     virtual void OnEndRequest(TIntrusivePtr<TServiceContext> context) = 0;
+
+    virtual Stroka GetDebugInfo() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

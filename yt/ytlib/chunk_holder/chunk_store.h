@@ -142,7 +142,7 @@ private:
     //! Actions queues that handle IO requests to chunk storage locations.
     yvector<IInvoker::TPtr> IOInvokers;
 
-    typedef yhash_map<TChunkId, TChunk::TPtr, TGuidHash> TChunkMap;
+    typedef yhash_map<TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
 
     //! Caches opened chunk files.
