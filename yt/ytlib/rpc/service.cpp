@@ -260,7 +260,15 @@ Stroka TServiceBase::GetLoggingCategory() const
 
 Stroka TServiceBase::GetDebugInfo() const
 {
-    return "fixme pls";
+    Stroka info = "Service " + ServiceName + ":\n";
+    for (TMethodInfoMap::const_iterator it = MethodInfos.begin();
+        it != MethodInfos.end();
+        ++it)
+    {
+        info += Sprintf("Method %s: %s\n",
+            ~it->first, ~it->second->ExecutionTimeAnalyzer.GetDebugInfo());
+    }
+    return info;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
