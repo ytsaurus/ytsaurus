@@ -41,11 +41,21 @@ public:
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
-        TInsertCookie cookie(blockId);
-        YVERIFY(BeginInsert(&cookie));
-        TCachedBlock::TPtr block = New<TCachedBlock>(blockId, data);
-        EndInsert(block, &cookie);
-        return block;
+        while (true) {
+            TInsertCookie cookie(blockId);
+            if (!BeginInsert(&cookie)) {
+                // This is a cruel reality.
+                // Since we never evict blocks of removed chunks from the cache
+                // it is possible for a block to be put there more than once.
+                // We could reuse the cached copy but for sanity's sake let's
+                // replace the cached one.
+                TCacheBase::Remove(blockId);
+                continue;
+            }
+            TCachedBlock::TPtr block = New<TCachedBlock>(blockId, data);
+            EndInsert(block, &cookie);
+            return block;
+        }
     }
 
     TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId)

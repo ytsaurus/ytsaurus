@@ -72,7 +72,6 @@ private:
 
     void OnFinishedChunk(
         TVoid,
-        const TChunkId& chunkId,
         TCtxFinishChunk::TPtr context);
 
     void OnGotBlock(

@@ -59,7 +59,7 @@ public:
         const TChunkId& chunkId,
         const yvector<Stroka>& nodes);
 
-    EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+    EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
     TAsyncResult<EResult>::TPtr AsyncClose();
 

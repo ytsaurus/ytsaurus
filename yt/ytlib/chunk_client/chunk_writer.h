@@ -28,7 +28,6 @@ struct IChunkWriter
         (Failed)
     );
 
-    // TODO: consider renaming to AsyncWriteBlock
     //! Called when the client wants to upload a new block.
     /*!
      *  This call returns OK if the block is added to the queue. Otherwise it returns TryLater
@@ -37,7 +36,9 @@ struct IChunkWriter
      *  slot becomes available. The client must subscribe to the latter result and should 
      *  not retry before it is set.
      */
-    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready) = 0;
+    virtual EResult AsyncWriteBlock(
+        const TSharedRef& data,
+        TAsyncResult<TVoid>::TPtr* ready) = 0;
 
     //! Called when the client has added all the blocks and is willing to
     //! finalize the upload.
@@ -48,51 +49,47 @@ struct IChunkWriter
      */
     virtual TAsyncResult<EResult>::TPtr AsyncClose() = 0;
 
-    //! Syncronous version of AsyncAddBlock, throws exception if uploading fails
-    void AddBlock(const TSharedRef& data)
+    //! A synchronous version of #AsyncAddBlock, throws an exception if uploading fails.
+    void WriteBlock(const TSharedRef& data)
     {
         while (true) {
             TAsyncResult<TVoid>::TPtr ready;
-            EResult result = AsyncAddBlock(data, &ready);
-
+            EResult result = AsyncWriteBlock(data, &ready);
+            CheckResult(result);
             switch (result) {
-            case EResult::OK:
-                return;
+                case EResult::OK:
+                    return;
 
-            case EResult::TryLater:
-                ready->Get();
-                break;
+                case EResult::TryLater:
+                    ready->Get();
+                    break;
 
-            case EResult::Failed:
-                // ToDo: meaningful exception message
-                ythrow yexception() << "ChunkWriter failed!";
-
-            default:
-                YASSERT(false);
+                default:
+                    YASSERT(false);
+                    break;
             }
         }
     }
 
-    //! Syncronous version of AsyncClose, throws exception if uploading fails
+    //! A synchronous version of #AsyncClose, throws an exception if uploading fails
     void Close()
     {
-        TAsyncResult<EResult>::TPtr result = AsyncClose();
+        EResult result = AsyncClose()->Get();
+        CheckResult(result);
+        YASSERT(result == EResult::OK);
+    }
 
-        switch (result->Get()) {
-        case EResult::OK:
-            return;
+    //! Cancels the current upload. After this call the writer is no longer usable.
+    virtual void Cancel() = 0;
 
-        case EResult::Failed:
-            // ToDo: meaningful exception message
-            ythrow yexception() << "ChunkWriter failed!";
-
-        default:
-            YASSERT(false);
+private:
+    void CheckResult(EResult result)
+    {
+        if (result == EResult::Failed) {
+            ythrow yexception() << "Chunk writing failed";
         }
     }
 
-    //! Cancels upload.
-    virtual void Cancel() = 0;
 };
 
 } // namespace NYT

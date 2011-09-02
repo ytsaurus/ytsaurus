@@ -13,7 +13,7 @@ TFileChunkWriter::TFileChunkWriter(Stroka fileName)
     File.Reset(new TFile(fileName, CreateAlways|WrOnly|Seq));
 }
 
-void TFileChunkWriter::AddBlock(const TSharedRef& data)
+void TFileChunkWriter::WriteBlock(const TSharedRef& data)
 {
     TBlockInfo* blockInfo = Meta.AddBlocks();
     blockInfo->SetSize(data.Size());
@@ -23,12 +23,12 @@ void TFileChunkWriter::AddBlock(const TSharedRef& data)
     File->Flush();
 }
 
-IChunkWriter::EResult TFileChunkWriter::AsyncAddBlock(
+IChunkWriter::EResult TFileChunkWriter::AsyncWriteBlock(
     const TSharedRef& data,
     TAsyncResult<TVoid>::TPtr* ready)
 {
     *ready = NULL;
-    AddBlock(data);
+    WriteBlock(data);
     return EResult::OK;
 }
 

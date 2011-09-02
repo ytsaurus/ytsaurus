@@ -102,6 +102,70 @@ struct IParamFunc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move to signal.h
+template<class T>
+class TSignalBase
+{
+public:
+    void Subscribe(typename T::TPtr action)
+    {
+        Actions.push_back(action);
+    }
+
+    bool Unsubscribe(typename T::TPtr action)
+    {
+        auto it = Find(Actions, action);
+        if (it == Actions.end())
+            return false;
+        Actions.erase(it);
+        return true;
+    }
+
+protected:
+    typedef yvector<typename T::TPtr> TActions;
+    TActions Actions;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSignal
+    : public TSignalBase<IAction>
+{
+public:
+    void Fire()
+    {
+        TActions actions(Actions);
+        for (auto it = actions.begin();
+             it != actions.end();
+             ++it)
+        {
+            (*it)->Do();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TParam>
+class TParamSignal
+    : public TSignalBase< IParamAction<TParam> >
+{
+public:
+    void Fire(const TParam& arg)
+    {
+        TActions actions(Actions);
+        for (auto it = actions.begin();
+            it != actions.end();
+            ++it)
+        {
+            (*it)->Do(arg);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define ACTION_INL_H_

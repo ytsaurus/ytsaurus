@@ -107,6 +107,7 @@ public:
         if (IsLeader()) {
             CreateLease(newHolder);
             ChunkPlacement->RegisterHolder(newHolder);
+            ChunkReplication->RegisterHolder(newHolder);
         }
 
         YVERIFY(HolderMap.Insert(holderId, newHolder));
@@ -244,10 +245,7 @@ private:
 
     TVoid OnLoaded(TVoid)
     {
-        // TODO: reconstruct ChunkGroupMap
         // TODO: reconstruct HolderAddressMap
-        // TODO: reconstruct JobMap
-        // TODO: reconstruct overreplicated and underreplicated chunk sets
         return TVoid();
     }
 
@@ -276,7 +274,7 @@ private:
     }
 
 
-    void CreateLease(THolder& holder)
+    void CreateLease(const THolder& holder)
     {
         YASSERT(IsLeader());
         YASSERT(holder.Lease == TLeaseManager::TLease());
@@ -289,13 +287,13 @@ private:
             ->Via(GetEpochStateInvoker()));
     }
 
-    void RenewLease(THolder& holder)
+    void RenewLease(const THolder& holder)
     {
         YASSERT(IsLeader());
         HolderLeaseManager->RenewLease(holder.Lease);
     }
 
-    void CloseLease(THolder& holder)
+    void CloseLease(const THolder& holder)
     {
         YASSERT(holder.Lease != TLeaseManager::TLease());
         HolderLeaseManager->CloseLease(holder.Lease);
@@ -308,9 +306,10 @@ private:
              it != HolderMap.End();
              ++it)
         {
-            THolder& holder = it->Second();
+            const THolder& holder = it->Second();
             CreateLease(holder);
             ChunkPlacement->RegisterHolder(holder);
+            ChunkReplication->RegisterHolder(holder);
         }
 
         LOG_INFO("Created fresh leases for all holders");
@@ -324,6 +323,7 @@ private:
         {
             THolder& holder = it->Second();
             ChunkPlacement->UnregisterHolder(holder);
+            ChunkReplication->UnregisterHolder(holder);
             CloseLease(holder);
         }
 
@@ -390,6 +390,7 @@ private:
 
         if (IsLeader()) {
             ChunkPlacement->UnregisterHolder(holder);
+            ChunkReplication->UnregisterHolder(holder);
         }
 
         for (THolder::TChunkIds::const_iterator it = holder.Chunks.begin();
@@ -434,7 +435,7 @@ private:
             chunk.Size);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk);
+            ChunkReplication->ScheduleRefresh(chunk.Id);
         }
     }
 
@@ -448,7 +449,7 @@ private:
              holder.Id);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk);
+            ChunkReplication->ScheduleRefresh(chunk.Id);
         }
     }
 
@@ -461,7 +462,7 @@ private:
              holder.Id);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk);
+            ChunkReplication->ScheduleRefresh(chunk.Id);
         }
     }
 

@@ -54,7 +54,7 @@ protected:
     class TInsertCookie
     {
     public:
-        TInsertCookie(TKey key);
+        TInsertCookie(const TKey& key);
         ~TInsertCookie();
 
         TAsyncResultPtr GetAsyncResult() const;
@@ -73,10 +73,11 @@ protected:
 
     TCacheBase();
 
-    TAsyncResultPtr Lookup(TKey key);
+    TAsyncResultPtr Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
-    void Touch(TKey key);
+    void Touch(const TKey& key);
+    bool Remove(const TKey& key);
 
     // Called under SpinLock.
     virtual bool NeedTrim() const = 0;
@@ -104,9 +105,9 @@ private:
     TItemList LruList;
     i32 LruListSize;
 
-    void CancelInsert(TKey key);
+    void CancelInsert(const TKey& key);
     void Touch(TItem* item); // thread-unsafe
-    void Unregister(TKey key);
+    void Unregister(const TKey& key);
     void Trim(); // thread-unsafe
 };
 

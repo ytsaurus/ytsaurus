@@ -54,7 +54,7 @@ public:
             try {
                 file = New<TCachedReader>(
                     chunk->GetId(),
-                    ChunkStore->GetChunkFileName(chunk->GetId(), chunk->GetLocation()));
+                    ChunkStore->GetChunkFileName(chunk));
             } catch (...) {
                 LOG_FATAL("Error opening chunk (ChunkId: %s, What: %s)",
                     ~chunk->GetId().ToString(),
@@ -63,6 +63,11 @@ public:
             EndInsert(file, &cookie);
         }
         return cookie.GetAsyncResult()->Get();
+    }
+
+    bool Remove(TChunk::TPtr chunk)
+    {
+        return TCacheBase::Remove(chunk->GetId());
     }
 
 private:
@@ -83,7 +88,7 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
 void TChunkStore::ScanChunks()
 {
     for (int location = 0; location < Config.Locations.ysize(); ++location) {
-        Stroka path = Config.Locations[location];
+        auto path = Config.Locations[location];
 
         // TODO: make a function in NYT::NFS
         MakePathIfNotExist(~path);
@@ -96,12 +101,12 @@ void TChunkStore::ScanChunks()
         fileList.Fill(Config.Locations[location]);
         const char* fileName;
         while ((fileName = fileList.Next()) != NULL) {
-            TChunkId id = TChunkId::FromString(fileName);
-            if (!id.IsEmpty()) {
-                Stroka fullName = path + "/" + fileName;
+            auto chunkId = TChunkId::FromString(fileName);
+            if (!chunkId.IsEmpty()) {
+                auto fullName = path + "/" + fileName;
                 // TODO: make a function in NYT::NFS
-                i64 size = TOldOsFile::Length(~fullName);
-                RegisterChunk(id, size, location);
+                auto size = TOldOsFile::Length(~fullName);
+                RegisterChunk(chunkId, size, location);
             }
         }
     }
@@ -121,23 +126,37 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     i64 size,
     int location)
 {
-    TChunk::TPtr chunk = New<TChunk>(chunkId, size, location);
+    auto chunk = New<TChunk>(chunkId, size, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
         ~chunkId.ToString(),
         size);
 
+    ChunkAdded_.Fire(chunk);
+
     return chunk;
 }
 
 TChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId)
 {
-    TChunkMap::iterator it = ChunkMap.find(chunkId);
-    if (it == ChunkMap.end())
-        return NULL;
-    else
-        return it->Second();
+    auto it = ChunkMap.find(chunkId);
+    return it == ChunkMap.end() ? NULL : it->Second();
+}
+
+void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
+{
+    YVERIFY(ChunkMap.erase(chunk->GetId()) == 1);
+
+    ReaderCache->Remove(chunk);
+        
+    auto fileName = GetChunkFileName(chunk);
+    if (!NFS::Remove(fileName)) {
+        LOG_FATAL("Error removing chunk file (ChunkId: %s)",
+            ~chunk->GetId().ToString());
+    }
+
+    ChunkRemoved_.Fire(chunk);
 }
 
 IInvoker::TPtr TChunkStore::GetIOInvoker(int location)
@@ -154,6 +173,11 @@ int TChunkStore::GetNewChunkLocation(const TChunkId& chunkId)
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, int location)
 {
     return Config.Locations[location] + "/" + chunkId.ToString();
+}
+
+Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
+{
+    return GetChunkFileName(chunk->GetId(), chunk->GetLocation());
 }
 
 THolderStatistics TChunkStore::GetStatistics() const
@@ -181,12 +205,12 @@ NYT::NChunkHolder::TChunkStore::TChunks TChunkStore::GetChunks()
 
 TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)
 {
-    TChunkMeta::TPtr meta = chunk->Meta;
+    auto meta = chunk->Meta;
     if (~meta != NULL) {
         return New< TAsyncResult<TChunkMeta::TPtr> >(meta);
     }
 
-    IInvoker::TPtr invoker = GetIOInvoker(chunk->GetLocation());
+    auto invoker = GetIOInvoker(chunk->GetLocation());
     return
         FromMethod(
             &TChunkStore::DoGetChunkMeta,
@@ -198,8 +222,8 @@ TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chun
 
 TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 {
-    TFileChunkReader::TPtr reader = GetChunkReader(chunk);
-    TChunkMeta::TPtr meta = New<TChunkMeta>(reader);
+    auto reader = GetChunkReader(chunk);
+    auto meta = New<TChunkMeta>(reader);
     chunk->Meta = meta;
     return meta;
 }
@@ -207,6 +231,16 @@ TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 TFileChunkReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
 {
     return ~ReaderCache->Get(chunk);
+}
+
+TParamSignal<TChunk::TPtr>& TChunkStore::ChunkAdded()
+{
+    return ChunkAdded_;
+}
+
+TParamSignal<TChunk::TPtr>& TChunkStore::ChunkRemoved()
+{
+    return ChunkRemoved_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

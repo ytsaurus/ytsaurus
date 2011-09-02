@@ -35,12 +35,10 @@ using NChunkHolder::TJobId;
 struct TChunkManagerConfig
 {
     TChunkManagerConfig()
-        : HolderLeaseTimeout(TDuration::Seconds(60))
-        , ChunkGroupRefreshPeriod(TDuration::MilliSeconds(100))
+        : HolderLeaseTimeout(TDuration::Seconds(10))
     { }
 
     TDuration HolderLeaseTimeout;
-    TDuration ChunkGroupRefreshPeriod;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

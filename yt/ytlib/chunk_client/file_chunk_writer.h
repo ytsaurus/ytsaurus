@@ -22,10 +22,10 @@ public:
     TFileChunkWriter(Stroka fileName);
 
     //! A synchronous version of #AsyncAddBlock.
-    void AddBlock(const TSharedRef& data);
+    void WriteBlock(const TSharedRef& data);
 
     //! Implements IChunkWriter and calls #AddBlock.
-    virtual EResult AsyncAddBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+    virtual EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
 
     //! A synchronous version of #Close.

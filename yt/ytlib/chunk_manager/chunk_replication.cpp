@@ -18,6 +18,15 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReplication::TChunkReplication(
+    TChunkManager::TPtr chunkManager,
+    TChunkPlacement::TPtr chunkPlacement)
+    : ChunkManager(chunkManager)
+    , ChunkPlacement(chunkPlacement)
+{ }
+
 void TChunkReplication::RunJobControl(
     const THolder& holder,
     const yvector<NProto::TJobInfo>& runningJobs,
@@ -33,17 +42,30 @@ void TChunkReplication::RunJobControl(
         &replicationJobCount,
         &removalJobCount);
 
-    ScheduleReplicationJobs(
+    ScheduleJobs(
         holder,
         runningJobs,
         Max(0, MaxReplicationJobsPerHolder - replicationJobCount),
-        jobsToStart);
-
-    ScheduleRemovalJobs(
-        holder,
-        runningJobs,
         Max(0, MaxRemovalJobsPerHolder - removalJobCount),
         jobsToStart);
+}
+
+void TChunkReplication::RegisterHolder(const THolder& holder)
+{
+    auto holderInfo = New<THolderInfo>();
+    YVERIFY(HolderInfoMap.insert(MakePair(holder.Id, holderInfo)).Second());
+
+    for (auto it = holder.Chunks.begin();
+         it != holder.Chunks.end();
+         ++it)
+    {
+        ScheduleRefresh(*it);
+    }
+}
+
+void TChunkReplication::UnregisterHolder(const THolder& holder)
+{
+    YVERIFY(HolderInfoMap.erase(holder.Id) == 1);
 }
 
 void TChunkReplication::ProcessRunningJobs(
@@ -56,44 +78,44 @@ void TChunkReplication::ProcessRunningJobs(
     *replicationJobCount = 0;
     *removalJobCount = 0;
 
-    for (yvector<NProto::TJobInfo>::const_iterator it = runningJobs.begin();
+    for (auto it = runningJobs.begin();
         it != runningJobs.end();
         ++it)
     {
-        const NProto::TJobInfo& jobInfo = *it;
-        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
-        const TJob& job = ChunkManager->GetJob(jobId);
-        EJobState jobState(jobInfo.GetState());
+        auto jobInfo = *it;
+        auto jobId = TJobId::FromProto(jobInfo.GetJobId());
+        auto job = ChunkManager->GetJob(jobId);
+        auto jobState = EJobState(jobInfo.GetState());
         switch (jobState) {
         case EJobState::Running:
             switch (job.Type) {
-            case EJobType::Replicate:
-                *replicationJobCount++;
-                break;
+                case EJobType::Replicate:
+                    *replicationJobCount++;
+                    break;
 
-            case EJobType::Remove:
-                *removalJobCount++;
-                break;
+                case EJobType::Remove:
+                    *removalJobCount++;
+                    break;
 
-            default:
-                YASSERT(false);
-                break;
+                default:
+                    YASSERT(false);
+                    break;
             }
-            LOG_INFO("Job is running (JobId: %s, HolderId: %d)",
+            LOG_INFO("Job running (JobId: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 holder.Id);
             break;
 
         case EJobState::Completed:
             jobsToStop->push_back(jobId);
-            LOG_INFO("Job is completed (JobId: %s, HolderId: %d)",
+            LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 holder.Id);
             break;
 
         case EJobState::Failed:
             jobsToStop->push_back(jobId);
-            LOG_WARNING("Job has failed (JobId: %s, HolderId: %d)",
+            LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 holder.Id);
             break;
@@ -109,19 +131,24 @@ bool TChunkReplication::IsJobScheduled(
     const yvector<NProto::TJobInfo>& runningJobs,
     const TChunkId& chunkId)
 {
-    for (yvector<NProto::TJobInfo>::const_iterator it = runningJobs.begin();
+    for (auto it = runningJobs.begin();
         it != runningJobs.end();
         ++it)
     {
-        const NProto::TJobInfo& jobInfo = *it;
-        TJobId jobId = TJobId::FromProto(jobInfo.GetJobId());
+        auto jobInfo = *it;
+        auto jobId = TJobId::FromProto(jobInfo.GetJobId());
         EJobState jobState(jobInfo.GetState());
-        const TJob& job = ChunkManager->GetJob(jobId);
+        auto job = ChunkManager->GetJob(jobId);
         if (jobState == EJobState::Running && job.ChunkId == chunkId) {
             return true;
         }
     }
     return false;
+}
+
+bool TChunkReplication::IsRefreshScheduled(const TChunkId& chunkId)
+{
+    return RefreshSet.find(chunkId) != RefreshSet.end();
 }
 
 yvector<Stroka> TChunkReplication::GetTargetAddresses(
@@ -131,37 +158,36 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
     yhash_set<Stroka> forbiddenAddresses;
 
     const TChunk::TLocations& locations = chunk.Locations;
-    for (TChunk::TLocations::const_iterator it = locations.begin();
+    for (auto it = locations.begin();
         it != locations.end();
         ++it)
     {
-        const THolder& holder = ChunkManager->GetHolder(*it);
+        auto holder = ChunkManager->GetHolder(*it);
         forbiddenAddresses.insert(holder.Address);
     }
 
-    const TJobList* jobList = ChunkManager->FindJobList(chunk.Id);
+    auto jobList = ChunkManager->FindJobList(chunk.Id);
     if (jobList != NULL) {
         const TJobList::TJobs& jobs = jobList->Jobs;
-        for (TJobList::TJobs::const_iterator it = jobs.begin();
+        for (auto it = jobs.begin();
             it != jobs.end();
             ++it)
         {
-            const TJob& job = ChunkManager->GetJob(*it);
+            auto job = ChunkManager->GetJob(*it);
             if (job.Type == EJobType::Replicate && job.ChunkId == chunk.Id) {
                 forbiddenAddresses.insert(job.TargetAddresses.begin(), job.TargetAddresses.end());
             }
         }
     }
 
-    yvector<THolderId> candidateHolders = ChunkPlacement->GetTargetHolders(
-        replicaCount + forbiddenAddresses.size());
+    auto candidateHolders = ChunkPlacement->GetTargetHolders(replicaCount + forbiddenAddresses.size());
 
     yvector<Stroka> targetAddresses;
-    for (yvector<THolderId>::const_iterator it = candidateHolders.begin();
-        it != candidateHolders.end();
+    for (auto it = candidateHolders.begin();
+        it != candidateHolders.end() && targetAddresses.ysize() < replicaCount;
         ++it)
     {
-        const THolder& holder = ChunkManager->GetHolder(*it);
+        auto holder = ChunkManager->GetHolder(*it);
         if (forbiddenAddresses.find(holder.Address) == forbiddenAddresses.end()) {
             targetAddresses.push_back(holder.Address);
         }
@@ -170,153 +196,197 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
     return targetAddresses;
 }
 
-void TChunkReplication::ScheduleReplicationJobs(
+bool TChunkReplication::TryScheduleReplicationJob(
     const THolder& holder,
+    const TChunkId& chunkId,
     const yvector<NProto::TJobInfo>& runningJobs,
-    int maxJobsToStart,
     yvector<NProto::TJobStartInfo>* jobsToStart)
 {
-    const THolder::TChunkIds& chunkIds = holder.UnderreplicatedChunks;
-    for (THolder::TChunkIds::iterator it = chunkIds.begin();
-        it != chunkIds.end() && maxJobsToStart > 0;
-        ++it)
+    auto chunk = ChunkManager->FindChunk(chunkId);
+    if (IsJobScheduled(runningJobs, chunkId) ||
+        IsRefreshScheduled(chunkId) ||
+        chunk == NULL)
     {
-        const TChunkId& chunkId = *it;
-        if (IsJobScheduled(runningJobs, chunkId))
-            continue;
-
-        const TChunk& chunk = ChunkManager->GetChunk(chunkId);
-
-        int desiredCount = GetDesiredReplicaCount(chunk);
-
-        int realCount;
-        int plusCount;
-        int minusCount;
-        CountReplicas(chunk, &realCount, &plusCount, &minusCount);
-
-        int additionalCount = desiredCount - (realCount + plusCount);
-        if (additionalCount < 0)
-            return;
-
-        yvector<Stroka> targetAddresses = GetTargetAddresses(chunk, additionalCount);
-        if (targetAddresses.empty())
-            continue;
-
-        TJobId jobId = TJobId::Create();
-
-        NProto::TJobStartInfo startInfo;
-        startInfo.SetJobId(jobId.ToProto());
-        startInfo.SetType(EJobType::Replicate);
-        startInfo.SetChunkId(chunkId.ToProto());
-        ToProto(*startInfo.MutableTargetAddresses(), targetAddresses);
-        jobsToStart->push_back(startInfo);
-        --maxJobsToStart;
-
-        LOG_INFO("Chunk replication scheduled (ChunkId: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
-            ~chunkId.ToString(),
-            holder.Id,
-            ~jobId.ToString(),
-            ~JoinStroku(targetAddresses, ", "));
-    }
-}
-
-void TChunkReplication::ScheduleRemovalJobs(
-    const THolder& holder,
-    const yvector<NProto::TJobInfo>& runningJobs,
-    int maxJobsToStart,
-    yvector<NProto::TJobStartInfo>* jobsToStart)
-{
-    const THolder::TChunkIds& chunkIds = holder.OverreplicatedChunks;
-    for (THolder::TChunkIds::iterator it = chunkIds.begin();
-        it != chunkIds.end() && maxJobsToStart > 0;
-        ++it)
-    {
-        const TChunkId& chunkId = *it;
-        if (IsJobScheduled(runningJobs, chunkId))
-            continue;
-
-        TJobId jobId = TJobId::Create();
-
-        NProto::TJobStartInfo startInfo;
-        startInfo.SetJobId(jobId.ToProto());
-        startInfo.SetType(EJobType::Remove);
-        startInfo.SetChunkId(chunkId.ToProto());
-        jobsToStart->push_back(startInfo);
-        --maxJobsToStart;
-
-        LOG_INFO("Chunk removal scheduled (ChunkId: %s, HolderId: %d, JobId: %s)",
-            ~chunkId.ToString(),
-            holder.Id,
-            ~jobId.ToString());
-    }
-}
-
-NYT::NChunkManager::EChunkState TChunkReplication::GetState(const TChunk& chunk)
-{
-    int actualReplicaCount = chunk.Locations.ysize();
-    if (actualReplicaCount == 0) {
-        return EChunkState::Lost;
+        return false;
     }
 
-    int desiredCount = GetDesiredReplicaCount(chunk);
-
+    int desiredCount;
     int realCount;
     int plusCount;
     int minusCount;
-    CountReplicas(chunk, &realCount, &plusCount, &minusCount);
+    EChunkState state;
+    GetReplicaStatistics(
+        *chunk,
+        &desiredCount,
+        &realCount,
+        &plusCount,
+        &minusCount,
+        &state);
 
-    if (realCount - minusCount > desiredCount) {
-        return EChunkState::Overreplicated;
-    } else if (realCount + plusCount < desiredCount) {
-        return EChunkState::Underreplicated;
-    } else {
-        return EChunkState::OK;
+    int additionalCount = desiredCount - (realCount + plusCount);
+    if (additionalCount < 0)
+        return false;
+
+    auto targetAddresses = GetTargetAddresses(*chunk, additionalCount);
+    if (targetAddresses.empty())
+        return false;
+
+    auto jobId = TJobId::Create();
+
+    NProto::TJobStartInfo startInfo;
+    startInfo.SetJobId(jobId.ToProto());
+    startInfo.SetType(EJobType::Replicate);
+    startInfo.SetChunkId(chunkId.ToProto());
+    ToProto(*startInfo.MutableTargetAddresses(), targetAddresses);
+    jobsToStart->push_back(startInfo);
+    ScheduleRefresh(chunkId);
+
+    LOG_INFO("Chunk replication scheduled (ChunkId: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
+        ~chunkId.ToString(),
+        holder.Id,
+        ~jobId.ToString(),
+        ~JoinStroku(targetAddresses, ", "));
+
+    return true;
+}
+
+
+bool TChunkReplication::TryScheduleRemovalJob(
+    const THolder& holder,
+    const TChunkId& chunkId,
+    const yvector<NProto::TJobInfo>& runningJobs,
+    yvector<NProto::TJobStartInfo>* jobsToStart )
+{
+    auto chunk = ChunkManager->FindChunk(chunkId);
+    if (IsJobScheduled(runningJobs, chunkId) ||
+        IsRefreshScheduled(chunkId) ||
+        chunk == NULL)
+    {
+        return false;
+    }
+
+    auto jobId = TJobId::Create();
+
+    NProto::TJobStartInfo startInfo;
+    startInfo.SetJobId(jobId.ToProto());
+    startInfo.SetType(EJobType::Remove);
+    startInfo.SetChunkId(chunkId.ToProto());
+    jobsToStart->push_back(startInfo);
+    ScheduleRefresh(chunkId);
+
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s, HolderId: %d, JobId: %s)",
+        ~chunkId.ToString(),
+        holder.Id,
+        ~jobId.ToString());
+
+    return true;
+}
+
+void TChunkReplication::ScheduleJobs(
+    const THolder& holder,
+    const yvector<NProto::TJobInfo>& runningJobs,
+    int maxReplicationJobsToStart,
+    int maxRemovalJobsToStart,
+    yvector<NProto::TJobStartInfo>* jobsToStart)
+{
+    auto holderInfo = FindHolderInfo(holder.Id);
+    if (~holderInfo == NULL)
+        return;
+
+    THolderInfo::TChunkIds& underreplicatedChunks = holderInfo->UnderreplicatedChunks;
+    yvector<TChunkId> underreplicatedChunksToSweep;
+    for (auto it = underreplicatedChunks.begin();
+        it != underreplicatedChunks.end() && maxReplicationJobsToStart > 0;
+        ++it)
+    {
+        auto chunkId = *it;
+        if (TryScheduleReplicationJob(holder, chunkId, runningJobs, jobsToStart)) {
+            --maxReplicationJobsToStart;
+        } else {
+            underreplicatedChunksToSweep.push_back(chunkId);
+        }
+    }
+
+    for (auto it = underreplicatedChunksToSweep.begin();
+         it != underreplicatedChunksToSweep.end();
+         ++it)
+    {
+        underreplicatedChunks.erase(*it);
+    }
+
+    THolderInfo::TChunkIds& overreplicatedChunks = holderInfo->OverreplicatedChunks;
+    yvector<TChunkId> overreplicatedChunksToSweep;
+    for (auto it = overreplicatedChunks.begin();
+        it != overreplicatedChunks.end() && maxRemovalJobsToStart > 0;
+        ++it)
+    {
+        auto chunkId = *it;
+        if (TryScheduleRemovalJob(holder, chunkId, runningJobs, jobsToStart)) {
+            --maxRemovalJobsToStart;
+        } else {
+            overreplicatedChunksToSweep.push_back(chunkId);
+        }
+    }
+
+    for (auto it = overreplicatedChunksToSweep.begin();
+        it != overreplicatedChunksToSweep.end();
+        ++it)
+    {
+        overreplicatedChunks.erase(*it);
     }
 }
 
-// TODO: optimize?
-void TChunkReplication::CountReplicas(
+void TChunkReplication::GetReplicaStatistics(
     const TChunk& chunk,
-    int* real,
-    int* plus,
-    int* minus)
+    int* desiredCount,
+    int* realCount,
+    int* plusCount,
+    int* minusCount,
+    EChunkState* state)
 {
     const TChunk::TLocations& locations = chunk.Locations;
-    *real = locations.ysize();
 
-    yhash_set<Stroka> realAddresses(*real);
-    for (TChunk::TLocations::const_iterator locationIt = locations.begin();
-        locationIt != locations.end();
-        ++locationIt)
-    {
-        const THolder& holder = ChunkManager->GetHolder(*locationIt);
-        realAddresses.insert(holder.Address);
+    *desiredCount = GetDesiredReplicaCount(chunk);
+    *realCount = locations.ysize();
+    *plusCount = 0;
+    *minusCount = 0;
+
+    if (*realCount == 0) {
+        *state = EChunkState::Lost;
+        return;
     }
 
-    *plus = 0;
-    *minus = 0;
-    const TJobList* jobList = ChunkManager->FindJobList(chunk.Id);
+    auto jobList = ChunkManager->FindJobList(chunk.Id);
     if (jobList != NULL) {
-        for (TJobList::TJobs::const_iterator jobIt = jobList->Jobs.begin();
+        yhash_set<Stroka> realAddresses(*realCount);
+        for (TChunk::TLocations::const_iterator locationIt = locations.begin();
+            locationIt != locations.end();
+            ++locationIt)
+        {
+            auto holder = ChunkManager->GetHolder(*locationIt);
+            realAddresses.insert(holder.Address);
+        }
+
+        for (auto jobIt = jobList->Jobs.begin();
             jobIt != jobList->Jobs.end();
             ++jobIt)
         {
-            const TJob& job = ChunkManager->GetJob(*jobIt);
+            auto job = ChunkManager->GetJob(*jobIt);
             switch (job.Type) {
             case EJobType::Replicate:
-                for (yvector<Stroka>::const_iterator targetIt = job.TargetAddresses.begin();
+                for (auto targetIt = job.TargetAddresses.begin();
                     targetIt != job.TargetAddresses.end();
                     ++targetIt)
                 {
                     if (realAddresses.find(*targetIt) == realAddresses.end()) {
-                        *plus++;
+                        *plusCount++;
                     }
                 }
                 break;
 
             case EJobType::Remove:
                 if (realAddresses.find(job.RunnerAddress) != realAddresses.end()) {
-                    *minus++;
+                    *minusCount++;
                 }
                 break;
 
@@ -325,6 +395,14 @@ void TChunkReplication::CountReplicas(
                 break;
             }
         }
+    }
+
+    if (*realCount - *minusCount > *desiredCount) {
+        *state = EChunkState::Overreplicated;
+    } else if (*realCount + *plusCount < *desiredCount) {
+        *state = EChunkState::Underreplicated;
+    } else {
+        *state = EChunkState::OK;
     }
 }
 
@@ -335,59 +413,71 @@ int TChunkReplication::GetDesiredReplicaCount(const TChunk& chunk)
     return 3;
 }
 
-void TChunkReplication::Refresh(TChunk& chunk)
+void TChunkReplication::Refresh(const TChunk& chunk)
 {
-    EChunkState state = GetState(chunk);
-    UpdateState(chunk, state);
+    int desiredCount;
+    int realCount;
+    int plusCount;
+    int minusCount;
+    EChunkState state;
+    GetReplicaStatistics(
+        chunk,
+        &desiredCount,
+        &realCount,
+        &plusCount,
+        &minusCount,
+        &state);
 
-    LOG_INFO("Chunk refreshed (ChunkId: %s, State: %s)",
-        ~chunk.Id.ToString(),
-        ~state.ToString());
-}
-
-bool TChunkReplication::UpdateState(TChunk& chunk, EChunkState state)
-{
     const TChunk::TLocations& locations = chunk.Locations;
-    for (TChunk::TLocations::const_iterator it = locations.begin();
+    for (auto it = locations.begin();
         it != locations.end();
         ++it)
     {
-        THolder& holder = ChunkManager->GetHolderForUpdate(*it);
+        auto holderInfo = FindHolderInfo(*it);
+        if (~holderInfo == NULL)
+            continue;
 
         switch (state) {
-        case EChunkState::OK:
-            holder.UnderreplicatedChunks.erase(chunk.Id);
-            holder.OverreplicatedChunks.erase(chunk.Id);
-            break;
+            case EChunkState::OK:
+                holderInfo->UnderreplicatedChunks.erase(chunk.Id);
+                holderInfo->OverreplicatedChunks.erase(chunk.Id);
+                break;
 
-        case EChunkState::Overreplicated:
-            holder.UnderreplicatedChunks.erase(chunk.Id);
-            holder.OverreplicatedChunks.insert(chunk.Id);
-            break;
+            case EChunkState::Overreplicated:
+                holderInfo->UnderreplicatedChunks.erase(chunk.Id);
+                holderInfo->OverreplicatedChunks.insert(chunk.Id);
+                break;
 
-        case EChunkState::Underreplicated:
-            holder.OverreplicatedChunks.erase(chunk.Id);
-            holder.UnderreplicatedChunks.insert(chunk.Id);
-            break;
+            case EChunkState::Underreplicated:
+                holderInfo->OverreplicatedChunks.erase(chunk.Id);
+                holderInfo->UnderreplicatedChunks.insert(chunk.Id);
+                break;
 
-        default:
-            YASSERT(false);
-            return false;
+            default:
+                YASSERT(false);
+                break;
         }
     }
-    return true;
+
+    LOG_INFO("Chunk refreshed (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d, State: %s)",
+        ~chunk.Id.ToString(),
+        realCount,
+        plusCount,
+        minusCount,
+        desiredCount,
+        ~state.ToString());
 }
 
-void TChunkReplication::ScheduleRefresh(TChunk& chunk)
+void TChunkReplication::ScheduleRefresh(const TChunkId& chunkId)
 {
-    if (RefreshSet.find(chunk.Id) != RefreshSet.end())
+    if (RefreshSet.find(chunkId) != RefreshSet.end())
         return;
 
     TRefreshEntry entry;
-    entry.ChunkId = chunk.Id;
+    entry.ChunkId = chunkId;
     entry.When = TInstant::Now() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
-    RefreshSet.insert(chunk.Id);
+    RefreshSet.insert(chunkId);
 }
 
 void TChunkReplication::ScheduleNextRefresh()
@@ -402,19 +492,18 @@ void TChunkReplication::ScheduleNextRefresh()
 
 void TChunkReplication::OnRefresh()
 {
-    TInstant now = TInstant::Now();
+    auto now = TInstant::Now();
     for (int i = 0; i < MaxChunksPerRefresh; ++i) {
         if (RefreshList.empty())
             break;
 
-        const TRefreshEntry& entry = RefreshList.front();
+        auto entry = RefreshList.front();
         if (entry.When > now)
             break;
 
-        const TChunk* chunk = ChunkManager->FindChunk(entry.ChunkId);
+        auto chunk = ChunkManager->FindChunk(entry.ChunkId);
         if (chunk != NULL) {
-            // TODO: hack
-            Refresh(const_cast<TChunk&>(*chunk));
+            Refresh(*chunk);
         }
 
         YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
@@ -434,6 +523,13 @@ void TChunkReplication::StopRefresh()
 {
     YASSERT(~Invoker != NULL);
     Invoker.Drop();
+}
+
+TChunkReplication::THolderInfo::TPtr
+TChunkReplication::FindHolderInfo(THolderId holderId)
+{
+    auto it = HolderInfoMap.find(holderId);
+    return it == HolderInfoMap.end() ? NULL : it->Second();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
