@@ -122,8 +122,7 @@ public:
     }
 
 protected:
-    typedef yvector<typename T::TPtr> TActions;
-    TActions Actions;
+    yvector<typename T::TPtr> Actions;
 
 };
 
@@ -135,7 +134,7 @@ class TSignal
 public:
     void Fire()
     {
-        TActions actions(Actions);
+        yvector<IAction::TPtr> actions(this->Actions);
         for (auto it = actions.begin();
              it != actions.end();
              ++it)
@@ -143,6 +142,7 @@ public:
             (*it)->Do();
         }
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +154,7 @@ class TParamSignal
 public:
     void Fire(const TParam& arg)
     {
-        TActions actions(Actions);
+        yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
         for (auto it = actions.begin();
             it != actions.end();
             ++it)

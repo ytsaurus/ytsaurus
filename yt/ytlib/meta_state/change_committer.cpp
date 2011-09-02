@@ -134,9 +134,9 @@ private:
     TChangeCommitter::TPtr Committer;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
-    i32 CommitCount; // Service thread
     TMetaVersion Version;
-    IInvoker::TPtr ServiceInvoker;
+    i32 CommitCount; // Service thread
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

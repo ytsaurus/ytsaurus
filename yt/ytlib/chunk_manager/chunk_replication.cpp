@@ -90,11 +90,11 @@ void TChunkReplication::ProcessRunningJobs(
         case EJobState::Running:
             switch (job.Type) {
                 case EJobType::Replicate:
-                    *replicationJobCount++;
+                    ++*replicationJobCount;
                     break;
 
                 case EJobType::Remove:
-                    *removalJobCount++;
+                    ++*removalJobCount;
                     break;
 
                 default:
@@ -379,14 +379,14 @@ void TChunkReplication::GetReplicaStatistics(
                     ++targetIt)
                 {
                     if (realAddresses.find(*targetIt) == realAddresses.end()) {
-                        *plusCount++;
+                        ++*plusCount;
                     }
                 }
                 break;
 
             case EJobType::Remove:
                 if (realAddresses.find(job.RunnerAddress) != realAddresses.end()) {
-                    *minusCount++;
+                    ++*minusCount;
                 }
                 break;
 
