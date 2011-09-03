@@ -1,4 +1,5 @@
 #include <util/config/last_getopt.h>
+#include <util/datetime/base.h>
 
 #include <yt/ytlib/actions/action_queue.h>
 #include <yt/ytlib/rpc/server.h>
@@ -180,7 +181,7 @@ int main(int argc, const char *argv[])
             RunCellMaster(config);
         }
 
-        Cin.ReadLine();
+        Sleep(TDuration::Max());
 
         return 0;
     }
