@@ -50,7 +50,7 @@ class RemoteNode(Node):
                     (os.path.join(cls.local_path(descr.filename)),
                      cls.host, cls.remote_dir)
                 
-    run_tmpl = Template(cmd_run)
+    run_tmpl = Template('ulimit -c unlimited\n' + cmd_run)
     def do_run(cls, fd):
         print >>fd, shebang
         print >>fd, cls.run_tmpl
@@ -80,7 +80,7 @@ class RemoteServer(RemoteNode, ServerNode):
 
 def configure(root):
     make_files(root)
-    make_aggregate(root, lambda x:x)
+    make_aggregate(root, lambda x:x + '&')
     
     hosts = set()
     def append_hosts(node):

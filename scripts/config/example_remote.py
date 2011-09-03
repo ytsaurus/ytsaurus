@@ -21,15 +21,14 @@ Logging = {
 }
 
 Port = 9091
-HostPattern = 'yt-dev%0.2dd:%d'
-MasterAddresses = opts.limit_iter('--masters',
-        [HostPattern % (x, Port) for x in xrange(2, 5)])
+HostPattern = 'n01-04%0.2dg:%d'
+MasterAddresses = opts.limit_iter('--masters', [HostPattern % (0, Port)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
     
 class Server(Base):
-    bin_path = '/home/psushin/yt/trunk/yt/server/server'
+    bin_path = '/home/psushin/yt-svn/yt/yt/server/server'
     
     def get_log(cls, fd):
         print >>fd, shebang
@@ -66,13 +65,13 @@ class Master(RemoteServer, Server):
     
 class Holder(RemoteServer, Server):
     address = Subclass(opts.limit_iter('--holders',
-            [HostPattern % (x, Port) for x in xrange(5, 10)]))
+            [HostPattern % (x, Port) for x in xrange(1, 41)]))
     
     params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
     
     config = Template({ 
         'Masters' : { 'Addresses' : MasterAddresses },
-        'Locations' : ['%(work_dir)s/node'],
+        'Locations' : ['/yt/disk1/node'],
         'Logging' : Logging
     })
     
@@ -84,18 +83,60 @@ class Holder(RemoteServer, Server):
 
 class Client(Base, Node):
     files = [Config, Run]
-    bin_path = '/home/psushin/yt/trunk/yt/experiments/send_chunk/send_chunk'
-    params = Template('-stream -config %(config_path)s')
-    ids = Subclass(xrange(3))
+    bin_path = '/home/psushin/yt-svn/yt/yt/experiments/send_chunk/send_chunk'
+    params = Template('--config %(config_path)s')
+
+    Logging = {
+        'Writers' : [
+            {
+                'Name' : "File",
+                'Type' : "File",
+                'FileName' : "%(log_path)s",
+                'Pattern' : "$(datetime) $(level) $(category) $(message)"
+            },
+            {
+                'Name' : "ChunkWriter",
+                'Type' : "StdErr",
+                'Pattern' : "$(datetime) $(level) $(category) $(message)"
+            }
+        ],
+        'Rules' : [
+            { 
+                'Categories' : [ "*" ], 
+                'MinLevel' : "Debug", 
+                'Writers' : [ "File" ] 
+            }, 
+            { 
+                'Categories' : [ "DumbTransaction", "ChunkWriter" ], 
+                'MinLevel' : "Debug", 
+                'Writers' : [ "ChunkWriter" ] 
+            } 
+        ]
+    }
 
     config = Template({ 
-        'Masters' : { 'Addresses' : MasterAddresses },
-        'ReplicationFactor' : 2,
-        'GroupSize': 8048000,
-        'BlockSize': 1024000,
-        'WindowSize': 40,
-        'File': '/home/psushin/test.chunk',
-        'Logging' : Logging
+        'ReplicationFactor' : 1,
+        'BlockSize' : 1048576,
+
+        'ThreadPool' : {
+            'PoolSize' : 1,
+            'TaskCount' : 1 
+        },
+
+        'Logging' : Logging,
+
+        'Masters' : { 
+            'Addresses' : MasterAddresses 
+        },
+
+        'DataSource' : {
+            'Size' : 1048576 * 200 
+        },
+
+        'ChunkWriter' : {
+            'WindowSize' : 40,
+            'GroupSize' : 8 * 2 ** 20 
+        } 
     })
 
     def run(cls, fd):
