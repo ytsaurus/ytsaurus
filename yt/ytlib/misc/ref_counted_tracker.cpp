@@ -7,42 +7,49 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-unsigned int TRefCountedTracker::GetAliveObjects(const std::type_info& typeInfo) const
+unsigned int TRefCountedTracker::GetAliveObjects(const std::type_info& typeInfo)
 {
-    TGuard<TSpinLock> guard(&SpinLock);
-    TStatisticsMap::const_iterator it = Table.find(&typeInfo);
-    return (it == Table.end()) ? 0 : it->Second().AliveObjects;
+    TGuard<TSpinLock> guard(SpinLock);
+    return Lookup(&typeInfo)->AliveObjects;
 }
 
-unsigned int TRefCountedTracker::GetTotalObjects(const std::type_info& typeInfo) const
+unsigned int TRefCountedTracker::GetTotalObjects(const std::type_info& typeInfo)
 {
-    TGuard<TSpinLock> guard(&SpinLock);
-    TStatisticsMap::const_iterator it = Table.find(&typeInfo);
-    return (it == Table.end()) ? 0 : it->Second().TotalObjects;
+    TGuard<TSpinLock> guard(SpinLock);
+    return Lookup(&typeInfo)->TotalObjects;
+}
+
+yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
+{
+    yvector<TItem> result;
+    for (TItem* it = Table.begin(); it != Table.end(); ++it) {
+        if (it->Key != NULL) {
+            result.push_back(*it);
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
+Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
 {
-    TGuard<TSpinLock> guard(&SpinLock);
-
-    TStatisticsVector values;
-    values.reserve(Table.size());
-    for (TStatisticsMap::const_iterator it = Table.begin(), jt = Table.end(); it != jt; ++it) {
-        values.push_back(MakePair(it->First(), it->Second()));
+    yvector<TItem> items;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        items = GetItems();
     }
 
     switch (sortByColumn) {
         case 3:
-            Sort(values.begin(), values.end(), TByName());
+            Sort(items.begin(), items.end(), TByName());
             break;
         case 2:
-            Sort(values.begin(), values.end(), TByTotalObjects());
+            Sort(items.begin(), items.end(), TByTotalObjects());
             break;
         case 1:
         default:
-            Sort(values.begin(), values.end(), TByAliveObjects());
+            Sort(items.begin(), items.end(), TByAliveObjects());
             break;
     }
 
@@ -54,15 +61,15 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     stream << "================================================================================\n";
     stream << Sprintf("%10s %10s %s", "Alive", "Total", "Name") << "\n";
     stream << "--------------------------------------------------------------------------------\n";
-    for (TStatisticsVector::const_iterator it = values.begin(), jt = values.end(); it != jt; ++it)
+    for (yvector<TItem>::const_iterator it = items.begin(); it != items.end(); ++it)
     {
-        totalAliveObjects += it->Second().AliveObjects;
-        totalTotalObjects += it->Second().TotalObjects;
+        totalAliveObjects += it->AliveObjects;
+        totalTotalObjects += it->TotalObjects;
 
         stream << Sprintf("%10d %10d %s",
-                          it->Second().AliveObjects,
-                          it->Second().TotalObjects,
-                          ~DemangleCxxName(it->First()->name())
+                          it->AliveObjects,
+                          it->TotalObjects,
+                          ~DemangleCxxName(it->Key->name())
                           ) << "\n";
     }
     stream << "--------------------------------------------------------------------------------\n";

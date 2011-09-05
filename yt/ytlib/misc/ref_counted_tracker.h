@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <util/stream/str.h>
+#include <util/autoarray.h>
 
 namespace NYT {
 
@@ -21,47 +22,77 @@ class TRefCountedTracker
     : private TNonCopyable
 {
 private:
-    struct TStatistics
+    typedef const std::type_info* TKey;
+    struct TItem
     {
-        unsigned int AliveObjects;
-        unsigned int TotalObjects;
+        TKey Key;
+        TAtomic AliveObjects;
+        TAtomic TotalObjects;
 
-        TStatistics()
-            : AliveObjects(0)
+        TItem()
+            : Key(NULL)
+            , AliveObjects(0)
             , TotalObjects(0)
         { }
     };
 
-    typedef yhash_map<const std::type_info*, TStatistics> TStatisticsMap;
-    typedef yvector< TPair<const std::type_info*, TStatistics> > TStatisticsVector;
+    static const int HashTableSize = 1009; // 1009 is a prime number
 
+    typedef autoarray<TItem> TStatisticsMap;
+
+    // search for key in Table
+    // inserts under spinlock if not found
+    TItem* Lookup(TKey key)
+    {
+        ui32 hash = THash<TKey>()(key) % HashTableSize;
+        TItem* begin = Table.begin();
+        TItem* current = begin + hash;
+        TItem* end = Table.end();
+
+        // iterate until find an appropriate cell
+        for (;;) {
+            if (current->Key == key) {
+                return current;
+            }
+            if (EXPECT_FALSE(current->Key == NULL)) {
+                current->Key = key;
+                return current;
+            }
+            ++current;
+            if (EXPECT_FALSE(current == end)) {
+                current = begin;
+            }
+        }
+    }
+
+    // Comaperers
     struct TByAliveObjects
     {
         inline bool operator()(
-            const TStatisticsVector::value_type& lhs,
-            const TStatisticsVector::value_type& rhs) const
+            const TItem& lhs,
+            const TItem& rhs) const
         {
-            return lhs.Second().AliveObjects > rhs.Second().AliveObjects;
+            return lhs.AliveObjects > rhs.AliveObjects;
         }
     };
 
     struct TByTotalObjects
     {
         inline bool operator()(
-            const TStatisticsVector::value_type& lhs,
-            const TStatisticsVector::value_type& rhs) const
+            const TItem& lhs,
+            const TItem& rhs) const
         {
-            return lhs.Second().TotalObjects > rhs.Second().TotalObjects;
+            return lhs.TotalObjects > rhs.TotalObjects;
         }
     };
 
     struct TByName
     {
         inline bool operator()(
-            const TStatisticsVector::value_type& lhs,
-            const TStatisticsVector::value_type& rhs) const
+            const TItem& lhs,
+            const TItem& rhs) const
         {
-            return TCharTraits<char>::Compare(lhs.First()->name(), rhs.First()->name()) < 0;
+            return TCharTraits<char>::Compare(lhs.Key->name(), rhs.Key->name()) < 0;
         }
     };
 
@@ -70,39 +101,42 @@ private:
     TStatisticsMap Table;
 
 public:
+    TRefCountedTracker()
+        : Table(HashTableSize)
+    { }
+
     static TRefCountedTracker* Get()
     {
         return Singleton<TRefCountedTracker>();
     }
 
-    void Increment(const std::type_info* typeInfo)
+    void Increment(TKey typeInfo)
     {
-        TGuard<TSpinLock> guard(&SpinLock);
-        TStatisticsMap::iterator it = Table.find(typeInfo);
+        TItem* it;
+        it = Lookup(typeInfo);
 
-        if (EXPECT_FALSE(it == Table.end())) {
-            it = Table.insert(MakePair(typeInfo, TStatistics())).First();
+        if (EXPECT_FALSE(it == NULL)) {
+            TGuard<TSpinLock> guard(SpinLock);
+            it = Lookup(typeInfo);
         }
 
-        ++(it->Second().AliveObjects);
-        ++(it->Second().TotalObjects);
+        ++(it->AliveObjects);
+        ++(it->TotalObjects);
     }
 
-    void Decrement(const std::type_info* typeInfo)
+    void Decrement(TKey typeInfo)
     {
-        TGuard<TSpinLock> guard(&SpinLock);
-        TStatisticsMap::iterator it = Table.find(typeInfo);
+        TItem* it = Lookup(typeInfo);
 
-        YASSERT(it != Table.end());
-
-        --(it->Second().AliveObjects);
+        --(it->AliveObjects);
     }
 
 public:
-    unsigned int GetAliveObjects(const std::type_info& typeInfo) const;
-    unsigned int GetTotalObjects(const std::type_info& typeInfo) const;
+    unsigned int GetAliveObjects(const std::type_info& typeInfo);
+    unsigned int GetTotalObjects(const std::type_info& typeInfo);
 
-    Stroka GetDebugInfo(int sortByColumn = -1) const;
+    yvector<TItem> GetItems();
+    Stroka GetDebugInfo(int sortByColumn = -1);
 
 };
 
