@@ -249,7 +249,7 @@ void TRemoteChunkWriter::TGroup::Process()
         }
     }
 
-    if (!emptyNodeExists) {
+    if (!emptyNodeExists || Writer->State == EWriterState::Terminated) {
         Writer->ShiftWindow();
     } else if (nodeWithBlocks < 0) {
         PutGroup();
@@ -280,10 +280,9 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     LOG_DEBUG("Start writing chunk %s", ~ChunkId.ToString());
     YVERIFY(AliveNodes > 0);
 
-    NRpc::TChannelCache channelCache;
     yvector<Stroka>::const_iterator it = nodes.begin();
     for (; it != nodes.end(); ++it) {
-        Nodes.push_back(New<TNode>(*it, ~channelCache.GetChannel(*it)));
+        Nodes.push_back(New<TNode>(*it, ~ChannelCache.GetChannel(*it)));
     }
 
     StartSession();
@@ -295,14 +294,12 @@ TRemoteChunkWriter::~TRemoteChunkWriter()
 }
 
 void TRemoteChunkWriter::ShiftWindow()
-{ 
-    YASSERT(!Window.empty());
-
+{
     int lastFlushableBlock = -1;
     for (TWindow::const_iterator it = Window.begin(); it != Window.end(); ++it) {
         TGroupPtr group = *it;
         if (!group->IsFlushing) {
-            if (group->IsWritten()) {
+            if (group->IsWritten() || State == EWriterState::Terminated) {
                 lastFlushableBlock = group->GetEndBlockIndex();
                 group->IsFlushing = true;
             } else {
@@ -317,7 +314,7 @@ void TRemoteChunkWriter::ShiftWindow()
 
     TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>(~WriterThread);
     for (int node = 0; node < Nodes.ysize(); ++node) {
-        if (Nodes[node]->IsAlive) {
+        if (Nodes[node]->IsAlive && State != EWriterState::Terminated) {
             IAction::TPtr onSuccess = FromMethod(
                 &TRemoteChunkWriter::OnFlushedBlock, 
                 TPtr(this), 
@@ -395,14 +392,19 @@ void TRemoteChunkWriter::ReleaseSlots(int count)
 void TRemoteChunkWriter::RequestFinalization()
 {
     LOG_DEBUG("Chunk %s, finish requested", ~ChunkId.ToString());
-    IsFinishRequested = true;
-    if (Window.empty())
-        FinishSession();
+    if (State != EWriterState::Terminated) {
+        IsFinishRequested = true;
+        if (Window.empty())
+            FinishSession();
+    }
 }
 
 void TRemoteChunkWriter::Terminate()
 {
     LOG_DEBUG("Chunk %s, writer terminated by client", ~ChunkId.ToString());
+    if (IsFinishRequested) {
+        LOG_FATAL("Cannot cancel closing writer.");
+    }
     State = EWriterState::Terminated;
 }
 
@@ -507,6 +509,11 @@ void TRemoteChunkWriter::OnStartedSession()
         for (it = Window.begin(); it != Window.end(); ++it) {
             TGroupPtr group = *it;
             group->Process();
+        }
+
+        // Possible for empty chunk
+        if (Window.empty() && IsFinishRequested) {
+            FinishSession();
         }
     }
 }
@@ -654,6 +661,8 @@ Stroka TRemoteChunkWriter::GetDebugInfo()
 */
     return ss;
 }
+
+NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -129,6 +129,8 @@ private:
 
     TAsyncResult<TVoid>::TPtr WindowReady;
 
+    static NRpc::TChannelCache ChannelCache;
+
     /* ToDo: implement metrics
 
     TMetric StartChunkTiming;
