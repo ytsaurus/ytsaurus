@@ -122,7 +122,8 @@ public:
     }
 
 protected:
-    yvector<typename T::TPtr> Actions;
+    typedef yvector<typename T::TPtr> TActions;
+    TActions Actions;
 
 };
 
