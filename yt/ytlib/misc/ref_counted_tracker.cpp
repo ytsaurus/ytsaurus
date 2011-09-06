@@ -67,8 +67,8 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
         totalTotalObjects += it->TotalObjects;
 
         stream << Sprintf("%10d %10d %s",
-                          it->AliveObjects,
-                          it->TotalObjects,
+                          (i32) it->AliveObjects,
+                          (i32) it->TotalObjects,
                           ~DemangleCxxName(it->Key->name())
                           ) << "\n";
     }

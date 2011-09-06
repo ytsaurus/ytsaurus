@@ -65,7 +65,7 @@ private:
         }
     }
 
-    // Comaperers
+    // Comparers
     struct TByAliveObjects
     {
         inline bool operator()(
@@ -120,15 +120,14 @@ public:
             it = Lookup(typeInfo);
         }
 
-        ++(it->AliveObjects);
-        ++(it->TotalObjects);
+        AtomicIncrement(it->AliveObjects);
+        AtomicIncrement(it->TotalObjects);
     }
 
     void Decrement(TKey typeInfo)
     {
         TItem* it = Lookup(typeInfo);
-
-        --(it->AliveObjects);
+        AtomicDecrement(it->AliveObjects);
     }
 
 public:
