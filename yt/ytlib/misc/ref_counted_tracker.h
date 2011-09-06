@@ -45,9 +45,7 @@ private:
     TItem* Lookup(TKey key)
     {
         ui32 hash = THash<TKey>()(key) % HashTableSize;
-        TItem* begin = Table.begin();
-        TItem* current = begin + hash;
-        TItem* end = Table.end();
+        TItem* current = Table.begin() + hash;
 
         // iterate until find an appropriate cell
         for (;;) {
@@ -59,8 +57,8 @@ private:
                 return current;
             }
             ++current;
-            if (EXPECT_FALSE(current == end)) {
-                current = begin;
+            if (EXPECT_FALSE(current == Table.end())) {
+                current = Table.begin();
             }
         }
     }
