@@ -154,7 +154,7 @@ class TParamSignal
 public:
     void Fire(const TParam& arg)
     {
-        yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
+        typename TParamSignal::TActions actions(TParamSignal::Actions);
         for (auto it = actions.begin();
             it != actions.end();
             ++it)
