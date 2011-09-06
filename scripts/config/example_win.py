@@ -69,7 +69,7 @@ class Master(WinNode, Server):
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
-                        [('localhost:%d' % p) for p in range(9000, 9004)]))
+                        [('localhost:%d' % p) for p in range(9000, 9100)]))
         
         params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
         
