@@ -253,7 +253,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         (targetAddresses.ysize() == requestedCount)
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
-        : EScheduleFlags::Scheduled;
+        : (EScheduleFlags) EScheduleFlags::Scheduled;
 }
 
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(

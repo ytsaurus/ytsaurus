@@ -610,9 +610,8 @@ void TRemoteChunkWriter::OnFinishedSession()
     State = EWriterState::Closed;
     Result->Set(EResult::OK);
 
-    LOG_DEBUG("Writer closed (ChunkId: %s, Result: %s)",
-        ~ChunkId.ToString(),
-        Result);
+    LOG_DEBUG("Writer closed (ChunkId: %s)",
+        ~ChunkId.ToString());
 }
 
 void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady)
