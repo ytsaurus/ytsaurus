@@ -486,9 +486,9 @@ private:
 
         holder.AddJob(jobId);
 
-        LOG_INFO("Job added (HolderId: %d, JobId: %s, JobType: %s, ChunkId: %s)",
-            holder.Id,
+        LOG_INFO("Job added (JobId: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
+            holder.Id,
             ~jobType.ToString(),
             ~chunkId.ToString());
     }
@@ -503,9 +503,9 @@ private:
 
         holder.RemoveJob(jobId);
 
-        LOG_INFO("Job removed (HolderId: %d, JobId: %s)",
-            holder.Id,
-            ~jobId.ToString());
+        LOG_INFO("Job removed (JobId: %s, HolderId: %d)",
+            ~jobId.ToString(),
+            holder.Id);
     }
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
