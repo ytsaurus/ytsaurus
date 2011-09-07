@@ -45,7 +45,10 @@ struct IChunkWriter
     /*!
      *  The call completes immediately but returns a result that gets set
      *  when the session is complete. Result may contain OK if write was
-     *  completed successfully, otherwise Failed
+     *  completed successfully, otherwise Failed.
+     *  
+     *  It is safe to call this method at any time and possibly multiple times.
+     *  Calling #AsyncWriteBlock afterwards is an error.
      */
     virtual TAsyncResult<EResult>::TPtr AsyncClose() = 0;
 
@@ -79,7 +82,11 @@ struct IChunkWriter
         YASSERT(result == EResult::OK);
     }
 
-    //! Cancels the current upload. After this call the writer is no longer usable.
+    //! Cancels the current upload. This method is safe to call at any time.
+    /*!
+     *  It is safe to call this method at any time and possibly multiple times.
+     *  Calling #AsyncWriteBlock afterwards is an error.
+     */
     virtual void Cancel() = 0;
 
 private:
@@ -91,5 +98,7 @@ private:
     }
 
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -51,7 +51,7 @@ bool TSemaphore::TryAcquire()
     }
 }
 
-int TSemaphore::GetCount()
+int TSemaphore::GetFreeSlotsCount() const
 {
     return FreeSlotCount;
 }

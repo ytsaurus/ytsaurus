@@ -96,7 +96,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             return false;
         }
 
-        auto item = new TItem();
+        auto* item = new TItem();
         item->AsyncResult = New< TAsyncResult<TValuePtr> >();
         cookie->AsyncResult = item->AsyncResult;
         ItemMap.insert(MakePair(key, item));
@@ -142,7 +142,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto it = ItemMap.find(key);
         YASSERT(it != ItemMap.end());
 
-        auto item = it->Second();
+        auto* item = it->Second();
         item->AsyncResult->Set(value);
 
         YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
@@ -164,7 +164,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key)
     auto it = ItemMap.find(key);
     YASSERT(it != ItemMap.end());
     
-    auto item = it->Second();
+    auto* item = it->Second();
     item->AsyncResult->Set(NULL);
     
     ItemMap.erase(it);
@@ -186,7 +186,7 @@ void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
     TGuard<TSpinLock> guard(SpinLock);
     auto it = ItemMap.find(key);
     YASSERT(it != ItemMap.end());
-    auto item = it->Second();
+    auto* item = it->Second();
     Touch(item);
 }
 
@@ -198,7 +198,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     if (it == ItemMap.end())
         return false;
 
-    auto item = it->Second();
+    auto* item = it->Second();
     item->Unlink();
     --LruListSize;
     ItemMap.erase(it);
@@ -228,7 +228,7 @@ void TCacheBase<TKey, TValue, THash>::Trim()
         if (LruListSize == 0 || !NeedTrim())
             break;
 
-        auto item = LruList.PopBack();
+        auto* item = LruList.PopBack();
         --LruListSize;
 
         TValuePtr value;

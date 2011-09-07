@@ -1,6 +1,7 @@
 #include "replicator.h"
 
 #include "../misc/assert.h"
+#include "../misc/string.h"
 #include "../chunk_client/remote_chunk_writer.h"
 
 namespace NYT {
@@ -74,7 +75,7 @@ void TJob::Start()
         case EJobType::Replicate:
             LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
                 ~JobId.ToString(),
-                ~JoinStroku(TargetAddresses, ", "),
+                ~JoinToString(TargetAddresses, ", "),
                 ~Chunk->GetId().ToString());
 
             ChunkStore->GetChunkMeta(Chunk)->Subscribe(

@@ -15,8 +15,6 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkStore::TCachedReader
     : public TCacheValueBase<TChunkId, TCachedReader>
     , public TFileChunkReader
@@ -105,7 +103,7 @@ void TChunkStore::ScanChunks()
             if (!chunkId.IsEmpty()) {
                 auto fullName = path + "/" + fileName;
                 // TODO: make a function in NYT::NFS
-                auto size = TOldOsFile::Length(~fullName);
+                i64 size = TOldOsFile::Length(~fullName);
                 RegisterChunk(chunkId, size, location);
             }
         }

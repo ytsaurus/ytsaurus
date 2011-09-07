@@ -57,7 +57,7 @@ public:
     TRemoteChunkWriter(
         const TConfig& config, 
         const TChunkId& chunkId,
-        const yvector<Stroka>& nodes);
+        const yvector<Stroka>& addresses);
 
     EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
@@ -94,23 +94,25 @@ private:
     static TLazyPtr<TActionQueue> WriterThread;
 
     TChunkId ChunkId;
-
     const TConfig Config;
 
-
+    // TOOD: why no Closed here?
     DECLARE_ENUM(EWriterState,
         (Initializing)
         (Writing)
-        (Terminated)
+        (Closed)
+        (Canceled)
     );
 
     //! Set in #WriterThread, read from client and writer threads
     EWriterState State;
 
-    //! This flag is raised whenever Close is invoked.
+    //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
-    bool IsFinishRequested;
-    TAsyncResult<EResult>::TPtr IsFinished;
+    bool IsCloseRequested;
+
+    // TODO: write a comment here
+    TAsyncResult<EResult>::TPtr Result;
 
     TWindow Window;
     TSemaphore WindowSlots;
@@ -118,7 +120,7 @@ private:
     yvector<TNodePtr> Nodes;
 
     //! Number of nodes that are still alive.
-    int AliveNodes;
+    int AliveNodeCount;
 
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
@@ -140,11 +142,14 @@ private:
     TMetric FinishChunkTiming;*/
 
 private:
-    //! Sets IsFinishRequested flag
-    //! Is invoked from Close() through #WriterThread
-    void RequestFinalization();
+    //! Invoked from #Close via #WriterThread.
+    //! Sets #IsCloseRequested.
+    void DoClose();
+    
+    //! Invoked from #Cancel via #WriterThread.
+    void DoCancel();
+
     void AddGroup(TGroupPtr group);
-    void Terminate();
     void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady);
 
     void OnNodeDied(int node);
@@ -153,14 +158,15 @@ private:
     void ShiftWindow();
     TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
     void OnFlushedBlock(int node, int blockIndex);
-    void OnShiftedWindow(int blockIndex);
+    void OnWindowShifted(int blockIndex);
 
+    void InitializeNodes(const yvector<Stroka>& addresses);
     void StartSession();
     TInvStartChunk::TPtr StartChunk(int node);
     void OnStartedChunk(int node);
-    void OnStartedSession();
+    void OnSessionStarted();
 
-    void FinishSession();
+    void CloseSession();
     TInvFinishChunk::TPtr FinishChunk(int node);
     void OnFinishedChunk(int node);
     void OnFinishedSession();

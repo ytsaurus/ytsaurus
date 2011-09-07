@@ -21,6 +21,7 @@ SET(YT_SOURCE_FILES
     guid.cpp
     assert.h
     ptr.h
+    string.h
     ${SRCDIR}/preprocessor-gen.h
 )
 

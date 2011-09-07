@@ -435,7 +435,7 @@ private:
             chunk.Size);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk.Id);
+            ChunkReplication->RegisterReplica(holder, chunk);
         }
     }
 
@@ -449,7 +449,7 @@ private:
              holder.Id);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk.Id);
+            ChunkReplication->UnregisterReplica(holder, chunk);
         }
     }
 
@@ -462,7 +462,7 @@ private:
              holder.Id);
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleRefresh(chunk.Id);
+            ChunkReplication->UnregisterReplica(holder, chunk);
         }
     }
 
