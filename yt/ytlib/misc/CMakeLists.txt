@@ -22,6 +22,7 @@ SET(YT_SOURCE_FILES
     assert.h
     ptr.h
     string.h
+    foreach.h
     ${SRCDIR}/preprocessor-gen.h
 )
 

@@ -1,5 +1,6 @@
 #include "chunk_replication.h"
 
+#include "../misc/foreach.h"
 #include "../misc/serialize.h"
 #include "../misc/string.h"
 
@@ -52,11 +53,8 @@ void TChunkReplication::RegisterHolder(const THolder& holder)
 {
     YVERIFY(HolderInfoMap.insert(MakePair(holder.Id, THolderInfo())).Second());
 
-    for (auto it = holder.Chunks.begin();
-         it != holder.Chunks.end();
-         ++it)
-    {
-        ScheduleRefresh(*it);
+    FOREACH(const auto& chunk, holder.Chunks) {
+        ScheduleRefresh(chunk);
     }
 }
 
@@ -88,11 +86,7 @@ void TChunkReplication::ProcessRunningJobs(
     *removalJobCount = 0;
 
     // TODO: check for missing jobs
-    for (auto it = runningJobs.begin();
-        it != runningJobs.end();
-        ++it)
-    {
-        auto jobInfo = *it;
+    FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.GetJobId());
         const auto& job = ChunkManager->GetJob(jobId);
         auto jobState = EJobState(jobInfo.GetState());
@@ -148,23 +142,15 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
 {
     yhash_set<Stroka> forbiddenAddresses;
 
-    const TChunk::TLocations& locations = chunk.Locations;
-    for (auto it = locations.begin();
-        it != locations.end();
-        ++it)
-    {
-        const auto& holder = ChunkManager->GetHolder(*it);
+    FOREACH(auto holderId, chunk.Locations) {
+        const auto& holder = ChunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.Address);
     }
 
     const auto* jobList = ChunkManager->FindJobList(chunk.Id);
     if (jobList != NULL) {
-        const auto& jobs = jobList->Jobs;
-        for (auto it = jobs.begin();
-            it != jobs.end();
-            ++it)
-        {
-            const auto& job = ChunkManager->GetJob(*it);
+        FOREACH(const auto& jobId, jobList->Jobs) {
+            const auto& job = ChunkManager->GetJob(jobId);
             if (job.Type == EJobType::Replicate && job.ChunkId == chunk.Id) {
                 forbiddenAddresses.insert(job.TargetAddresses.begin(), job.TargetAddresses.end());
             }
@@ -174,11 +160,11 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
     auto candidateHolders = ChunkPlacement->GetTargetHolders(replicaCount + forbiddenAddresses.size());
 
     yvector<Stroka> targetAddresses;
-    for (auto it = candidateHolders.begin();
-        it != candidateHolders.end() && targetAddresses.ysize() < replicaCount;
-        ++it)
-    {
-        const auto& holder = ChunkManager->GetHolder(*it);
+    FOREACH(auto holderId, candidateHolders) {
+        if (targetAddresses.ysize() >= replicaCount)
+            break;
+
+        const auto& holder = ChunkManager->GetHolder(holderId);
         if (forbiddenAddresses.find(holder.Address) == forbiddenAddresses.end()) {
             targetAddresses.push_back(holder.Address);
         }
@@ -250,7 +236,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         ~JoinToString(targetAddresses, ", "));
 
     return
-        (targetAddresses.ysize() == requestedCount)
+        targetAddresses.ysize() == requestedCount
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
         : (EScheduleFlags) EScheduleFlags::Scheduled;
@@ -346,10 +332,8 @@ void TChunkReplication::GetReplicaStatistics(
     int* plusCount,
     int* minusCount)
 {
-    const TChunk::TLocations& locations = chunk.Locations;
-
     *desiredCount = GetDesiredReplicaCount(chunk);
-    *realCount = locations.ysize();
+    *realCount = chunk.Locations.ysize();
     *plusCount = 0;
     *minusCount = 0;
 
@@ -360,41 +344,33 @@ void TChunkReplication::GetReplicaStatistics(
     const auto* jobList = ChunkManager->FindJobList(chunk.Id);
     if (jobList != NULL) {
         yhash_set<Stroka> realAddresses(*realCount);
-        for (auto locationIt = locations.begin();
-            locationIt != locations.end();
-            ++locationIt)
-        {
-            const auto& holder = ChunkManager->GetHolder(*locationIt);
+        FOREACH(auto holderId, chunk.Locations) {
+            const auto& holder = ChunkManager->GetHolder(holderId);
             realAddresses.insert(holder.Address);
         }
 
-        for (auto jobIt = jobList->Jobs.begin();
-            jobIt != jobList->Jobs.end();
-            ++jobIt)
-        {
-            const auto& job = ChunkManager->GetJob(*jobIt);
+        FOREACH(const auto& jobId, jobList->Jobs) {
+            const auto& job = ChunkManager->GetJob(jobId);
             switch (job.Type) {
-            case EJobType::Replicate:
-                for (auto targetIt = job.TargetAddresses.begin();
-                    targetIt != job.TargetAddresses.end();
-                    ++targetIt)
-                {
-                    if (realAddresses.find(*targetIt) == realAddresses.end()) {
-                        ++*plusCount;
+                case EJobType::Replicate: {
+                    FOREACH(const auto& address, job.TargetAddresses) {
+                        if (realAddresses.find(address) == realAddresses.end()) {
+                            ++*plusCount;
+                        }
                     }
+                    break;
                 }
-                break;
 
-            case EJobType::Remove:
-                if (realAddresses.find(job.RunnerAddress) != realAddresses.end()) {
-                    ++*minusCount;
+                case EJobType::Remove:
+                    if (realAddresses.find(job.RunnerAddress) != realAddresses.end()) {
+                        ++*minusCount;
+                    }
+                    break;
+
+                default:
+                    YASSERT(false);
+                    break;
                 }
-                break;
-
-            default:
-                YASSERT(false);
-                break;
-            }
         }
     }
 }
@@ -419,12 +395,8 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         &plusCount,
         &minusCount);
 
-    const auto& locations = chunk.Locations;
-    for (auto it = locations.begin();
-        it != locations.end();
-        ++it)
-    {
-        auto* holderInfo = FindHolderInfo(*it);
+    FOREACH(auto holderId, chunk.Locations) {
+        auto* holderInfo = FindHolderInfo(holderId);
         if (holderInfo != NULL) {
             holderInfo->ChunksToReplicate.erase(chunk.Id);
             holderInfo->ChunksToRemove.erase(chunk.Id);
@@ -439,7 +411,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             minusCount,
             desiredCount);
     } else if (realCount - minusCount > desiredCount) {
-        // NB: never start removal jobs is new replicas are on the way, hence the check plusCount > 0.
+        // NB: never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
             LOG_INFO("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
                 ~chunk.Id.ToString(),
@@ -451,14 +423,14 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         }
 
         auto holderIds = GetHoldersForRemoval(chunk, realCount - minusCount - desiredCount);
-        for (auto it = holderIds.begin(); it != holderIds.end(); ++it) {
-            auto& holderInfo = GetHolderInfo(*it);
+        FOREACH(auto holderId, holderIds) {
+            auto& holderInfo = GetHolderInfo(holderId);
             holderInfo.ChunksToRemove.insert(chunk.Id);
         }
 
         yvector<Stroka> holderAddresses;
-        for (auto it = holderIds.begin(); it != holderIds.end(); ++it) {
-            const auto& holder = ChunkManager->GetHolder(*it);
+        FOREACH(auto holderId, holderIds) {
+            const auto& holder = ChunkManager->GetHolder(holderId);
             holderAddresses.push_back(holder.Address);
         }
 
@@ -586,12 +558,10 @@ yvector<THolderId> TChunkReplication::GetHoldersForRemoval(const TChunk& chunk, 
     // TODO: pick the most loaded holder
     yvector<THolderId> result;
     result.reserve(count);
-    const TChunk::TLocations& locations = chunk.Locations;
-    for (auto it = locations.begin();
-        it != chunk.Locations.end() && result.ysize() < count;
-        ++it)
-    {
-        result.push_back(*it);
+    FOREACH(auto holderId, chunk.Locations) {
+        if (result.ysize() >= count)
+            break;
+        result.push_back(holderId);
     }
     return result;
 }
