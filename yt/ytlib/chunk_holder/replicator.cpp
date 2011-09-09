@@ -1,6 +1,7 @@
 #include "replicator.h"
 
 #include "../misc/assert.h"
+#include "../misc/string.h"
 #include "../chunk_client/remote_chunk_writer.h"
 
 namespace NYT {
@@ -74,7 +75,7 @@ void TJob::Start()
         case EJobType::Replicate:
             LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
                 ~JobId.ToString(),
-                ~JoinStroku(TargetAddresses, ", "),
+                ~JoinToString(TargetAddresses, ", "),
                 ~Chunk->GetId().ToString());
 
             ChunkStore->GetChunkMeta(Chunk)->Subscribe(
@@ -244,7 +245,7 @@ void TReplicator::StopJob(TJob::TPtr job)
     job->Stop();
     YVERIFY(Jobs.erase(job->GetJobId()) == 1);
     
-    LOG_INFO("Replication job stopped (JobId: %s, State: %s)",
+    LOG_INFO("Job stopped (JobId: %s, State: %s)",
         ~job->GetJobId().ToString(),
         ~job->GetState().ToString());
 }
@@ -277,7 +278,7 @@ void TReplicator::StopAllJobs()
     }
     Jobs.clear();
 
-    LOG_INFO("All replication jobs stopped");
+    LOG_INFO("All jobs stopped");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

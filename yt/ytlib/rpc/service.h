@@ -307,7 +307,7 @@ protected:
         Stroka serviceName,
         Stroka loggingCategory);
 
-    void RegisterHandler(Stroka methodName, THandler::TPtr handler);
+    void RegisterMethod(Stroka methodName, THandler::TPtr handler);
 
     NLog::TLogger ServiceLogger;
     IInvoker::TPtr ServiceInvoker;
@@ -370,7 +370,7 @@ private:
         TCtx##method::TPtr context)
 
 #define RPC_REGISTER_METHOD(type, method) \
-    RegisterHandler(#method, FromMethod(&type::method##Thunk, this))
+    RegisterMethod(#method, FromMethod(&type::method##Thunk, this))
 
 #define USE_RPC_SERVICE_METHOD_LOGGER() \
     ::NYT::NLog::TPrefixLogger Logger( \

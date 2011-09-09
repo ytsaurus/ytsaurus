@@ -45,9 +45,7 @@ private:
     TItem* Lookup(TKey key)
     {
         ui32 hash = THash<TKey>()(key) % HashTableSize;
-        TItem* begin = Table.begin();
-        TItem* current = begin + hash;
-        TItem* end = Table.end();
+        TItem* current = Table.begin() + hash;
 
         // iterate until find an appropriate cell
         for (;;) {
@@ -55,12 +53,32 @@ private:
                 return current;
             }
             if (EXPECT_FALSE(current->Key == NULL)) {
-                current->Key = key;
-                return current;
+                break;
             }
             ++current;
-            if (EXPECT_FALSE(current == end)) {
-                current = begin;
+            if (EXPECT_FALSE(current == Table.end())) {
+                current = Table.begin();
+            }
+        }
+
+        {
+            // now the same but under spinlock
+            TGuard<TSpinLock> guard(SpinLock);
+
+            // iterate until find an appropriate cell
+            // we can start from the cell we stopped
+            for (;;) {
+                if (current->Key == key) {
+                    return current;
+                }
+                if (EXPECT_FALSE(current->Key == NULL)) {
+                    current->Key = key;
+                    return current;
+                }
+                ++current;
+                if (EXPECT_FALSE(current == Table.end())) {
+                    current = Table.begin();
+                }
             }
         }
     }
@@ -114,12 +132,6 @@ public:
     {
         TItem* it;
         it = Lookup(typeInfo);
-
-        if (EXPECT_FALSE(it == NULL)) {
-            TGuard<TSpinLock> guard(SpinLock);
-            it = Lookup(typeInfo);
-        }
-
         AtomicIncrement(it->AliveObjects);
         AtomicIncrement(it->TotalObjects);
     }

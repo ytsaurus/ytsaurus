@@ -13,7 +13,7 @@ template<class T>
 class TAsyncResult
     : public TRefCountedBase
 {
-    volatile bool IsSet;
+    volatile bool IsSet_;
     T Value;
     mutable TSpinLock SpinLock;
     mutable THolder<Event> ReadyEvent;
@@ -31,6 +31,8 @@ public:
     T Get() const;
 
     bool TryGet(T* value) const;
+
+    bool IsSet() const;
 
     void Subscribe(typename IParamAction<T>::TPtr action);
 

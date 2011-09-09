@@ -23,9 +23,12 @@ public:
     void RegisterHolder(const THolder& holder);
     void UnregisterHolder(const THolder& holder);
 
+    void RegisterReplica(const THolder& holder, const TChunk& chunk);
+
+    void UnregisterReplica(const THolder& holder, const TChunk& chunk);
+
     void StartRefresh(IInvoker::TPtr invoker);
     void StopRefresh();
-    void ScheduleRefresh(const TChunkId& chunkId);
 
     void RunJobControl(
         const THolder& holder,
@@ -34,13 +37,6 @@ public:
         yvector<TJobId>* jobsToStop);
 
 private:
-    DECLARE_ENUM(EChunkState,
-        (Lost)
-        (OK)
-        (Overreplicated)
-        (Underreplicated)
-    );
-
     TChunkManager::TPtr ChunkManager;
     TChunkPlacement::TPtr ChunkPlacement;
 
@@ -55,19 +51,17 @@ private:
     ydeque<TRefreshEntry> RefreshList;
 
     struct THolderInfo
-        : public TRefCountedBase
     {
-        typedef TIntrusivePtr<THolderInfo> TPtr;
         typedef yhash_set<TChunkId> TChunkIds;
-
-        TChunkIds OverreplicatedChunks;
-        TChunkIds UnderreplicatedChunks;
+        TChunkIds ChunksToReplicate;
+        TChunkIds ChunksToRemove;
     };
 
-    typedef yhash_map<THolderId, THolderInfo::TPtr> THolderInfoMap;
+    typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
     THolderInfoMap HolderInfoMap;
 
-    THolderInfo::TPtr FindHolderInfo(THolderId holderId);
+    THolderInfo* FindHolderInfo(THolderId holderId);
+    THolderInfo& GetHolderInfo(THolderId holderId);
 
     void ProcessRunningJobs(
         const THolder& holder,
@@ -76,40 +70,41 @@ private:
         int* replicationJobCount,
         int* removalJobCount);
 
-    bool IsJobScheduled(
-        const yvector<NProto::TJobInfo>& runningJobs,
-        const TChunkId& chunkId);
-
     bool IsRefreshScheduled(const TChunkId& chunkId);
 
     yvector<Stroka> GetTargetAddresses(const TChunk& chunk, int replicaCount);
 
-    bool TryScheduleReplicationJob(
+    DECLARE_ENUM(EScheduleFlags,
+        ((None)(0x0000))
+        ((Scheduled)(0x0001))
+        ((Purged)(0x0002))
+    );
+
+    EScheduleFlags ScheduleReplicationJob(
         const THolder& holder,
         const TChunkId& chunkId,
-        const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart);
-    bool TryScheduleRemovalJob(
+    EScheduleFlags ScheduleRemovalJob(
         const THolder& holder,
         const TChunkId& chunkId,
-        const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleJobs(
         const THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
         yvector<NProto::TJobStartInfo>* jobsToStart);
 
+    void ScheduleRefresh(const TChunkId& chunkId);
     void Refresh(const TChunk& chunk);
+    THolderId GetHolderForReplication(const TChunk& chunk);
+    yvector<THolderId> GetHoldersForRemoval(const TChunk& chunk, int count);
     int GetDesiredReplicaCount(const TChunk& chunk);
     void GetReplicaStatistics(
         const TChunk& chunk,
         int* desiredCount,
         int* realCount,
         int* plusCount,
-        int* minusCount,
-        EChunkState* state);
+        int* minusCount);
     void ScheduleNextRefresh();
     void OnRefresh();
 

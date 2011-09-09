@@ -209,7 +209,7 @@ TServiceBase::TServiceBase(
     , ServiceName(serviceName)
 { }
 
-void TServiceBase::RegisterHandler(
+void TServiceBase::RegisterMethod(
     Stroka methodName,
     THandler::TPtr handler)
 {

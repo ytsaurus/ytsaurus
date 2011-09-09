@@ -9,13 +9,13 @@ namespace NYT {
 
 template <class T>
 TAsyncResult<T>::TAsyncResult()
-    : IsSet(false)
+    : IsSet_(false)
     , Value(T())
 {}
 
 template <class T>
 TAsyncResult<T>::TAsyncResult(T value)
-    : IsSet(true)
+    : IsSet_(true)
     , Value(value)
 { }
 
@@ -26,9 +26,9 @@ void TAsyncResult<T>::Set(T value)
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(!IsSet);
+        YASSERT(!IsSet_);
         Value = value;
-        IsSet = true;
+        IsSet_ = true;
 
         Event* event = ~ReadyEvent;
         if (event != NULL) {
@@ -51,7 +51,7 @@ T TAsyncResult<T>::Get() const
 {
     TGuard<TSpinLock> guard(SpinLock);
 
-    if (IsSet) {
+    if (IsSet_) {
         return Value;
     }
 
@@ -62,7 +62,7 @@ T TAsyncResult<T>::Get() const
     guard.Release();
     ReadyEvent->Wait();
 
-    YASSERT(IsSet);
+    YASSERT(IsSet_);
 
     return Value;
 }
@@ -71,7 +71,7 @@ template <class T>
 bool TAsyncResult<T>::TryGet(T* value) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (IsSet) {
+    if (IsSet_) {
         *value = Value;
         return true;
     }
@@ -79,10 +79,16 @@ bool TAsyncResult<T>::TryGet(T* value) const
 }
 
 template <class T>
+bool TAsyncResult<T>::IsSet() const
+{
+    return IsSet_;
+}
+
+template <class T>
 void TAsyncResult<T>::Subscribe(typename IParamAction<T>::TPtr action)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (IsSet) {
+    if (IsSet_) {
         guard.Release();
         action->Do(Value);
     } else {

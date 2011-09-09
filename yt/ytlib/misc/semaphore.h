@@ -31,7 +31,7 @@ public:
     //! Returns 'true' if the semaphore counter has decreased.
     bool TryAcquire();
 
-    int GetCount();
+    int GetFreeSlotsCount() const;
 
 private:
     const int MaxFreeSlots;

@@ -39,7 +39,7 @@ class Base(AggrBase):
         path = opts.get_string('--name', 'control')
         
 class Server(Base):
-        bin_path = r'C:\Users\Max\Work\Yandex\YT\build\bin\Debug\server.exe'
+        bin_path = r'D:\Users\Max\Work\Yandex\YT.git\build\bin\Debug\server.exe'
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
@@ -69,7 +69,7 @@ class Master(WinNode, Server):
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
-                        [('localhost:%d' % p) for p in range(9000, 9004)]))
+                        [('localhost:%d' % p) for p in range(9000, 9100)]))
         
         params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
         

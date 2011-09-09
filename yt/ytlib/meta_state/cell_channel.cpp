@@ -48,6 +48,7 @@ NYT::TVoid TCellChannel::OnResponseReady(
 {
     NRpc::EErrorCode errorCode = response->GetErrorCode();
     if (errorCode == NRpc::EErrorCode::TransportError ||
+        errorCode == NRpc::EErrorCode::Timeout ||
         errorCode == NRpc::EErrorCode::Unavailable)
     {
         TGuard<TSpinLock> guard(SpinLock);
