@@ -22,6 +22,7 @@ namespace NChunkManager {
 
 class TChunkPlacement;
 class TChunkReplication;
+class THolderExpiration;
 
 class TChunkManager
     : public TMetaStateServiceBase
@@ -37,6 +38,8 @@ public:
         TCompositeMetaState::TPtr metaState,
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
+
+    void UnregisterHolder(THolderId holderId);
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
@@ -62,6 +65,9 @@ private:
 
     //! Manages chunk replication.
     TIntrusivePtr<TChunkReplication> ChunkReplication;
+
+    //! Manages expiration of holder leases.
+    TIntrusivePtr<THolderExpiration> HolderExpiration;
 
     //! Meta-state.
     TIntrusivePtr<TState> State;

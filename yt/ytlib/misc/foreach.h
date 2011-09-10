@@ -14,13 +14,13 @@ inline bool SetFalse(bool& flag)
 }
 
 template<class T>
-inline auto Begin(T&& collection) -> decltype(collection.begin())
+inline auto Begin(T& collection) -> decltype(collection.begin())
 {
     return collection.begin();
 }
 
 template<class T>
-inline auto End(T&& collection) -> decltype(collection.end())
+inline auto End(T& collection) -> decltype(collection.end())
 {
     return collection.end();
 }

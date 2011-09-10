@@ -20,15 +20,14 @@ public:
         TChunkManager::TPtr chunkManager,
         TChunkPlacement::TPtr chunkPlacement);
 
-    void RegisterHolder(const THolder& holder);
-    void UnregisterHolder(const THolder& holder);
+    void AddHolder(const THolder& holder);
+    void RemoveHolder(const THolder& holder);
 
-    void RegisterReplica(const THolder& holder, const TChunk& chunk);
+    void AddReplica(const THolder& holder, const TChunk& chunk);
+    void RemoveReplica(const THolder& holder, const TChunk& chunk);
 
-    void UnregisterReplica(const THolder& holder, const TChunk& chunk);
-
-    void StartRefresh(IInvoker::TPtr invoker);
-    void StopRefresh();
+    void Start(IInvoker::TPtr invoker);
+    void Stop();
 
     void RunJobControl(
         const THolder& holder,

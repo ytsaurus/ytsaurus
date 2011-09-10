@@ -49,7 +49,7 @@ void TChunkReplication::RunJobControl(
         jobsToStart);
 }
 
-void TChunkReplication::RegisterHolder(const THolder& holder)
+void TChunkReplication::AddHolder(const THolder& holder)
 {
     YVERIFY(HolderInfoMap.insert(MakePair(holder.Id, THolderInfo())).Second());
 
@@ -58,18 +58,18 @@ void TChunkReplication::RegisterHolder(const THolder& holder)
     }
 }
 
-void TChunkReplication::UnregisterHolder(const THolder& holder)
+void TChunkReplication::RemoveHolder(const THolder& holder)
 {
     YVERIFY(HolderInfoMap.erase(holder.Id) == 1);
 }
 
-void TChunkReplication::RegisterReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::AddReplica(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     ScheduleRefresh(chunk.Id);
 }
 
-void TChunkReplication::UnregisterReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     ScheduleRefresh(chunk.Id);
@@ -520,14 +520,14 @@ void TChunkReplication::OnRefresh()
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::StartRefresh( IInvoker::TPtr invoker )
+void TChunkReplication::Start( IInvoker::TPtr invoker )
 {
     YASSERT(~Invoker == NULL);
     Invoker = invoker;
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::StopRefresh()
+void TChunkReplication::Stop()
 {
     YASSERT(~Invoker != NULL);
     Invoker.Drop();

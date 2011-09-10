@@ -9,4 +9,5 @@ SET(YT_SOURCE_FILES
     chunk_manager_rpc.h
     chunk_placement.cpp
     chunk_replication.cpp
+    holder_expiration.cpp
 )
