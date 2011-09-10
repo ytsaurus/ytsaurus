@@ -35,19 +35,4 @@ using std::string; // hack for guid.h to work
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
 
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: move to a proper place
-struct TFixedChunkFooter
-{
-    ui64 HeaderOffset;
-    ui32 HeaderSize;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-
 

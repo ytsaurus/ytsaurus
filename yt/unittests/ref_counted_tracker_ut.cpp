@@ -18,16 +18,14 @@ class TSimpleObject
 public:
     typedef TIntrusivePtr<TSimpleObject> TPtr;
 
-    static int GetAliveCount()
+    static i64 GetAliveCount()
     {
-        return TRefCountedTracker::Get()->
-            GetAliveObjects(typeid(TSimpleObject));
+        return TRefCountedTracker::GetAliveObjects(&typeid(TSimpleObject));
     }
 
-    static int GetTotalCount()
+    static i64 GetTotalCount()
     {
-        return TRefCountedTracker::Get()->
-            GetTotalObjects(typeid(TSimpleObject));
+        return TRefCountedTracker::GetTotalObjects(&typeid(TSimpleObject));
     }
 };
 
@@ -49,7 +47,7 @@ TEST(TRefCountedTrackerTest, Simple)
     EXPECT_EQ(1000, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
-        container.push_back(new TSimpleObject());
+        container.push_back(New<TSimpleObject>());
     }
 
     EXPECT_EQ(2000, TSimpleObject::GetAliveCount());

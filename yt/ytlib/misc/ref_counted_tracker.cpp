@@ -1,3 +1,4 @@
+#include "foreach.h"
 #include "demangle.h"
 #include "ref_counted_tracker.h"
 
@@ -7,30 +8,29 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-unsigned int TRefCountedTracker::GetAliveObjects(const std::type_info& typeInfo)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    return Lookup(&typeInfo)->AliveObjects;
-}
+TRefCountedTracker::TStatistics TRefCountedTracker::Statistics;
+TSpinLock TRefCountedTracker::SpinLock;
 
-unsigned int TRefCountedTracker::GetTotalObjects(const std::type_info& typeInfo)
+TRefCountedTracker::TCookie TRefCountedTracker::Lookup(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return Lookup(&typeInfo)->TotalObjects;
+
+    auto it = Statistics.find(key);
+    if (it != Statistics.end())
+        return &it->Second();
+
+    return &Statistics.insert(MakePair(key, TItem(key))).First()->Second();
 }
 
 yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
 {
+    TGuard<TSpinLock> guard(SpinLock);
     yvector<TItem> result;
-    for (TItem* it = Table.begin(); it != Table.end(); ++it) {
-        if (it->Key != NULL) {
-            result.push_back(*it);
-        }
+    FOREACH(auto pair, Statistics) {
+        result.push_back(pair.Second());
     }
     return result;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
 {
@@ -42,41 +42,68 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
 
     switch (sortByColumn) {
         case 3:
-            Sort(items.begin(), items.end(), TByName());
+            Sort(
+                items.begin(),
+                items.end(),
+                [] (const TItem& lhs, const TItem& rhs) {
+                    return TCharTraits<char>::Compare(lhs.Key->name(), rhs.Key->name()) < 0;
+                });
             break;
+
         case 2:
-            Sort(items.begin(), items.end(), TByTotalObjects());
+            Sort(
+                items.begin(),
+                items.end(),
+                [] (const TItem& lhs, const TItem& rhs) {
+                    return lhs.TotalObjects > rhs.TotalObjects;
+                });
             break;
+
         case 1:
         default:
-            Sort(items.begin(), items.end(), TByAliveObjects());
+            Sort(
+                items.begin(),
+                items.end(),
+                [] (const TItem& lhs, const TItem& rhs) {
+                    return lhs.AliveObjects > rhs.AliveObjects;
+                });
             break;
     }
 
     TStringStream stream;
-    ui64 totalAliveObjects = 0;
-    ui64 totalTotalObjects = 0;
+    i64 totalAliveObjects = 0;
+    i64 totalTotalObjects = 0;
 
     stream << "Reference-Counted Object Statistics\n";
     stream << "================================================================================\n";
     stream << Sprintf("%10s %10s %s", "Alive", "Total", "Name") << "\n";
     stream << "--------------------------------------------------------------------------------\n";
-    for (yvector<TItem>::const_iterator it = items.begin(); it != items.end(); ++it)
-    {
-        totalAliveObjects += it->AliveObjects;
-        totalTotalObjects += it->TotalObjects;
+    FOREACH(const auto& item, items) {
+        totalAliveObjects += item.AliveObjects;
+        totalTotalObjects += item.TotalObjects;
 
-        stream << Sprintf("%10d %10d %s",
-                          (i32) it->AliveObjects,
-                          (i32) it->TotalObjects,
-                          ~DemangleCxxName(it->Key->name())
-                          ) << "\n";
+        stream
+            << Sprintf("%10" PRId64 " %10" PRId64 " %s",
+                (i64) item.AliveObjects,
+                (i64) item.TotalObjects,
+                ~DemangleCxxName(item.Key->name()))
+            << "\n";
     }
     stream << "--------------------------------------------------------------------------------\n";
     stream << Sprintf("%10"PRId64" %10"PRId64" %s", totalAliveObjects, totalTotalObjects, "Total") << "\n";
     stream << "================================================================================\n";
 
     return stream;
+}
+
+i64 TRefCountedTracker::GetAliveObjects(TKey key)
+{
+    return Lookup(key)->AliveObjects;
+}
+
+i64 TRefCountedTracker::GetTotalObjects(TKey key)
+{
+    return Lookup(key)->TotalObjects;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

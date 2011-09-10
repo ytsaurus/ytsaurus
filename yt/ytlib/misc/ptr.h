@@ -1,10 +1,6 @@
 #pragma once
 
-#include "common.h"
-
-#ifdef ENABLE_REF_COUNTED_TRACKING
 #include "ref_counted_tracker.h"
-#endif
 
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
@@ -15,6 +11,7 @@ namespace NYT {
 
 // TODO: consider making Ref, UnRef, and AfterConstruct private and
 // declare appropriate friends.
+
 //! Provides a common base for all reference-counted objects within YT.
 class TRefCountedBase
     : private TNonCopyable
@@ -25,7 +22,7 @@ public:
         // Counter is initially set to 1, see #AfterConstruct.
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
-        , TypeInfo(NULL)
+        , Cookie(NULL)
 #endif
     { }
 
@@ -33,32 +30,36 @@ public:
     virtual ~TRefCountedBase()
     { }
 
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    //! Called from #New functions to kill the initial fake reference
+    //! and initialize the #Cookie.
+    /*!
+     *  When reference tracking is enabled, this call also registers the instance with the tracker.
+     */
+    inline void AfterConstruct(TRefCountedTracker::TCookie cookie)
+    {
+        YASSERT(Cookie == NULL);
+        Cookie = cookie;
+        TRefCountedTracker::Register(cookie);
+
+        YASSERT(RefCounter >= 1);
+        UnRef();
+    }
+#else
     //! Called from #New functions to kill the initial fake reference.
-    void AfterConstruct()
+    inline void AfterConstruct()
     {
         YASSERT(RefCounter >= 1);
         UnRef();
     }
+#endif
 
     //! Increments the reference counter.
-    /*!
-     *  When reference tracking is enabled, this call also registers the instance with the tracker
-     *  if the counter reaches 2 (i.e. the first non-fake reference is created).
-     */
     inline void Ref() throw()
     {
         // Failure within this line means a zombie is being resurrected.
         YASSERT(RefCounter > 0);
-
         AtomicIncrement(RefCounter);
-
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        if (TypeInfo == NULL) {
-            YASSERT(TypeInfo == NULL);
-            TypeInfo = &typeid (*this);
-            TRefCountedTracker::Get()->Increment(TypeInfo);
-        }
-#endif
     }
 
     //! Decrements the reference counter.
@@ -70,8 +71,8 @@ public:
     {
         if (AtomicDecrement(RefCounter) == 0) {
 #ifdef ENABLE_REF_COUNTED_TRACKING
-            YASSERT(TypeInfo != NULL);
-            TRefCountedTracker::Get()->Decrement(TypeInfo);
+            YASSERT(Cookie != NULL);
+            TRefCountedTracker::Unregister(Cookie);
 #endif
             delete this;
         }
@@ -115,21 +116,44 @@ private:
     TAtomic RefCounter;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    const std::type_info* TypeInfo;
+    TRefCountedTracker::TCookie Cookie;
 #endif
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+#define REF_COUNTED_NEW_PROLOGUE() \
+    static TRefCountedTracker::TCookie cookie = NULL; \
+    if (EXPECT_FALSE(cookie == NULL)) { \
+        cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
+    }
+
+#define REF_COUNTED_NEW_EPILOGUE() \
+    result->AfterConstruct(cookie); \
+    return result;
+
+#else // !ENABLE_REF_COUNTED_TRACKING
+
+#define REF_COUNTED_NEW_PROLOGUE()
+
+#define REF_COUNTED_NEW_EPILOGUE() \
+    result->AfterConstruct(); \
+    return result;
+
+#endif // ENABLE_REF_COUNTED_TRACKING
+
 // TODO: generate with pump
+// TODO: employ perfect forwarding
 
 template<class TResult>
 inline TIntrusivePtr<TResult> New()
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult();
-    result->UnRef();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -139,10 +163,10 @@ template<
 inline TIntrusivePtr<TResult> New(
     const TArg1& arg1)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -154,11 +178,11 @@ inline TIntrusivePtr<TResult> New(
     const TArg1& arg1,
     const TArg2& arg2)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -172,12 +196,12 @@ inline TIntrusivePtr<TResult> New(
     const TArg2& arg2,
     const TArg3& arg3)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -193,13 +217,13 @@ inline TIntrusivePtr<TResult> New(
     const TArg3& arg3,
     const TArg4& arg4)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -217,14 +241,14 @@ inline TIntrusivePtr<TResult> New(
     const TArg4& arg4,
     const TArg5& arg5)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4,
         arg5);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -244,6 +268,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg5& arg5,
     const TArg6& arg6)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -251,8 +276,7 @@ inline TIntrusivePtr<TResult> New(
         arg4,
         arg5,
         arg6);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
 
 template<
@@ -274,6 +298,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg6& arg6,
     const TArg7& arg7)
 {
+    REF_COUNTED_NEW_PROLOGUE()
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -282,9 +307,11 @@ inline TIntrusivePtr<TResult> New(
         arg5,
         arg6,
         arg7);
-    result->AfterConstruct();
-    return result;
+    REF_COUNTED_NEW_EPILOGUE()
 }
+
+#undef REF_COUNTED_NEW_PROLOGUE
+#undef REF_COUNTED_NEW_EPILOGUE
 
 ////////////////////////////////////////////////////////////////////////////////
 
