@@ -39,7 +39,6 @@ private:
     };
 
 public:
-    typedef const std::type_info* TKey;
     typedef TItem* TCookie;
 
     static TCookie Lookup(TKey key);
