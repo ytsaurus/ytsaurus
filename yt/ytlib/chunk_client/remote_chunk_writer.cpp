@@ -286,7 +286,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
 
     LOG_DEBUG("Writer created (ChunkId: %s, Addresses: [%s])",
         ~ChunkId.ToString(),
-        ~JoinToString(addresses, ", "));
+        ~JoinToString(addresses));
 
     InitializeNodes(addresses);
 

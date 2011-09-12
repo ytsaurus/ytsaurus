@@ -75,7 +75,7 @@ void TJob::Start()
         case EJobType::Replicate:
             LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
                 ~JobId.ToString(),
-                ~JoinToString(TargetAddresses, ", "),
+                ~JoinToString(TargetAddresses),
                 ~Chunk->GetId().ToString());
 
             ChunkStore->GetChunkMeta(Chunk)->Subscribe(

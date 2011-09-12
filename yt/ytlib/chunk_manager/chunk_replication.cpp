@@ -49,7 +49,7 @@ void TChunkReplication::RunJobControl(
         jobsToStart);
 }
 
-void TChunkReplication::RegisterHolder(const THolder& holder)
+void TChunkReplication::AddHolder(const THolder& holder)
 {
     YVERIFY(HolderInfoMap.insert(MakePair(holder.Id, THolderInfo())).Second());
 
@@ -58,18 +58,18 @@ void TChunkReplication::RegisterHolder(const THolder& holder)
     }
 }
 
-void TChunkReplication::UnregisterHolder(const THolder& holder)
+void TChunkReplication::RemoveHolder(const THolder& holder)
 {
     YVERIFY(HolderInfoMap.erase(holder.Id) == 1);
 }
 
-void TChunkReplication::RegisterReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::AddReplica(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     ScheduleRefresh(chunk.Id);
 }
 
-void TChunkReplication::UnregisterReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     ScheduleRefresh(chunk.Id);
@@ -233,7 +233,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         ~chunkId.ToString(),
         holder.Id,
         ~jobId.ToString(),
-        ~JoinToString(targetAddresses, ", "));
+        ~JoinToString(targetAddresses));
 
     return
         targetAddresses.ysize() == requestedCount
@@ -435,7 +435,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         }
 
         LOG_INFO("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-            ~JoinToString(holderAddresses, ", "),
+            ~JoinToString(holderAddresses),
             ~chunk.Id.ToString(),
             realCount,
             plusCount,
@@ -520,14 +520,14 @@ void TChunkReplication::OnRefresh()
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::StartRefresh( IInvoker::TPtr invoker )
+void TChunkReplication::Start( IInvoker::TPtr invoker )
 {
     YASSERT(~Invoker == NULL);
     Invoker = invoker;
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::StopRefresh()
+void TChunkReplication::Stop()
 {
     YASSERT(~Invoker != NULL);
     Invoker.Drop();

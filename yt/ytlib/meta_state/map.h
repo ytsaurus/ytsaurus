@@ -372,6 +372,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NForeach {
+
+template<class TKey, class TValue>
+inline auto Begin(TMetaStateMap<TKey, TValue>& collection) -> decltype(collection.Begin())
+{
+    return collection.Begin();
+}
+
+template<class TKey, class TValue>
+inline auto End(TMetaStateMap<TKey, TValue>& collection) -> decltype(collection.End())
+{
+    return collection.End();
+}
+ 
+} // namespace NForeach
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define METAMAP_ACCESSORS_DECL(entityName, entityType, idType) \
     const entityType* Find ## entityName(const idType& id) const; \
     entityType* Find ## entityName ## ForUpdate(const idType& id); \

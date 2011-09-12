@@ -1,5 +1,9 @@
 #include "chunk_placement.h"
 
+#include "../misc/foreach.h"
+
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NChunkManager {
 
@@ -9,41 +13,48 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkPlacement::RegisterHolder(const THolder& holder)
+void TChunkPlacement::AddHolder(const THolder& holder)
 {
-    double preference = GetPreference(holder);
-    TPreferenceMap::iterator it = PreferenceMap.insert(MakePair(preference, holder.Id));
+    double loadFactor = GetLoadFactor(holder);
+    auto it = PreferenceMap.insert(MakePair(loadFactor, holder.Id));
     YVERIFY(IteratorMap.insert(MakePair(holder.Id, it)).Second());
 }
 
-void TChunkPlacement::UnregisterHolder(const THolder& holder)
+void TChunkPlacement::RemoveHolder(const THolder& holder)
 {
-    TIteratorMap::iterator iteratorIt = IteratorMap.find(holder.Id);
+    auto iteratorIt = IteratorMap.find(holder.Id);
     YASSERT(iteratorIt != IteratorMap.end());
-    TPreferenceMap::iterator preferenceIt = iteratorIt->Second();
+    auto preferenceIt = iteratorIt->Second();
     PreferenceMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
 }
 
 void TChunkPlacement::UpdateHolder(const THolder& holder)
 {
-    UnregisterHolder(holder);
-    RegisterHolder(holder);
+    RemoveHolder(holder);
+    AddHolder(holder);
 }
 
 yvector<THolderId> TChunkPlacement::GetTargetHolders(int replicaCount)
 {
+    // TODO: do not list holders that are nearly full
     yvector<THolderId> result;
-    TPreferenceMap::reverse_iterator it = PreferenceMap.rbegin();
-    while (it != PreferenceMap.rend() && result.ysize() < replicaCount) {
-        result.push_back((*it++).second);
+    result.reserve(replicaCount);
+    unsigned int replicasNeeded = replicaCount;
+    unsigned int holdersRemaining = IteratorMap.size();
+    FOREACH(auto pair, IteratorMap) {
+        if (RandomNumber(holdersRemaining) < replicasNeeded) {
+            result.push_back(pair.First());
+            --replicasNeeded;
+        }
+        --holdersRemaining;
     }
     return result;
 }
 
-double TChunkPlacement::GetPreference(const THolder& holder)
+double TChunkPlacement::GetLoadFactor(const THolder& holder)
 {
-    const THolderStatistics& statistics = holder.Statistics;
+    const auto& statistics = holder.Statistics;
     return
         (1.0 + statistics.UsedSpace) /
         (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
