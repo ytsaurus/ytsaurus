@@ -56,9 +56,9 @@ TSession::TPtr TSessionManager::StartSession(
 
     YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
 
-    LOG_INFO("Session started (ChunkId: %s, Location: %d, WindowSize: %d)",
+    LOG_INFO("Session started (ChunkId: %s, Location: %s, WindowSize: %d)",
         ~chunkId.ToString(),
-        location,
+        ~location->GetPath(),
         windowSize);
 
     return session;
