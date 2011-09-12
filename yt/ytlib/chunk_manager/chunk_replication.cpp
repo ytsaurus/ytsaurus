@@ -233,7 +233,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         ~chunkId.ToString(),
         holder.Id,
         ~jobId.ToString(),
-        ~JoinToString(targetAddresses, ", "));
+        ~JoinToString(targetAddresses));
 
     return
         targetAddresses.ysize() == requestedCount
@@ -435,7 +435,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         }
 
         LOG_INFO("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-            ~JoinToString(holderAddresses, ", "),
+            ~JoinToString(holderAddresses),
             ~chunk.Id.ToString(),
             realCount,
             plusCount,
