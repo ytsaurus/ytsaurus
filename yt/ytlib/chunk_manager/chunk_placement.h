@@ -13,8 +13,8 @@ class TChunkPlacement
 public:
     typedef TIntrusivePtr<TChunkPlacement> TPtr;
 
-    void RegisterHolder(const THolder& holder);
-    void UnregisterHolder(const THolder& holder);
+    void AddHolder(const THolder& holder);
+    void RemoveHolder(const THolder& holder);
     void UpdateHolder(const THolder& holder);
 
     yvector<THolderId> GetTargetHolders(int replicaCount);
@@ -26,7 +26,7 @@ private:
     TPreferenceMap PreferenceMap;
     TIteratorMap IteratorMap;
 
-    static double GetPreference(const THolder& holder);
+    static double GetLoadFactor(const THolder& holder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

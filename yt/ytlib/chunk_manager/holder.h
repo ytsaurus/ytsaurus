@@ -3,12 +3,6 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-
-#include "../chunk_holder/common.h"
-#include "../misc/lease_manager.h"
-
 namespace NYT {
 namespace NChunkManager {
 
@@ -36,7 +30,6 @@ struct THolder
     THolder(const THolder& other)
         : Id(other.Id)
         , Address(other.Address)
-        , Lease(other.Lease)
         , Statistics(other.Statistics)
         , Chunks(other.Chunks)
         , Jobs(other.Jobs)
@@ -57,7 +50,7 @@ struct THolder
 
     void RemoveJob(const TJobId& id)
     {
-        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
+        auto it = Find(Jobs.begin(), Jobs.end(), id);
         if (it != Jobs.end()) {
             Jobs.erase(it);
         }
@@ -66,7 +59,6 @@ struct THolder
 
     THolderId Id;
     Stroka Address;
-    mutable TLeaseManager::TLease Lease;
     THolderStatistics Statistics;
     TChunkIds Chunks;
     TJobs Jobs;
