@@ -42,6 +42,51 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLocation
+    : public TRefCountedBase
+{
+public:
+    typedef TIntrusivePtr<TLocation> TPtr;
+
+    TLocation(const Stroka& path);
+
+    //! Updates UsedSpace and AvailalbleSpace
+    void RegisterChunk(i64 size);
+
+    //! Updates AvailalbleSpace with system call
+    i64 GetAvailableSpace();
+
+    IInvoker::TPtr GetInvoker() const
+    {
+        return Invoker;
+    }
+
+    i64 GetUsedSpace() const
+    {
+        return UsedSpace;
+    }
+
+    Stroka GetPath() const
+    {
+        return Path;
+    }
+
+    float GetLoad() const
+    {
+        return (float)UsedSpace / (UsedSpace + AvailableSpace);
+    }
+
+private:
+    Stroka Path;
+    i64 AvailableSpace;
+    i64 UsedSpace;
+
+    //! Actions queue that handle IO requests to this location.
+    IInvoker::TPtr Invoker;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Describes chunk at a chunk holder.
 class TChunk
     : public TRefCountedBase
@@ -52,7 +97,7 @@ public:
     TChunk(
         const TChunkId& id,
         i64 size,
-        int location)
+        TLocation::TPtr location)
         : Id(id)
         , Size(size)
         , Location(location)
@@ -71,7 +116,7 @@ public:
     }
 
     //! Returns chunk storage location.
-    int GetLocation() const
+    TLocation::TPtr GetLocation()
     {
         return Location;
     }
@@ -81,7 +126,7 @@ private:
 
     TChunkId Id;
     i64 Size;
-    int Location;
+    TLocation::TPtr Location;
     TChunkMeta::TPtr Meta;
 
 };
@@ -103,7 +148,7 @@ public:
     TChunk::TPtr RegisterChunk(
         const TChunkId& chunkId,
         i64 size,
-        int location);
+        TLocation::TPtr location);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunk::TPtr FindChunk(const TChunkId& chunkId);
@@ -124,14 +169,11 @@ public:
      */
     void RemoveChunk(TChunk::TPtr chunk);
 
-    //! Returns invoker for a given storage location.
-    IInvoker::TPtr GetIOInvoker(int location);
-
     //! Calculates a storage location for a new chunk.
-    int GetNewChunkLocation(const TChunkId& chunkId);
+    TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const TChunkId& chunkId, int location);
+    Stroka GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location);
 
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(TChunk::TPtr chunk);
@@ -153,9 +195,7 @@ private:
     class TReaderCache;
 
     TChunkHolderConfig Config;
-
-    //! Actions queues that handle IO requests to chunk storage locations.
-    yvector<IInvoker::TPtr> IOInvokers;
+    yvector<TLocation::TPtr> Locations;
 
     typedef yhash_map<TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
@@ -167,7 +207,7 @@ private:
     TParamSignal<TChunk::TPtr> ChunkRemoved_;
 
     void ScanChunks();
-    void InitIOQueues();
+    void InitLocations();
     TChunkMeta::TPtr DoGetChunkMeta(TChunk::TPtr chunk);
 
 };

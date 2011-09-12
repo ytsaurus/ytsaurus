@@ -41,7 +41,7 @@ TSession::TPtr TSessionManager::StartSession(
     const TChunkId& chunkId,
     int windowSize)
 {
-    int location = ChunkStore->GetNewChunkLocation(chunkId);
+    TLocation::TPtr location = ChunkStore->GetNewChunkLocation();
 
     TSession::TPtr session = New<TSession>(this, chunkId, location, windowSize);
 
@@ -118,7 +118,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
 TSession::TSession(
     TSessionManager::TPtr sessionManager,
     const TChunkId& chunkId,
-    int location,
+    TLocation::TPtr location,
     int windowSize)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
@@ -153,7 +153,7 @@ void TSession::CloseLease()
 
 IInvoker::TPtr TSession::GetInvoker()
 {
-    return SessionManager->ChunkStore->GetIOInvoker(Location);
+    return Location->GetInvoker();
 }
 
 TChunkId TSession::GetChunkId() const
@@ -161,7 +161,7 @@ TChunkId TSession::GetChunkId() const
     return ChunkId;
 }
 
-int TSession::GetLocation() const
+TLocation::TPtr TSession::GetLocation() const
 {
     return Location;
 }
