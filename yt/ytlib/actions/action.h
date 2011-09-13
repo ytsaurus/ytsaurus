@@ -4,6 +4,7 @@
 
 #include "../misc/common.h"
 #include "../misc/ptr.h"
+#include "../misc/new.h"
 
 namespace NYT {
 

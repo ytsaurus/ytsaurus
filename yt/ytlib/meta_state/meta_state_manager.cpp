@@ -7,6 +7,7 @@
 #include "../misc/serialize.h"
 #include "../misc/fs.h"
 #include "../misc/guid.h"
+#include "../misc/new.h"
 
 namespace NYT {
 
