@@ -13,6 +13,7 @@ SRCS(
     yverify_ut.cpp
     metric_ut.cpp
     meta_state_map_ut.cpp
+    foreach_ut.cpp
 )
 
 PEERDIR(

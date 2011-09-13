@@ -10,22 +10,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellConfig
-{
-    yvector<Stroka> PeerAddresses;
-    TPeerId Id;
-
-    TCellConfig()
-        : Id(InvalidPeerId)
-    { }
-
-    void Read(TJsonObject* json)
-    {
-        NYT::TryRead(json, L"Id", &Id);
-        NYT::TryRead(json, L"PeerAddresses", &PeerAddresses);
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellManager

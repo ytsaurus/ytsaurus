@@ -4,6 +4,7 @@
 
 #include "../actions/action_util.h"
 #include "../misc/serialize.h"
+#include "../misc/foreach.h"
 
 // TODO: wrap with try/catch to handle IO errors
 
@@ -13,12 +14,10 @@ namespace NYT {
 
 static NLog::TLogger& Logger = MetaStateLogger;
 
-// TODO: make configurable
-static TDuration SyncTimeout = TDuration::MilliSeconds(5000);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRecovery::TRecovery(
+    const TMetaStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -26,7 +25,8 @@ TRecovery::TRecovery(
     TEpoch epoch,
     TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
-    : CellManager(cellManager)
+    : Config(config)
+    , CellManager(cellManager)
     , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
     , SnapshotStore(snapshotStore)
@@ -72,8 +72,8 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                 TSnapshotDownloader::TConfig(),
                 CellManager);
 
-            TSnapshotWriter::TPtr snapshotWriter = SnapshotStore->GetWriter(snapshotId);
-            TSnapshotDownloader::EResult snapshotResult = snapshotDownloader.GetSnapshot(
+            auto snapshotWriter = SnapshotStore->GetWriter(snapshotId);
+            auto snapshotResult = snapshotDownloader.GetSnapshot(
                 snapshotId,
                 ~snapshotWriter);
 
@@ -91,7 +91,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
         }
 
         snapshotReader->Open();
-        TInputStream* stream = &snapshotReader->GetStream();
+        auto* stream = &snapshotReader->GetStream();
 
         // The reader reference is being held by the closure action.
         return MetaState
@@ -105,7 +105,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
                     snapshotReader->GetPrevRecordCount())
                 ->AsyncVia(~CancelableStateInvoker));
     } else {
-        // Recovery solely using changelogs.
+        // Recovery using changelogs only.
         LOG_DEBUG("No snapshot is used for recovery");
 
         i32 prevRecordCount =
@@ -135,7 +135,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
         bool isFinal = segmentId == targetVersion.SegmentId;
         bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
 
-        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        auto changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
             if (!mayBeMissing) {
                 LOG_FATAL("A required changelog %d is missing", segmentId);
@@ -161,11 +161,12 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
         }
 
         if (!IsLeader()) {
-            THolder<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
-            TProxy::TReqGetChangeLogInfo::TPtr request = leaderProxy->GetChangeLogInfo();
-            request->SetSegmentId(segmentId);
-             // TODO: timeout
-            TProxy::TRspGetChangeLogInfo::TPtr response = request->Invoke()->Get();
+            auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
+            
+            auto request = proxy->GetChangeLogInfo();
+            request->SetChangeLogId(segmentId);
+
+            auto response = request->Invoke(Config.RpcTimeout)->Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Could not get changelog %d info from leader", segmentId);
                 return New<TResult>(EResult::Failed);
@@ -200,10 +201,11 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 : remoteRecordCount;
             
             if (localRecordCount < desiredRecordCount) {
+                // TODO: provide config
                 TChangeLogDownloader changeLogDownloader(
                     TChangeLogDownloader::TConfig(),
                     CellManager);
-                TChangeLogDownloader::EResult changeLogResult = changeLogDownloader.Download(
+                auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),
                     *changeLog);
 
@@ -280,6 +282,7 @@ void TRecovery::ApplyChangeLog(
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderRecovery::TLeaderRecovery(
+    const TMetaStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -288,6 +291,7 @@ TLeaderRecovery::TLeaderRecovery(
     TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
     : TRecovery(
+        config,    
         cellManager,
         metaState,
         changeLogCache,
@@ -321,6 +325,7 @@ bool TLeaderRecovery::IsLeader() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerRecovery::TFollowerRecovery(
+    const TMetaStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -329,6 +334,7 @@ TFollowerRecovery::TFollowerRecovery(
     TPeerId leaderId,
     IInvoker::TPtr serviceInvoker)
     : TRecovery(
+        config,
         cellManager,
         metaState,
         changeLogCache,
@@ -347,10 +353,10 @@ TRecovery::TResult::TPtr TFollowerRecovery::Run()
     TDelayedInvoker::Get()->Submit(
         FromMethod(&TFollowerRecovery::OnSyncTimeout, TPtr(this))
         ->Via(~CancelableServiceInvoker),
-        SyncTimeout);
+        Config.SyncTimeout);
 
-    TAutoPtr<TProxy> leaderProxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-    TProxy::TReqScheduleSync::TPtr request = leaderProxy->ScheduleSync();
+    TAutoPtr<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
+    auto request = leaderProxy->ScheduleSync();
     request->SetPeerId(CellManager->GetSelfId());
     request->Invoke();
 
@@ -442,11 +448,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 {
     LOG_INFO("Applying %d postponed changes", changes->ysize());
     
-    for (TPostponedChanges::const_iterator it = changes->begin();
-         it != changes->end();
-         ++it)
-    {
-        const TPostponedChange& change = *it;
+    FOREACH(const auto& change, *changes) {
         switch (change.Type) {
             case TPostponedChange::EType::Change:
                 MetaState->LogChange(change.ChangeData);

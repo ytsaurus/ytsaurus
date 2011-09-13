@@ -46,10 +46,10 @@ class Master(WinNode, Server):
         params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
         config = Template({
-                'Cell' : {
-                        'PeerAddresses' : MasterAddresses
-                },
                 'MetaState' : {
+                		'Cell' : {
+     	                	'Addresses' : MasterAddresses
+     	                },
                         'SnapshotLocation' : r'%(work_dir)s\snapshots',
                         'LogLocation' : r'%(work_dir)s\logs',
                 },                      

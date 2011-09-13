@@ -34,6 +34,7 @@ public:
     typedef TAsyncResult<EResult> TResult;
 
     TRecovery(
+        const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -66,6 +67,7 @@ protected:
         i32 targetRecordCount);
 
     // Thread-neutral.
+    TMetaStateManagerConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -86,6 +88,7 @@ public:
     typedef TIntrusivePtr<TLeaderRecovery> TPtr;
 
     TLeaderRecovery(
+        const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -111,6 +114,7 @@ public:
     typedef TIntrusivePtr<TFollowerRecovery> TPtr;
 
     TFollowerRecovery(
+        const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,

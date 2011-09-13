@@ -310,6 +310,40 @@ inline TIntrusivePtr<TResult> New(
     REF_COUNTED_NEW_EPILOGUE()
 }
 
+template<
+    class TResult,
+    class TArg1,
+    class TArg2,
+    class TArg3,
+    class TArg4,
+    class TArg5,
+    class TArg6,
+    class TArg7,
+    class TArg8
+>
+inline TIntrusivePtr<TResult> New(
+    const TArg1& arg1,
+    const TArg2& arg2,
+    const TArg3& arg3,
+    const TArg4& arg4,
+    const TArg5& arg5,
+    const TArg6& arg6,
+    const TArg7& arg7,
+    const TArg8& arg8)
+{
+    REF_COUNTED_NEW_PROLOGUE()
+    TIntrusivePtr<TResult> result = new TResult(
+        arg1,
+        arg2,
+        arg3,
+        arg4,
+        arg5,
+        arg6,
+        arg7,
+        arg8);
+    REF_COUNTED_NEW_EPILOGUE()
+}
+
 #undef REF_COUNTED_NEW_PROLOGUE
 #undef REF_COUNTED_NEW_EPILOGUE
 

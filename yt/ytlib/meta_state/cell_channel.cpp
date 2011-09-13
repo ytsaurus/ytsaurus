@@ -46,7 +46,7 @@ NYT::TVoid TCellChannel::OnResponseReady(
     TVoid,
     NRpc::TClientResponse::TPtr response)
 {
-    NRpc::EErrorCode errorCode = response->GetErrorCode();
+    auto errorCode = response->GetErrorCode();
     if (errorCode == NRpc::EErrorCode::TransportError ||
         errorCode == NRpc::EErrorCode::Timeout ||
         errorCode == NRpc::EErrorCode::Unavailable)

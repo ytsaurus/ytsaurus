@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/config.h"
 
 #include "../logging/log.h"
 
@@ -12,7 +13,65 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move?
+typedef i32 TPeerId;
+const TPeerId InvalidPeerId = -1;
+
+const i32 NonexistingPrevRecordCount = -1;
+const i32 UnknownPrevRecordCount = -2;
+
+const i32 NonexistingSnapshotId = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+// TODO: refactor
+
+struct TCellConfig
+{
+    yvector<Stroka> Addresses;
+    TPeerId Id;
+
+    TCellConfig()
+        : Id(InvalidPeerId)
+    { }
+
+    void Read(TJsonObject* json)
+    {
+        NYT::TryRead(json, L"Id", &Id);
+        NYT::TryRead(json, L"Addresses", &Addresses);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMetaStateManagerConfig
+{
+    Stroka LogLocation;
+    Stroka SnapshotLocation;
+    i32 MaxRecordCount;
+    TDuration SyncTimeout;
+    TDuration RpcTimeout;
+    TCellConfig Cell;
+
+    TMetaStateManagerConfig()
+        : LogLocation(".")
+        , SnapshotLocation(".")
+        , MaxRecordCount(100000)
+        , SyncTimeout(TDuration::MilliSeconds(5000))
+        , RpcTimeout(TDuration::MilliSeconds(3000))
+    { }
+
+    void Read(TJsonObject* json)
+    {
+        TryRead(json, L"LogLocation", &LogLocation);
+        TryRead(json, L"SnapshotLocation", &SnapshotLocation);
+        auto cellConfig = GetSubTree(json, "Cell");
+        if (cellConfig != NULL) {
+            Cell.Read(cellConfig);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMetaVersion
 {
     i32 SegmentId;
@@ -76,14 +135,6 @@ inline bool TMetaVersion::operator >= (const TMetaVersion& other) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef i32 TPeerId;
-const TPeerId InvalidPeerId = -1;
-
-const i32 NonexistingPrevRecordCount = -1;
-const i32 UnknownPrevRecordCount = -2;
-
-const i32 NonexistingSnapshotId = -1;
 
 extern NLog::TLogger MetaStateLogger;
 

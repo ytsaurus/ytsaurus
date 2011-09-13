@@ -52,12 +52,6 @@ YT_SUBDIRECTORY(rpc)
 YT_SUBDIRECTORY(bus)
 YT_SUBDIRECTORY(transaction)
 
-# TODO: drop dependency to quality/util
-SET_APPEND(SRCS
-    ${ARCADIA_ROOT}/quality/util/prog_options.cpp
-    ${ARCADIA_ROOT}/quality/util/file_utils.cpp
-)
-
 # Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(
     ${HEADERS}

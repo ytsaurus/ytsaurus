@@ -1,10 +1,23 @@
 #include "chunk_store.h"
 
+#include "../misc/foreach.h"
+
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
+#include <util/random/random.h>
 
 // TODO: drop once NFS provides GetFileSize
 #include <util/system/oldfile.h>
+
+#if defined(_linux_)
+#include <sys/vfs.h>
+#elif defined(_freebsd_) || defined(_darwin_)
+#error We do not support freebsd right now, do we?
+#include <sys/param.h>
+#include <sys/mount.h>
+#elif defined (_win_)
+#include <windows.h>
+#endif
 
 namespace NYT {
 namespace NChunkHolder {
@@ -12,6 +25,42 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocation::TLocation(const Stroka& path)
+    : Path(path)
+    , AvailableSpace(0)
+    , UsedSpace(0)
+    , Invoker(~New<TActionQueue>())
+{ }
+
+void TLocation::RegisterChunk(i64 size)
+{
+    UsedSpace += size;
+    AvailableSpace -= size;
+}
+
+i64 TLocation::GetAvailableSpace()
+{
+    // ToDo: may be smarter update
+#if !defined( _win_)
+    struct statfs fsData;
+    int res = statfs(~Path, &fsData);
+    LOG_FATAL_IF(res != 0, "statfs failed on location %s", ~Path);
+    AvailableSpace = fsData.f_bavail * fsData.f_bsize;
+#else
+    ui64 freeBytes;
+    int res = GetDiskFreeSpaceExA(
+        ~Path, 
+        (PULARGE_INTEGER)&freeBytes,
+        (PULARGE_INTEGER)NULL,
+        (PULARGE_INTEGER)NULL);
+    LOG_FATAL_IF(res == 0, "GetDiskFreeSpaceExA failed on location %s", ~Path);
+    AvailableSpace = freeBytes;
+#endif
+    return AvailableSpace;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,14 +128,14 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
     : Config(config)
     , ReaderCache(New<TReaderCache>(Config, this))
 {
+    InitLocations();
     ScanChunks(); 
-    InitIOQueues();
 }
 
 void TChunkStore::ScanChunks()
 {
-    for (int location = 0; location < Config.Locations.ysize(); ++location) {
-        auto path = Config.Locations[location];
+    FOREACH(auto location, Locations) {
+        auto path = location->GetPath();
 
         // TODO: make a function in NYT::NFS
         MakePathIfNotExist(~path);
@@ -96,7 +145,7 @@ void TChunkStore::ScanChunks()
         LOG_INFO("Scanning location %s", ~path);
 
         TFileList fileList;
-        fileList.Fill(Config.Locations[location]);
+        fileList.Fill(path);
         const char* fileName;
         while ((fileName = fileList.Next()) != NULL) {
             auto chunkId = TChunkId::FromString(fileName);
@@ -112,20 +161,22 @@ void TChunkStore::ScanChunks()
     LOG_INFO("%d chunks found", ChunkMap.ysize());
 }
 
-void TChunkStore::InitIOQueues()
+void TChunkStore::InitLocations()
 {
-    for (int location = 0; location < Config.Locations.ysize(); ++location) {
-        IOInvokers.push_back(~New<TActionQueue>());
+    for (int i = 0; i < Config.Locations.ysize(); ++i) {
+        Locations.push_back(New<TLocation>(Config.Locations[i]));
     }
 }
 
 TChunk::TPtr TChunkStore::RegisterChunk(
     const TChunkId& chunkId,
     i64 size,
-    int location)
+    TLocation::TPtr location)
 {
     auto chunk = New<TChunk>(chunkId, size, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
+
+    location->RegisterChunk(size);
 
     LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
         ~chunkId.ToString(),
@@ -157,20 +208,28 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
     ChunkRemoved_.Fire(chunk);
 }
 
-IInvoker::TPtr TChunkStore::GetIOInvoker(int location)
+TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
-    return IOInvokers[location];
+    // Choose location with probability in proportion to its load 
+    float sumLoad = 0;
+    FOREACH(auto location, Locations) {
+        sumLoad += location->GetLoad();
+    }
+
+    float rnd = RandomNumber<float>() * sumLoad;
+    FOREACH(auto location, Locations) {
+        rnd -= location->GetLoad();
+        if (rnd < 0) {
+            return location;
+        }
+    }
+
+    YASSERT(false);
 }
 
-int TChunkStore::GetNewChunkLocation(const TChunkId& chunkId)
+Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
 {
-    // TODO: code here
-    return chunkId.Parts[0] % Config.Locations.ysize();
-}
-
-Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, int location)
-{
-    return Config.Locations[location] + "/" + chunkId.ToString();
+    return location->GetPath() + "/" + chunkId.ToString();
 }
 
 Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
@@ -180,10 +239,13 @@ Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
 
 THolderStatistics TChunkStore::GetStatistics() const
 {
-    // TODO: do something meaningful
     THolderStatistics result;
-    result.AvailableSpace = 100;
-    result.UsedSpace = 100;
+
+    FOREACH(auto location, Locations) {
+        result.AvailableSpace += location->GetAvailableSpace();
+        result.UsedSpace += location->GetUsedSpace();
+    }
+
     result.ChunkCount = ChunkMap.ysize();
     return result;
 }
@@ -208,7 +270,7 @@ TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chun
         return New< TAsyncResult<TChunkMeta::TPtr> >(meta);
     }
 
-    auto invoker = GetIOInvoker(chunk->GetLocation());
+    auto invoker = chunk->GetLocation()->GetInvoker();
     return
         FromMethod(
             &TChunkStore::DoGetChunkMeta,
