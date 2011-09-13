@@ -56,7 +56,7 @@ struct TChunk
 
     void RemoveLocation(THolderId holderId)
     {
-        TLocations::iterator it = Find(Locations.begin(), Locations.end(), holderId);
+        auto it = Find(Locations.begin(), Locations.end(), holderId);
         if (it != Locations.end()) {
             Locations.erase(it);
         }

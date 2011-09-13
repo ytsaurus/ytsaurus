@@ -21,16 +21,11 @@ TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
     TLookupResult::TPtr asyncResult = New<TLookupResult>();
     TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
 
-    for (yvector<Stroka>::iterator it = Config.Addresses.begin();
-         it != Config.Addresses.end();
-         ++it)
-    {
-        Stroka address = *it;
-
+    FOREACH(Stroka address, Config.Addresses) {
         LOG_DEBUG("Requesting leader from master %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
-        TProxy::TReqGetStatus::TPtr request = proxy.GetStatus();
+        auto request = proxy.GetStatus();
         awaiter->Await(request->Invoke(Config.Timeout), FromMethod(
             &TLeaderLookup::OnResponse,
             awaiter,

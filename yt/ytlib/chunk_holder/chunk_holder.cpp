@@ -154,13 +154,10 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     TSession::TPtr session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    for (yvector<TSharedRef>::iterator it = request->Attachments().begin();
-         it != request->Attachments().end();
-         ++it)
-    {
+    FOREACH(const auto& it, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        TBlob data = it->ToBlob();
+        TBlob data = it.ToBlob();
         session->PutBlock(blockIndex, TSharedRef(data));
         ++blockIndex;
     }

@@ -259,22 +259,16 @@ TJob::TPtr TReplicator::FindJob(const TJobId& jobId)
 yvector<TJob::TPtr> TReplicator::GetAllJobs()
 {
     yvector<TJob::TPtr> result;
-    for (TJobMap::iterator it = Jobs.begin();
-         it != Jobs.end();
-         ++it)
-    {
-        result.push_back(it->Second());
+    FOREACH(const auto& pair, Jobs) {
+        result.push_back(pair.second);
     }
     return result;
 }
 
 void TReplicator::StopAllJobs()
 {
-    for (TJobMap::iterator it = Jobs.begin();
-        it != Jobs.end();
-        ++it)
-    {
-        it->Second()->Stop();
+    FOREACH(auto& pair, Jobs) {
+        pair.second->Stop();
     }
     Jobs.clear();
 
