@@ -1,6 +1,7 @@
 #pragma once
 
 #include "meta_state_manager.h"
+#include "meta_state_manager.pb.h"
 
 #include "../rpc/server.h"
 
@@ -134,16 +135,16 @@ struct TFixedChangeHeader
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMetaStateManager::TMsgChangeHeader& header,
+    const NMetaState::NProto::TMsgChangeHeader& header,
     const TMessage& message);
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header);
+    NMetaState::NProto::TMsgChangeHeader* header);
 
 void DeserializeChange(
     TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header,
+    NMetaState::NProto::TMsgChangeHeader* header,
     TRef* messageData);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@ TCellManager::TCellManager(const TConfig& config)
 
 i32 TCellManager::GetPeerCount() const
 {
-    return Config.PeerAddresses.ysize();
+    return Config.Addresses.ysize();
 }
 
 i32 TCellManager::GetQuorum() const
@@ -25,7 +25,7 @@ TPeerId TCellManager::GetSelfId() const
 
 Stroka TCellManager::GetPeerAddress(TPeerId id) const
 {
-    return Config.PeerAddresses[id];
+    return Config.Addresses[id];
 }
 
 

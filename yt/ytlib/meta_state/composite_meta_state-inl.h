@@ -8,7 +8,7 @@ namespace NYT {
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMetaStateManager::TMsgChangeHeader& header,
+    const NMetaState::NProto::TMsgChangeHeader& header,
     const TMessage& message)
 {
     TFixedChangeHeader fixedHeader;
@@ -94,7 +94,7 @@ public:
     typename TAsyncResult<TResult>::TPtr Run()
     {
         // TODO: change ns
-        NRpcMetaStateManager::TMsgChangeHeader header;
+        NMetaState::NProto::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
         TBlob changeData = SerializeChange(header, Message);
