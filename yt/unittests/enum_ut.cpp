@@ -76,11 +76,11 @@ TEST(TEnumTest, FromString)
 
     returnValue = EColor::FromString("Red", &color);
     EXPECT_EQ(EColor::Red, color);
-    EXPECT_EQ(true, returnValue);
+    EXPECT_IS_TRUE(returnValue);
 
     returnValue = EColor::FromString("Pink", &color);
     EXPECT_EQ(EColor::Red, color);
-    EXPECT_EQ(false, returnValue);
+    EXPECT_IS_FALSE(returnValue);
 }
 
 TEST(TEnumTest, Derived)
