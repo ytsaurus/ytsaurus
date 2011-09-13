@@ -2,6 +2,8 @@
 
 #include "preprocessor.h"
 
+#include  <util/generic/intrlist.h>
+
 namespace NYT {
 namespace NForeach {
 
@@ -25,14 +27,15 @@ inline auto End(T& collection) -> decltype(collection.end())
     return collection.end();
 }
 
+// specialisation for List (has only .Begin() and .End(), not .begin(), .end() )
 template<class T>
-inline auto Begin(T& collection) -> decltype(collection.Begin())
+inline auto Begin(TIntrusiveList<T>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
 template<class T>
-inline auto End(T& collection) -> decltype(collection.End())
+inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
 {
     return collection.End();
 }
