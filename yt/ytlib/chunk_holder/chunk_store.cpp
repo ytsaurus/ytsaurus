@@ -12,7 +12,6 @@
 #if defined(_linux_)
 #include <sys/vfs.h>
 #elif defined(_freebsd_) || defined(_darwin_)
-#error We do not support freebsd right now, do we?
 #include <sys/param.h>
 #include <sys/mount.h>
 #elif defined (_win_)
