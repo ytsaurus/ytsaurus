@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ref_counted_tracker.h"
+#include "new.h"
 
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
