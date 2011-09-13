@@ -179,27 +179,31 @@ private:
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
-#define REF_COUNTED_NEW_PROLOGUE() do { \
+#define REF_COUNTED_NEW_PROLOGUE() \
     static TRefCountedTracker::TCookie cookie = NULL; \
-    if (EXPECT_FALSE(cookie == NULL)) { \
-        cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
-    } \
-} while(0)
+    do { \
+        if (EXPECT_FALSE(cookie == NULL)) { \
+            cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
+        } \
+    } while(0)
 
-#define REF_COUNTED_NEW_EPILOGUE() do { \
-    result->AfterConstruction(cookie); \
-    return result; \
-} while(0)
+#define REF_COUNTED_NEW_EPILOGUE() \
+    do { \
+        result->AfterConstruction(cookie); \
+        return result; \
+    } while(0)
 
 #else // !ENABLE_REF_COUNTED_TRACKING
 
-#define REF_COUNTED_NEW_PROLOGUE() do { \
-} while(0)
+#define REF_COUNTED_NEW_PROLOGUE() \
+    do { \
+    } while(0)
 
-#define REF_COUNTED_NEW_EPILOGUE() do { \
-    result->AfterConstruction(); \
-    return result; \
-} while(0)
+#define REF_COUNTED_NEW_EPILOGUE() \
+    do { \
+        result->AfterConstruction(); \
+        return result; \
+    } while(0)
 
 #endif // ENABLE_REF_COUNTED_TRACKING
 
@@ -209,9 +213,9 @@ private:
 template<class TResult>
 inline TIntrusivePtr<TResult> New()
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult();
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -221,10 +225,10 @@ template<
 inline TIntrusivePtr<TResult> New(
     const TArg1& arg1)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -236,11 +240,11 @@ inline TIntrusivePtr<TResult> New(
     const TArg1& arg1,
     const TArg2& arg2)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -254,12 +258,12 @@ inline TIntrusivePtr<TResult> New(
     const TArg2& arg2,
     const TArg3& arg3)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -275,13 +279,13 @@ inline TIntrusivePtr<TResult> New(
     const TArg3& arg3,
     const TArg4& arg4)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -299,14 +303,14 @@ inline TIntrusivePtr<TResult> New(
     const TArg4& arg4,
     const TArg5& arg5)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4,
         arg5);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -326,7 +330,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg5& arg5,
     const TArg6& arg6)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -334,7 +338,7 @@ inline TIntrusivePtr<TResult> New(
         arg4,
         arg5,
         arg6);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -356,7 +360,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg6& arg6,
     const TArg7& arg7)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -365,7 +369,7 @@ inline TIntrusivePtr<TResult> New(
         arg5,
         arg6,
         arg7);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -389,7 +393,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg7& arg7,
     const TArg8& arg8)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -399,7 +403,7 @@ inline TIntrusivePtr<TResult> New(
         arg6,
         arg7,
         arg8);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 #undef REF_COUNTED_NEW_PROLOGUE
