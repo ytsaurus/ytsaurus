@@ -327,6 +327,7 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
         writers.push_back(writerIt->second);
     }
 
+    UNUSED(level); // This is intentional?
     return writers;
 }
 
