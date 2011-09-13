@@ -28,22 +28,30 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocation::TLocation(const Stroka& path)
+TLocation::TLocation(Stroka path)
     : Path(path)
     , AvailableSpace(0)
     , UsedSpace(0)
     , Invoker(~New<TActionQueue>())
 { }
 
-void TLocation::RegisterChunk(i64 size)
+void TLocation::RegisterChunk(TIntrusivePtr<TChunk> chunk)
 {
+    i64 size = chunk->GetSize();
     UsedSpace += size;
     AvailableSpace -= size;
 }
 
+void TLocation::UnregisterChunk(TIntrusivePtr<TChunk> chunk)
+{
+    i64 size = chunk->GetSize();
+    UsedSpace -= size;
+    AvailableSpace += size;
+}
+
 i64 TLocation::GetAvailableSpace()
 {
-    // ToDo: may be smarter update
+    // TODO: extract this into NFS
 #if !defined( _win_)
     struct statfs fsData;
     int res = statfs(~Path, &fsData);
@@ -60,6 +68,26 @@ i64 TLocation::GetAvailableSpace()
     AvailableSpace = freeBytes;
 #endif
     return AvailableSpace;
+}
+
+IInvoker::TPtr TLocation::GetInvoker() const
+{
+    return Invoker;
+}
+
+i64 TLocation::GetUsedSpace() const
+{
+    return UsedSpace;
+}
+
+Stroka TLocation::GetPath() const
+{
+    return Path;
+}
+
+double TLocation::GetLoadFactor() const
+{
+    return (double) UsedSpace / (UsedSpace + AvailableSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,7 +204,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     auto chunk = New<TChunk>(chunkId, size, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
-    location->RegisterChunk(size);
+    location->RegisterChunk(chunk);
 
     LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
         ~chunkId.ToString(),
@@ -198,6 +226,7 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
     YVERIFY(ChunkMap.erase(chunk->GetId()) == 1);
 
     ReaderCache->Remove(chunk);
+    chunk->GetLocation()->UnregisterChunk(chunk);
         
     auto fileName = GetChunkFileName(chunk);
     if (!NFS::Remove(fileName)) {
@@ -210,21 +239,23 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
 
 TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
-    // Choose location with probability in proportion to its load 
-    float sumLoad = 0;
+    // Pick every location with a probability proportional to its load.
+    double loadFactorSum = 0;
     FOREACH(auto location, Locations) {
-        sumLoad += location->GetLoad();
+        loadFactorSum += location->GetLoadFactor();
     }
 
-    float rnd = RandomNumber<float>() * sumLoad;
+    double random = RandomNumber<double>() * loadFactorSum;
     FOREACH(auto location, Locations) {
-        rnd -= location->GetLoad();
-        if (rnd < 0) {
+        random -= location->GetLoadFactor();
+        if (random < 0) {
             return location;
         }
     }
 
-    YASSERT(false);
+    // In theory, this should never happen.
+    // In practice, doubles are imprecise.
+    return Locations.back();
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
@@ -250,15 +281,12 @@ THolderStatistics TChunkStore::GetStatistics() const
     return result;
 }
 
-NYT::NChunkHolder::TChunkStore::TChunks TChunkStore::GetChunks()
+TChunkStore::TChunks TChunkStore::GetChunks()
 {
     TChunks result;
     result.reserve(ChunkMap.ysize());
-    for (TChunkMap::iterator it = ChunkMap.begin();
-        it != ChunkMap.end();
-        ++it)
-    {
-        result.push_back(it->Second());
+    FOREACH(auto pair, ChunkMap) {
+        result.push_back(pair.Second());
     }
     return result;
 }

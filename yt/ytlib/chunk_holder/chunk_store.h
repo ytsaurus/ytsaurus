@@ -42,47 +42,44 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunk;
+
+//! Describes a physical location of chunks at a chunk holder.
 class TLocation
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TLocation> TPtr;
 
-    TLocation(const Stroka& path);
+    TLocation(Stroka path);
 
-    //! Updates UsedSpace and AvailalbleSpace
-    void RegisterChunk(i64 size);
+    //! Updates #UsedSpace and #AvailalbleSpace
+    void RegisterChunk(TIntrusivePtr<TChunk> chunk);
 
-    //! Updates AvailalbleSpace with system call
+    //! Updates #UsedSpace and #AvailalbleSpace
+    void UnregisterChunk(TIntrusivePtr<TChunk> chunk);
+
+    //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace();
 
-    IInvoker::TPtr GetInvoker() const
-    {
-        return Invoker;
-    }
+    //! Returns the invoker that handles all IO requests to this location.
+    IInvoker::TPtr GetInvoker() const;
 
-    i64 GetUsedSpace() const
-    {
-        return UsedSpace;
-    }
+    //! Returns the number of bytes used at the location.
+    i64 GetUsedSpace() const;
 
-    Stroka GetPath() const
-    {
-        return Path;
-    }
+    //! Returns the path of the location.
+    Stroka GetPath() const;
 
-    float GetLoad() const
-    {
-        return (float)UsedSpace / (UsedSpace + AvailableSpace);
-    }
+    //! Returns the load factor.
+    double GetLoadFactor() const;
 
 private:
     Stroka Path;
     i64 AvailableSpace;
     i64 UsedSpace;
-
-    //! Actions queue that handle IO requests to this location.
     IInvoker::TPtr Invoker;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,13 +106,13 @@ public:
         return Id;
     }
 
-    //! Returns chunk size.
+    //! Returns the size of the chunk.
     i64 GetSize() const
     {
         return Size;
     }
 
-    //! Returns chunk storage location.
+    //! Returns the location of the chunk.
     TLocation::TPtr GetLocation()
     {
         return Location;
