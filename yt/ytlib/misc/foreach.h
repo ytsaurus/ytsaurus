@@ -26,6 +26,19 @@ inline auto End(T& collection) -> decltype(collection.end())
 }
 
 template<class T>
+inline auto Begin(T& collection) -> decltype(collection.Begin())
+{
+    return collection.Begin();
+}
+
+template<class T>
+inline auto End(T& collection) -> decltype(collection.End())
+{
+    return collection.End();
+}
+
+
+template<class T>
 inline auto Deref(T& it) -> decltype(*it)
 {
     return *it;

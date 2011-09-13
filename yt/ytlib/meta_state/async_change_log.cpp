@@ -127,6 +127,8 @@ public:
         //! Preserves the atomicity of the operations on the list.
         mutable TSpinLock SpinLock;
 
+
+
     private:
         //! Sweep operation performed during #Flush.
         static void SweepRecord(TRecord* record)
@@ -174,7 +176,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
+        auto it = ChangeLogQueues.find(changeLog);
         TChangeLogQueue::TPtr queue;
 
         if (it == ChangeLogQueues.end()) {
@@ -210,7 +212,7 @@ public:
     TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
+        auto it = ChangeLogQueues.find(changeLog);
         return it != ChangeLogQueues.end() ? it->second : NULL;
     }
 
@@ -228,20 +230,14 @@ public:
                 return;
             }
 
-            for (TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
-                 it != ChangeLogQueues.end();
-                 ++it)
-            {
-                queues.push_back(it->Second());
+            FOREACH(auto& it, ChangeLogQueues) {
+                queues.push_back(it.second);
             }
         }
 
         // Flush the queues in the snapshot.
-        for (yvector<TChangeLogQueue::TPtr>::iterator it = queues.begin();
-             it != queues.end();
-             ++it)
-        {
-            (*it)->Flush();
+        FOREACH(auto& queue, queues) {
+            queue->Flush();
         }
 
         // Sweep the empty queues.
@@ -317,7 +313,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
         return;
     }
 
-    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
+    auto queue = Impl->FindQueue(ChangeLog);
 
     if (~queue == NULL) {
         ChangeLog->Read(firstRecordId, recordCount, result);
@@ -334,19 +330,16 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
     yvector<TSharedRef> unflushedRecords;
 
-    for (TImpl::TChangeLogQueue::TRecords::iterator it = queue->Records.Begin();
-        it != queue->Records.End();
-        ++it)
-    {
-        if (it->Id >= lastRecordId)
+    FOREACH(auto& record, queue->Records) {
+        if (record.Id >= lastRecordId)
             break;
 
-        if (it->Id < firstRecordId)
+        if (record.Id < firstRecordId)
             continue;
 
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, it->Id);
+        firstUnflushedRecordId = Min(firstUnflushedRecordId, record.Id);
 
-        unflushedRecords.push_back(it->Data);
+        unflushedRecords.push_back(record.Data);
     }
 
     // At this moment we can release the lock.
@@ -377,7 +370,7 @@ i32 TAsyncChangeLog::GetId() const
 
 i32 TAsyncChangeLog::GetRecordCount() const
 {
-    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
+    auto queue = Impl->FindQueue(ChangeLog);
 
     if (~queue == NULL) {
         return ChangeLog->GetRecordCount();
@@ -387,7 +380,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
     if (queue->Records.Empty()) {
         return ChangeLog->GetRecordCount();
     } else {
-        TImpl::TChangeLogQueue::TRecords::const_iterator it = queue->Records.End();
+        auto it = queue->Records.End();
         --it;
         return it->Id + 1;
     }
