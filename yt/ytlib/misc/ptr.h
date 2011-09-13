@@ -9,7 +9,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: consider making Ref, UnRef, and AfterConstruct private and
+// TODO: consider making Ref, UnRef, and AfterConstruction private and
 // declare appropriate friends.
 
 //! Provides a common base for all reference-counted objects within YT.
@@ -19,7 +19,7 @@ class TRefCountedBase
 public:
     //! Constructs an instance.
     TRefCountedBase()
-        // Counter is initially set to 1, see #AfterConstruct.
+        // Counter is initially set to 1, see #AfterConstruction.
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
@@ -34,9 +34,10 @@ public:
     //! Called from #New functions to kill the initial fake reference
     //! and initialize the #Cookie.
     /*!
-     *  When reference tracking is enabled, this call also registers the instance with the tracker.
+     * When reference tracking is enabled, this call also registers the instance
+     * with the tracker.
      */
-    inline void AfterConstruct(TRefCountedTracker::TCookie cookie)
+    inline void AfterConstruction(TRefCountedTracker::TCookie cookie)
     {
         YASSERT(Cookie == NULL);
         Cookie = cookie;
@@ -47,7 +48,7 @@ public:
     }
 #else
     //! Called from #New functions to kill the initial fake reference.
-    inline void AfterConstruct()
+    inline void AfterConstruction()
     {
         YASSERT(RefCounter >= 1);
         UnRef();
@@ -64,8 +65,9 @@ public:
 
     //! Decrements the reference counter.
     /*!
-     *  When this counter reaches 0, the object also kills itself by calling "delete this".
-     *  When reference tracking is enabled, this call also unregisters the instance from the tracker.
+     * When this counter reaches zero, the object also kills itself by calling
+     * "delete this". When reference tracking is enabled, this call also
+     * unregisters the instance from the tracker.
      */
     inline void UnRef() throw()
     {
@@ -78,20 +80,21 @@ public:
         }
     }
 
-    //! Tries to obtain an intrusive pointer for an object that
-    //! may had already lost all of its references and, thus, is about to be deleted.
+    //! Tries to obtain an intrusive pointer for an object that may had
+    //! already lost all of its references and, thus, is about to be deleted.
     /*!
-     *  You may call this method at any time provided that you have a valid raw pointer to an object.
-     *  The call either returns an intrusive pointer for the object
-     *  (thus ensuring that the object won't be destroyed until you're holding this pointer)
-     *  or NULL indicating that the last reference had already been lost and the object is on
-     *  its way to heavens. All these steps happen atomically.
+     * You may call this method at any time provided that you have a valid
+     * raw pointer to an object. The call either returns an intrusive pointer
+     * for the object (thus ensuring that the object won't be destroyed until
+     * you're holding this pointer) or NULL indicating that the last reference
+     * had already been lost and the object is on its way to heavens.
+     * All these steps happen atomically.
      *  
-     *  Under all circumstances it is caller's responsibility the make sure that the object
-     *  is not destroyed during the call to #DangerousGetPtr. Typically this is achieved
-     *  by keeping a (lock-protected) collection of raw pointers,
-     *  taking a lock in object's destructor,
-     *  and unregistering its raw pointer from the collection there.
+     * Under all circumstances it is caller's responsibility the make sure that
+     * the object is not destroyed during the call to #DangerousGetPtr.
+     * Typically this is achieved by keeping a (lock-protected) collection of
+     * raw pointers, taking a lock in object's destructor, and unregistering
+     * its raw pointer from the collection there.
      */
     template<class T>
     static TIntrusivePtr<T> DangerousGetPtr(T* obj)
@@ -123,25 +126,84 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * \defgroup yt_new New<T> safe smart pointer constructors
+ * \ingroup yt_new
+ *
+ * This is collection of safe smart pointer constructors.
+ *
+ * \{
+ *
+ * \page yt_new_rationale Rationale
+ * New<T> function family was designed to prevent the following problem.
+ * Consider the following piece of code.
+ *
+ * \code
+ *     class TFoo
+ *         : public virtual TRefCountedBase
+ *     {
+ *     public:
+ *         typedef TIntrusivePtr<TFoo> TPtr;
+ *         TFoo();
+ *     };
+ *
+ *     void RegisterObject(TFoo::TPtr fooInstance)
+ *     {
+ *         ...
+ *     }
+ *
+ *     TFoo::TFoo()
+ *     {
+ *         // ... do something before.
+ *         RegisterObject(TFoo::TPtr(this));
+ *         // ... do something after.
+ *     }
+ * \endcode
+ *
+ * What will happen on <tt>new TFoo()</tt> construction? After memory allocation
+ * the reference counter for newly created instance would be initialized to zero.
+ * Afterwards, the control goes to TFoo constructor. To invoke
+ * <tt>RegisterObject</tt> a new temporary smart pointer to the current instance
+ * have to be created effectively incrementing the reference counter (now one).
+ * After <tt>RegisterObject</tt> returns the control to the constructor
+ * the temporary pointer is destroyed effectively decrementing the reference
+ * counter to zero hence triggering object destruction during its initialization.
+ *
+ * To avoid this undefined behaviour New<T> was introduced. New<T> holds fake
+ * reference to an object during its construction effectively preventing
+ * premature destruction.
+ *
+ * Now consider the following scenario. Imagine that reference counter for TFoo
+ * was initialized to zero. 
+ */
+
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
     static TRefCountedTracker::TCookie cookie = NULL; \
-    if (EXPECT_FALSE(cookie == NULL)) { \
-        cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
-    }
+    do { \
+        if (EXPECT_FALSE(cookie == NULL)) { \
+            cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
+        } \
+    } while(0)
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    result->AfterConstruct(cookie); \
-    return result;
+    do { \
+        result->AfterConstruction(cookie); \
+        return result; \
+    } while(0)
 
 #else // !ENABLE_REF_COUNTED_TRACKING
 
-#define REF_COUNTED_NEW_PROLOGUE()
+#define REF_COUNTED_NEW_PROLOGUE() \
+    do { \
+    } while(0)
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    result->AfterConstruct(); \
-    return result;
+    do { \
+        result->AfterConstruction(); \
+        return result; \
+    } while(0)
 
 #endif // ENABLE_REF_COUNTED_TRACKING
 
@@ -151,9 +213,9 @@ private:
 template<class TResult>
 inline TIntrusivePtr<TResult> New()
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult();
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -163,10 +225,10 @@ template<
 inline TIntrusivePtr<TResult> New(
     const TArg1& arg1)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -178,11 +240,11 @@ inline TIntrusivePtr<TResult> New(
     const TArg1& arg1,
     const TArg2& arg2)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -196,12 +258,12 @@ inline TIntrusivePtr<TResult> New(
     const TArg2& arg2,
     const TArg3& arg3)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -217,13 +279,13 @@ inline TIntrusivePtr<TResult> New(
     const TArg3& arg3,
     const TArg4& arg4)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -241,14 +303,14 @@ inline TIntrusivePtr<TResult> New(
     const TArg4& arg4,
     const TArg5& arg5)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
         arg3,
         arg4,
         arg5);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -268,7 +330,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg5& arg5,
     const TArg6& arg6)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -276,7 +338,7 @@ inline TIntrusivePtr<TResult> New(
         arg4,
         arg5,
         arg6);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -298,7 +360,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg6& arg6,
     const TArg7& arg7)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -307,7 +369,7 @@ inline TIntrusivePtr<TResult> New(
         arg5,
         arg6,
         arg7);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 template<
@@ -331,7 +393,7 @@ inline TIntrusivePtr<TResult> New(
     const TArg7& arg7,
     const TArg8& arg8)
 {
-    REF_COUNTED_NEW_PROLOGUE()
+    REF_COUNTED_NEW_PROLOGUE();
     TIntrusivePtr<TResult> result = new TResult(
         arg1,
         arg2,
@@ -341,11 +403,13 @@ inline TIntrusivePtr<TResult> New(
         arg6,
         arg7,
         arg8);
-    REF_COUNTED_NEW_EPILOGUE()
+    REF_COUNTED_NEW_EPILOGUE();
 }
 
 #undef REF_COUNTED_NEW_PROLOGUE
 #undef REF_COUNTED_NEW_EPILOGUE
+
+/*! \} */
 
 ////////////////////////////////////////////////////////////////////////////////
 
