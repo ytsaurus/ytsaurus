@@ -2,7 +2,6 @@
 
 #include "../misc/common.h"
 #include "../misc/config.h"
-#include "../misc/foreach.h"
 
 #include "../logging/log.h"
 

@@ -1,5 +1,6 @@
 #include "async_change_log.h"
 
+#include "../misc/foreach.h"
 #include "../actions/action_util.h"
 
 #include <util/system/thread.h>

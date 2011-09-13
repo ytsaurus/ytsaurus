@@ -3,6 +3,7 @@
 #include "common.h"
 #include "../misc/enum.h"
 #include "../misc/assert.h"
+#include "../misc/foreach.h"
 
 namespace NYT {
 
