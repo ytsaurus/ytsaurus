@@ -43,7 +43,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
     auto asyncResult = New< TAsyncResult<TSnapshotInfo> >();
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         LOG_INFO("Requesting snapshot info from peer %d", i);

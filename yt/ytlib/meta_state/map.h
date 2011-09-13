@@ -349,19 +349,13 @@ private:
     {
         YASSERT(State == EState::SavedSnapshot);
 
-        for (typename TMap::const_iterator it = InsertionMap.begin();
-             it != InsertionMap.end();
-             ++it)
-        {
-            Map[it->first] = it->second;
+        FOREACH(const auto& pair, InsertionMap) {
+            Map[pair.first] = pair.second;
         }
         InsertionMap.clear();
 
-        for (typename TKeySet::const_iterator it = DeletionSet.begin();
-            it != DeletionSet.end();
-            ++it)
-        {
-            Map.erase(*it);
+        FOREACH(TKey key, DeletionSet) {
+            Map.erase(key);
         }
         DeletionSet.clear();
 

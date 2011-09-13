@@ -191,7 +191,7 @@ public:
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
     {
-        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        auto queue = FindQueue(changeLog);
         if (~queue != NULL) {
             queue->Flush();
         }
@@ -201,7 +201,7 @@ public:
 
     TVoid Flush(TChangeLog::TPtr changeLog)
     {
-        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        auto queue = FindQueue(changeLog);
         if (~queue != NULL) {
             queue->Flush();
         }
@@ -230,7 +230,7 @@ public:
                 return;
             }
 
-            FOREACH(auto& it, ChangeLogQueues) {
+            FOREACH(const auto& it, ChangeLogQueues) {
                 queues.push_back(it.second);
             }
         }
@@ -278,7 +278,7 @@ TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {
-    TAppendResult::TPtr result = New<TAppendResult>();
+    auto result = New<TAppendResult>();
     Impl->Append(ChangeLog, recordId, data, result);
     return result;
 }
@@ -330,7 +330,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
     yvector<TSharedRef> unflushedRecords;
 
-    FOREACH(auto& record, queue->Records) {
+    FOREACH(const auto& record, queue->Records) {
         if (record.Id >= lastRecordId)
             break;
 
