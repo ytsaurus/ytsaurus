@@ -240,14 +240,14 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
 TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
     // Pick every location with a probability proportional to its load.
-    double loadFactorSum = 0;
+    double freeFactorSum = 0;
     FOREACH(auto location, Locations) {
-        loadFactorSum += location->GetLoadFactor();
+        freeFactorSum += (1 - location->GetLoadFactor());
     }
 
-    double random = RandomNumber<double>() * loadFactorSum;
+    double random = RandomNumber<double>() * freeFactorSum;
     FOREACH(auto location, Locations) {
-        random -= location->GetLoadFactor();
+        random -= (1 - location->GetLoadFactor());
         if (random < 0) {
             return location;
         }
