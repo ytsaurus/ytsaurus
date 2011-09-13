@@ -27,19 +27,6 @@ inline auto End(T& collection) -> decltype(collection.end())
     return collection.end();
 }
 
-// specialisation for List (has only .Begin() and .End(), not .begin(), .end() )
-template<class T>
-inline auto Begin(TIntrusiveList<T>& collection) -> decltype(collection.Begin())
-{
-    return collection.Begin();
-}
-
-template<class T>
-inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
-{
-    return collection.End();
-}
-
 
 template<class T>
 inline auto Deref(T& it) -> decltype(*it)
@@ -51,6 +38,19 @@ template<class T>
 inline void MoveNext(T& it)
 {
     ++it;
+}
+
+// Provide a speciailization for TIntrusiveList, which has Begin/End instead of begin/end.
+template<class T>
+inline auto Begin(TIntrusiveList<T>& collection) -> decltype(collection.Begin())
+{
+    return collection.Begin();
+}
+
+template<class T>
+inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
+{
+    return collection.End();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
