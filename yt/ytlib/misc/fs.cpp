@@ -25,7 +25,7 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool Remove(Stroka name)
+bool Remove(const Stroka& name)
 {
 #if defined(_win_)
     return DeleteFile(~name);
@@ -42,7 +42,7 @@ bool Remove(Stroka name)
 #endif
 }
 
-bool Rename(Stroka oldName, Stroka newName)
+bool Rename(const Stroka& oldName, const Stroka& newName)
 {
 #if defined(_win_)
     return MoveFileEx(~oldName, ~newName, MOVEFILE_REPLACE_EXISTING) != 0;
@@ -51,7 +51,7 @@ bool Rename(Stroka oldName, Stroka newName)
 #endif
 }
 
-Stroka GetFileName(Stroka filePath)
+Stroka GetFileName(const Stroka& filePath)
 {
     size_t delimPos = filePath.rfind('/');
 #ifdef _win32_
@@ -63,7 +63,7 @@ Stroka GetFileName(Stroka filePath)
     return (delimPos == Stroka::npos) ? filePath : filePath.substr(delimPos+1);
 }
 
-Stroka GetFileExtension(Stroka filePath)
+Stroka GetFileExtension(const Stroka& filePath)
 {
     i32 dotPosition = filePath.find_last_of('.');
     if (dotPosition < 0) {
@@ -72,17 +72,17 @@ Stroka GetFileExtension(Stroka filePath)
     return filePath.substr(dotPosition + 1, filePath.size() - dotPosition - 1);
 }
 
-Stroka GetFileNameWithoutExtension(Stroka filePath)
+Stroka GetFileNameWithoutExtension(const Stroka& filePath)
 {
-    filePath = GetFileName(filePath);
-    i32 dotPosition = filePath.find_last_of('.');
+    Stroka fileName = GetFileName(filePath);
+    i32 dotPosition = fileName.find_last_of('.');
     if (dotPosition < 0) {
-        return filePath;
+        return fileName;
     }
-    return filePath.substr(0, dotPosition);
+    return fileName.substr(0, dotPosition);
 }
 
-void CleanTempFiles(Stroka location)
+void CleanTempFiles(const Stroka& location)
 {
     LOG_INFO("Cleaning temp files in %s", ~location);
     TFileList fileList;
@@ -99,49 +99,65 @@ void CleanTempFiles(Stroka location)
     }
 }
 
-i64 GetAvailableSpace(const Stroka& path) throw(yexception)
+i64 GetAvailableSpace(const Stroka& path)
 {
 #if !defined( _win_)
     struct statfs fsData;
-    int res = statfs(~path, &fsData);
-    if (res != 0) {
-        throw yexception() << Sprintf("statfs failed on location %s", ~path);
-    }
-    return fsData.f_bavail * fsData.f_bsize;
+    int result = statfs(~path, &fsData);
+    i64 availableSpace = fsData.f_bavail * fsData.f_bsize;
 #else
     ui64 freeBytes;
-    int res = GetDiskFreeSpaceExA(
+    int result = GetDiskFreeSpaceExA(
         ~path,
         (PULARGE_INTEGER)&freeBytes,
         (PULARGE_INTEGER)NULL,
         (PULARGE_INTEGER)NULL);
-    if (res == 0) {
-        throw yexception() << Sprintf("GetDiskFreeSpaceExA failed on location %s", ~path);
-    }
-    return freeBytes;
+    i64 availableSpace = freeBytes;
 #endif
+
+#if !defined(_win_)
+    if (result != 0) {
+#else
+    if (result == 0) {
+#endif
+        throw yexception() <<
+            Sprintf("Failed to get available disk space at %s.", ~path.Quote());
+    }
+    return availableSpace;
 }
 
-void MakePathIfNotExist(Stroka path, int mode)
+void ForcePath(const Stroka& path, int mode)
 {
     MakePathIfNotExist(~path, mode);
 }
 
-i64 GetFileSize(const Stroka& filePath) {
-#ifdef _win_
-    WIN32_FIND_DATA fData;
-    HANDLE h = FindFirstFileA(~name, &fData);
-    if (h == INVALID_HANDLE_VALUE)
-        return -1;
-    FindClose(h);
-    return (((i64)fData.nFileSizeHigh) * (i64(MAXDWORD)+1)) + (i64)fData.nFileSizeLow;
-#elif defined(_unix_)
-    struct stat buf;
-    int r = stat(~filePath, &buf);
-    if (r == -1)
-        return -1;
-    return (i64)buf.st_size;
+i64 GetFileSize(const Stroka& filePath)
+{
+#if !defined(_win_)
+    struct stat fData;
+    int result = stat(~filePath, &fData);
+#else
+    WIN32_FIND_DATA findData;
+    HANDLE handle = FindFirstFileA(~filePath, &findData);
 #endif
+
+#if !defined(_win_)
+    if (result == -1) {
+#else
+    if (handle == INVALID_HANDLE_VALUE) {
+#endif
+        throw yexception() <<
+            Sprintf("Failed to get size of a filea %s.", ~filePath.Quote());
+    }
+
+#if !defined(_win_)
+    i64 fileSize = static_cast<i64>(fData.st_size);
+#else
+    FindClose(handle);
+    i64 fileSize = static_cast<i64>(findData.nFileSizeHigh) * (MAXDWORD + 1) + findData.nFileSizeLow;
+#endif
+
+    return fileSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
