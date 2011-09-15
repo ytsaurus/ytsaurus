@@ -1,5 +1,7 @@
 #include "pattern.h"
 
+#include "../misc/foreach.h"
+
 namespace NYT {
 namespace NLog {
 
@@ -41,12 +43,8 @@ static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
     formatter.AddProperty("category", event.GetCategory());
     formatter.AddProperty("tab", "\t");
 
-    const TLogEvent::TProperties& properties = event.GetProperties();
-    for (TLogEvent::TProperties::const_iterator it = properties.begin();
-        it != properties.end();
-        ++it)
-    {
-        formatter.AddProperty(it->First(), it->Second());
+    FOREACH(const auto& pair, event.GetProperties()) {
+        formatter.AddProperty(pair.first, pair.second);
     }
 }
 

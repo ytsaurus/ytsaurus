@@ -42,14 +42,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult = New< TAsyncResult<TSnapshotInfo> >();
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto asyncResult = New< TAsyncResult<TSnapshotInfo> >();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         LOG_INFO("Requesting snapshot info from peer %d", i);
 
-        TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
-        TProxy::TReqGetSnapshotInfo::TPtr request = proxy->GetSnapshotInfo();
+        auto proxy = CellManager->GetMasterProxy<TProxy>(i);
+        auto request = proxy->GetSnapshotInfo();
         request->SetSnapshotId(snapshotId);
         awaiter->Await(request->Invoke(Config.LookupTimeout), FromMethod(
             &TSnapshotDownloader::OnResponse,
@@ -150,16 +150,15 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             snapshotLength,
             sourceId);
 
-    TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
+    auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
-        TProxy::TReqReadSnapshot::TPtr request = proxy->ReadSnapshot();
+        auto request = proxy->ReadSnapshot();
         request->SetSnapshotId(snapshotId);
         request->SetOffset(downloadedLength);
         i32 blockSize = Min(Config.BlockSize, (i32)(snapshotLength - downloadedLength));
         request->SetLength(blockSize);
-        TProxy::TRspReadSnapshot::TPtr response =
-            request->Invoke(Config.ReadTimeout)->Get();
+        auto response = request->Invoke(Config.ReadTimeout)->Get();
 
         if (!response->IsOK()) {
             TProxy::EErrorCode errorCode = response->GetErrorCode();

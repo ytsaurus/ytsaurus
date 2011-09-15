@@ -99,7 +99,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 
 IService::TPtr TServer::GetService(Stroka serviceName)
 {
-    TServiceMap::iterator it = Services.find(serviceName);
+    auto it = Services.find(serviceName);
     if (it == Services.end()) {
         return NULL;
     }

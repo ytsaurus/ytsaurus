@@ -52,7 +52,7 @@ template<class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
     Stroka changeType = TMessage().GetTypeName();
-    IParamAction<const TRef&>::TPtr action = FromMethod(
+    auto action = FromMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         this,
         changeMethod);

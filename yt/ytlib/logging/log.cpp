@@ -168,13 +168,10 @@ void TLogManager::TConfig::ConfigureRules(const TJsonObject* root)
 
 void TLogManager::TConfig::ValidateRule(const TRule& rule)
 {
-    for (yvector<Stroka>::const_iterator it = rule.Writers.begin();
-        it != rule.Writers.end();
-        ++it)
-    {
-        if (Writers.find(*it) == Writers.end()) {
+    FOREACH(Stroka writer, rule.Writers) {
+        if (Writers.find(writer) == Writers.end()) {
             ythrow yexception() <<
-                Sprintf("Writer %s wasn't defined", ~*it);
+                Sprintf("Writer %s wasn't defined", ~writer);
         }
     }
 }
@@ -250,11 +247,8 @@ void TLogManager::Shutdown()
 
 TVoid TLogManager::DoFlush()
 {
-    for (TConfig::TWriterMap::iterator it = Configuration->Writers.begin();
-         it != Configuration->Writers.end();
-         ++it)
-    {
-        it->second->Flush();
+    FOREACH(auto& pair, Configuration->Writers) {
+        pair.second->Flush();
     }
     return TVoid();
 }
@@ -275,12 +269,8 @@ void TLogManager::Write(const TLogEvent& event)
 
 void TLogManager::DoWrite(const TLogEvent& event)
 {
-    yvector<ILogWriter::TPtr> writers = GetWriters(event);
-    for (yvector<ILogWriter::TPtr>::iterator it = writers.begin();
-         it != writers.end();
-         ++it)
-    {
-        (*it)->Write(event);
+    FOREACH(auto& writer, GetWriters(event)) {
+        writer->Write(event);
     }
 }
 
@@ -290,7 +280,7 @@ yvector<ILogWriter::TPtr> TLogManager::GetWriters(const TLogEvent& event)
         return SystemWriters;
 
     TPair<Stroka, ELogLevel> cacheKey(event.GetCategory(), event.GetLevel());
-    TCachedWriters::iterator it = CachedWriters.find(cacheKey);
+    auto it = CachedWriters.find(cacheKey);
     if (it != CachedWriters.end())
         return it->second;
     
@@ -305,24 +295,18 @@ yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& eve
     ELogLevel level = event.GetLevel();
 
     yhash_set<Stroka> writerIds;
-    for (TConfig::TRules::const_iterator it = Configuration->Rules.begin();
-        it != Configuration->Rules.end();
-        ++it)
-    {
-        if (it->IsApplicable(event)) {
-            writerIds.insert(it->Writers.begin(), it->Writers.end());
+    FOREACH(auto& rule, Configuration->Rules) {
+        if (rule.IsApplicable(event)) {
+            writerIds.insert(rule.Writers.begin(), rule.Writers.end());
         }
     }
 
     yvector<ILogWriter::TPtr> writers;
-    for (yhash_set<Stroka>::const_iterator it = writerIds.begin();
-         it != writerIds.end();
-         ++it)
-    {
-        TConfig::TWriterMap::iterator writerIt = Configuration->Writers.find(*it);
+    FOREACH(const Stroka& writerId, writerIds) {
+        auto writerIt = Configuration->Writers.find(writerId);
         if (writerIt == Configuration->Writers.end()) {
             ythrow yexception() <<
-                Sprintf("Couldn't find writer %s", ~*it);
+                Sprintf("Couldn't find writer %s", ~writerId);
         }
         writers.push_back(writerIt->second);
     }
@@ -351,12 +335,9 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 {
     ELogLevel level = ELogLevel::Maximum;
 
-    for(TConfig::TRules::iterator it = Configuration->Rules.begin();
-        it != Configuration->Rules.end();
-        ++it)
-    {
-        if (it->IsApplicable(category)) {
-            level = Min(level, it->MinLevel);
+    FOREACH(const auto& rule, Configuration->Rules) {
+        if (rule.IsApplicable(category)) {
+            level = Min(level, rule.MinLevel);
         }
     }
     return level;
@@ -450,12 +431,8 @@ void TPrefixLogger::Write(const TLogEvent& event)
         event.GetLevel(),
         Prefix + event.GetMessage());
 
-    const TLogEvent::TProperties& properties = event.GetProperties();
-    for (TLogEvent::TProperties::const_iterator it = properties.begin();
-         it != properties.end();
-         ++it)
-    {
-        prefixedEvent.AddProperty(it->First(), it->Second());
+    FOREACH(const auto& pair, event.GetProperties()) {
+        prefixedEvent.AddProperty(pair.first, pair.second);
     }
 
     BaseLogger.Write(prefixedEvent);

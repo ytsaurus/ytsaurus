@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ref_counted_tracker.h"
+#include "new.h"
 
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
@@ -223,7 +224,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return TBlob(Begin(), End());
     }
@@ -297,7 +298,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return Ref.ToBlob();
     }

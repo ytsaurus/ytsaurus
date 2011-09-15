@@ -3,6 +3,7 @@
 #include "common.h"
 #include "../misc/enum.h"
 #include "../misc/assert.h"
+#include "../misc/foreach.h"
 
 namespace NYT {
 
@@ -78,18 +79,18 @@ public:
     const TValue* Find(const TKey& key) const
     {
         if (State != EState::Normal) {
-            typename TMap::const_iterator insertionIt = InsertionMap.find(key);
+            const auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
                 return &insertionIt->second;
             }
 
-            typename TKeySet::const_iterator deletionIt = DeletionSet.find(key);
+            const auto deletionIt = DeletionSet.find(key);
             if (deletionIt != DeletionSet.end()) {
                 return NULL;
             }
         }
 
-        typename TMap::const_iterator it = Map.find(key);
+        const auto it = Map.find(key);
         return it == Map.end() ? NULL : &it->Second();
     }
 
@@ -101,18 +102,18 @@ public:
     TValue* FindForUpdate(const TKey& key)
     {
         if (State != EState::Normal) {
-            typename TMap::iterator insertionIt = InsertionMap.find(key);
+            auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
                 return &insertionIt->second;
             }
 
-            typename TKeySet::iterator deletionIt = DeletionSet.find(key);
+            auto deletionIt = DeletionSet.find(key);
             if (deletionIt != DeletionSet.end()) {
                 return NULL;
             }
         }
 
-        typename TMap::iterator mapIt = Map.find(key);
+        auto mapIt = Map.find(key);
         if (mapIt == Map.end()) {
             return NULL;
         }
@@ -122,7 +123,7 @@ public:
             return &value;
         }
 
-        TPair<typename TMap::iterator, bool> insertionPair = InsertionMap.insert(MakePair(key, value));
+        auto insertionPair = InsertionMap.insert(MakePair(key, value));
         YASSERT(insertionPair.second);
         return &insertionPair.First()->Second();
     }
@@ -193,9 +194,8 @@ public:
         }
 
         InsertionMap.clear();
-        for (TIterator it = Map.begin(); it != Map.end(); ++it) {
-            const TKey& key = it->first;
-            DeletionSet.insert(key);
+        FOREACH(const auto& pair, Map) {
+            DeletionSet.insert(pair.first);
         }
     }
 
@@ -305,10 +305,7 @@ private:
         yvector<TItem> items(Map.begin(), Map.end());
         std::sort(items.begin(), items.end(), ItemComparer);
 
-        for (typename yvector<TItem>::iterator it = items.begin();
-            it != items.end();
-            ++it)
-        {
+        FOREACH(const auto& item, items) {
             *stream << it->first << it->second;
         }
 
@@ -349,19 +346,13 @@ private:
     {
         YASSERT(State == EState::SavedSnapshot);
 
-        for (typename TMap::const_iterator it = InsertionMap.begin();
-             it != InsertionMap.end();
-             ++it)
-        {
-            Map[it->first] = it->second;
+        FOREACH(const auto& pair, InsertionMap) {
+            Map[pair.first] = pair.second;
         }
         InsertionMap.clear();
 
-        for (typename TKeySet::const_iterator it = DeletionSet.begin();
-            it != DeletionSet.end();
-            ++it)
-        {
-            Map.erase(*it);
+        FOREACH(TKey key, DeletionSet) {
+            Map.erase(key);
         }
         DeletionSet.clear();
 

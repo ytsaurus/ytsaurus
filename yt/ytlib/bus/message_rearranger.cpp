@@ -68,7 +68,7 @@ void TMessageRearranger::OnTimeout()
         ExpectedSequenceId);
 
     while (true) {
-        TMessageMap::iterator it = MessageMap.begin();
+        auto it = MessageMap.begin();
         TSequenceId sequenceId = it->first;
         if (sequenceId != ExpectedSequenceId)
             break;

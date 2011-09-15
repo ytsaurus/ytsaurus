@@ -55,8 +55,9 @@ namespace NYT {
  * reference to an object during its construction effectively preventing
  * premature destruction.
  *
- * Now consider the following scenario. Imagine that reference counter for TFoo
- * was initialized to zero.
+ * \note An initialization like <tt>TIntrusivePtr&lt;T&gt; p = new T()</tt>
+ * would result in a dangling reference due to internals of #New<T> and
+ * #TRefCountedBase.
  */
 
 #ifdef ENABLE_REF_COUNTED_TRACKING

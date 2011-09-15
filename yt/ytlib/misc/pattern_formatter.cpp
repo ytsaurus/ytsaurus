@@ -60,7 +60,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
         }
 
         Stroka property = pattern.substr(startProperty, endProperty - startProperty);
-        TPropertyMap::iterator it = PropertyMap.find(property);
+        auto it = PropertyMap.find(property);
         if (it == PropertyMap.end()) {
             if (!isOptional) {
                 ythrow yexception() <<

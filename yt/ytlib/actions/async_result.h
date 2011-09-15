@@ -4,7 +4,8 @@
 #include "invoker.h"
 
 #include "../misc/ptr.h"
-#include "../misc/new.h"
+#include "../misc/foreach.h"
+
 
 namespace NYT {
 

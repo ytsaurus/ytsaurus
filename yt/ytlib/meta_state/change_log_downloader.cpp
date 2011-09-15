@@ -80,7 +80,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
     while (downloadedRecordCount < version.RecordCount) {
-        TProxy::TReqReadChangeLog::TPtr request = proxy->ReadChangeLog();
+        auto request = proxy->ReadChangeLog();
         request->SetChangeLogId(version.SegmentId);
         request->SetStartRecordId(downloadedRecordCount);
         i32 desiredChunkSize = Min(
