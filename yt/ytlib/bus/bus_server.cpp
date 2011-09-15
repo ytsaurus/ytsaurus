@@ -192,11 +192,8 @@ void TBusServer::Terminate()
 
     Requester->StopNoWait();
 
-    for (TSessionMap::iterator it = SessionMap.begin();
-         it != SessionMap.end();
-         ++it)
-    {
-        it->second->Finalize();
+    FOREACH(auto& pair, SessionMap) {
+        pair.second->Finalize();
     }
     SessionMap.clear();
 
@@ -303,7 +300,7 @@ void TBusServer::ProcessNLResponse(TUdpHttpResponse* nlResponse)
 
 void TBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
 {
-    TPingMap::iterator pingIt = PingMap.find(nlResponse->ReqId);
+    auto pingIt = PingMap.find(nlResponse->ReqId);
     if (pingIt == PingMap.end()) {
         LOG_DEBUG("Request failed (RequestId: %s)",
             ~((TGuid) nlResponse->ReqId).ToString());
@@ -346,7 +343,7 @@ void TBusServer::ProcessReply(TSession::TPtr session, TReply::TPtr reply)
 void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
-    TPingMap::iterator pingIt = PingMap.find(requestId);
+    auto pingIt = PingMap.find(requestId);
     if (pingIt == PingMap.end()) {
         LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
             ~header->SessionId.ToString(),
@@ -410,7 +407,7 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
     int dataSize = data.ysize();
 
     TSession::TPtr session;
-    TSessionMap::iterator sessionIt = SessionMap.find(header->SessionId);
+    auto sessionIt = SessionMap.find(header->SessionId);
     if (sessionIt == SessionMap.end()) {
         if (isRequest) {
             session = RegisterSession(header->SessionId, address);

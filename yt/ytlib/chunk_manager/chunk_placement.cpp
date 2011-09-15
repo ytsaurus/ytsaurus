@@ -42,7 +42,7 @@ yvector<THolderId> TChunkPlacement::GetTargetHolders(int replicaCount)
     result.reserve(replicaCount);
     unsigned int replicasNeeded = replicaCount;
     unsigned int holdersRemaining = IteratorMap.size();
-    FOREACH(auto pair, IteratorMap) {
+    FOREACH(const auto& pair, IteratorMap) {
         if (RandomNumber(holdersRemaining) < replicasNeeded) {
             result.push_back(pair.First());
             --replicasNeeded;

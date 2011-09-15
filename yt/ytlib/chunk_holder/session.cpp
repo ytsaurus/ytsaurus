@@ -28,7 +28,7 @@ TSessionManager::TSessionManager(
 
 TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
 {
-    TSessionMap::iterator it = SessionMap.find(chunkId);
+    auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
         return NULL;
     

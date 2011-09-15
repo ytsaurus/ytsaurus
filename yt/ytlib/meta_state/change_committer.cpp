@@ -234,7 +234,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
     MetaState->ApplyChange(changeAction);
 
     // OnApplyChange can be modified concurrently.
-    IAction::TPtr onApplyChange = OnApplyChange;
+    auto onApplyChange = OnApplyChange;
     if (~onApplyChange != NULL) {
         onApplyChange->Do();
     }

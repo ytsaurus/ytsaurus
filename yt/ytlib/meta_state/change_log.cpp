@@ -314,7 +314,7 @@ void TChangeLog::TImpl::Open()
 
         i32 recordId = recordHeader.RecordId;
         if (RecordCount != recordId) {
-            LOG_ERROR("Invalid record id (SegmentId: %s, Offset: %" PRISZT ", ExpectedId: %d, FoundId: %d)",
+            LOG_ERROR("Invalid record id (SegmentId: %d, Offset: %" PRISZT ", ExpectedId: %d, FoundId: %d)",
                 Id,
                 CurrentFilePosition,
                 RecordCount,
@@ -324,7 +324,7 @@ void TChangeLog::TImpl::Open()
 
         i32 size = AlignUp(static_cast<i32>(sizeof(recordHeader)) + recordHeader.DataLength);
         if (CurrentFilePosition + size > fileLength) {
-            LOG_WARNING("Cannot read changelog record data (SegmentId: %d, RecordId: %s, Offset: %" PRISZT ")",
+            LOG_WARNING("Cannot read changelog record data (SegmentId: %d, RecordId: %d, Offset: %" PRISZT ")",
                 Id,
                 recordId,
                 CurrentFilePosition);
@@ -339,8 +339,7 @@ void TChangeLog::TImpl::Open()
             LOG_ERROR("Invalid changelog record checksum (SegmentId: %d, RecordId: %d, Offset: %" PRISZT ")",
                 Id,
                 recordId,
-                CurrentFilePosition,
-                Id);
+                CurrentFilePosition);
             break;
         }
 
@@ -476,7 +475,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
         TGuard<TSpinLock> guard(IndexSpinLock);
         lowerBound = GetLowerBound(firstRecordId)->Offset;
 
-        TIndex::iterator it = GetUpperBound(lastRecordId);
+        auto it = GetUpperBound(lastRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
@@ -545,7 +544,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 
 void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
-    LOG_DEBUG("Truncating changelog (SegmentId: AtRecordId: %d)",
+    LOG_DEBUG("Truncating changelog (SegmentId: %d, AtRecordId: %d)",
         Id,
         atRecordId);
 
@@ -553,14 +552,14 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
     i32 currentRecordId;
     {
         TGuard<TSpinLock> guard(IndexSpinLock);
-        TIndex::iterator it = GetUpperBound(atRecordId);
+        auto it = GetUpperBound(atRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
             upperBound = it->Offset;
         }
 
-        TIndex::iterator itPrev = GetLowerBound(atRecordId);
+        auto itPrev = GetLowerBound(atRecordId);
         currentRecordId = itPrev->RecordId;
         lowerBound = itPrev->Offset;
 
@@ -661,7 +660,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetLowerBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     --it;
     return it;
 }
@@ -672,7 +671,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetUpperBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     return it;
 }
 

@@ -151,11 +151,7 @@ class TClientDispatcher
     {
         BusMap.erase(bus->SessionId);
 
-        for (TBusClient::TBus::TRequestIdSet::iterator i = bus->RequestIds.begin();
-            i != bus->RequestIds.end();
-            ++i)
-        {
-            const TGuid& requestId = *i;
+        FOREACH(const TGuid& requestId, bus->RequestIds) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
@@ -164,11 +160,7 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
 
-        for (TBusClient::TBus::TRequestIdSet::iterator i = bus->PingIds.begin();
-            i != bus->PingIds.end();
-            ++i)
-        {
-            const TGuid& requestId = *i;
+        FOREACH(const TGuid& requestId, bus->PingIds) {
             Requester->SendResponse((TGUID) requestId, &ackData);
         }
         bus->PingIds.clear();
@@ -222,7 +214,7 @@ class TClientDispatcher
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
     {
         TGuid requestId = nlResponse->ReqId;
-        TRequestMap::iterator requestIt = RequestMap.find(requestId);
+        auto requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request failed (RequestId: %s)",
                 ~requestId.ToString());
@@ -278,7 +270,7 @@ class TClientDispatcher
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
         TGuid requestId = nlResponse->ReqId;
-        TRequestMap::iterator requestIt = RequestMap.find(requestId);
+        auto requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request ack received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
@@ -309,7 +301,7 @@ class TClientDispatcher
     {
         int dataSize = data.ysize();
 
-        TBusMap::iterator busIt = BusMap.find(header->SessionId);
+        auto busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
                 ~header->SessionId.ToString(),
@@ -348,7 +340,7 @@ class TClientDispatcher
     void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest)
     {
         TGuid requestId = nlRequest->ReqId;
-        TBusMap::iterator busIt = BusMap.find(header->SessionId);
+        auto busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Ping for an obsolete session received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
@@ -385,7 +377,7 @@ class TClientDispatcher
 
     void ProcessRequest(TRequest::TPtr request)
     {
-        TBusMap::iterator busIt = BusMap.find(request->SessionId);
+        auto busIt = BusMap.find(request->SessionId);
         if (busIt == BusMap.end()) {
             // Process all pending registrations and try once again.
             ProcessBusRegistrations();

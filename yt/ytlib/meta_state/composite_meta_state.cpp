@@ -100,7 +100,7 @@ IInvoker::TPtr TCompositeMetaState::GetInvoker() const
 TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 {
     TAsyncResult<TVoid>::TPtr result;
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         result = pair.Second()->Save(output);
     }
     return result;
@@ -109,7 +109,7 @@ TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input)
 {
     TAsyncResult<TVoid>::TPtr result;
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         result = pair.Second()->Load(input);
     }
     return result;
@@ -134,7 +134,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
 
 void TCompositeMetaState::Clear()
 {
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         pair.Second()->Clear();
     }
 }
@@ -142,14 +142,14 @@ void TCompositeMetaState::Clear()
 void TCompositeMetaState::OnStartLeading()
 {
     StartEpoch();
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         pair.Second()->OnStartLeading();
     }
 }
 
 void TCompositeMetaState::OnStopLeading()
 {
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         pair.Second()->OnStopLeading();
     }
     StopEpoch();
@@ -158,14 +158,14 @@ void TCompositeMetaState::OnStopLeading()
 void TCompositeMetaState::OnStartFollowing()
 {
     StartEpoch();
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         pair.Second()->OnStartFollowing();
     }
 }
 
 void TCompositeMetaState::OnStopFollowing()
 {
-    FOREACH(auto pair, Parts) {
+    FOREACH(auto& pair, Parts) {
         pair.Second()->OnStopFollowing();
     }
     StopEpoch();

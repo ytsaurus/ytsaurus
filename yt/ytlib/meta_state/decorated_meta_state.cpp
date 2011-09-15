@@ -97,7 +97,7 @@ void TDecoratedMetaState::IncrementRecordCount()
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TSharedRef& changeData)
 {
-    TCachedAsyncChangeLog::TPtr cachedChangeLog = ChangeLogCache->Get(Version.SegmentId);
+    auto cachedChangeLog = ChangeLogCache->Get(Version.SegmentId);
     if (~cachedChangeLog == NULL) {
         LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
     }
@@ -116,7 +116,7 @@ void TDecoratedMetaState::AdvanceSegment()
 
 void TDecoratedMetaState::RotateChangeLog()
 {
-    TCachedAsyncChangeLog::TPtr currentChangeLog = ChangeLogCache->Get(Version.SegmentId);
+    auto currentChangeLog = ChangeLogCache->Get(Version.SegmentId);
     YASSERT(~currentChangeLog != NULL);
 
     currentChangeLog->Finalize();

@@ -171,7 +171,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     TOutputStream* stream = &writer->GetStream();
 
     // Start an async snapshot creation process.
-    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(stream);
+    auto saveResult = MetaState->Save(stream);
 
     // Switch to a new changelog.
     MetaState->RotateChangeLog();

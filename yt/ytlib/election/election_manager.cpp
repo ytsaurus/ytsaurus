@@ -324,11 +324,8 @@ private:
     {
         LOG_DEBUG("Checking candidates (Round: %p)", this);
 
-        for (TStatusTable::iterator it = StatusTable.begin();
-             it != StatusTable.end();
-             ++it)
-        {
-            if (CheckForLeader(it->First(), it->Second()))
+        FOREACH(const auto& pair, StatusTable) {
+            if (CheckForLeader(pair.first, pair.second))
                 return true;
         }
 
@@ -401,12 +398,9 @@ private:
         const TEpoch& epoch) const
     {
         int count = 0;
-        for (TStatusTable::const_iterator it = StatusTable.begin();
-             it != StatusTable.end();
-             ++it)
-        {
-            if (it->Second().VoteId == candidateId &&
-                it->Second().VoteEpoch == epoch)
+        FOREACH(const auto& pair, StatusTable) {
+            if (pair.second.VoteId == candidateId &&
+                pair.second.VoteEpoch == epoch)
             {
                 ++count;
             }
@@ -448,11 +442,8 @@ private:
     {
         // Choose the best vote.
         TStatus bestCandidate;
-        for (TStatusTable::const_iterator it = StatusTable.begin();
-            it != StatusTable.end();
-            ++it)
-        {
-            const TStatus& currentCandidate = it->Second();
+        FOREACH(const auto& pair, StatusTable) {
+            const TStatus& currentCandidate = pair.second;
             if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
                 IsBetterCandidate(currentCandidate, bestCandidate))
             {

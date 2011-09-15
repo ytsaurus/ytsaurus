@@ -55,7 +55,7 @@ void TChannel::OnMessage(
 TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
 {
     TGuard<TSpinLock> guard(&SpinLock);
-    TEntries::iterator it = Entries.find(id);
+    auto it = Entries.find(id);
     if (it == Entries.end()) {
         return NULL;
     } else {
@@ -130,7 +130,7 @@ bool TChannel::Unregister(const TRequestId& requestId)
 
     {
         TGuard<TSpinLock> guard(&SpinLock);
-        TEntries::iterator it = Entries.find(requestId);
+        auto it = Entries.find(requestId);
         if (it == Entries.end())
             return false;
 
@@ -151,7 +151,7 @@ bool TChannel::Unregister(const TRequestId& requestId)
 
 TChannel::TPtr TChannelCache::GetChannel(Stroka address)
 {
-    TChannelMap::iterator it = ChannelMap.find(address);
+    auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
         it = ChannelMap.insert(MakePair(address, New<TChannel>(address))).First();
     }
