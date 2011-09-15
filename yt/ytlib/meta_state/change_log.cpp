@@ -660,7 +660,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetLowerBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     --it;
     return it;
 }
@@ -671,7 +671,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetUpperBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     return it;
 }
 

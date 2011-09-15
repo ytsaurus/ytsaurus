@@ -44,11 +44,8 @@ public:
 
         YVERIFY(Transactions.Insert(id, transaction));
 
-        for (THandlers::iterator it = Handlers.begin();
-             it != Handlers.end();
-             ++it)
-        {
-            (*it)->OnTransactionStarted(transaction);
+        FOREACH(auto& handler, Handlers) {
+            handler->OnTransactionStarted(transaction);
         }
 
         LOG_INFO("Transaction started (TransactionId: %s)",
@@ -64,11 +61,8 @@ public:
         TTransaction& transaction = Transactions.GetForUpdate(id);
 
         // TODO: timing
-        for (THandlers::iterator it = Handlers.begin();
-             it != Handlers.end();
-             ++it)
-        {
-            (*it)->OnTransactionCommitted(transaction);
+        FOREACH(auto& handler, Handlers) {
+            handler->OnTransactionCommitted(transaction);
         }
 
         if (IsLeader()) {
@@ -90,11 +84,9 @@ public:
         TTransaction& transaction = Transactions.GetForUpdate(id);
 
         // TODO: timing
-        for (THandlers::iterator it = Handlers.begin();
-             it != Handlers.end();
-             ++it)
-        {
-            (*it)->OnTransactionAborted(transaction);
+
+        FOREACH(auto& handler, Handlers) {
+            handler->OnTransactionAborted(transaction);
         }
 
         if (IsLeader()) {
@@ -209,22 +201,16 @@ private:
     
     void CreateAllLeases()
     {
-        for (TTransactionMap::TIterator it = Transactions.Begin();
-             it != Transactions.End();
-             ++it)
-        {
-            CreateLease(it->Second());
+        FOREACH(auto& pair, Transactions) {
+            CreateLease(pair.second);
         }
         LOG_INFO("Created fresh leases for all transactions");
     }
 
     void CloseAllLeases()
     {
-        for (TTransactionMap::TIterator it = Transactions.Begin();
-             it != Transactions.End();
-             ++it)
-        {
-            CloseLease(it->Second());
+        FOREACH(auto& pair, Transactions) {
+            CloseLease(pair.second);
         }
         LOG_INFO("Closed all transaction leases");
     }

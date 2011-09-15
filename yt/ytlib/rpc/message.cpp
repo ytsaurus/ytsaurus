@@ -44,11 +44,8 @@ TRpcRequestMessage::TRpcRequestMessage(
     Parts.push_back(TSharedRef(header));
     Parts.push_back(TSharedRef(*body));
 
-    for (yvector<TSharedRef>::const_iterator it = attachments.begin();
-         it != attachments.end();
-         ++it)
-    {
-        Parts.push_back(TSharedRef(*it));
+    FOREACH(const auto& attachment, attachments) {
+        Parts.push_back(TSharedRef(attachment));
     }
 }
 
@@ -77,11 +74,8 @@ TRpcResponseMessage::TRpcResponseMessage(
     Parts.push_back(TSharedRef(header));
     Parts.push_back(TSharedRef(*body));
 
-    for (yvector<TSharedRef>::const_iterator it = attachments.begin();
-        it != attachments.end();
-        ++it)
-    {
-        Parts.push_back(TSharedRef(*it));
+    FOREACH(const auto& attachment, attachments) {
+        Parts.push_back(TSharedRef(attachment));
     }
 }
 

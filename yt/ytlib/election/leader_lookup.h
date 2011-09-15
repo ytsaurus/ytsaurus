@@ -7,6 +7,7 @@
 #include "../actions/async_result.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
+#include "../misc/string.h"
 
 namespace NYT {
 
@@ -29,18 +30,7 @@ public:
 
         Stroka ToString()
         {
-            Stroka result = "[";
-            for (yvector<Stroka>::iterator it = Addresses.begin();
-                it != Addresses.end();
-                ++it)
-            {
-                if (it != Addresses.begin()) {
-                    result.append(", ");
-                }
-                result.append(*it);
-            }
-            result.append("]");
-            return result;
+            return "[" + JoinToString(Addresses) + "]";
         }
 
         void Read(TJsonObject* json)

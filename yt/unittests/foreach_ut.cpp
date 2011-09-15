@@ -146,6 +146,22 @@ TEST(TForeachTest, CollectionGivenByReference)
     EXPECT_EQ(a, b);
 }
 
+TEST(TForeachTest, CollectionGivenByConstReference)
+{
+    yvector<int> a;
+    for (int i = 0; i < 10; ++i) {
+        a.push_back(i);
+    }
+    const yvector<int>& referenceToA = a;
+
+    yvector<int> b;
+    FOREACH(int x, referenceToA) {
+        b.push_back(x);
+    }
+
+    EXPECT_EQ(a, b);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

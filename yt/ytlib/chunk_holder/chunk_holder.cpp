@@ -154,13 +154,10 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     TSession::TPtr session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    for (yvector<TSharedRef>::iterator it = request->Attachments().begin();
-         it != request->Attachments().end();
-         ++it)
-    {
+    FOREACH(const auto& it, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        TBlob data = it->ToBlob();
+        TBlob data = it.ToBlob();
         session->PutBlock(blockIndex, TSharedRef(data));
         ++blockIndex;
     }
@@ -188,12 +185,12 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
     TProxy proxy(~ChannelCache.GetChannel(address));
-    TProxy::TReqPutBlocks::TPtr putRequest = proxy.PutBlocks();
+    auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
-        TCachedBlock::TPtr block = session->GetBlock(blockIndex);
+        auto block = session->GetBlock(blockIndex);
         putRequest->Attachments().push_back(block->GetData());
     }
 
@@ -229,7 +226,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 
     response->Attachments().yresize(blockCount);
 
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->GetBlockIndexes(index);

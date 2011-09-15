@@ -2,21 +2,8 @@
 
 #include "../misc/foreach.h"
 
-#include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 #include <util/random/random.h>
-
-// TODO: drop once NFS provides GetFileSize
-#include <util/system/oldfile.h>
-
-#if defined(_linux_)
-#include <sys/vfs.h>
-#elif defined(_freebsd_) || defined(_darwin_)
-#include <sys/param.h>
-#include <sys/mount.h>
-#elif defined (_win_)
-#include <windows.h>
-#endif
 
 namespace NYT {
 namespace NChunkHolder {
@@ -50,22 +37,11 @@ void TLocation::UnregisterChunk(TIntrusivePtr<TChunk> chunk)
 
 i64 TLocation::GetAvailableSpace()
 {
-    // TODO: extract this into NFS
-#if !defined( _win_)
-    struct statfs fsData;
-    int res = statfs(~Path, &fsData);
-    LOG_FATAL_IF(res != 0, "statfs failed on location %s", ~Path);
-    AvailableSpace = fsData.f_bavail * fsData.f_bsize;
-#else
-    ui64 freeBytes;
-    int res = GetDiskFreeSpaceExA(
-        ~Path, 
-        (PULARGE_INTEGER)&freeBytes,
-        (PULARGE_INTEGER)NULL,
-        (PULARGE_INTEGER)NULL);
-    LOG_FATAL_IF(res == 0, "GetDiskFreeSpaceExA failed on location %s", ~Path);
-    AvailableSpace = freeBytes;
-#endif
+    try {
+        AvailableSpace = NFS::GetAvailableSpace(Path);
+    } catch (const yexception& ex) {
+        LOG_FATAL("Occured exception: %s", ex.what());
+    }
     return AvailableSpace;
 }
 
@@ -164,8 +140,7 @@ void TChunkStore::ScanChunks()
     FOREACH(auto location, Locations) {
         auto path = location->GetPath();
 
-        // TODO: make a function in NYT::NFS
-        MakePathIfNotExist(~path);
+        NFS::MakePathIfNotExist(~path);
 
         NFS::CleanTempFiles(path);
         
@@ -178,8 +153,7 @@ void TChunkStore::ScanChunks()
             auto chunkId = TChunkId::FromString(fileName);
             if (!chunkId.IsEmpty()) {
                 auto fullName = path + "/" + fileName;
-                // TODO: make a function in NYT::NFS
-                i64 size = TOldOsFile::Length(~fullName);
+                i64 size = NFS::GetFileSize(fullName);
                 RegisterChunk(chunkId, size, location);
             }
         }

@@ -82,7 +82,7 @@ struct TJobList
 
     void RemoveJob(const TJobId& id)
     {
-        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
+        auto it = Find(Jobs.begin(), Jobs.end(), id);
         if (it != Jobs.end()) {
             Jobs.erase(it);
         }

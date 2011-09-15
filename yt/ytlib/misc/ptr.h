@@ -224,7 +224,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return TBlob(Begin(), End());
     }
@@ -298,7 +298,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return Ref.ToBlob();
     }

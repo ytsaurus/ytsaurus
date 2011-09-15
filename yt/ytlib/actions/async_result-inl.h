@@ -38,11 +38,8 @@ void TAsyncResult<T>::Set(T value)
         Subscribers.swap(subscribers);
     }
 
-    for (typename yvector<typename IParamAction<T>::TPtr>::iterator it = subscribers.begin();
-        it != subscribers.end();
-        ++it)
-    {
-        (*it)->Do(value);
+    FOREACH(auto& subscriber, subscribers) {
+        subscriber->Do(value);
     }
 }
 
@@ -110,7 +107,7 @@ template <class TOther>
 TIntrusivePtr< TAsyncResult<TOther> >
 TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
 {
-    typename TAsyncResult<TOther>::TPtr otherResult = New< TAsyncResult<TOther> >();
+    auto otherResult = New< TAsyncResult<TOther> >();
     Subscribe(FromMethod(&ApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }
@@ -130,7 +127,7 @@ template <class TOther>
 TIntrusivePtr< TAsyncResult<TOther> >
 TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TAsyncResult<TOther> > > > func)
 {
-    typename TAsyncResult<TOther>::TPtr otherResult = New< TAsyncResult<TOther> >();
+    auto otherResult = New< TAsyncResult<TOther> >();
     Subscribe(FromMethod(&AsyncApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }
