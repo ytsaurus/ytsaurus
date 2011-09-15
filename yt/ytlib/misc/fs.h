@@ -55,6 +55,9 @@ Stroka GetFileNameWithoutExtension(Stroka filePath);
  */
 void CleanTempFiles(Stroka location);
 
+//! Returns available space at #path
+i64 GetAvailableSpace(const Stroka& path) throw(yexception);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

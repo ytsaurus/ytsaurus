@@ -185,12 +185,12 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
     TProxy proxy(~ChannelCache.GetChannel(address));
-    TProxy::TReqPutBlocks::TPtr putRequest = proxy.PutBlocks();
+    auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
-        TCachedBlock::TPtr block = session->GetBlock(blockIndex);
+        auto block = session->GetBlock(blockIndex);
         putRequest->Attachments().push_back(block->GetData());
     }
 
@@ -226,7 +226,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 
     response->Attachments().yresize(blockCount);
 
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->GetBlockIndexes(index);

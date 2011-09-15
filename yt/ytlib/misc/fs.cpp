@@ -5,6 +5,17 @@
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
+
+// for GetAvaibaleSpace()
+#if defined(_linux_)
+#include <sys/vfs.h>
+#elif defined(_freebsd_) || defined(_darwin_)
+#include <sys/param.h>
+#include <sys/mount.h>
+#elif defined (_win_)
+#include <windows.h>
+#endif
+
 namespace NYT {
 namespace NFS {
 
@@ -86,6 +97,29 @@ void CleanTempFiles(Stroka location)
             }
         }
     }
+}
+
+i64 GetAvailableSpace(const Stroka& path) throw(yexception)
+{
+#if !defined( _win_)
+    struct statfs fsData;
+    int res = statfs(~path, &fsData);
+    if (res != 0) {
+        throw yexception() << Sprintf("statfs failed on location %s", ~path);
+    }
+    return fsData.f_bavail * fsData.f_bsize;
+#else
+    ui64 freeBytes;
+    int res = GetDiskFreeSpaceExA(
+        ~path,
+        (PULARGE_INTEGER)&freeBytes,
+        (PULARGE_INTEGER)NULL,
+        (PULARGE_INTEGER)NULL);
+    if (res == 0) {
+        throw yexception() << Sprintf("GetDiskFreeSpaceExA failed on location %s", ~path);
+    }
+    return freeBytes;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
