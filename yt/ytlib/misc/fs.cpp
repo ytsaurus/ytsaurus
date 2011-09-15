@@ -103,11 +103,11 @@ i64 GetAvailableSpace(const Stroka& path)
 {
 #if !defined( _win_)
     struct statfs fsData;
-    int res = statfs(~path, &fsData);
+    int result = statfs(~path, &fsData);
     i64 availableSpace = fsData.f_bavail * fsData.f_bsize;
 #else
     ui64 freeBytes;
-    int res = GetDiskFreeSpaceExA(
+    int result = GetDiskFreeSpaceExA(
         ~path,
         (PULARGE_INTEGER)&freeBytes,
         (PULARGE_INTEGER)NULL,
@@ -116,9 +116,9 @@ i64 GetAvailableSpace(const Stroka& path)
 #endif
 
 #if !defined(_win_)
-    if (res != 0) {
+    if (result != 0) {
 #else
-    if (res == 0) {
+    if (result == 0) {
 #endif
         throw yexception() <<
             Sprintf("Failed to get available disk space at %s.", ~path.Quote());
@@ -135,16 +135,16 @@ i64 GetFileSize(const Stroka& filePath)
 {
 #if !defined(_win_)
     struct stat fData;
-    int r = stat(~filePath, &fData);
+    int result = stat(~filePath, &fData);
 #else
-    WIN32_FIND_DATA fData;
-    HANDLE h = FindFirstFileA(~filePath, &fData);
+    WIN32_FIND_DATA findData;
+    HANDLE handle = FindFirstFileA(~filePath, &findData);
 #endif
 
 #if !defined(_win_)
-    if (r == -1) {
+    if (result == -1) {
 #else
-    if (h == INVALID_HANDLE_VALUE) {
+    if (handle == INVALID_HANDLE_VALUE) {
 #endif
         throw yexception() <<
             Sprintf("Failed to get size of a filea %s.", ~filePath.Quote());
@@ -153,8 +153,8 @@ i64 GetFileSize(const Stroka& filePath)
 #if !defined(_win_)
     i64 fileSize = static_cast<i64>(fData.st_size);
 #else
-    FindClose(h);
-    i64 fileSize = static_cast<i64>(fData.nFileSizeHigh) * (MAXDWORD + 1) + fData.nFileSizeLow;
+    FindClose(handle);
+    i64 fileSize = static_cast<i64>(findData.nFileSizeHigh) * (MAXDWORD + 1) + findData.nFileSizeLow;
 #endif
 
     return fileSize;

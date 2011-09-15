@@ -40,7 +40,7 @@ i64 TLocation::GetAvailableSpace()
     try {
         AvailableSpace = NFS::GetAvailableSpace(Path);
     } catch (...) {
-        LOG_FATAL("Failed to compute available space at storage location: %s, what: %s",
+        LOG_FATAL("Failed to compute available space at storage location %s: %s",
             ~Path.Quote(), ~CurrentExceptionMessage());
     }
     return AvailableSpace;
@@ -161,7 +161,7 @@ void TChunkStore::ScanChunks()
             }
         }
     } catch (...) {
-        LOG_FATAL("Failed to initialize locations: %s", ~CurrentExceptionMessage());
+        LOG_FATAL("Failed to initialize storage locations: %s", ~CurrentExceptionMessage());
     }
 
     LOG_INFO("%d chunks found", ChunkMap.ysize());
