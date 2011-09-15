@@ -2,12 +2,8 @@
 
 #include "../misc/foreach.h"
 
-#include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 #include <util/random/random.h>
-
-// TODO: drop once NFS provides GetFileSize
-#include <util/system/oldfile.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -144,8 +140,7 @@ void TChunkStore::ScanChunks()
     FOREACH(auto location, Locations) {
         auto path = location->GetPath();
 
-        // TODO: make a function in NYT::NFS
-        MakePathIfNotExist(~path);
+        NFS::MakePathIfNotExist(~path);
 
         NFS::CleanTempFiles(path);
         
@@ -158,8 +153,7 @@ void TChunkStore::ScanChunks()
             auto chunkId = TChunkId::FromString(fileName);
             if (!chunkId.IsEmpty()) {
                 auto fullName = path + "/" + fileName;
-                // TODO: make a function in NYT::NFS
-                i64 size = TOldOsFile::Length(~fullName);
+                i64 size = NFS::GetFileSize(fullName);
                 RegisterChunk(chunkId, size, location);
             }
         }

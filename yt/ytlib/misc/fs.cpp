@@ -122,6 +122,28 @@ i64 GetAvailableSpace(const Stroka& path) throw(yexception)
 #endif
 }
 
+void MakePathIfNotExist(Stroka path, int mode)
+{
+    MakePathIfNotExist(~path, mode);
+}
+
+i64 GetFileSize(const Stroka& filePath) {
+#ifdef _win_
+    WIN32_FIND_DATA fData;
+    HANDLE h = FindFirstFileA(~name, &fData);
+    if (h == INVALID_HANDLE_VALUE)
+        return -1;
+    FindClose(h);
+    return (((i64)fData.nFileSizeHigh) * (i64(MAXDWORD)+1)) + (i64)fData.nFileSizeLow;
+#elif defined(_unix_)
+    struct stat buf;
+    int r = stat(~filePath, &buf);
+    if (r == -1)
+        return -1;
+    return (i64)buf.st_size;
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
