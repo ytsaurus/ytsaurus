@@ -55,15 +55,18 @@ Stroka GetFileNameWithoutExtension(Stroka filePath);
 void CleanTempFiles(Stroka location);
 
 //! Returns available space at #path
-i64 GetAvailableSpace(const Stroka& path) throw(yexception);
+//! Throws an exception if something went wrong
+i64 GetAvailableSpace(const Stroka& path);
 
 //! Creates the #path and parent directories if they don't exists
+//! Throws an exception if something went wrong
 //! Actually a call of the same named function from util/folder/dirut
-void MakePathIfNotExist(Stroka path, int mode = 0777);
+void ForcePath(Stroka path, int mode = 0777);
 
 //! Returns size of a file
+//! Throws an exception if something went wrong
 /*!
- * \param filePath
+ * \param filePath Path of file
  */
 i64 GetFileSize(const Stroka& filePath);
 

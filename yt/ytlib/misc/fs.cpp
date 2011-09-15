@@ -99,15 +99,12 @@ void CleanTempFiles(Stroka location)
     }
 }
 
-i64 GetAvailableSpace(const Stroka& path) throw(yexception)
+i64 GetAvailableSpace(const Stroka& path)
 {
 #if !defined( _win_)
     struct statfs fsData;
     int res = statfs(~path, &fsData);
-    if (res != 0) {
-        throw yexception() << Sprintf("statfs failed on location %s", ~path);
-    }
-    return fsData.f_bavail * fsData.f_bsize;
+    i64 availableSpace = fsData.f_bavail * fsData.f_bsize;
 #else
     ui64 freeBytes;
     int res = GetDiskFreeSpaceExA(
@@ -115,33 +112,52 @@ i64 GetAvailableSpace(const Stroka& path) throw(yexception)
         (PULARGE_INTEGER)&freeBytes,
         (PULARGE_INTEGER)NULL,
         (PULARGE_INTEGER)NULL);
-    if (res == 0) {
-        throw yexception() << Sprintf("GetDiskFreeSpaceExA failed on location %s", ~path);
-    }
-    return freeBytes;
+    i64 availableSpace = freeBytes;
 #endif
+
+#if !defined(_win_)
+    if (res != 0) {
+#else
+    if (res == 0) {
+#endif
+        throw yexception() <<
+            Sprintf("Failed to get available disk space at %s.", ~path.Quote());
+    }
+    return availableSpace;
 }
 
-void MakePathIfNotExist(Stroka path, int mode)
+void ForcePath(Stroka path, int mode)
 {
     MakePathIfNotExist(~path, mode);
 }
 
-i64 GetFileSize(const Stroka& filePath) {
-#ifdef _win_
+i64 GetFileSize(const Stroka& filePath)
+{
+#if !defined(_win_)
+    struct stat fData;
+    int r = stat(~filePath, &fData);
+#else
     WIN32_FIND_DATA fData;
-    HANDLE h = FindFirstFileA(~name, &fData);
-    if (h == INVALID_HANDLE_VALUE)
-        return -1;
-    FindClose(h);
-    return (((i64)fData.nFileSizeHigh) * (i64(MAXDWORD)+1)) + (i64)fData.nFileSizeLow;
-#elif defined(_unix_)
-    struct stat buf;
-    int r = stat(~filePath, &buf);
-    if (r == -1)
-        return -1;
-    return (i64)buf.st_size;
+    HANDLE h = FindFirstFileA(~filePath, &fData);
 #endif
+
+#if !defined(_win_)
+    if (r == -1) {
+#else
+    if (h == INVALID_HANDLE_VALUE) {
+#endif
+        throw yexception() <<
+            Sprintf("Failed to get size of a filea %s.", ~filePath.Quote());
+    }
+
+#if !defined(_win_)
+    i64 fileSize = static_cast<i64>(fData.st_size);
+#else
+    FindClose(h);
+    i64 fileSize = static_cast<i64>(fData.nFileSizeHigh) * (MAXDWORD + 1) + fData.nFileSizeLow;
+#endif
+
+    return fileSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

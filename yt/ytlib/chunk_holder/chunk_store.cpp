@@ -39,8 +39,9 @@ i64 TLocation::GetAvailableSpace()
 {
     try {
         AvailableSpace = NFS::GetAvailableSpace(Path);
-    } catch (const yexception& ex) {
-        LOG_FATAL("Occured exception: %s", ex.what());
+    } catch (...) {
+        LOG_FATAL("Failed to compute available space at storage location: %s, what: %s",
+            ~Path.Quote(), ~CurrentExceptionMessage());
     }
     return AvailableSpace;
 }
@@ -137,26 +138,30 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
 
 void TChunkStore::ScanChunks()
 {
-    FOREACH(auto location, Locations) {
-        auto path = location->GetPath();
+    try {
+        FOREACH(auto location, Locations) {
+            auto path = location->GetPath();
 
-        NFS::MakePathIfNotExist(~path);
+            NFS::ForcePath(~path);
 
-        NFS::CleanTempFiles(path);
-        
-        LOG_INFO("Scanning location %s", ~path);
+            NFS::CleanTempFiles(path);
 
-        TFileList fileList;
-        fileList.Fill(path);
-        const char* fileName;
-        while ((fileName = fileList.Next()) != NULL) {
-            auto chunkId = TChunkId::FromString(fileName);
-            if (!chunkId.IsEmpty()) {
-                auto fullName = path + "/" + fileName;
-                i64 size = NFS::GetFileSize(fullName);
-                RegisterChunk(chunkId, size, location);
+            LOG_INFO("Scanning location %s", ~path);
+
+            TFileList fileList;
+            fileList.Fill(path);
+            const char* fileName;
+            while ((fileName = fileList.Next()) != NULL) {
+                auto chunkId = TChunkId::FromString(fileName);
+                if (!chunkId.IsEmpty()) {
+                    auto fullName = path + "/" + fileName;
+                    i64 size = NFS::GetFileSize(fullName);
+                    RegisterChunk(chunkId, size, location);
+                }
             }
         }
+    } catch (...) {
+        LOG_FATAL("Failed to initialize locations: %s", ~CurrentExceptionMessage());
     }
 
     LOG_INFO("%d chunks found", ChunkMap.ysize());
