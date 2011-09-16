@@ -20,7 +20,7 @@ const char* const TempFileSuffix = "~";
  * \param name File name
  * \return True when succeeds
  */
-bool Remove(Stroka name);
+bool Remove(const Stroka& name);
 
 //! Renames file.
 /*!
@@ -28,42 +28,45 @@ bool Remove(Stroka name);
  * \param newName New name
  * \return True when succeeds
  */
-bool Rename(Stroka oldName, Stroka newName);
+bool Rename(const Stroka& oldName, const Stroka& newName);
 
-//! Returns name of file
+//! Returns name of file.
 /*!
  * \param filePath Path of file
  */
-Stroka GetFileName(Stroka filePath);
+Stroka GetFileName(const Stroka& filePath);
 
-//! Returns extension of file
+//! Returns extension of file.
 /*!
  * \param filePath Path of file
  */
-Stroka GetFileExtension(Stroka filePath);
+Stroka GetFileExtension(const Stroka& filePath);
 
-//! Returns name of file without extension
+//! Returns name of file without extension.
 /*!
  * \param filePath Path of file
  */
-Stroka GetFileNameWithoutExtension(Stroka filePath);
+Stroka GetFileNameWithoutExtension(const Stroka& filePath);
 
 //! Deletes all files with extension #TempFileSuffix in directory.
 /*!
  * \param location Directory name
  */
-void CleanTempFiles(Stroka location);
+void CleanTempFiles(const Stroka& location);
 
-//! Returns available space at #path
-i64 GetAvailableSpace(const Stroka& path) throw(yexception);
+//! Returns available space at #path.
+//! Throws an exception if something went wrong.
+i64 GetAvailableSpace(const Stroka& path);
 
-//! Creates the #path and parent directories if they don't exists
-//! Actually a call of the same named function from util/folder/dirut
-void MakePathIfNotExist(Stroka path, int mode = 0777);
+//! Creates the #path and parent directories if they don't exists.
+//! Throws an exception if something went wrong.
+//! Actually a call of the same named function from util/folder/dirut.
+void ForcePath(const Stroka& path, int mode = 0777);
 
-//! Returns size of a file
+//! Returns size of a file.
+//! Throws an exception if something went wrong.
 /*!
- * \param filePath
+ * \param filePath Path of file
  */
 i64 GetFileSize(const Stroka& filePath);
 
