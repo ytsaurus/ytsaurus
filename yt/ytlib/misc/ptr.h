@@ -328,6 +328,12 @@ T* operator ~ (const TIntrusivePtr<T>& ptr)
 }
 
 template<class T>
+const T* operator ~ (const TIntrusiveConstPtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
 T* operator ~ (const TAutoPtr<T>& ptr)
 {
     return ptr.Get();

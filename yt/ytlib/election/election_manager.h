@@ -95,8 +95,8 @@ private:
     IInvoker::TPtr Invoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 
-    RPC_SERVICE_METHOD_DECL(NRpcElectionManager, PingFollower);
-    RPC_SERVICE_METHOD_DECL(NRpcElectionManager, GetStatus);
+    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, PingFollower);
+    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, GetStatus);
 
     void RegisterMethods();
 
