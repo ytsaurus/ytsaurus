@@ -1,5 +1,6 @@
 SET(YT_SOURCE_FILES
     common.h
+    ytree_fwd.h
     ytree.h
     yson_events.h
     yson_parser.h

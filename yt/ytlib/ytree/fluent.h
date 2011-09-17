@@ -97,6 +97,11 @@ public:
             return Parent;
         }
 
+        TParent Value(bool value)
+        {
+            return Value(value ? Stroka("true") : Stroka("false"));
+        }
+
         TParent EntityValue()
         {
             Events->EntityValue();

@@ -1,21 +1,22 @@
 #pragma once
 
 #include "common.h"
+#include "ytree_fwd.h"
 
 #include "../misc/common.h"
 #include "../misc/enum.h"
 #include "../misc/ptr.h"
-
-// TODO: move
-#include "../misc/assert.h"
-#include "../misc/foreach.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TStringBuf TYPath;
+template<class T>
+struct TScalarTypeTraits
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ENodeType,
     (String)
@@ -25,20 +26,6 @@ DECLARE_ENUM(ENodeType,
     (List)
     (Entity)
 );
-
-struct INode;
-struct IStringNode;
-struct IInt64Node;
-struct IDoubleNode;
-struct IListNode;
-struct IMapNode;
-struct IEntityNode;
-
-template<class T>
-struct TScalarTypeTraits
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct INode
     : virtual TRefCountedBase
@@ -89,6 +76,8 @@ struct INode
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template<class T>
 struct IScalarNode
     : INode
@@ -99,12 +88,16 @@ struct IScalarNode
     virtual void SetValue(const TValue& value) = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICompositeNode
     : INode
 {
     virtual int GetChildCount() const = 0;
     // TODO: iterators?
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IListNode
     : ICompositeNode
@@ -124,6 +117,8 @@ struct IListNode
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IMapNode
     : ICompositeNode
 {
@@ -142,6 +137,8 @@ struct IMapNode
         return child;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IEntityNode
     : INode
