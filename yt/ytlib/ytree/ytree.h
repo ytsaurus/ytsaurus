@@ -40,6 +40,9 @@ struct INode
     
     virtual INode::TPtr AsMutable() const = 0;
 
+    virtual TIntrusiveConstPtr<INode> AsNode() const = 0;
+    virtual TIntrusivePtr<INode> AsNode() = 0;
+
 #define DECLARE_AS_METHODS(name) \
     virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0; \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0;
@@ -58,11 +61,6 @@ struct INode
     virtual INode::TConstPtr GetParent() const = 0;
     virtual void SetParent(INode::TConstPtr parent) = 0;
 
-    virtual bool Navigate(
-        const TYPath& path,
-        INode::TConstPtr* node,
-        TYPath* tailPath) const = 0;
-
     template<class T>
     T GetValue() const
     {
@@ -74,6 +72,17 @@ struct INode
     {
         TScalarTypeTraits<T>::SetValue(this, value);
     }
+
+    // YPath stuff.
+    virtual bool NavigateYPath(
+        const TYPath& path,
+        INode::TConstPtr* tailNode,
+        TYPath* tailPath) const = 0;
+
+    virtual void SetYPath(
+        INodeFactory* factory,
+        const TYPath& path,
+        INode::TPtr value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,14 +171,14 @@ struct IEntityNode
     { \
         typedef I ## name ## Node TNode; \
         \
-        static type GetValue(const INode* node) \
+        static type GetValue(const INode* tailNode) \
         { \
-            return node->As ## name()->GetValue(); \
+            return tailNode->As ## name()->GetValue(); \
         } \
         \
-        static void SetValue(INode* node, const type& value) \
+        static void SetValue(INode* tailNode, const type& value) \
         { \
-            node->As ## name()->SetValue(value); \
+            tailNode->As ## name()->SetValue(value); \
         } \
     };
 
@@ -206,6 +215,16 @@ public:
     virtual INode::TPtr AsMutable() const
     {
         return const_cast<TNodeBase*>(this);
+    }
+
+    virtual INode::TConstPtr AsNode() const
+    {
+        return const_cast<TNodeBase*>(this);
+    }
+
+    virtual INode::TPtr AsNode()
+    {
+        return this;
     }
 
 #define IMPLEMENT_AS_METHODS(name) \
@@ -258,15 +277,31 @@ public:
         Attributes = attributes;
     }
 
-    virtual bool Navigate(
+    virtual bool NavigateYPath(
         const TYPath& path,
         INode::TConstPtr* node,
         TYPath* tailPath) const
     {
+        if (!path.empty() && path[0] == '@' && ~Attributes != NULL) {
+            *node = Attributes->AsNode();
+            *tailPath = TYPath(path.begin() + 1, path.end());
+            return true;
+        } else {
+            *node = NULL;
+            *tailPath = TYPath();
+            return false;
+        }
+    }
+
+    virtual void SetYPath(
+        INodeFactory* factory,
+        const TYPath& path,
+        INode::TPtr value)
+    {
+        UNUSED(factory);
         UNUSED(path);
-        *node = NULL;
-        *tailPath = TYPath();
-        return false;
+        UNUSED(value);
+        ythrow yexception() << "Cannot create child";
     }
 
 private:

@@ -8,49 +8,100 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYPathNavigator
+inline void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* tailPath)
 {
-public:
-    TYPathNavigator(INode::TConstPtr root)
-        : Root(root)
-    { }
+    size_t index = path.find_first_of("/@");
+    if (index == TYPath::npos) {
+        *token = path;
+        *tailPath = TYPath(path.end(), static_cast<size_t>(0));
+    } else {
+        *token = Stroka(path.begin(), index);
+        *tailPath = TYPath(path.begin() + index + 1, path.end());
+    }
+}
 
-    INode::TConstPtr Navigate(const TYPath& path)
-    {
-        if (path.Empty()) {
-            ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
-        }
+////////////////////////////////////////////////////////////////////////////////
 
-        if (path[0] != '/') {
-            ythrow yexception() << "YPath must start with \"'\"";
-        }
-
-        TYPath currentPath = path;
-        INode::TConstPtr currentNode = Root;
-
-        while (!currentPath.Empty()) {
-            INode::TConstPtr nextNode;
-            TYPath nextPath;
-            if (!currentNode->Navigate(currentPath, &nextNode, &nextPath)) {
-                int charsParsed = currentPath.begin() - path.begin();
-                YASSERT(charsParsed >= 0 && charsParsed <= static_cast<int>(path.length()));
-                Stroka pathParsed(path.SubString(0, charsParsed));
-                // TODO: escaping
-                ythrow yexception() << Sprintf("Unable to resolve an YPath %s at %s",
-                    ~currentPath,
-                    ~pathParsed);
-            }
-            currentNode = nextNode;
-            currentPath = nextPath;
-        }
-
-        return NULL;
+inline void NavigateYPath(
+    INode::TConstPtr root,
+    const TYPath& path,
+    INode::TConstPtr* tailNode,
+    TYPath* headPath,
+    TYPath* tailPath)
+{
+    if (path.empty()) {
+        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
     }
 
-private:
-    INode::TConstPtr Root;
+    if (path[0] != '/') {
+        ythrow yexception() << "YPath must start with \"'\"";
+    }
 
-};
+    auto currentNode = root;
+    auto currentPath = TYPath(path.begin() + 1, path.end());
+    INode::TConstPtr currentTailNode;
+    TYPath currentTailPath;
+    while (!currentPath.empty() &&
+           currentNode->NavigateYPath(currentPath, &currentTailNode, &currentTailPath)) {
+        currentNode = currentTailNode;
+        currentPath = currentTailPath;
+    }
+
+    *tailNode = currentNode;
+    *tailPath = currentPath;
+
+    int resolvedLength = static_cast<int>(path.length()) - static_cast<int>(tailPath->length());
+    YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(path.length()));
+    *headPath = TYPath(path.begin(), path.begin() + resolvedLength);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline INode::TConstPtr GetYPath(
+    INode::TConstPtr root,
+    const TYPath& path)
+{
+    INode::TConstPtr tailNode;
+    TYPath headPath;
+    TYPath tailPath;
+    NavigateYPath(root, path, &tailNode, &headPath, &tailPath);
+    if (!tailPath.empty()) {
+        ythrow yexception() << Sprintf("Cannot resolve YPath %s at %s",
+            ~Stroka(tailPath).Quote(),
+            ~Stroka(headPath).Quote());
+    }
+    return tailNode;
+}
+
+inline INode::TConstPtr GetYPath(
+    INode::TConstPtr root,
+    const TYPath& path)
+{
+    INode::TConstPtr tailNode;
+    TYPath headPath;
+    TYPath tailPath;
+    NavigateYPath(root, path, &tailNode, &headPath, &tailPath);
+    if (!tailPath.empty()) {
+        ythrow yexception() << Sprintf("Cannot resolve YPath %s at %s",
+            ~Stroka(tailPath).Quote(),
+            ~Stroka(headPath).Quote());
+    }
+    return tailNode;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void SetYPath(
+    INodeFactory* factory,
+    INode::TPtr root,
+    const TYPath& path,
+    INode::TPtr value)
+{
+    root->SetYPath(factory, path, value);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

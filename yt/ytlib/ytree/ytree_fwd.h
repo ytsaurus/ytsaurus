@@ -15,6 +15,8 @@ struct IListNode;
 struct IMapNode;
 struct IEntityNode;
 
+struct INodeFactory;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

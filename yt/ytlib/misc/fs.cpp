@@ -154,8 +154,8 @@ i64 GetFileSize(const Stroka& path)
 #else
     FindClose(handle);
     i64 fileSize =
-        static_cast<i64>(findData.nFileSizeHigh) * (MAXDWORD + 1) +
-        findData.nFileSizeLow;
+        (static_cast<i64>(findData.nFileSizeHigh) << 32) +
+        static_cast<i64>(findData.nFileSizeLow);
 #endif
 
     return fileSize;

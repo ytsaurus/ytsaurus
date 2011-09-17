@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "ytree.h"
+#include "ypath.h"
 
 namespace NYT {
 namespace NYTree {
@@ -114,6 +115,56 @@ public:
         return true;
     }
 
+    virtual bool NavigateYPath(
+        const TYPath& path,
+        INode::TConstPtr* node,
+        TYPath* tailPath) const
+    {
+        if (TNodeBase::NavigateYPath(path, node, tailPath))
+            return true;
+
+        Stroka token;
+        ChopYPathToken(path, &token, tailPath);
+
+        auto child = FindChild(token);
+        if (~child != NULL) {
+            *node = child;
+            return true;
+        } else {
+            *node = NULL;
+            *tailPath = path;
+            return false;
+        }
+    }
+
+    virtual void SetYPath(
+        INodeFactory* factory,
+        const TYPath& path,
+        INode::TPtr value)
+    {
+        if (path.empty()) {
+            // TODO:
+            ythrow yexception() << "Cannot create a map item with empty name";
+        }
+
+        TYPath currentPath = path;
+        IMapNode::TPtr currentNode = this;
+        while (true) {
+            TYPath tailPath;
+            Stroka name;
+            ChopYPathToken(currentPath, &name, &tailPath);
+            if (tailPath.empty()) {
+                currentNode->AddChild(value, name);
+                break;
+            } else {
+                auto child = factory->CreateMap();
+                currentNode->AddChild(child->AsNode(), name);
+                currentNode = child;
+                currentPath = tailPath;
+            }
+        }
+    }
+
 private:
     yhash_map<Stroka, INode::TConstPtr> Map;
 
@@ -155,6 +206,29 @@ public:
         List[index]->AsMutable()->SetParent(NULL);
         List.erase(List.begin() + index);
         return true;
+    }
+
+    virtual bool NavigateYPath(
+        const TYPath& path,
+        INode::TConstPtr* node,
+        TYPath* tailPath) const
+    {
+        if (TNodeBase::NavigateYPath(path, node, tailPath))
+            return true;
+
+        Stroka token;
+        ChopYPathToken(path, &token, tailPath);
+
+        int index = FromString<int>(token);
+        auto child = FindChild(index);
+        if (~child != NULL) {
+            *node = child;
+            return true;
+        } else {
+            *node = NULL;
+            *tailPath = path;
+            return false;
+        }
     }
 
 private:
