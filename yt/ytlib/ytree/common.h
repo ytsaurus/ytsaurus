@@ -23,6 +23,7 @@ DECLARE_ENUM(ENodeType,
     (Double)
     (Map)
     (List)
+    (Entity)
 );
 
 struct INode;
@@ -31,6 +32,7 @@ struct IInt64Node;
 struct IDoubleNode;
 struct IListNode;
 struct IMapNode;
+struct IEntityNode;
 
 template<class T>
 struct TScalarTypeTraits
@@ -51,9 +53,6 @@ struct INode
     
     virtual INode::TPtr AsMutable() const = 0;
 
-    // TODO: consider
-    // virtual const IMapNode* GetAttributes() const = 0;
-
 #define DECLARE_AS_METHODS(name) \
     virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0; \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0;
@@ -65,6 +64,9 @@ struct INode
     DECLARE_AS_METHODS(Map)
 
 #undef DECLARE_AS_METHODS
+
+    virtual TIntrusiveConstPtr<IMapNode> GetAttributes() const = 0;
+    virtual void SetAttributes(TIntrusiveConstPtr<IMapNode> attributes) = 0;
 
     virtual INode::TConstPtr GetParent() const = 0;
     virtual void SetParent(INode::TConstPtr parent) = 0;
@@ -139,6 +141,13 @@ struct IMapNode
         YASSERT(~child != NULL);
         return child;
     }
+};
+
+struct IEntityNode
+    : INode
+{
+    typedef TIntrusivePtr<IEntityNode> TPtr;
+    typedef TIntrusiveConstPtr<IEntityNode> TConstPtr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,20 +230,26 @@ struct IYsonEvents
 {
     virtual ~IYsonEvents()
     { }
-    
-    virtual void BeginScalar() = 0;
+
+    virtual void BeginTree() = 0;
+    virtual void EndTree() = 0;
+
     virtual void StringValue(const Stroka& value) = 0;
     virtual void Int64Value(i64 value) = 0;
     virtual void DoubleValue(double value) = 0;
-    virtual void EndScalar() = 0;
+    virtual void EntityValue() = 0;
 
     virtual void BeginList() = 0;
-    virtual void ListChild(int index) = 0;
+    virtual void ListItem(int index) = 0;
     virtual void EndList() = 0;
 
     virtual void BeginMap() = 0;
-    virtual void MapChild(const Stroka& name) = 0;
+    virtual void MapItem(const Stroka& name) = 0;
     virtual void EndMap() = 0;
+
+    virtual void BeginAttributes() = 0;
+    virtual void AttributesItem(const Stroka& name) = 0;
+    virtual void EndAttributes() = 0;
 };
 
 typedef TStringBuf TYson;
@@ -242,24 +257,347 @@ typedef TStringBuf TYson;
 class TYsonParser
 {
 public:
-    TYsonParser(IYsonEvents* events);
+    TYsonParser(IYsonEvents* events)
+        : Events(events)
+    {
+        Reset();
+    }
 
-    void Parse(const TYson& yson);
+    void Parse(TInputStream* stream)
+    {
+        try {
+            Stream = stream;
+            Events->BeginTree();
+            ParseAny();
+            int ch = ReadChar();
+            if (ch != Eos) {
+                ythrow yexception() << Sprintf("Unexpected symbol %s in YSON",
+                    ~Stroka(static_cast<char>(ch)).Quote());
+            }
+            Events->EndTree();
+        } catch (...) {
+            Reset();
+            throw;
+        }
+    }
+
+private:
+    static const int Eos = -1;
+    static const int NoLookahead = -2;
+
+    IYsonEvents* Events;
+    TInputStream* Stream;
+    int Lookahead;
+
+    void Reset()
+    {
+        Stream = NULL;
+        Lookahead = NoLookahead;
+    }
+
+    int ReadChar()
+    {
+        if (Lookahead == NoLookahead) {
+            PeekChar();
+        }
+
+        int result = Lookahead;
+        Lookahead = NoLookahead;
+        return result;
+    }
+
+    void ExpectChar(char expectedCh)
+    {
+        int readCh = ReadChar();
+        if (readCh == Eos) {
+            // TODO:
+            ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON",
+                ~Stroka(expectedCh).Quote());
+        }
+        if (static_cast<char>(readCh) != expectedCh) {
+            // TODO:
+            ythrow yexception() << Sprintf("Found %s while expecting %s in YSON",
+                ~Stroka(static_cast<char>(readCh)).Quote(),
+                ~Stroka(expectedCh).Quote());
+        }
+    }
+
+    int PeekChar()
+    {
+        if (Lookahead != NoLookahead) {
+            return Lookahead;
+        }
+
+        char ch;
+        if (Stream->ReadChar(ch)) {
+            Lookahead = ch;
+        } else {
+            Lookahead = Eos;
+        }
+
+        return Lookahead;
+    }
+
+    static bool IsWhitespace(int ch)
+    {
+        return
+            ch == '\n' ||
+            ch == '\r' ||
+            ch == '\t' ||
+            ch == ' ';
+    }
+
+    void SkipWhitespaces()
+    {
+        while (IsWhitespace(PeekChar())) {
+            ReadChar();
+        }
+    }
+
+    Stroka ReadString()
+    {
+        Stroka result;
+        if (PeekChar() == '"') {
+            YVERIFY(ReadChar() == '"');
+            while (true) {
+                int ch = ReadChar();
+                if (ch == Eos) {
+                    // TODO:
+                    ythrow yexception() << Sprintf("Premature end-of-stream while parsing String in YSON");
+                }
+                if (ch == '"')
+                    break;
+                result.append(static_cast<char>(ch));
+            }
+        } else {
+            while (true) {
+                int ch = PeekChar();
+                if (!(ch >= 'a' && ch <= 'z' ||
+                      ch >= 'A' && ch <= 'Z' ||
+                      ch == '_' ||
+                      ch >= '0' && ch <= '9' && !result.Empty()))
+                      break;
+                ReadChar();
+                result.append(static_cast<char>(ch));
+            }
+        }
+        return result;
+    }
+
+    Stroka ReadNumericLike()
+    {
+        Stroka result;
+        while (true) {
+            int ch = PeekChar();
+            if (!(ch >= '0' && ch <= '9' ||
+                  ch == '+' ||
+                  ch == '-' ||
+                  ch == '.' ||
+                  ch == 'e' || ch == 'E'))
+                break;
+            ReadChar();
+            result.append(static_cast<char>(ch));
+        }
+        if (result.Empty()) {
+            // TODO:
+            ythrow yexception() << Sprintf("Premature end-of-stream while parsing Numeric in YSON");
+        }
+        return result;
+    }
+
+    void ParseAny()
+    {
+        SkipWhitespaces();
+        int ch = PeekChar();
+        switch (ch) {
+            case '[':
+                ParseList();
+                ParseAttributes();
+                break;
+
+            case '{':
+                ParseMap();
+                ParseAttributes();
+                break;
+
+            case '<':
+                ParseEntity();
+                ParseAttributes();
+                break;
+
+            default:
+                if (ch >= '0' && ch <= '9' ||
+                    ch == '+' ||
+                    ch == '-')
+                {
+                    ParseNumeric();
+                    ParseAttributes();
+                } else if (ch >= 'a' && ch <= 'z' ||
+                           ch >= 'A' && ch <= 'Z' ||
+                           ch == '_' ||
+                           ch == '"')
+                {
+                    ParseString();
+                    ParseAttributes();
+                } else {
+                    // TODO:
+                    ythrow yexception() << Sprintf("Unexpected %s in YSON",
+                        ~Stroka(static_cast<char>(ch)).Quote());
+                }
+                break;
+        }
+    }
+
+    void ParseAttributesItem()
+    {
+        SkipWhitespaces();
+        Stroka name = ReadString();
+        if (name.Empty()) {
+            // TODO:
+            ythrow yexception() << Sprintf("Empty attribute name in YSON");
+        }
+        SkipWhitespaces();
+        ExpectChar(':');
+        Events->AttributesItem(name);
+        ParseAny();
+    }
+
+    void ParseAttributes()
+    {
+        SkipWhitespaces();
+        if (PeekChar() != '<')
+            return;
+        YVERIFY(ReadChar() == '<');
+        Events->BeginAttributes();
+        while (true) {
+            SkipWhitespaces();
+            if (PeekChar() == '>')
+                break;
+            ParseAttributesItem();
+            if (PeekChar() == '>')
+                break;
+            ExpectChar(',');
+        }
+        YVERIFY(ReadChar() == '>');
+        Events->EndAttributes();
+    }
+
+    void ParseListItem(int index)
+    {
+        Events->ListItem(index);
+        ParseAny();
+    }
+
+    void ParseList()
+    {
+        YVERIFY(ReadChar() == '[');
+        Events->BeginList();
+        for (int index = 0; true; ++index) {
+            SkipWhitespaces();
+            if (PeekChar() == ']')
+                break;
+            ParseListItem(index);
+            if (PeekChar() == ']')
+                break;
+            ExpectChar(',');
+        }
+        YVERIFY(ReadChar() == ']');
+        Events->EndList();
+    }
+
+    void ParseMapItem()
+    {
+        SkipWhitespaces();
+        Stroka name = ReadString();
+        if (name.Empty()) {
+            // TODO:
+            ythrow yexception() << Sprintf("Empty map item name in YSON");
+        }
+        SkipWhitespaces();
+        ExpectChar(':');
+        Events->MapItem(name);
+        ParseAny();
+    }
+
+    void ParseMap()
+    {
+        YVERIFY(ReadChar() == '{');
+        Events->BeginMap();
+        while (true) {
+            SkipWhitespaces();
+            if (PeekChar() == '}')
+                break;
+            ParseMapItem();
+            if (PeekChar() == '}')
+                break;
+            ExpectChar(',');
+        }
+        YVERIFY(ReadChar() == '}');
+        Events->EndMap();
+    }
+
+    void ParseEntity()
+    {
+        Events->EntityValue();
+    }
+
+    void ParseString()
+    {
+        Stroka value = ReadString();
+        Events->StringValue(value);
+    }
+
+    static bool IsIntegerLike(const Stroka& str)
+    {
+        for (int i = 0; i < static_cast<int>(str.length()); ++i) {
+            char ch = str[i];
+            if (ch == '.' || ch == 'e' || ch == 'E')
+                return false;
+        }
+        return true;
+    }
+
+    void ParseNumeric()
+    {
+        Stroka str = ReadNumericLike();
+        if (IsIntegerLike(str)) {
+            try {
+                i64 value = FromString<i64>(str);
+                Events->Int64Value(value);
+            } catch (...) {
+                // TODO:
+                ythrow yexception() << Sprintf("Failed to parse Int64 literal %s in YSON",
+                    ~str.Quote());
+            }
+        } else {
+            try {
+                double value = FromString<double>(str);
+                Events->DoubleValue(value);
+            } catch (...) {
+                // TODO:
+                ythrow yexception() << Sprintf("Failed to parse Double literal %s in YSON",
+                    ~str.Quote());
+            }
+        }
+    }
+
 };
 
 class TYsonWriter
     : public IYsonEvents
 {
 public:
-    TYsonWriter(TOutputStream& stream)
+    TYsonWriter(TOutputStream* stream)
         : Stream(stream)
-        , IsFirstChild(false)
+        , IsFirstItem(false)
+        , IsEmptyEntity(false)
         , Indent(0)
     { }
 
 private:
-    TOutputStream& Stream;
-    bool IsFirstChild;
+    TOutputStream* Stream;
+    bool IsFirstItem;
+    bool IsEmptyEntity;
     int Indent;
 
     static const int IndentSize = 4;
@@ -267,86 +605,150 @@ private:
     void WriteIndent()
     {
         for (int i = 0; i < IndentSize * Indent; ++i) {
-            Stream.Write(' ');
+            Stream->Write(' ');
         }
     }
 
-    virtual void BeginScalar()
+    void SetEmptyEntity()
+    {
+        IsEmptyEntity = true;
+    }
+
+    void ResetEmptyEntity()
+    {
+        IsEmptyEntity = false;
+    }
+
+    void FlushEmptyEntity()
+    {
+        if (IsEmptyEntity) {
+            Stream->Write("<>");
+            IsEmptyEntity = false;
+        }
+    }
+
+    void BeginCollection(char openBracket)
+    {
+        Stream->Write(openBracket);
+        IsFirstItem = true;
+    }
+
+    void CollectionItem()
+    {
+        if (IsFirstItem) {
+            Stream->Write('\n');
+            ++Indent;
+        } else {
+            FlushEmptyEntity();
+            Stream->Write(",\n");
+        }
+        WriteIndent();
+        IsFirstItem = false;
+    }
+
+    void EndCollection(char closeBracket)
+    {
+        FlushEmptyEntity();
+        if (!IsFirstItem) {
+            Stream->Write('\n');
+            --Indent;
+            WriteIndent();
+        }
+        Stream->Write(closeBracket);
+        IsFirstItem = false;
+    }
+
+
+    virtual void BeginTree()
     { }
+
+    virtual void EndTree()
+    {
+        FlushEmptyEntity();
+    }
+
 
     virtual void StringValue(const Stroka& value)
     {
         // TODO: escaping
-        Stream.Write('"');
-        Stream.Write(value);
-        Stream.Write('"');
+        Stream->Write('"');
+        Stream->Write(value);
+        Stream->Write('"');
     }
 
     virtual void Int64Value(i64 value)
     {
-        Stream.Write(ToString(value));
+        Stream->Write(ToString(value));
     }
 
     virtual void DoubleValue(double value)
     {
-        Stream.Write(ToString(value));
+        Stream->Write(ToString(value));
     }
 
-    virtual void EndScalar()
-    { }
+    virtual void EntityValue()
+    {
+        SetEmptyEntity();
+    }
+
 
     virtual void BeginList()
     {
-        Stream.Write("[\n");
-        ++Indent;
-        IsFirstChild = true;
+        BeginCollection('[');
     }
 
-    virtual void ListChild(int index)
+    virtual void ListItem(int index)
     {
         UNUSED(index);
-        if (!IsFirstChild) {
-            Stream.Write(",\n");
-        }
-        WriteIndent();
-        IsFirstChild = false;
+        CollectionItem();
     }
 
     virtual void EndList()
     {
-        Stream.Write('\n');
-        --Indent;
-        WriteIndent();
-        Stream.Write(']');
-        IsFirstChild = false;
+        EndCollection(']');
     }
 
     virtual void BeginMap()
     {
-        Stream.Write("{\n");
-        ++Indent;
-        IsFirstChild = true;
+        BeginCollection('{');
     }
 
-    virtual void MapChild(const Stroka& name)
+    virtual void MapItem(const Stroka& name)
     {
-        if (!IsFirstChild) {
-            Stream.Write(",\n");
-        }
-        WriteIndent();
+        CollectionItem();
         // TODO: escaping
-        Stream.Write(name);
-        Stream.Write(": ");
-        IsFirstChild = false;
+        Stream->Write(name);
+        Stream->Write(": ");
     }
 
     virtual void EndMap()
     {
-        Stream.Write('\n');
-        --Indent;
-        WriteIndent();
-        Stream.Write('}');
-        IsFirstChild = false;
+        EndCollection('}');
+    }
+
+
+    virtual void BeginAttributes()
+    {
+        if (IsEmptyEntity) {
+            ResetEmptyEntity();
+        } else {
+            Stream->Write(' ');
+        }
+        BeginCollection('<');
+    }
+
+    virtual void AttributesItem(const Stroka& name)
+    {
+        CollectionItem();
+        // TODO: escaping
+        Stream->Write(name);
+        Stream->Write(": ");
+        IsFirstItem = false;
+    }
+
+    virtual void EndAttributes()
+    {
+        EndCollection('>');
     }
 };
 
@@ -359,33 +761,45 @@ public:
 
     void Parse(INode::TConstPtr root)
     {
-        switch (root->GetType()) {
+        Events->BeginTree();
+        ParseAny(root);
+        Events->EndTree();
+    }
+
+private:
+    IYsonEvents* Events;
+
+    void ParseAny(INode::TConstPtr node)
+    {
+        switch (node->GetType()) {
             case ENodeType::String:
             case ENodeType::Int64:
             case ENodeType::Double:
-                ParseScalar(root);
+            case ENodeType::Entity:
+                ParseScalar(node);
                 break;
 
             case ENodeType::List:
-                ParseList(root->AsList());
+                ParseList(node->AsList());
                 break;
 
             case ENodeType::Map:
-                ParseMap(root->AsMap());
+                ParseMap(node->AsMap());
                 break;
 
             default:
                 YASSERT(false);
                 break;
         }
-    }
 
-private:
-    IYsonEvents* Events;
+        auto attributes = node->GetAttributes();
+        if (~attributes != NULL) {
+            ParseAttributes(attributes);
+        }
+    }
 
     void ParseScalar(INode::TConstPtr node)
     {
-        Events->BeginScalar();
         switch (node->GetType()) {
             case ENodeType::String:
                 Events->StringValue(node->GetValue<Stroka>());
@@ -399,11 +813,14 @@ private:
                 Events->DoubleValue(node->GetValue<double>());
                 break;
 
+            case ENodeType::Entity:
+                Events->EntityValue();
+                break;
+
             default:
                 YASSERT(false);
                 break;
         }
-        Events->EndScalar();
     }
 
     void ParseList(IListNode::TConstPtr node)
@@ -411,7 +828,7 @@ private:
         Events->BeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
-            Events->ListChild(i);
+            Events->ListItem(i);
             Parse(child);
         }
         Events->EndList();
@@ -423,22 +840,182 @@ private:
         auto childNames = node->GetChildNames();
         FOREACH(const Stroka& name, childNames) {
             auto child = node->GetChild(name);
-            Events->MapChild(name);
+            Events->MapItem(name);
             Parse(child);
         }
         Events->EndMap();
     }
 
+    void ParseAttributes(IMapNode::TConstPtr node)
+    {
+        Events->BeginAttributes();
+        auto childNames = node->GetChildNames();
+        FOREACH(const Stroka& name, childNames) {
+            auto child = node->GetChild(name);
+            Events->AttributesItem(name);
+            Parse(child);
+        }
+        Events->EndAttributes();
+    }
+
+};
+
+struct INodeFactory
+{
+    virtual ~INodeFactory()
+    { }
+
+    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka()) = 0;
+    virtual IInt64Node::TPtr CreateInt64(i64 value = 0) = 0;
+    virtual IDoubleNode::TPtr CreateDouble(double value = 0) = 0;
+    virtual IMapNode::TPtr CreateMap() = 0;
+    virtual IListNode::TPtr CreateList() = 0;
+    virtual IEntityNode::TPtr CreateEntity() = 0;
 };
 
 class TTreeBuilder
     : public IYsonEvents
 {
 public:
-    TTreeBuilder();
+    TTreeBuilder(INodeFactory* factory)
+        : Factory(factory)
+    { }
 
-    INode::TPtr GetRoot() const;
+    INode::TPtr GetRoot() const
+    {
+        YASSERT(Stack.ysize() == 1);
+        return Stack[0];
+    }
 
+private:
+    INodeFactory* Factory;
+    yvector<INode::TPtr> Stack;
+
+    virtual void BeginTree()
+    {
+        YASSERT(Stack.ysize() == 0);
+    }
+
+    virtual void EndTree()
+    {
+        YASSERT(Stack.ysize() == 1);
+    }
+
+
+    virtual void StringValue(const Stroka& value)
+    {
+        Push(~Factory->CreateString(value));
+    }
+
+    virtual void Int64Value(i64 value)
+    {
+        Push(~Factory->CreateInt64(value));
+    }
+
+    virtual void DoubleValue(double value)
+    {
+        Push(~Factory->CreateDouble(value));
+    }
+
+    virtual void EntityValue()
+    {
+        Push(~Factory->CreateEntity());
+    }
+
+
+    virtual void BeginList()
+    {
+        Push(~Factory->CreateList());
+        Push(NULL);
+    }
+
+    virtual void ListItem(int index)
+    {
+        UNUSED(index);
+        AddToList();
+    }
+
+    virtual void EndList()
+    {
+        AddToList();
+    }
+
+    void AddToList()
+    {
+        auto child = Pop();
+        auto list = Peek()->AsList();
+        if (~child != NULL) {
+            list->AddChild(child);
+        }
+    }
+
+
+    virtual void BeginMap()
+    {
+        Push(~Factory->CreateMap());
+        Push(NULL);
+        Push(NULL);
+    }
+
+    virtual void MapItem(const Stroka& name)
+    {
+        AddToMap();
+        Push(~Factory->CreateString(name));
+    }
+
+    virtual void EndMap()
+    {
+        AddToMap();
+    }
+
+    void AddToMap()
+    {
+        auto child = Pop();
+        auto name = Pop();
+        auto map = Peek()->AsMap();
+        if (~child != NULL) {
+            map->AddChild(child, name->GetValue<Stroka>());
+        }
+    }
+
+    
+    virtual void BeginAttributes()
+    {
+        BeginMap();
+    }
+
+    virtual void AttributesItem(const Stroka& name)
+    {
+        MapItem(name);
+    }
+
+    virtual void EndAttributes()
+    {
+        EndMap();
+        auto attributes = Pop()->AsMap();
+        auto node = Peek();
+        node->SetAttributes(attributes);
+    }
+
+
+    void Push(INode::TPtr node)
+    {
+        Stack.push_back(node);
+    }
+
+    INode::TPtr Pop()
+    {
+        YASSERT(!Stack.empty());
+        auto result = Stack.back();
+        Stack.pop_back();
+        return result;
+    }
+
+    INode::TPtr Peek()
+    {
+        YASSERT(!Stack.empty());
+        return Stack.back();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,6 +1068,20 @@ public:
         }
     }
 
+    virtual IMapNode::TConstPtr GetAttributes() const
+    {
+        return Attributes;
+    }
+
+    virtual void SetAttributes(IMapNode::TConstPtr attributes)
+    {
+        if (~Attributes != NULL) {
+            Attributes->AsMutable()->SetParent(NULL);
+            Attributes = NULL;
+        }
+        Attributes = attributes;
+    }
+
     virtual bool Navigate(
         const TYPath& path,
         INode::TConstPtr* node,
@@ -504,20 +1095,8 @@ public:
 
 private:
     INode::TConstPtr Parent;
+    IMapNode::TConstPtr Attributes;
 
-};
-
-
-struct INodeFactory
-{
-    virtual ~INodeFactory()
-    { }
-
-    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka()) = 0;
-    virtual IInt64Node::TPtr CreateInt64(i64 value = 0) = 0;
-    virtual IDoubleNode::TPtr CreateDouble(double value = 0) = 0;
-    virtual IMapNode::TPtr CreateMap() = 0;
-    virtual IListNode::TPtr CreateList() = 0;
 };
 
 namespace NEphemeral {
@@ -546,52 +1125,39 @@ private:
 
 };
 
+#define DECLARE_TYPE_OVERRIDES(name) \
+    virtual ENodeType GetType() const \
+    { \
+        return ENodeType::name; \
+    } \
+    \
+    virtual I ## name ## Node::TConstPtr As ## name() const \
+    { \
+        return const_cast<T ## name ## Node*>(this); \
+    } \
+    \
+    virtual I ## name ## Node::TPtr As ## name() \
+    { \
+        return this; \
+    }
+
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
     { \
     public: \
-        virtual ENodeType GetType() const \
-        { \
-            return ENodeType::name; \
-        } \
-        \
-        virtual I ## name ## Node::TConstPtr As ## name() const \
-        { \
-            return const_cast<T ## name ## Node*>(this); \
-        } \
-        \
-        virtual I ## name ## Node::TPtr As ## name() \
-        { \
-            return this; \
-        } \
+        DECLARE_TYPE_OVERRIDES(name) \
     };
 
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
 DECLARE_SCALAR_TYPE(Double, double)
 
-#undef DECLARE_SCALAR_TYPE
-
-
 class TMapNode
     : public TNodeBase<IMapNode>
 {
 public:
-    virtual ENodeType GetType() const
-    {
-        return ENodeType::Map;
-    }
-
-    virtual IMapNode::TConstPtr AsMap() const
-    {
-        return const_cast<TMapNode*>(this);
-    }
-
-    virtual IMapNode::TPtr AsMap()
-    {
-        return this;
-    }
+    DECLARE_TYPE_OVERRIDES(Map)
 
     virtual int GetChildCount() const
     {
@@ -625,7 +1191,13 @@ public:
 
     virtual bool RemoveChild(const Stroka& name)
     {
-        return Map.erase(name) == 1;
+        auto it = Map.find(name);
+        if (it == Map.end())
+            return false;
+
+        it->Second()->AsMutable()->SetParent(NULL);
+        Map.erase(it);
+        return true;
     }
 
 private:
@@ -637,20 +1209,7 @@ class TListNode
     : public TNodeBase<IListNode>
 {
 public:
-    virtual ENodeType GetType() const
-    {
-        return ENodeType::List;
-    }
-
-    virtual IListNode::TConstPtr AsList() const
-    {
-        return const_cast<TListNode*>(this);
-    }
-
-    virtual IListNode::TPtr AsList()
-    {
-        return this;
-    }
+    DECLARE_TYPE_OVERRIDES(List)
 
     virtual int GetChildCount() const
     {
@@ -676,6 +1235,8 @@ public:
     {
         if (index < 0 || index >= List.ysize())
             return false;
+
+        List[index]->AsMutable()->SetParent(NULL);
         List.erase(List.begin() + index);
         return true;
     }
@@ -685,9 +1246,21 @@ private:
 
 };
 
-struct TNodeFactory
+class TEntityNode
+    : public TNodeBase<IEntityNode>
+{
+public:
+    DECLARE_TYPE_OVERRIDES(Entity)
+};
+
+#undef DECLARE_SCALAR_TYPE
+#undef DECLARE_TYPE_OVERRIDES
+   
+
+class TNodeFactory
     : INodeFactory
 {
+public:
     static INodeFactory* Get()
     {
         return Singleton<TNodeFactory>();
@@ -723,12 +1296,14 @@ struct TNodeFactory
     {
         return ~New<TListNode>();
     }
+
+    virtual IEntityNode::TPtr CreateEntity()
+    {
+        return ~New<TEntityNode>();
+    }
 };
 
-
 } // namespace NEphemeral
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
