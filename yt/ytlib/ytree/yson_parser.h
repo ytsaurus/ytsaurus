@@ -117,7 +117,7 @@ private:
                 int ch = ReadChar();
                 if (ch == Eos) {
                     // TODO:
-                    ythrow yexception() << Sprintf("Premature end-of-stream while parsing String in YSON");
+                    ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"String\" literal in YSON");
                 }
                 if (ch == '"')
                     break;
@@ -154,7 +154,7 @@ private:
         }
         if (result.Empty()) {
             // TODO:
-            ythrow yexception() << Sprintf("Premature end-of-stream while parsing Numeric in YSON");
+            ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"Numeric\" literal in YSON");
         }
         return result;
     }
@@ -320,7 +320,7 @@ private:
                 Events->Int64Value(value);
             } catch (...) {
                 // TODO:
-                ythrow yexception() << Sprintf("Failed to parse Int64 literal %s in YSON",
+                ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON",
                     ~str.Quote());
             }
         } else {
@@ -329,7 +329,7 @@ private:
                 Events->DoubleValue(value);
             } catch (...) {
                 // TODO:
-                ythrow yexception() << Sprintf("Failed to parse Double literal %s in YSON",
+                ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON",
                     ~str.Quote());
             }
         }

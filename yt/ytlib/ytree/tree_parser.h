@@ -94,11 +94,9 @@ private:
     void ParseMap(IMapNode::TConstPtr node)
     {
         Events->BeginMap();
-        auto childNames = node->GetChildNames();
-        FOREACH(const Stroka& name, childNames) {
-            auto child = node->GetChild(name);
-            Events->MapItem(name);
-            Parse(child);
+        FOREACH(const auto& pair, node->GetChildren()) {
+            Events->MapItem(pair.First());
+            Parse(pair.Second());
         }
         Events->EndMap();
     }
@@ -106,11 +104,9 @@ private:
     void ParseAttributes(IMapNode::TConstPtr node)
     {
         Events->BeginAttributes();
-        auto childNames = node->GetChildNames();
-        FOREACH(const Stroka& name, childNames) {
-            auto child = node->GetChild(name);
-            Events->AttributesItem(name);
-            Parse(child);
+        FOREACH(const auto& pair, node->GetChildren()) {
+            Events->AttributesItem(pair.First());
+            Parse(pair.Second());
         }
         Events->EndAttributes();
     }

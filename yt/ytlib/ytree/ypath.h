@@ -8,18 +8,61 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ChopYPathToken(
+inline void ChopYPathPrefix(
     const TYPath& path,
-    Stroka* token,
+    Stroka* prefix,
     TYPath* tailPath)
 {
     size_t index = path.find_first_of("/@");
     if (index == TYPath::npos) {
-        *token = path;
+        *prefix = path;
         *tailPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
-        *token = Stroka(path.begin(), index);
-        *tailPath = TYPath(path.begin() + index + 1, path.end());
+        switch (path[index]) {
+            case '/':
+                *prefix = Stroka(path.begin(), index);
+                *tailPath = TYPath(path.begin() + index + 1, path.end());
+                break;
+
+            case '@':
+                *prefix = Stroka(path.begin(), index);
+                *tailPath = TYPath(path.begin() + index, path.end());
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ChopYPathSuffix(
+    const TYPath& path,
+    Stroka* suffix,
+    TYPath* headPath)
+{
+    size_t index = path.find_last_of("/@");
+    if (index == TYPath::npos) {
+        *suffix = path;
+        *headPath = TYPath(path.begin(), static_cast<size_t>(0));
+    } else {
+        switch (path[index]) {
+            case '/':
+                *suffix = Stroka(path.begin() + index + 1, path.end());
+                *headPath = TYPath(path.begin(), path.begin() + index);
+                break;
+
+            case '@':
+                *suffix = Stroka(path.begin() + index + 1, path.end());
+                *headPath = TYPath(path.begin(), path.begin() + index + 1);
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
     }
 }
 
@@ -37,7 +80,7 @@ inline void NavigateYPath(
     }
 
     if (path[0] != '/') {
-        ythrow yexception() << "YPath must start with \"'\"";
+        ythrow yexception() << "YPath must start with \"/\"";
     }
 
     auto currentNode = root;
@@ -45,7 +88,7 @@ inline void NavigateYPath(
     INode::TConstPtr currentTailNode;
     TYPath currentTailPath;
     while (!currentPath.empty() &&
-           currentNode->NavigateYPath(currentPath, &currentTailNode, &currentTailPath)) {
+           currentNode->YPathNavigate(currentPath, &currentTailNode, &currentTailPath)) {
         currentNode = currentTailNode;
         currentPath = currentTailPath;
     }
@@ -76,31 +119,50 @@ inline INode::TConstPtr GetYPath(
     return tailNode;
 }
 
-inline INode::TConstPtr GetYPath(
+////////////////////////////////////////////////////////////////////////////////
+
+inline void SetYPath(
     INode::TConstPtr root,
-    const TYPath& path)
+    const TYPath& path,
+    INode::TPtr value)
 {
     INode::TConstPtr tailNode;
     TYPath headPath;
     TYPath tailPath;
     NavigateYPath(root, path, &tailNode, &headPath, &tailPath);
-    if (!tailPath.empty()) {
-        ythrow yexception() << Sprintf("Cannot resolve YPath %s at %s",
-            ~Stroka(tailPath).Quote(),
-            ~Stroka(headPath).Quote());
+    
+    if (tailPath.empty()) {
+        tailNode->AsMutable()->YPathAssign(value);
+    } else {
+        Stroka suffix;
+        TYPath headTailPath;
+        ChopYPathSuffix(tailPath, &suffix, &headTailPath);
+        
+        INode::TPtr appendNode;
+        if (headTailPath.empty()) {
+            appendNode = tailNode->AsMutable();
+            if (appendNode->GetType() != ENodeType::Map) {
+                ythrow yexception() << Sprintf("Cannot append a child to node %s of type %s",
+                    ~Stroka(headPath).Quote(),
+                    ~tailNode->GetType().ToString());
+            }
+        } else {
+            tailNode->AsMutable()->YPathForce(headTailPath, &appendNode);
+            YASSERT(appendNode->GetType() == ENodeType::Map);
+        }
+
+        appendNode->AsMap()->AddChild(value, suffix);
     }
-    return tailNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void SetYPath(
-    INodeFactory* factory,
-    INode::TPtr root,
-    const TYPath& path,
-    INode::TPtr value)
+inline void RemoveYPath(
+    INode::TConstPtr root,
+    const TYPath& path)
 {
-    root->SetYPath(factory, path, value);
+    auto node = GetYPath(root, path);
+    node->AsMutable()->YPathRemove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,8 @@ struct INode
 
     virtual ENodeType GetType() const = 0;
     
+    virtual INodeFactory* GetFactory() const = 0;
+
     virtual INode::TPtr AsMutable() const = 0;
 
     virtual TIntrusiveConstPtr<INode> AsNode() const = 0;
@@ -50,6 +52,7 @@ struct INode
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Int64)
     DECLARE_AS_METHODS(Double)
+    DECLARE_AS_METHODS(Entity)
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
 
@@ -74,15 +77,18 @@ struct INode
     }
 
     // YPath stuff.
-    virtual bool NavigateYPath(
+    virtual bool YPathNavigate(
         const TYPath& path,
         INode::TConstPtr* tailNode,
         TYPath* tailPath) const = 0;
 
-    virtual void SetYPath(
-        INodeFactory* factory,
+    virtual void YPathForce(
         const TYPath& path,
-        INode::TPtr value) = 0;
+        INode::TPtr* tailNode) = 0;
+
+    virtual void YPathAssign(INode::TPtr node) = 0;
+
+    virtual void YPathRemove() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,6 +108,7 @@ struct IScalarNode
 struct ICompositeNode
     : INode
 {
+    virtual void Clear() = 0;
     virtual int GetChildCount() const = 0;
     // TODO: iterators?
 };
@@ -114,6 +121,7 @@ struct IListNode
     typedef TIntrusivePtr<IListNode> TPtr;
     typedef TIntrusiveConstPtr<IListNode> TConstPtr;
 
+    virtual yvector<INode::TConstPtr> GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(int index) const = 0;
     virtual void AddChild(INode::TPtr node, int beforeIndex = -1) = 0;
     virtual bool RemoveChild(int index) = 0;
@@ -134,7 +142,7 @@ struct IMapNode
     typedef TIntrusivePtr<IMapNode> TPtr;
     typedef TIntrusiveConstPtr<IMapNode> TConstPtr;
 
-    virtual yvector<Stroka> GetChildNames() const = 0;
+    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(const Stroka& name) const = 0;
     virtual bool AddChild(INode::TPtr node, const Stroka& name) = 0;
     virtual bool RemoveChild(const Stroka& name) = 0;
@@ -243,6 +251,7 @@ public:
     IMPLEMENT_AS_METHODS(String)
     IMPLEMENT_AS_METHODS(Int64)
     IMPLEMENT_AS_METHODS(Double)
+    IMPLEMENT_AS_METHODS(Entity)
     IMPLEMENT_AS_METHODS(List)
     IMPLEMENT_AS_METHODS(Map)
 
@@ -255,12 +264,7 @@ public:
 
     virtual void SetParent(INode::TConstPtr parent)
     {
-        if (~parent == NULL) {
-            Parent = NULL;
-        } else {
-            YASSERT(~Parent == NULL);
-            Parent = parent;
-        }
+        Parent = parent;
     }
 
     virtual IMapNode::TConstPtr GetAttributes() const
@@ -277,31 +281,43 @@ public:
         Attributes = attributes;
     }
 
-    virtual bool NavigateYPath(
+    virtual bool YPathNavigate(
         const TYPath& path,
-        INode::TConstPtr* node,
+        INode::TConstPtr* tailNode,
         TYPath* tailPath) const
     {
         if (!path.empty() && path[0] == '@' && ~Attributes != NULL) {
-            *node = Attributes->AsNode();
+            *tailNode = Attributes->AsNode();
             *tailPath = TYPath(path.begin() + 1, path.end());
             return true;
         } else {
-            *node = NULL;
+            *tailNode = NULL;
             *tailPath = TYPath();
             return false;
         }
     }
 
-    virtual void SetYPath(
-        INodeFactory* factory,
+    virtual void YPathForce(
         const TYPath& path,
-        INode::TPtr value)
+        INode::TPtr* tailNode)
     {
-        UNUSED(factory);
-        UNUSED(path);
-        UNUSED(value);
-        ythrow yexception() << "Cannot create child";
+        YASSERT(!path.empty());
+        *tailNode = NULL;
+        // TODO: more diagnostics
+        ythrow yexception() << "Cannot create a child node";
+    }
+
+    virtual void YPathRemove()
+    {
+        // TODO: more diagnostics
+        ythrow yexception() << "Cannot remove the node";
+    }
+
+    virtual void YPathAssign(INode::TPtr other)
+    {
+        UNUSED(other);
+        // TODO: more diagnostics
+        ythrow yexception() << "Cannot update the node";
     }
 
 private:

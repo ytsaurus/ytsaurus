@@ -10,6 +10,19 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class IBase>
+class TNodeBase
+    : public ::NYT::NYTree::TNodeBase<IBase>
+{
+public:
+    virtual INodeFactory* GetFactory() const
+    {
+        return TNodeFactory::Get();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template<class TValue, class IBase>
 class TScalarNode
     : public TNodeBase<IBase>
@@ -50,6 +63,15 @@ private:
     virtual I ## name ## Node::TPtr As ## name() \
     { \
         return this; \
+    } \
+    virtual void YPathAssign(INode::TPtr other) \
+    { \
+        if (GetType() != other->GetType()) { \
+            ythrow yexception() << Sprintf("Cannot change node type from %s to %s during update", \
+                ~GetType().ToString().Quote(), \
+                ~other->GetType().ToString().Quote()); \
+        } \
+        DoAssign(other->As ## name()); \
     }
 
 #define DECLARE_SCALAR_TYPE(name, type) \
@@ -58,6 +80,12 @@ private:
     { \
     public: \
         DECLARE_TYPE_OVERRIDES(name) \
+    \
+    private: \
+        void DoAssign(I ## name ## Node::TPtr other) \
+        { \
+            SetValue(other->GetValue()); \
+        } \
     };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,18 +102,22 @@ class TMapNode
 public:
     DECLARE_TYPE_OVERRIDES(Map)
 
+    virtual void Clear()
+    {
+        FOREACH(const auto& pair, Map) {
+            pair.Second()->AsMutable()->SetParent(NULL);
+        }
+        Map.clear();
+    }
+
     virtual int GetChildCount() const
     {
         return Map.ysize();
     }
 
-    virtual yvector<Stroka> GetChildNames() const
+    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const
     {
-        yvector<Stroka> result;
-        FOREACH(const auto& pair, Map) {
-            result.push_back(pair.First());
-        }
-        return result;
+        return yvector< TPair<Stroka, INode::TConstPtr> >(Map.begin(), Map.end());
     }
 
     virtual INode::TConstPtr FindChild(const Stroka& name) const
@@ -115,16 +147,16 @@ public:
         return true;
     }
 
-    virtual bool NavigateYPath(
+    virtual bool YPathNavigate(
         const TYPath& path,
         INode::TConstPtr* node,
         TYPath* tailPath) const
     {
-        if (TNodeBase::NavigateYPath(path, node, tailPath))
+        if (TNodeBase::YPathNavigate(path, node, tailPath))
             return true;
 
         Stroka token;
-        ChopYPathToken(path, &token, tailPath);
+        ChopYPathPrefix(path, &token, tailPath);
 
         auto child = FindChild(token);
         if (~child != NULL) {
@@ -137,36 +169,40 @@ public:
         }
     }
 
-    virtual void SetYPath(
-        INodeFactory* factory,
+    virtual void YPathForce(
         const TYPath& path,
-        INode::TPtr value)
+        INode::TPtr* tailNode)
     {
-        if (path.empty()) {
-            // TODO:
-            ythrow yexception() << "Cannot create a map item with empty name";
-        }
+        YASSERT(!path.empty());
 
         TYPath currentPath = path;
         IMapNode::TPtr currentNode = this;
-        while (true) {
+        while (!currentPath.empty()) {
             TYPath tailPath;
             Stroka name;
-            ChopYPathToken(currentPath, &name, &tailPath);
-            if (tailPath.empty()) {
-                currentNode->AddChild(value, name);
-                break;
-            } else {
-                auto child = factory->CreateMap();
-                currentNode->AddChild(child->AsNode(), name);
-                currentNode = child;
-                currentPath = tailPath;
-            }
+            ChopYPathPrefix(currentPath, &name, &tailPath);
+            auto child = GetFactory()->CreateMap();
+            currentNode->AddChild(child->AsNode(), name);
+            currentNode = child;
+            currentPath = tailPath;
         }
+
+        *tailNode = currentNode->AsNode();
     }
 
 private:
     yhash_map<Stroka, INode::TConstPtr> Map;
+
+    void DoAssign(IMapNode::TPtr other)
+    {
+        // TODO: attributes
+        Clear();
+        auto children = other->GetChildren();
+        other->Clear();
+        FOREACH(const auto& pair, children) {
+            AddChild(pair.Second()->AsMutable(), pair.First());
+        }
+    }
 
 };
 
@@ -178,9 +214,22 @@ class TListNode
 public:
     DECLARE_TYPE_OVERRIDES(List)
 
+    virtual void Clear()
+    {
+        FOREACH(const auto& node, List) {
+            node->AsMutable()->SetParent(NULL);
+        }
+        List.clear();
+    }
+
     virtual int GetChildCount() const
     {
         return List.ysize();
+    }
+
+    virtual yvector<INode::TConstPtr> GetChildren() const
+    {
+        return List;
     }
 
     virtual INode::TConstPtr FindChild(int index) const
@@ -188,7 +237,7 @@ public:
         return index >= 0 && index < List.ysize() ? List[index] : NULL;
     }
 
-    virtual void AddChild(INode::TPtr node, int beforeIndex)
+    virtual void AddChild(INode::TPtr node, int beforeIndex = -1)
     {
         if (beforeIndex < 0) {
             List.push_back(node); 
@@ -208,16 +257,16 @@ public:
         return true;
     }
 
-    virtual bool NavigateYPath(
+    virtual bool YPathNavigate(
         const TYPath& path,
         INode::TConstPtr* node,
         TYPath* tailPath) const
     {
-        if (TNodeBase::NavigateYPath(path, node, tailPath))
+        if (TNodeBase::YPathNavigate(path, node, tailPath))
             return true;
 
         Stroka token;
-        ChopYPathToken(path, &token, tailPath);
+        ChopYPathPrefix(path, &token, tailPath);
 
         int index = FromString<int>(token);
         auto child = FindChild(index);
@@ -234,6 +283,17 @@ public:
 private:
     yvector<INode::TConstPtr> List;
 
+    void DoAssign(IListNode::TPtr other)
+    {
+        // TODO: attributes
+        Clear();
+        auto children = other->GetChildren();
+        other->Clear();
+        FOREACH(const auto& child, children) {
+            AddChild(child->AsMutable());
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,6 +303,12 @@ class TEntityNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(Entity)
+
+private:
+    void DoAssign(IEntityNode::TPtr other)
+    {
+        UNUSED(other);
+    }
 };
 
 #undef DECLARE_SCALAR_TYPE
