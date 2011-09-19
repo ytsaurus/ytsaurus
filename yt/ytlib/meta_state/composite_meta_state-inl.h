@@ -8,7 +8,7 @@ namespace NYT {
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMetaStateManager::TMsgChangeHeader& header,
+    const NMetaState::NProto::TMsgChangeHeader& header,
     const TMessage& message)
 {
     TFixedChangeHeader fixedHeader;
@@ -52,7 +52,7 @@ template<class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
     Stroka changeType = TMessage().GetTypeName();
-    IParamAction<const TRef&>::TPtr action = FromMethod(
+    auto action = FromMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         this,
         changeMethod);
@@ -94,7 +94,7 @@ public:
     typename TAsyncResult<TResult>::TPtr Run()
     {
         // TODO: change ns
-        NRpcMetaStateManager::TMsgChangeHeader header;
+        NMetaState::NProto::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
         TBlob changeData = SerializeChange(header, Message);

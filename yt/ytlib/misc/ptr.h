@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ref_counted_tracker.h"
+#include "new.h"
 
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
@@ -9,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: consider making Ref, UnRef, and AfterConstruct private and
+// TODO: consider making Ref, UnRef, and AfterConstruction private and
 // declare appropriate friends.
 
 //! Provides a common base for all reference-counted objects within YT.
@@ -19,7 +20,7 @@ class TRefCountedBase
 public:
     //! Constructs an instance.
     TRefCountedBase()
-        // Counter is initially set to 1, see #AfterConstruct.
+        // Counter is initially set to 1, see #AfterConstruction.
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
@@ -34,9 +35,10 @@ public:
     //! Called from #New functions to kill the initial fake reference
     //! and initialize the #Cookie.
     /*!
-     *  When reference tracking is enabled, this call also registers the instance with the tracker.
+     * When reference tracking is enabled, this call also registers the instance
+     * with the tracker.
      */
-    inline void AfterConstruct(TRefCountedTracker::TCookie cookie)
+    inline void AfterConstruction(TRefCountedTracker::TCookie cookie)
     {
         YASSERT(Cookie == NULL);
         Cookie = cookie;
@@ -47,7 +49,7 @@ public:
     }
 #else
     //! Called from #New functions to kill the initial fake reference.
-    inline void AfterConstruct()
+    inline void AfterConstruction()
     {
         YASSERT(RefCounter >= 1);
         UnRef();
@@ -64,8 +66,9 @@ public:
 
     //! Decrements the reference counter.
     /*!
-     *  When this counter reaches 0, the object also kills itself by calling "delete this".
-     *  When reference tracking is enabled, this call also unregisters the instance from the tracker.
+     * When this counter reaches zero, the object also kills itself by calling
+     * "delete this". When reference tracking is enabled, this call also
+     * unregisters the instance from the tracker.
      */
     inline void UnRef() throw()
     {
@@ -78,20 +81,21 @@ public:
         }
     }
 
-    //! Tries to obtain an intrusive pointer for an object that
-    //! may had already lost all of its references and, thus, is about to be deleted.
+    //! Tries to obtain an intrusive pointer for an object that may had
+    //! already lost all of its references and, thus, is about to be deleted.
     /*!
-     *  You may call this method at any time provided that you have a valid raw pointer to an object.
-     *  The call either returns an intrusive pointer for the object
-     *  (thus ensuring that the object won't be destroyed until you're holding this pointer)
-     *  or NULL indicating that the last reference had already been lost and the object is on
-     *  its way to heavens. All these steps happen atomically.
+     * You may call this method at any time provided that you have a valid
+     * raw pointer to an object. The call either returns an intrusive pointer
+     * for the object (thus ensuring that the object won't be destroyed until
+     * you're holding this pointer) or NULL indicating that the last reference
+     * had already been lost and the object is on its way to heavens.
+     * All these steps happen atomically.
      *  
-     *  Under all circumstances it is caller's responsibility the make sure that the object
-     *  is not destroyed during the call to #DangerousGetPtr. Typically this is achieved
-     *  by keeping a (lock-protected) collection of raw pointers,
-     *  taking a lock in object's destructor,
-     *  and unregistering its raw pointer from the collection there.
+     * Under all circumstances it is caller's responsibility the make sure that
+     * the object is not destroyed during the call to #DangerousGetPtr.
+     * Typically this is achieved by keeping a (lock-protected) collection of
+     * raw pointers, taking a lock in object's destructor, and unregistering
+     * its raw pointer from the collection there.
      */
     template<class T>
     static TIntrusivePtr<T> DangerousGetPtr(T* obj)
@@ -120,198 +124,6 @@ private:
 #endif
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef ENABLE_REF_COUNTED_TRACKING
-
-#define REF_COUNTED_NEW_PROLOGUE() \
-    static TRefCountedTracker::TCookie cookie = NULL; \
-    if (EXPECT_FALSE(cookie == NULL)) { \
-        cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
-    }
-
-#define REF_COUNTED_NEW_EPILOGUE() \
-    result->AfterConstruct(cookie); \
-    return result;
-
-#else // !ENABLE_REF_COUNTED_TRACKING
-
-#define REF_COUNTED_NEW_PROLOGUE()
-
-#define REF_COUNTED_NEW_EPILOGUE() \
-    result->AfterConstruct(); \
-    return result;
-
-#endif // ENABLE_REF_COUNTED_TRACKING
-
-// TODO: generate with pump
-// TODO: employ perfect forwarding
-
-template<class TResult>
-inline TIntrusivePtr<TResult> New()
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult();
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2,
-    class TArg3
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2,
-    const TArg3& arg3)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2,
-        arg3);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2,
-    class TArg3,
-    class TArg4
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2,
-    const TArg3& arg3,
-    const TArg4& arg4)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2,
-        arg3,
-        arg4);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2,
-    class TArg3,
-    class TArg4,
-    class TArg5
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2,
-    const TArg3& arg3,
-    const TArg4& arg4,
-    const TArg5& arg5)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2,
-        arg3,
-        arg4,
-        arg5);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2,
-    class TArg3,
-    class TArg4,
-    class TArg5,
-    class TArg6
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2,
-    const TArg3& arg3,
-    const TArg4& arg4,
-    const TArg5& arg5,
-    const TArg6& arg6)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2,
-        arg3,
-        arg4,
-        arg5,
-        arg6);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-template<
-    class TResult,
-    class TArg1,
-    class TArg2,
-    class TArg3,
-    class TArg4,
-    class TArg5,
-    class TArg6,
-    class TArg7
->
-inline TIntrusivePtr<TResult> New(
-    const TArg1& arg1,
-    const TArg2& arg2,
-    const TArg3& arg3,
-    const TArg4& arg4,
-    const TArg5& arg5,
-    const TArg6& arg6,
-    const TArg7& arg7)
-{
-    REF_COUNTED_NEW_PROLOGUE()
-    TIntrusivePtr<TResult> result = new TResult(
-        arg1,
-        arg2,
-        arg3,
-        arg4,
-        arg5,
-        arg6,
-        arg7);
-    REF_COUNTED_NEW_EPILOGUE()
-}
-
-#undef REF_COUNTED_NEW_PROLOGUE
-#undef REF_COUNTED_NEW_EPILOGUE
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,7 +224,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return TBlob(Begin(), End());
     }
@@ -486,7 +298,7 @@ public:
     }
 
     // Let's hope your compiler supports RVO.
-    TBlob ToBlob()
+    TBlob ToBlob() const
     {
         return Ref.ToBlob();
     }
@@ -511,6 +323,12 @@ private:
 
 template<class T>
 T* operator ~ (const TIntrusivePtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
+const T* operator ~ (const TIntrusiveConstPtr<T>& ptr)
 {
     return ptr.Get();
 }

@@ -102,7 +102,7 @@ public:
         const THolder* existingHolder = FindHolder(address);
         if (existingHolder != NULL) {
             LOG_INFO("Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
-                address,
+                ~address,
                 existingHolder->Id);
             DoUnregisterHolder(*existingHolder);
         }
@@ -157,7 +157,7 @@ public:
         }
 
         LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, %s, ChunksAdded: %d, ChunksRemoved: %d)",
-            holder.Address,
+            ~holder.Address,
             holderId,
             ~statistics.ToString(),
             static_cast<int>(message.AddedChunksSize()),
@@ -181,7 +181,7 @@ public:
         }
 
         LOG_DEBUG("Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
-            holder.Address,
+            ~holder.Address,
             holderId,
             static_cast<int>(message.StartedJobsSize()),
             static_cast<int>(message.StoppedJobsSize()));
@@ -387,7 +387,7 @@ private:
 
         LOG_INFO("Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.Id.ToString(),
-             holder.Address,
+             ~holder.Address,
              holder.Id);
 
         if (IsLeader()) {
@@ -401,7 +401,7 @@ private:
 
         LOG_INFO("Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.Id.ToString(),
-             holder.Address,
+             ~holder.Address,
              holder.Id);
 
         if (IsLeader()) {

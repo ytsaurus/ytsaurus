@@ -44,7 +44,7 @@ TMetaStateManager::TMetaStateManager(
         SnapshotStore,
         ChangeLogCache);
 
-    CellManager = New<TCellManager>(Config.CellConfig);
+    CellManager = New<TCellManager>(Config.Cell);
 
     // TODO: fill config
     ElectionManager = New<TElectionManager>(
@@ -69,7 +69,7 @@ void TMetaStateManager::RegisterMethods()
     RPC_REGISTER_METHOD(TMetaStateManager, GetChangeLogInfo);
     RPC_REGISTER_METHOD(TMetaStateManager, ReadChangeLog);
     RPC_REGISTER_METHOD(TMetaStateManager, ApplyChanges);
-    RPC_REGISTER_METHOD(TMetaStateManager, CreateSnapshot);
+    RPC_REGISTER_METHOD(TMetaStateManager, AdvanceSegment);
     RPC_REGISTER_METHOD(TMetaStateManager, PingLeader);
 }
 
@@ -202,7 +202,7 @@ void TMetaStateManager::SendSync(TPeerId peerId, TEpoch epoch)
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
     THolder<TProxy> proxy(CellManager->GetMasterProxy<TProxy>(peerId));
-    TProxy::TReqSync::TPtr request = proxy->Sync();
+    auto request = proxy->Sync();
     request->SetSegmentId(version.SegmentId);
     request->SetRecordCount(version.RecordCount);
     request->SetEpoch(epoch.ToProto());
@@ -252,8 +252,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
         snapshotId);
 
     try {
-        // TODO: extract method
-        TSnapshotReader::TPtr reader = SnapshotStore->GetReader(snapshotId);
+        auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);
@@ -275,12 +274,12 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
             checksum);
 
         context->Reply();
-    } catch (const yexception& ex) {
+    } catch (...) {
         // TODO: fail?
         ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-            Sprintf("IO error in snapshot %d: %s",
+            Sprintf("IO error while getting snapshot info (SnapshotId: %d, What: %s)",
                 snapshotId,
-                ex.what());
+                ~CurrentExceptionMessage());
     }
 }
 
@@ -299,7 +298,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadSnapshot)
     YASSERT(length >= 0);
 
     try {
-        TSnapshotReader::TPtr reader = SnapshotStore->GetReader(snapshotId);
+        auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);
@@ -317,25 +316,24 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadSnapshot)
             bytesRead);
 
         context->Reply();
-    } catch (const yexception& ex) {
+    } catch (...) {
         // TODO: fail?
-        context->Reply(TProxy::EErrorCode::IOError);
-
-        LOG_ERROR("ReadSnapshot: IO error in snapshot %d: %s",
-            snapshotId, ex.what());
+        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+            Sprintf("IO error while reading snapshot (SnapshotId: %d, What: %s)",
+                snapshotId,
+                ~CurrentExceptionMessage());
     }
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
 {
-    i32 changeLogId = request->GetSegmentId();
+    i32 changeLogId = request->GetChangeLogId();
 
     context->SetRequestInfo("ChangeLogId: %d",
         changeLogId);
 
     try {
-        // TODO: extract method
-        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(changeLogId);
+        auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", changeLogId);
@@ -347,23 +345,23 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
         
         context->SetResponseInfo("RecordCount: %d", recordCount);
         context->Reply();
-    } catch (const yexception& ex) {
+    } catch (...) {
         // TODO: fail?
-        context->Reply(TProxy::EErrorCode::IOError);
-
-        LOG_ERROR("GetChangeLogInfo: IO error in changelog %d: %s",
-            changeLogId, ex.what());
+        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+            Sprintf("IO error while getting changelog info (ChangeLogId: %d, What: %s)",
+                changeLogId,
+                ~CurrentExceptionMessage());
     }
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
 {
-    i32 segmentId = request->GetSegmentId();
+    i32 changeLogId = request->GetChangeLogId();
     i32 startRecordId = request->GetStartRecordId();
     i32 recordCount = request->GetRecordCount();
     
-    context->SetRequestInfo("SegmentId: %d, StartRecordId: %d, RecordCount: %d",
-        segmentId,
+    context->SetRequestInfo("ChangeLogId: %d, StartRecordId: %d, RecordCount: %d",
+        changeLogId,
         startRecordId,
         recordCount);
 
@@ -371,11 +369,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
     YASSERT(recordCount >= 0);
     
     try {
-        // TODO: extract method
-        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
             ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid changelog id %d", segmentId);
+                Sprintf("invalid changelog id %d", changeLogId);
         }
 
         yvector<TSharedRef> recordData;
@@ -389,13 +386,12 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
         
         context->SetResponseInfo("RecordCount: %d", recordData.ysize());
         context->Reply();
-    } catch (const yexception& ex) {
+    } catch (...) {
         // TODO: fail?
-        context->Reply(TProxy::EErrorCode::IOError);
-
-        LOG_ERROR("ReadChangeLog: IO error in changelog %d: %s",
-            segmentId,
-            ex.what());
+        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+            Sprintf("IO error while reading changelog (ChangeLogId: %d, What: %s)",
+                changeLogId,
+                ~CurrentExceptionMessage());
     }
 }
 
@@ -423,20 +419,19 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
                 ~epoch.ToString());
     }
     
-    int numChanges = request->Attachments().size();
+    int changeCount = request->Attachments().size();
     switch (State) {
         case EState::Following: {
-            LOG_DEBUG("ApplyChange: applying %d changes", numChanges);
+            LOG_DEBUG("ApplyChange: applying %d changes", changeCount);
 
-            for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
+            YASSERT(~ChangeCommitter != NULL);
+            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
                 YASSERT(State == EState::Following);
                 TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                TChangeCommitter::TResult::TPtr asyncResult =
-                    ChangeCommitter->CommitFollower(commitVersion, changeData);
-
-                // subscribe to last change
-                if (changeIndex == numChanges - 1) {
+                auto asyncResult = ChangeCommitter->CommitFollower(commitVersion, changeData);
+                // Subscribe to the last change
+                if (changeIndex == changeCount - 1) {
                     asyncResult->Subscribe(FromMethod(
                             &TMetaStateManager::OnLocalCommit,
                             TPtr(this),
@@ -448,15 +443,14 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         }
 
         case EState::FollowerRecovery: {
-            LOG_DEBUG("ApplyChange: keeping %d postponed change", numChanges);
+            LOG_DEBUG("ApplyChange: keeping %d postponed changes", changeCount);
 
             YASSERT(~FollowerRecovery != NULL);
-            for (int changeIndex = 0; changeIndex < numChanges; ++changeIndex) {
+            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
                 YASSERT(State == EState::FollowerRecovery);
                 TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                TRecovery::EResult result = FollowerRecovery
-                    ->PostponeChange(commitVersion, changeData);
+                auto result = FollowerRecovery->PostponeChange(commitVersion, changeData);
                 if (result != TRecovery::EResult::OK) {
                     Restart();
                     break;
@@ -478,8 +472,8 @@ void TMetaStateManager::OnLocalCommit(
     TChangeCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
 {
-    TReqApplyChanges& request = context->Request();
-    TRspApplyChanges& response = context->Response();
+    auto& request = context->Request();
+    auto& response = context->Response();
 
     TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
 
@@ -502,9 +496,8 @@ void TMetaStateManager::OnLocalCommit(
     }
 }
 
-//TODO: rename CreateSnapshot to AdvanceSegment
-//TODO: reply whether snapshot was created
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, CreateSnapshot)
+// TODO: reply whether snapshot was created
+RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
 {
     UNUSED(response);
 
@@ -544,7 +537,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, CreateSnapshot)
             LOG_DEBUG("CreateSnapshot: keeping postponed segment advance");
 
             YASSERT(~FollowerRecovery != NULL);
-            TRecovery::EResult result = FollowerRecovery->PostponeSegmentAdvance(version);
+            auto result = FollowerRecovery->PostponeSegmentAdvance(version);
             if (result != TRecovery::EResult::OK) {
                 Restart();
             }
@@ -561,11 +554,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, CreateSnapshot)
 
 void TMetaStateManager::OnCreateLocalSnapshot(
     TSnapshotCreator::TLocalResult result,
-    TCtxCreateSnapshot::TPtr context)
+    TCtxAdvanceSegment::TPtr context)
 {
+    auto& response = context->Response();
+
     switch (result.ResultCode) {
         case TSnapshotCreator::EResultCode::OK:
-            context->Response().SetChecksum(result.Checksum);
+            response.SetChecksum(result.Checksum);
             context->Reply();
             break;
         case TSnapshotCreator::EResultCode::InvalidVersion:
@@ -617,6 +612,7 @@ void TMetaStateManager::OnStartLeading(TEpoch epoch)
     
     YASSERT(~LeaderRecovery == NULL);
     LeaderRecovery = new TLeaderRecovery(
+        Config,
         CellManager,
         MetaState,
         ChangeLogCache,
@@ -700,6 +696,7 @@ void TMetaStateManager::OnStartFollowing(TPeerId leaderId, TEpoch epoch)
 
     YASSERT(~FollowerRecovery == NULL);
     FollowerRecovery = New<TFollowerRecovery>(
+        Config,
         CellManager,
         MetaState,
         ChangeLogCache,

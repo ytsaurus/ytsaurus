@@ -2,6 +2,11 @@
 #include "demangle.h"
 #include "ref_counted_tracker.h"
 
+#include "../ytree/ytree.h"
+#include "../ytree/ephemeral.h"
+#include "../ytree/fluent.h"
+#include "../ytree/tree_builder.h"
+
 #include <util/generic/algorithm.h>
 
 namespace NYT {
@@ -32,14 +37,8 @@ yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
     return result;
 }
 
-Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
+void TRefCountedTracker::SortItems(yvector<TItem>& items, int sortByColumn)
 {
-    yvector<TItem> items;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        items = GetItems();
-    }
-
     switch (sortByColumn) {
         case 3:
             Sort(
@@ -55,7 +54,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
                 items.begin(),
                 items.end(),
                 [] (const TItem& lhs, const TItem& rhs) {
-                    return lhs.TotalObjects > rhs.TotalObjects;
+                    return lhs.CreatedObjects > rhs.CreatedObjects;
                 });
             break;
 
@@ -69,31 +68,72 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
                 });
             break;
     }
+}
+
+Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
+{
+    auto items = GetItems();
+    SortItems(items, sortByColumn);
 
     TStringStream stream;
-    i64 totalAliveObjects = 0;
-    i64 totalTotalObjects = 0;
+    i64 totalAlive = 0;
+    i64 totalCreated = 0;
 
     stream << "Reference-Counted Object Statistics\n";
     stream << "================================================================================\n";
-    stream << Sprintf("%10s %10s %s", "Alive", "Total", "Name") << "\n";
+    stream << Sprintf("%10s %10s %s", "Alive", "Created", "Name") << "\n";
     stream << "--------------------------------------------------------------------------------\n";
     FOREACH(const auto& item, items) {
-        totalAliveObjects += item.AliveObjects;
-        totalTotalObjects += item.TotalObjects;
+        totalAlive += item.AliveObjects;
+        totalCreated += item.CreatedObjects;
 
         stream
             << Sprintf("%10" PRId64 " %10" PRId64 " %s",
                 (i64) item.AliveObjects,
-                (i64) item.TotalObjects,
+                (i64) item.CreatedObjects,
                 ~DemangleCxxName(item.Key->name()))
             << "\n";
     }
     stream << "--------------------------------------------------------------------------------\n";
-    stream << Sprintf("%10"PRId64" %10"PRId64" %s", totalAliveObjects, totalTotalObjects, "Total") << "\n";
+    stream << Sprintf("%10"PRId64" %10"PRId64" %s", totalAlive, totalCreated, "Total") << "\n";
     stream << "================================================================================\n";
 
     return stream;
+}
+
+NYTree::INode::TPtr TRefCountedTracker::GetDebugInfoYTree(int sortByColumn)
+{
+    auto items = GetItems();
+    SortItems(items, sortByColumn);
+
+    i64 totalAlive = 0;
+    i64 totalCreated = 0;
+
+    NYTree::TTreeBuilder builder(NYTree::NEphemeral::TNodeFactory::Get());
+    auto current = NYTree::TFluentYsonParser::Create(&builder)
+        .BeginTree()
+            .BeginMap()
+                .Item("statistics").BeginList();
+
+    FOREACH(const auto& item, items) {
+        current = current
+                    .Item().BeginMap()
+                        .Item("name").Value(DemangleCxxName(item.Key->name()))
+                        .Item("created").Value(static_cast<i64>(item.CreatedObjects))
+                        .Item("alive").Value(static_cast<i64>(item.AliveObjects))
+                    .EndMap();
+    }
+
+    current
+                .EndList()
+                .Item("total").BeginMap()
+                    .Item("created").Value(totalCreated)
+                    .Item("alive").Value(totalAlive)
+                .EndMap()
+            .EndMap()
+        .EndTree();
+
+    return builder.GetRoot();
 }
 
 i64 TRefCountedTracker::GetAliveObjects(TKey key)
@@ -101,9 +141,9 @@ i64 TRefCountedTracker::GetAliveObjects(TKey key)
     return Lookup(key)->AliveObjects;
 }
 
-i64 TRefCountedTracker::GetTotalObjects(TKey key)
+i64 TRefCountedTracker::GetCreatedObjects(TKey key)
 {
-    return Lookup(key)->TotalObjects;
+    return Lookup(key)->CreatedObjects;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

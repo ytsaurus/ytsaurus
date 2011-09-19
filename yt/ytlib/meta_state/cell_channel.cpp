@@ -46,7 +46,7 @@ NYT::TVoid TCellChannel::OnResponseReady(
     TVoid,
     NRpc::TClientResponse::TPtr response)
 {
-    NRpc::EErrorCode errorCode = response->GetErrorCode();
+    auto errorCode = response->GetErrorCode();
     if (errorCode == NRpc::EErrorCode::TransportError ||
         errorCode == NRpc::EErrorCode::Timeout ||
         errorCode == NRpc::EErrorCode::Unavailable)
@@ -68,7 +68,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel == NULL);
             State = EState::Connecting;
-            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult = LeaderLookup->GetLeader();
+            auto lookupResult = LookupResult = LeaderLookup->GetLeader();
             guard.Release();
 
             return lookupResult->Apply(FromMethod(
@@ -84,7 +84,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
         case EState::Connecting: {
             YASSERT(~LookupResult != NULL);
             YASSERT(~Channel == NULL);
-            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult;
+            auto lookupResult = LookupResult;
             guard.Release();
 
             return lookupResult->Apply(FromMethod(

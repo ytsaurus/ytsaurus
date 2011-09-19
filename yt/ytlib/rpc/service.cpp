@@ -224,7 +224,7 @@ void TServiceBase::RegisterMethod(
 void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
 {
     Stroka methodName = context->GetMethodName();
-    TMethodInfoMap::iterator it = MethodInfos.find(methodName);
+    auto it = MethodInfos.find(methodName);
     if (it == MethodInfos.end()) {
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName, ~methodName);
@@ -261,12 +261,9 @@ Stroka TServiceBase::GetLoggingCategory() const
 Stroka TServiceBase::GetDebugInfo() const
 {
     Stroka info = "Service " + ServiceName + ":\n";
-    for (TMethodInfoMap::const_iterator it = MethodInfos.begin();
-        it != MethodInfos.end();
-        ++it)
-    {
+    FOREACH(const auto& pair, MethodInfos) {
         info += Sprintf("Method %s: %s\n",
-            ~it->first, ~it->second->ExecutionTimeAnalyzer.GetDebugInfo());
+            ~pair.first, ~pair.second->ExecutionTimeAnalyzer.GetDebugInfo());
     }
     return info;
 }

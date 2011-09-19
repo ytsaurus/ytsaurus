@@ -35,8 +35,8 @@ Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimit
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
  */
-template<class TContainer>
-Stroka JoinToString(const TContainer& items, Stroka delimiter = ", ")
+template<class TCollection>
+Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 {
     return JoinToString(items.begin(), items.end(), delimiter);
 }

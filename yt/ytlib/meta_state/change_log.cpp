@@ -13,13 +13,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Auxiliary constants and functions.
 namespace {
 
+static NLog::TLogger& Logger = MetaStateLogger;
 static const char* const IndexSuffix = ".index";
 
 } // namespace <anonymous>
@@ -79,12 +76,11 @@ private:
             , Finalized(finalized ? -1 : 0)
         { }
 
-        void Validate() const
+        void ValidateAndThrow() const
         {
             if (Signature != CurrentSignature) {
                 ythrow yexception() << Sprintf(
-                    "Invalid TLogHeader signature "
-                    "(expected %" PRIx64 ", got %" PRIx64 ")",
+                    "Invalid log header signature (expected %" PRIx64 ", got %" PRIx64 ")",
                     CurrentSignature,
                     Signature);
             }
@@ -196,7 +192,6 @@ private:
     void HandleRecord(i32 recordId, i32 recordSize);
     TIndex::iterator GetLowerBound(i32 recordId);
     TIndex::iterator GetUpperBound(i32 recordId);
-
     void TruncateIndex(i32 indexRecordId);
 
     EState State;
@@ -214,6 +209,7 @@ private:
     TSpinLock IndexSpinLock;
 
     THolder<TFile> File;
+    TMutex FileOutputMutex;
     THolder<TBufferedFileOutput> FileOutput;
     THolder<TFile> IndexFile;
 }; // class TChangeLog::TImpl
@@ -240,7 +236,10 @@ void TChangeLog::TImpl::Open()
 {
     YASSERT(State == EState::Closed);
 
-    LOG_DEBUG("Opening changelog %s", ~FileName);
+    LOG_DEBUG("Opening changelog (Id: %d, FileName: %s)",
+        Id,
+        ~FileName);
+
     File.Reset(new TFile(FileName, RdWr));
 
     // TODO: Why don't use ysaveload.h?
@@ -248,9 +247,9 @@ void TChangeLog::TImpl::Open()
     // ::Read returns bool while Validate() throws exception.
     TLogHeader header;
     if (!NYT::Read(*File, &header)) {
-        ythrow yexception() << "Cannot read header of changelog " << FileName;
+        ythrow yexception() << "Cannot read changelog header of " << FileName.Quote();
     }
-    header.Validate();
+    header.ValidateAndThrow();
     
     YASSERT(header.SegmentId == Id);
     PrevRecordCount = header.PrevRecordCount;
@@ -261,19 +260,20 @@ void TChangeLog::TImpl::Open()
 
         TLogIndexHeader indexHeader;
         if (!NYT::Read(indexInput, &indexHeader)) {
-            ythrow yexception()
-                << "Cannot read header of changelog index "
-                << IndexFileName;
+            ythrow yexception() << "Cannot read header of changelog index " << IndexFileName.Quote();
         }
         indexHeader.Validate();
 
         YASSERT(indexHeader.RecordCount >= 0);
 
         Index.clear();
-        LOG_DEBUG("Opening index file with %d records", indexHeader.RecordCount);
+        LOG_DEBUG("Opening changelog index (SegmentId: %d, RecordCount: %d)",
+            Id,
+            indexHeader.RecordCount);
+
         if (indexHeader.RecordCount == 0) {
             RecordCount = 0;
-            CurrentFilePosition = (long) File->GetPosition();
+            CurrentFilePosition = static_cast<intptr_t>(File->GetPosition());
             CurrentBlockSize = IndexBlockSize; // hack for including record 0 into index
         } else {
             for (i32 i = 0; i < indexHeader.RecordCount; ++i) {
@@ -305,29 +305,29 @@ void TChangeLog::TImpl::Open()
     while (CurrentFilePosition < fileLength) {
         TRecordHeader recordHeader;
         if (!NYT::Read(fileInput, &recordHeader)) {
-            LOG_WARNING("Cannot read header of record %d at %" PRISZT "(ChangeLogId: %d)",
+            LOG_WARNING("Cannot read changelog record header (SegmentId: %d, RecordId: %d, Offset: %" PRISZT ")",
+                Id,
                 RecordCount,
-                CurrentFilePosition,
-                Id);
+                CurrentFilePosition);
             break;
         }
 
         i32 recordId = recordHeader.RecordId;
         if (RecordCount != recordId) {
-            LOG_ERROR("Invalid record id at %" PRISZT " (expected %d, got %d) (ChangeLogId: %d)",
+            LOG_ERROR("Invalid record id (SegmentId: %d, Offset: %" PRISZT ", ExpectedId: %d, FoundId: %d)",
+                Id,
                 CurrentFilePosition,
                 RecordCount,
-                recordHeader.RecordId,
-                Id);
+                recordHeader.RecordId);
             break;
         }
 
         i32 size = AlignUp(static_cast<i32>(sizeof(recordHeader)) + recordHeader.DataLength);
         if (CurrentFilePosition + size > fileLength) {
-            LOG_WARNING("Cannot read data of record %d at %" PRISZT " (ChangeLogId: %d)",
+            LOG_WARNING("Cannot read changelog record data (SegmentId: %d, RecordId: %d, Offset: %" PRISZT ")",
+                Id,
                 recordId,
-                CurrentFilePosition,
-                Id);
+                CurrentFilePosition);
             break;
         }
 
@@ -336,10 +336,10 @@ void TChangeLog::TImpl::Open()
         void* ptr = (void *) buffer.begin();
         TChecksum checksum = GetChecksum(TRef(ptr, (size_t) recordHeader.DataLength));
         if (checksum != recordHeader.Checksum) {
-            LOG_ERROR("Invalid checksum of record %d at %" PRISZT " (ChangeLogId: %d)",
+            LOG_ERROR("Invalid changelog record checksum (SegmentId: %d, RecordId: %d, Offset: %" PRISZT ")",
+                Id,
                 recordId,
-                CurrentFilePosition,
-                Id);
+                CurrentFilePosition);
             break;
         }
 
@@ -355,6 +355,7 @@ void TChangeLog::TImpl::Open()
     }
 
     File->Seek(CurrentFilePosition, sSet);
+
     FileOutput.Reset(new TBufferedFileOutput(*File));
     FileOutput->SetFlushPropagateMode(true);
 
@@ -416,7 +417,8 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
 
     // ... and handle finalized changelogs next.
     if (State == EState::Finalized) {
-        LOG_FATAL("Unable to append to a finalized changelog %d", Id);
+        LOG_FATAL("Unable to append to a finalized changelog (SegmentId: %d)",
+            Id);
     }
 
     if (recordId != RecordCount) {
@@ -430,18 +432,22 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
     TRecordHeader header(recordId, recordData.Size());
     header.Checksum = GetChecksum(TRef(recordData.Begin(), recordData.Size()));
 
-    Write(*FileOutput, header);
-    recordSize += sizeof(header);
-    FileOutput->Write(recordData.Begin(), recordData.Size());
-    recordSize += recordData.Size();
-    WritePadding(*FileOutput, recordSize);
-    recordSize = static_cast<i64>(AlignUp(recordSize));
+    {
+        TGuard<TMutex> guard(FileOutputMutex);
+        Write(*FileOutput, header);
+        recordSize += sizeof(header);
+        FileOutput->Write(recordData.Begin(), recordData.Size());
+        recordSize += recordData.Size();
+        WritePadding(*FileOutput, recordSize);
+        recordSize = static_cast<i64>(AlignUp(recordSize));
+    }
 
     HandleRecord(recordId, recordSize);
 }
 
 void TChangeLog::TImpl::Flush()
 {
+    TGuard<TMutex> guard(FileOutputMutex);
     FileOutput->Flush();
 }
 
@@ -462,13 +468,14 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     TSharedRef::TBlobPtr data = new TBlob();
     result->clear();
 
+    // Computer lower and upper estimates.
     i32 lastRecordId = firstRecordId + recordCount - 1;
     i64 lowerBound, upperBound;
     {
         TGuard<TSpinLock> guard(IndexSpinLock);
         lowerBound = GetLowerBound(firstRecordId)->Offset;
 
-        TIndex::iterator it = GetUpperBound(lastRecordId);
+        auto it = GetUpperBound(lastRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
@@ -476,8 +483,15 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
         }
     }
 
+    // Prepare the buffer.
     size_t length = static_cast<size_t>(upperBound - lowerBound);
     data->resize(length);
+
+    // Call Flush to ensure that all buffers are flushed to disk so
+    // pread will succeed.
+    Flush();
+
+    // Do the actual read.
     File->Pread(data->begin(), length, lowerBound);
     
     // TODO(sandello): Read this out and refactor with util/memory/*.
@@ -530,19 +544,22 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 
 void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
-    LOG_DEBUG("Truncating changelog from %d recordId", atRecordId);
+    LOG_DEBUG("Truncating changelog (SegmentId: %d, AtRecordId: %d)",
+        Id,
+        atRecordId);
+
     i64 lowerBound, upperBound;
     i32 currentRecordId;
     {
         TGuard<TSpinLock> guard(IndexSpinLock);
-        TIndex::iterator it = GetUpperBound(atRecordId);
+        auto it = GetUpperBound(atRecordId);
         if (it == Index.end()) {
             upperBound = CurrentFilePosition;
         } else {
             upperBound = it->Offset;
         }
 
-        TIndex::iterator itPrev = GetLowerBound(atRecordId);
+        auto itPrev = GetLowerBound(atRecordId);
         currentRecordId = itPrev->RecordId;
         lowerBound = itPrev->Offset;
 
@@ -553,27 +570,27 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
         }
     }
 
-    size_t length = (size_t)(upperBound - lowerBound);
+    size_t length = static_cast<size_t>(upperBound - lowerBound);
 
-    TBlob dataHolder(length);
-    File->Pread(dataHolder.begin(), length, lowerBound);
+    TBlob data(length);
+    File->Pread(data.begin(), length, lowerBound);
 
     size_t position = 0;
     while (currentRecordId < atRecordId) {
         i64 filePosition = lowerBound + position;
 
         // All records before recordId should be ok
-        if (position + sizeof(TRecordHeader) >= dataHolder.size()) {
+        if (position + sizeof(TRecordHeader) >= data.size()) {
             LOG_FATAL("Can't read record header at %" PRId64, filePosition);
         }
 
-        TRecordHeader* header = (TRecordHeader*) &dataHolder.at(position);
+        TRecordHeader* header = (TRecordHeader*) &data.at(position);
         if (currentRecordId != header->RecordId) {
             LOG_FATAL("Invalid record id at %" PRId64 ": expected %d, got %d",
                 filePosition, currentRecordId, header->RecordId);
         }
 
-        if (position + sizeof(TRecordHeader) + header->DataLength > dataHolder.size()) {
+        if (position + sizeof(TRecordHeader) + header->DataLength > data.size()) {
             LOG_FATAL("Can't read data of record %d at %" PRId64,
                 header->RecordId,
                 filePosition);
@@ -586,9 +603,6 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
     CurrentBlockSize = position;
     File->Resize(lowerBound + position);
     RecordCount = atRecordId;
-
-    LOG_DEBUG("Changelog %d is truncated to %d record(s)",
-        Id, atRecordId);
 }
 
 void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
@@ -618,14 +632,22 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
         }
 
         if (appendToIndexFile) {
-            LOG_DEBUG("Record (%d, %d) is added to index of changelog %d",
-                        record.RecordId, record.Offset, Id);
-            IndexFile->Seek(0, sEnd);
-            NYT::Write(*IndexFile, record);
-            IndexFile->Seek(0, sSet);
-            TLogIndexHeader header(Id, indexRecordCount);
-            NYT::Write(*IndexFile, header);
-            IndexFile->Flush();
+            try {
+                IndexFile->Seek(0, sEnd);
+                NYT::Write(*IndexFile, record);
+                IndexFile->Seek(0, sSet);
+                TLogIndexHeader header(Id, indexRecordCount);
+                NYT::Write(*IndexFile, header);
+                IndexFile->Flush();
+            } catch (...) {
+                LOG_FATAL("Error appending to index (SegmentId: %d, What: %s)",
+                    Id,
+                    ~CurrentExceptionMessage());
+            }
+            LOG_DEBUG("Added record to index (SegmentId: %d, RecordId: %d, Offset: %d)",
+                Id,
+                record.RecordId,
+                record.Offset);
         }
     }
 }
@@ -638,7 +660,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetLowerBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     --it;
     return it;
 }
@@ -649,7 +671,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetUpperBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    TIndex::iterator it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = UpperBound(Index.begin(), Index.end(), record);
     return it;
 }
 

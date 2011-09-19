@@ -1,6 +1,7 @@
 #include "change_committer.h"
 
 #include "../misc/serialize.h"
+#include "../misc/foreach.h"
 
 namespace NYT {
 
@@ -43,20 +44,21 @@ public:
             GetChangeCount(),
             ~Version.ToString());
 
-        TCellManager::TPtr cellManager = Committer->CellManager;
+        auto cellManager = Committer->CellManager;
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
 
-            THolder<TProxy> proxy(cellManager->GetMasterProxy<TProxy>(id));
+            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
 
-            TProxy::TReqApplyChanges::TPtr request = proxy->ApplyChanges();
+            auto request = proxy->ApplyChanges();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Committer->Epoch.ToProto());
-            for (int i = 0; i < BatchedChanges.ysize(); ++i) {
-                request->Attachments().push_back(BatchedChanges[i]);
+            FOREACH(const auto& change, BatchedChanges) {
+                request->Attachments().push_back(change);
             }
+
             Awaiter->Await(
                 request->Invoke(Committer->Config.RpcTimeout),
                 FromMethod(&TSession::OnCommitted, TPtr(this), id));
@@ -225,14 +227,14 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
     IAction::TPtr changeAction,
     TSharedRef changeData)
 {
-    TChangeCommitter::TResult::TPtr appendResult = MetaState
+    auto appendResult = MetaState
         ->LogChange(changeData)
         ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
     MetaState->ApplyChange(changeAction);
 
     // OnApplyChange can be modified concurrently.
-    IAction::TPtr onApplyChange = OnApplyChange;
+    auto onApplyChange = OnApplyChange;
     if (~onApplyChange != NULL) {
         onApplyChange->Do();
     }
@@ -248,7 +250,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
         return New<TResult>(EResult::InvalidVersion);
     }
 
-    TChangeCommitter::TResult::TPtr appendResult = MetaState
+    auto appendResult = MetaState
         ->LogChange(changeData)
         ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
@@ -274,11 +276,12 @@ void TChangeCommitter::FlushCurrentSession()
 void TChangeCommitter::DelayedFlush(TSession::TPtr session)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (session != CurrentSession) {
+    if (session != CurrentSession)
         return;
-    }
+
     TMetaVersion version = MetaState->GetVersion();
-    LOG_DEBUG("Batch timeout occured at version %s", ~version.ToString())
+    LOG_DEBUG("Batched changed are flushed by timeout (Version: %s)",
+        ~version.ToString())
     FlushCurrentSession();
 }
 

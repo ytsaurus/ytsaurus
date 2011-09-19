@@ -1,14 +1,16 @@
 #include "composite_meta_state.h"
 
+#include "../misc/foreach.h"
+
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header)
+    NMetaState::NProto::TMsgChangeHeader* header)
 {
-    TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
+    auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
     YVERIFY(header->ParseFromArray(
         changeData.Begin() + sizeof (fixedHeader),
         fixedHeader->HeaderSize));
@@ -16,10 +18,10 @@ void DeserializeChangeHeader(
 
 void DeserializeChange(
     TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header,
+    NMetaState::NProto::TMsgChangeHeader* header,
     TRef* messageData)
 {
-    TFixedChangeHeader* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
+    auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
     YVERIFY(header->ParseFromArray(
         changeData.Begin() + sizeof (TFixedChangeHeader),
         fixedHeader->HeaderSize));
@@ -39,13 +41,13 @@ TMetaStatePart::TMetaStatePart(
 
 bool TMetaStatePart::IsLeader() const
 {
-    TMetaStateManager::EState state = MetaStateManager->GetState();
+    auto state = MetaStateManager->GetState();
     return state == TMetaStateManager::EState::Leading;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
-    TMetaStateManager::EState state = MetaStateManager->GetState();
+    auto state = MetaStateManager->GetState();
     return state == TMetaStateManager::EState::Following;
 }
 
@@ -98,9 +100,8 @@ IInvoker::TPtr TCompositeMetaState::GetInvoker() const
 TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 {
     TAsyncResult<TVoid>::TPtr result;
-    for (TPartMap::iterator it = Parts.begin(); it != Parts.end(); ++it)
-    {
-        result = it->Second()->Save(output);
+    FOREACH(auto& pair, Parts) {
+        result = pair.Second()->Save(output);
     }
     return result;
 }
@@ -108,18 +109,15 @@ TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input)
 {
     TAsyncResult<TVoid>::TPtr result;
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        result = it->Second()->Load(input);
+    FOREACH(auto& pair, Parts) {
+        result = pair.Second()->Load(input);
     }
     return result;
 }
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
 {
-    NRpcMetaStateManager::TMsgChangeHeader header;
+    NMetaState::NProto::TMsgChangeHeader header;
     TRef messageData;
     DeserializeChange(
         changeData,
@@ -128,7 +126,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
 
     Stroka changeType = header.GetChangeType();
 
-    TMethodMap::iterator it = Methods.find(changeType);
+    auto it = Methods.find(changeType);
     YASSERT(it != Methods.end());
 
     it->Second()->Do(messageData);
@@ -136,32 +134,23 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
 
 void TCompositeMetaState::Clear()
 {
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        it->Second()->Clear();
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->Clear();
     }
 }
 
 void TCompositeMetaState::OnStartLeading()
 {
     StartEpoch();
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        it->Second()->OnStartLeading();
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnStartLeading();
     }
 }
 
 void TCompositeMetaState::OnStopLeading()
 {
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        it->Second()->OnStopLeading();
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnStopLeading();
     }
     StopEpoch();
 }
@@ -169,21 +158,15 @@ void TCompositeMetaState::OnStopLeading()
 void TCompositeMetaState::OnStartFollowing()
 {
     StartEpoch();
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        it->Second()->OnStartFollowing();
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnStartFollowing();
     }
 }
 
 void TCompositeMetaState::OnStopFollowing()
 {
-    for (TPartMap::iterator it = Parts.begin();
-         it != Parts.end();
-         ++it)
-    {
-        it->Second()->OnStopFollowing();
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnStopFollowing();
     }
     StopEpoch();
 }

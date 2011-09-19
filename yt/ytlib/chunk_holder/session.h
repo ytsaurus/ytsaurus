@@ -24,14 +24,14 @@ public:
     TSession(
         TIntrusivePtr<TSessionManager> sessionManager,
         const TChunkId& chunkId,
-        int location,
+        TLocation::TPtr location,
         int windowSize);
 
     //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
-    int GetLocation() const;
+    TLocation::TPtr GetLocation() const;
 
     //! Returns the size of blocks received so far.
     i64 GetSize() const;
@@ -79,7 +79,7 @@ private:
 
     TIntrusivePtr<TSessionManager> SessionManager;
     TChunkId ChunkId;
-    int Location;
+    TLocation::TPtr Location;
     
     TWindow Window;
     i32 WindowStart;

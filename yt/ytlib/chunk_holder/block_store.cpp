@@ -76,8 +76,7 @@ public:
 
         TCachedBlock::TAsync::TPtr result = cookie->GetAsyncResult();
 
-        int location = chunk->GetLocation();
-        IInvoker::TPtr invoker = ChunkStore->GetIOInvoker(location);
+        IInvoker::TPtr invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
             &TBlockCache::ReadBlock,
             TPtr(this),

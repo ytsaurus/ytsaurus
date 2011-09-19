@@ -43,7 +43,7 @@ bool TLeaseManager::RenewLease(TLease lease)
 bool TLeaseManager::EraseLease(TLease lease)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    TLeases::iterator it = Leases.find(lease);
+    auto it = Leases.find(lease);
     if (it == Leases.end())
         return false;
 

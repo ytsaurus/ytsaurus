@@ -31,26 +31,7 @@ class TMetaStateManager
 {
 public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
-
-    struct TConfig
-    {
-        Stroka LogLocation;
-        Stroka SnapshotLocation;
-        i32 MaxRecordCount;
-
-        TConfig()
-            : LogLocation(".")
-            , SnapshotLocation(".")
-            , MaxRecordCount(100000)
-        { }
-
-        void Read(TJsonObject* json)
-        {
-            TryRead(json, L"LogLocation", &LogLocation);
-            TryRead(json, L"SnapshotLocation", &SnapshotLocation);
-        }
-        TCellConfig CellConfig;
-    };
+    typedef TMetaStateManagerConfig TConfig;
 
     DECLARE_ENUM(EState, 
         (Stopped)
@@ -89,15 +70,15 @@ private:
     typedef TMetaStateManagerProxy TProxy;
     typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ScheduleSync);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, Sync);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetSnapshotInfo);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadSnapshot);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, GetChangeLogInfo);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ReadChangeLog);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, ApplyChanges);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, CreateSnapshot);
-    RPC_SERVICE_METHOD_DECL(NRpcMetaStateManager, PingLeader);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetSnapshotInfo);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadSnapshot);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetChangeLogInfo);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadChangeLog);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ApplyChanges);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment);
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
     void RegisterMethods();
     void SendSync(TPeerId peerId, TEpoch epoch);
@@ -121,7 +102,7 @@ private:
     // Thread-neutral.
     void OnCreateLocalSnapshot(
         TSnapshotCreator::TLocalResult result,
-        TCtxCreateSnapshot::TPtr context);
+        TCtxAdvanceSegment::TPtr context);
 
     // State invoker.
     void OnApplyChange();

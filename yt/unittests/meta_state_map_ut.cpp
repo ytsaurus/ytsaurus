@@ -40,13 +40,13 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
     EXPECT_IS_TRUE(map.Insert("a", TValue(42))); // add
     EXPECT_EQ(map.Find("a")->Value, 42);
 
-    EXPECT_FALSE(map.Insert("a", TValue(21))); // add existing
+    EXPECT_IS_FALSE(map.Insert("a", TValue(21))); // add existing
     EXPECT_EQ(map.Find("a")->Value, 42);
 
     EXPECT_IS_TRUE(map.Remove("a")); // remove
     EXPECT_EQ(map.Find("a") == NULL, true);
 
-    EXPECT_FALSE(map.Remove("a")); // remove non exisiting
+    EXPECT_IS_FALSE(map.Remove("a")); // remove non exisiting
 
     EXPECT_IS_TRUE(map.Insert("a", TValue(10)));
     TValue* ptr = map.FindForUpdate("a");
@@ -77,7 +77,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in main table
 
     asyncResult = map.Save(invoker, stream);
-    EXPECT_FALSE(map.Insert("b", TValue(21))); // add existing
+    EXPECT_IS_FALSE(map.Insert("b", TValue(21))); // add existing
     asyncResult->Get();
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in main table
 
@@ -89,7 +89,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     EXPECT_EQ(map.Find("b") == NULL, true); // check find in main table
 
     asyncResult = map.Save(invoker, stream);
-    EXPECT_FALSE(map.Remove("b")); // remove non existing
+    EXPECT_IS_FALSE(map.Remove("b")); // remove non existing
     asyncResult->Get();
 
     // update in temp table
@@ -145,23 +145,13 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         map.Load(invoker, stream)->Get();
 
         // assert checkMap \subseteq map
-        for(yhash_map<TKey, int>::iterator it = checkMap.begin();
-            it != checkMap.end();
-            ++it)
-        {
-            TKey key = it->first;
-            int value = it->second;
-            EXPECT_EQ(map.Find(key)->Value, value);
+        FOREACH(const auto& pair, checkMap) {
+            EXPECT_EQ(map.Find(pair.first)->Value, pair.second);
         }
 
         // assert map \subseteq checkMap
-        for(TMetaStateMap<TKey, TValue>::TIterator it = map.Begin();
-            it != map.End();
-            ++it)
-        {
-            TKey key = it->first;
-            int value = it->second.Value;
-            EXPECT_EQ(checkMap.find(key)->second, value);
+        FOREACH(const auto& pair, map) {
+            EXPECT_EQ(checkMap.find(pair.first)->second, pair.second.Value);
         }
     }
 }
@@ -204,7 +194,7 @@ TEST_F(TMetaStateMapTest, StressSave)
         if (action == 1) {
             // update
             TValue* ptr = map.FindForUpdate(key);
-            yhash_map<TKey, int>::iterator it = checkMap.find(key);
+            auto it = checkMap.find(key);
             if (it == checkMap.end()) {
                 EXPECT_EQ(ptr == NULL, true);
             } else {

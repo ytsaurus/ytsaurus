@@ -23,7 +23,9 @@ SET(YT_SOURCE_FILES
     ptr.h
     string.h
     foreach.h
+
     ${SRCDIR}/preprocessor-gen.h
+    ${SRCDIR}/new.h
 )
 
 ADD_CUSTOM_COMMAND(
@@ -31,4 +33,11 @@ ADD_CUSTOM_COMMAND(
     COMMAND ${PYTHON} ${SRCDIR}/preprocessor-gen.py > ${SRCDIR}/preprocessor-gen.h
     DEPENDS ${SRCDIR}/preprocessor-gen.py
     COMMENT "Regenerating preprocessor-gen.h..."
+)
+
+ADD_CUSTOM_COMMAND(
+    OUTPUT  ${SRCDIR}/new.h
+    COMMAND ${PYTHON} ${ARCADIA_ROOT}/scripts/pump.py ${SRCDIR}/new.h.pump > ${SRCDIR}/new.h
+    DEPENDS ${SRCDIR}/new.h.pump
+    COMMENT "Regenerating new.h..."
 )

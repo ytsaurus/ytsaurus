@@ -40,8 +40,8 @@ public:
             LOG_DEBUG("Requesting peer %d to create a snapshot",
                 peerId);
 
-            TAutoPtr<TProxy> proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
-            TProxy::TReqCreateSnapshot::TPtr request = proxy->CreateSnapshot();
+            auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
+            auto request = proxy->AdvanceSegment();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Creator->Epoch.ToProto());
@@ -52,7 +52,7 @@ public:
                 peerId));
         }
 
-        TAsyncLocalResult::TPtr asyncResult = Creator->DoCreateLocal(Version);
+        auto asyncResult = Creator->DoCreateLocal(Version);
 
         Awaiter->Await(
             asyncResult,
@@ -66,8 +66,8 @@ private:
     {
         for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
-                TPair<TChecksum, bool> checksum1 = Checksums[id1];
-                TPair<TChecksum, bool> checksum2 = Checksums[id2];
+                const auto& checksum1 = Checksums[id1];
+                const auto& checksum2 = Checksums[id2];
                 if (checksum1.Second() && checksum2.Second() && 
                     checksum1.First() != checksum2.First())
                 {
@@ -89,7 +89,7 @@ private:
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
-    void OnRemote(TProxy::TRspCreateSnapshot::TPtr response, TPeerId peerId)
+    void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error %s requesting peer %d to create a snapshot at state %s",
@@ -171,7 +171,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     TOutputStream* stream = &writer->GetStream();
 
     // Start an async snapshot creation process.
-    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(stream);
+    auto saveResult = MetaState->Save(stream);
 
     // Switch to a new changelog.
     MetaState->RotateChangeLog();

@@ -189,7 +189,7 @@ void TWriteChannel::Set(size_t userIdx, const TValue& value)
 {
     ui32 pos = Buffer.GetWritePos() + 1;
 
-    yhash_map<size_t, size_t>::iterator i = UserIdxToAloneIdx.find(userIdx);
+    auto i = UserIdxToAloneIdx.find(userIdx);
     if (i != UserIdxToAloneIdx.end()) {
         size_t aloneIdx = i->second;
         size_t size = Buffer.WriteValue(value);
@@ -282,7 +282,7 @@ void TWriteChannel::GetBlock(TBlob *data, TUserIndexes& userIndexes)
     buffer.WriteNumber(rangeCount);
 
     yhash_map<size_t, size_t> userIdxToRangeIdx;
-    yhash_set<size_t>::iterator i = RangeColumns.begin();
+    auto i = RangeColumns.begin();
     for (size_t c = 0; c < rangeCount; ++c, ++i) {
         buffer.WriteValue(userIndexes[*i]);
         userIdxToRangeIdx[*i] = c;

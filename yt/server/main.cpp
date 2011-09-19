@@ -51,7 +51,7 @@ struct TCellMasterConfig
     {
         TJsonObject* cellJson = GetSubTree(json, "Cell");
         if (cellJson != NULL) {
-            MetaState.CellConfig.Read(cellJson);
+            MetaState.Cell.Read(cellJson);
         }
 
         TJsonObject* metaStateJson = GetSubTree(json, "MetaState");
@@ -64,7 +64,7 @@ struct TCellMasterConfig
 void RunCellMaster(const TCellMasterConfig& config)
 {
     // TODO: extract method
-    Stroka address = config.MetaState.CellConfig.PeerAddresses.at(config.MetaState.CellConfig.Id);
+    Stroka address = config.MetaState.Cell.Addresses.at(config.MetaState.Cell.Id);
     size_t index = address.find_last_of(":");
     int port = FromString<int>(address.substr(index + 1));
 
@@ -174,7 +174,7 @@ int main(int argc, const char *argv[])
 
             if (peerId >= 0) {
                 // TODO: check id
-                config.MetaState.CellConfig.Id = peerId;
+                config.MetaState.Cell.Id = peerId;
             }
 
             // TODO: check that config.Cell.Id is initialized
