@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "election_manager.pb.h"
+#include "election_manager_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
@@ -38,8 +38,8 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NRpcElectionManager, PingFollower)
-    RPC_PROXY_METHOD(NRpcElectionManager, GetStatus)
+    RPC_PROXY_METHOD(NElectionManager::NProto, PingFollower)
+    RPC_PROXY_METHOD(NElectionManager::NProto, GetStatus)
 
 };
 
