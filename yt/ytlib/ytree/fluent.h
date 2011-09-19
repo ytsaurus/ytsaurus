@@ -43,7 +43,7 @@ public:
         typedef TFluentTree TThis;
 
         TFluentTree(IYsonEvents* events)
-            : TFluentBase(events, TVoid())
+            : TFluentBase<TVoid>(events, TVoid())
         { }
 
         TAny<TFluentTree> BeginTree()
@@ -66,13 +66,13 @@ public:
         typedef TAny<TParent> TThis;
 
         TAny(IYsonEvents* events, const TParent& parent)
-            : TFluentBase(events, parent)
+            : TFluentBase<TParent>(events, parent)
         { }
 
         TParent Value(const Stroka& value)
         {
-            Events->StringValue(value);
-            return Parent;
+            this->Events->StringValue(value);
+            return this->Parent;
         }
 
         TParent Value(i32 value)
@@ -82,8 +82,8 @@ public:
 
         TParent Value(i64 value)
         {
-            Events->Int64Value(value);
-            return Parent;
+            this->Events->Int64Value(value);
+            return this->Parent;
         }
 
         TParent Value(float value)
@@ -93,8 +93,8 @@ public:
 
         TParent Value(double value)
         {
-            Events->DoubleValue(value);
-            return Parent;
+            this->Events->DoubleValue(value);
+            return this->Parent;
         }
 
         TParent Value(bool value)
@@ -104,25 +104,25 @@ public:
 
         TParent EntityValue()
         {
-            Events->EntityValue();
-            return Parent;
+            this->Events->EntityValue();
+            return this->Parent;
         }
 
         TList<TParent> BeginList()
         {
-            Events->BeginList();
-            return TList<TParent>(Events, Parent);
+            this->Events->BeginList();
+            return TList<TParent>(this->Events, this->Parent);
         }
 
         TMap<TParent> BeginMap()
         {
-            Events->BeginMap();
-            return TMap<TParent>(Events, Parent);
+            this->Events->BeginMap();
+            return TMap<TParent>(this->Events, this->Parent);
         }
 
         TAny< TToAttributes<TParent> > WithAttributes()
         {
-            return TAny< TToAttributes<TParent> >(Events, TToAttributes<TParent>(Events, Parent));
+            return TAny< TToAttributes<TParent> >(this->Events, TToAttributes<TParent>(this->Events, this->Parent));
         }
     };
 
@@ -132,13 +132,13 @@ public:
     {
     public:
         TToAttributes(IYsonEvents* events, const TParent& parent)
-            : TFluentBase(events, parent)
+            : TFluentBase<TParent>(events, parent)
         { }
 
         TAttributes<TParent> BeginAttributes()
         {
-            Events->BeginAttributes();
-            return TAttributes<TParent>(Events, Parent);
+            this->Events->BeginAttributes();
+            return TAttributes<TParent>(this->Events, this->Parent);
         }
     };
 
@@ -150,19 +150,19 @@ public:
         typedef TAttributes<TParent> TThis;
 
         TAttributes(IYsonEvents* events, const TParent& parent)
-            : TFluentBase(events, parent)
+            : TFluentBase<TParent>(events, parent)
         { }
 
         TAny<TThis> Item(const Stroka& name)
         {
-            Events->AttributesItem(name);
-            return TAny<TThis>(Events, *this);
+            this->Events->AttributesItem(name);
+            return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndAttributes()
         {
-            Events->EndAttributes();
-            return Parent;
+            this->Events->EndAttributes();
+            return this->Parent;
         }
     };
 
@@ -174,20 +174,20 @@ public:
         typedef TList<TParent> TThis;
 
         TList(IYsonEvents* events, const TParent& parent)
-            : TFluentBase(events, parent)
+            : TFluentBase<TParent>(events, parent)
             , Index(0)
         { }
 
         TAny<TThis> Item()
         {
-            Events->ListItem(Index++);
-            return TAny<TThis>(Events, *this);
+            this->Events->ListItem(Index++);
+            return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndList()
         {
-            Events->EndList();
-            return Parent;
+            this->Events->EndList();
+            return this->Parent;
         }
 
     private:
@@ -203,19 +203,19 @@ public:
         typedef TMap<TParent> TThis;
 
         TMap(IYsonEvents* events, const TParent& parent)
-            : TFluentBase(events, parent)
+            : TFluentBase<TParent>(events, parent)
         { }
 
         TAny<TThis> Item(const Stroka& name)
         {
-            Events->MapItem(name);
-            return TAny<TThis>(Events, *this);
+            this->Events->MapItem(name);
+            return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndMap()
         {
-            Events->EndMap();
-            return Parent;
+            this->Events->EndMap();
+            return this->Parent;
         }
     };
 

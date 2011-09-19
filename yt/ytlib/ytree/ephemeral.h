@@ -15,10 +15,7 @@ class TNodeBase
     : public ::NYT::NYTree::TNodeBase<IBase>
 {
 public:
-    virtual INodeFactory* GetFactory() const
-    {
-        return TNodeFactory::Get();
-    }
+    virtual INodeFactory* GetFactory() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,6 +360,16 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class IBase>
+INodeFactory* TNodeBase<IBase>::GetFactory() const
+{
+		return TNodeFactory::Get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 
 } // namespace NEphemeral
 } // namespace NYTree
