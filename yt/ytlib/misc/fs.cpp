@@ -5,8 +5,7 @@
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
-
-// for GetAvaibaleSpace()
+// For GetAvaibaleSpace().
 #if defined(_linux_)
 #include <sys/vfs.h>
 #elif defined(_freebsd_) || defined(_darwin_)
@@ -51,30 +50,30 @@ bool Rename(const Stroka& oldName, const Stroka& newName)
 #endif
 }
 
-Stroka GetFileName(const Stroka& filePath)
+Stroka GetFileName(const Stroka& path)
 {
-    size_t delimPos = filePath.rfind('/');
+    size_t delimPos = path.rfind('/');
 #ifdef _win32_
     if (delimPos == Stroka::npos) {
         // There's a possibility of Windows-style path
-        delimPos = filePath.rfind('\\');
+        delimPos = path.rfind('\\');
     }
 #endif
-    return (delimPos == Stroka::npos) ? filePath : filePath.substr(delimPos+1);
+    return (delimPos == Stroka::npos) ? path : path.substr(delimPos+1);
 }
 
-Stroka GetFileExtension(const Stroka& filePath)
+Stroka GetFileExtension(const Stroka& path)
 {
-    i32 dotPosition = filePath.find_last_of('.');
+    i32 dotPosition = path.find_last_of('.');
     if (dotPosition < 0) {
         return "";
     }
-    return filePath.substr(dotPosition + 1, filePath.size() - dotPosition - 1);
+    return path.substr(dotPosition + 1, path.size() - dotPosition - 1);
 }
 
-Stroka GetFileNameWithoutExtension(const Stroka& filePath)
+Stroka GetFileNameWithoutExtension(const Stroka& path)
 {
-    Stroka fileName = GetFileName(filePath);
+    Stroka fileName = GetFileName(path);
     i32 dotPosition = fileName.find_last_of('.');
     if (dotPosition < 0) {
         return fileName;
@@ -82,14 +81,14 @@ Stroka GetFileNameWithoutExtension(const Stroka& filePath)
     return fileName.substr(0, dotPosition);
 }
 
-void CleanTempFiles(const Stroka& location)
+void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s", ~location);
+    LOG_INFO("Cleaning temp files in %s", ~path);
     TFileList fileList;
-    fileList.Fill(location);
+    fileList.Fill(path);
     const char* fileName;
     while ((fileName = fileList.Next()) != NULL) {
-        Stroka fullName = location + "/" + Stroka(fileName);
+        Stroka fullName = path + "/" + Stroka(fileName);
         if (fullName.has_suffix(TempFileSuffix)) {
             LOG_INFO("Removing file %s", ~fullName);
             if (!NFS::Remove(~fullName)) {
@@ -131,14 +130,14 @@ void ForcePath(const Stroka& path, int mode)
     MakePathIfNotExist(~path, mode);
 }
 
-i64 GetFileSize(const Stroka& filePath)
+i64 GetFileSize(const Stroka& path)
 {
 #if !defined(_win_)
-    struct stat fData;
-    int result = stat(~filePath, &fData);
+    struct stat fileStat;
+    int result = stat(~path, &fileStat);
 #else
     WIN32_FIND_DATA findData;
-    HANDLE handle = FindFirstFileA(~filePath, &findData);
+    HANDLE handle = FindFirstFileA(~path, &findData);
 #endif
 
 #if !defined(_win_)
@@ -146,15 +145,17 @@ i64 GetFileSize(const Stroka& filePath)
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        throw yexception() <<
-            Sprintf("Failed to get size of a filea %s.", ~filePath.Quote());
+        throw yexception() << Sprintf("Failed to get the size of file %s",
+            ~path.Quote());
     }
 
 #if !defined(_win_)
-    i64 fileSize = static_cast<i64>(fData.st_size);
+    i64 fileSize = static_cast<i64>(fileStat.st_size);
 #else
     FindClose(handle);
-    i64 fileSize = static_cast<i64>(findData.nFileSizeHigh) * (MAXDWORD + 1) + findData.nFileSizeLow;
+    i64 fileSize =
+        (static_cast<i64>(findData.nFileSizeHigh) << 32) +
+        static_cast<i64>(findData.nFileSizeLow);
 #endif
 
     return fileSize;

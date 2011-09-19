@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "../ytree/ytree_fwd.h"
+
 #include <util/stream/str.h>
 #include <util/autoarray.h>
 
@@ -29,12 +31,12 @@ private:
     {
         TKey Key;
         TAtomic AliveObjects;
-        TAtomic TotalObjects;
+        TAtomic CreatedObjects;
 
         TItem(TKey key)
             : Key(key)
             , AliveObjects(0)
-            , TotalObjects(0)
+            , CreatedObjects(0)
         { }
     };
 
@@ -46,7 +48,7 @@ public:
     static inline void Register(TCookie cookie)
     {
         AtomicIncrement(cookie->AliveObjects);
-        AtomicIncrement(cookie->TotalObjects);
+        AtomicIncrement(cookie->CreatedObjects);
     }
 
     static inline void Unregister(TCookie cookie)
@@ -55,11 +57,14 @@ public:
     }
 
     static Stroka GetDebugInfo(int sortByColumn = -1);
+    // TODO: experiment
+    static TIntrusivePtr<NYTree::INode> GetDebugInfoYTree(int sortByColumn = -1);
     static i64 GetAliveObjects(TKey key);
-    static i64 GetTotalObjects(TKey key);
+    static i64 GetCreatedObjects(TKey key);
 
 private:
     static yvector<TItem> GetItems();
+    static void SortItems(yvector<TItem>& items, int sortByColumn);
 
     typedef yhash_map<TKey, TItem> TStatistics; 
     static TSpinLock SpinLock;
