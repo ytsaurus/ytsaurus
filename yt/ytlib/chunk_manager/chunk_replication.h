@@ -71,7 +71,7 @@ private:
 
     bool IsRefreshScheduled(const TChunkId& chunkId);
 
-    yvector<Stroka> GetTargetAddresses(const TChunk& chunk, int replicaCount);
+    yvector<Stroka> GetReplicationTargets(const TChunk& chunk, int replicaCount);
 
     DECLARE_ENUM(EScheduleFlags,
         ((None)(0x0000))
@@ -95,8 +95,6 @@ private:
 
     void ScheduleRefresh(const TChunkId& chunkId);
     void Refresh(const TChunk& chunk);
-    THolderId GetHolderForReplication(const TChunk& chunk);
-    yvector<THolderId> GetHoldersForRemoval(const TChunk& chunk, int count);
     int GetDesiredReplicaCount(const TChunk& chunk);
     void GetReplicaStatistics(
         const TChunk& chunk,

@@ -212,6 +212,9 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
             ~chunk->GetId().ToString());
     }
 
+    LOG_INFO("Chunk removed (Id: %s)",
+        ~chunk->GetId().ToString());
+
     ChunkRemoved_.Fire(chunk);
 }
 

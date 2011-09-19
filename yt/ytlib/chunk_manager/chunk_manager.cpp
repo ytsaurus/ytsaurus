@@ -556,7 +556,8 @@ TChunkManager::TChunkManager(
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ChunkPlacement(New<TChunkPlacement>())
+    , ChunkPlacement(New<TChunkPlacement>(
+        this))
     , ChunkReplication(New<TChunkReplication>(
         this,
         ChunkPlacement))
@@ -767,7 +768,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
         ~transactionId.ToString(),
         replicaCount);
 
-    auto holderIds = ChunkPlacement->GetTargetHolders(replicaCount);
+    auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = GetHolder(holderId);
         response->AddHolderAddresses(holder.Address);

@@ -55,8 +55,8 @@ struct TChunkHolderConfig
      *  a standalone mode, which only makes sense for testing purposes.
      */
     TChunkHolderConfig()
-        : MaxCachedBlocks(1024)
-        , MaxCachedFiles(256)
+        : MaxCachedBlocks(10)
+        , MaxCachedFiles(10)
         , SessionTimeout(TDuration::Seconds(15))
         , HeartbeatPeriod(TDuration::Seconds(5))
         , RpcTimeout(TDuration::Seconds(5))
