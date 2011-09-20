@@ -471,7 +471,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
-    LOG_INFO("Node is consiered dead (ChunkId: %s, Address: %s, AliveNodeCount: %d)", 
+    LOG_INFO("Node is considered dead (ChunkId: %s, Address: %s, AliveNodeCount: %d)", 
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address,
         AliveNodeCount);
