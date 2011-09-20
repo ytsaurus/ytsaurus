@@ -475,6 +475,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
         AliveNodeCount);
 
     if (State != EWriterState::Canceled && AliveNodeCount == 0) {
+				YASSERT(State != EWriterState::Closed);
         State = EWriterState::Canceled;
         Result->Set(EResult::Failed);
         LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
