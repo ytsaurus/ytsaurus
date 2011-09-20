@@ -43,7 +43,7 @@ TSession::TPtr TSessionManager::StartSession(
 {
     TLocation::TPtr location = ChunkStore->GetNewChunkLocation();
 
-    TSession::TPtr session = New<TSession>(this, chunkId, location, windowSize);
+    auto session = New<TSession>(this, chunkId, location, windowSize);
 
     TLeaseManager::TLease lease = LeaseManager->CreateLease(
         Config.SessionTimeout,

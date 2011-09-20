@@ -73,7 +73,7 @@ public:
 
     TVoid RemoveChunk(const NProto::TMsgRemoveChunk& message)
     {
-        TChunkId chunkId = TGuid::FromProto(message.GetChunkId());
+        TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
         
         const TChunk& chunk = GetChunk(chunkId);
         DoRemoveChunk(chunk);
@@ -472,7 +472,7 @@ private:
         const NProto::TChunkInfo& chunkInfo)
     {
         THolderId holderId = holder.Id;
-        TChunkId chunkId = TGuid::FromProto(chunkInfo.GetId());
+        TChunkId chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
         TChunk* chunk = FindChunkForUpdate(chunkId);
@@ -761,7 +761,7 @@ void TChunkManager::OnHolderHeartbeatProcessed(
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
-    TTransactionId transactionId = TGuid::FromProto(request->GetTransactionId());
+    TTransactionId transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
 
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
@@ -802,8 +802,8 @@ void TChunkManager::OnChunkAdded(
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
 {
-    auto transactionId = TGuid::FromProto(request->GetTransactionId());
-    auto chunkId = TGuid::FromProto(request->GetChunkId());
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
 
     context->SetRequestInfo("TransactionId: %s, ChunkId: %s",
         ~transactionId.ToString(),

@@ -58,7 +58,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TRequestId requestId = TGuid::FromProto(requestHeader.GetRequestId());
+    TRequestId requestId = TRequestId::FromProto(requestHeader.GetRequestId());
     Stroka serviceName = requestHeader.GetServiceName();
     Stroka methodName = requestHeader.GetMethodName();
 
