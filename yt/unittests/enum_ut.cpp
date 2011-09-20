@@ -15,21 +15,8 @@ DECLARE_ENUM(EColor,
      (White)
 );
 
-// Mix-in implicit constructor to allow implicit conversions.
-BEGIN_DECLARE_ENUM(EMyBase,
-    ((Chip)(1))
-)
-    MIXIN_ENUM__IMPLICIT_INT_CONSTRUCTOR(EMyBase)
-END_DECLARE_ENUM();
-
-// By default, explicit constructor is prefered.
-BEGIN_DECLARE_DERIVED_ENUM(EMyBase, EMyDerived,
-    ((Dale)(2))
-)
-    MIXIN_ENUM__EXPLICIT_INT_CONSTRUCTOR(EMyDerived)
-END_DECLARE_ENUM();
-
-DECLARE_DERIVED_ENUM(EMyBase, EMyOtherDerived, ((Jack)(3)));
+DECLARE_POLY_ENUM1(EMyFirst, ((Chip)(1)));
+DECLARE_POLY_ENUM2(EMyFirst, EMySecond, ((Dale)(2)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +34,10 @@ TEST(TEnumTest, Basic)
     EXPECT_EQ(30, EColor(EColor::Blue ).ToValue());
     EXPECT_EQ(31, EColor(EColor::Black).ToValue());
     EXPECT_EQ(32, EColor(EColor::White).ToValue());
+
+    EXPECT_EQ(0, EMyFirst().ToValue());
+    EXPECT_EQ(1, EMyFirst(EMyFirst::Chip).ToValue());
+    EXPECT_EQ(2, EMyFirst(2).ToValue());
 }
 
 TEST(TEnumTest, ToString)
@@ -59,6 +50,10 @@ TEST(TEnumTest, ToString)
     EXPECT_EQ("Blue",  EColor(EColor::Blue ).ToString());
     EXPECT_EQ("Black", EColor(EColor::Black).ToString());
     EXPECT_EQ("White", EColor(EColor::White).ToString());
+
+    EXPECT_EQ("EMyFirst(0)", EMyFirst().ToString());
+    EXPECT_EQ("Chip", EMyFirst(EMyFirst::Chip).ToString());
+    EXPECT_EQ("Foo", EMyFirst(2, "Foo").ToString());
 }
 
 TEST(TEnumTest, FromString)
@@ -83,35 +78,43 @@ TEST(TEnumTest, FromString)
     EXPECT_IS_FALSE(returnValue);
 }
 
-TEST(TEnumTest, Derived)
+TEST(TEnumTest, Polymorphism1)
 {
-    EMyBase first;
-    EMyDerived second;
-    EMyOtherDerived third;
+    EMyFirst first(EMyFirst::Chip);
+    EMySecond second(first);
 
-    third = EMyOtherDerived::Jack;
-    EXPECT_EQ(3, third.ToValue());
-    EXPECT_EQ("Jack", third.ToString());
-    third = EMyBase::Chip;
-    EXPECT_EQ(1, third.ToValue());
-    EXPECT_EQ("Chip", third.ToString());
-
-    second = EMyDerived::Dale;
-    EXPECT_EQ(2, second.ToValue());
-    EXPECT_EQ("Dale", second.ToString());
-    second = EMyBase::Chip;
-    EXPECT_EQ(1, second.ToValue());
+    EXPECT_EQ("Chip", first.ToString());
     EXPECT_EQ("Chip", second.ToString());
 
-    first = EMyOtherDerived::Jack;
-    EXPECT_EQ(3, first.ToValue());
-    EXPECT_EQ("EMyBase(3)", first.ToString());
-    first = EMyDerived::Dale;
-    EXPECT_EQ(2, first.ToValue());
-    EXPECT_EQ("EMyBase(2)", first.ToString());
-    first = EMyBase::Chip;
-    EXPECT_EQ(1, first.ToValue());
+    second = EMySecond::Dale;
+    first = second;
+
+    EXPECT_EQ("Dale", first.ToString());
+    EXPECT_EQ("Dale", second.ToString());
+}
+
+TEST(TEnumTest, Polymorphism2)
+{
+    EMyFirst first(2);
+    EMySecond second(first);
+
+    EXPECT_EQ("EMyFirst(2)", first.ToString());
+    EXPECT_EQ("Dale", second.ToString());
+
+    second = EMySecond(1);
+    first = second;
+
     EXPECT_EQ("Chip", first.ToString());
+    EXPECT_EQ("EMySecond(1)", second.ToString());
+}
+
+TEST(TEnumTest, Polymorphism3)
+{
+    EMyFirst first(17);
+    EMySecond second(first);
+
+    EXPECT_EQ("EMyFirst(17)", first.ToString());
+    EXPECT_EQ("EMySecond(17)", second.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
