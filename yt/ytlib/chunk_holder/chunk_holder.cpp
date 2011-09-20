@@ -100,7 +100,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     int windowSize = request->GetWindowSize();
 
     context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
@@ -119,7 +119,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
@@ -143,7 +143,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
@@ -169,7 +169,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
     i32 blockCount = request->GetBlockCount();
     Stroka address = request->GetAddress();
@@ -217,7 +217,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     int blockCount = static_cast<int>(request->BlockIndexesSize());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
@@ -267,7 +267,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     int blockIndex = request->GetBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
@@ -291,7 +291,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
     auto session = GetSession(chunkId);
     session->RenewLease();
 
