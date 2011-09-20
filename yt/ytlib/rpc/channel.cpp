@@ -40,7 +40,7 @@ void TChannel::OnMessage(
     TResponseHeader header;
     DeserializeMessage(&header, parts[0]);
 
-    TRequestId requestId = TGuid::FromProto(header.GetRequestId());
+    TRequestId requestId = TRequestId::FromProto(header.GetRequestId());
     TEntry::TPtr entry = FindEntry(requestId);
     if (~entry == NULL || !Unregister(entry->RequestId)) {
         LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",

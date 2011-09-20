@@ -61,6 +61,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, SendBlocks);
     RPC_SERVICE_METHOD_DECL(NProto, FlushBlock);
     RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
+    RPC_SERVICE_METHOD_DECL(NProto, PingSession);
 
     //! Registers RPC methods.
     void RegisterMethods();

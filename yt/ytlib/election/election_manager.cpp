@@ -307,7 +307,7 @@ private:
         TProxy::EState state = TProxy::EState(response->GetState());
         TPeerId vote = response->GetVoteId();
         TPeerPriority priority = response->GetPriority();
-        TEpoch epoch = TGuid::FromProto(response->GetVoteEpoch());
+        TEpoch epoch = TEpoch::FromProto(response->GetVoteEpoch());
         
         LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             peerId,
@@ -472,7 +472,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 {
     UNUSED(response);
 
-    TEpoch epoch = TGuid::FromProto(request->GetEpoch());
+    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
     TPeerId leaderId = request->GetLeaderId();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",

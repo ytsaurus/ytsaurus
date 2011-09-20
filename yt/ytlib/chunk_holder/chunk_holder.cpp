@@ -85,7 +85,7 @@ void TChunkHolder::ValidateNoChunk(const TChunkId& chunkId)
 
 TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
 {
-    TSession::TPtr session = SessionManager->FindSession(chunkId);
+    auto session = SessionManager->FindSession(chunkId);
     if (~session == NULL) {
         ythrow TServiceException(TProxy::EErrorCode::NoSuchSession) <<
             Sprintf("session %s is invalid or expired",
@@ -100,7 +100,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     int windowSize = request->GetWindowSize();
 
     context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
@@ -119,12 +119,12 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
 
-    TSession::TPtr session = GetSession(chunkId);
+    auto session = GetSession(chunkId);
 
     SessionManager->FinishSession(session)->Subscribe(FromMethod(
         &TChunkHolder::OnFinishedChunk,
@@ -143,7 +143,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     i32 startBlockIndex = request->GetStartBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
@@ -151,7 +151,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
         startBlockIndex,
         request->Attachments().ysize());
 
-    TSession::TPtr session = GetSession(chunkId);
+    auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
     FOREACH(const auto& it, request->Attachments()) {
@@ -180,7 +180,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
         blockCount,
         ~address);
 
-    TSession::TPtr session = GetSession(chunkId);
+    auto session = GetSession(chunkId);
 
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
@@ -217,7 +217,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     int blockCount = static_cast<int>(request->BlockIndexesSize());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
@@ -267,14 +267,14 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
 {
     UNUSED(response);
 
-    TChunkId chunkId = TGuid::FromProto(request->GetChunkId());
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
     int blockIndex = request->GetBlockIndex();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
         ~chunkId.ToString(),
         blockIndex);
 
-    TSession::TPtr session = GetSession(chunkId);
+    auto session = GetSession(chunkId);
 
     session->FlushBlock(blockIndex)->Subscribe(FromMethod(
         &TChunkHolder::OnFlushedBlock,
@@ -286,6 +286,18 @@ void TChunkHolder::OnFlushedBlock(TVoid, TCtxFlushBlock::TPtr context)
 {
     context->Reply();
 }
+
+RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
+{
+    UNUSED(response);
+
+    TChunkId chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto session = GetSession(chunkId);
+    session->RenewLease();
+
+    context->Reply();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,7 +35,7 @@ public:
 
     TTransactionId StartTransaction(const TMsgCreateTransaction& message)
     {
-        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+        TTransactionId id = TTransactionId::FromProto(message.GetTransactionId());
 
         TTransaction transaction(id);
         if (IsLeader()) {
@@ -56,7 +56,7 @@ public:
 
     TVoid CommitTransaction(const TMsgCommitTransaction& message)
     {
-        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+        TTransactionId id = TTransactionId::FromProto(message.GetTransactionId());
 
         TTransaction& transaction = Transactions.GetForUpdate(id);
 
@@ -79,7 +79,7 @@ public:
     
     TVoid AbortTransaction(const TMsgAbortTransaction& message)
     {
-        TTransactionId id = TGuid::FromProto(message.GetTransactionId());
+        TTransactionId id = TTransactionId::FromProto(message.GetTransactionId());
 
         TTransaction& transaction = Transactions.GetForUpdate(id);
 
@@ -333,7 +333,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, CommitTransaction)
 {
     UNUSED(response);
 
-    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
+    TTransactionId id = TTransactionId::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -352,7 +352,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, AbortTransaction)
 {
     UNUSED(response);
 
-    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
+    TTransactionId id = TTransactionId::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -371,7 +371,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionManager, RenewTransactionLease)
 {
     UNUSED(response);
 
-    TTransactionId id = TGuid::FromProto(request->GetTransactionId());
+    TTransactionId id = TTransactionId::FromProto(request->GetTransactionId());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
