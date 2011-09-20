@@ -347,4 +347,16 @@ T* operator ~ (const THolder<T>& ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool CompareMemory(const TRef& lhs, const TRef& rhs)
+{
+    if (lhs.Size() != rhs.Size())
+        return false;
+    if (lhs.Size() == 0)
+        return true;
+    return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT

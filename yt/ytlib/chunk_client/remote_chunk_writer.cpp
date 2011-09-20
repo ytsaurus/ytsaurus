@@ -21,6 +21,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkWriter");
+NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -158,10 +159,7 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
     auto req = Writer->Nodes[node]->Proxy.PutBlocks();
     req->SetChunkId(Writer->ChunkId.ToProto());
     req->SetStartBlockIndex(StartBlockIndex);
-
-    for (int i = 0; i < Blocks.ysize(); ++i) {
-        req->Attachments().push_back(Blocks[i]);
-    }
+    req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
     LOG_DEBUG("Putting blocks (ChunkId: %s, Blocks: %d-%d, Address: %s)",
         ~Writer->ChunkId.ToString(), 
@@ -431,6 +429,10 @@ void TRemoteChunkWriter::DoCancel()
         State == EWriterState::Canceled)
         return;
 
+    // Some groups may still be pending.
+    // Drop the references to ensure proper resource disposal.
+    Window.clear();
+
     Result->Set(EResult::Failed);
     State = EWriterState::Canceled;
 
@@ -469,7 +471,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
-    LOG_INFO("Node died (ChunkId: %s, Address: %s, AliveNodeCount: %d)", 
+    LOG_INFO("Node is consiered dead (ChunkId: %s, Address: %s, AliveNodeCount: %d)", 
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address,
         AliveNodeCount);
@@ -607,6 +609,10 @@ void TRemoteChunkWriter::OnFinishedSession()
     if (State != EWriterState::Writing)
         return;
 
+    // Check that we're not holding any references to groups.
+    YASSERT(~CurrentGroup == NULL);
+    YASSERT(Window.empty());
+
     State = EWriterState::Closed;
     Result->Set(EResult::OK);
 
@@ -658,7 +664,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data
                 TPtr(this),
                 CurrentGroup));
 
-            CurrentGroup.Drop();
+            // Construct a new (empty) group.
             CurrentGroup = New<TGroup>(Nodes.ysize(), BlockCount, this);
         }
 
@@ -744,8 +750,6 @@ Stroka TRemoteChunkWriter::GetDebugInfo()
 */
     return ss;
 }
-
-NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
 
