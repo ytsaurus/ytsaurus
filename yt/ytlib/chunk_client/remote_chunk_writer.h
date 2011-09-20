@@ -181,6 +181,8 @@ private:
 
     void PingSession(int node);
     void SchedulePing(int node);
+    void CancelPing(int node);
+    void CancelAllPings();
 
     template<class TResponse>
     void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);

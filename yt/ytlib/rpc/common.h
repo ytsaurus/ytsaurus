@@ -16,7 +16,7 @@ extern NLog::TLogger RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-BEGIN_DECLARE_ENUM(EErrorCode,
+BEGIN_DECLARE_POLY_ENUM(EErrorCode, EErrorCode,
     ((OK)(0))
     ((TransportError)(-1))
     ((ProtocolError)(-2))
@@ -29,7 +29,7 @@ BEGIN_DECLARE_ENUM(EErrorCode,
 public:
     // Allow implicit construction of error code from integer value.
     EErrorCode(int value)
-        : TEnumBase<EErrorCode>(value)
+        : TPolymorphicEnumBase(value)
     { }
 
     // TODO: get rid of casts, compare enums as is
@@ -47,7 +47,7 @@ public:
     {
         return ToValue() > static_cast<int>(EErrorCode::OK);
     }
-END_DECLARE_ENUM();
+END_DECLARE_POLY_ENUM();
 
 ////////////////////////////////////////////////////////////////////////////////
 

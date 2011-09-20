@@ -132,25 +132,25 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
         DoReply(e.GetErrorCode());
         LogException(
             NLog::ELogLevel::Debug,
-            e.GetErrorCodeString(),
+            e.GetErrorCode(),
             e.what());
     } catch (const NStl::exception& e) {
         DoReply(EErrorCode::ServiceError);
         LogException(
             NLog::ELogLevel::Fatal,
-            EErrorCode(EErrorCode::ServiceError).ToString(),
+            EErrorCode::ServiceError,
             e.what());
     }
 }
 
 void TServiceContext::LogException(
     NLog::ELogLevel level,
-    Stroka errorCodeString,
+    EErrorCode errorCode,
     Stroka what)
 {
     Stroka str;
     AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCodeString));
+    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
     AppendInfo(str, Sprintf("What: %s", what.c_str()));
     LOG_EVENT(

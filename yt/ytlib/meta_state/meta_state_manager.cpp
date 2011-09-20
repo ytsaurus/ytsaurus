@@ -183,7 +183,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ScheduleSync)
     context->SetRequestInfo("PeerId: %d", peerId);
    
     if (State != EState::Leading && State != EState::LeaderRecovery) {
-        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %d", (int) State);
     }
 
@@ -254,7 +254,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
     try {
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);
         }
 
@@ -276,7 +276,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
             Sprintf("IO error while getting snapshot info (SnapshotId: %d, What: %s)",
                 snapshotId,
                 ~CurrentExceptionMessage());
@@ -300,7 +300,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadSnapshot)
     try {
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid snapshot id %d", snapshotId);
         }
 
@@ -318,7 +318,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadSnapshot)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
             Sprintf("IO error while reading snapshot (SnapshotId: %d, What: %s)",
                 snapshotId,
                 ~CurrentExceptionMessage());
@@ -335,7 +335,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
     try {
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
-            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", changeLogId);
         }
 
@@ -347,7 +347,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
             Sprintf("IO error while getting changelog info (ChangeLogId: %d, What: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
@@ -371,7 +371,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
     try {
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
-            ythrow TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
+            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
                 Sprintf("invalid changelog id %d", changeLogId);
         }
 
@@ -388,7 +388,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
             Sprintf("IO error while reading changelog (ChangeLogId: %d, What: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
@@ -407,13 +407,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         ~version.ToString());
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
-        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
-        ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
             Sprintf("invalid epoch (expected: %s, received: %s)",
                 ~Epoch.ToString(),
                 ~epoch.ToString());
@@ -511,13 +511,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
         ~version.ToString());
 
     if (State != EState::Following && State != EState::FollowerRecovery) {
-        ythrow TServiceException(TProxy::EErrorCode::InvalidState) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
             Sprintf("invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
-        ythrow TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
             Sprintf("invalid epoch: expected %s, received %s",
                 ~Epoch.ToString(),
                 ~epoch.ToString());

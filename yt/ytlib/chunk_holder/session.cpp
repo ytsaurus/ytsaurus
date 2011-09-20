@@ -179,7 +179,7 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
+        ythrow NRpc::TServiceException(TErrorCode::WindowError)
             << Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             ~ChunkId.ToString(),
             WindowStart,
@@ -204,7 +204,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     TSlot& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
+        ythrow NRpc::TServiceException(TErrorCode::WindowError)
             << Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
             ~blockId.ToString(),
             WindowStart,
@@ -283,7 +283,7 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
+        ythrow NRpc::TServiceException(TErrorCode::WindowError)
             << Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             ~ChunkId.ToString(),
             WindowStart,
@@ -311,7 +311,7 @@ TAsyncResult<TVoid>::TPtr TSession::Finish()
     for (i32 blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            ythrow TServiceException(TErrorCode::WindowError)
+            ythrow NRpc::TServiceException(TErrorCode::WindowError)
                 << Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
@@ -416,7 +416,7 @@ bool TSession::IsInWindow(i32 blockIndex)
 void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
-        ythrow TServiceException(TErrorCode::WindowError)
+        ythrow NRpc::TServiceException(TErrorCode::WindowError)
             << Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             ~ChunkId.ToString(),
             WindowStart,
