@@ -37,7 +37,7 @@ public:
     bool CloseLease(TLease lease);
 
 private:
-    typedef yhash_set<TLease, TIntrusivePtrHash<TEntry> > TLeases;
+    typedef yhash_set<TLease> TLeases;
 
     TSpinLock SpinLock;
     TLeases Leases;

@@ -34,6 +34,28 @@ INode::TNavigateResult TMapNode::YPathNavigate(
     }
 }
 
+INode::TSetResult TMapNode::YPathSet(
+    const TYPath& path,
+    TYsonProducer::TPtr producer)
+{
+    if (path.empty()) {
+        return YPathSetSelf(producer);
+    }
+
+    Stroka prefix;
+    TYPath tailPath;
+    ChopYPathPrefix(path, &prefix, &tailPath);
+
+    auto child = FindChild(prefix);
+    if (~child == NULL) {
+        auto newChild = GetFactory()->CreateMap();
+        AddChild(~newChild, prefix);
+        return TSetResult::CreateRecurse(~newChild, tailPath);
+    } else {
+        return TSetResult::CreateRecurse(child, tailPath);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NEphemeral

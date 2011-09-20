@@ -1,5 +1,6 @@
 #include "ytree.h"
 #include "tree_visitor.h"
+#include "tree_builder.h"
 
 namespace NYT {
 namespace NYTree {
@@ -12,24 +13,24 @@ INode::TGetResult TNodeBase::YPathGet(
 {
     auto navigateResult = YPathNavigate(path);
     switch (navigateResult.Code) {
-        case INode::ECode::Done: {
+        case INode::EYPathCode::Done: {
             TTreeVisitor visitor(events);
             visitor.Visit(navigateResult.Value->AsImmutable());
             return TGetResult::CreateDone(TVoid());
         }
 
-        case INode::ECode::Recurse:
+        case INode::EYPathCode::Recurse:
             return TGetResult::CreateRecurse(
                 navigateResult.RecurseNode,
                 navigateResult.RecursePath);
 
-        case INode::ECode::Error:
+        case INode::EYPathCode::Error:
             return TGetResult::CreateError(
                 navigateResult.ErrorMessage);
 
         default:
             YASSERT(false);
-            return INode::TGetResult();
+            return TGetResult();
     }
 }
 
@@ -46,40 +47,69 @@ INode::TNavigateResult TNodeBase::YPathNavigate(
 
 INode::TSetResult TNodeBase::YPathSet(
     const TYPath& path, 
-    TIntrusiveConstPtr<INode> value)
+    TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
-        if (GetType() == value->GetType()) {
-            return DoAssign(value);
-        } else {
-            return TSetResult::CreateError(Sprintf("Cannot change node type from %s to %s during update",
-                ~GetType().ToString().Quote(),
-                ~value->GetType().ToString().Quote()));
-        }
+        return YPathSetSelf(producer);
     }
 
     auto navigateResult = YPathNavigate(path);
     switch (navigateResult.Code) {
-        case INode::ECode::Recurse:
+        case INode::EYPathCode::Recurse:
             return TSetResult::CreateRecurse(
                 navigateResult.RecurseNode,
                 navigateResult.RecursePath);
 
-        case INode::ECode::Error:
-            return TGetResult::CreateError(
+        case INode::EYPathCode::Error:
+            return TSetResult::CreateError(
                 navigateResult.ErrorMessage);
 
         default:
             YASSERT(false);
-            return INode::TGetResult();
+            return TSetResult();
     }
 }
 
 INode::TRemoveResult TNodeBase::YPathRemove(
     const TYPath& path)
 {
-    UNUSED(path);
-    return TRemoveResult::CreateError("Cannot remove the node");
+    if (path.empty()) {
+        return YPathRemoveSelf();
+    }
+
+    auto navigateResult = YPathNavigate(path);
+    switch (navigateResult.Code) {
+        case INode::EYPathCode::Recurse:
+            return TRemoveResult::CreateRecurse(
+                navigateResult.RecurseNode,
+                navigateResult.RecursePath);
+
+        case INode::EYPathCode::Error:
+            return TRemoveResult::CreateError(
+                navigateResult.ErrorMessage);
+
+        default:
+            YASSERT(false);
+            return TRemoveResult();
+    }
+}
+
+INode::TRemoveResult TNodeBase::YPathRemoveSelf()
+{
+    if (~Parent == NULL) {
+        return TRemoveResult::CreateError("Cannot remove the root");
+    } else {
+        Parent->RemoveChild(this);
+        return TRemoveResult::CreateDone(TVoid());
+    }
+}
+
+INode::TSetResult TNodeBase::YPathSetSelf(TYsonProducer::TPtr producer)
+{
+    auto builder = New<TTreeBuilder>(GetFactory());
+    producer->Do(~builder);
+    Parent->ReplaceChild(this, builder->GetRoot());
+    return TSetResult::CreateDone(TVoid());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
