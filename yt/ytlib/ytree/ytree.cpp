@@ -9,7 +9,7 @@ namespace NYTree {
 
 INode::TGetResult TNodeBase::YPathGet(
     const TYPath& path,
-    TIntrusivePtr<IYsonEvents> events ) const
+    TIntrusivePtr<IYsonConsumer> events ) const
 {
     auto navigateResult = YPathNavigate(path);
     switch (navigateResult.Code) {
@@ -98,14 +98,18 @@ INode::TRemoveResult TNodeBase::YPathRemoveSelf()
 {
     if (~Parent == NULL) {
         return TRemoveResult::CreateError("Cannot remove the root");
-    } else {
-        Parent->RemoveChild(this);
-        return TRemoveResult::CreateDone(TVoid());
     }
+
+    Parent->RemoveChild(this);
+    return TRemoveResult::CreateDone(TVoid());
 }
 
 INode::TSetResult TNodeBase::YPathSetSelf(TYsonProducer::TPtr producer)
 {
+    if (~Parent == NULL) {
+        return TSetResult::CreateError("Cannot update the root");
+    }
+
     auto builder = New<TTreeBuilder>(GetFactory());
     producer->Do(~builder);
     Parent->ReplaceChild(this, builder->GetRoot());
