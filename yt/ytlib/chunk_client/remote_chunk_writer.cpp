@@ -180,6 +180,8 @@ void TRemoteChunkWriter::TGroup::OnPutBlocks(int node)
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[node]->Address);
+
+    Writer->SchedulePing(node);
 }
 
 void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
