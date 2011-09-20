@@ -46,11 +46,10 @@ TEST_F(TThreadAffinityTest, OneThread)
 TEST_F(TThreadAffinityTest, OneFunctionDifferentThreads)
 {
     TMyObject myObject;
-    IInvoker::TPtr invoker1 = ~New<TActionQueue>();
-    IInvoker::TPtr invoker2 = ~New<TActionQueue>();
-
-    FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker1)->Do()->Get();
     ASSERT_DEATH({
+        IInvoker::TPtr invoker1 = ~New<TActionQueue>();
+        IInvoker::TPtr invoker2 = ~New<TActionQueue>();
+        FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker1)->Do()->Get();
         FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker2)->Do()->Get();
     }, ".*");
 
@@ -59,11 +58,10 @@ TEST_F(TThreadAffinityTest, OneFunctionDifferentThreads)
 TEST_F(TThreadAffinityTest, DifferentFunctionsDifferentThreads)
 {
     TMyObject myObject;
-    IInvoker::TPtr invoker1 = ~New<TActionQueue>();
-    IInvoker::TPtr invoker2 = ~New<TActionQueue>();
-
-    FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker1)->Do()->Get();
     ASSERT_DEATH({
+        IInvoker::TPtr invoker1 = ~New<TActionQueue>();
+        IInvoker::TPtr invoker2 = ~New<TActionQueue>();
+        FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker1)->Do()->Get();
         FromMethod(&TMyObject::G, &myObject)->AsyncVia(invoker2)->Do()->Get();
     }, ".*");
 }
