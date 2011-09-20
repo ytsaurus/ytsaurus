@@ -614,7 +614,7 @@ void TRemoteChunkWriter::OnFinishedChunk(int node)
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
 
-    // stop pinging session
+    // Stop pinging session.
     Nodes[node]->Cookie = TDelayedInvoker::TCookie();
 }
 

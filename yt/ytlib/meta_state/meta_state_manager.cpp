@@ -223,7 +223,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
     TMetaVersion version(
         request->GetSegmentId(),
         request->GetRecordCount());
-    TEpoch epoch = TGuid::FromProto(request->GetEpoch());
+    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
     i32 maxSnapshotId = request->GetMaxSnapshotId();
 
     context->SetRequestInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
@@ -397,7 +397,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
 {
-    TEpoch epoch = TGuid::FromProto(request->GetEpoch());
+    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 recordCount = request->GetRecordCount();
     TMetaVersion version(segmentId, recordCount);
@@ -501,7 +501,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
 {
     UNUSED(response);
 
-    TEpoch epoch = TGuid::FromProto(request->GetEpoch());
+    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 recordCount = request->GetRecordCount();
     TMetaVersion version(segmentId, recordCount);
@@ -577,7 +577,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, PingLeader)
     UNUSED(response);
 
     TPeerId followerId = request->GetFollowerId();
-    TEpoch followerEpoch = TGuid::FromProto(request->GetEpoch());
+    TEpoch followerEpoch = TEpoch::FromProto(request->GetEpoch());
     EState followerState = static_cast<EState>(request->GetState());
 
     context->SetRequestInfo("Id: %d, Epoch: %s, State: %s",
