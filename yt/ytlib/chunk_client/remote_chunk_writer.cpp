@@ -30,6 +30,7 @@ struct TRemoteChunkWriter::TNode
     bool IsAlive;
     const Stroka Address;
     TProxy Proxy;
+    TDelayedInvoker::TCookie Cookie;
 
     TNode(Stroka address, NRpc::IChannel::TPtr channel)
         : IsAlive(true)
@@ -233,6 +234,9 @@ void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
         ~Writer->Nodes[dstNode]->Address);
 
     IsSent[dstNode] = true;
+
+    Writer->SchedulePing(srcNode);
+    Writer->SchedulePing(dstNode);
 }
 
 void TRemoteChunkWriter::TGroup::Process()
@@ -295,8 +299,8 @@ TRemoteChunkWriter::TRemoteChunkWriter(
 
 void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
 {
-    for (auto it = addresses.begin(); it != addresses.end(); ++it) {
-        Nodes.push_back(New<TNode>(*it, ~ChannelCache.GetChannel(*it)));
+    FOREACH(const auto& address, addresses) {
+        Nodes.push_back(New<TNode>(address, ~ChannelCache.GetChannel(address)));
     }
 }
 
@@ -368,6 +372,8 @@ void TRemoteChunkWriter::OnFlushedBlock(int node, int blockIndex)
         ~ChunkId.ToString(), 
         blockIndex,
         ~Nodes[node]->Address);
+
+    SchedulePing(node);
 }
 
 void TRemoteChunkWriter::OnWindowShifted(int lastFlushedBlock)
@@ -537,6 +543,8 @@ void TRemoteChunkWriter::OnStartedChunk(int node)
     LOG_DEBUG("Chunk started (ChunkId: %s, Address: %s)", 
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
+
+    SchedulePing(node);
 }
 
 void TRemoteChunkWriter::OnSessionStarted()
@@ -590,6 +598,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
     LOG_DEBUG("Finishing chunk (ChunkId: %s, Address: %s)",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
+
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
     return req->Invoke(Config.RpcTimeout);
@@ -600,6 +609,9 @@ void TRemoteChunkWriter::OnFinishedChunk(int node)
     LOG_DEBUG("Chunk finished (ChunkId: %s, Address: %s)",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
+
+    // stop pinging session
+    Nodes[node]->Cookie = TDelayedInvoker::TCookie();
 }
 
 void TRemoteChunkWriter::OnFinishedSession()
@@ -613,6 +625,31 @@ void TRemoteChunkWriter::OnFinishedSession()
     LOG_DEBUG("Writer closed (ChunkId: %s)",
         ~ChunkId.ToString());
 }
+
+void TRemoteChunkWriter::PingSession(int node)
+{
+    LOG_DEBUG("Pinging session (ChunkId: %s, Address: %s)",
+        ~ChunkId.ToString(),
+        ~Nodes[node]->Address);
+
+    auto req = Nodes[node]->Proxy.PingSession();
+    req->SetChunkId(ChunkId.ToProto());
+    req->Invoke(Config.RpcTimeout);
+
+    SchedulePing(node);
+}
+
+void TRemoteChunkWriter::SchedulePing(int node)
+{
+    auto cookie = Nodes[node]->Cookie;
+    if (cookie != TDelayedInvoker::TCookie()) {
+        TDelayedInvoker::Get()->Cancel(cookie);
+    }
+    Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
+        FromMethod(&TRemoteChunkWriter::PingSession, this, node),
+        Config.SessionTimeout);
+}
+
 
 void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady)
 {

@@ -38,10 +38,17 @@ public:
          */
         TDuration RpcTimeout;
 
+        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder
+        /*!
+         * If no activity occured during this period -- PingSession call will be send
+         */
+        TDuration SessionTimeout;
+
         TConfig()
             : WindowSize(16)
             , GroupSize(1024 * 1024)
             , RpcTimeout(TDuration::Seconds(30))
+            , SessionTimeout(TDuration::Seconds(10))
         { }
 
         // ToDo: move to implementation
@@ -87,6 +94,7 @@ private:
     USE_RPC_PROXY_METHOD(TProxy, PutBlocks);
     USE_RPC_PROXY_METHOD(TProxy, SendBlocks);
     USE_RPC_PROXY_METHOD(TProxy, FlushBlock);
+    USE_RPC_PROXY_METHOD(TProxy, PingSession);
 
 private:
     //! Manages all internal upload functionality, 
@@ -170,6 +178,9 @@ private:
     TInvFinishChunk::TPtr FinishChunk(int node);
     void OnFinishedChunk(int node);
     void OnFinishedSession();
+
+    void PingSession(int node);
+    void SchedulePing(int node);
 
     template<class TResponse>
     void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);
