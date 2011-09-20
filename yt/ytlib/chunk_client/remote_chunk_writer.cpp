@@ -654,7 +654,7 @@ void TRemoteChunkWriter::SchedulePing(int node)
         TDelayedInvoker::Get()->Cancel(cookie);
     }
     Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TRemoteChunkWriter::PingSession, this, node),
+        FromMethod(&TRemoteChunkWriter::PingSession, this, node)->Via(~WriterThread),
         Config.SessionTimeout);
 }
 
