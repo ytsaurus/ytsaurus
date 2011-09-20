@@ -443,6 +443,7 @@ void TRemoteChunkWriter::DoCancel()
 
     Result->Set(EResult::Failed);
     State = EWriterState::Canceled;
+    CancelAllPings();
 
     LOG_DEBUG("Writer canceled (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -486,6 +487,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
 
     if (State != EWriterState::Canceled && AliveNodeCount == 0) {
         State = EWriterState::Canceled;
+        CancelAllPings();
         Result->Set(EResult::Failed);
         LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
@@ -613,9 +615,6 @@ void TRemoteChunkWriter::OnFinishedChunk(int node)
     LOG_DEBUG("Chunk finished (ChunkId: %s, Address: %s)",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
-
-    // Stop pinging session.
-    Nodes[node]->Cookie = TDelayedInvoker::TCookie();
 }
 
 void TRemoteChunkWriter::OnFinishedSession()
@@ -627,7 +626,9 @@ void TRemoteChunkWriter::OnFinishedSession()
     YASSERT(~CurrentGroup == NULL);
     YASSERT(Window.empty());
 
+
     State = EWriterState::Closed;
+    CancelAllPings();
     Result->Set(EResult::OK);
 
     LOG_DEBUG("Writer closed (ChunkId: %s)",
@@ -654,8 +655,20 @@ void TRemoteChunkWriter::SchedulePing(int node)
         TDelayedInvoker::Get()->Cancel(cookie);
     }
     Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TRemoteChunkWriter::PingSession, this, node)->Via(~WriterThread),
+        FromMethod(&TRemoteChunkWriter::PingSession, TPtr(this), node)->Via(~WriterThread),
         Config.SessionTimeout);
+}
+
+void TRemoteChunkWriter::CancelPing(int node)
+{
+    Nodes[node]->Cookie = TDelayedInvoker::TCookie();
+}
+
+void TRemoteChunkWriter::CancelAllPings()
+{
+    for (int node = 0; node < Nodes.ysize(); ++node) {
+        CancelPing(node);
+    }
 }
 
 
