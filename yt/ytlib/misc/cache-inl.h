@@ -204,6 +204,13 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     item->Unlink();
     --LruListSize;
     ItemMap.erase(it);
+
+    // Release the guard right away to prevent recursive spinlock acquisition.
+    // Indeed, the item's dtor may drop the last reference
+    // to the value and thus cause an invocation of TCacheValueBase::~TCacheValueBase.
+    // The latter will try to acquire the spinlock.
+    guard.Release();
+
     delete item;
 
     return true;

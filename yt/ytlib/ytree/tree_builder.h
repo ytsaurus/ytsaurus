@@ -13,6 +13,8 @@ class TTreeBuilder
     : public IYsonEvents
 {
 public:
+    typedef TIntrusivePtr<TTreeBuilder> TPtr;
+
     TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
     { }

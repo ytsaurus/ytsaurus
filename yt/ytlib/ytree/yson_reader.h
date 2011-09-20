@@ -8,16 +8,17 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonParser
+class TYsonReader
+    : private TNonCopyable
 {
 public:
-    TYsonParser(IYsonEvents* events)
+    TYsonReader(IYsonEvents::TPtr events)
         : Events(events)
     {
         Reset();
     }
 
-    void Parse(TInputStream* stream)
+    void Read(TInputStream* stream)
     {
         try {
             Stream = stream;
@@ -39,7 +40,7 @@ private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 
-    IYsonEvents* Events;
+    IYsonEvents::TPtr Events;
     TInputStream* Stream;
     int Lookahead;
 
