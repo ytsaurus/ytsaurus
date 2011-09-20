@@ -4,6 +4,8 @@
 #include "ytree.h"
 #include "ypath.h"
 
+#include "../misc/hash.h"
+
 namespace NYT {
 namespace NYTree {
 namespace NEphemeral {
@@ -62,17 +64,7 @@ private:
     { \
         return this; \
     }
-/*
-    virtual void YPathAssign(INode::TPtr other) \
-    { \
-        if (GetType() != other->GetType()) { \
-            ythrow yexception() << Sprintf("Cannot change node type from %s to %s during update", \
-                ~GetType().ToString().Quote(), \
-                ~other->GetType().ToString().Quote()); \
-        } \
-        DoAssign(other->As ## name()); \
-    }
-*/
+
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
@@ -83,11 +75,6 @@ private:
     private: \
         \
     };
-
-        //void DoAssign(I ## name ## Node::TPtr other) \
-        //{ \
-        //    SetValue(other->GetValue()); \
-        //} \
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,32 +93,34 @@ public:
 
     virtual void Clear()
     {
-        FOREACH(const auto& pair, Map) {
+        FOREACH(const auto& pair, NameToChild) {
             pair.Second()->AsMutable()->SetParent(NULL);
         }
-        Map.clear();
+        NameToChild.clear();
+        ChildToName.clear();
     }
 
     virtual int GetChildCount() const
     {
-        return Map.ysize();
+        return NameToChild.ysize();
     }
 
     virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, INode::TConstPtr> >(Map.begin(), Map.end());
+        return yvector< TPair<Stroka, INode::TConstPtr> >(NameToChild.begin(), NameToChild.end());
     }
 
     virtual INode::TConstPtr FindChild(const Stroka& name) const
     {
-        auto it = Map.find(name);
-        return it == Map.end() ? NULL : it->Second();
+        auto it = NameToChild.find(name);
+        return it == NameToChild.end() ? NULL : it->Second();
     }
 
-    virtual bool AddChild(INode::TPtr node, const Stroka& name)
+    virtual bool AddChild(INode::TPtr child, const Stroka& name)
     {
-        if (Map.insert(MakePair(name, node)).Second()) {
-            node->SetParent(TNodeBase::AsImmutable());
+        if (NameToChild.insert(MakePair(name, child)).Second()) {
+            YVERIFY(ChildToName.insert(MakePair(child, name)).Second());
+            child->SetParent(this);
             return true;
         } else {
             return false;
@@ -140,13 +129,44 @@ public:
 
     virtual bool RemoveChild(const Stroka& name)
     {
-        auto it = Map.find(name);
-        if (it == Map.end())
+        auto it = NameToChild.find(name);
+        if (it == NameToChild.end())
             return false;
 
-        it->Second()->AsMutable()->SetParent(NULL);
-        Map.erase(it);
+        auto child = it->Second(); 
+        child->AsMutable()->SetParent(NULL);
+        NameToChild.erase(it);
+        YVERIFY(ChildToName.erase(child) == 1);
+
         return true;
+    }
+
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+    {
+        if (oldChild == newChild)
+            return;
+
+        auto it = ChildToName.find(oldChild);
+        YASSERT(it != ChildToName.end());
+
+        Stroka name = it->Second();
+
+        oldChild->SetParent(NULL);
+        ChildToName.erase(it);
+
+        NameToChild[name] = newChild;
+        newChild->SetParent(this);
+        YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
+    }
+
+    virtual void RemoveChild(INode::TPtr child)
+    {
+        auto it = ChildToName.find(child);
+        YASSERT(it != ChildToName.end());
+
+        Stroka name = it->Second();
+        ChildToName.erase(it);
+        YVERIFY(NameToChild.erase(name) == 1);
     }
 
     virtual TNavigateResult YPathNavigate(
@@ -154,45 +174,22 @@ public:
 
     virtual TSetResult YPathSet(
         const TYPath& path,
-        INode::TConstPtr value)
-    {
-        return TSetResult::CreateError("");
-    }
-
-    //virtual void YPathForce(
-    //    const TYPath& path,
-    //    INode::TPtr* tailNode)
-    //{
-    //    YASSERT(!path.empty());
-
-    //    TYPath currentPath = path;
-    //    IMapNode::TPtr currentNode = this;
-    //    while (!currentPath.empty()) {
-    //        TYPath tailPath;
-    //        Stroka name;
-    //        ChopYPathPrefix(currentPath, &name, &tailPath);
-    //        auto child = GetFactory()->CreateMap();
-    //        currentNode->AddChild(child->AsNode(), name);
-    //        currentNode = child;
-    //        currentPath = tailPath;
-    //    }
-
-    //    *tailNode = currentNode->AsNode();
-    //}
+        TYsonProducer::TPtr producer);
 
 private:
-    yhash_map<Stroka, INode::TConstPtr> Map;
+    yhash_map<Stroka, INode::TPtr> NameToChild;
+    yhash_map<INode::TPtr, Stroka> ChildToName;
 
-    void DoAssign(IMapNode::TPtr other)
-    {
-        // TODO: attributes
-        Clear();
-        auto children = other->GetChildren();
-        other->Clear();
-        FOREACH(const auto& pair, children) {
-            AddChild(pair.Second()->AsMutable(), pair.First());
-        }
-    }
+    //void DoAssign(IMapNode::TPtr other)
+    //{
+    //    // TODO: attributes
+    //    Clear();
+    //    auto children = other->GetChildren();
+    //    other->Clear();
+    //    FOREACH(const auto& pair, children) {
+    //        AddChild(pair.Second()->AsMutable(), pair.First());
+    //    }
+    //}
 
 };
 
@@ -228,14 +225,14 @@ public:
         return index >= 0 && index < List.ysize() ? List[index] : NULL;
     }
 
-    virtual void AddChild(INode::TPtr node, int beforeIndex = -1)
+    virtual void AddChild(INode::TPtr child, int beforeIndex = -1)
     {
         if (beforeIndex < 0) {
-            List.push_back(node); 
+            List.push_back(child); 
         } else {
-            List.insert(List.begin() + beforeIndex, node);
+            List.insert(List.begin() + beforeIndex, child);
         }
-        node->SetParent(TNodeBase::AsImmutable());
+        child->SetParent(this);
     }
 
     virtual bool RemoveChild(int index)
@@ -248,42 +245,31 @@ public:
         return true;
     }
 
-    //virtual bool YPathNavigate(
-    //    const TYPath& path,
-    //    INode::TConstPtr* node,
-    //    TYPath* tailPath) const
-    //{
-    //    if (TNodeBase::YPathNavigate(path, node, tailPath))
-    //        return true;
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+    {
+        // TODO: implement
+        YASSERT(false);
+    }
 
-    //    Stroka token;
-    //    ChopYPathPrefix(path, &token, tailPath);
-
-    //    int index = FromString<int>(token);
-    //    auto child = FindChild(index);
-    //    if (~child != NULL) {
-    //        *node = child;
-    //        return true;
-    //    } else {
-    //        *node = NULL;
-    //        *tailPath = path;
-    //        return false;
-    //    }
-    //}
+    virtual void RemoveChild(INode::TPtr child)
+    {
+        // TODO: implement
+        YASSERT(false);
+    }
 
 private:
     yvector<INode::TConstPtr> List;
 
-    void DoAssign(IListNode::TPtr other)
-    {
-        // TODO: attributes
-        Clear();
-        auto children = other->GetChildren();
-        other->Clear();
-        FOREACH(const auto& child, children) {
-            AddChild(child->AsMutable());
-        }
-    }
+    //void YPathSetSelf(IListNode::TPtr other)
+    //{
+    //    // TODO: attributes
+    //    Clear();
+    //    auto children = other->GetChildren();
+    //    other->Clear();
+    //    FOREACH(const auto& child, children) {
+    //        AddChild(child->AsMutable());
+    //    }
+    //}
 
 };
 
@@ -297,7 +283,7 @@ public:
     DECLARE_TYPE_OVERRIDES(Entity)
 
 private:
-    void DoAssign(IEntityNode::TPtr other)
+    void YPathSetSelf(IEntityNode::TPtr other)
     {
         UNUSED(other);
     }

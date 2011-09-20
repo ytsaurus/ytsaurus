@@ -111,7 +111,7 @@ template <class T>
 inline T ExecuteYPathOperation(
     INode::TConstPtr root,
     const TYPath& path,
-    typename IParamFunc<TYPathOperationState, INode::TResult<T> >::TPtr action,
+    typename IParamFunc<TYPathOperationState, INode::TYPathResult<T> >::TPtr action,
     Stroka operationName)
 {
     TYPathOperationState state;
@@ -121,15 +121,15 @@ inline T ExecuteYPathOperation(
     while (true) {
         auto result = action->Do(state);
         switch (result.Code) {
-            case INode::ECode::Done:
+            case INode::EYPathCode::Done:
                 return result.Value;
 
-            case INode::ECode::Recurse:
+            case INode::EYPathCode::Recurse:
                 state.CurrentNode = result.RecurseNode;
                 state.CurrentPath = result.RecursePath;
                 break;
 
-            case INode::ECode::Error:
+            case INode::EYPathCode::Error:
                 ythrow yexception() << Sprintf("Failed to %s YPath %s at %s: %s",
                     ~operationName,
                     ~Stroka(path).Quote(),
@@ -187,20 +187,20 @@ inline void GetYPath(
 
 inline INode::TSetResult SetYPathAction(
     TYPathOperationState state,
-    INode::TConstPtr value)
+    TYsonProducer::TPtr producer)
 {
-    return state.CurrentNode->AsMutable()->YPathSet(state.CurrentPath, value);
+    return state.CurrentNode->AsMutable()->YPathSet(state.CurrentPath, producer);
 }
 
 inline void SetYPath(
     INode::TConstPtr root,
     const TYPath& path,
-    INode::TConstPtr value)
+    TYsonProducer::TPtr producer)
 {
     ExecuteYPathOperation<TVoid>(
         root,
         path,
-        FromMethod(&SetYPathAction, value),
+        FromMethod(&SetYPathAction, producer),
         "set");
 }
 
