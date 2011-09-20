@@ -166,7 +166,7 @@ inline INode::TConstPtr NavigateYPath(
 
 inline INode::TGetResult GetYPathAction(
     TYPathOperationState state,
-    IYsonEvents::TPtr events)
+    IYsonConsumer::TPtr events)
 {
     return state.CurrentNode->YPathGet(state.CurrentPath, events);
 }
@@ -174,7 +174,7 @@ inline INode::TGetResult GetYPathAction(
 inline void GetYPath(
     INode::TConstPtr root,
     const TYPath& path,
-    IYsonEvents::TPtr events)
+    IYsonConsumer::TPtr events)
 {
     ExecuteYPathOperation<TVoid>(
         root,

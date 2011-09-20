@@ -49,7 +49,6 @@ public:
 private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef yvector<THolderId> THolders;
 
     class TState;

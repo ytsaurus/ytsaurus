@@ -9,10 +9,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IYsonEvents
+struct IYsonConsumer
     : virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IYsonEvents> TPtr;
+    typedef TIntrusivePtr<IYsonConsumer> TPtr;
 
     virtual void BeginTree() = 0;
     virtual void EndTree() = 0;
@@ -35,7 +35,7 @@ struct IYsonEvents
     virtual void EndAttributes() = 0;
 };
 
-typedef IParamAction< TIntrusivePtr<IYsonEvents> > TYsonProducer;
+typedef IParamAction< TIntrusivePtr<IYsonConsumer> > TYsonProducer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

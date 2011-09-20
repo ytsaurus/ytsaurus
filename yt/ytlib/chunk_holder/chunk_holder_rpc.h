@@ -16,7 +16,7 @@ class TChunkHolderProxy
 public:
     typedef TIntrusivePtr<TChunkHolderProxy> TPtr;
 
-    DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode, 
+    DECLARE_POLY_ENUM2(NRpc::EErrorCode, EErrorCode,
         ((RemoteCallFailed)(1))
         (NoSuchSession)
         (SessionAlreadyExists)

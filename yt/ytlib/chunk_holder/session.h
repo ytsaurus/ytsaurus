@@ -56,7 +56,6 @@ private:
     friend class TSessionManager;
 
     typedef TChunkHolderProxy::EErrorCode TErrorCode;
-    typedef NRpc::TTypedServiceException<TErrorCode> TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
