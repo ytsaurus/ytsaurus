@@ -74,7 +74,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             return item->AsyncResult;
         }
 
-        // Backoff.
+        // Back off.
         guard.Release();
         ThreadYield();
     }
@@ -120,7 +120,9 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             return false;
         }
 
-        // Backoff.
+        // Back off.
+        // Hopefully the object we had just extracted will be destroyed soon
+        // and thus vanish from ValueMap.
         guard.Release();
         ThreadYield();
     }
@@ -202,6 +204,8 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     item->Unlink();
     --LruListSize;
     ItemMap.erase(it);
+    delete item;
+
     return true;
 }
 

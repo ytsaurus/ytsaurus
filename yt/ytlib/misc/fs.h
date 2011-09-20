@@ -32,25 +32,25 @@ bool Rename(const Stroka& oldName, const Stroka& newName);
 
 //! Returns name of file.
 /*!
- * \param filePath Path of file
+ * \param path Path of file
  */
-Stroka GetFileName(const Stroka& filePath);
+Stroka GetFileName(const Stroka& path);
 
 //! Returns extension of file.
 /*!
- * \param filePath Path of file
+ * \param path Path of file
  */
-Stroka GetFileExtension(const Stroka& filePath);
+Stroka GetFileExtension(const Stroka& path);
 
 //! Returns name of file without extension.
 /*!
- * \param filePath Path of file
+ * \param path Path of file
  */
-Stroka GetFileNameWithoutExtension(const Stroka& filePath);
+Stroka GetFileNameWithoutExtension(const Stroka& path);
 
 //! Deletes all files with extension #TempFileSuffix in directory.
 /*!
- * \param location Directory name
+ * \param path Directory name
  */
 void CleanTempFiles(const Stroka& location);
 
@@ -66,9 +66,9 @@ void ForcePath(const Stroka& path, int mode = 0777);
 //! Returns size of a file.
 //! Throws an exception if something went wrong.
 /*!
- * \param filePath Path of file
+ * \param path Path of file
  */
-i64 GetFileSize(const Stroka& filePath);
+i64 GetFileSize(const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,6 +13,10 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkPlacement::TChunkPlacement(TChunkManager::TPtr chunkManager)
+    : ChunkManager(chunkManager)
+{ }
+
 void TChunkPlacement::AddHolder(const THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
@@ -35,7 +39,7 @@ void TChunkPlacement::UpdateHolder(const THolder& holder)
     AddHolder(holder);
 }
 
-yvector<THolderId> TChunkPlacement::GetTargetHolders(int replicaCount)
+yvector<THolderId> TChunkPlacement::GetUploadTargets(int replicaCount)
 {
     // TODO: do not list holders that are nearly full
     yvector<THolderId> result;
@@ -58,6 +62,43 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder)
     return
         (1.0 + statistics.UsedSpace) /
         (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
+}
+
+THolderId TChunkPlacement::GetReplicationSource(const TChunk& chunk)
+{
+    // TODO: do something smart
+    YASSERT(!chunk.Locations.empty());
+    return chunk.Locations[0];
+}
+
+yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)
+{
+    // Construct a list of (holderId, loadFactor) pairs.
+    typedef TPair<THolderId, double> TCandidatePair;
+    yvector<TCandidatePair> candidates;
+    candidates.reserve(chunk.Locations.ysize());
+    FOREACH(auto holderId, chunk.Locations) {
+        const auto& holder = ChunkManager->GetHolder(holderId);
+        double loadFactor = GetLoadFactor(holder);
+        candidates.push_back(MakePair(holderId, loadFactor));
+    }
+
+    // Sort by loadFactor in descending order.
+    Sort(candidates.begin(), candidates.end(),
+        [] (const TCandidatePair& lhs, const TCandidatePair& rhs)
+        {
+            return lhs.Second() > rhs.Second();
+        });
+
+    // Take first count holders.
+    yvector<THolderId> result;
+    result.reserve(count);
+    FOREACH(auto pair, candidates) {
+        if (result.ysize() >= count)
+            break;
+        result.push_back(pair.First());
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

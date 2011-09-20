@@ -25,7 +25,7 @@ public:
 
     static i64 GetTotalCount()
     {
-        return TRefCountedTracker::GetTotalObjects(&typeid(TSimpleObject));
+        return TRefCountedTracker::GetCreatedObjects(&typeid(TSimpleObject));
     }
 };
 

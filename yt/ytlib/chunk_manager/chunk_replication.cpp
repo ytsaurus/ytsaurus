@@ -136,7 +136,7 @@ bool TChunkReplication::IsRefreshScheduled(const TChunkId& chunkId)
     return RefreshSet.find(chunkId) != RefreshSet.end();
 }
 
-yvector<Stroka> TChunkReplication::GetTargetAddresses(
+yvector<Stroka> TChunkReplication::GetReplicationTargets(
     const TChunk& chunk,
     int replicaCount)
 {
@@ -157,7 +157,7 @@ yvector<Stroka> TChunkReplication::GetTargetAddresses(
         }
     }
 
-    auto candidateHolders = ChunkPlacement->GetTargetHolders(replicaCount + forbiddenAddresses.size());
+    auto candidateHolders = ChunkPlacement->GetUploadTargets(replicaCount + forbiddenAddresses.size());
 
     yvector<Stroka> targetAddresses;
     FOREACH(auto holderId, candidateHolders) {
@@ -213,7 +213,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    auto targetAddresses = GetTargetAddresses(*chunk, requestedCount);
+    auto targetAddresses = GetReplicationTargets(*chunk, requestedCount);
     if (targetAddresses.empty()) {
         LOG_INFO("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -422,7 +422,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             return;
         }
 
-        auto holderIds = GetHoldersForRemoval(chunk, realCount - minusCount - desiredCount);
+        auto holderIds = ChunkPlacement->GetRemovalTargets(chunk, realCount - minusCount - desiredCount);
         FOREACH(auto holderId, holderIds) {
             auto& holderInfo = GetHolderInfo(holderId);
             holderInfo.ChunksToRemove.insert(chunk.Id);
@@ -453,7 +453,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             return;
         }
 
-        auto holderId = GetHolderForReplication(chunk);
+        auto holderId = ChunkPlacement->GetReplicationSource(chunk);
         auto& holderInfo = GetHolderInfo(holderId);
         const auto& holder = ChunkManager->GetHolder(holderId);
 
@@ -544,26 +544,6 @@ TChunkReplication::THolderInfo& TChunkReplication::GetHolderInfo(THolderId holde
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
     return it->Second();
-}
-
-NYT::NChunkManager::THolderId TChunkReplication::GetHolderForReplication(const TChunk& chunk)
-{
-    // TODO: pick the least loaded holder
-    YASSERT(chunk.Locations.ysize() > 0);
-    return chunk.Locations[0];
-}
-
-yvector<THolderId> TChunkReplication::GetHoldersForRemoval(const TChunk& chunk, int count)
-{
-    // TODO: pick the most loaded holder
-    yvector<THolderId> result;
-    result.reserve(count);
-    FOREACH(auto holderId, chunk.Locations) {
-        if (result.ysize() >= count)
-            break;
-        result.push_back(holderId);
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

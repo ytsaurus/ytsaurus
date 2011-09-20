@@ -51,6 +51,8 @@ YT_SUBDIRECTORY(misc)
 YT_SUBDIRECTORY(rpc)
 YT_SUBDIRECTORY(bus)
 YT_SUBDIRECTORY(transaction)
+YT_SUBDIRECTORY(ytree)
+YT_SUBDIRECTORY(registry)
 
 # Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(
