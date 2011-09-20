@@ -8,9 +8,9 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IYsonEvents
+    : virtual TRefCountedBase
 {
-    virtual ~IYsonEvents()
-    { }
+    typedef TIntrusivePtr<IYsonEvents> TPtr;
 
     virtual void BeginTree() = 0;
     virtual void EndTree() = 0;

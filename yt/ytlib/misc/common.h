@@ -29,6 +29,8 @@ using std::string; // hack for guid.h to work
     #pragma warning (disable : 4503)
     // C4714: function marked as __forceinline not inlined
     #pragma warning (disable: 4714)
+    // C4250: inherits via dominance
+    #pragma warning (disable: 4250)
 #endif
 
 // This define enables tracking of reference-counted objects to provide

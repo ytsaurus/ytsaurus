@@ -10,19 +10,20 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class IBase>
 class TNodeBase
-    : public ::NYT::NYTree::TNodeBase<IBase>
+    : public ::NYT::NYTree::TNodeBase
 {
 public:
     virtual INodeFactory* GetFactory() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TValue, class IBase>
 class TScalarNode
-    : public TNodeBase<IBase>
+    : public TNodeBase
+    , public virtual IBase
 {
 public:
     TScalarNode()
@@ -60,7 +61,8 @@ private:
     virtual I ## name ## Node::TPtr As ## name() \
     { \
         return this; \
-    } \
+    }
+/*
     virtual void YPathAssign(INode::TPtr other) \
     { \
         if (GetType() != other->GetType()) { \
@@ -70,7 +72,7 @@ private:
         } \
         DoAssign(other->As ## name()); \
     }
-
+*/
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
@@ -79,11 +81,13 @@ private:
         DECLARE_TYPE_OVERRIDES(name) \
     \
     private: \
-        void DoAssign(I ## name ## Node::TPtr other) \
-        { \
-            SetValue(other->GetValue()); \
-        } \
+        \
     };
+
+        //void DoAssign(I ## name ## Node::TPtr other) \
+        //{ \
+        //    SetValue(other->GetValue()); \
+        //} \
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +98,8 @@ DECLARE_SCALAR_TYPE(Double, double)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNode
-    : public TNodeBase<IMapNode>
+    : public TNodeBase
+    , public virtual IMapNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(Map)
@@ -126,7 +131,7 @@ public:
     virtual bool AddChild(INode::TPtr node, const Stroka& name)
     {
         if (Map.insert(MakePair(name, node)).Second()) {
-            node->SetParent(this);
+            node->SetParent(TNodeBase::AsImmutable());
             return true;
         } else {
             return false;
@@ -144,48 +149,36 @@ public:
         return true;
     }
 
-    virtual bool YPathNavigate(
+    virtual TNavigateResult YPathNavigate(
+        const TYPath& path) const;
+
+    virtual TSetResult YPathSet(
         const TYPath& path,
-        INode::TConstPtr* node,
-        TYPath* tailPath) const
+        INode::TConstPtr value)
     {
-        if (TNodeBase::YPathNavigate(path, node, tailPath))
-            return true;
-
-        Stroka token;
-        ChopYPathPrefix(path, &token, tailPath);
-
-        auto child = FindChild(token);
-        if (~child != NULL) {
-            *node = child;
-            return true;
-        } else {
-            *node = NULL;
-            *tailPath = path;
-            return false;
-        }
+        return TSetResult::CreateError("");
     }
 
-    virtual void YPathForce(
-        const TYPath& path,
-        INode::TPtr* tailNode)
-    {
-        YASSERT(!path.empty());
+    //virtual void YPathForce(
+    //    const TYPath& path,
+    //    INode::TPtr* tailNode)
+    //{
+    //    YASSERT(!path.empty());
 
-        TYPath currentPath = path;
-        IMapNode::TPtr currentNode = this;
-        while (!currentPath.empty()) {
-            TYPath tailPath;
-            Stroka name;
-            ChopYPathPrefix(currentPath, &name, &tailPath);
-            auto child = GetFactory()->CreateMap();
-            currentNode->AddChild(child->AsNode(), name);
-            currentNode = child;
-            currentPath = tailPath;
-        }
+    //    TYPath currentPath = path;
+    //    IMapNode::TPtr currentNode = this;
+    //    while (!currentPath.empty()) {
+    //        TYPath tailPath;
+    //        Stroka name;
+    //        ChopYPathPrefix(currentPath, &name, &tailPath);
+    //        auto child = GetFactory()->CreateMap();
+    //        currentNode->AddChild(child->AsNode(), name);
+    //        currentNode = child;
+    //        currentPath = tailPath;
+    //    }
 
-        *tailNode = currentNode->AsNode();
-    }
+    //    *tailNode = currentNode->AsNode();
+    //}
 
 private:
     yhash_map<Stroka, INode::TConstPtr> Map;
@@ -206,7 +199,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TNodeBase<IListNode>
+    : public TNodeBase
+    , public virtual IListNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(List)
@@ -241,7 +235,7 @@ public:
         } else {
             List.insert(List.begin() + beforeIndex, node);
         }
-        node->SetParent(this);
+        node->SetParent(TNodeBase::AsImmutable());
     }
 
     virtual bool RemoveChild(int index)
@@ -254,28 +248,28 @@ public:
         return true;
     }
 
-    virtual bool YPathNavigate(
-        const TYPath& path,
-        INode::TConstPtr* node,
-        TYPath* tailPath) const
-    {
-        if (TNodeBase::YPathNavigate(path, node, tailPath))
-            return true;
+    //virtual bool YPathNavigate(
+    //    const TYPath& path,
+    //    INode::TConstPtr* node,
+    //    TYPath* tailPath) const
+    //{
+    //    if (TNodeBase::YPathNavigate(path, node, tailPath))
+    //        return true;
 
-        Stroka token;
-        ChopYPathPrefix(path, &token, tailPath);
+    //    Stroka token;
+    //    ChopYPathPrefix(path, &token, tailPath);
 
-        int index = FromString<int>(token);
-        auto child = FindChild(index);
-        if (~child != NULL) {
-            *node = child;
-            return true;
-        } else {
-            *node = NULL;
-            *tailPath = path;
-            return false;
-        }
-    }
+    //    int index = FromString<int>(token);
+    //    auto child = FindChild(index);
+    //    if (~child != NULL) {
+    //        *node = child;
+    //        return true;
+    //    } else {
+    //        *node = NULL;
+    //        *tailPath = path;
+    //        return false;
+    //    }
+    //}
 
 private:
     yvector<INode::TConstPtr> List;
@@ -296,7 +290,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEntityNode
-    : public TNodeBase<IEntityNode>
+    : public TNodeBase
+    , public virtual IEntityNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(Entity)
@@ -314,7 +309,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
-    : INodeFactory
+    : public INodeFactory
 {
 public:
     static INodeFactory* Get()
@@ -360,16 +355,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class IBase>
-INodeFactory* TNodeBase<IBase>::GetFactory() const
-{
-		return TNodeFactory::Get();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 
 } // namespace NEphemeral
 } // namespace NYTree
