@@ -50,6 +50,8 @@ public:
      */
     TAsyncResult<TVoid>::TPtr FlushBlock(i32 blockIndex);
 
+    void RenewLease();
+
 private:
     friend class TSessionManager;
 
@@ -95,7 +97,6 @@ private:
     void Cancel();
 
     void SetLease(TLeaseManager::TLease lease);
-    void RenewLease();
     void CloseLease();
 
     bool IsInWindow(i32 blockIndex);

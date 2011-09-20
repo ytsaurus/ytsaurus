@@ -39,6 +39,7 @@ public:
     RPC_PROXY_METHOD(NProto, SendBlocks);
     RPC_PROXY_METHOD(NProto, FlushBlock);
     RPC_PROXY_METHOD(NProto, GetBlocks);
+    RPC_PROXY_METHOD(NProto, PingSession);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

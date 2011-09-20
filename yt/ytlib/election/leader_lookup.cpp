@@ -53,7 +53,7 @@ void TLeaderLookup::OnResponse(
     }
 
     TPeerId voteId = response->GetVoteId();
-    TGuid epoch = TGuid::FromProto(response->GetVoteEpoch());
+    TGuid epoch = TEpoch::FromProto(response->GetVoteEpoch());
 
     LOG_DEBUG("Received status from master %s (Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
         ~address,
