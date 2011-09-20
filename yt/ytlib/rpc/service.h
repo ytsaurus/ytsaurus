@@ -20,12 +20,6 @@ class TServiceException
 public:
     TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
         : ErrorCode(errorCode)
-        , ErrorCodeString(errorCode.ToString())
-    { }
-
-    TServiceException(EErrorCode errorCode, Stroka errorCodeString)
-        : ErrorCode(errorCode)
-        , ErrorCodeString(errorCodeString)
     { }
 
     EErrorCode GetErrorCode() const
@@ -33,27 +27,8 @@ public:
         return ErrorCode;
     }
 
-    Stroka GetErrorCodeString() const
-    {
-        return ErrorCodeString;
-    }
-
 private:
     EErrorCode ErrorCode;
-    Stroka ErrorCodeString;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template<class TErrorCode>
-class TTypedServiceException 
-    : public TServiceException
-{
-public:
-    TTypedServiceException(TErrorCode errorCode = (TErrorCode) EErrorCode::ServiceError)
-        : TServiceException(errorCode, errorCode.ToString())
-    { }
 
 };
 
@@ -143,7 +118,7 @@ private:
     void DoReply(EErrorCode errorCode);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, Stroka errorCodeString, Stroka what);
+    void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
     void LogRequestInfo();
     void LogResponseInfo(EErrorCode errorCode);
 

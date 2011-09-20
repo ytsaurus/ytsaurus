@@ -66,7 +66,6 @@ public:
 private:
     typedef TElectionManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     class TVotingRound;
     class TFollowerPinger;
