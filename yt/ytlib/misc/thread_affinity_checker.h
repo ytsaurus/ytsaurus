@@ -12,23 +12,25 @@ namespace NThreadAffinity {
 
 class TSlot
 {
+public:
+    TSlot()
+        : ThreadId(UnsetThreadId)
+    { }
+
+    void Verify()
+    {
+        intptr_t currentThreadId = static_cast<intptr_t>(TThread::CurrentThreadId());
+        if (ThreadId != UnsetThreadId) {
+            YVERIFY(ThreadId == currentThreadId);
+        } else {
+            YVERIFY(AtomicCas(&ThreadId, currentThreadId, UnsetThreadId));
+        }
+    }
+
 private:
     TAtomic ThreadId;
     const static int UnsetThreadId = -1;
 
-public:
-    TSlot():
-        ThreadId(UnsetThreadId)
-    { }
-
-    void Verify() {
-        TAtomic currentThreadId = static_cast<TAtomic>(TThread::CurrentThreadId());
-        if (ThreadId != UnsetThreadId) {
-            YVERIFY(ThreadId == currentThreadId);
-            return;
-        }
-        YVERIFY(AtomicCas(&ThreadId, currentThreadId, UnsetThreadId));
-    }
 };
 
 #define DECLARE_THREAD_AFFINITY_SLOT(name) \
@@ -39,5 +41,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}; // namespace NThreadAffinity
+} // namespace NThreadAffinity
 } // namespace NYT
