@@ -17,7 +17,7 @@ class TTransactionManagerProxy
 public:
     typedef TIntrusivePtr<TTransactionManagerProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(NRpc::EErrorCode, EErrorCode,
+    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((NoSuchTransaction)(1))
     );
 

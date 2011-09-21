@@ -42,7 +42,7 @@ public:
     { }
 
     TEnumBase(TEnumBase<TDerived>&& other)
-        : Value(other.Value)
+        : Value(MoveRV(other.Value))
     { }
 
     //! Explicit constructor.
@@ -77,14 +77,14 @@ public:
     { }
 
     TPolymorphicEnumBase(TPolymorphicEnumBase<TDerived>&& other)
-        : Value(other.Value)
-        , Name(other.Name)
+        : Value(MoveRV(other.Value))
+        , Name(MoveRV(other.Name))
     { }
 
     //! Explicit constructor.
-    explicit TPolymorphicEnumBase(int value, const char* asString = NULL)
+    explicit TPolymorphicEnumBase(int value, const char* name = NULL)
         : Value(value)
-        , Name(asString)
+        , Name(name)
     { }
 
     //! Returns underlying integral value.
@@ -103,242 +103,195 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! \internal
-//! \defgroup yt_enum_mixins Mix-ins for internals of enumerations.
+//! \defgroup yt_enum_mixins Mix-ins for the internals of enumerations.
 //! \{
 
-//! Base mix-in for strongly-typed enumeration.
+//! Declaration of an enumeration class.
 /*!
- * This mix-in declares the following:
- *   - Enumeration domain,
- *   - Default constructor,
- *   - Constructor from a domain value,
- *   - Explicit constructor from an integral value
- *   - Implicit conversion operator to the enumeration domain
+ * \param name Name of the enumeration.
+ * \param base Base class; either ##TEnumBase<T> or ##TPolymorphicEnumBase<T>.
+ * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
-#define MIXIN_ENUM__BASE(name, seq) \
+#define ENUM__CLASS(name, base, seq) \
+    class name \
+        : public base \
+    { \
     private: \
-        friend class ::NYT::TEnumBase<name>; \
+        friend class base; \
+        typedef base TBase; \
+        \
     public: \
         enum EDomain \
         { \
-            PP_FOR_EACH(DECLARE_ENUM__DOMAIN_ITEM, seq) \
+            PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
         }; \
         \
         name() \
-            : ::NYT::TEnumBase<name>() \
+            : TBase() \
+        { } \
+        \
+        name(const name& other) \
+            : TBase(MoveRV(static_cast<TBase>(other))) \
+        { } \
+        \
+        name(name&& other) \
+            : TBase(MoveRV(other)) \
+        { } \
+        \
+        name(const TBase& other) \
+            : TBase(other) \
+        { } \
+        \
+        name(TBase&& other) \
+            : TBase(MoveRV(other)) \
         { } \
         \
         name(const EDomain& e) \
-            : ::NYT::TEnumBase<name>(static_cast<int>(e)) \
+            : TBase(MoveRV(name::SpawnFauxBase(static_cast<int>(e)))) \
         { } \
         \
-        explicit name(int value) \
-            : ::NYT::TEnumBase<name>(value) \
-        { } \
+        name& operator=(const TBase& other) \
+        { \
+            TBase::operator=(MoveRV(static_cast<TBase>(other))); \
+            return *this; \
+        } \
+        \
+        name& operator=(TBase&& other) \
+        { \
+            TBase::operator=(MoveRV(other)); \
+            return *this; \
+        } \
+        name& operator=(const EDomain& e) \
+        { \
+            TBase::operator=(MoveRV(name::SpawnFauxBase(static_cast<int>(e)))); \
+            return *this; \
+        } \
         \
         operator EDomain() const \
         { \
             return static_cast<EDomain>(Value); \
         } \
         \
-        name& operator=(const name::EDomain& e) \
-        { \
-            Value = static_cast<int>(e); \
-            return *this; \
-        }
-
-//! \cond Implementation
-//! EDomain declaration helper.
-//! \{
-#define DECLARE_ENUM__DOMAIN_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        DECLARE_ENUM__DOMAIN_ITEM_SEQ, \
-        DECLARE_ENUM__DOMAIN_ITEM_ATOMIC \
-    )(item)()
-
-#define DECLARE_ENUM__DOMAIN_ITEM_ATOMIC(item) \
-    item PP_COMMA
-
-#define DECLARE_ENUM__DOMAIN_ITEM_SEQ(seq) \
-    PP_ELEMENT(seq, 0) = PP_ELEMENT(seq, 1) PP_COMMA
-//! \}
-//! \endcond
-
-//! ToString() mix-in.
-//! \{
-#define MIXIN_ENUM__TO_STRING(name, seq) \
-    public: \
-        Stroka ToString() const \
-        { \
-            switch (Value) \
-            { \
-                PP_FOR_EACH(DECLARE_ENUM__TO_STRING_ITEM, seq) \
-                default: \
-                    return Stroka::Join( \
-                        PP_STRINGIZE(name) "(", ::ToString(Value), ")" \
-                    ); \
-            } \
-        }
-//! \}
-
-//! \cond Implementation
-//! ToString() declaration helper.
-//! \{
-#define DECLARE_ENUM__TO_STRING_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        DECLARE_ENUM__TO_STRING_ITEM_SEQ, \
-        DECLARE_ENUM__TO_STRING_ITEM_ATOMIC \
-    )(item)
-
-#define DECLARE_ENUM__TO_STRING_ITEM_SEQ(seq) \
-    DECLARE_ENUM__TO_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define DECLARE_ENUM__TO_STRING_ITEM_ATOMIC(item) \
-    case static_cast<int>(item): \
-        return PP_STRINGIZE(item);
-//! \}
-//! \endcond
-
-//! FromString() mix-in.
-//! \{
-#define MIXIN_ENUM__FROM_STRING(name, seq) \
-    public: \
-        static name FromString(const Stroka& str) \
-        { \
-            name target; \
-            if (!FromString(str, &target)) { \
-                ythrow yexception() \
-                    << "Error parsing " PP_STRINGIZE(name) " value '" << str << "'"; \
-            } \
-            return MoveRV(target); \
-        } \
-        \
-        static bool FromString(const Stroka& str, name* target) \
-        { \
-            PP_FOR_EACH(DECLARE_ENUM__FROM_STRING_ITEM, seq) \
-            return false; \
-        }
-//! \}
-
-//! \cond Implementation
-//! FromString() declaration helper.
-//! \{
-#define DECLARE_ENUM__FROM_STRING_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        DECLARE_ENUM__FROM_STRING_ITEM_SEQ, \
-        DECLARE_ENUM__FROM_STRING_ITEM_ATOMIC \
-    )(item)
-
-#define DECLARE_ENUM__FROM_STRING_ITEM_SEQ(seq) \
-    DECLARE_ENUM__FROM_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define DECLARE_ENUM__FROM_STRING_ITEM_ATOMIC(item) \
-    if (str == PP_STRINGIZE(item)) { \
-        *target = item; \
-        return true; \
-    }
-//! \}
-//! \endcond
-
-//! Base mix-in for polymorphic enumeration.
-/*!
- * This mix-in declares the following:
- *   - Enumeration domain,
- *   - Default constructor,
- *   - Constructor from a domain value,
- *   - Constructor from a polymorphic enumeration in the same scope
- *   - Explicit constructor from an integral value
- *   - Implicit conversion operator to the enumeration domain
- */
-#define MIXIN_POLY_ENUM__BASE(basename, name, seq) \
     private: \
-        friend class ::NYT::TPolymorphicEnumBase<basename>; \
-    public: \
-        enum EDomain \
+        static const char* GetStringByValue(int value) \
         { \
-            PP_FOR_EACH(DECLARE_ENUM__DOMAIN_ITEM, seq) \
-        }; \
-        \
-        name() \
-            : ::NYT::TPolymorphicEnumBase<basename>() \
-        { } \
-        \
-        name(const EDomain& e) \
-            : ::NYT::TPolymorphicEnumBase<basename>( \
-                static_cast<int>(e), \
-                name::TryConvertDomainToString(static_cast<int>(e))) \
-        { } \
-        \
-        name(const ::NYT::TPolymorphicEnumBase<basename>& other) \
-            : ::NYT::TPolymorphicEnumBase<basename>(other) \
-        { } \
-        name(::NYT::TPolymorphicEnumBase<basename>&& other) \
-            : ::NYT::TPolymorphicEnumBase<basename>(MoveRV(other)) \
-        { } \
-        \
-        explicit name(int value, const char* asString = NULL) \
-            : ::NYT::TPolymorphicEnumBase<basename>( \
-                value, asString ? asString : name::TryConvertDomainToString(value) \
-            ) \
-        { } \
-        \
-        operator EDomain() const \
-        { \
-            return static_cast<EDomain>(Value); \
-        } \
-        \
-        name& operator=(const name::EDomain& e) \
-        { \
-            Value = static_cast<int>(e); \
-            Name = name::TryConvertDomainToString(static_cast<int>(e)); \
-            return *this; \
-        }
-
-//! ToString() mix-in.
-#define MIXIN_POLY_ENUM__TO_STRING(basename, name, seq) \
-    public: \
-        Stroka ToString() const \
-        { \
-            if (Name) { \
-                return Name; \
-            } \
-            \
-            const char* asString = name::TryConvertDomainToString(Value); \
-            if (asString) { \
-                return asString; \
-            } \
-            \
-            return Stroka::Join(PP_STRINGIZE(name) "(", ::ToString(Value), ")"); \
-        }
-
-//! FromString() mix-in.
-//! Fallbacks to strongly-typed implementation.
-#define MIXIN_POLY_ENUM__FROM_STRING(basename, name, seq) \
-    MIXIN_ENUM__FROM_STRING(name, seq)
-
-//! TryConvertDomainToString() mix-in.
-//! Fallbacks to chunks of strongly-typed implementation.
-#define MIXIN_POLY_ENUM__TRY_CONVERT_DOMAIN_TO_STRING(basename, name, seq) \
-    private: \
-        static const char* TryConvertDomainToString(int value) { \
             switch (value) \
             { \
-                PP_FOR_EACH(DECLARE_ENUM__TO_STRING_ITEM, seq) \
+                PP_FOR_EACH(ENUM__STRING_BY_VALUE_ITEM, seq) \
                 default: \
                     return NULL; \
             } \
+        } \
+        \
+        static bool GetValueByString(const char* str, int* target) \
+        { \
+            PP_FOR_EACH(ENUM__VALUE_BY_STRING_ITEM, seq); \
+            return false; \
+        } \
+        \
+    public: \
+        static name FromString(const Stroka& str) \
+        { \
+            return MoveRV(FromString(str.c_str())); \
+        } \
+        \
+        static name FromString(const char* str) \
+        { \
+            int value; \
+            if (!GetValueByString(str, &value)) { \
+                ythrow yexception() \
+                    << "Error parsing " PP_STRINGIZE(name) " value '" << str << "'"; \
+            } else { \
+                return MoveRV(name::SpawnFauxBase(value)); \
+            } \
+        } \
+        \
+        static bool FromString(const char* str, name* target) \
+        { \
+            int value; \
+            if (!GetValueByString(str, &value)) { \
+                return false; \
+            } else { \
+                *target = MoveRV(name::SpawnFauxBase(value)); \
+                return true; \
+            } \
         }
+
+//! EDomain declaration helper.
+//! \{
+#define ENUM__DOMAIN_ITEM(item) \
+    PP_IF( \
+        PP_IS_SEQUENCE(item), \
+        ENUM__DOMAIN_ITEM_SEQ, \
+        ENUM__DOMAIN_ITEM_ATOMIC \
+    )(item)()
+
+#define ENUM__DOMAIN_ITEM_ATOMIC(item) \
+    item PP_COMMA
+
+#define ENUM__DOMAIN_ITEM_SEQ(seq) \
+    PP_ELEMENT(seq, 0) = PP_ELEMENT(seq, 1) PP_COMMA
 //! \}
 
-//! \endinternal
+//! #GetStringByValue() helper.
+//! \{
+#define ENUM__STRING_BY_VALUE_ITEM(item) \
+    PP_IF( \
+        PP_IS_SEQUENCE(item), \
+        ENUM__STRING_BY_VALUE_ITEM_SEQ, \
+        ENUM__STRING_BY_VALUE_ITEM_ATOMIC \
+    )(item)
+
+#define ENUM__STRING_BY_VALUE_ITEM_SEQ(seq) \
+    ENUM__STRING_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+
+#define ENUM__STRING_BY_VALUE_ITEM_ATOMIC(item) \
+    case static_cast<int>(item): \
+        return PP_STRINGIZE(item);
 //! \}
+
+//! #GetValueByString() helper.
+//! \{
+#define ENUM__VALUE_BY_STRING_ITEM(item) \
+    PP_IF( \
+        PP_IS_SEQUENCE(item), \
+        ENUM__VALUE_BY_STRING_ITEM_SEQ, \
+        ENUM__VALUE_BY_STRING_ITEM_ATOMIC \
+    )(item)
+
+#define ENUM__VALUE_BY_STRING_ITEM_SEQ(seq) \
+    ENUM__VALUE_BY_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+
+#define ENUM__VALUE_BY_STRING_ITEM_ATOMIC(item) \
+    if (::strcmp(str, PP_STRINGIZE(item)) == 0) { \
+        *target = static_cast<int>(item); \
+        return true; \
+    }
+//! \}
+
+//! Declaration of the relational operators; all at once.
+#define ENUM__RELATIONAL_OPERATORS(name) \
+    public: \
+        ENUM__RELATIONAL_OPERATOR(name, < ) \
+        ENUM__RELATIONAL_OPERATOR(name, > ) \
+        ENUM__RELATIONAL_OPERATOR(name, <=) \
+        ENUM__RELATIONAL_OPERATOR(name, >=) \
+        ENUM__RELATIONAL_OPERATOR(name, ==) \
+        ENUM__RELATIONAL_OPERATOR(name, !=)
+
+//! Declaration of a single relational operator.
+#define ENUM__RELATIONAL_OPERATOR(name, op) \
+    bool operator op(const EDomain& e) const \
+    { \
+        return Value op static_cast<int>(e); \
+    }
+
+//! \}
+//! \endinternal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Declares a strongly-typed enumeration with explicit integral conversion.
+//! Declares a strongly-typed enumeration.
 /*!
  * \param name Name of the enumeration.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
@@ -347,16 +300,36 @@ protected:
     BEGIN_DECLARE_ENUM(name, seq) \
     END_DECLARE_ENUM()
 
-//! Begins the declaration of strongly-typed enumeration.
+//! Begins the declaration of a strongly-typed enumeration.
 //! See #DECLARE_ENUM.
 #define BEGIN_DECLARE_ENUM(name, seq) \
-    class name : public ::NYT::TEnumBase<name> \
-    { \
-        MIXIN_ENUM__BASE(name, seq) \
-        MIXIN_ENUM__TO_STRING(name, seq) \
-        MIXIN_ENUM__FROM_STRING(name, seq)
+    ENUM__CLASS(name, ::NYT::TEnumBase<name>, seq) \
+    private: \
+        static TBase SpawnFauxBase(int value_) \
+        { \
+            return MoveRV(TBase(value_)); \
+        } \
+        \
+    public: \
+        explicit name(int value_) \
+            : TBase(value_) \
+        { } \
+        \
+        Stroka ToString() const \
+        { \
+            const char* str = GetStringByValue(Value); \
+            if (EXPECT_TRUE(str != NULL)) { \
+                return str; \
+            } else { \
+                return Stroka::Join( \
+                    PP_STRINGIZE(name) "(", ::ToString(Value), ")" \
+                ); \
+            } \
+        } \
+        \
+        ENUM__RELATIONAL_OPERATORS(name)
 
-//! Ends the declaration of strongly-typed enumeration.
+//! Ends the declaration of a strongly-typed enumeration.
 //! See #DECLARE_ENUM.
 #define END_DECLARE_ENUM() \
     }
@@ -366,33 +339,57 @@ protected:
  * \param name Name of the enumeration.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
-
 #define DECLARE_POLY_ENUM1(name, seq) \
     BEGIN_DECLARE_POLY_ENUM(name, name, seq) \
     END_DECLARE_POLY_ENUM()
 
-//! Declares a polymorphic enumeration with specified scope.
+//! Declares a polymorphic enumeration with the specified scope.
 /*!
- * \param basename Basic enumeration (scope of polymorphism).
+ * \param scope Scope of the polymorphism.
  * \param name Name of the enumeration.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
-#define DECLARE_POLY_ENUM2(basename, name, seq) \
-    BEGIN_DECLARE_POLY_ENUM(basename, name, seq) \
+#define DECLARE_POLY_ENUM2(name, scope, seq) \
+    BEGIN_DECLARE_POLY_ENUM(name, scope, seq) \
     END_DECLARE_POLY_ENUM()
 
-//! Begins the declaration of polymorphic enumeration.
-//! See #DECLARE_POLY_ENUM.
-#define BEGIN_DECLARE_POLY_ENUM(basename, name, seq) \
-    class name : public ::NYT::TPolymorphicEnumBase<basename> \
-    { \
-        MIXIN_POLY_ENUM__BASE(basename, name, seq) \
-        MIXIN_POLY_ENUM__TO_STRING(basename, name, seq) \
-        MIXIN_POLY_ENUM__FROM_STRING(basename, name, seq) \
-        MIXIN_POLY_ENUM__TRY_CONVERT_DOMAIN_TO_STRING(basename, name, seq)
+//! Begins the declaration of a polymorphic enumeration.
+//! See #DECLARE_POLY_ENUM1.
+#define BEGIN_DECLARE_POLY_ENUM(name, scope, seq) \
+    ENUM__CLASS(name, ::NYT::TPolymorphicEnumBase<scope>, seq) \
+    private: \
+        static TBase SpawnFauxBase(int value_, const char* name_ = NULL) \
+        { \
+            return MoveRV(TBase( \
+                value_, name_ ? name_ : GetStringByValue(value_) \
+            )); \
+        } \
+        \
+    public: \
+        explicit name(int value_, const char* name_ = NULL) \
+            : TBase(value_, name_ ? name_ : GetStringByValue(value_)) \
+        { } \
+        \
+        Stroka ToString() const \
+        { \
+            if (Name) { \
+                return Name; \
+            } \
+            \
+            const char* str = GetStringByValue(Value); \
+            if (EXPECT_TRUE(str != NULL)) { \
+                return str; \
+            } else { \
+                return Stroka::Join( \
+                    PP_STRINGIZE(name) "(", ::ToString(Value), ")" \
+                ); \
+            } \
+        } \
+        \
+        ENUM__RELATIONAL_OPERATORS(name)
 
-//! Ends the declaration of polymorphic enumeration.
-//! See #DECLARE_POLY_ENUM.
+//! Ends the declaration of a polymorphic enumeration.
+//! See #DECLARE_POLY_ENUM1.
 #define END_DECLARE_POLY_ENUM() \
     }
 

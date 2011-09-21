@@ -16,7 +16,7 @@ class TMetaStateManagerProxy
 public:
     typedef TIntrusivePtr<TMetaStateManagerProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(NRpc::EErrorCode, EErrorCode,
+    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((InvalidSegmentId)(1))
         ((InvalidEpoch)(2))
         ((InvalidVersion)(3))

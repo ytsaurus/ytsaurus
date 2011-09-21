@@ -16,7 +16,7 @@ DECLARE_ENUM(EColor,
 );
 
 DECLARE_POLY_ENUM1(EMyFirst, ((Chip)(1)));
-DECLARE_POLY_ENUM2(EMyFirst, EMySecond, ((Dale)(2)));
+DECLARE_POLY_ENUM2(EMySecond, EMyFirst, ((Dale)(2)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +115,88 @@ TEST(TEnumTest, Polymorphism3)
 
     EXPECT_EQ("EMyFirst(17)", first.ToString());
     EXPECT_EQ("EMySecond(17)", second.ToString());
+}
+
+TEST(TEnumTest, Ordering)
+{
+    ESimple a(ESimple::X);
+    ESimple b(ESimple::Y);
+    ESimple c(ESimple::Y);
+    ESimple d(ESimple::Z);
+
+    EXPECT_IS_FALSE(a < a); EXPECT_IS_FALSE(a > a);
+    EXPECT_IS_TRUE (a < b); EXPECT_IS_TRUE (b > a);
+    EXPECT_IS_TRUE (a < c); EXPECT_IS_TRUE (c > a);
+    EXPECT_IS_TRUE (a < d); EXPECT_IS_TRUE (d > a);
+
+    EXPECT_IS_FALSE(b < a); EXPECT_IS_FALSE(a > b);
+    EXPECT_IS_FALSE(b < b); EXPECT_IS_FALSE(b > b);
+    EXPECT_IS_FALSE(b < c); EXPECT_IS_FALSE(c > b);
+    EXPECT_IS_TRUE (b < d); EXPECT_IS_TRUE (d > b);
+
+    EXPECT_IS_FALSE(c < a); EXPECT_IS_FALSE(a > c);
+    EXPECT_IS_FALSE(c < b); EXPECT_IS_FALSE(b > c);
+    EXPECT_IS_FALSE(c < c); EXPECT_IS_FALSE(c > c);
+    EXPECT_IS_TRUE (c < d); EXPECT_IS_TRUE (d > c);
+
+    EXPECT_IS_FALSE(d < a); EXPECT_IS_FALSE(a > d);
+    EXPECT_IS_FALSE(d < b); EXPECT_IS_FALSE(b > d);
+    EXPECT_IS_FALSE(d < c); EXPECT_IS_FALSE(c > d);
+    EXPECT_IS_FALSE(d < d); EXPECT_IS_FALSE(d > d);
+
+    EXPECT_IS_TRUE (a <= b);
+    EXPECT_IS_TRUE (b <= c);
+    EXPECT_IS_TRUE (c <= d);
+
+    EXPECT_IS_TRUE (a == a);
+    EXPECT_IS_FALSE(a == b);
+    EXPECT_IS_TRUE (b == c);
+    EXPECT_IS_FALSE(c == d);
+    EXPECT_IS_FALSE(d == a);
+
+    EXPECT_IS_FALSE(a != a);
+    EXPECT_IS_TRUE (a != b);
+    EXPECT_IS_FALSE(b != c);
+    EXPECT_IS_TRUE (c != d);
+    EXPECT_IS_TRUE (d != a);
+}
+
+TEST(TEnumTest, OrderingWithDomainValues)
+{
+    EColor color(EColor::Black);
+
+    EXPECT_LT(EColor::Red, color);
+    EXPECT_LT(color, EColor::White);
+
+    EXPECT_GT(color, EColor::Red);
+    EXPECT_GT(EColor::White, color);
+
+    EXPECT_LE(EColor::Red, color);
+    EXPECT_LE(color, EColor::White);
+
+    EXPECT_GE(EColor::White, color);
+    EXPECT_GE(color, EColor::Red);
+
+    EXPECT_EQ(color, EColor::Black);
+    EXPECT_EQ(EColor::Black, color);
+
+    EXPECT_NE(color, EColor::Blue);
+    EXPECT_NE(EColor::Blue, color);
+}
+
+TEST(TEnumTest, OrderingWithPolymorphism)
+{
+    EMyFirst f1(EMyFirst::Chip);
+    EMyFirst f2(2);
+    EMySecond g1(1);
+    EMySecond g2(EMySecond::Dale);
+
+    EXPECT_LT(f1, g2);
+    EXPECT_GT(f2, g1);
+    EXPECT_LE(f1, g1);
+    EXPECT_GE(f2, g2);
+    EXPECT_EQ(f1, g1);
+    EXPECT_NE(f1, g2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

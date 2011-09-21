@@ -29,23 +29,22 @@ BEGIN_DECLARE_POLY_ENUM(EErrorCode, EErrorCode,
 public:
     // Allow implicit construction of error code from integer value.
     EErrorCode(int value)
-        : TPolymorphicEnumBase(value)
+        : TBase(value)
     { }
 
-    // TODO: get rid of casts, compare enums as is
     bool IsOK() const
     {
-        return ToValue() == OK;
+        return *this == OK;
     }
 
     bool IsRpcError() const
     {
-        return ToValue() < static_cast<int>(EErrorCode::OK);
+        return *this < OK;
     }
 
     bool IsServiceError() const
     {
-        return ToValue() > static_cast<int>(EErrorCode::OK);
+        return *this > OK;
     }
 END_DECLARE_POLY_ENUM();
 

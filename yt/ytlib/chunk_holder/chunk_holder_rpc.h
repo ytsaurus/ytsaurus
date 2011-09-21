@@ -16,12 +16,12 @@ class TChunkHolderProxy
 public:
     typedef TIntrusivePtr<TChunkHolderProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(NRpc::EErrorCode, EErrorCode,
+    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((RemoteCallFailed)(1))
-        (NoSuchSession)
-        (SessionAlreadyExists)
-        (ChunkAlreadyExists)
-        (WindowError)
+        ((NoSuchSession)(2))
+        ((SessionAlreadyExists)(3))
+        ((ChunkAlreadyExists)(4))
+        ((WindowError)(5))
     );
 
     static Stroka GetServiceName() 
