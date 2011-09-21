@@ -20,11 +20,13 @@ public:
     TVoid F() {
         Cout << "function f is called" << Endl;
         THREAD_AFFINITY_ONLY(ServiceThread);
+        return TVoid();
     }
 
     TVoid G() {
         Cout << "function g is called" << Endl;
         THREAD_AFFINITY_ONLY(ServiceThread);
+        return TVoid();
     }
 };
 
