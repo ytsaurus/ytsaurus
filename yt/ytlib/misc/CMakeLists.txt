@@ -23,7 +23,7 @@ SET(YT_SOURCE_FILES
     ptr.h
     string.h
     foreach.h
-    thread_affinity_checker.h
+    thread_affinity.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

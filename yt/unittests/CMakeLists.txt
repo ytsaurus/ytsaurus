@@ -14,7 +14,7 @@ SRCS(
     metric_ut.cpp
     meta_state_map_ut.cpp
     foreach_ut.cpp
-    thread_affinity_checker_ut.cpp
+    thread_affinity_ut.cpp
 )
 
 PEERDIR(

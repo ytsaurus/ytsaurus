@@ -37,4 +37,6 @@ using std::string; // hack for guid.h to work
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
 
-
+// This define enables thread affinity check -- user-defined verification that
+// some functions are called from particulary threads
+#define ENABLE_THREAD_AFFINITY_CHECK
