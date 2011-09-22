@@ -104,7 +104,6 @@ private:
     TChunkId ChunkId;
     const TConfig Config;
 
-    // TOOD: why no Closed here?
     DECLARE_ENUM(EWriterState,
         (Initializing)
         (Writing)
@@ -119,7 +118,8 @@ private:
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
 
-    // TODO: write a comment here
+    // Result of write session, set when session is completed.
+    // Is returned from #AsyncClose
     TAsyncResult<EResult>::TPtr Result;
 
     TWindow Window;

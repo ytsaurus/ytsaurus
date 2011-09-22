@@ -378,6 +378,13 @@ void TRemoteChunkWriter::OnFlushedBlock(int node, int blockIndex)
 
 void TRemoteChunkWriter::OnWindowShifted(int lastFlushedBlock)
 {
+    if (Window.empty()) {
+        // This happens when FlushBlocks responses are disordered
+        // (i.e. a bigger BlockIndex is flushed before a smaller one)
+        // and prevents repeated calling CloseSession
+        return;
+    }
+
     while (!Window.empty()) {
         auto group = Window.front();
         if (group->GetEndBlockIndex() > lastFlushedBlock)
@@ -486,6 +493,7 @@ void TRemoteChunkWriter::OnNodeDied(int node)
         AliveNodeCount);
 
     if (State != EWriterState::Canceled && AliveNodeCount == 0) {
+				YASSERT(State != EWriterState::Closed);
         State = EWriterState::Canceled;
         CancelAllPings();
         Result->Set(EResult::Failed);
