@@ -18,13 +18,11 @@ class TMyObject
 
 public:
     TVoid F() {
-        Cout << "function f is called" << Endl;
         VERIFY_THREAD_AFFINITY(ServiceThread);
         return TVoid();
     }
 
     TVoid G() {
-        Cout << "function g is called" << Endl;
         VERIFY_THREAD_AFFINITY(ServiceThread);
         return TVoid();
     }

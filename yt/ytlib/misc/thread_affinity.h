@@ -33,6 +33,7 @@ public:
     TSlot()
     {
         ImpossibleThreadId = static_cast<intptr_t>(TThread::ImpossibleThreadId());
+        ThreadId = ImpossibleThreadId;
     }
 
     void Check()
