@@ -4,25 +4,28 @@
 #include "ytree.h"
 #include "ypath.h"
 
+#include "../misc/hash.h"
+
 namespace NYT {
 namespace NYTree {
 namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class IBase>
 class TNodeBase
-    : public ::NYT::NYTree::TNodeBase<IBase>
+    : public ::NYT::NYTree::TNodeBase
 {
 public:
     virtual INodeFactory* GetFactory() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TValue, class IBase>
 class TScalarNode
-    : public TNodeBase<IBase>
+    : public TNodeBase
+    , public virtual IBase
 {
 public:
     TScalarNode()
@@ -60,15 +63,6 @@ private:
     virtual I ## name ## Node::TPtr As ## name() \
     { \
         return this; \
-    } \
-    virtual void YPathAssign(INode::TPtr other) \
-    { \
-        if (GetType() != other->GetType()) { \
-            ythrow yexception() << Sprintf("Cannot change node type from %s to %s during update", \
-                ~GetType().ToString().Quote(), \
-                ~other->GetType().ToString().Quote()); \
-        } \
-        DoAssign(other->As ## name()); \
     }
 
 #define DECLARE_SCALAR_TYPE(name, type) \
@@ -78,11 +72,6 @@ private:
     public: \
         DECLARE_TYPE_OVERRIDES(name) \
     \
-    private: \
-        void DoAssign(I ## name ## Node::TPtr other) \
-        { \
-            SetValue(other->GetValue()); \
-        } \
     };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,218 +83,74 @@ DECLARE_SCALAR_TYPE(Double, double)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNode
-    : public TNodeBase<IMapNode>
+    : public TNodeBase
+    , public virtual IMapNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(Map)
 
-    virtual void Clear()
-    {
-        FOREACH(const auto& pair, Map) {
-            pair.Second()->AsMutable()->SetParent(NULL);
-        }
-        Map.clear();
-    }
+    virtual void Clear();
+    virtual int GetChildCount() const;
+    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const;
+    virtual INode::TConstPtr FindChild(const Stroka& name) const;
+    virtual bool AddChild(INode::TPtr child, const Stroka& name);
+    virtual bool RemoveChild(const Stroka& name);
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
+    virtual void RemoveChild(INode::TPtr child);
 
-    virtual int GetChildCount() const
-    {
-        return Map.ysize();
-    }
-
-    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const
-    {
-        return yvector< TPair<Stroka, INode::TConstPtr> >(Map.begin(), Map.end());
-    }
-
-    virtual INode::TConstPtr FindChild(const Stroka& name) const
-    {
-        auto it = Map.find(name);
-        return it == Map.end() ? NULL : it->Second();
-    }
-
-    virtual bool AddChild(INode::TPtr node, const Stroka& name)
-    {
-        if (Map.insert(MakePair(name, node)).Second()) {
-            node->SetParent(this);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    virtual bool RemoveChild(const Stroka& name)
-    {
-        auto it = Map.find(name);
-        if (it == Map.end())
-            return false;
-
-        it->Second()->AsMutable()->SetParent(NULL);
-        Map.erase(it);
-        return true;
-    }
-
-    virtual bool YPathNavigate(
+    virtual TNavigateResult YPathNavigate(
+        const TYPath& path) const;
+    virtual TSetResult YPathSet(
         const TYPath& path,
-        INode::TConstPtr* node,
-        TYPath* tailPath) const
-    {
-        if (TNodeBase::YPathNavigate(path, node, tailPath))
-            return true;
-
-        Stroka token;
-        ChopYPathPrefix(path, &token, tailPath);
-
-        auto child = FindChild(token);
-        if (~child != NULL) {
-            *node = child;
-            return true;
-        } else {
-            *node = NULL;
-            *tailPath = path;
-            return false;
-        }
-    }
-
-    virtual void YPathForce(
-        const TYPath& path,
-        INode::TPtr* tailNode)
-    {
-        YASSERT(!path.empty());
-
-        TYPath currentPath = path;
-        IMapNode::TPtr currentNode = this;
-        while (!currentPath.empty()) {
-            TYPath tailPath;
-            Stroka name;
-            ChopYPathPrefix(currentPath, &name, &tailPath);
-            auto child = GetFactory()->CreateMap();
-            currentNode->AddChild(child->AsNode(), name);
-            currentNode = child;
-            currentPath = tailPath;
-        }
-
-        *tailNode = currentNode->AsNode();
-    }
+        TYsonProducer::TPtr producer);
 
 private:
-    yhash_map<Stroka, INode::TConstPtr> Map;
-
-    void DoAssign(IMapNode::TPtr other)
-    {
-        // TODO: attributes
-        Clear();
-        auto children = other->GetChildren();
-        other->Clear();
-        FOREACH(const auto& pair, children) {
-            AddChild(pair.Second()->AsMutable(), pair.First());
-        }
-    }
+    yhash_map<Stroka, INode::TPtr> NameToChild;
+    yhash_map<INode::TPtr, Stroka> ChildToName;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TNodeBase<IListNode>
+    : public TNodeBase
+    , public virtual IListNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(List)
 
-    virtual void Clear()
-    {
-        FOREACH(const auto& node, List) {
-            node->AsMutable()->SetParent(NULL);
-        }
-        List.clear();
-    }
+    virtual void Clear();
+    virtual int GetChildCount() const;
+    virtual yvector<INode::TConstPtr> GetChildren() const;
+    virtual INode::TConstPtr FindChild(int index) const;
+    virtual void AddChild(INode::TPtr child, int beforeIndex = -1);
+    virtual bool RemoveChild(int index);
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
+    virtual void RemoveChild(INode::TPtr child);
 
-    virtual int GetChildCount() const
-    {
-        return List.ysize();
-    }
-
-    virtual yvector<INode::TConstPtr> GetChildren() const
-    {
-        return List;
-    }
-
-    virtual INode::TConstPtr FindChild(int index) const
-    {
-        return index >= 0 && index < List.ysize() ? List[index] : NULL;
-    }
-
-    virtual void AddChild(INode::TPtr node, int beforeIndex = -1)
-    {
-        if (beforeIndex < 0) {
-            List.push_back(node); 
-        } else {
-            List.insert(List.begin() + beforeIndex, node);
-        }
-        node->SetParent(this);
-    }
-
-    virtual bool RemoveChild(int index)
-    {
-        if (index < 0 || index >= List.ysize())
-            return false;
-
-        List[index]->AsMutable()->SetParent(NULL);
-        List.erase(List.begin() + index);
-        return true;
-    }
-
-    virtual bool YPathNavigate(
+    virtual TNavigateResult YPathNavigate(
+        const TYPath& path) const;
+    virtual TSetResult YPathSet(
         const TYPath& path,
-        INode::TConstPtr* node,
-        TYPath* tailPath) const
-    {
-        if (TNodeBase::YPathNavigate(path, node, tailPath))
-            return true;
-
-        Stroka token;
-        ChopYPathPrefix(path, &token, tailPath);
-
-        int index = FromString<int>(token);
-        auto child = FindChild(index);
-        if (~child != NULL) {
-            *node = child;
-            return true;
-        } else {
-            *node = NULL;
-            *tailPath = path;
-            return false;
-        }
-    }
+        TYsonProducer::TPtr producer);
 
 private:
     yvector<INode::TConstPtr> List;
 
-    void DoAssign(IListNode::TPtr other)
-    {
-        // TODO: attributes
-        Clear();
-        auto children = other->GetChildren();
-        other->Clear();
-        FOREACH(const auto& child, children) {
-            AddChild(child->AsMutable());
-        }
-    }
+    TNavigateResult GetYPathChild(int index, const TYPath& tailPath) const;
+    TSetResult CreateYPathChild(int beforeIndex, const TYPath& tailPath);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEntityNode
-    : public TNodeBase<IEntityNode>
+    : public TNodeBase
+    , public virtual IEntityNode
 {
 public:
     DECLARE_TYPE_OVERRIDES(Entity)
 
-private:
-    void DoAssign(IEntityNode::TPtr other)
-    {
-        UNUSED(other);
-    }
 };
 
 #undef DECLARE_SCALAR_TYPE
@@ -314,62 +159,21 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
-    : INodeFactory
+    : public INodeFactory
 {
 public:
-    static INodeFactory* Get()
-    {
-        return Singleton<TNodeFactory>();
-    }
+    static INodeFactory* Get();
 
-    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka())
-    {
-        IStringNode::TPtr node = ~New<TStringNode>();
-        node->SetValue(value);
-        return node;
-    }
+    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka());
+    virtual IInt64Node::TPtr CreateInt64(i64 value = 0);
+    virtual IDoubleNode::TPtr CreateDouble(double value = 0);
+    virtual IMapNode::TPtr CreateMap();
+    virtual IListNode::TPtr CreateList();
+    virtual IEntityNode::TPtr CreateEntity();
 
-    virtual IInt64Node::TPtr CreateInt64(i64 value = 0)
-    {
-        IInt64Node::TPtr node = ~New<TInt64Node>();
-        node->SetValue(value);
-        return node;
-    }
-
-    virtual IDoubleNode::TPtr CreateDouble(double value = 0)
-    {
-        IDoubleNode::TPtr node = ~New<TDoubleNode>();
-        node->SetValue(value);
-        return node;
-    }
-
-    virtual IMapNode::TPtr CreateMap()
-    {
-        return ~New<TMapNode>();
-    }
-
-    virtual IListNode::TPtr CreateList()
-    {
-        return ~New<TListNode>();
-    }
-
-    virtual IEntityNode::TPtr CreateEntity()
-    {
-        return ~New<TEntityNode>();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class IBase>
-INodeFactory* TNodeBase<IBase>::GetFactory() const
-{
-		return TNodeFactory::Get();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 
 } // namespace NEphemeral
 } // namespace NYTree

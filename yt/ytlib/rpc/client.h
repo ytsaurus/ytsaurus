@@ -217,7 +217,7 @@ public:
 
     TErrorCode GetErrorCode() const
     {
-        return (TErrorCode) TClientResponse::GetErrorCode();
+        return TClientResponse::GetErrorCode();
     }
 
 private:

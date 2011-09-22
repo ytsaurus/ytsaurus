@@ -2,6 +2,12 @@
 
 #include "common.h"
 #include "ytree.h"
+#include "yson_events.h"
+
+#include "../actions/action.h"
+
+// TODO: remove once impl is moved to cpp
+#include "../actions/action_util.h"
 
 namespace NYT {
 namespace NYTree {
@@ -38,26 +44,97 @@ inline void ChopYPathPrefix(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ChopYPathSuffix(
-    const TYPath& path,
-    Stroka* suffix,
-    TYPath* headPath)
+//inline void ChopYPathSuffix(
+//    const TYPath& path,
+//    Stroka* suffix,
+//    TYPath* headPath)
+//{
+//    size_t index = path.find_last_of("/@");
+//    if (index == TYPath::npos) {
+//        *suffix = path;
+//        *headPath = TYPath(path.begin(), static_cast<size_t>(0));
+//    } else {
+//        switch (path[index]) {
+//            case '/':
+//                *suffix = Stroka(path.begin() + index + 1, path.end());
+//                *headPath = TYPath(path.begin(), path.begin() + index);
+//                break;
+//
+//            case '@':
+//                *suffix = Stroka(path.begin() + index + 1, path.end());
+//                *headPath = TYPath(path.begin(), path.begin() + index + 1);
+//                break;
+//
+//            default:
+//                YASSERT(false);
+//                break;
+//        }
+//    }
+//}
+//
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TYPath GetResolvedYPathPrefix(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath)
 {
-    size_t index = path.find_last_of("/@");
-    if (index == TYPath::npos) {
-        *suffix = path;
-        *headPath = TYPath(path.begin(), static_cast<size_t>(0));
-    } else {
-        switch (path[index]) {
-            case '/':
-                *suffix = Stroka(path.begin() + index + 1, path.end());
-                *headPath = TYPath(path.begin(), path.begin() + index);
+    int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
+    YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
+    return TYPath(wholePath.begin(), wholePath.begin() + resolvedLength);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TYPath ParseYPathRoot(const TYPath& path)
+{
+    if (path.empty()) {
+        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
+    }
+
+    if (path[0] != '/') {
+        ythrow yexception() << "YPath must start with \"/\"";
+    }
+
+    return TYPath(path.begin() + 1, path.end());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYPathOperationState
+{
+    INode::TConstPtr CurrentNode;
+    TYPath CurrentPath;
+};
+
+template <class T>
+inline T ExecuteYPathOperation(
+    INode::TConstPtr root,
+    const TYPath& path,
+    typename IParamFunc<TYPathOperationState, INode::TYPathResult<T> >::TPtr action,
+    Stroka operationName)
+{
+    TYPathOperationState state;
+    state.CurrentNode = root;
+    state.CurrentPath = ParseYPathRoot(path);
+
+    while (true) {
+        auto result = action->Do(state);
+        switch (result.Code) {
+            case INode::EYPathCode::Done:
+                return result.Value;
+
+            case INode::EYPathCode::Recurse:
+                state.CurrentNode = result.RecurseNode;
+                state.CurrentPath = result.RecursePath;
                 break;
 
-            case '@':
-                *suffix = Stroka(path.begin() + index + 1, path.end());
-                *headPath = TYPath(path.begin(), path.begin() + index + 1);
-                break;
+            case INode::EYPathCode::Error:
+                ythrow yexception() << Sprintf("Failed to %s YPath %s at %s: %s",
+                    ~operationName,
+                    ~Stroka(path).Quote(),
+                    ~Stroka(GetResolvedYPathPrefix(path, state.CurrentPath)).Quote(),
+                    ~result.ErrorMessage);
 
             default:
                 YASSERT(false);
@@ -68,101 +145,82 @@ inline void ChopYPathSuffix(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void NavigateYPath(
-    INode::TConstPtr root,
-    const TYPath& path,
-    INode::TConstPtr* tailNode,
-    TYPath* headPath,
-    TYPath* tailPath)
+inline INode::TNavigateResult NavigateYPathAction(
+    TYPathOperationState state)
 {
-    if (path.empty()) {
-        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
-    }
-
-    if (path[0] != '/') {
-        ythrow yexception() << "YPath must start with \"/\"";
-    }
-
-    auto currentNode = root;
-    auto currentPath = TYPath(path.begin() + 1, path.end());
-    INode::TConstPtr currentTailNode;
-    TYPath currentTailPath;
-    while (!currentPath.empty() &&
-           currentNode->YPathNavigate(currentPath, &currentTailNode, &currentTailPath)) {
-        currentNode = currentTailNode;
-        currentPath = currentTailPath;
-    }
-
-    *tailNode = currentNode;
-    *tailPath = currentPath;
-
-    int resolvedLength = static_cast<int>(path.length()) - static_cast<int>(tailPath->length());
-    YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(path.length()));
-    *headPath = TYPath(path.begin(), path.begin() + resolvedLength);
+    return state.CurrentNode->YPathNavigate(state.CurrentPath);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-inline INode::TConstPtr GetYPath(
+inline INode::TConstPtr NavigateYPath(
     INode::TConstPtr root,
     const TYPath& path)
 {
-    INode::TConstPtr tailNode;
-    TYPath headPath;
-    TYPath tailPath;
-    NavigateYPath(root, path, &tailNode, &headPath, &tailPath);
-    if (!tailPath.empty()) {
-        ythrow yexception() << Sprintf("Cannot resolve YPath %s at %s",
-            ~Stroka(tailPath).Quote(),
-            ~Stroka(headPath).Quote());
-    }
-    return tailNode;
+    return ExecuteYPathOperation<INode::TConstPtr>(
+        root,
+        path,
+        FromMethod(&NavigateYPathAction),
+        "navigate");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline INode::TGetResult GetYPathAction(
+    TYPathOperationState state,
+    IYsonConsumer::TPtr events)
+{
+    return state.CurrentNode->YPathGet(state.CurrentPath, events);
+}
+
+inline void GetYPath(
+    INode::TConstPtr root,
+    const TYPath& path,
+    IYsonConsumer::TPtr events)
+{
+    ExecuteYPathOperation<TVoid>(
+        root,
+        path,
+        FromMethod(&GetYPathAction, events),
+        "get");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline INode::TSetResult SetYPathAction(
+    TYPathOperationState state,
+    TYsonProducer::TPtr producer)
+{
+    return state.CurrentNode->AsMutable()->YPathSet(state.CurrentPath, producer);
+}
 
 inline void SetYPath(
     INode::TConstPtr root,
     const TYPath& path,
-    INode::TPtr value)
+    TYsonProducer::TPtr producer)
 {
-    INode::TConstPtr tailNode;
-    TYPath headPath;
-    TYPath tailPath;
-    NavigateYPath(root, path, &tailNode, &headPath, &tailPath);
-    
-    if (tailPath.empty()) {
-        tailNode->AsMutable()->YPathAssign(value);
-    } else {
-        Stroka suffix;
-        TYPath headTailPath;
-        ChopYPathSuffix(tailPath, &suffix, &headTailPath);
-        
-        INode::TPtr appendNode;
-        if (headTailPath.empty()) {
-            appendNode = tailNode->AsMutable();
-            if (appendNode->GetType() != ENodeType::Map) {
-                ythrow yexception() << Sprintf("Cannot append a child to node %s of type %s",
-                    ~Stroka(headPath).Quote(),
-                    ~tailNode->GetType().ToString());
-            }
-        } else {
-            tailNode->AsMutable()->YPathForce(headTailPath, &appendNode);
-            YASSERT(appendNode->GetType() == ENodeType::Map);
-        }
-
-        appendNode->AsMap()->AddChild(value, suffix);
-    }
+    ExecuteYPathOperation<TVoid>(
+        root,
+        path,
+        FromMethod(&SetYPathAction, producer),
+        "set");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline INode::TRemoveResult RemoveYPathAction(
+    TYPathOperationState state)
+{
+    return state.CurrentNode->AsMutable()->YPathRemove(state.CurrentPath);
+}
 
 inline void RemoveYPath(
     INode::TConstPtr root,
     const TYPath& path)
 {
-    auto node = GetYPath(root, path);
-    node->AsMutable()->YPathRemove();
+    ExecuteYPathOperation<TVoid>(
+        root,
+        path,
+        FromMethod(&RemoveYPathAction),
+        "remove");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -167,12 +167,13 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     ScheduleHeartbeat();
     
     EErrorCode errorCode = response->GetErrorCode();
-    if (errorCode != EErrorCode::OK) {
+    if (errorCode != NRpc::EErrorCode::OK) {
         LOG_WARNING("Error sending heartbeat to master (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
 
         // Don't panic upon getting TransportError or Unavailable.
-        if (errorCode != EErrorCode::TransportError && errorCode != EErrorCode::Unavailable) {
+        if (errorCode != NRpc::EErrorCode::TransportError && 
+            errorCode != NRpc::EErrorCode::Unavailable) {
             OnDisconnected();
         }
 

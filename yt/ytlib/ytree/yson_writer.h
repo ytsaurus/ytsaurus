@@ -9,9 +9,11 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonWriter
-    : public IYsonEvents
+    : public IYsonConsumer
 {
 public:
+    typedef TIntrusivePtr<TYsonWriter> TPtr;
+
     TYsonWriter(TOutputStream* stream)
         : Stream(stream)
         , IsFirstItem(false)

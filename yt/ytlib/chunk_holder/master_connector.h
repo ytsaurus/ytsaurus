@@ -34,7 +34,7 @@ public:
 private:
     typedef NChunkManager::TChunkManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef yhash_set<TChunk::TPtr, TIntrusivePtrHash<TChunk> > TChunks;
+    typedef yhash_set<TChunk::TPtr> TChunks;
 
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;

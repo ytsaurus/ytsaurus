@@ -53,6 +53,7 @@ perl -pi -e 's!^#include "(gtest|gmock)/!#include "framework/!' {gtest,gmock}.h
 # EXPECT_(TRUE|FALSE) are defined in arcadia/util to control branch prediction.
 perl -pi -e 's!\bEXPECT_(TRUE|FALSE)\b!EXPECT_IS_\1!g' {gtest,gmock}.h framework.cpp
 
+# This patch alters includes and fixes few compilation warnings.
 patch -p1 <<EOP
 --- a/framework.cpp
 +++ b/framework.cpp
@@ -104,5 +105,26 @@ patch -p1 <<EOP
  // All rights reserved.
 EOP
 
+# This patch fixes obscure bug caused by the mismatch of allocators used by libc
+# and our program.
+patch -p1 <<EOP
+--- a/gtest.h
++++ b/gtest.h
+@@ -2654,7 +2654,13 @@
+ inline int StrCaseCmp(const char* s1, const char* s2) {
+   return strcasecmp(s1, s2);
+ }
+-inline char* StrDup(const char* src) { return strdup(src); }
++inline char* StrDup(const char* src) {
++    size_t size = 1 + strlen(src);
++    char* target = (char*)malloc(size);
++    memcpy(target, src, size - 1);
++    target[size - 1] = 0;
++    return target;
++}
+ inline int RmDir(const char* dir) { return rmdir(dir); }
+ inline bool IsDir(const StatStruct& st) { return S_ISDIR(st.st_mode); }
+EOP
+ 
 echo "Voila!"
 echo "Please, don't forget to update README and DEPLOY.sh after update."

@@ -163,7 +163,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         if (!response->IsOK()) {
             TProxy::EErrorCode errorCode = response->GetErrorCode();
             if (response->IsServiceError()) {
-                switch (errorCode.ToValue()) {
+                switch (errorCode) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
                             "Peer %d does not have snapshot %d anymore",

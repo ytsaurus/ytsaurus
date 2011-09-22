@@ -9,39 +9,40 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTreeParser
+class TTreeVisitor
+    : private TNonCopyable
 {
 public:
-    TTreeParser(IYsonEvents* events)
+    TTreeVisitor(IYsonConsumer::TPtr events)
         : Events(events)
     { }
 
-    void Parse(INode::TConstPtr root)
+    void Visit(INode::TConstPtr root)
     {
         Events->BeginTree();
-        ParseAny(root);
+        VisitAny(root);
         Events->EndTree();
     }
 
 private:
-    IYsonEvents* Events;
+    IYsonConsumer::TPtr Events;
 
-    void ParseAny(INode::TConstPtr node)
+    void VisitAny(INode::TConstPtr node)
     {
         switch (node->GetType()) {
             case ENodeType::String:
             case ENodeType::Int64:
             case ENodeType::Double:
             case ENodeType::Entity:
-                ParseScalar(node);
+                VisitScalar(node);
                 break;
 
             case ENodeType::List:
-                ParseList(node->AsList());
+                VisitList(node->AsList());
                 break;
 
             case ENodeType::Map:
-                ParseMap(node->AsMap());
+                VisitMap(node->AsMap());
                 break;
 
             default:
@@ -51,11 +52,11 @@ private:
 
         auto attributes = node->GetAttributes();
         if (~attributes != NULL) {
-            ParseAttributes(attributes);
+            VisitAttributes(attributes);
         }
     }
 
-    void ParseScalar(INode::TConstPtr node)
+    void VisitScalar(INode::TConstPtr node)
     {
         switch (node->GetType()) {
             case ENodeType::String:
@@ -80,33 +81,33 @@ private:
         }
     }
 
-    void ParseList(IListNode::TConstPtr node)
+    void VisitList(IListNode::TConstPtr node)
     {
         Events->BeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
             Events->ListItem(i);
-            Parse(child);
+            Visit(child);
         }
         Events->EndList();
     }
 
-    void ParseMap(IMapNode::TConstPtr node)
+    void VisitMap(IMapNode::TConstPtr node)
     {
         Events->BeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
             Events->MapItem(pair.First());
-            Parse(pair.Second());
+            Visit(pair.Second());
         }
         Events->EndMap();
     }
 
-    void ParseAttributes(IMapNode::TConstPtr node)
+    void VisitAttributes(IMapNode::TConstPtr node)
     {
         Events->BeginAttributes();
         FOREACH(const auto& pair, node->GetChildren()) {
             Events->AttributesItem(pair.First());
-            Parse(pair.Second());
+            Visit(pair.Second());
         }
         Events->EndAttributes();
     }

@@ -29,10 +29,14 @@ using std::string; // hack for guid.h to work
     #pragma warning (disable : 4503)
     // C4714: function marked as __forceinline not inlined
     #pragma warning (disable: 4714)
+    // C4250: inherits via dominance
+    #pragma warning (disable: 4250)
 #endif
 
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
 
-
+// This define enables thread affinity check -- user-defined verification ensuring
+// that some functions are called from particular threads.
+#define ENABLE_THREAD_AFFINITY_CHECK
