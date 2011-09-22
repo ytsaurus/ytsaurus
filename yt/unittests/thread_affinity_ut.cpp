@@ -1,4 +1,4 @@
-#include "../ytlib/misc/thread_affinity_checker.h"
+#include "../ytlib/misc/thread_affinity.h"
 
 #include "../ytlib/actions/action_queue.h"
 #include "../ytlib/actions/action_util.h"
@@ -19,13 +19,13 @@ class TMyObject
 public:
     TVoid F() {
         Cout << "function f is called" << Endl;
-        THREAD_AFFINITY_ONLY(ServiceThread);
+        VERIFY_THREAD_AFFINITY(ServiceThread);
         return TVoid();
     }
 
     TVoid G() {
         Cout << "function g is called" << Endl;
-        THREAD_AFFINITY_ONLY(ServiceThread);
+        VERIFY_THREAD_AFFINITY(ServiceThread);
         return TVoid();
     }
 };
