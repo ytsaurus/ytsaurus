@@ -40,7 +40,7 @@ TEST(TRefCountedTrackerTest, Simple)
     EXPECT_EQ(   0, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
-        container.push_back(new TSimpleObject());
+        container.push_back(New<TSimpleObject>());
     }
 
     EXPECT_EQ(1000, TSimpleObject::GetAliveCount());
