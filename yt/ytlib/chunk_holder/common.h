@@ -49,6 +49,10 @@ struct TChunkHolderConfig
     //! Port number to listen.
     int Port;
 
+    // TODO: consider making per/location limit
+    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
+    i64 MaxChunksSpace;
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -61,6 +65,7 @@ struct TChunkHolderConfig
         , HeartbeatPeriod(TDuration::Seconds(5))
         , RpcTimeout(TDuration::Seconds(5))
         , Port(9000)
+        , MaxChunksSpace(-1)
     {
         Locations.push_back(".");
     }

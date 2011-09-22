@@ -9,12 +9,10 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int THolderId;
+const int InvalidHolderId = -1;
 
 struct THolder
 {
-    typedef yhash_set<TChunkId> TChunkIds;
-    typedef yvector<TJobId> TJobs;
-
     THolder()
     { }
 
@@ -60,9 +58,21 @@ struct THolder
     THolderId Id;
     Stroka Address;
     THolderStatistics Statistics;
-    TChunkIds Chunks;
-    TJobs Jobs;
+    yhash_set<TChunkId> Chunks;
+    yvector<TJobId> Jobs;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicationSink
+{
+    explicit TReplicationSink(const Stroka &address)
+        : Address(address)
+    { }
+
+    Stroka Address;
+    yhash_set<TJobId> JobIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common.h"
 #include "chunk_manager.h"
 #include "chunk_placement.h"
 
@@ -80,7 +81,11 @@ private:
     );
 
     EScheduleFlags ScheduleReplicationJob(
-        const THolder& holder,
+        const THolder& sourceHolder,
+        const TChunkId& chunkId,
+        yvector<NProto::TJobStartInfo>* jobsToStart);
+    EScheduleFlags ScheduleBalancingJob(
+        const THolder& sourceHolder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(

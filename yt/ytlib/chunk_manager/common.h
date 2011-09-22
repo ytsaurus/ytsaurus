@@ -41,6 +41,16 @@ struct TChunkManagerConfig
     TDuration HolderLeaseTimeout;
 };
 
+// TODO: make configurable
+extern int MaxReplicationFanOut;
+extern int MaxReplicationFanIn;
+extern int MaxRemovalJobsPerHolder;
+extern TDuration ChunkRefreshDelay;
+extern TDuration ChunkRefreshQuantum;
+extern int MaxChunksPerRefresh;
+extern double MinChunkBalancingLoadFactorDiff;
+extern double MinChunkBalancingLoadFactor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkManager

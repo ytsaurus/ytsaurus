@@ -258,6 +258,10 @@ THolderStatistics TChunkStore::GetStatistics() const
         result.UsedSpace += location->GetUsedSpace();
     }
 
+    if (Config.MaxChunksSpace >= 0) {
+        result.AvailableSpace = Max((i64) 0, Config.MaxChunksSpace - result.UsedSpace);
+    }
+
     result.ChunkCount = ChunkMap.ysize();
     return result;
 }

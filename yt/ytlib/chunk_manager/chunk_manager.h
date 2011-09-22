@@ -46,6 +46,9 @@ public:
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
+    const THolder* FindHolder(const Stroka& address);
+    const TReplicationSink* FindReplicationSink(const Stroka& address);
+
 private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;

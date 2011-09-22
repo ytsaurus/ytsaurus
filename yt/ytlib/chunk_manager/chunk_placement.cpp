@@ -20,7 +20,7 @@ TChunkPlacement::TChunkPlacement(TChunkManager::TPtr chunkManager)
 void TChunkPlacement::AddHolder(const THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
-    auto it = PreferenceMap.insert(MakePair(loadFactor, holder.Id));
+    auto it = LoadFactorMap.insert(MakePair(loadFactor, holder.Id));
     YVERIFY(IteratorMap.insert(MakePair(holder.Id, it)).Second());
 }
 
@@ -29,7 +29,7 @@ void TChunkPlacement::RemoveHolder(const THolder& holder)
     auto iteratorIt = IteratorMap.find(holder.Id);
     YASSERT(iteratorIt != IteratorMap.end());
     auto preferenceIt = iteratorIt->Second();
-    PreferenceMap.erase(preferenceIt);
+    LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
 }
 
@@ -42,6 +42,7 @@ void TChunkPlacement::UpdateHolder(const THolder& holder)
 yvector<THolderId> TChunkPlacement::GetUploadTargets(int replicaCount)
 {
     // TODO: do not list holders that are nearly full
+    // TODO: check replication fan-in in case this is a replication job
     yvector<THolderId> result;
     result.reserve(replicaCount);
     unsigned int replicasNeeded = replicaCount;
@@ -98,6 +99,75 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
             break;
         result.push_back(pair.First());
     }
+    return result;
+}
+
+THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxLoadFactor)
+{
+    FOREACH (const auto& pair, LoadFactorMap) {
+        const auto& holder = ChunkManager->GetHolder(pair.second);
+        if (TChunkPlacement::GetLoadFactor(holder) > maxLoadFactor) {
+            break;
+        }
+        if (IsValidBalancingTarget(holder, chunk)) {
+            return holder.Id;
+        }
+    }
+    return InvalidHolderId;
+}
+
+bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk)
+{
+    if (targetHolder.Chunks.find(chunk.Id) != targetHolder.Chunks.end())  {
+        // Do not balance to a holder already having the chunk.
+        return false;
+    }
+
+    FOREACH (const auto& jobId, targetHolder.Jobs) {
+        const auto& job = ChunkManager->GetJob(jobId);
+        if (job.ChunkId == chunk.Id) {
+            // Do not balance to a holder already having a job associated with this chunk.
+            return false;
+        }
+    }
+
+    auto* sink = ChunkManager->FindReplicationSink(targetHolder.Address);
+    if (sink != NULL) {
+        if (static_cast<int>(sink->JobIds.size()) >= MaxReplicationFanIn) {
+            // Do not balance to a holder with too many incoming replication jobs.
+            return false;
+        }
+
+        FOREACH (const auto& jobId, sink->JobIds) {
+            const auto& job = ChunkManager->GetJob(jobId);
+            if (job.ChunkId == chunk.Id) {
+                // Do not balance to a holder that is a replication target for the very same chunk.
+                return false;
+            }
+        }
+    }
+
+    // Seems OK :)
+    return true;
+}
+
+yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int count)
+{
+    // Do not balance chunks that already have a job assigned.
+    yhash_set<TChunkId> forbiddenChunkIds;
+    FOREACH (const auto& jobId, holder.Jobs) {
+        const auto& job = ChunkManager->GetJob(jobId);
+        forbiddenChunkIds.insert(job.ChunkId);
+    }
+
+    // TODO: do something smart
+    yvector<TChunkId> result;
+    FOREACH (const auto& chunkId, holder.Chunks) {
+        if (result.ysize() >= count)
+            break;
+        result.push_back(chunkId);
+    }
+
     return result;
 }
 

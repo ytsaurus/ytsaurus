@@ -9,13 +9,6 @@ namespace NChunkManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: make configurable
-static int MaxReplicationJobsPerHolder = 4;
-static int MaxRemovalJobsPerHolder = 16;
-static TDuration ChunkRefreshDelay = TDuration::Seconds(15);
-static TDuration ChunkRefreshQuantum = TDuration::MilliSeconds(100);
-static int MaxChunksPerRefresh = 1000;
-
 static NLog::TLogger& Logger = ChunkManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +37,7 @@ void TChunkReplication::RunJobControl(
 
     ScheduleJobs(
         holder,
-        Max(0, MaxReplicationJobsPerHolder - replicationJobCount),
+        Max(0, MaxReplicationFanOut - replicationJobCount),
         Max(0, MaxRemovalJobsPerHolder - removalJobCount),
         jobsToStart);
 }
@@ -174,22 +167,24 @@ yvector<Stroka> TChunkReplication::GetReplicationTargets(
 }
 
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
-    const THolder& holder,
+    const THolder& sourceHolder,
     const TChunkId& chunkId,
     yvector<NProto::TJobStartInfo>* jobsToStart)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (chunk == NULL) {
-        LOG_INFO("Chunk for replication is missing (ChunkId: %s, HolderId: %d)",
+        LOG_INFO("Chunk for replication is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
-            holder.Id);
+            ~sourceHolder.Address,
+            sourceHolder.Id);
         return EScheduleFlags::Purged;
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for replication is scheduled for another refresh (ChunkId: %s, HolderId: %d)",
+        LOG_INFO("Chunk for replication is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
-            holder.Id);
+            ~sourceHolder.Address,
+            sourceHolder.Id);
         return EScheduleFlags::None;
     }
 
@@ -207,17 +202,18 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     int requestedCount = desiredCount - (realCount + plusCount);
     if (requestedCount <= 0) {
         // TODO: is this possible?
-        LOG_INFO("Chunk for replication has enough replicas (ChunkId: %s, HolderId: %d)",
+        LOG_INFO("Chunk for replication has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
-            holder.Id);
+            ~sourceHolder.Address,
+            sourceHolder.Id);
         return EScheduleFlags::Purged;
     }
 
     auto targetAddresses = GetReplicationTargets(*chunk, requestedCount);
     if (targetAddresses.empty()) {
-        LOG_INFO("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
+        LOG_DEBUG("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
             ~chunkId.ToString(),
-            holder.Id);
+            sourceHolder.Id);
         return EScheduleFlags::None;
     }
 
@@ -229,9 +225,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     ToProto(*startInfo.MutableTargetAddresses(), targetAddresses);
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Chunk replication scheduled (ChunkId: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
+    LOG_INFO("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
         ~chunkId.ToString(),
-        holder.Id,
+        ~sourceHolder.Address,
+        sourceHolder.Id,
         ~jobId.ToString(),
         ~JoinToString(targetAddresses));
 
@@ -240,6 +237,46 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
         : (EScheduleFlags) EScheduleFlags::Scheduled;
+}
+
+TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
+    const THolder& sourceHolder,
+    const TChunkId& chunkId,
+    yvector<NProto::TJobStartInfo>* jobsToStart)
+{
+    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    double maxLoadFactor =
+        TChunkPlacement::GetLoadFactor(sourceHolder) -
+        MinChunkBalancingLoadFactorDiff;
+
+    THolderId targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxLoadFactor);
+    if (targetHolderId == InvalidHolderId) {
+        LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
+            ~chunkId.ToString(),
+            ~sourceHolder.Address,
+            sourceHolder.Id);
+        return EScheduleFlags::Purged;
+    }
+
+    const THolder& targetHolder = ChunkManager->GetHolder(targetHolderId);
+
+    auto jobId = TJobId::Create();
+    NProto::TJobStartInfo startInfo;
+    startInfo.SetJobId(jobId.ToProto());
+    startInfo.SetType(EJobType::Replicate);
+    startInfo.SetChunkId(chunkId.ToProto());
+    startInfo.AddTargetAddresses(targetHolder.Address);
+    jobsToStart->push_back(startInfo);
+
+    LOG_INFO("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
+        ~chunkId.ToString(),
+        ~sourceHolder.Address,
+        sourceHolder.Id,
+        ~jobId.ToString(),
+        ~targetHolder.Address);
+
+    // TODO: flagged enums
+    return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
@@ -256,8 +293,9 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for removal is scheduled for another refresh (ChunkId: %s, HolderId: %d)",
+        LOG_INFO("Chunk for removal is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
+            ~holder.Address,
             holder.Id);
         return EScheduleFlags::None;
     }
@@ -269,8 +307,9 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     startInfo.SetChunkId(chunkId.ToProto());
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Removal job scheduled (ChunkId: %s, HolderId: %d, JobId: %s)",
+    LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %d, HolderId: %d, JobId: %s)",
         ~chunkId.ToString(),
+        ~holder.Address,
         holder.Id,
         ~jobId.ToString());
 
@@ -288,6 +327,7 @@ void TChunkReplication::ScheduleJobs(
     if (holderInfo == NULL)
         return;
 
+    // Schedule replication jobs.
     {
         auto& chunksToReplicate = holderInfo->ChunksToReplicate;
         auto it = chunksToReplicate.begin();
@@ -295,7 +335,7 @@ void TChunkReplication::ScheduleJobs(
             auto jt = it;
             ++jt;
             const auto& chunkId = *it;
-            auto flags = ScheduleReplicationJob(holder, chunkId, jobsToStart);
+            auto flags = ScheduleBalancingJob(holder, chunkId, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
             }
@@ -306,6 +346,27 @@ void TChunkReplication::ScheduleJobs(
         }
     }
 
+    // Schedule balancing jobs.
+    if (maxReplicationJobsToStart > 0 &&
+        TChunkPlacement::GetLoadFactor(holder) > MinChunkBalancingLoadFactor)
+    {
+        auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
+        if (!chunksToBalance.empty()) {
+            LOG_DEBUG("Holder is eligible for balancing (Address: %s, HolderId: %d, ChunkIds: [%s])",
+                ~holder.Address,
+                holder.Id,
+                ~JoinToString(chunksToBalance));
+
+            FOREACH (const auto& chunkId, chunksToBalance) {
+                auto flags = ScheduleBalancingJob(holder, chunkId, jobsToStart);
+                if (flags & EScheduleFlags::Scheduled) {
+                    --maxReplicationJobsToStart;
+                }
+            }
+        }
+    }
+
+    // Schedule removal jobs.
     {
         auto& chunksToRemove = holderInfo->ChunksToRemove;
         auto it = chunksToRemove.begin();
@@ -520,7 +581,7 @@ void TChunkReplication::OnRefresh()
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::Start( IInvoker::TPtr invoker )
+void TChunkReplication::Start(IInvoker::TPtr invoker)
 {
     YASSERT(~Invoker == NULL);
     Invoker = invoker;

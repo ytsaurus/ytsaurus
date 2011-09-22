@@ -81,10 +81,16 @@ public:
         return TVoid();
     }
 
-    const THolder* FindHolder(Stroka address)
+    const THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
         return it == HolderAddressMap.end() ? NULL : FindHolder(it->Second());
+    }
+
+    const TReplicationSink* FindReplicationSink(const Stroka& address)
+    {
+        auto it = ReplicationSinkMap.find(address);
+        return it == ReplicationSinkMap.end() ? NULL : &it->Second();
     }
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
@@ -168,15 +174,15 @@ public:
 
     TVoid HeartbeatResponse(const NProto::TMsgHeartbeatResponse& message)
     {
-        THolderId holderId = message.GetHolderId();
-        THolder& holder = GetHolderForUpdate(holderId);
+        auto holderId = message.GetHolderId();
+        auto& holder = GetHolderForUpdate(holderId);
 
         FOREACH(const auto& startInfo, message.GetStartedJobs()) {
             DoAddJob(holder, startInfo);
         }
 
         FOREACH(auto protoJobId, message.GetStoppedJobs()) {
-            const TJob& job = GetJob(TJobId::FromProto(protoJobId));
+            const auto& job = GetJob(TJobId::FromProto(protoJobId));
             DoRemoveJob(holder, job);
         }
 
@@ -195,6 +201,7 @@ private:
     typedef yhash_map<Stroka, THolderId> THolderAddressMap;
     typedef TMetaStateMap<TChunkId, TJobList> TJobListMap;
     typedef TMetaStateMap<TJobId, TJob> TJobMap;
+    typedef yhash_map<Stroka, TReplicationSink> TReplicationSinkMap;
     
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
@@ -207,6 +214,7 @@ private:
     THolderAddressMap HolderAddressMap;
     TJobListMap JobListMap;
     TJobMap JobMap;
+    TReplicationSinkMap ReplicationSinkMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -246,10 +254,17 @@ private:
 
     TVoid OnLoaded(TVoid)
     {
+        // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
-        FOREACH(auto pair, HolderMap) {
-            const THolder& holder = pair.Second();
+        FOREACH(const auto& pair, HolderMap) {
+            const auto& holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder.Address, holder.Id)).Second());
+        }
+
+        // Reconstruct ReplicationSinkMap.
+        ReplicationSinkMap.clear();
+        FOREACH (const auto& pair, JobMap) {
+            RegisterReplicationSinks(pair.Second());
         }
 
         return TVoid();
@@ -424,10 +439,12 @@ private:
             targetAddresses);
         YVERIFY(JobMap.Insert(jobId, job));
 
-        TJobList& list = GetOrCreateJobListForUpdate(chunkId);
+        auto& list = GetOrCreateJobListForUpdate(chunkId);
         list.AddJob(jobId);
 
         holder.AddJob(jobId);
+
+        RegisterReplicationSinks(job);
 
         LOG_INFO("Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
@@ -439,13 +456,17 @@ private:
 
     void DoRemoveJob(THolder& holder, const TJob& job)
     {
-        TJobId jobId = job.JobId;
+        auto jobId = job.JobId;
 
-        TJobList& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.ChunkId);
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
         holder.RemoveJob(jobId);
+
+        UnregisterReplicationSinks(job);
+
+        YVERIFY(JobMap.Remove(job.JobId));
 
         LOG_INFO("Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -455,17 +476,22 @@ private:
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
     {
-        TJobId jobId = job.JobId;
+        auto jobId = job.JobId;
 
-        TJobList& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.ChunkId);
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
+
+        UnregisterReplicationSinks(job);
+
+        YVERIFY(JobMap.Remove(job.JobId));
 
         LOG_INFO("Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.Address,
             holder.Id);
     }
+
 
     void ProcessAddedChunk(
         THolder& holder,
@@ -521,7 +547,7 @@ private:
 
     TJobList& GetOrCreateJobListForUpdate(const TChunkId& id)
     {
-        TJobList* list = FindJobListForUpdate(id);
+        auto* list = FindJobListForUpdate(id);
         if (list != NULL)
             return *list;
 
@@ -533,6 +559,69 @@ private:
     {
         if (list.Jobs.empty()) {
             JobListMap.Remove(list.ChunkId);
+        }
+    }
+
+
+    void RegisterReplicationSinks(const TJob& job)
+    {
+        switch (job.Type) {
+            case EJobType::Replicate: {
+                FOREACH (const auto& address, job.TargetAddresses) {
+                    auto& sink = GetOrCreateReplicationSink(address);
+                    YASSERT(sink.JobIds.insert(job.JobId).Second());
+                }
+                break;
+            }
+
+            case EJobType::Remove:
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
+    }
+
+    void UnregisterReplicationSinks(const TJob& job)
+    {
+        switch (job.Type) {
+            case EJobType::Replicate: {
+                FOREACH (const auto& address, job.TargetAddresses) {
+                    auto& sink = GetOrCreateReplicationSink(address);
+                    YASSERT(sink.JobIds.erase(job.JobId) == 1);
+                    MaybeDropReplicationSink(sink);
+                }
+                break;
+            }
+
+            case EJobType::Remove:
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
+    }
+
+    TReplicationSink& GetOrCreateReplicationSink(const Stroka& address)
+    {
+        auto it = ReplicationSinkMap.find(address);
+        if (it != ReplicationSinkMap.end())
+            return it->Second();
+
+        auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
+        YASSERT(pair.second);
+        return pair.first->Second();
+    }
+
+    void MaybeDropReplicationSink(const TReplicationSink& sink)
+    {
+        if (sink.JobIds.empty()) {
+            // NB: do not try to inline this variable! erase() will destroy the object
+            // and will access the key afterwards.
+            Stroka address = sink.Address;
+            YVERIFY(ReplicationSinkMap.erase(address) == 1);
         }
     }
 };
@@ -622,6 +711,16 @@ void TChunkManager::UnregisterHolder(THolderId holderId)
     CommitChange(
         State, message,
         &TState::UnregisterHolder);
+}
+
+const THolder* TChunkManager::FindHolder(const Stroka& address)
+{
+    return State->FindHolder(address);
+}
+
+const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)
+{
+    return State->FindReplicationSink(address);
 }
 
 METAMAP_ACCESSORS_FWD(TChunkManager, Chunk, TChunk, TChunkId, *State)

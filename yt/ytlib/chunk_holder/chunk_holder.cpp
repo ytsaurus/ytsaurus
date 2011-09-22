@@ -64,6 +64,7 @@ void TChunkHolder::RegisterMethods()
     RPC_REGISTER_METHOD(TChunkHolder, SendBlocks);
     RPC_REGISTER_METHOD(TChunkHolder, FlushBlock);
     RPC_REGISTER_METHOD(TChunkHolder, GetBlocks);
+    RPC_REGISTER_METHOD(TChunkHolder, PingSession);
 }
 
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
