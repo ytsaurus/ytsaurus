@@ -11,8 +11,8 @@ namespace NThreadAffinity {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- * This module is designed to provide the ability of checking the unuqieness
- * of thread calling particulary function.
+ * This module is designed to provide the ability of checking the uniqueness
+ * of thread calling particular function.
  *
  * Usage is as following:
  * - For each thread you should write macros #DECLARE_THREAD_AFFINITY_SLOT(ThreadName).
@@ -24,7 +24,7 @@ namespace NThreadAffinity {
  */
 
 
-// check that cast TThread::TId -> intptr_t is safe
+// Check that cast TThread::TId -> intptr_t is safe.
 STATIC_ASSERT(sizeof(TThread::TId) == sizeof(intptr_t));
 
 class TSlot
@@ -61,8 +61,9 @@ private:
 
 #else
 
-#define DECLARE_THREAD_AFFINITY_SLOT
-#define VERIFY_THREAD_AFFINITY
+// Expand macros to null but take care about the trailing semicolon.
+#define DECLARE_THREAD_AFFINITY_SLOT(name) struct TNullThreadAffinitySlot__ ## _LINE_ { }
+#define VERIFY_THREAD_AFFINITY(name)       do { } while(0)
 
 #endif
 ////////////////////////////////////////////////////////////////////////////////
