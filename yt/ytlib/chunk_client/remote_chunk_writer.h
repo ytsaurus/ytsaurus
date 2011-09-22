@@ -52,19 +52,13 @@ public:
             , SessionTimeout(TDuration::Seconds(10))
         { }
 
-        // ToDo: move to implementation
-        void Read(TJsonObject* config)
-        {
-            TryRead(config, L"WindowSize", &WindowSize);
-            TryRead(config, L"GroupSize", &GroupSize);
-            //ToDo: make timeout configurable
-        }
+        void Read(TJsonObject* config);
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
     /*!
-     * \note ThreadAffinity: only from client thread
+     * \note ThreadAffinity: Only from client thread.
      */
     TRemoteChunkWriter(
         const TConfig& config, 
@@ -72,25 +66,25 @@ public:
         const yvector<Stroka>& addresses);
 
     /*!
-     * \note ThreadAffinity: only from client thread
+     * \note ThreadAffinity: Only from client thread.
      */
     EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
     /*!
-     * \note ThreadAffinity: only from client thread
+     * \note ThreadAffinity: Only from client thread.
      */
     TAsyncResult<EResult>::TPtr AsyncClose();
 
 
     /*!
-     * \note ThreadAffinity: any thread
+     * \note ThreadAffinity: Any thread.
      */
     void Cancel();
 
     ~TRemoteChunkWriter();
 
     /*!
-     * \note ThreadAffinity: any thread
+     * \note ThreadAffinity: Any thread.
      */
     static Stroka GetDebugInfo();
 

@@ -25,6 +25,15 @@ NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+void TRemoteChunkWriter::TConfig::Read(TJsonObject *config)
+{
+    TryRead(config, L"WindowSize", &WindowSize);
+    TryRead(config, L"GroupSize", &GroupSize);
+    //ToDo: make timeout configurable
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct TRemoteChunkWriter::TNode 
     : public TRefCountedBase
 {
