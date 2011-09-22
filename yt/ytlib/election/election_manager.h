@@ -6,6 +6,7 @@
 
 #include "../meta_state/cell_manager.h"
 #include "../misc/delayed_invoker.h"
+#include "../misc/thread_affinity.h"
 
 #include "../actions/invoker.h"
 #include "../rpc/client.h"
@@ -51,6 +52,11 @@ public:
         TConfig();
     };
 
+    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread); // thread of Invoker
+
+    /*!
+     * \note Thread Affinity: Any thread
+     */
     TElectionManager(
         const TConfig& config,
         TCellManager::TPtr cellManager,
@@ -59,8 +65,19 @@ public:
         NRpc::TServer::TPtr server);
     ~TElectionManager();
 
+    /*!
+     * \note Thread Affinity: Any thread
+     */
     void Start();
+
+    /*!
+     * \note Thread Affinity: Any thread
+     */
     void Stop();
+
+    /*!
+     * \note Thread Affinity: Any thread
+     */
     void Restart();
     
 private:
@@ -99,22 +116,70 @@ private:
 
     void RegisterMethods();
 
+    /*!
+     * \note Thread Affinity: Any thread
+     */
     void Reset();
 
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
     void OnLeaderPingTimeout();
     
-    void DoStart(); // Invoker thread
-    void DoStop(); // Invoker thread
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void DoStart();
 
-    void StartVotingRound(); // Invoker thread
-    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch); // Invoker thread
-    void StartVoteForSelf(); // Invoker thread
-    void StartLeading(); // Invoker thread
-    void StartFollowing(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
-    void StopLeading(); // Invoker thread
-    void StopFollowing(); // Invoker thread
-    void StartEpoch(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
-    void StopEpoch(); // Invoker thread
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void DoStop();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartVotingRound();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch);
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartVoteForSelf();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartLeading();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartFollowing(TPeerId leaderId, const TEpoch& epoch);
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StopLeading();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StopFollowing();
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
+
+    /*!
+     * \note Thread Affinity: ServiceThread
+     */
+    void StopEpoch();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
