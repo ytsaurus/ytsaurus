@@ -53,10 +53,10 @@ private:
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(name) \
-    ::NYT::NThreadAffinity::TSlot Slot__ ## name
+    mutable ::NYT::NThreadAffinity::TSlot name ## __Slot
 
 #define VERIFY_THREAD_AFFINITY(name)\
-    Slot__ ## name.Check()
+     name ## __Slot.Check()
 
 #else
 

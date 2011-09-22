@@ -14,7 +14,7 @@ class TParallelAwaiter
 public:
     typedef TIntrusivePtr<TParallelAwaiter> TPtr;
 
-    TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
+    explicit TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
 
     template<class T>
     void Await(

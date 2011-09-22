@@ -56,9 +56,10 @@ public:
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
     /*!
-     * \note ThreadAffinity: Only from client thread.
+     * \note Thread Affinity: ClientThread.
      */
     TRemoteChunkWriter(
         const TConfig& config, 
@@ -66,25 +67,25 @@ public:
         const yvector<Stroka>& addresses);
 
     /*!
-     * \note ThreadAffinity: Only from client thread.
+     * \note Thread Affinity: ClientThread.
      */
     EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
     /*!
-     * \note ThreadAffinity: Only from client thread.
+     * \note Thread Affinity: ClientThread.
      */
     TAsyncResult<EResult>::TPtr AsyncClose();
 
 
     /*!
-     * \note ThreadAffinity: Any thread.
+     * \note Thread Affinity: Any thread.
      */
     void Cancel();
 
     ~TRemoteChunkWriter();
 
     /*!
-     * \note ThreadAffinity: Any thread.
+     * \note Thread Affinity: Any thread.
      */
     static Stroka GetDebugInfo();
 
@@ -162,40 +163,127 @@ private:
     TMetric FinishChunkTiming;*/
 
 private:
-    //! Invoked from #Close via #WriterThread.
-    //! Sets #IsCloseRequested.
+    /*!
+     * Invoked from #Close.
+     * \note Thread Affinity: WriterThread
+     * Sets #IsCloseRequested.
+     */
     void DoClose();
     
-    //! Invoked from #Cancel via #WriterThread.
+    /*!
+     * Invoked from #Cancel
+     * \note Thread Affinity: WriterThread.
+     */
     void DoCancel();
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void AddGroup(TGroupPtr group);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady);
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnNodeDied(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void ReleaseSlots(int count);
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void ShiftWindow();
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnFlushedBlock(int node, int blockIndex);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnWindowShifted(int blockIndex);
 
+    /*!
+     * \note Thread Affinity: ClientThread
+     */
     void InitializeNodes(const yvector<Stroka>& addresses);
+
+    /*!
+     * \note Thread Affinity: ClientThread
+     */
     void StartSession();
+
+    /*!
+     * \note Thread Affinity: ClientThread
+     */
     TInvStartChunk::TPtr StartChunk(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnStartedChunk(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnSessionStarted();
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void CloseSession();
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     TInvFinishChunk::TPtr FinishChunk(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnFinishedChunk(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void OnFinishedSession();
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void PingSession(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void SchedulePing(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void CancelPing(int node);
+
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     void CancelAllPings();
 
+    /*!
+     * \note Thread Affinity: WriterThread
+     */
     template<class TResponse>
     void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);
 };
