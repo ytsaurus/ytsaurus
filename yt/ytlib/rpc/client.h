@@ -23,7 +23,8 @@ class TClientRequest;
 
 template<
     class TRequestMessage,
-    class TResponseMessage
+    class TResponseMessage,
+    class TErrorCode = EErrorCode
 >
 class TTypedClientRequest;
 
@@ -31,7 +32,8 @@ class TClientResponse;
 
 template<
     class TRequestMessage,
-    class TResponseMessage
+    class TResponseMessage,
+    class TErrorCode = EErrorCode
 >
 class TTypedClientResponse;
 
@@ -94,14 +96,15 @@ private:
 
 template<
     class TRequestMessage,
-    class TResponseMessage
+    class TResponseMessage,
+    class TErrorCode
 >
 class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
 {
 private:
-    typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
+    typedef TTypedClientResponse<TRequestMessage, TResponseMessage, TErrorCode> TTypedResponse;
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
@@ -194,7 +197,8 @@ private:
 
 template<
     class TRequestMessage,
-    class TResponseMessage
+    class TResponseMessage,
+    class TErrorCode
 >
 class TTypedClientResponse
     : public TClientResponse
@@ -211,7 +215,7 @@ public:
             channel)
     { }
 
-    EErrorCode GetErrorCode() const
+    TErrorCode GetErrorCode() const
     {
         return TClientResponse::GetErrorCode();
     }
@@ -229,8 +233,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
-    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method, EErrorCode> TReq##method; \
+    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method, EErrorCode> TRsp##method; \
     typedef ::NYT::TAsyncResult<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \
