@@ -286,6 +286,8 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , BlockCount(0)
     , WindowReady(NULL)
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
     YASSERT(AliveNodeCount > 0);
 
     LOG_DEBUG("Writer created (ChunkId: %s, Addresses: [%s])",
@@ -696,6 +698,8 @@ void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowRead
 
 IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
     YASSERT(ready != NULL);
 
     // Check that the current group is still valid.
@@ -746,6 +750,8 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data
 
 TAsyncResult<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
     // Make a quick check and return immediately if the writer is already closed or canceled.
     if (State == EWriterState::Closed ||
         State == EWriterState::Canceled)

@@ -5,6 +5,7 @@
 #include "../misc/lazy_ptr.h"
 #include "../misc/config.h"
 #include "../misc/semaphore.h"
+#include "../misc/thread_affinity.h"
 #include "../rpc/client.h"
 #include "../chunk_client/common.h"
 #include "../chunk_holder/chunk_holder_rpc.h"
@@ -60,20 +61,37 @@ public:
         }
     };
 
-    // Client thread
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+
+    /*!
+     * \note ThreadAffinity: only from client thread
+     */
     TRemoteChunkWriter(
         const TConfig& config, 
         const TChunkId& chunkId,
         const yvector<Stroka>& addresses);
 
+    /*!
+     * \note ThreadAffinity: only from client thread
+     */
     EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
 
+    /*!
+     * \note ThreadAffinity: only from client thread
+     */
     TAsyncResult<EResult>::TPtr AsyncClose();
 
+
+    /*!
+     * \note ThreadAffinity: any thread
+     */
     void Cancel();
 
     ~TRemoteChunkWriter();
 
+    /*!
+     * \note ThreadAffinity: any thread
+     */
     static Stroka GetDebugInfo();
 
 private:
