@@ -23,7 +23,7 @@ public:
         (Following)
     );
 
-    DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
+    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((InvalidState)(1))
         ((InvalidLeader)(2))
         ((InvalidEpoch)(3))

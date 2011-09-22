@@ -257,9 +257,7 @@ public:
     }
 
 private:
-    typedef yhash_map<TChangeLog::TPtr,
-        TChangeLogQueue::TPtr,
-        TIntrusivePtrHash<TChangeLog> > TChangeLogQueueMap;
+    typedef yhash_map<TChangeLog::TPtr, TChangeLogQueue::TPtr> TChangeLogQueueMap;
 
     TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;

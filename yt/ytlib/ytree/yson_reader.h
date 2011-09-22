@@ -12,7 +12,7 @@ class TYsonReader
     : private TNonCopyable
 {
 public:
-    TYsonReader(IYsonEvents::TPtr events)
+    TYsonReader(IYsonConsumer::TPtr events)
         : Events(events)
     {
         Reset();
@@ -40,7 +40,7 @@ private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 
-    IYsonEvents::TPtr Events;
+    IYsonConsumer::TPtr Events;
     TInputStream* Stream;
     int Lookahead;
 

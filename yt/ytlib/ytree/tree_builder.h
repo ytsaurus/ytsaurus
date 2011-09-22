@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTreeBuilder
-    : public IYsonEvents
+    : public IYsonConsumer
 {
 public:
     typedef TIntrusivePtr<TTreeBuilder> TPtr;

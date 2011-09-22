@@ -8,6 +8,7 @@ namespace NYTree {
 typedef TStringBuf TYPath;
 
 struct INode;
+struct ICompositeNode;
 struct IStringNode;
 struct IInt64Node;
 struct IDoubleNode;
@@ -16,7 +17,8 @@ struct IMapNode;
 struct IEntityNode;
 
 struct INodeFactory;
-struct IYsonEvents;
+
+struct IYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

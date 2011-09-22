@@ -68,7 +68,6 @@ public:
 
 private:
     typedef TMetaStateManagerProxy TProxy;
-    typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);

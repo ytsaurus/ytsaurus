@@ -53,7 +53,6 @@ public:
 private:
     typedef TTransactionManager TThis;
     typedef TTransactionManagerProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     class TState;
     

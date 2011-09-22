@@ -2,15 +2,17 @@
 
 #include "common.h"
 
+#include "../actions/action.h"
+
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IYsonEvents
+struct IYsonConsumer
     : virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IYsonEvents> TPtr;
+    typedef TIntrusivePtr<IYsonConsumer> TPtr;
 
     virtual void BeginTree() = 0;
     virtual void EndTree() = 0;
@@ -32,6 +34,8 @@ struct IYsonEvents
     virtual void AttributesItem(const Stroka& name) = 0;
     virtual void EndAttributes() = 0;
 };
+
+typedef IParamAction< TIntrusivePtr<IYsonConsumer> > TYsonProducer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

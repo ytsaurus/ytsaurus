@@ -23,8 +23,7 @@ class TClientRequest;
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode = EErrorCode
+    class TResponseMessage
 >
 class TTypedClientRequest;
 
@@ -32,8 +31,7 @@ class TClientResponse;
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode = EErrorCode
+    class TResponseMessage
 >
 class TTypedClientResponse;
 
@@ -96,15 +94,14 @@ private:
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode
+    class TResponseMessage
 >
 class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
 {
 private:
-    typedef TTypedClientResponse<TRequestMessage, TResponseMessage, TErrorCode> TTypedResponse;
+    typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
@@ -197,8 +194,7 @@ private:
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode
+    class TResponseMessage
 >
 class TTypedClientResponse
     : public TClientResponse
@@ -215,9 +211,9 @@ public:
             channel)
     { }
 
-    TErrorCode GetErrorCode() const
+    EErrorCode GetErrorCode() const
     {
-        return (TErrorCode) TClientResponse::GetErrorCode();
+        return TClientResponse::GetErrorCode();
     }
 
 private:
@@ -233,8 +229,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method, EErrorCode> TReq##method; \
-    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method, EErrorCode> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
+    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::TAsyncResult<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \
