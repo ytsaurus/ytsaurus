@@ -6,7 +6,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Evaluates the expression #expr. In debug mode throws an error if (#expr == false)
+//! Evaluates the expression #expr.
+//! In debug mode also throws an error if #expr is false.
 #define YVERIFY(expr) \
 do { \
     try { \
@@ -21,7 +22,7 @@ do { \
         if (YaIsDebuggerPresent()) { \
             __debugbreak(); \
         } else { \
-            assert(false && "Exception during verification"); \
+            assert(0&&"Exception during verification"); \
         } \
     } \
 } while (0)
