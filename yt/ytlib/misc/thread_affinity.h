@@ -16,7 +16,7 @@ namespace NThreadAffinity {
  *
  * Usage is as following:
  * - For each thread you should write macros #DECLARE_THREAD_AFFINITY_SLOT(ThreadName).
- * - Then in functions that should be called from particular thread use macros
+ * - Then in functions that should be called from particular thread use macros.
  * #VERIFY_THREAD_AFFINITY(ThreadName) at the beginning.
  *
  * Please refer to the unit test for an actual example of usage
@@ -31,10 +31,9 @@ class TSlot
 {
 public:
     TSlot()
-    {
-        ImpossibleThreadId = static_cast<intptr_t>(TThread::ImpossibleThreadId());
-        ThreadId = ImpossibleThreadId;
-    }
+        : ImpossibleThreadId(static_cast<intptr_t>(TThread::ImpossibleThreadId()))
+        , ThreadId(ImpossibleThreadId)
+    { }
 
     void Check()
     {
@@ -47,8 +46,8 @@ public:
     }
 
 private:
-    TAtomic ThreadId;
     intptr_t ImpossibleThreadId;
+    TAtomic ThreadId;
 };
 
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
