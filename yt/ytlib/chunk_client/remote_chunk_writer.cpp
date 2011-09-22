@@ -378,6 +378,13 @@ void TRemoteChunkWriter::OnFlushedBlock(int node, int blockIndex)
 
 void TRemoteChunkWriter::OnWindowShifted(int lastFlushedBlock)
 {
+    if (Window.empty()) {
+        // This happens when FlushBlocks responses are disordered
+        // (i.e. a bigger BlockIndex is flushed before a smaller one)
+        // and prevents repeated calling CloseSession
+        return;
+    }
+
     while (!Window.empty()) {
         auto group = Window.front();
         if (group->GetEndBlockIndex() > lastFlushedBlock)
