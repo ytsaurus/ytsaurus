@@ -335,7 +335,7 @@ void TChunkReplication::ScheduleJobs(
             auto jt = it;
             ++jt;
             const auto& chunkId = *it;
-            auto flags = ScheduleBalancingJob(holder, chunkId, jobsToStart);
+            auto flags = ScheduleReplicationJob(holder, chunkId, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
             }

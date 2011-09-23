@@ -81,23 +81,32 @@ public:
     i64 GetSize() const;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread Affinity: Any.
      */
     int GetStartBlockIndex() const;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread Affinity: Any.
      */
     int GetEndBlockIndex() const;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread Affinity: Any.
      */
     int GetBlockCount() const;
 
-    bool IsFlushing;
+    /*!
+     * \note Thread Affinity: WriterThread.
+     */
+    bool IsFlushing() const;
+
+    /*!
+     * \note Thread Affinity: WriterThread.
+     */
+    void SetFlushing();
 
 private:
+    bool IsFlushing_;
     yvector<bool> IsSent;
 
     yvector<TSharedRef> Blocks;
@@ -144,7 +153,7 @@ TRemoteChunkWriter::TGroup::TGroup(
     int nodeCount, 
     int startBlockIndex, 
     TRemoteChunkWriter::TPtr writer)
-    : IsFlushing(false)
+    : IsFlushing_(false)
     , IsSent(nodeCount, false)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
@@ -161,15 +170,11 @@ void TRemoteChunkWriter::TGroup::AddBlock(const TSharedRef& block)
 
 int TRemoteChunkWriter::TGroup::GetStartBlockIndex() const
 {
-    VERIFY_THREAD_AFFINITY(Writer->ClientThread);
-
     return StartBlockIndex;
 }
 
 int TRemoteChunkWriter::TGroup::GetEndBlockIndex() const
 {
-    VERIFY_THREAD_AFFINITY(Writer->ClientThread);
-
     return StartBlockIndex + Blocks.ysize() - 1;
 }
 
@@ -182,8 +187,6 @@ i64 TRemoteChunkWriter::TGroup::GetSize() const
 
 int TRemoteChunkWriter::TGroup::GetBlockCount() const
 {
-    VERIFY_THREAD_AFFINITY(Writer->ClientThread);
-
     return Blocks.ysize();
 }
 
@@ -320,6 +323,20 @@ void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
     Writer->SchedulePing(dstNode);
 }
 
+bool TRemoteChunkWriter::TGroup::IsFlushing() const
+{
+    VERIFY_THREAD_AFFINITY(Writer->WriterThread);
+
+    return IsFlushing_;
+}
+
+void TRemoteChunkWriter::TGroup::SetFlushing()
+{
+    VERIFY_THREAD_AFFINITY(Writer->WriterThread);
+
+    IsFlushing_ = true;
+}
+
 void TRemoteChunkWriter::TGroup::Process()
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
@@ -405,10 +422,10 @@ void TRemoteChunkWriter::ShiftWindow()
     int lastFlushableBlock = -1;
     for (auto it = Window.begin(); it != Window.end(); ++it) {
         auto group = *it;
-        if (!group->IsFlushing) {
+        if (!group->IsFlushing()) {
             if (group->IsWritten() || State == EWriterState::Canceled) {
                 lastFlushableBlock = group->GetEndBlockIndex();
-                group->IsFlushing = true;
+                group->SetFlushing();
             } else {
                 break;
             }

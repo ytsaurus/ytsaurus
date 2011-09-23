@@ -15,8 +15,8 @@ int MaxRemovalJobsPerHolder = 16;
 TDuration ChunkRefreshDelay = TDuration::Seconds(15);
 TDuration ChunkRefreshQuantum = TDuration::MilliSeconds(100);
 int MaxChunksPerRefresh = 1000;
-double MinChunkBalancingLoadFactorDiff = 0.5;
-double MinChunkBalancingLoadFactor = 0.0;
+double MinChunkBalancingLoadFactorDiff = 0.2;
+double MinChunkBalancingLoadFactor = 0.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
