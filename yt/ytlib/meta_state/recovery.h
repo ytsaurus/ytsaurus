@@ -98,7 +98,7 @@ public:
         IInvoker::TPtr serviceInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
-    TResult::TPtr Run();
+    TResult::TPtr Run(const TMetaVersion& version);
 
 private:
     virtual bool IsLeader() const;

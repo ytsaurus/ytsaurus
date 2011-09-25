@@ -301,10 +301,8 @@ TLeaderRecovery::TLeaderRecovery(
         serviceInvoker)
 { }
 
-TRecovery::TResult::TPtr TLeaderRecovery::Run()
+TRecovery::TResult::TPtr TLeaderRecovery::Run(const TMetaVersion& version)
 {
-    TMetaVersion version = MetaState->GetNextVersion();
-
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 
