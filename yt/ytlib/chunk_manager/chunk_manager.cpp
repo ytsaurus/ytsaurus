@@ -55,12 +55,12 @@ public:
 
     TChunkId AddChunk(const NProto::TMsgAddChunk& message)
     {
-        TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
-        TTransactionId transactionId = TTransactionId::FromProto(message.GetTransactionId());
+        auto chunkId = TChunkId::FromProto(message.GetChunkId());
+        auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
         TChunk chunk(chunkId, transactionId);
 
-        TTransaction& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.AddedChunks.push_back(chunkId);
 
         ChunkMap.Insert(chunkId, chunk);
@@ -105,7 +105,7 @@ public:
     
         THolderId holderId = CurrentHolderId++;
     
-        const THolder* existingHolder = FindHolder(address);
+        const auto* existingHolder = FindHolder(address);
         if (existingHolder != NULL) {
             LOG_INFO("Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
@@ -113,7 +113,11 @@ public:
             DoUnregisterHolder(*existingHolder);
         }
 
-        THolder newHolder(holderId, address, statistics);
+        THolder newHolder(
+            holderId,
+            address,
+            EHolderState::Registered,
+            statistics);
 
         YVERIFY(HolderMap.Insert(holderId, newHolder));
         YVERIFY(HolderAddressMap.insert(MakePair(address, holderId)).Second());
@@ -132,9 +136,9 @@ public:
 
     TVoid UnregisterHolder(const NProto::TMsgUnregisterHolder& message)
     { 
-        THolderId holderId = message.GetHolderId();
+        auto holderId = message.GetHolderId();
 
-        const THolder& holder = GetHolder(holderId);
+        const auto& holder = GetHolder(holderId);
 
         DoUnregisterHolder(holder);
 
@@ -143,10 +147,10 @@ public:
 
     TVoid HeartbeatRequest(const NProto::TMsgHeartbeatRequest& message)
     {
-        THolderId holderId = message.GetHolderId();
-        THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
+        auto holderId = message.GetHolderId();
+        auto statistics = THolderStatistics::FromProto(message.GetStatistics());
 
-        THolder& holder = GetHolderForUpdate(holderId);
+        auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics = statistics;
 
         if (IsLeader()) {
@@ -162,9 +166,15 @@ public:
             ProcessRemovedChunk(holder, TChunkId::FromProto(protoChunkId));
         }
 
-        LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+        bool isFirstHeartbeat = holder.State == EHolderState::Registered;
+        if (isFirstHeartbeat) {
+            holder.State = EHolderState::Active;
+        }
+        
+        LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
             ~holder.Address,
             holderId,
+            ~ToString(isFirstHeartbeat),
             ~statistics.ToString(),
             static_cast<int>(message.AddedChunksSize()),
             static_cast<int>(message.RemovedChunksSize()));
@@ -267,6 +277,8 @@ private:
             RegisterReplicationSinks(pair.Second());
         }
 
+        // TODO: Reconstruct JobListMap
+
         return TVoid();
     }
 
@@ -281,6 +293,8 @@ private:
 
     virtual void OnStartLeading()
     {
+        TMetaStatePart::OnStartLeading();
+
         HolderExpiration->Start(GetEpochStateInvoker());
         FOREACH(auto pair, HolderMap) {
             StartHolderTracking(pair.Second());
@@ -291,6 +305,8 @@ private:
 
     virtual void OnStopLeading()
     {
+        TMetaStatePart::OnStopLeading();
+
         FOREACH(auto pair, HolderMap) {
             StopHolderTracking(pair.Second());
         }
