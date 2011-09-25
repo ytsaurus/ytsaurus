@@ -58,13 +58,13 @@ TChunkHolder::~TChunkHolder()
 
 void TChunkHolder::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TChunkHolder, StartChunk);
-    RPC_REGISTER_METHOD(TChunkHolder, FinishChunk);
-    RPC_REGISTER_METHOD(TChunkHolder, PutBlocks);
-    RPC_REGISTER_METHOD(TChunkHolder, SendBlocks);
-    RPC_REGISTER_METHOD(TChunkHolder, FlushBlock);
-    RPC_REGISTER_METHOD(TChunkHolder, GetBlocks);
-    RPC_REGISTER_METHOD(TChunkHolder, PingSession);
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(StartChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(FinishChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(PutBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(SendBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(FlushBlock));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(PingSession));
 }
 
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)

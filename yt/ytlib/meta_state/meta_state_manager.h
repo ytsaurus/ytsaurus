@@ -88,6 +88,7 @@ public:
         const TSharedRef& changeData);
 
 private:
+    typedef TMetaStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);

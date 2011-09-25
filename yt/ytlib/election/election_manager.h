@@ -74,6 +74,7 @@ public:
     void Restart();
     
 private:
+    typedef TElectionManager TThis;
     typedef TElectionManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 

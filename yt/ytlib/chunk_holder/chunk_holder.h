@@ -31,6 +31,7 @@ public:
     ~TChunkHolder();
 
 private:
+    typedef TChunkHolder TThis;
     typedef TChunkHolderProxy TProxy;
 
     //! Configuration.

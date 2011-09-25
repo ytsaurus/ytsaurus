@@ -278,10 +278,10 @@ TTransactionManager::TTransactionManager(
 
 void TTransactionManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TTransactionManager, StartTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, CommitTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, AbortTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, RenewTransactionLease);
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(StartTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(CommitTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(AbortTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(RenewTransactionLease));
 }
 
 void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
@@ -294,7 +294,7 @@ void TTransactionManager::ValidateTransactionId(const TTransactionId& id)
     const TTransaction* transaction = State->FindTransaction(id);
     if (transaction == NULL) {
         ythrow NRpc::TServiceException(EErrorCode::NoSuchTransaction) <<
-            Sprintf("unknown or expired transaction %s",
+            Sprintf("Unknown or expired transaction %s",
                 ~id.ToString());
     }
 }

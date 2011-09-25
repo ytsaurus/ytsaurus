@@ -4,6 +4,7 @@
 #include "client.h"
 #include "message.h"
 
+#include "../misc/hash.h"
 #include "../misc/metric.h"
 #include "../logging/log.h"
 
@@ -90,7 +91,6 @@ public:
     IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
-
     DECLARE_ENUM(EState,
         (Received)
         (Replied)
@@ -110,9 +110,6 @@ protected:
 
     Stroka RequestInfo;
     Stroka ResponseInfo;
-
-    friend class TServiceBase;
-    TInstant StartTime;
 
 private:
     void DoReply(EErrorCode errorCode);
@@ -277,35 +274,58 @@ public:
 protected:
     typedef IParamAction<TIntrusivePtr<TServiceContext> > THandler;
 
+    struct TMethodInfo
+    {
+        TMethodInfo(Stroka methodName, THandler::TPtr handler)
+            : MethodName(methodName)
+            , Handler(handler)
+        {
+            YASSERT(~handler != NULL);
+        }
+
+        Stroka MethodName;
+        THandler::TPtr Handler;
+    };
+
     TServiceBase(
         IInvoker::TPtr serviceInvoker,
         Stroka serviceName,
         Stroka loggingCategory);
 
-    void RegisterMethod(Stroka methodName, THandler::TPtr handler);
+    void RegisterMethod(const TMethodInfo& info);
 
     NLog::TLogger ServiceLogger;
     IInvoker::TPtr ServiceInvoker;
 
 private:
-    struct TMethodInfo
-        : public TRefCountedBase
+    struct TRuntimeMethodInfo
     {
-        typedef TIntrusivePtr<TMethodInfo> TPtr;
+        TMethodInfo Info;
+        TMetric ExecutionTime;
 
-        THandler::TPtr Handler;
-        TMetric ExecutionTimeAnalyzer;
-
-        TMethodInfo(THandler::TPtr handler)
-            : Handler(handler)
-            , ExecutionTimeAnalyzer(0, 1000, 10) // TODO: think about initial values
+        TRuntimeMethodInfo(const TMethodInfo& info)
+            : Info(info)
+            // TODO: configure properly
+            , ExecutionTime(0, 1000, 10)
         { }
     };
 
-    typedef yhash_map<Stroka, TMethodInfo::TPtr> TMethodInfoMap;
+    struct TOutstandingRequest
+    {
+        TOutstandingRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
+            : RuntimeInfo(runtimeInfo)
+            , StartTime(startTime)
+        {
+            YASSERT(runtimeInfo != NULL);
+        }
 
+        TRuntimeMethodInfo* RuntimeInfo;
+        TInstant StartTime;
+    };
+    
     Stroka ServiceName;
-    TMethodInfoMap MethodInfos;
+    yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
+    yhash_map<TServiceContext::TPtr, TOutstandingRequest> OutstandingRequests;
 
     virtual void OnBeginRequest(TServiceContext::TPtr context);
     virtual void OnEndRequest(TServiceContext::TPtr context);
@@ -344,9 +364,10 @@ private:
         TCtx##method::TTypedResponse* response, \
         TCtx##method::TPtr context)
 
-#define RPC_REGISTER_METHOD(type, method) \
-    RegisterMethod(#method, FromMethod(&type::method##Thunk, this))
+#define RPC_SERVICE_METHOD_INFO(method) \
+    TMethodInfo(#method, FromMethod(&TThis::method##Thunk, this)) \
 
+// TODO: not used, consider dropping
 #define USE_RPC_SERVICE_METHOD_LOGGER() \
     ::NYT::NLog::TPrefixLogger Logger( \
         ServiceLogger, \

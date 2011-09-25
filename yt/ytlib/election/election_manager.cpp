@@ -63,8 +63,8 @@ TElectionManager::~TElectionManager()
 
 void TElectionManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TElectionManager, PingFollower);
-    RPC_REGISTER_METHOD(TElectionManager, GetStatus);
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(PingFollower));
+    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetStatus));
 }
 
 void TElectionManager::Start()
@@ -270,13 +270,15 @@ public:
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(TConfig::RpcTimeout),
-                FromMethod(&TVotingRound::OnResponse, TPtr(this), id));
+                FromMethod(&TThis::OnResponse, TPtr(this), id));
         }
 
-        Awaiter->Complete(FromMethod(&TVotingRound::OnComplete, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TThis::OnComplete, TPtr(this)));
     }
 
 private:
+    typedef TVotingRound TThis;
+
     struct TStatus
     {
         TProxy::EState State;
