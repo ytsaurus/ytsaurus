@@ -11,7 +11,7 @@ namespace NThreadAffinity {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- * Allows to annotate certain functions with thread affinity.
+ * Allows to annotate certain functions with Thread affinity.
  * The checks are performed at run-time to ensure that each function
  * invocation that is annotated with a particular affinity slot
  * takes place in one thread.
@@ -19,11 +19,11 @@ namespace NThreadAffinity {
  * The usage is as follows.
  * - For each thread that may invoke your functions declare a slot with
  *   \code
- *   DECLARE_THREAD_AFFINITY_SLOT(ThreadName);
+ *   DECLARE_THREAD_AFFINITY_SLOT(Thread);
  *   \endcode
  * - Write
  *   \code
- *   VERIFY_THREAD_AFFINITY(ThreadName);
+ *   VERIFY_THREAD_AFFINITY(Thread);
  *   \endcode
  *   at the beginning of each function in the group.
  *
@@ -62,19 +62,33 @@ private:
 
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
 
-#define DECLARE_THREAD_AFFINITY_SLOT(name) \
-    mutable ::NYT::NThreadAffinity::TSlot name ## __Slot
+#define DECLARE_THREAD_AFFINITY_SLOT(slot) \
+    mutable ::NYT::NThreadAffinity::TSlot slot ## __Slot
 
-#define VERIFY_THREAD_AFFINITY(name)\
-    name ## __Slot.Check()
+#define VERIFY_THREAD_AFFINITY(slot) \
+    slot ## __Slot.Check()
+
+// TODO: remove this dirty hack.
+STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
+#define VERIFY_SPINLOCK_AFFINITY(spinLock) \
+    YASSERT(*reinterpret_cast<TAtomic*>(&(spinLock)) != 0);
+
+#define VERIFY_INVOKER_AFFINITY(invoker, slot) \
+    invoker->Invoke(FromMethod(&::NYT::NThreadAffinity::TSlot::Check, &slot ## __Slot))
 
 #else
 
-// Expand macros to null but take care about trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(name) struct TNullThreadAffinitySlot__ ## _LINE_ { }
-#define VERIFY_THREAD_AFFINITY(name)       do { } while(0)
+// Expand macros to null but take care of trailing semicolon.
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct TNullThreadAffinitySlot__ ## _LINE_ { }
+#define VERIFY_THREAD_AFFINITY(slot)           do { } while(0)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while(0)
+#define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while(0)
 
 #endif
+
+//! This is a mere declaration and intentionally does not check anything.
+#define VERIFY_THREAD_AFFINITY_ANY()         do { } while(0)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NThreadAffinity
