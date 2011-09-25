@@ -20,29 +20,37 @@ TDecoratedMetaState::TDecoratedMetaState(
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
 {
-    state->Clear();
+    VERIFY_INVOKER_AFFINITY(state->GetInvoker(), StateThread);
+
     ComputeNextVersion();
 }
 
 IInvoker::TPtr TDecoratedMetaState::GetInvoker() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return State->GetInvoker();
 }
 
 IMetaState::TPtr TDecoratedMetaState::GetState() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return State;
 }
 
-TVoid TDecoratedMetaState::Clear()
+void TDecoratedMetaState::Clear()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->Clear();
     Version = TMetaVersion();
-    return TVoid();
 }
 
 TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     LOG_INFO("Started saving snapshot");
 
     return State->Save(output)->Apply(FromMethod(
@@ -53,7 +61,9 @@ TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 
 TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
 {
-    TInstant finished = TInstant::Now();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto finished = TInstant::Now();
     LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
     return TVoid();
 }
@@ -62,7 +72,10 @@ TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     LOG_INFO("Started loading snapshot %d", segmentId);
+
     UpdateVersion(TMetaVersion(segmentId, 0));
     return State->Load(input)->Apply(FromMethod(
         &TDecoratedMetaState::OnLoad,
@@ -72,19 +85,26 @@ TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(
 
 TVoid TDecoratedMetaState::OnLoad(TVoid, TInstant started)
 {
-    TInstant finished = TInstant::Now();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto finished = TInstant::Now();
     LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
+
     return TVoid();
 }
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->ApplyChange(changeData);
     IncrementRecordCount();
 }
 
 void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     changeAction->Do();
     IncrementRecordCount();
 }
@@ -97,6 +117,8 @@ void TDecoratedMetaState::IncrementRecordCount()
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TSharedRef& changeData)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto cachedChangeLog = ChangeLogCache->Get(Version.SegmentId);
     if (~cachedChangeLog == NULL) {
         LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
@@ -109,6 +131,8 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
 
 void TDecoratedMetaState::AdvanceSegment()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
     LOG_INFO("Switched to a new segment %d", Version.SegmentId);
@@ -116,6 +140,8 @@ void TDecoratedMetaState::AdvanceSegment()
 
 void TDecoratedMetaState::RotateChangeLog()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto currentChangeLog = ChangeLogCache->Get(Version.SegmentId);
     YASSERT(~currentChangeLog != NULL);
 
@@ -163,11 +189,15 @@ void TDecoratedMetaState::ComputeNextVersion()
 
 TMetaVersion TDecoratedMetaState::GetVersion() const
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     return Version;
 }
 
 TMetaVersion TDecoratedMetaState::GetNextVersion() const
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     return NextVersion;
 }
 
@@ -179,21 +209,29 @@ void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
 
 void TDecoratedMetaState::OnStartLeading()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->OnStartLeading();
 }
 
 void TDecoratedMetaState::OnStopLeading()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->OnStopLeading();
 }
 
 void TDecoratedMetaState::OnStartFollowing()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->OnStartFollowing();
 }
 
 void TDecoratedMetaState::OnStopFollowing()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     State->OnStopFollowing();
 }
 
