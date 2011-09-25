@@ -79,7 +79,7 @@ private:
     void Stop();
 
     void OnGotMeta(TChunkMeta::TPtr meta);
-    bool ReplicateBlock(int blockIndex);
+    void ReplicateBlock(int blockIndex);
     void OnBlockLoaded(
         TCachedBlock::TPtr cachedBlock,
         int blockIndex);
