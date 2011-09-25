@@ -207,7 +207,9 @@ TServiceBase::TServiceBase(
     : ServiceLogger(loggingCategory)
     , ServiceInvoker(serviceInvoker)
     , ServiceName(serviceName)
-{ }
+{
+    YASSERT(~serviceInvoker != NULL);
+}
 
 void TServiceBase::RegisterMethod(
     Stroka methodName,
