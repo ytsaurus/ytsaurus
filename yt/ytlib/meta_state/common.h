@@ -2,8 +2,8 @@
 
 #include "../misc/common.h"
 #include "../misc/config.h"
-
 #include "../logging/log.h"
+#include "../election/common.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -13,13 +13,21 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef i32 TPeerId;
-const TPeerId InvalidPeerId = -1;
-
 const i32 NonexistingPrevRecordCount = -1;
 const i32 UnknownPrevRecordCount = -2;
 
 const i32 NonexistingSnapshotId = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EPeerState, 
+    (Stopped)
+    (Elections)
+    (FollowerRecovery)
+    (Following)
+    (LeaderRecovery)
+    (Leading)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO: refactor

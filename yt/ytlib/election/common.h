@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../meta_state/common.h"
 #include "../misc/guid.h"
 
 namespace NYT {
@@ -9,6 +8,9 @@ namespace NYT {
 
 typedef TGuid TEpoch;
 typedef i64 TPeerPriority;
+typedef i32 TPeerId;
+
+const TPeerId InvalidPeerId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
