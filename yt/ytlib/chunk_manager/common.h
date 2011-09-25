@@ -50,6 +50,8 @@ extern TDuration ChunkRefreshQuantum;
 extern int MaxChunksPerRefresh;
 extern double MinChunkBalancingLoadFactorDiff;
 extern double MinChunkBalancingLoadFactor;
+extern double MaxHolderLoadFactor;
+extern i64 MinHolderFreeSpace;
 
 ////////////////////////////////////////////////////////////////////////////////
 
