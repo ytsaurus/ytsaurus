@@ -241,11 +241,15 @@ private:
 
     virtual void OnStartLeading()
     {
+        TMetaStatePart::OnStartLeading();
+        
         CreateAllLeases();
     }
 
     virtual void OnStopLeading()
     {
+        TMetaStatePart::OnStopLeading();
+
         CloseAllLeases();
     }
 };
