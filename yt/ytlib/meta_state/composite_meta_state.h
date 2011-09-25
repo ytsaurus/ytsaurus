@@ -75,6 +75,14 @@ private:
     template<class TMessage, class TResult>
     class TUpdate;
 
+    DECLARE_ENUM(ERole,
+        (None)
+        (Leader)
+        (Follower)
+    );
+
+    ERole Role;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
