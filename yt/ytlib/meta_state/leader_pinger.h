@@ -1,8 +1,7 @@
 #pragma once
 
 #include "common.h"
-
-#include "../meta_state/meta_state_manager.h"
+#include "meta_state_manager.h"
 
 namespace NYT {
 
