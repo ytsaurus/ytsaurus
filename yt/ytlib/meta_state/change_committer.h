@@ -4,8 +4,10 @@
 #include "meta_state_manager_rpc.h"
 #include "decorated_meta_state.h"
 #include "change_log_cache.h"
+#include "follower_tracker.h"
 
 #include "../election/election_manager.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
 
@@ -44,24 +46,39 @@ public:
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
-        IInvoker::TPtr serviceInvoker,
+        TFollowerTracker::TPtr followerTracker,
+        IInvoker::TPtr controlInvoker,
         const TEpoch& epoch);
 
+    /*!
+     * \note Thread affinity: any
+     */
     void Stop();
 
+    /*!
+     * \note Thread affinity: StateThread
+     */
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
-        TSharedRef changeData);
+        const TSharedRef& changeData);
 
+    /*!
+     * \note Thread affinity: ControlThread
+     */
     TResult::TPtr CommitFollower(
-        TMetaVersion version,
-        TSharedRef changeData);
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
 
-    // TODO: use TSignal here
-    void SetOnApplyChange(IAction::TPtr onApplyChange);
-
-    //! Forcely send an rpc request with changes
+    //! Force to send all pending changes.
+    /*!
+     * \note Thread affinity: Any
+     */
     void Flush();
+
+    /*!
+     * \note Thread affinity: Any
+     */
+    TSignal& OnApplyChange();
 
 private:
     class TSession;
@@ -69,26 +86,34 @@ private:
 
     TResult::TPtr DoCommitLeader(
         IAction::TPtr changeAction,
-        TSharedRef changeData);
+        const TSharedRef& changeData);
     TResult::TPtr DoCommitFollower(
-        TMetaVersion version,
-        TSharedRef changeData);
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
     static EResult OnAppend(TVoid);
 
     void DelayedFlush(TIntrusivePtr<TSession> session);
+    TIntrusivePtr<TSession> GetOrCreateCurrentSession();
     void FlushCurrentSession();
+
+    // Corresponds to ControlThread.
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    // Corresponds to MetaState->GetInvoker().
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     TConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
-    TCancelableInvoker::TPtr CancelableServiceInvoker;
+    TFollowerTracker::TPtr FollowerTracker;
+    TCancelableInvoker::TPtr CancelableControlInvoker;
     TEpoch Epoch;
-    IAction::TPtr OnApplyChange;
 
+    TSignal OnApplyChange_;
+
+    TSpinLock SessionSpinLock;
     TIntrusivePtr<TSession> CurrentSession;
-    TSpinLock SpinLock; // for work with session
-    TDelayedInvoker::TCookie TimeoutCookie; // for session
+    TDelayedInvoker::TCookie TimeoutCookie;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
