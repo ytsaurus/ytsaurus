@@ -61,47 +61,47 @@ public:
         TRemoteChunkWriter::TPtr writer);
 
     /*!
-     * \note Thread Affinity: ClientThread.
+     * \note Thread affinity: ClientThread.
      */
     void AddBlock(const TSharedRef& block);
 
     /*!
-     * \note Thread Affinity: ClientThread.
+     * \note Thread affinity: ClientThread.
      */
     void Process();
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     bool IsWritten() const;
 
     /*!
-     * \note Thread Affinity: ClientThread.
+     * \note Thread affinity: ClientThread.
      */
     i64 GetSize() const;
 
     /*!
-     * \note Thread Affinity: Any.
+     * \note Thread affinity: any.
      */
     int GetStartBlockIndex() const;
 
     /*!
-     * \note Thread Affinity: Any.
+     * \note Thread affinity: any.
      */
     int GetEndBlockIndex() const;
 
     /*!
-     * \note Thread Affinity: Any.
+     * \note Thread affinity: any.
      */
     int GetBlockCount() const;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     bool IsFlushing() const;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     void SetFlushing();
 
@@ -117,32 +117,32 @@ private:
     TRemoteChunkWriter::TPtr Writer;
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     void PutGroup();
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     TInvPutBlocks::TPtr PutBlocks(int node);
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     void OnPutBlocks(int node);
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     void SendGroup(int srcNode);
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     TInvSendBlocks::TPtr SendBlocks(int srcNode, int dstNode);
 
     /*!
-     * \note Thread Affinity: WriterThread.
+     * \note Thread affinity: WriterThread.
      */
     void OnSentBlocks(int srcNode, int dstNode);
 };
@@ -340,6 +340,11 @@ void TRemoteChunkWriter::TGroup::SetFlushing()
 void TRemoteChunkWriter::TGroup::Process()
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
+
+    if (Writer->State == EWriterState::Canceled)
+        return;
+
+    YASSERT(Writer->State == EWriterState::Writing);
 
     LOG_DEBUG("Processing group (ChunkId: %s, Blocks: %d-%d)",
         ~Writer->ChunkId.ToString(), 
@@ -594,7 +599,7 @@ void TRemoteChunkWriter::AddGroup(TGroupPtr group)
 
     Window.push_back(group);
 
-    if (State != EWriterState::Initializing) {
+    if (State == EWriterState::Writing) {
         group->Process();
     }
 }
@@ -615,10 +620,11 @@ void TRemoteChunkWriter::OnNodeDied(int node)
         AliveNodeCount);
 
     if (State != EWriterState::Canceled && AliveNodeCount == 0) {
-				YASSERT(State != EWriterState::Closed);
+        YASSERT(State != EWriterState::Closed);
         State = EWriterState::Canceled;
-        CancelAllPings();
         Result->Set(EResult::Failed);
+        CancelAllPings();
+
         LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
     }
@@ -807,8 +813,11 @@ void TRemoteChunkWriter::SchedulePing(int node)
         TDelayedInvoker::Get()->Cancel(cookie);
     }
     Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TRemoteChunkWriter::PingSession, TPtr(this), node)
-            ->Via(~WriterThread),
+        FromMethod(
+            &TRemoteChunkWriter::PingSession,
+            TPtr(this),
+            node)
+        ->Via(~WriterThread),
         Config.SessionTimeout);
 }
 
@@ -816,7 +825,11 @@ void TRemoteChunkWriter::CancelPing(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    Nodes[node]->Cookie = TDelayedInvoker::TCookie();
+    auto& cookie = Nodes[node]->Cookie;
+    if (cookie != TDelayedInvoker::TCookie()) {
+        TDelayedInvoker::Get()->Cancel(cookie);
+        cookie = TDelayedInvoker::TCookie();
+    }
 }
 
 void TRemoteChunkWriter::CancelAllPings()
@@ -827,7 +840,6 @@ void TRemoteChunkWriter::CancelAllPings()
         CancelPing(node);
     }
 }
-
 
 void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady)
 {
