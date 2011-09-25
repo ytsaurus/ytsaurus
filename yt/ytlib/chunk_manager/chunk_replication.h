@@ -4,6 +4,8 @@
 #include "chunk_manager.h"
 #include "chunk_placement.h"
 
+#include "../misc/thread_affinity.h"
+
 #include <util/generic/deque.h>
 
 namespace NYT {
@@ -40,6 +42,8 @@ private:
     TChunkManager::TPtr ChunkManager;
     TChunkPlacement::TPtr ChunkPlacement;
 
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
     struct TRefreshEntry
     {
         TChunkId ChunkId;
@@ -63,7 +67,7 @@ private:
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);
 
-    void ProcessRunningJobs(
+    void ProcessExistingJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<TJobId>* jobsToStop,
@@ -71,8 +75,6 @@ private:
         int* removalJobCount);
 
     bool IsRefreshScheduled(const TChunkId& chunkId);
-
-    yvector<Stroka> GetReplicationTargets(const TChunk& chunk, int replicaCount);
 
     DECLARE_ENUM(EScheduleFlags,
         ((None)(0x0000))

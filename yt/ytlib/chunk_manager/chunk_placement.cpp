@@ -39,17 +39,19 @@ void TChunkPlacement::UpdateHolder(const THolder& holder)
     AddHolder(holder);
 }
 
-yvector<THolderId> TChunkPlacement::GetUploadTargets(int replicaCount)
+yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 {
-    // TODO: do not list holders that are nearly full
     // TODO: check replication fan-in in case this is a replication job
     yvector<THolderId> result;
-    result.reserve(replicaCount);
-    unsigned int replicasNeeded = replicaCount;
+    result.reserve(count);
+    unsigned int replicasNeeded = count;
     unsigned int holdersRemaining = IteratorMap.size();
-    FOREACH(const auto& pair, IteratorMap) {
-        if (RandomNumber(holdersRemaining) < replicasNeeded) {
-            result.push_back(pair.First());
+    FOREACH(const auto& pair, LoadFactorMap) {
+        const auto& holder = ChunkManager->GetHolder(pair.second);
+        if (IsValidUploadTarget(holder) &&
+            RandomNumber(holdersRemaining) < replicasNeeded)
+        {
+            result.push_back(holder.Id);
             --replicasNeeded;
         }
         --holdersRemaining;
@@ -57,12 +59,39 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int replicaCount)
     return result;
 }
 
-double TChunkPlacement::GetLoadFactor(const THolder& holder)
+yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, int count)
 {
-    const auto& statistics = holder.Statistics;
-    return
-        (1.0 + statistics.UsedSpace) /
-        (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
+    yhash_set<Stroka> forbiddenAddresses;
+
+    FOREACH(auto holderId, chunk.Locations) {
+        const auto& holder = ChunkManager->GetHolder(holderId);
+        forbiddenAddresses.insert(holder.Address);
+    }
+
+    const auto* jobList = ChunkManager->FindJobList(chunk.Id);
+    if (jobList != NULL) {
+        FOREACH(const auto& jobId, jobList->Jobs) {
+            const auto& job = ChunkManager->GetJob(jobId);
+            if (job.Type == EJobType::Replicate && job.ChunkId == chunk.Id) {
+                forbiddenAddresses.insert(job.TargetAddresses.begin(), job.TargetAddresses.end());
+            }
+        }
+    }
+
+    auto candidates = GetUploadTargets(count + forbiddenAddresses.size());
+
+    yvector<THolderId> result;
+    FOREACH(auto holderId, candidates) {
+        if (result.ysize() >= count)
+            break;
+
+        const auto& holder = ChunkManager->GetHolder(holderId);
+        if (forbiddenAddresses.find(holder.Address) == forbiddenAddresses.end()) {
+            result.push_back(holder.Id);
+        }
+    }
+
+    return result;
 }
 
 THolderId TChunkPlacement::GetReplicationSource(const TChunk& chunk)
@@ -106,7 +135,7 @@ THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxLoa
 {
     FOREACH (const auto& pair, LoadFactorMap) {
         const auto& holder = ChunkManager->GetHolder(pair.second);
-        if (TChunkPlacement::GetLoadFactor(holder) > maxLoadFactor) {
+        if (GetLoadFactor(holder) > maxLoadFactor) {
             break;
         }
         if (IsValidBalancingTarget(holder, chunk)) {
@@ -116,8 +145,29 @@ THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxLoa
     return InvalidHolderId;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk)
+bool TChunkPlacement::IsValidUploadTarget(const THolder& targetHolder) const
 {
+    if (targetHolder.State != EHolderState::Active) {
+        // Do not upload anything to inactive holders.
+        return false;
+    }
+
+    if (IsFull(targetHolder)) {
+        // Do not upload anything to full holders.
+        return false;
+    }
+            
+    // Seems OK :)
+    return true;
+}
+
+bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk) const
+{
+    if (!IsValidUploadTarget(targetHolder)) {
+        // Balancing implies upload, after all.
+        return false;
+    }
+
     if (targetHolder.Chunks.find(chunk.Id) != targetHolder.Chunks.end())  {
         // Do not balance to a holder already having the chunk.
         return false;
@@ -169,6 +219,25 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
     }
 
     return result;
+}
+
+double TChunkPlacement::GetLoadFactor(const THolder& holder) const
+{
+    const auto& statistics = holder.Statistics;
+    return
+        (1.0 + statistics.UsedSpace) /
+        (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
+}
+
+bool TChunkPlacement::IsFull(const THolder& holder) const
+{
+    if (GetLoadFactor(holder) > MaxHolderLoadFactor)
+        return true;
+
+    if (holder.Statistics.AvailableSpace - holder.Statistics.UsedSpace < MinHolderFreeSpace)
+        return true;
+
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
