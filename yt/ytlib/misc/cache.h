@@ -60,6 +60,8 @@ protected:
         TAsyncResultPtr GetAsyncResult() const;
         TKey GetKey() const;
         bool IsActive() const;
+        void Cancel();
+        void EndInsert(TValuePtr value);
 
     private:
         friend class TCacheBase;
@@ -75,7 +77,6 @@ protected:
 
     TAsyncResultPtr Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
-    void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
 
@@ -105,6 +106,7 @@ private:
     TItemList LruList;
     i32 LruListSize;
 
+    void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key);
     void Touch(TItem* item); // thread-unsafe
     void Unregister(const TKey& key);

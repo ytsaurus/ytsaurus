@@ -101,17 +101,16 @@ public:
     {
         TInsertCookie cookie(chunk->GetId());
         if (BeginInsert(&cookie)) {
-            TCachedReader::TPtr file;
             try {
-                file = New<TCachedReader>(
+                auto file = New<TCachedReader>(
                     chunk->GetId(),
                     ChunkStore->GetChunkFileName(chunk));
+                cookie.EndInsert(file);
             } catch (...) {
                 LOG_FATAL("Error opening chunk (ChunkId: %s, What: %s)",
                     ~chunk->GetId().ToString(),
                     ~CurrentExceptionMessage());
             }
-            EndInsert(file, &cookie);
         }
         return cookie.GetAsyncResult()->Get();
     }
@@ -296,6 +295,9 @@ TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chun
 TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 {
     auto reader = GetChunkReader(chunk);
+    if (~reader == NULL)
+        return NULL;
+
     auto meta = New<TChunkMeta>(reader);
     chunk->Meta = meta;
     return meta;

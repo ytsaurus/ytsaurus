@@ -44,7 +44,8 @@ public:
         TInsertCookie cookie(blockId);
         if (BeginInsert(&cookie)) {
             auto block = New<TCachedBlock>(blockId, data);
-            EndInsert(block, &cookie);
+            cookie.EndInsert(block);
+
             LOG_DEBUG("Block is put into cache (BlockId: %s)",
                 ~blockId.ToString());
             return block;
@@ -75,8 +76,9 @@ public:
         }
 
         auto chunk = ChunkStore->FindChunk(blockId.ChunkId);
-        if (~chunk == NULL)
-            return NULL;
+        if (~chunk == NULL) {
+            return New<TCachedBlock::TAsync>(TCachedBlock::TPtr(NULL));
+        }
         
         LOG_DEBUG("Loading block into cache (BlockId: %s)",
             ~blockId.ToString());
@@ -105,9 +107,9 @@ private:
         try {
             auto reader = ChunkStore->GetChunkReader(chunk);
             auto data = reader->ReadBlock(blockId.BlockIndex);
-            if (data != TSharedRef()) {
+            if (~data != NULL) {
                 auto block = New<TCachedBlock>(blockId, data);
-                EndInsert(block, ~cookie);
+                cookie->EndInsert(block);
 
                 LOG_DEBUG("Finished loading block into cache (BlockId: %s)",
                     ~blockId.ToString());
