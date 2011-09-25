@@ -4,6 +4,8 @@
 
 #include "../misc/common.h"
 #include "../misc/ptr.h"
+// TODO: only used by singals, remove once signal.h is created
+#include "../misc/foreach.h"
 
 namespace NYT {
 
@@ -109,12 +111,14 @@ class TSignalBase
 public:
     void Subscribe(typename T::TPtr action)
     {
+        TGuard<TSpinLock> guard(SpinLock);
         Actions.push_back(action);
     }
 
     bool Unsubscribe(typename T::TPtr action)
     {
-        auto it = Find(Actions, action);
+        TGuard<TSpinLock> guard(SpinLock);
+        auto it = Find(Actions.begin(), Actions.end(), action);
         if (it == Actions.end())
             return false;
         Actions.erase(it);
@@ -123,6 +127,7 @@ public:
 
 protected:
     yvector<typename T::TPtr> Actions;
+    TSpinLock SpinLock;
 
 };
 
@@ -134,12 +139,14 @@ class TSignal
 public:
     void Fire()
     {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (this->Actions.empty())
+            return;
         yvector<IAction::TPtr> actions(this->Actions);
-        for (auto it = actions.begin();
-             it != actions.end();
-             ++it)
-        {
-            (*it)->Do();
+        guard.Release();
+
+        FOREACH (const auto& action, actions) {
+            action->Do();
         }
     }
 
@@ -154,12 +161,14 @@ class TParamSignal
 public:
     void Fire(const TParam& arg)
     {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (this->Actions.empty())
+            return;
         yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
-        for (auto it = actions.begin();
-            it != actions.end();
-            ++it)
-        {
-            (*it)->Do(arg);
+        guard.Release();
+
+        FOREACH (const auto& action, actions) {
+            action->Do(arg);
         }
     }
 };
