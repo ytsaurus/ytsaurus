@@ -6,6 +6,7 @@
 #include "../meta_state/cell_channel.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -43,9 +44,9 @@ TMasterConnector::TMasterConnector(
         &TMasterConnector::OnChunkRemoved,
         TPtr(this)));
 
-    LOG_INFO("Chunk holder address is %s, master addresses are %s",
+    LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~Address,
-        ~Config.Masters.ToString());
+        ~JoinToString(Config.Masters.Addresses));
 
     OnHeartbeat();
 }

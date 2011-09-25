@@ -99,7 +99,7 @@ public:
 
     TFollowerPinger(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(New<TParallelAwaiter>(electionManager->ControlEpochInvoker))
+        , Awaiter(New<TParallelAwaiter>(~electionManager->ControlEpochInvoker))
     { }
 
     void Start()
