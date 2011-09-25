@@ -278,10 +278,10 @@ TTransactionManager::TTransactionManager(
 
 void TTransactionManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(StartTransaction));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(CommitTransaction));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(AbortTransaction));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(RenewTransactionLease));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
 }
 
 void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)

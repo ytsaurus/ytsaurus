@@ -21,8 +21,7 @@ TServer::TServer(int port)
 { }
 
 TServer::~TServer()
-{
-}
+{ }
 
 void TServer::RegisterService(IService::TPtr service)
 {
@@ -39,6 +38,8 @@ void TServer::Start()
 
 void TServer::Stop()
 {
+    if (!Started)
+        return;
     Started = false;
     BusServer->Terminate();
     LOG_INFO("RPC server stopped");
@@ -46,7 +47,7 @@ void TServer::Stop()
 
 void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 {
-    const yvector<TSharedRef>& parts = message->GetParts();
+    const auto& parts = message->GetParts();
     if (parts.ysize() < 2) {
         LOG_WARNING("Too few message parts");
         return;
@@ -58,7 +59,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TRequestId requestId = TRequestId::FromProto(requestHeader.GetRequestId());
+    auto requestId = TRequestId::FromProto(requestHeader.GetRequestId());
     Stroka serviceName = requestHeader.GetServiceName();
     Stroka methodName = requestHeader.GetMethodName();
 
@@ -68,7 +69,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~requestId.ToString());
 
     if (!Started) {
-        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
+        auto errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::Unavailable);
         replyBus->Send(errorMessage);
@@ -77,9 +78,9 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    IService::TPtr service = GetService(serviceName);
+    auto service = GetService(serviceName);
     if (~service == NULL) {
-        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
+        auto errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::NoService);
         replyBus->Send(errorMessage);
@@ -88,12 +89,13 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TServiceContext::TPtr context = New<TServiceContext>(
+    auto context = New<TServiceContext>(
         service,
         requestId,
         methodName,
         message,
         replyBus);
+
     service->OnBeginRequest(context);
 }
 

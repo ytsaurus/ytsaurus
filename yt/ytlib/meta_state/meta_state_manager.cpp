@@ -73,15 +73,15 @@ TMetaStateManager::~TMetaStateManager()
 
 void TMetaStateManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(ScheduleSync));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(Sync));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetSnapshotInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(ReadSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetChangeLogInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(ReadChangeLog));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(ApplyChanges));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(AdvanceSegment));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(PingLeader));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleSync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 }
 
 void TMetaStateManager::Restart()

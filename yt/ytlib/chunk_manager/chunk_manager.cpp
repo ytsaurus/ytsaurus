@@ -678,10 +678,10 @@ TChunkManager::TChunkManager(
 
 void TChunkManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(RegisterHolder));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(HolderHeartbeat));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(AddChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(FindChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AddChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
 }
 
 void TChunkManager::ValidateHolderId(THolderId holderId)

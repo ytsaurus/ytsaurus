@@ -63,8 +63,8 @@ TElectionManager::~TElectionManager()
 
 void TElectionManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(PingFollower));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetStatus));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 }
 
 void TElectionManager::Start()

@@ -30,19 +30,19 @@ TChunkHolder::TChunkHolder(
         Config,
         BlockStore,
         ChunkStore,
-        ServiceInvoker);
+        serviceInvoker);
 
     Replicator = New<TReplicator>(
         ChunkStore,
         BlockStore,
-        ServiceInvoker);
+        serviceInvoker);
 
     if (!Config.Masters.Addresses.empty()) {
         MasterConnector = New<TMasterConnector>(
             Config,
             ChunkStore,
             Replicator,
-            ServiceInvoker);
+            serviceInvoker);
     } else {
         LOG_INFO("Running in standalone mode");
     }
@@ -58,13 +58,13 @@ TChunkHolder::~TChunkHolder()
 
 void TChunkHolder::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(StartChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(FinishChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(PutBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(SendBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(FlushBlock));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(GetBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_INFO(PingSession));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
 }
 
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)

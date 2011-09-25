@@ -201,25 +201,34 @@ void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IInvoker::TPtr serviceInvoker,
+    IInvoker::TPtr defaultServiceInvoker,
     Stroka serviceName,
     Stroka loggingCategory)
     : ServiceLogger(loggingCategory)
-    , ServiceInvoker(serviceInvoker)
+    , DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
 {
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~defaultServiceInvoker != NULL);
 }
 
-void TServiceBase::RegisterMethod(const TMethodInfo& info)
+void TServiceBase::RegisterMethod(
+    const TMethodDescriptor& descriptor,
+    IInvoker::TPtr invoker)
 {
+    YASSERT(~invoker != NULL);
+
     if (!RuntimeMethodInfos.insert(MakePair(
-        info.MethodName,
-        TRuntimeMethodInfo(info))).Second()) {
+        descriptor.MethodName,
+        TRuntimeMethodInfo(descriptor, invoker))).Second()) {
         ythrow yexception() << Sprintf("Method is already registered (ServiceName: %s, MethodName: %s)",
             ~ServiceName,
-            ~info.MethodName);
+            ~descriptor.MethodName);
     }
+}
+
+void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
+{
+    RegisterMethod(descriptor, DefaultServiceInvoker);
 }
 
 void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
@@ -242,9 +251,9 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
         context,
         TOutstandingRequest(&info, TInstant::Now()))).Second());
 
-    auto handler = info.Info.Handler;
+    auto handler = info.Descriptor.Handler;
     auto wrappedHandler = context->Wrap(handler->Bind(context));
-    ServiceInvoker->Invoke(wrappedHandler);
+    info.Invoker->Invoke(wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(TServiceContext::TPtr context)

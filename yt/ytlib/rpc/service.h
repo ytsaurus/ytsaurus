@@ -37,10 +37,8 @@ private:
 
 class TServiceContext;
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct IService
-    : public virtual TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IService> TPtr;
 
@@ -179,9 +177,10 @@ public:
         , Context(context)
         , Request_(context->GetRequestAttachments())
     {
-        if (!DeserializeMessage(&Request_, context->GetRequestBody()))
+        if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
-                "Can't deserialize request body";
+                "Error deserializing request body";
+        }
     }
 
     TTypedRequest& Request()
@@ -198,7 +197,8 @@ public:
     {
         TBlob responseData;
         if (!SerializeMessage(&Response_, &responseData)) {
-            LOG_FATAL("Error serializing response");
+            ythrow TServiceException(EErrorCode::ProtocolError) <<
+                "Error serializing response";
         }
         Context->SetResponseBody(&responseData);
         Context->SetResponseAttachments(&Response_.Attachments());
@@ -265,46 +265,69 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides a base for implementing IService.
 class TServiceBase
     : public IService
 {
 public:
+    //! Reports debug info of the running service instance.
     Stroka GetDebugInfo() const;
 
 protected:
+    //! Describes a handler for a service method.
     typedef IParamAction<TIntrusivePtr<TServiceContext> > THandler;
 
-    struct TMethodInfo
+    //! Information needed to a register a service method.
+    struct TMethodDescriptor
     {
-        TMethodInfo(Stroka methodName, THandler::TPtr handler)
+        //! Initializes the instance.
+        TMethodDescriptor(Stroka methodName, THandler::TPtr handler)
             : MethodName(methodName)
             , Handler(handler)
         {
             YASSERT(~handler != NULL);
         }
 
+        //! Service method name.
         Stroka MethodName;
+        //! A handler that will serve the requests.
         THandler::TPtr Handler;
     };
 
+    //! Initializes the instance.
+    /*!
+     *  \param defaultServiceInvoker
+     *  An invoker that will be used for serving method invocations unless
+     *  configured otherwise (see #RegisterMethod).
+     *  
+     *  \param serviceName
+     *  A name of the service.
+     *  
+     *  \param loggingCategory
+     *  A category that will be used to log various debugging information
+     *  regarding service activity.
+     */
     TServiceBase(
-        IInvoker::TPtr serviceInvoker,
+        IInvoker::TPtr defaultServiceInvoker,
         Stroka serviceName,
         Stroka loggingCategory);
 
-    void RegisterMethod(const TMethodInfo& info);
+    //! Registers a method.
+    void RegisterMethod(const TMethodDescriptor& descriptor);
 
-    NLog::TLogger ServiceLogger;
-    IInvoker::TPtr ServiceInvoker;
+    //! Registers a method with a supplied custom invoker.
+    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker);
 
 private:
     struct TRuntimeMethodInfo
     {
-        TMethodInfo Info;
+        TMethodDescriptor Descriptor;
+        IInvoker::TPtr Invoker;
         TMetric ExecutionTime;
 
-        TRuntimeMethodInfo(const TMethodInfo& info)
-            : Info(info)
+        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker::TPtr invoker)
+            : Descriptor(info)
+            , Invoker(invoker)
             // TODO: configure properly
             , ExecutionTime(0, 1000, 10)
         { }
@@ -323,7 +346,9 @@ private:
         TInstant StartTime;
     };
     
+    IInvoker::TPtr DefaultServiceInvoker;
     Stroka ServiceName;
+    NLog::TLogger ServiceLogger;
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
     yhash_map<TServiceContext::TPtr, TOutstandingRequest> OutstandingRequests;
 
@@ -352,7 +377,7 @@ private:
 #define RPC_SERVICE_METHOD_IMPL(type, method) \
     void type::method##Thunk(::NYT::NRpc::TServiceContext::TPtr context) \
     { \
-        TCtx##method::TPtr typedContext = New<TCtx##method>(context); \
+        auto typedContext = New<TCtx##method>(context); \
         method( \
             &typedContext->Request(), \
             &typedContext->Response(), \
@@ -364,8 +389,8 @@ private:
         TCtx##method::TTypedResponse* response, \
         TCtx##method::TPtr context)
 
-#define RPC_SERVICE_METHOD_INFO(method) \
-    TMethodInfo(#method, FromMethod(&TThis::method##Thunk, this)) \
+#define RPC_SERVICE_METHOD_DESC(method) \
+    TMethodDescriptor(#method, FromMethod(&TThis::method##Thunk, this)) \
 
 // TODO: not used, consider dropping
 #define USE_RPC_SERVICE_METHOD_LOGGER() \
