@@ -3,35 +3,34 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
-#include "../meta_state/cell_manager.h"
 #include "../actions/async_result.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
-#include "../misc/string.h"
+#include "../misc/config.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Performs parallel and asynchronous leader lookups.
 class TLeaderLookup
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TLeaderLookup> TPtr;
 
+    //! Describes a configuration.
     struct TConfig
     {
+        //! List of peer addresses.
         yvector<Stroka> Addresses;
-        TDuration Timeout;
+
+        //! Timeout for RPC requests.
+        TDuration RpcTimeout;
 
         TConfig()
-            : Timeout(TDuration::MilliSeconds(300))
+            : RpcTimeout(TDuration::MilliSeconds(300))
         { }
-
-        Stroka ToString()
-        {
-            return "[" + JoinToString(Addresses) + "]";
-        }
 
         void Read(TJsonObject* json)
         {
@@ -40,31 +39,53 @@ public:
         }
     };
 
+    //! Describes a lookup result.
     struct TResult
     {
-        Stroka Address;
+        //! Leader id.
+        /*!
+         *  InvalidPeerId value indicates that no leader is found.
+         */
         TPeerId Id;
+
+        //! Leader address.
+        Stroka Address;
+
+        //! Leader epoch.
         TGuid Epoch;
     };
 
-    typedef TAsyncResult<TResult> TLookupResult;
+    typedef TAsyncResult<TResult> TAsyncResult;
 
+    //! Initializes a new instance.
     TLeaderLookup(const TConfig& config);
 
-    TLookupResult::TPtr GetLeader();
+    //! Performs an asynchronous lookup.
+    /*!
+     * \note Thread affinity: any
+     */
+    TAsyncResult::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
 
     TConfig Config;
     NRpc::TChannelCache ChannelCache;
+
+    //! Protects from simultaneously reporting conflicting results.
+    /*! 
+     *  We shall reuse the same spinlock for all (possibly concurrent)
+     *  #GetLeader requests. This should not harm since the protected region
+     *  is quite tiny.
+     */
+    TSpinLock SpinLock;
     
-    static void OnResponse(
+    void OnResponse(
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TLookupResult::TPtr asyncResult,
+        TAsyncResult::TPtr asyncResult,
         Stroka address);
-    static void OnComplete(TLookupResult::TPtr asyncResult);
+    void OnComplete(TAsyncResult::TPtr asyncResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

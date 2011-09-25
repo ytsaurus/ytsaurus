@@ -1,7 +1,8 @@
 #include "leader_lookup.h"
-#include "election_manager.h"
+//#include "election_manager.h"
 
 #include "../misc/serialize.h"
+#include "../misc/thread_affinity.h"
 #include "../logging/log.h"
 
 namespace NYT {
@@ -16,18 +17,21 @@ TLeaderLookup::TLeaderLookup(const TConfig& config)
     : Config(config)
 { }
 
-TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
+TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 {
-    TLookupResult::TPtr asyncResult = New<TLookupResult>();
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto asyncResult = New<TAsyncResult>();
+    auto awaiter = New<TParallelAwaiter>();
 
     FOREACH(Stroka address, Config.Addresses) {
         LOG_DEBUG("Requesting leader from master %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
         auto request = proxy.GetStatus();
-        awaiter->Await(request->Invoke(Config.Timeout), FromMethod(
+        awaiter->Await(request->Invoke(Config.RpcTimeout), FromMethod(
             &TLeaderLookup::OnResponse,
+            TPtr(this),
             awaiter,
             asyncResult,
             address));
@@ -35,27 +39,31 @@ TLeaderLookup::TLookupResult::TPtr TLeaderLookup::GetLeader()
     
     awaiter->Complete(FromMethod(
         &TLeaderLookup::OnComplete,
+        TPtr(this),
         asyncResult));
+
     return asyncResult;
 }
 
 void TLeaderLookup::OnResponse(
     TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TLookupResult::TPtr asyncResult,
+    TAsyncResult::TPtr asyncResult,
     Stroka address)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting leader from master %s (ErrorCode: %s)",
+        LOG_WARNING("Error requesting leader from peer (Address: %s, ErrorCode: %s)",
             ~address,
             ~response->GetErrorCode().ToString());
         return;
     }
 
-    TPeerId voteId = response->GetVoteId();
-    TGuid epoch = TEpoch::FromProto(response->GetVoteEpoch());
+    auto voteId = response->GetVoteId();
+    auto epoch = TEpoch::FromProto(response->GetVoteEpoch());
 
-    LOG_DEBUG("Received status from master %s (Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
+    LOG_DEBUG("Received status from peer (Address: %s, Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
         ~address,
         response->GetSelfId(),
         ~TProxy::EState(response->GetState()).ToString(),
@@ -63,33 +71,44 @@ void TLeaderLookup::OnResponse(
         response->GetPriority(),
         ~epoch.ToString());
 
-    if (response->GetState() == TProxy::EState::Leading) {
-        YASSERT(voteId == response->GetSelfId());
+    if (response->GetState() != TProxy::EState::Leading)
+        return;
 
-        TResult result;
-        result.Address = address;
-        result.Id = voteId;
-        result.Epoch = epoch;
-        asyncResult->Set(result);
+    TGuard<TSpinLock> guard(SpinLock);    
+    if (asyncResult->IsSet())
+        return;
 
-        awaiter->Cancel();
+    YASSERT(voteId == response->GetSelfId());
 
-        LOG_INFO("Leader found at %s (Id: %d, Epoch: %s)",
-            ~address,
-            response->GetSelfId(),
-            ~epoch.ToString());
-    }   
+    TResult result;
+    result.Address = address;
+    result.Id = voteId;
+    result.Epoch = epoch;
+    asyncResult->Set(result);
+
+    awaiter->Cancel();
+
+    LOG_INFO("Leader found (Address: %s, Id: %d, Epoch: %s)",
+        ~address,
+        response->GetSelfId(),
+        ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TLookupResult::TPtr asyncResult)
+void TLeaderLookup::OnComplete(TAsyncResult::TPtr asyncResult)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);    
+    if (asyncResult->IsSet())
+        return;
+
     TResult result;
     result.Address = "";
     result.Id = InvalidPeerId;
     result.Epoch = TEpoch();
     asyncResult->Set(result);
 
-    LOG_INFO("No leader found");
+    LOG_INFO("No leader is found");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
