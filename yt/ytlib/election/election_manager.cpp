@@ -1,11 +1,8 @@
 #include "election_manager.h"
-#include "leader_lookup.h"
 
 #include "../misc/serialize.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
-
-#include <util/folder/dirut.h>
 
 namespace NYT {
 
@@ -36,24 +33,28 @@ const TDuration TElectionManager::TConfig::PotentialFollowerTimeout = TDuration:
 TElectionManager::TElectionManager(
     const TConfig& config,
     TCellManager::TPtr cellManager,
-    IInvoker::TPtr invoker,
+    IInvoker::TPtr controlInvoker,
     IElectionCallbacks::TPtr electionCallbacks,
     NRpc::TServer::TPtr server)
     : TServiceBase(
-        invoker,
+        controlInvoker,
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , State(TProxy::EState::Stopped)
     , VoteId(InvalidPeerId)
     , Config(config)
     , CellManager(cellManager)
-    , Invoker(invoker)
+    , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
 {
-    Reset();
+    YASSERT(~cellManager != NULL);
+    YASSERT(~controlInvoker != NULL);
+    YASSERT(~electionCallbacks != NULL);
+    YASSERT(~server != NULL);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
+    Reset();
     RegisterMethods();
-    
     server->RegisterService(this);
 }
 
@@ -68,16 +69,22 @@ void TElectionManager::RegisterMethods()
 
 void TElectionManager::Start()
 {
-    Invoker->Invoke(FromMethod(&TElectionManager::DoStart, this));
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStart, this));
 }
 
 void TElectionManager::Stop()
 {
-    Invoker->Invoke(FromMethod(&TElectionManager::DoStop, this));
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStop, this));
 }
 
 void TElectionManager::Restart()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     Stop();
     Start();
 }
@@ -92,21 +99,24 @@ public:
 
     TFollowerPinger(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(New<TParallelAwaiter>(electionManager->Invoker))
+        , Awaiter(New<TParallelAwaiter>(electionManager->ControlEpochInvoker))
     { }
 
-    void Run()
+    void Start()
     {
-        TCellManager::TPtr cellManager = ElectionManager->CellManager;
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
+
+        auto& cellManager = ElectionManager->CellManager;
         for (TPeerId i = 0; i < cellManager->GetPeerCount(); ++i) {
-            if (i == cellManager->GetSelfId()) continue;
+            if (i == cellManager->GetSelfId())
+                continue;
             SendPing(i);
         }
     }
 
-    void Cancel()
+    void Stop()
     {
-        Awaiter->Cancel();
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
     }
 
 private:
@@ -115,13 +125,15 @@ private:
 
     void SendPing(TPeerId id)
     {
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
+
         if (Awaiter->IsCanceled())
             return;
 
         LOG_DEBUG("Sending ping to follower %d", id);
 
-        THolder<TProxy> proxy(ElectionManager->CellManager->GetMasterProxy<TProxy>(id));
-        TProxy::TReqPingFollower::TPtr request = proxy->PingFollower();
+        auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
+        auto request = proxy->PingFollower();
         request->SetLeaderId(ElectionManager->CellManager->GetSelfId());
         request->SetEpoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
@@ -131,23 +143,21 @@ private:
 
     void SchedulePing(TPeerId id)
     {
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
+
         TDelayedInvoker::Get()->Submit(
             FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
-            ->Via(~ElectionManager->EpochInvoker),
+            ->Via(~ElectionManager->ControlEpochInvoker),
             TConfig::FollowerPingInterval);
     }
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void OnResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
     {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
-
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
 
         if (!response->IsOK()) {
-            TProxy::EErrorCode errorCode = response->GetErrorCode();
+            auto errorCode = response->GetErrorCode();
             if (response->IsRpcError()) {
                 // Hard error
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
@@ -224,30 +234,20 @@ class TElectionManager::TVotingRound
 public:
     typedef TIntrusivePtr<TVotingRound> TPtr;
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(New<TParallelAwaiter>(electionManager->Invoker))
-        , EpochInvoker(electionManager->EpochInvoker)
-    {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
-    }
+        , Awaiter(New<TParallelAwaiter>(electionManager->ControlInvoker))
+        , EpochInvoker(electionManager->ControlEpochInvoker)
+    { }
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void Run() 
     {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
-
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YASSERT(ElectionManager->State == TProxy::EState::Voting);
 
-        IElectionCallbacks::TPtr callbacks = ElectionManager->ElectionCallbacks;
-        TCellManager::TPtr cellManager = ElectionManager->CellManager;
-        
-        TPeerPriority priority = callbacks->GetPriority();
+        auto callbacks = ElectionManager->ElectionCallbacks;
+        auto cellManager = ElectionManager->CellManager;
+        auto priority = callbacks->GetPriority();
 
         LOG_DEBUG("New voting round started (Round: %p, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             this,
@@ -266,8 +266,8 @@ public:
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
 
-            THolder<TProxy> proxy(cellManager->GetMasterProxy<TProxy>(id));
-            TProxy::TReqGetStatus::TPtr request = proxy->GetStatus();
+            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+            auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(TConfig::RpcTimeout),
                 FromMethod(&TVotingRound::OnResponse, TPtr(this), id));
@@ -309,12 +309,9 @@ private:
         return CheckForLeader();
     }
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void OnResponse(TProxy::TRspGetStatus::TPtr response, TPeerId peerId)
     {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         if (!response->IsOK()) {
             LOG_INFO("Error requesting status from peer %d (Round: %p, ErrorCode: %s)",
@@ -324,10 +321,10 @@ private:
             return;
         }
 
-        TProxy::EState state = TProxy::EState(response->GetState());
-        TPeerId vote = response->GetVoteId();
-        TPeerPriority priority = response->GetPriority();
-        TEpoch epoch = TEpoch::FromProto(response->GetVoteEpoch());
+        auto state = TProxy::EState(response->GetState());
+        auto vote = response->GetVoteId();
+        auto priority = response->GetPriority();
+        auto epoch = TEpoch::FromProto(response->GetVoteEpoch());
         
         LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             peerId,
@@ -368,7 +365,7 @@ private:
         // Compute candidate epoch.
         // Use the local one for self
         // (others may still be following with an outdated epoch).
-        TEpoch candidateEpoch =
+        auto candidateEpoch =
             candidateId == ElectionManager->CellManager->GetSelfId()
             ? ElectionManager->VoteEpoch
             : candidateStatus.VoteEpoch;
@@ -458,13 +455,8 @@ private:
         return lhs.VoteId < rhs.VoteId;
     }
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void ChooseVote()
     {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
-
         // Choose the best vote.
         TStatus bestCandidate;
         FOREACH(const auto& pair, StatusTable) {
@@ -482,12 +474,9 @@ private:
         ElectionManager->StartVoteFor(candidateStatus.VoteId, candidateStatus.VoteEpoch);
     }
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void OnComplete()
     {
-        VERIFY_THREAD_AFFINITY(ElectionManager->ServiceThread);
+        VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         LOG_DEBUG("Voting round completed (Round: %p)",
             this);
@@ -501,9 +490,10 @@ private:
 RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 {
     UNUSED(response);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
-    TPeerId leaderId = request->GetLeaderId();
+    auto epoch = TEpoch::FromProto(request->GetEpoch());
+    auto leaderId = request->GetLeaderId();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
         ~epoch.ToString(),
@@ -533,7 +523,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 
     PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
         FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~EpochInvoker),
+        ->Via(~ControlEpochInvoker),
         TConfig::FollowerPingTimeout);
 
     context->Reply();
@@ -542,10 +532,11 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 {
     UNUSED(request);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     context->SetRequestInfo("");
 
-    TPeerPriority priority = ElectionCallbacks->GetPriority();
+    auto priority = ElectionCallbacks->GetPriority();
 
     response->SetState(State);
     response->SetVoteId(VoteId);
@@ -569,15 +560,17 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 
 void TElectionManager::Reset()
 {
+    // May be called from ControlThread and also from ctor.
+
     State = TProxy::EState::Stopped;
     VoteId = InvalidPeerId;
     LeaderId = InvalidPeerId;
     VoteEpoch = TGuid();
     Epoch = TGuid();
     EpochStart = TInstant();
-    if (~EpochInvoker != NULL) {
-        EpochInvoker->Cancel();
-        EpochInvoker.Drop();
+    if (~ControlEpochInvoker != NULL) {
+        ControlEpochInvoker->Cancel();
+        ControlEpochInvoker.Drop();
     }
     AliveFollowers.clear();
     PotentialFollowers.clear();
@@ -586,21 +579,18 @@ void TElectionManager::Reset()
 
 void TElectionManager::OnLeaderPingTimeout()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
-
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(State == TProxy::EState::Following);
     
     LOG_INFO("No recurrent ping from leader within timeout");
     
     StopFollowing();
-    
     StartVoteForSelf();
 }
 
 void TElectionManager::DoStart()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
-
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(State == TProxy::EState::Stopped);
 
     StartVoteForSelf();
@@ -608,7 +598,7 @@ void TElectionManager::DoStart()
 
 void TElectionManager::DoStop()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
         case TProxy::EState::Stopped:
@@ -630,7 +620,7 @@ void TElectionManager::DoStop()
 
 void TElectionManager::StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch)
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Voting;
     VoteId = voteId;
@@ -640,29 +630,29 @@ void TElectionManager::StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch)
 
 void TElectionManager::StartVoteForSelf()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Voting;
     VoteId = CellManager->GetSelfId();
     VoteEpoch = TGuid::Create();
 
-    YASSERT(~EpochInvoker == NULL);
-    EpochInvoker = New<TCancelableInvoker>(Invoker);
+    YASSERT(~ControlEpochInvoker == NULL);
+    ControlEpochInvoker = New<TCancelableInvoker>(ControlInvoker);
 
-    TPeerPriority priority = ElectionCallbacks->GetPriority();
+    auto priority = ElectionCallbacks->GetPriority();
 
     LOG_DEBUG("Voting for self (Priority: %s, VoteEpoch: %s)",
-                ~ElectionCallbacks->FormatPriority(priority),
-                ~VoteEpoch.ToString());
+        ~ElectionCallbacks->FormatPriority(priority),
+        ~VoteEpoch.ToString());
 
     StartVotingRound();
 }
 
 void TElectionManager::StartVotingRound()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
-
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(State == TProxy::EState::Voting);
+
     New<TVotingRound>(this)->Run();
 }
 
@@ -670,7 +660,7 @@ void TElectionManager::StartFollowing(
     TPeerId leaderId,
     const TEpoch& epoch)
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Following;
     VoteId = leaderId;
@@ -680,7 +670,7 @@ void TElectionManager::StartFollowing(
 
     PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
         FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~EpochInvoker),
+        ->Via(~ControlEpochInvoker),
         TConfig::ReadyToFollowTimeout);
 
     LOG_INFO("Starting following (LeaderId: %d, Epoch: %s)",
@@ -692,7 +682,7 @@ void TElectionManager::StartFollowing(
 
 void TElectionManager::StartLeading()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Leading;
     YASSERT(VoteId == CellManager->GetSelfId());
@@ -708,7 +698,7 @@ void TElectionManager::StartLeading()
     // Send initial pings.
     YASSERT(~FollowerPinger == NULL);
     FollowerPinger = New<TFollowerPinger>(this);
-    FollowerPinger->Run();
+    FollowerPinger->Start();
 
     LOG_INFO("Starting leading (Epoch: %s)", ~Epoch.ToString());
     
@@ -717,8 +707,7 @@ void TElectionManager::StartLeading()
 
 void TElectionManager::StopLeading()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
-
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(State == TProxy::EState::Leading);
     
     LOG_INFO("Stopping leading (Epoch: %s)",
@@ -727,7 +716,7 @@ void TElectionManager::StopLeading()
     ElectionCallbacks->OnStopLeading();
 
     YASSERT(~FollowerPinger != NULL);
-    FollowerPinger->Cancel();
+    FollowerPinger->Stop();
     FollowerPinger.Drop();
 
     StopEpoch();
@@ -737,8 +726,7 @@ void TElectionManager::StopLeading()
 
 void TElectionManager::StopFollowing()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
-
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(State == TProxy::EState::Following);
 
     LOG_INFO("Stopping following (LeaderId: %d, Epoch: %s)",
@@ -754,7 +742,7 @@ void TElectionManager::StopFollowing()
 
 void TElectionManager::StartEpoch(TPeerId leaderId, const TEpoch& epoch)
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     LeaderId = leaderId;
     Epoch = epoch;
@@ -763,7 +751,7 @@ void TElectionManager::StartEpoch(TPeerId leaderId, const TEpoch& epoch)
 
 void TElectionManager::StopEpoch()
 {
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     LeaderId = InvalidPeerId;
     Epoch = TGuid();

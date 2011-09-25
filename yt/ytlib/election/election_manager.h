@@ -7,7 +7,6 @@
 #include "../meta_state/cell_manager.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/thread_affinity.h"
-
 #include "../actions/invoker.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"
@@ -21,15 +20,13 @@ struct IElectionCallbacks
 {
     typedef TIntrusivePtr<IElectionCallbacks> TPtr;
 
-    virtual void OnStartLeading(TEpoch epoch) = 0;
+    virtual void OnStartLeading(const TEpoch& epoch) = 0;
     virtual void OnStopLeading() = 0;
-    virtual void OnStartFollowing(TPeerId leaderId, TEpoch epoch) = 0;
+    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& epoch) = 0;
     virtual void OnStopFollowing() = 0;
 
     virtual TPeerPriority GetPriority() = 0;
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
-
-    virtual ~IElectionCallbacks() { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,31 +49,27 @@ public:
         TConfig();
     };
 
-    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread); // thread of Invoker
-
-    /*!
-     * \note Thread Affinity: Any thread
-     */
     TElectionManager(
         const TConfig& config,
         TCellManager::TPtr cellManager,
-        IInvoker::TPtr invoker,
+        IInvoker::TPtr controlInvoker,
         IElectionCallbacks::TPtr electionCallbacks,
         NRpc::TServer::TPtr server);
+
     ~TElectionManager();
 
     /*!
-     * \note Thread Affinity: Any thread
+     * \note Thread affinity: any
      */
     void Start();
 
     /*!
-     * \note Thread Affinity: Any thread
+     * \note Thread affinity: any
      */
     void Stop();
 
     /*!
-     * \note Thread Affinity: Any thread
+     * \note Thread affinity: any
      */
     void Restart();
     
@@ -97,7 +90,7 @@ private:
     TPeerId LeaderId;
     TGuid Epoch;
     TInstant EpochStart;
-    TCancelableInvoker::TPtr EpochInvoker;
+    TCancelableInvoker::TPtr ControlEpochInvoker;
     
     typedef yhash_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;
@@ -108,77 +101,33 @@ private:
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    IInvoker::TPtr Invoker;
+    IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
+
+    // Corresponds to #ControlInvoker.
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, PingFollower);
     RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, GetStatus);
 
     void RegisterMethods();
 
-    /*!
-     * \note Thread Affinity: Any thread
-     */
     void Reset();
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void OnLeaderPingTimeout();
-    
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
-    void DoStart();
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
+    void DoStart();
     void DoStop();
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartVotingRound();
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch);
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartVoteForSelf();
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartLeading();
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartFollowing(TPeerId leaderId, const TEpoch& epoch);
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StopLeading();
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StopFollowing();
 
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
-
-    /*!
-     * \note Thread Affinity: ServiceThread
-     */
     void StopEpoch();
 };
 
