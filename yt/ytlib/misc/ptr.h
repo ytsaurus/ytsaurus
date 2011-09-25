@@ -282,6 +282,11 @@ public:
         return Ref.Begin();
     }
 
+    const char* operator ~ () const
+    {
+        return Begin();
+    }
+
     const char* End() const
     {
         return Ref.End();
