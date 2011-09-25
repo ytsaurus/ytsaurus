@@ -70,7 +70,7 @@ void TChunkHolder::RegisterMethods()
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 {
     if (~SessionManager->FindSession(chunkId) != NULL) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::NoSuchSession) <<
+        ythrow NRpc::TServiceException(TProxy::EErrorCode::SessionAlreadyExists) <<
             Sprintf("session %s already exists",
                 ~chunkId.ToString());
     }
