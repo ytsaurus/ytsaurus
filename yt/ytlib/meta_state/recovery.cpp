@@ -315,12 +315,12 @@ TLeaderRecovery::TLeaderRecovery(
         leaderId,
         serviceInvoker)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(ServiceThread);
 }
 
 TRecovery::TResult::TPtr TLeaderRecovery::Run(const TMetaVersion& version)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(ServiceThread);
 
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
