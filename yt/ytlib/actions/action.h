@@ -139,7 +139,7 @@ class TSignal
 public:
     void Fire()
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(this->SpinLock);
         if (this->Actions.empty())
             return;
         yvector<IAction::TPtr> actions(this->Actions);
@@ -161,7 +161,7 @@ class TParamSignal
 public:
     void Fire(const TParam& arg)
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(this->SpinLock);
         if (this->Actions.empty())
             return;
         yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
