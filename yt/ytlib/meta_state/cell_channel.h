@@ -47,7 +47,7 @@ private:
     TSpinLock SpinLock;
     TLeaderLookup::TPtr LeaderLookup;
     EState State;
-    TLeaderLookup::TAsyncResult::TPtr LookupResult;
+    TAsyncResult<TLeaderLookup::TResult>::TPtr LookupResult;
     NRpc::TChannel::TPtr Channel;
 
 };
