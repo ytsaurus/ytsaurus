@@ -26,7 +26,7 @@ class TLeaderPinger;
 
 class TMetaStateManager
     : public NRpc::TServiceBase
-    , public IElectionCallbacks
+    , public NElection::IElectionCallbacks
 {
 public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
@@ -141,7 +141,7 @@ private:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IInvoker::TPtr StateInvoker;
-    TElectionManager::TPtr ElectionManager;
+    NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;

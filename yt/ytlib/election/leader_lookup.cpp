@@ -1,11 +1,11 @@
 #include "leader_lookup.h"
-//#include "election_manager.h"
 
 #include "../misc/serialize.h"
 #include "../misc/thread_affinity.h"
 #include "../logging/log.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,4 +113,5 @@ void TLeaderLookup::OnComplete(TAsyncResult<TResult>::TPtr asyncResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

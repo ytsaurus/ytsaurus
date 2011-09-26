@@ -13,6 +13,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: maybe remove this?
+using NElection::TPeerId;
+using NElection::TPeerPriority;
+using NElection::TEpoch;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const i32 NonexistingPrevRecordCount = -1;
 const i32 UnknownPrevRecordCount = -2;
 
@@ -38,7 +45,7 @@ struct TCellConfig
     TPeerId Id;
 
     TCellConfig()
-        : Id(InvalidPeerId)
+        : Id(NElection::InvalidPeerId)
     { }
 
     void Read(TJsonObject* json)

@@ -5,6 +5,7 @@
 #include "../actions/action_util.h"
 
 namespace NYT {
+namespace NElection {
 
 using namespace NRpc;
 
@@ -760,4 +761,5 @@ void TElectionManager::StopEpoch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

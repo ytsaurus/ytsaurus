@@ -12,6 +12,7 @@
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,8 +108,8 @@ private:
     // Corresponds to #ControlInvoker.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, PingFollower);
-    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, GetStatus);
+    RPC_SERVICE_METHOD_DECL(NElection::NProto, PingFollower);
+    RPC_SERVICE_METHOD_DECL(NElection::NProto, GetStatus);
 
     void RegisterMethods();
 
@@ -133,4 +134,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

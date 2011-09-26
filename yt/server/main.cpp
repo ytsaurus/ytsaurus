@@ -9,6 +9,8 @@
 
 using namespace NYT;
 
+using NElection::InvalidPeerId;
+
 using NChunkHolder::TChunkHolderConfig;
 using NChunkHolder::TChunkHolder;
 

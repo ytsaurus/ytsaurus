@@ -38,7 +38,7 @@ struct TChunkHolderConfig
     /*!
      *  If no master addresses are given, the holder will operate in a standalone mode.
      */
-    TLeaderLookup::TConfig Masters; 
+    NElection::TLeaderLookup::TConfig Masters;
     
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;

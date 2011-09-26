@@ -33,7 +33,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     }
 
     TPeerId sourceId = GetChangeLogSource(version);
-    if (sourceId == InvalidPeerId) {
+    if (sourceId == NElection::InvalidPeerId) {
         return EResult::ChangeLogNotFound;
     }
 
@@ -194,7 +194,7 @@ void TChangeLogDownloader::OnComplete(
 {
     LOG_INFO("Unable to find requested records at any master");
 
-    asyncResult->Set(InvalidPeerId);
+    asyncResult->Set(NElection::InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,7 +27,7 @@ TMetaStateManager::TMetaStateManager(
         Logger.GetCategory())
     , State(EPeerState::Stopped)
     , Config(config)
-    , LeaderId(InvalidPeerId)
+    , LeaderId(NElection::InvalidPeerId)
     , ControlInvoker(controlInvoker)
 {
     YVERIFY(~controlInvoker != NULL);
@@ -54,8 +54,8 @@ TMetaStateManager::TMetaStateManager(
     CellManager = New<TCellManager>(Config.Cell);
 
     // TODO: fill config
-    ElectionManager = New<TElectionManager>(
-        TElectionManager::TConfig(),
+    ElectionManager = New<NElection::TElectionManager>(
+        NElection::TElectionManager::TConfig(),
         CellManager,
         controlInvoker,
         this,
@@ -213,7 +213,7 @@ void TMetaStateManager::StopEpoch()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LeaderId = InvalidPeerId;
+    LeaderId = NElection::InvalidPeerId;
     Epoch = TEpoch();
     
     YASSERT(~ServiceEpochInvoker != NULL);
