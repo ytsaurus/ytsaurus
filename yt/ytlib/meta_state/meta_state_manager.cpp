@@ -690,7 +690,7 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
     StartEpoch(epoch);
     
     YASSERT(~LeaderRecovery == NULL);
-    LeaderRecovery = new TLeaderRecovery(
+    LeaderRecovery = New<TLeaderRecovery>(
         Config,
         CellManager,
         MetaState,
