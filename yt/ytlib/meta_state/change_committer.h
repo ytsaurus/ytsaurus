@@ -8,8 +8,10 @@
 
 #include "../election/election_manager.h"
 #include "../misc/thread_affinity.h"
+#include "../actions/signal.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,4 +120,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

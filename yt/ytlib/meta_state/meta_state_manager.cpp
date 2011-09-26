@@ -9,8 +9,9 @@
 #include "../misc/guid.h"
 
 namespace NYT {
+namespace NMetaState {
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
 
@@ -27,7 +28,7 @@ TMetaStateManager::TMetaStateManager(
         Logger.GetCategory())
     , State(EPeerState::Stopped)
     , Config(config)
-    , LeaderId(InvalidPeerId)
+    , LeaderId(NElection::InvalidPeerId)
     , ControlInvoker(controlInvoker)
 {
     YVERIFY(~controlInvoker != NULL);
@@ -54,8 +55,8 @@ TMetaStateManager::TMetaStateManager(
     CellManager = New<TCellManager>(Config.Cell);
 
     // TODO: fill config
-    ElectionManager = New<TElectionManager>(
-        TElectionManager::TConfig(),
+    ElectionManager = New<NElection::TElectionManager>(
+        NElection::TElectionManager::TConfig(),
         CellManager,
         controlInvoker,
         this,
@@ -213,7 +214,7 @@ void TMetaStateManager::StopEpoch()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LeaderId = InvalidPeerId;
+    LeaderId = NElection::InvalidPeerId;
     Epoch = TEpoch();
     
     YASSERT(~ServiceEpochInvoker != NULL);
@@ -689,7 +690,7 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
     StartEpoch(epoch);
     
     YASSERT(~LeaderRecovery == NULL);
-    LeaderRecovery = new TLeaderRecovery(
+    LeaderRecovery = New<TLeaderRecovery>(
         Config,
         CellManager,
         MetaState,
@@ -924,4 +925,5 @@ EPeerState TMetaStateManager::GetState() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

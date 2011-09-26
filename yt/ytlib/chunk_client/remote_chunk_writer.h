@@ -39,9 +39,9 @@ public:
          */
         TDuration RpcTimeout;
 
-        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder
+        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder.
         /*!
-         * If no activity occured during this period -- PingSession call will be send
+         * If no activity occured during this period, PingSession call will be sent.
          */
         TDuration SessionTimeout;
 

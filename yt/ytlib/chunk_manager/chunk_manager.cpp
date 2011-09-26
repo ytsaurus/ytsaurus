@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NChunkManager {
 
+using namespace NMetaState;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkManagerLogger;
@@ -20,7 +22,7 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
     , public NTransaction::ITransactionHandler
 {
 public:
@@ -28,8 +30,8 @@ public:
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
         TChunkReplication::TPtr chunkReplication,
         TChunkPlacement::TPtr chunkPlacement,
@@ -644,8 +646,8 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(

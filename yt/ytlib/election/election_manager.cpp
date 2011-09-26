@@ -5,6 +5,7 @@
 #include "../actions/action_util.h"
 
 namespace NYT {
+namespace NElection {
 
 using namespace NRpc;
 
@@ -32,7 +33,7 @@ const TDuration TElectionManager::TConfig::PotentialFollowerTimeout = TDuration:
 
 TElectionManager::TElectionManager(
     const TConfig& config,
-    TCellManager::TPtr cellManager,
+    NMetaState::TCellManager::TPtr cellManager,
     IInvoker::TPtr controlInvoker,
     IElectionCallbacks::TPtr electionCallbacks,
     NRpc::TServer::TPtr server)
@@ -762,4 +763,5 @@ void TElectionManager::StopEpoch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

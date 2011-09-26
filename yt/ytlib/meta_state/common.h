@@ -10,6 +10,14 @@
 #include <util/stream/file.h>
 
 namespace NYT {
+namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: maybe remove this?
+using NElection::TPeerId;
+using NElection::TPeerPriority;
+using NElection::TEpoch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +46,7 @@ struct TCellConfig
     TPeerId Id;
 
     TCellConfig()
-        : Id(InvalidPeerId)
+        : Id(NElection::InvalidPeerId)
     { }
 
     void Read(TJsonObject* json)
@@ -148,4 +156,5 @@ extern NLog::TLogger MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

@@ -8,6 +8,7 @@
 #include <util/system/fs.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +29,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
 {
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
-    if (sourceId == InvalidPeerId) {
+    if (sourceId == NElection::InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
     
@@ -97,7 +98,7 @@ void TSnapshotDownloader::OnComplete(
 {
     LOG_INFO("Could not get snapshot %d info from masters", segmentId);
 
-    asyncResult->Set(TSnapshotInfo(InvalidPeerId, -1, 0, 0));
+    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1, 0, 0));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
@@ -225,4 +226,5 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

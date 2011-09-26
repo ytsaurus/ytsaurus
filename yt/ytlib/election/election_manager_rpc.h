@@ -7,6 +7,7 @@
 #include "../rpc/client.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +39,12 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NElectionManager::NProto, PingFollower)
-    RPC_PROXY_METHOD(NElectionManager::NProto, GetStatus)
+    RPC_PROXY_METHOD(NElection::NProto, PingFollower)
+    RPC_PROXY_METHOD(NElection::NProto, GetStatus)
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

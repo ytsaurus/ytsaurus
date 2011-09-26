@@ -25,7 +25,7 @@ class TChunkReplication;
 class THolderExpiration;
 
 class TChunkManager
-    : public TMetaStateServiceBase
+    : public NMetaState::TMetaStateServiceBase
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
@@ -34,8 +34,8 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
 

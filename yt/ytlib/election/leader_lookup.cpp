@@ -1,11 +1,11 @@
 #include "leader_lookup.h"
-//#include "election_manager.h"
 
 #include "../misc/serialize.h"
 #include "../misc/thread_affinity.h"
 #include "../logging/log.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,11 +17,11 @@ TLeaderLookup::TLeaderLookup(const TConfig& config)
     : Config(config)
 { }
 
-TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
+TAsyncResult<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto asyncResult = New<TAsyncResult>();
+    auto asyncResult = New<TAsyncResult<TResult> >();
     auto awaiter = New<TParallelAwaiter>();
 
     FOREACH(Stroka address, Config.Addresses) {
@@ -48,7 +48,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 void TLeaderLookup::OnResponse(
     TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult::TPtr asyncResult,
+    TAsyncResult<TResult>::TPtr asyncResult,
     Stroka address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -94,7 +94,7 @@ void TLeaderLookup::OnResponse(
         ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TAsyncResult::TPtr asyncResult)
+void TLeaderLookup::OnComplete(TAsyncResult<TResult>::TPtr asyncResult)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -113,4 +113,5 @@ void TLeaderLookup::OnComplete(TAsyncResult::TPtr asyncResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

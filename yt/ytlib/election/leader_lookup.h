@@ -9,6 +9,7 @@
 #include "../misc/config.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,8 +56,6 @@ public:
         TGuid Epoch;
     };
 
-    typedef TAsyncResult<TResult> TAsyncResult;
-
     //! Initializes a new instance.
     TLeaderLookup(const TConfig& config);
 
@@ -64,7 +63,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TAsyncResult::TPtr GetLeader();
+    TAsyncResult<TResult>::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
@@ -83,11 +82,12 @@ private:
     void OnResponse(
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult::TPtr asyncResult,
+        TAsyncResult<TResult>::TPtr asyncResult,
         Stroka address);
-    void OnComplete(TAsyncResult::TPtr asyncResult);
+    void OnComplete(TAsyncResult<TResult>::TPtr asyncResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

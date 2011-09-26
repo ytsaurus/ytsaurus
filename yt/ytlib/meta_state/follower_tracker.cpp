@@ -1,6 +1,7 @@
 #include "follower_tracker.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,4 +91,5 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT
