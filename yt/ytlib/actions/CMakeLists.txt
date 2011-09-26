@@ -9,6 +9,7 @@ SET(YT_SOURCE_FILES
     async_result-inl.h
     parallel_awaiter.h
     parallel_awaiter-inl.h
+    signal.h
 
     ${SRCDIR}/action_util.h
 )

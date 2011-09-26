@@ -4,6 +4,7 @@
 
 #include "../misc/cache.h"
 #include "../actions/action_queue.h"
+#include "../actions/signal.h"
 #include "../chunk_client/file_chunk_reader.h"
 
 namespace NYT {
