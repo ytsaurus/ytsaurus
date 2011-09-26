@@ -846,7 +846,7 @@ void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowRead
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     YASSERT(~WindowReady == NULL);
-    if (WindowSlots.GetFreeSlotsCount() > 0 ||
+    if (WindowSlots.GetFreeSlotCount() > 0 ||
         State == EWriterState::Canceled ||
         State == EWriterState::Closed)
     {
