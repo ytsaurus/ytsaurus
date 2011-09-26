@@ -17,6 +17,7 @@ SET(YT_SOURCE_FILES
     snapshot_store.cpp
     recovery.cpp
     follower_tracker.cpp
+    cell_manager-inl.h
     cell_manager.cpp
     leader_pinger.cpp
     map.h

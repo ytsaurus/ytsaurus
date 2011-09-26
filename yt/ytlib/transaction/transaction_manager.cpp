@@ -15,15 +15,15 @@ static NLog::TLogger& Logger = TransactionLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
 {
 public:
     typedef TIntrusivePtr<TState> TPtr;
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState)
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         , LeaseManager(New<TLeaseManager>())
@@ -147,7 +147,7 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TTransactionId, TTransaction> TTransactionMap;
+    typedef NMetaState::TMetaStateMap<TTransactionId, TTransaction> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
     //! Configuration.
@@ -258,8 +258,8 @@ private:
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)
     : TMetaStateServiceBase(

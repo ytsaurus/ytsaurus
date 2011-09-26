@@ -20,7 +20,7 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
     , public NTransaction::ITransactionHandler
 {
 public:
@@ -28,8 +28,8 @@ public:
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
         TChunkReplication::TPtr chunkReplication,
         TChunkPlacement::TPtr chunkPlacement,
@@ -206,11 +206,11 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TChunkId, TChunk> TChunkMap;
-    typedef TMetaStateMap<THolderId, THolder> THolderMap;
+    typedef NMetaState::TMetaStateMap<TChunkId, TChunk> TChunkMap;
+    typedef NMetaState::TMetaStateMap<THolderId, THolder> THolderMap;
     typedef yhash_map<Stroka, THolderId> THolderAddressMap;
-    typedef TMetaStateMap<TChunkId, TJobList> TJobListMap;
-    typedef TMetaStateMap<TJobId, TJob> TJobMap;
+    typedef NMetaState::TMetaStateMap<TChunkId, TJobList> TJobListMap;
+    typedef NMetaState::TMetaStateMap<TJobId, TJob> TJobMap;
     typedef yhash_map<Stroka, TReplicationSink> TReplicationSinkMap;
     
     TConfig Config;
@@ -651,8 +651,8 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(

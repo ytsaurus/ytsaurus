@@ -20,7 +20,7 @@ namespace NTransaction {
     
 //! Manages user transactions.
 class TTransactionManager
-    : public TMetaStateServiceBase
+    : public NMetaState::TMetaStateServiceBase
 {
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -37,8 +37,8 @@ public:
     //! Creates an instance.
     TTransactionManager(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         IInvoker::TPtr serviceInvoker,
         NRpc::TServer::TPtr server);
 

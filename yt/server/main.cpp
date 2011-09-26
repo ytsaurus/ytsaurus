@@ -9,6 +9,7 @@
 
 using namespace NYT;
 
+using NElection::TPeerId;
 using NElection::InvalidPeerId;
 
 using NChunkHolder::TChunkHolderConfig;
@@ -18,6 +19,9 @@ using NTransaction::TTransactionManager;
 
 using NChunkManager::TChunkManagerConfig;
 using NChunkManager::TChunkManager;
+
+using NMetaState::TMetaStateManager;
+using NMetaState::TCompositeMetaState;
 
 NLog::TLogger Logger("Server");
 

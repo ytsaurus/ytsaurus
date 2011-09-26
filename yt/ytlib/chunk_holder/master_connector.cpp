@@ -32,7 +32,7 @@ TMasterConnector::TMasterConnector(
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    NRpc::IChannel::TPtr channel = ~New<TCellChannel>(Config.Masters);
+    NRpc::IChannel::TPtr channel = ~New<NMetaState::TCellChannel>(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);

@@ -9,9 +9,11 @@
 // TODO: forward declaration for friends
 
 namespace NYT {
+namespace NMetaState {
 
 class TCellChannel;
 
+}
 } // namespace NYT
 
 namespace NYT {
@@ -169,7 +171,7 @@ protected:
 
 private:
     friend class TChannel;
-    friend class ::NYT::TCellChannel;
+    friend class ::NYT::NMetaState::TCellChannel;
     friend class TClientRequest;
 
     DECLARE_ENUM(EState,

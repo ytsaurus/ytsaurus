@@ -4,6 +4,7 @@
 #include "../rpc/channel.h"
 
 namespace NYT {
+namespace NMetaState {
 
 using NElection::TLeaderLookup;
 
@@ -56,4 +57,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

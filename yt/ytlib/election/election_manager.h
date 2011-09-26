@@ -52,7 +52,7 @@ public:
 
     TElectionManager(
         const TConfig& config,
-        TCellManager::TPtr cellManager,
+        NMetaState::TCellManager::TPtr cellManager,
         IInvoker::TPtr controlInvoker,
         IElectionCallbacks::TPtr electionCallbacks,
         NRpc::TServer::TPtr server);
@@ -101,7 +101,7 @@ private:
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
     TConfig Config;
-    TCellManager::TPtr CellManager;
+    NMetaState::TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 
