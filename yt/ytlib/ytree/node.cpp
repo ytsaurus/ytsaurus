@@ -1,4 +1,5 @@
-#include "ytree.h"
+#include "node.h"
+#include "ypath.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
 
@@ -7,24 +8,24 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INode::TGetResult TNodeBase::YPathGet(
+IYPathService::TGetResult TNodeBase::Get(
     const TYPath& path,
     IYsonConsumer* events) const
 {
-    auto navigateResult = YPathNavigate(path);
+    auto navigateResult = Navigate(path);
     switch (navigateResult.Code) {
-        case INode::EYPathCode::Done: {
+        case IYPathService::ECode::Done: {
             TTreeVisitor visitor(events);
             visitor.Visit(navigateResult.Value->AsImmutable());
             return TGetResult::CreateDone(TVoid());
         }
 
-        case INode::EYPathCode::Recurse:
+        case IYPathService::ECode::Recurse:
             return TGetResult::CreateRecurse(
                 navigateResult.RecurseNode,
                 navigateResult.RecursePath);
 
-        case INode::EYPathCode::Error:
+        case IYPathService::ECode::Error:
             return TGetResult::CreateError(
                 navigateResult.ErrorMessage);
 
@@ -34,7 +35,7 @@ INode::TGetResult TNodeBase::YPathGet(
     }
 }
 
-INode::TNavigateResult TNodeBase::YPathNavigate(
+IYPathService::TNavigateResult TNodeBase::Navigate(
     const TYPath& path) const
 {
     UNUSED(path);
@@ -45,22 +46,22 @@ INode::TNavigateResult TNodeBase::YPathNavigate(
     }
 }
 
-INode::TSetResult TNodeBase::YPathSet(
+IYPathService::TSetResult TNodeBase::Set(
     const TYPath& path, 
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
-        return YPathSetSelf(producer);
+        return SetSelf(producer);
     }
 
-    auto navigateResult = YPathNavigate(path);
+    auto navigateResult = Navigate(path);
     switch (navigateResult.Code) {
-        case INode::EYPathCode::Recurse:
+        case IYPathService::ECode::Recurse:
             return TSetResult::CreateRecurse(
                 navigateResult.RecurseNode,
                 navigateResult.RecursePath);
 
-        case INode::EYPathCode::Error:
+        case IYPathService::ECode::Error:
             return TSetResult::CreateError(
                 navigateResult.ErrorMessage);
 
@@ -70,21 +71,21 @@ INode::TSetResult TNodeBase::YPathSet(
     }
 }
 
-INode::TRemoveResult TNodeBase::YPathRemove(
+IYPathService::TRemoveResult TNodeBase::Remove(
     const TYPath& path)
 {
     if (path.empty()) {
-        return YPathRemoveSelf();
+        return RemoveSelf();
     }
 
-    auto navigateResult = YPathNavigate(path);
+    auto navigateResult = Navigate(path);
     switch (navigateResult.Code) {
-        case INode::EYPathCode::Recurse:
+        case IYPathService::ECode::Recurse:
             return TRemoveResult::CreateRecurse(
                 navigateResult.RecurseNode,
                 navigateResult.RecursePath);
 
-        case INode::EYPathCode::Error:
+        case IYPathService::ECode::Error:
             return TRemoveResult::CreateError(
                 navigateResult.ErrorMessage);
 
@@ -94,7 +95,7 @@ INode::TRemoveResult TNodeBase::YPathRemove(
     }
 }
 
-INode::TRemoveResult TNodeBase::YPathRemoveSelf()
+IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 {
     if (~Parent == NULL) {
         return TRemoveResult::CreateError("Cannot remove the root");
@@ -104,7 +105,7 @@ INode::TRemoveResult TNodeBase::YPathRemoveSelf()
     return TRemoveResult::CreateDone(TVoid());
 }
 
-INode::TSetResult TNodeBase::YPathSetSelf(TYsonProducer::TPtr producer)
+IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
     if (~Parent == NULL) {
         return TSetResult::CreateError("Cannot update the root");
@@ -114,6 +115,16 @@ INode::TSetResult TNodeBase::YPathSetSelf(TYsonProducer::TPtr producer)
     producer->Do(&builder);
     Parent->ReplaceChild(this, builder.GetRoot());
     return TSetResult::CreateDone(TVoid());
+}
+
+TNodeBase* TNodeBase::AsMutableImpl() const
+{
+    return const_cast<TNodeBase*>(this);
+}
+
+const TNodeBase* TNodeBase::AsImmutableImpl() const
+{
+    return this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
