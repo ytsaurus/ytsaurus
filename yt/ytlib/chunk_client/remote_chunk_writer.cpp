@@ -844,8 +844,8 @@ void TRemoteChunkWriter::CancelAllPings()
 void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
     YASSERT(~WindowReady == NULL);
+
     if (WindowSlots.GetFreeSlotCount() > 0 ||
         State == EWriterState::Canceled ||
         State == EWriterState::Closed)
@@ -856,10 +856,11 @@ void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowRead
     }
 }
 
-IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready)
+IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
+    const TSharedRef& data,
+    TAsyncResult<TVoid>::TPtr* ready)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-
     YASSERT(ready != NULL);
 
     // Check that the current group is still valid.
