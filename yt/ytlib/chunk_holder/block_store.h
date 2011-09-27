@@ -16,7 +16,7 @@ class TCachedBlock
 {
 public:
     typedef TIntrusivePtr<TCachedBlock> TPtr;
-    typedef TAsyncResult<TPtr> TAsync;
+    typedef TFuture<TPtr> TAsync;
 
     //! Constructs a new block from id and data.
     TCachedBlock(const TBlockId& blockId, const TSharedRef& data);

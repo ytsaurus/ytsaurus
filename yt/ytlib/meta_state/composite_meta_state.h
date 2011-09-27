@@ -23,7 +23,7 @@ public:
         TIntrusivePtr<TCompositeMetaState> metaState);
 
     template<class TMessage, class TResult>
-    typename TAsyncResult<TResult>::TPtr CommitChange(
+    typename TFuture<TResult>::TPtr CommitChange(
         const TMessage& message,
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
         IAction::TPtr errorHandler = NULL);
@@ -49,8 +49,8 @@ protected:
 
     virtual Stroka GetPartName() const = 0;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output) = 0;
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input) = 0;
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output) = 0;
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input) = 0;
 
     virtual void Clear() = 0;
 
@@ -112,8 +112,8 @@ private:
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output);
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input);
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output);
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input);
 
     virtual void ApplyChange(const TRef& changeData);
 

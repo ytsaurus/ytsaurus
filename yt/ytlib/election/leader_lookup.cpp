@@ -17,11 +17,11 @@ TLeaderLookup::TLeaderLookup(const TConfig& config)
     : Config(config)
 { }
 
-TAsyncResult<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
+TFuture<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto asyncResult = New<TAsyncResult<TResult> >();
+    auto asyncResult = New<TFuture<TResult> >();
     auto awaiter = New<TParallelAwaiter>();
 
     FOREACH(Stroka address, Config.Addresses) {
@@ -48,7 +48,7 @@ TAsyncResult<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
 void TLeaderLookup::OnResponse(
     TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TResult>::TPtr asyncResult,
+    TFuture<TResult>::TPtr asyncResult,
     Stroka address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -94,7 +94,7 @@ void TLeaderLookup::OnResponse(
         ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TAsyncResult<TResult>::TPtr asyncResult)
+void TLeaderLookup::OnComplete(TFuture<TResult>::TPtr asyncResult)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

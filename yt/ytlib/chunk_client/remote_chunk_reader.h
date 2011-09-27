@@ -14,14 +14,14 @@ class TRemoteChunkReader
 {
 public:
     TRemoteChunkReader(const TChunkId& chunkId, Stroka holderAddress);
-    TAsyncResult<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
 private:
     typedef TIntrusivePtr<TRemoteChunkReader> TPtr;
     typedef NChunkHolder::TChunkHolderProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
 
-    void OnBlocksRead(TRspGetBlocks::TPtr rsp, TAsyncResult<TReadResult>::TPtr result);
+    void OnBlocksRead(TRspGetBlocks::TPtr rsp, TFuture<TReadResult>::TPtr result);
 
     TChunkId ChunkId;
     TDuration Timeout;

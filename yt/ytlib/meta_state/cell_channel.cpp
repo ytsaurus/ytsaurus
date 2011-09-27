@@ -10,7 +10,7 @@ TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
     , State(EState::NotConnected)
 { }
 
-TAsyncResult<TVoid>::TPtr TCellChannel::Send(
+TFuture<TVoid>::TPtr TCellChannel::Send(
     TIntrusivePtr<NRpc::TClientRequest> request,
     TIntrusivePtr<NRpc::TClientResponse> response,
     TDuration timeout)
@@ -23,7 +23,7 @@ TAsyncResult<TVoid>::TPtr TCellChannel::Send(
         timeout));
 }
 
-TAsyncResult<TVoid>::TPtr TCellChannel::OnGotChannel(
+TFuture<TVoid>::TPtr TCellChannel::OnGotChannel(
     NRpc::IChannel::TPtr channel,
     NRpc::TClientRequest::TPtr request,
     NRpc::TClientResponse::TPtr response,
@@ -31,7 +31,7 @@ TAsyncResult<TVoid>::TPtr TCellChannel::OnGotChannel(
 {
     if (~channel == NULL) {
         response->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return New< TAsyncResult<TVoid> >(TVoid());
+        return New< TFuture<TVoid> >(TVoid());
     }
 
     return
@@ -60,7 +60,7 @@ NYT::TVoid TCellChannel::OnResponseReady(
     return TVoid();
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
 {
     TGuard<TSpinLock> guard(SpinLock);
     switch (State) {
@@ -80,7 +80,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
         case EState::Connected:
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel != NULL);
-            return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
+            return New< TFuture<NRpc::IChannel::TPtr> >(~Channel);
 
         case EState::Connecting: {
             YASSERT(~LookupResult != NULL);
@@ -99,7 +99,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
     }
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
     TLeaderLookup::TResult result)
 {
     TGuard<TSpinLock> guard(SpinLock);
@@ -109,16 +109,16 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
     if (result.Id == NElection::InvalidPeerId) {
         State = EState::Failed;
         LookupResult.Drop();
-        return New< TAsyncResult<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
+        return New< TFuture<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
     }
 
     State = EState::Connected;
     Channel = New<NRpc::TChannel>(result.Address);
     LookupResult.Drop();
-    return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
+    return New< TFuture<NRpc::IChannel::TPtr> >(~Channel);
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
     TLeaderLookup::TResult)
 {
     return GetChannel();

@@ -76,7 +76,7 @@ void TSessionManager::CancelSession(TSession::TPtr session)
         ~chunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
+TFuture<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
 {
     TChunkId chunkId = session->GetChunkId();
 
@@ -273,7 +273,7 @@ void TSession::OnBlockWritten(TVoid, i32 blockIndex)
     slot.IsWritten->Set(TVoid());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
+TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -304,7 +304,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TSession::Finish()
+TFuture<TVoid>::TPtr TSession::Finish()
 {
     CloseLease();
 
@@ -364,7 +364,7 @@ void TSession::DoDeleteFile()
         ~ChunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::CloseFile()
+TFuture<TVoid>::TPtr TSession::CloseFile()
 {
     return
         FromMethod(

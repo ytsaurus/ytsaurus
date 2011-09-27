@@ -6,7 +6,7 @@
 
 #include "../actions/invoker.h"
 #include "../actions/action.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../actions/action_util.h"
 
 #include "../logging/log.h"

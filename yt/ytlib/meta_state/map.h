@@ -244,7 +244,7 @@ public:
      * \param stream Output stream.
      * \return Callback on successful save.
      */
-    TAsyncResult<TVoid>::TPtr Save(
+    TFuture<TVoid>::TPtr Save(
         IInvoker::TPtr invoker,
         TOutputStream* stream)
     {
@@ -268,7 +268,7 @@ public:
      * \param stream Input stream.
      * \return Callback on successful load.
      */
-    TAsyncResult<TVoid>::TPtr Load(
+    TFuture<TVoid>::TPtr Load(
         IInvoker::TPtr invoker,
         TInputStream* stream)
     {

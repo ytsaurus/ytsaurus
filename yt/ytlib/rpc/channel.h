@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../bus/bus_client.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../misc/delayed_invoker.h"
 
 
@@ -20,7 +20,7 @@ struct IChannel
 {
     typedef TIntrusivePtr<IChannel> TPtr;
 
-    virtual TAsyncResult<TVoid>::TPtr Send(
+    virtual TFuture<TVoid>::TPtr Send(
         TIntrusivePtr<TClientRequest> request,
         TIntrusivePtr<TClientResponse> response,
         TDuration timeout) = 0;
@@ -38,7 +38,7 @@ public:
     TChannel(NBus::TBusClient::TPtr client);
     TChannel(Stroka address);
 
-    virtual TAsyncResult<TVoid>::TPtr Send(
+    virtual TFuture<TVoid>::TPtr Send(
         TIntrusivePtr<TClientRequest> request,
         TIntrusivePtr<TClientResponse> response,
         TDuration timeout);
@@ -54,7 +54,7 @@ private:
 
         TRequestId RequestId;
         TIntrusivePtr<TClientResponse> Response;
-        TAsyncResult<TVoid>::TPtr Ready;
+        TFuture<TVoid>::TPtr Ready;
         TDelayedInvoker::TCookie TimeoutCookie;
     };
 

@@ -5,8 +5,8 @@ SET(YT_SOURCE_FILES
     action_queue.cpp
     prioritized_action_queue.cpp
     invoker.cpp
-    async_result.h
-    async_result-inl.h
+    future.h
+    future-inl.h
     parallel_awaiter.h
     parallel_awaiter-inl.h
     signal.h

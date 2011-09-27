@@ -1,6 +1,6 @@
 #pragma once
 
-#include "async_result.h"
+#include "future.h"
 
 #include "../misc/ptr.h"
 
@@ -18,7 +18,7 @@ public:
 
     template<class T>
     void Await(
-        TIntrusivePtr< TAsyncResult<T> > result,
+        TIntrusivePtr< TFuture<T> > result,
         TIntrusivePtr< IParamAction<T> > onResult = NULL);
 
     void Complete(IAction::TPtr onComplete = NULL);

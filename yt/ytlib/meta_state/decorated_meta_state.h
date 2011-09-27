@@ -60,13 +60,13 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncResult<TVoid>::TPtr Save(TOutputStream* output);
+    TFuture<TVoid>::TPtr Save(TOutputStream* output);
 
     //! Delegates the call to IMetaState::Load and updates the version.
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncResult<TVoid>::TPtr Load(i32 segmentId, TInputStream* input);
+    TFuture<TVoid>::TPtr Load(i32 segmentId, TInputStream* input);
     
     //! Delegates the call to IMetaState::ApplyChange and updates the version.
     /*!
