@@ -1,13 +1,14 @@
 SET(YT_SOURCE_FILES
     common.h
     ytree_fwd.h
-    ytree.cpp
+    ytree.h
     yson_events.h
     yson_reader.h
     yson_writer.h
     tree_builder.h
     tree_visitor.h
-    ypath.h
+    ypath.cpp
+    node.cpp
     ephemeral.cpp
     fluent.h
 )

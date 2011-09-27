@@ -30,7 +30,10 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-//    RPC_PROXY_METHOD(NProto, RegisterHolder);
+    RPC_PROXY_METHOD(NProto, Get);
+    RPC_PROXY_METHOD(NProto, Set);
+    RPC_PROXY_METHOD(NProto, Remove);
+    RPC_PROXY_METHOD(NProto, Lock);
 
 };
 

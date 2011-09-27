@@ -111,12 +111,70 @@ TRegistryService::TRegistryService(
 
 void TRegistryService::RegisterMethods()
 {
-//    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//RPC_SERVICE_METHOD_IMPL(TRegistryService, RegisterHolder)
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Get)
+{
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
+        ~transactionId.ToString(),
+        ~path);
+
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Set)
+{
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+    Stroka value = request->GetValues();
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
+        ~transactionId.ToString(),
+        ~path);
+
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Remove)
+{
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
+        ~transactionId.ToString(),
+        ~path);
+
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Lock)
+{
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+    auto mode = ELockMode(request->GetMode());
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s, Mode: %s",
+        ~transactionId.ToString(),
+        ~path,
+        ~mode.ToString());
+
+    UNUSED(response);
+    YASSERT(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRegistry
 } // namespace NYT

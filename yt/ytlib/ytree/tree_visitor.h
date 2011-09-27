@@ -13,7 +13,7 @@ class TTreeVisitor
     : private TNonCopyable
 {
 public:
-    TTreeVisitor(IYsonConsumer::TPtr events)
+    TTreeVisitor(IYsonConsumer* events)
         : Events(events)
     { }
 
@@ -25,7 +25,7 @@ public:
     }
 
 private:
-    IYsonConsumer::TPtr Events;
+    IYsonConsumer* Events;
 
     void VisitAny(INode::TConstPtr node)
     {

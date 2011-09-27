@@ -1,8 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ytree.h"
-#include "ypath.h"
+#include "node.h"
 
 #include "../misc/hash.h"
 
@@ -12,7 +11,7 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeBase
+class TEphemeralNodeBase
     : public ::NYT::NYTree::TNodeBase
 {
 public:
@@ -24,7 +23,7 @@ public:
 
 template<class TValue, class IBase>
 class TScalarNode
-    : public TNodeBase
+    : public TEphemeralNodeBase
     , public virtual IBase
 {
 public:
@@ -83,7 +82,7 @@ DECLARE_SCALAR_TYPE(Double, double)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNode
-    : public TNodeBase
+    : public TEphemeralNodeBase
     , public virtual IMapNode
 {
 public:
@@ -98,9 +97,9 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult YPathNavigate(
+    virtual TNavigateResult Navigate(
         const TYPath& path) const;
-    virtual TSetResult YPathSet(
+    virtual TSetResult Set(
         const TYPath& path,
         TYsonProducer::TPtr producer);
 
@@ -113,7 +112,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TNodeBase
+    : public TEphemeralNodeBase
     , public virtual IListNode
 {
 public:
@@ -128,9 +127,9 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult YPathNavigate(
+    virtual TNavigateResult Navigate(
         const TYPath& path) const;
-    virtual TSetResult YPathSet(
+    virtual TSetResult Set(
         const TYPath& path,
         TYsonProducer::TPtr producer);
 
@@ -145,7 +144,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEntityNode
-    : public TNodeBase
+    : public TEphemeralNodeBase
     , public virtual IEntityNode
 {
 public:

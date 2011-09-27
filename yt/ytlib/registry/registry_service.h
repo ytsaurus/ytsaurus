@@ -47,16 +47,33 @@ private:
     //! Registers RPC methods.
     void RegisterMethods();
 
-    /*
-    RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
-    void OnHolderRegistered(
-        THolderId id,
-        TCtxRegisterHolder::TPtr context);
-    */
+    RPC_SERVICE_METHOD_DECL(NProto, Get);
+    RPC_SERVICE_METHOD_DECL(NProto, Set);
+    RPC_SERVICE_METHOD_DECL(NProto, Remove);
+    RPC_SERVICE_METHOD_DECL(NProto, Lock);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+typedef TGuid TNodeId;
+
+class TNodeBase
+    : public NYTree::TNodeBase
+{
+public:
+    TNodeId GetId() const;
+
+
+private:
+    TNodeId Id;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 
 } // namespace NRegistry
 } // namespace NYT

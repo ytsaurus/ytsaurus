@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/enum.h"
 #include "../logging/log.h"
 #include "../transaction/transaction_manager.h"
 
@@ -18,6 +19,12 @@ using NTransaction::TTransaction;
 using NTransaction::TTransactionManager;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(ELockMode,
+    (SharedRead)
+    (SharedWrite)
+    (ExclusiveWrite)
+);
 
 struct TRegistryServiceConfig
 {
