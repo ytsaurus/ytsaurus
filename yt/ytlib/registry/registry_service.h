@@ -10,6 +10,7 @@
 #include "../meta_state/meta_state_service.h"
 #include "../meta_state/map.h"
 #include "../rpc/server.h"
+#include "../ytree/node.h"
 
 #include "../ytree/node.h"
 

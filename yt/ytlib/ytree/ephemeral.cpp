@@ -1,6 +1,8 @@
 #include "ephemeral.h"
 #include "ypath.h"
 
+#include "../misc/assert.h"
+
 #include <util/generic/algorithm.h>
 
 namespace NYT {

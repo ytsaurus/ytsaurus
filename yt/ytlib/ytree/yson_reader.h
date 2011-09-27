@@ -3,6 +3,9 @@
 #include "common.h"
 #include "yson_events.h"
 
+// TODO: move to cpp
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NYTree {
 

@@ -205,9 +205,9 @@ TServiceBase::TServiceBase(
     IInvoker::TPtr defaultServiceInvoker,
     Stroka serviceName,
     Stroka loggingCategory)
-    : ServiceLogger(loggingCategory)
-    , DefaultServiceInvoker(defaultServiceInvoker)
+    : DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
+    , ServiceLogger(loggingCategory)
 {
     YASSERT(~defaultServiceInvoker != NULL);
 }
