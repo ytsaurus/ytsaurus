@@ -33,6 +33,8 @@ public:
 private:
     typedef TChunkHolder TThis;
     typedef TChunkHolderProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     //! Configuration.
     TConfig Config;

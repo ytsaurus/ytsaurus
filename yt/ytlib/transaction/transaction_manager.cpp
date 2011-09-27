@@ -293,7 +293,7 @@ void TTransactionManager::ValidateTransactionId(const TTransactionId& id)
 {
     const TTransaction* transaction = State->FindTransaction(id);
     if (transaction == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchTransaction) <<
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
             Sprintf("Unknown or expired transaction %s",
                 ~id.ToString());
     }

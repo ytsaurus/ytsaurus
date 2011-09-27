@@ -690,7 +690,7 @@ void TChunkManager::ValidateHolderId(THolderId holderId)
 {
     const auto* holder = FindHolder(holderId);
     if (holder == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchHolder) <<
+        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
             Sprintf("Invalid or expired holder %d", holderId);
     }
 }
@@ -701,7 +701,7 @@ void TChunkManager::ValidateChunkId(
 {
     const auto* chunk = FindChunk(chunkId);
     if (chunk == NULL || !chunk->IsVisible(transactionId)) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) <<
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
             Sprintf("Invalid chunk %s", ~chunkId.ToString());
     }
 }
@@ -710,7 +710,7 @@ void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
 {
     const auto* transaction = TransactionManager->FindTransaction(transactionId);
     if (transaction == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) << 
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
             Sprintf("Invalid transaction %s", ~transactionId.ToString());
     }
 }

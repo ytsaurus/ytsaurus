@@ -70,8 +70,8 @@ void TChunkHolder::RegisterMethods()
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 {
     if (~SessionManager->FindSession(chunkId) != NULL) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::SessionAlreadyExists) <<
-            Sprintf("session %s already exists",
+        ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
+            Sprintf("Session %s already exists",
                 ~chunkId.ToString());
     }
 }
@@ -79,8 +79,8 @@ void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 void TChunkHolder::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (~ChunkStore->FindChunk(chunkId) != NULL) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::ChunkAlreadyExists) <<
-            Sprintf("chunk %s already exists", ~chunkId.ToString());
+        ythrow TServiceException(EErrorCode::ChunkAlreadyExists) <<
+            Sprintf("Chunk %s already exists", ~chunkId.ToString());
     }
 }
 
@@ -88,8 +88,8 @@ TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
 {
     auto session = SessionManager->FindSession(chunkId);
     if (~session == NULL) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::NoSuchSession) <<
-            Sprintf("session %s is invalid or expired",
+        ythrow TServiceException(EErrorCode::NoSuchSession) <<
+            Sprintf("Session %s is invalid or expired",
                 ~chunkId.ToString());
     }
     return session;

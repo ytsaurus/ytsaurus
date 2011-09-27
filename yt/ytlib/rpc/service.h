@@ -15,22 +15,60 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents an error occured while serving an RPC request.
 class TServiceException 
     : public yexception
 {
 public:
-    TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
+    //! Initializes a new instance.
+    explicit TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
         : ErrorCode(errorCode)
     { }
 
+    //! Gets the error code.
     EErrorCode GetErrorCode() const
     {
         return ErrorCode;
     }
 
-private:
+protected:
     EErrorCode ErrorCode;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A typed version of TServiceException.
+/*!
+ *  The primary difference from the untyped TServiceException is that the
+ *  constructor accepts an error of a given TErrorCode type.
+ *  
+ *  This enables to capture the error message during exception construction
+ *  and write
+ *  \code
+ *  typedef TTypedServiceException<EMyCode> TMyException;
+ *  ythrow TMyException(EMyCode::SomethingWrong);
+ *  \endcode
+ *  instead of
+ *  \code
+ *  ythrow TServiceException(EMyCode(EMyCode::SomethingWrong));
+ *  \endcode
+ */
+template <class TErrorCode>
+class TTypedServiceException 
+    : public TServiceException
+{
+public:
+    //! Initializes a new instance.
+    explicit TTypedServiceException(TErrorCode errorCode = EErrorCode::ServiceError)
+        : TServiceException(errorCode)
+    { }
+
+    //! Gets the error code.
+    EErrorCode GetErrorCode() const
+    {
+        return EErrorCode(TServiceException::GetErrorCode());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
