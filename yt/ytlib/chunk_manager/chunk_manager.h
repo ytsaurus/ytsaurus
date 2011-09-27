@@ -2,8 +2,6 @@
 
 #include "common.h"
 #include "chunk_manager_rpc.h"
-#include "chunk_manager_rpc.pb.h"
-#include "chunk_manager.pb.h"
 #include "holder.h"
 #include "chunk.h"
 #include "job.h"
@@ -12,7 +10,6 @@
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/meta_state_service.h"
 #include "../meta_state/map.h"
-#include "../transaction/transaction_manager.h"
 #include "../rpc/server.h"
 
 namespace NYT {
