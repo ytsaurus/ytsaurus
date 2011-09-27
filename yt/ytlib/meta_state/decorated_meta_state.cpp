@@ -24,6 +24,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     YASSERT(~state != NULL);
     YASSERT(~snapshotStore != NULL);
     YASSERT(~changeLogCache != NULL);
+
     VERIFY_INVOKER_AFFINITY(state->GetInvoker(), StateThread);
 
     ComputeReachableVersion();

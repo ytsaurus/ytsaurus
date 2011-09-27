@@ -215,6 +215,8 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
 {
+    YASSERT(~changeAction != NULL);
+
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = MetaState->GetVersion();

@@ -31,9 +31,10 @@ TMetaStateManager::TMetaStateManager(
     , LeaderId(NElection::InvalidPeerId)
     , ControlInvoker(controlInvoker)
 {
-    YVERIFY(~controlInvoker != NULL);
-    YVERIFY(~metaState != NULL);
-    YVERIFY(~server != NULL);
+    YASSERT(~controlInvoker != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~server != NULL);
+
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
 

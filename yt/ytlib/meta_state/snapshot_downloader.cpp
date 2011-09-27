@@ -21,12 +21,16 @@ TSnapshotDownloader::TSnapshotDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{}
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
+    YASSERT(~snapshotWriter != NULL);
+
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
@@ -104,7 +108,7 @@ void TSnapshotDownloader::OnComplete(
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TSnapshotInfo snapshotInfo,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
     YASSERT(snapshotInfo.Length >= 0);
     

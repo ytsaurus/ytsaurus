@@ -656,14 +656,9 @@ TChunkManager::TChunkManager(
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ChunkPlacement(New<TChunkPlacement>(
-        this))
-    , ChunkReplication(New<TChunkReplication>(
-        this,
-        ChunkPlacement))
-    , HolderExpiration(New<THolderExpiration>(
-        config,
-        this))
+    , ChunkPlacement(New<TChunkPlacement>(this))
+    , ChunkReplication(New<TChunkReplication>(this, ChunkPlacement))
+    , HolderExpiration(New<THolderExpiration>(config, this))
     , State(New<TState>(
         config,
         metaStateManager,
@@ -673,6 +668,10 @@ TChunkManager::TChunkManager(
         ChunkPlacement,
         HolderExpiration))
 {
+    YVERIFY(~metaState != NULL);
+    YVERIFY(~server != NULL);
+    YVERIFY(~transactionManager != NULL);
+
     RegisterMethods();
     metaState->RegisterPart(~State);
     server->RegisterService(this);

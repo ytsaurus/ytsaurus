@@ -16,9 +16,13 @@ TFollowerTracker::TFollowerTracker(
     : Config(config)
     , CellManager(cellManager)
     , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
-    , FollowerStates(cellManager->GetPeerCount())
     , LeaseManager(New<TLeaseManager>())
 {
+    YASSERT(~cellManager != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    FollowerStates = yvector<TFollowerState>(cellManager->GetPeerCount());
+
     ResetFollowerStates();
 }
 

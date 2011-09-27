@@ -36,10 +36,10 @@ TRecovery::TRecovery(
     , CancelableServiceInvoker(New<TCancelableInvoker>(serviceInvoker))
     , CancelableStateInvoker(New<TCancelableInvoker>(metaState->GetInvoker()))
 {
-    YVERIFY(~serviceInvoker != NULL);
-    YVERIFY(~cellManager != NULL);
-    YVERIFY(~changeLogCache != NULL);
-    YVERIFY(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~cellManager != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
 
     VERIFY_INVOKER_AFFINITY(CancelableStateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(CancelableServiceInvoker, ServiceThread);

@@ -11,10 +11,13 @@ TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
 { }
 
 TFuture<TVoid>::TPtr TCellChannel::Send(
-    TIntrusivePtr<NRpc::TClientRequest> request,
-    TIntrusivePtr<NRpc::TClientResponse> response,
+    NRpc::TClientRequest::TPtr request,
+    NRpc::TClientResponse::TPtr response,
     TDuration timeout)
 {
+    YASSERT(~request != NULL);
+    YASSERT(~response != NULL);
+
     return GetChannel()->Apply(FromMethod(
         &TCellChannel::OnGotChannel,
         TPtr(this),

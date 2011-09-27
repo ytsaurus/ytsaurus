@@ -15,7 +15,9 @@ TChangeLogDownloader::TChangeLogDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{ }
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMetaVersion version,
