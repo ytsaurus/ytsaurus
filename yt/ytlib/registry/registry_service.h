@@ -47,12 +47,10 @@ private:
     //! Registers RPC methods.
     void RegisterMethods();
 
-    /*
-    RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
-    void OnHolderRegistered(
-        THolderId id,
-        TCtxRegisterHolder::TPtr context);
-    */
+    RPC_SERVICE_METHOD_DECL(NProto, Get);
+    RPC_SERVICE_METHOD_DECL(NProto, Set);
+    RPC_SERVICE_METHOD_DECL(NProto, Remove);
+    RPC_SERVICE_METHOD_DECL(NProto, Lock);
 
 };
 

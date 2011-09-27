@@ -111,12 +111,41 @@ TRegistryService::TRegistryService(
 
 void TRegistryService::RegisterMethods()
 {
-//    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//RPC_SERVICE_METHOD_IMPL(TRegistryService, RegisterHolder)
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Get)
+{
+    UNUSED(request);
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Set)
+{
+    UNUSED(request);
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Remove)
+{
+    UNUSED(request);
+    UNUSED(response);
+    YASSERT(false);
+}
+
+RPC_SERVICE_METHOD_IMPL(TRegistryService, Lock)
+{
+    UNUSED(request);
+    UNUSED(response);
+    YASSERT(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRegistry
 } // namespace NYT
