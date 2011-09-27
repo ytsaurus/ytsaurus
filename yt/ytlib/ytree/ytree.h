@@ -109,6 +109,8 @@ struct IListNode
     typedef TIntrusivePtr<IListNode> TPtr;
     typedef TIntrusiveConstPtr<IListNode> TConstPtr;
 
+    using ICompositeNode::RemoveChild;
+
     virtual yvector<INode::TConstPtr> GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(int index) const = 0;
     virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
@@ -129,6 +131,8 @@ struct IMapNode
 {
     typedef TIntrusivePtr<IMapNode> TPtr;
     typedef TIntrusiveConstPtr<IMapNode> TConstPtr;
+
+    using ICompositeNode::RemoveChild;
 
     virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(const Stroka& name) const = 0;
