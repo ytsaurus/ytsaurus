@@ -206,7 +206,7 @@ inline IYPathService::TRemoveResult RemoveYPathAction(
     }
 }
 
-inline void RemoveYPath(
+void RemoveYPath(
     INode::TConstPtr root,
     const TYPath& path)
 {
