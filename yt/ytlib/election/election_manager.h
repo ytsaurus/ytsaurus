@@ -6,12 +6,13 @@
 
 #include "../meta_state/cell_manager.h"
 #include "../misc/delayed_invoker.h"
-
+#include "../misc/thread_affinity.h"
 #include "../actions/invoker.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,15 +21,13 @@ struct IElectionCallbacks
 {
     typedef TIntrusivePtr<IElectionCallbacks> TPtr;
 
-    virtual void OnStartLeading(TEpoch epoch) = 0;
+    virtual void OnStartLeading(const TEpoch& epoch) = 0;
     virtual void OnStopLeading() = 0;
-    virtual void OnStartFollowing(TPeerId leaderId, TEpoch epoch) = 0;
+    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& epoch) = 0;
     virtual void OnStopFollowing() = 0;
 
     virtual TPeerPriority GetPriority() = 0;
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
-
-    virtual ~IElectionCallbacks() { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,19 +52,33 @@ public:
 
     TElectionManager(
         const TConfig& config,
-        TCellManager::TPtr cellManager,
-        IInvoker::TPtr invoker,
+        NMetaState::TCellManager::TPtr cellManager,
+        IInvoker::TPtr controlInvoker,
         IElectionCallbacks::TPtr electionCallbacks,
         NRpc::TServer::TPtr server);
+
     ~TElectionManager();
 
+    /*!
+     * \note Thread affinity: any
+     */
     void Start();
+
+    /*!
+     * \note Thread affinity: any
+     */
     void Stop();
+
+    /*!
+     * \note Thread affinity: any
+     */
     void Restart();
     
 private:
+    typedef TElectionManager TThis;
     typedef TElectionManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     class TVotingRound;
     class TFollowerPinger;
@@ -80,7 +93,7 @@ private:
     TPeerId LeaderId;
     TGuid Epoch;
     TInstant EpochStart;
-    TCancelableInvoker::TPtr EpochInvoker;
+    TCancelableInvoker::TPtr ControlEpochInvoker;
     
     typedef yhash_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;
@@ -90,33 +103,38 @@ private:
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
     TConfig Config;
-    TCellManager::TPtr CellManager;
-    IInvoker::TPtr Invoker;
+    NMetaState::TCellManager::TPtr CellManager;
+    IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 
-    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, PingFollower);
-    RPC_SERVICE_METHOD_DECL(NElectionManager::NProto, GetStatus);
+    // Corresponds to #ControlInvoker.
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    RPC_SERVICE_METHOD_DECL(NElection::NProto, PingFollower);
+    RPC_SERVICE_METHOD_DECL(NElection::NProto, GetStatus);
 
     void RegisterMethods();
 
     void Reset();
-
     void OnLeaderPingTimeout();
-    
-    void DoStart(); // Invoker thread
-    void DoStop(); // Invoker thread
 
-    void StartVotingRound(); // Invoker thread
-    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch); // Invoker thread
-    void StartVoteForSelf(); // Invoker thread
-    void StartLeading(); // Invoker thread
-    void StartFollowing(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
-    void StopLeading(); // Invoker thread
-    void StopFollowing(); // Invoker thread
-    void StartEpoch(TPeerId leaderId, const TEpoch& epoch); // Invoker thread
-    void StopEpoch(); // Invoker thread
+    void DoStart();
+    void DoStop();
+
+    void StartVotingRound();
+    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch);
+    void StartVoteForSelf();
+
+    void StartLeading();
+    void StartFollowing(TPeerId leaderId, const TEpoch& epoch);
+    void StopLeading();
+    void StopFollowing();
+
+    void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
+    void StopEpoch();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

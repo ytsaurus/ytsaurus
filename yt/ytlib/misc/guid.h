@@ -67,6 +67,12 @@ struct hash<NYT::TGuid>
     }
 };
 
+// TODO: consider removing TGuid::ToString
+inline Stroka ToString(const NYT::TGuid& guid)
+{
+    return guid.ToString();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PODTYPE(NYT::TGuid)

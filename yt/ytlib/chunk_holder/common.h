@@ -38,7 +38,7 @@ struct TChunkHolderConfig
     /*!
      *  If no master addresses are given, the holder will operate in a standalone mode.
      */
-    TLeaderLookup::TConfig Masters; 
+    NElection::TLeaderLookup::TConfig Masters;
     
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
@@ -48,6 +48,10 @@ struct TChunkHolderConfig
 
     //! Port number to listen.
     int Port;
+
+    // TODO: consider making per/location limit
+    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
+    i64 MaxChunksSpace;
 
     //! Constructs a default instance.
     /*!
@@ -61,6 +65,7 @@ struct TChunkHolderConfig
         , HeartbeatPeriod(TDuration::Seconds(5))
         , RpcTimeout(TDuration::Seconds(5))
         , Port(9000)
+        , MaxChunksSpace(-1)
     {
         Locations.push_back(".");
     }

@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NChunkManager {
 
+using namespace NMetaState;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkManagerLogger;
@@ -20,7 +22,7 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
     , public NTransaction::ITransactionHandler
 {
 public:
@@ -28,8 +30,8 @@ public:
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
         TChunkReplication::TPtr chunkReplication,
         TChunkPlacement::TPtr chunkPlacement,
@@ -55,12 +57,12 @@ public:
 
     TChunkId AddChunk(const NProto::TMsgAddChunk& message)
     {
-        TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
-        TTransactionId transactionId = TTransactionId::FromProto(message.GetTransactionId());
+        auto chunkId = TChunkId::FromProto(message.GetChunkId());
+        auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
         TChunk chunk(chunkId, transactionId);
 
-        TTransaction& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.AddedChunks.push_back(chunkId);
 
         ChunkMap.Insert(chunkId, chunk);
@@ -81,10 +83,16 @@ public:
         return TVoid();
     }
 
-    const THolder* FindHolder(Stroka address)
+    const THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
         return it == HolderAddressMap.end() ? NULL : FindHolder(it->Second());
+    }
+
+    const TReplicationSink* FindReplicationSink(const Stroka& address)
+    {
+        auto it = ReplicationSinkMap.find(address);
+        return it == ReplicationSinkMap.end() ? NULL : &it->Second();
     }
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
@@ -99,7 +107,7 @@ public:
     
         THolderId holderId = CurrentHolderId++;
     
-        const THolder* existingHolder = FindHolder(address);
+        const auto* existingHolder = FindHolder(address);
         if (existingHolder != NULL) {
             LOG_INFO("Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
@@ -107,7 +115,11 @@ public:
             DoUnregisterHolder(*existingHolder);
         }
 
-        THolder newHolder(holderId, address, statistics);
+        THolder newHolder(
+            holderId,
+            address,
+            EHolderState::Registered,
+            statistics);
 
         YVERIFY(HolderMap.Insert(holderId, newHolder));
         YVERIFY(HolderAddressMap.insert(MakePair(address, holderId)).Second());
@@ -126,9 +138,9 @@ public:
 
     TVoid UnregisterHolder(const NProto::TMsgUnregisterHolder& message)
     { 
-        THolderId holderId = message.GetHolderId();
+        auto holderId = message.GetHolderId();
 
-        const THolder& holder = GetHolder(holderId);
+        const auto& holder = GetHolder(holderId);
 
         DoUnregisterHolder(holder);
 
@@ -137,10 +149,10 @@ public:
 
     TVoid HeartbeatRequest(const NProto::TMsgHeartbeatRequest& message)
     {
-        THolderId holderId = message.GetHolderId();
-        THolderStatistics statistics = THolderStatistics::FromProto(message.GetStatistics());
+        auto holderId = message.GetHolderId();
+        auto statistics = THolderStatistics::FromProto(message.GetStatistics());
 
-        THolder& holder = GetHolderForUpdate(holderId);
+        auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics = statistics;
 
         if (IsLeader()) {
@@ -156,9 +168,15 @@ public:
             ProcessRemovedChunk(holder, TChunkId::FromProto(protoChunkId));
         }
 
-        LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+        bool isFirstHeartbeat = holder.State == EHolderState::Registered;
+        if (isFirstHeartbeat) {
+            holder.State = EHolderState::Active;
+        }
+        
+        LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
             ~holder.Address,
             holderId,
+            ~ToString(isFirstHeartbeat),
             ~statistics.ToString(),
             static_cast<int>(message.AddedChunksSize()),
             static_cast<int>(message.RemovedChunksSize()));
@@ -168,15 +186,15 @@ public:
 
     TVoid HeartbeatResponse(const NProto::TMsgHeartbeatResponse& message)
     {
-        THolderId holderId = message.GetHolderId();
-        THolder& holder = GetHolderForUpdate(holderId);
+        auto holderId = message.GetHolderId();
+        auto& holder = GetHolderForUpdate(holderId);
 
         FOREACH(const auto& startInfo, message.GetStartedJobs()) {
             DoAddJob(holder, startInfo);
         }
 
         FOREACH(auto protoJobId, message.GetStoppedJobs()) {
-            const TJob& job = GetJob(TJobId::FromProto(protoJobId));
+            const auto& job = GetJob(TJobId::FromProto(protoJobId));
             DoRemoveJob(holder, job);
         }
 
@@ -190,23 +208,18 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TChunkId, TChunk> TChunkMap;
-    typedef TMetaStateMap<THolderId, THolder> THolderMap;
-    typedef yhash_map<Stroka, THolderId> THolderAddressMap;
-    typedef TMetaStateMap<TChunkId, TJobList> TJobListMap;
-    typedef TMetaStateMap<TJobId, TJob> TJobMap;
-    
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
     TChunkReplication::TPtr ChunkReplication;
     TChunkPlacement::TPtr ChunkPlacement;
     THolderExpiration::TPtr HolderExpiration;
     THolderId CurrentHolderId;
-    TChunkMap ChunkMap;
-    THolderMap HolderMap;
-    THolderAddressMap HolderAddressMap;
-    TJobListMap JobListMap;
-    TJobMap JobMap;
+    TMetaStateMap<TChunkId, TChunk> ChunkMap;
+    TMetaStateMap<THolderId, THolder> HolderMap;
+    yhash_map<Stroka, THolderId> HolderAddressMap;
+    TMetaStateMap<TChunkId, TJobList> JobListMap;
+    TMetaStateMap<TJobId, TJob> JobMap;
+    yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -246,11 +259,20 @@ private:
 
     TVoid OnLoaded(TVoid)
     {
+        // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
-        FOREACH(auto pair, HolderMap) {
-            const THolder& holder = pair.Second();
+        FOREACH(const auto& pair, HolderMap) {
+            const auto& holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder.Address, holder.Id)).Second());
         }
+
+        // Reconstruct ReplicationSinkMap.
+        ReplicationSinkMap.clear();
+        FOREACH (const auto& pair, JobMap) {
+            RegisterReplicationSinks(pair.Second());
+        }
+
+        // TODO: Reconstruct JobListMap
 
         return TVoid();
     }
@@ -266,6 +288,8 @@ private:
 
     virtual void OnStartLeading()
     {
+        TMetaStatePart::OnStartLeading();
+
         HolderExpiration->Start(GetEpochStateInvoker());
         FOREACH(auto pair, HolderMap) {
             StartHolderTracking(pair.Second());
@@ -276,6 +300,8 @@ private:
 
     virtual void OnStopLeading()
     {
+        TMetaStatePart::OnStopLeading();
+
         FOREACH(auto pair, HolderMap) {
             StopHolderTracking(pair.Second());
         }
@@ -424,10 +450,12 @@ private:
             targetAddresses);
         YVERIFY(JobMap.Insert(jobId, job));
 
-        TJobList& list = GetOrCreateJobListForUpdate(chunkId);
+        auto& list = GetOrCreateJobListForUpdate(chunkId);
         list.AddJob(jobId);
 
         holder.AddJob(jobId);
+
+        RegisterReplicationSinks(job);
 
         LOG_INFO("Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
@@ -439,13 +467,17 @@ private:
 
     void DoRemoveJob(THolder& holder, const TJob& job)
     {
-        TJobId jobId = job.JobId;
+        auto jobId = job.JobId;
 
-        TJobList& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.ChunkId);
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
         holder.RemoveJob(jobId);
+
+        UnregisterReplicationSinks(job);
+
+        YVERIFY(JobMap.Remove(job.JobId));
 
         LOG_INFO("Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -455,11 +487,15 @@ private:
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
     {
-        TJobId jobId = job.JobId;
+        auto jobId = job.JobId;
 
-        TJobList& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.ChunkId);
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
+
+        UnregisterReplicationSinks(job);
+
+        YVERIFY(JobMap.Remove(job.JobId));
 
         LOG_INFO("Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -467,12 +503,13 @@ private:
             holder.Id);
     }
 
+
     void ProcessAddedChunk(
         THolder& holder,
         const NProto::TChunkInfo& chunkInfo)
     {
-        THolderId holderId = holder.Id;
-        TChunkId chunkId = TChunkId::FromProto(chunkInfo.GetId());
+        auto holderId = holder.Id;
+        auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
         TChunk* chunk = FindChunkForUpdate(chunkId);
@@ -504,9 +541,9 @@ private:
         THolder& holder,
         const TChunkId& chunkId)
     {
-        THolderId holderId = holder.Id;
+        auto holderId = holder.Id;
 
-        TChunk* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
             LOG_DEBUG("Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
@@ -521,7 +558,7 @@ private:
 
     TJobList& GetOrCreateJobListForUpdate(const TChunkId& id)
     {
-        TJobList* list = FindJobListForUpdate(id);
+        auto* list = FindJobListForUpdate(id);
         if (list != NULL)
             return *list;
 
@@ -535,6 +572,69 @@ private:
             JobListMap.Remove(list.ChunkId);
         }
     }
+
+
+    void RegisterReplicationSinks(const TJob& job)
+    {
+        switch (job.Type) {
+            case EJobType::Replicate: {
+                FOREACH (const auto& address, job.TargetAddresses) {
+                    auto& sink = GetOrCreateReplicationSink(address);
+                    YASSERT(sink.JobIds.insert(job.JobId).Second());
+                }
+                break;
+            }
+
+            case EJobType::Remove:
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
+    }
+
+    void UnregisterReplicationSinks(const TJob& job)
+    {
+        switch (job.Type) {
+            case EJobType::Replicate: {
+                FOREACH (const auto& address, job.TargetAddresses) {
+                    auto& sink = GetOrCreateReplicationSink(address);
+                    YASSERT(sink.JobIds.erase(job.JobId) == 1);
+                    MaybeDropReplicationSink(sink);
+                }
+                break;
+            }
+
+            case EJobType::Remove:
+                break;
+
+            default:
+                YASSERT(false);
+                break;
+        }
+    }
+
+    TReplicationSink& GetOrCreateReplicationSink(const Stroka& address)
+    {
+        auto it = ReplicationSinkMap.find(address);
+        if (it != ReplicationSinkMap.end())
+            return it->Second();
+
+        auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
+        YASSERT(pair.second);
+        return pair.first->Second();
+    }
+
+    void MaybeDropReplicationSink(const TReplicationSink& sink)
+    {
+        if (sink.JobIds.empty()) {
+            // NB: do not try to inline this variable! erase() will destroy the object
+            // and will access the key afterwards.
+            Stroka address = sink.Address;
+            YVERIFY(ReplicationSinkMap.erase(address) == 1);
+        }
+    }
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Chunk, TChunk, TChunkId, ChunkMap)
@@ -546,8 +646,8 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(
@@ -580,18 +680,18 @@ TChunkManager::TChunkManager(
 
 void TChunkManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TChunkManager, RegisterHolder);
-    RPC_REGISTER_METHOD(TChunkManager, HolderHeartbeat);
-    RPC_REGISTER_METHOD(TChunkManager, AddChunk);
-    RPC_REGISTER_METHOD(TChunkManager, FindChunk);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AddChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
 }
 
 void TChunkManager::ValidateHolderId(THolderId holderId)
 {
-    const THolder* holder = FindHolder(holderId);
+    const auto* holder = FindHolder(holderId);
     if (holder == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchHolder) <<
-            Sprintf("invalid or expired holder %d", holderId);
+        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
+            Sprintf("Invalid or expired holder %d", holderId);
     }
 }
 
@@ -599,19 +699,19 @@ void TChunkManager::ValidateChunkId(
     const TChunkId& chunkId,
     const TTransactionId& transactionId)
 {
-    const TChunk* chunk = FindChunk(chunkId);
+    const auto* chunk = FindChunk(chunkId);
     if (chunk == NULL || !chunk->IsVisible(transactionId)) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("invalid chunk %s", ~chunkId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
+            Sprintf("Invalid chunk %s", ~chunkId.ToString());
     }
 }
 
 void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    const TTransaction* transaction = TransactionManager->FindTransaction(transactionId);
+    const auto* transaction = TransactionManager->FindTransaction(transactionId);
     if (transaction == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) << 
-            Sprintf("invalid transaction %s", ~transactionId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
+            Sprintf("Invalid transaction %s", ~transactionId.ToString());
     }
 }
 
@@ -622,6 +722,16 @@ void TChunkManager::UnregisterHolder(THolderId holderId)
     CommitChange(
         State, message,
         &TState::UnregisterHolder);
+}
+
+const THolder* TChunkManager::FindHolder(const Stroka& address)
+{
+    return State->FindHolder(address);
+}
+
+const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)
+{
+    return State->FindReplicationSink(address);
 }
 
 METAMAP_ACCESSORS_FWD(TChunkManager, Chunk, TChunk, TChunkId, *State)
@@ -664,13 +774,13 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     // TODO: do not commit if no changes reported
     UNUSED(response);
 
-    THolderId holderId = request->GetHolderId();
+    auto holderId = request->GetHolderId();
 
     context->SetRequestInfo("HolderId: %d", holderId);
 
     ValidateHolderId(holderId);
 
-    const THolder& holder = GetHolder(holderId);
+    const auto& holder = GetHolder(holderId);
 
     context->SetRequestInfo("Address: %s, HolderId: %d",
         ~holder.Address,
@@ -750,7 +860,7 @@ void TChunkManager::OnHolderHeartbeatProcessed(
     TVoid,
     TCtxHolderHeartbeat::TPtr context)
 {
-    TRspHolderHeartbeat* response = &context->Response();
+    auto* response = &context->Response();
 
     context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
         static_cast<int>(response->JobsToStartSize()),
@@ -761,7 +871,7 @@ void TChunkManager::OnHolderHeartbeatProcessed(
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
-    TTransactionId transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
 
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
@@ -812,7 +922,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
     ValidateTransactionId(transactionId);
     ValidateChunkId(chunkId, transactionId);
 
-    TChunk& chunk = GetChunkForUpdate(chunkId);
+    auto& chunk = GetChunkForUpdate(chunkId);
 
     // TODO: sort w.r.t. proximity
     FOREACH(auto holderId, chunk.Locations) {

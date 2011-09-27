@@ -10,37 +10,28 @@
 #include "recovery.h"
 #include "cell_manager.h"
 #include "change_committer.h"
+#include "follower_tracker.h"
 
 #include "../election/election_manager.h"
 #include "../rpc/service.h"
 #include "../rpc/server.h"
 #include "../actions/invoker.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFollowerTracker;
 class TLeaderPinger;
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMetaStateManager
     : public NRpc::TServiceBase
-    , public IElectionCallbacks
+    , public NElection::IElectionCallbacks
 {
 public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
     typedef TMetaStateManagerConfig TConfig;
-
-    DECLARE_ENUM(EState, 
-        (Stopped)
-        (Elections)
-        (FollowerRecovery)
-        (Following)
-        (LeaderRecovery)
-        (Leading)
-    );
 
     DECLARE_ENUM(ECommitResult,
         (Committed)
@@ -53,21 +44,55 @@ public:
 
     TMetaStateManager(
         const TConfig& config,
-        IInvoker::TPtr serviceInvoker,
+        IInvoker::TPtr controlInvoker,
         IMetaState::TPtr metaState,
         NRpc::TServer::TPtr server);
+
     ~TMetaStateManager();
 
+    /*!
+     * \note Thread affinity: any
+     */
     void Start();
 
-    EState GetState() const;
+    // TODO: provide stop method
 
-    TCommitResult::TPtr CommitChange(
+    /*!
+     * \note Thread affinity: any
+     */
+    EPeerState GetState() const;
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    TCommitResult::TPtr CommitChangeSync(
+        const TSharedRef& changeData);
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    TCommitResult::TPtr CommitChangeSync(
         IAction::TPtr changeAction,
-        TSharedRef changeData);
+        const TSharedRef& changeData);
+
+    /*!
+     * \note Thread affinity: any
+     */
+    TCommitResult::TPtr CommitChangeAsync(
+        const TSharedRef& changeData);
+
+    /*!
+     * \note Thread affinity: any
+     */
+    TCommitResult::TPtr CommitChangeAsync(
+        IAction::TPtr changeAction,
+        const TSharedRef& changeData);
 
 private:
+    typedef TMetaStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);
@@ -82,19 +107,16 @@ private:
     void RegisterMethods();
     void SendSync(TPeerId peerId, TEpoch epoch);
 
-    // Service thread
-    void OnLeaderRecovery(TRecovery::EResult result);
-    void OnFollowerRecovery(TRecovery::EResult result);
+    void OnLeaderRecoveryComplete(TRecovery::EResult result);
+    void OnFollowerRecoveryComplete(TRecovery::EResult result);
 
     // Service thread
     void OnLocalCommit(
         TChangeCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
 
-    // Thread-neutral.
     void Restart();
 
-    // Service thread
     void StartEpoch(const TEpoch& epoch);
     void StopEpoch();
 
@@ -103,30 +125,29 @@ private:
         TSnapshotCreator::TLocalResult result,
         TCtxAdvanceSegment::TPtr context);
 
-    // State invoker.
     void OnApplyChange();
 
-    // Thread-neutral.
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
     // IElectionCallbacks members
-    virtual void OnStartLeading(TEpoch epoch);
+    virtual void OnStartLeading(const TEpoch& epoch);
     virtual void OnStopLeading();
-    virtual void OnStartFollowing(TPeerId leaderId, TEpoch myEpoch);
+    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& myEpoch);
     virtual void OnStopFollowing();
     virtual TPeerPriority GetPriority();
     virtual Stroka FormatPriority(TPeerPriority priority);
 
-    EState State;
+    EPeerState State;
     TConfig Config;
     TPeerId LeaderId;
     TCellManager::TPtr CellManager;
-    IInvoker::TPtr ServiceInvoker;
+    IInvoker::TPtr ControlInvoker;
     IInvoker::TPtr StateInvoker;
-    TElectionManager::TPtr ElectionManager;
+    NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
+    IAction::TPtr OnApplyChangeAction;
 
     // Per epoch, service thread
     TEpoch Epoch;
@@ -137,8 +158,13 @@ private:
     TChangeCommitter::TPtr ChangeCommitter;
     TIntrusivePtr<TFollowerTracker> FollowerTracker;
     TIntrusivePtr<TLeaderPinger> LeaderPinger;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

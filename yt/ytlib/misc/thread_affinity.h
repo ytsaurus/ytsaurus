@@ -11,60 +11,84 @@ namespace NThreadAffinity {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- * This module is designed to provide the ability of checking the uniqueness
- * of thread calling particular function.
+ * Allows to annotate certain functions with Thread affinity.
+ * The checks are performed at run-time to ensure that each function
+ * invocation that is annotated with a particular affinity slot
+ * takes place in one thread.
  *
- * Usage is as following:
- * - For each thread you should write macros #DECLARE_THREAD_AFFINITY_SLOT(ThreadName).
- * - Then in functions that should be called from particular thread use macros.
- * #VERIFY_THREAD_AFFINITY(ThreadName) at the beginning.
+ * The usage is as follows.
+ * - For each thread that may invoke your functions declare a slot with
+ *   \code
+ *   DECLARE_THREAD_AFFINITY_SLOT(Thread);
+ *   \endcode
+ * - Write
+ *   \code
+ *   VERIFY_THREAD_AFFINITY(Thread);
+ *   \endcode
+ *   at the beginning of each function in the group.
  *
- * Please refer to the unit test for an actual example of usage
+ * Please refer to the unit test for an actual usage example
  * (unittests/thread_affinity_ut.cpp).
  */
 
-
-// Check that cast TThread::TId -> intptr_t is safe.
+// Check that the cast TThread::TId -> TAtomic is safe.
+// NB: TAtomic is volatile intptr_t.
 STATIC_ASSERT(sizeof(TThread::TId) == sizeof(intptr_t));
 
 class TSlot
 {
 public:
     TSlot()
-        : ImpossibleThreadId(static_cast<intptr_t>(TThread::ImpossibleThreadId()))
-        , ThreadId(ImpossibleThreadId)
+        : InvalidId(static_cast<intptr_t>(TThread::ImpossibleThreadId()))
+        , BoundId(InvalidId)
     { }
 
     void Check()
     {
         intptr_t currentThreadId = static_cast<intptr_t>(TThread::CurrentThreadId());
-        if (ThreadId != ImpossibleThreadId) {
-            YVERIFY(ThreadId == currentThreadId);
+        intptr_t boundThreadId = BoundId;
+        if (boundThreadId != InvalidId) {
+            YVERIFY(boundThreadId == currentThreadId);
         } else {
-            YVERIFY(AtomicCas(&ThreadId, currentThreadId, ImpossibleThreadId));
+            YVERIFY(AtomicCas(&BoundId, currentThreadId, InvalidId));
         }
     }
 
 private:
-    intptr_t ImpossibleThreadId;
-    TAtomic ThreadId;
+    intptr_t InvalidId;
+    TAtomic BoundId;
+
 };
 
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
 
-#define DECLARE_THREAD_AFFINITY_SLOT(name) \
-    mutable ::NYT::NThreadAffinity::TSlot name ## __Slot
+#define DECLARE_THREAD_AFFINITY_SLOT(slot) \
+    mutable ::NYT::NThreadAffinity::TSlot slot ## __Slot
 
-#define VERIFY_THREAD_AFFINITY(name)\
-     name ## __Slot.Check()
+#define VERIFY_THREAD_AFFINITY(slot) \
+    slot ## __Slot.Check()
+
+// TODO: remove this dirty hack.
+STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
+#define VERIFY_SPINLOCK_AFFINITY(spinLock) \
+    YASSERT(*reinterpret_cast<TAtomic*>(&(spinLock)) != 0);
+
+#define VERIFY_INVOKER_AFFINITY(invoker, slot) \
+    invoker->Invoke(FromMethod(&::NYT::NThreadAffinity::TSlot::Check, &slot ## __Slot))
 
 #else
 
-// Expand macros to null but take care about the trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(name) struct TNullThreadAffinitySlot__ ## _LINE_ { }
-#define VERIFY_THREAD_AFFINITY(name)       do { } while(0)
+// Expand macros to null but take care of trailing semicolon.
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct TNullThreadAffinitySlot__ ## _LINE_ { }
+#define VERIFY_THREAD_AFFINITY(slot)           do { } while(0)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while(0)
+#define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while(0)
 
 #endif
+
+//! This is a mere declaration and intentionally does not check anything.
+#define VERIFY_THREAD_AFFINITY_ANY()         do { } while(0)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NThreadAffinity

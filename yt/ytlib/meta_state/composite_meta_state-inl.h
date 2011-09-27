@@ -3,6 +3,7 @@
 #endif
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,10 +98,10 @@ public:
         NMetaState::NProto::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
-        TBlob changeData = SerializeChange(header, Message);
+        auto changeData = SerializeChange(header, Message);
 
         StateManager
-            ->CommitChange(
+            ->CommitChangeSync(
                 FromMethod(&TUpdate::InvokeChangeMethod, TPtr(this)),
                 TSharedRef(changeData))
             ->Subscribe(
@@ -138,4 +139,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

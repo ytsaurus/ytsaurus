@@ -4,6 +4,9 @@
 #include "../rpc/channel.h"
 
 namespace NYT {
+namespace NMetaState {
+
+using NElection::TLeaderLookup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +50,12 @@ private:
     TSpinLock SpinLock;
     TLeaderLookup::TPtr LeaderLookup;
     EState State;
-    TLeaderLookup::TLookupResult::TPtr LookupResult;
+    TAsyncResult<TLeaderLookup::TResult>::TPtr LookupResult;
     NRpc::TChannel::TPtr Channel;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

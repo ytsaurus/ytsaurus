@@ -6,10 +6,10 @@
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
+    
 class TCompositeMetaState;
 
 class TMetaStatePart
@@ -74,6 +74,14 @@ private:
 
     template<class TMessage, class TResult>
     class TUpdate;
+
+    DECLARE_ENUM(ERole,
+        (None)
+        (Leader)
+        (Follower)
+    );
+
+    ERole Role;
 
 };
 
@@ -149,6 +157,7 @@ void DeserializeChange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 
 #define COMPOSITE_META_STATE_INL_H_

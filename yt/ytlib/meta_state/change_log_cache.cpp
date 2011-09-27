@@ -4,6 +4,7 @@
 #include <util/folder/dirut.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,18 +33,16 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
             return NULL;
         }
 
-        auto changeLog = New<TChangeLog>(fileName, segmentId);
-
         try {
+            auto changeLog = New<TChangeLog>(fileName, segmentId);
             changeLog->Open();
+            cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
         } catch (...) {
             LOG_ERROR("Error opening changelog (SegmentId: %d, What: %s)",
                 segmentId,
                 ~CurrentExceptionMessage());
             return NULL;
         }
-
-        EndInsert(New<TCachedAsyncChangeLog>(changeLog), &cookie);
     }
     return cookie.GetAsyncResult()->Get();
 }
@@ -59,17 +58,16 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
     }
 
     auto fileName = GetChangeLogFileName(segmentId);
-    auto changeLog = New<TChangeLog>(fileName, segmentId);
 
     try {
+        auto changeLog = New<TChangeLog>(fileName, segmentId);
         changeLog->Create(prevRecordCount);
+        cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
     } catch (...) {
         LOG_ERROR("Error creating changelog (SegmentId: %d, What: %s)",
             segmentId,
             ~CurrentExceptionMessage());
     }
-
-    EndInsert(New<TCachedAsyncChangeLog>(changeLog), &cookie);
 
     return cookie.GetAsyncResult()->Get();
 }
@@ -84,4 +82,5 @@ void TChangeLogCache::OnTrim(TValuePtr value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -111,7 +111,7 @@ void TJob::Stop()
     }
 }
 
-bool TJob::ReplicateBlock(int blockIndex)
+void TJob::ReplicateBlock(int blockIndex)
 {
     if (blockIndex >= Meta->GetBlockCount()) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
@@ -122,7 +122,7 @@ bool TJob::ReplicateBlock(int blockIndex)
                 &TJob::OnWriterClosed,
                 TPtr(this))
             ->Via(~CancelableInvoker));
-        return false;
+        return;
     }
 
     TBlockId blockId(Chunk->GetId(), blockIndex);
@@ -136,14 +136,22 @@ bool TJob::ReplicateBlock(int blockIndex)
             &TJob::OnBlockLoaded,
             TPtr(this),
             blockIndex)
-        ->Via(~CancelableInvoker));
-    return true;
+        ->Via(~CancelableInvoker));;
 }
 
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
+    if (~cachedBlock == NULL) {
+        LOG_WARNING("Replication chunk is missing (JobId: %s, BlockIndex: %d)",
+            ~JobId.ToString(),
+            blockIndex);
+
+        State = EJobState::Failed;
+        return;
+    } 
+
     TAsyncResult<TVoid>::TPtr ready;
-    IChunkWriter::EResult result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
+    auto result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
     switch (result) {
         case IChunkWriter::EResult::OK:
             LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
@@ -226,7 +234,7 @@ TJob::TPtr TReplicator::StartJob(
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
 {
-    TJob::TPtr job = New<TJob>(
+    auto job = New<TJob>(
         ServiceInvoker,
         ChunkStore,
         BlockStore,

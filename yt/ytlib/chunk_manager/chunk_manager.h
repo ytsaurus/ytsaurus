@@ -2,8 +2,6 @@
 
 #include "common.h"
 #include "chunk_manager_rpc.h"
-#include "chunk_manager_rpc.pb.h"
-#include "chunk_manager.pb.h"
 #include "holder.h"
 #include "chunk.h"
 #include "job.h"
@@ -12,7 +10,6 @@
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/meta_state_service.h"
 #include "../meta_state/map.h"
-#include "../transaction/transaction_manager.h"
 #include "../rpc/server.h"
 
 namespace NYT {
@@ -25,7 +22,7 @@ class TChunkReplication;
 class THolderExpiration;
 
 class TChunkManager
-    : public TMetaStateServiceBase
+    : public NMetaState::TMetaStateServiceBase
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
@@ -34,8 +31,8 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         NRpc::TServer::TPtr server,
         TTransactionManager::TPtr transactionManager);
 
@@ -46,9 +43,13 @@ public:
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
+    const THolder* FindHolder(const Stroka& address);
+    const TReplicationSink* FindReplicationSink(const Stroka& address);
+
 private:
     typedef TChunkManager TThis;
     typedef TChunkManagerProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef yvector<THolderId> THolders;
 
     class TState;

@@ -1,19 +1,14 @@
-#pragma once
-
-#include "../misc/guid.h"
+#include "common.h"
 
 namespace NYT {
-namespace NElection {
+namespace NRegistry {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TEpoch;
-typedef i64 TPeerPriority;
-typedef i32 TPeerId;
-
-const TPeerId InvalidPeerId = -1;
+NLog::TLogger RegistryLogger("Registry");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
+} // namespace NTransaction
 } // namespace NYT
+

@@ -6,6 +6,7 @@
 #include "../misc/foreach.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,7 +204,7 @@ public:
     /*
      *  Iteration is only possible when no snapshot is being created.
      */
-    TIterator Begin()
+    TIterator begin()
     {
         return Map.begin();
     }
@@ -212,7 +213,7 @@ public:
     /*
      *  Iteration is only possible when no snapshot is being created.
      */
-    TIterator End()
+    TIterator end()
     {
         return Map.end();
     }
@@ -221,7 +222,7 @@ public:
     /*
      *  Iteration is only possible when no snapshot is being created.
      */
-    TConstIterator Begin() const
+    TConstIterator begin() const
     {
         return Map.begin();
     }
@@ -230,7 +231,7 @@ public:
     /*
      *  Iteration is only possible when no snapshot is being created.
      */
-    TConstIterator End() const
+    TConstIterator end() const
     {
         return Map.end();
     }
@@ -431,5 +432,6 @@ inline auto End(TMetaStateMap<TKey, TValue>& collection) -> decltype(collection.
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 

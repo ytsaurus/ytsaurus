@@ -1,10 +1,13 @@
 #pragma once
 
-#include "meta_state_manager.h"
+#include "common.h"
+#include "cell_manager.h"
 
 #include "../misc/lease_manager.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,18 +33,17 @@ public:
 
     void Stop();
     bool HasActiveQuorum();
-    void ProcessPing(TPeerId followerId, TMetaStateManager::EState state);
+    bool IsFollowerActive(TPeerId followerId);
+    void ProcessPing(TPeerId followerId, EPeerState state);
 
 private:
     struct TFollowerState
     {
-        TMetaStateManager::EState State;
+        EPeerState State;
         TLeaseManager::TLease Lease;
     };
 
-    void ChangeFollowerState(
-        int followerId,
-        TMetaStateManager::EState state);
+    void ChangeFollowerState(int followerId, EPeerState  state);
     void ResetFollowerState(int followerId);
     void ResetFollowerStates();
     void OnLeaseExpired(TPeerId followerId);
@@ -51,8 +53,11 @@ private:
     TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;
     TLeaseManager::TPtr LeaseManager;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

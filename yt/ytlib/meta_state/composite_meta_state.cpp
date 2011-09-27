@@ -3,6 +3,7 @@
 #include "../misc/foreach.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -37,18 +38,17 @@ TMetaStatePart::TMetaStatePart(
     TCompositeMetaState::TPtr metaState)
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
+    , Role(ERole::None)
 { }
 
 bool TMetaStatePart::IsLeader() const
 {
-    auto state = MetaStateManager->GetState();
-    return state == TMetaStateManager::EState::Leading;
+    return Role == ERole::Leader;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
-    auto state = MetaStateManager->GetState();
-    return state == TMetaStateManager::EState::Following;
+    return Role == ERole::Follower;
 }
 
 IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
@@ -68,16 +68,32 @@ IInvoker::TPtr TMetaStatePart::GetEpochStateInvoker() const
 }
 
 void TMetaStatePart::OnStartLeading()
-{ }
+{
+    YASSERT(Role == ERole::None);
+
+    Role = ERole::Leader;
+}
 
 void TMetaStatePart::OnStopLeading()
-{ }
+{
+    YASSERT(Role == ERole::Leader);
+
+    Role = ERole::None;
+}
 
 void TMetaStatePart::OnStartFollowing()
-{ }
+{
+    YASSERT(Role == ERole::None);
+
+    Role = ERole::Follower;
+}
 
 void TMetaStatePart::OnStopFollowing()
-{ }
+{
+    YASSERT(Role == ERole::Follower);
+
+    Role = ERole::None;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,4 +203,5 @@ void TCompositeMetaState::StopEpoch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -272,9 +272,24 @@ TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
 template<class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
 {
+    Cancel();
+}
+
+template<class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel()
+{
     if (Active) {
         Cache->CancelInsert(Key);
+        Active = false;
     }
+}
+
+template<class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
+{
+    YASSERT(Active);
+    Cache->EndInsert(value, this);
+    Active = false;
 }
 
 template<class TKey, class TValue, class THash>

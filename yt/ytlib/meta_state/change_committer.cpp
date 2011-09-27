@@ -4,6 +4,7 @@
 #include "../misc/foreach.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,14 +23,18 @@ public:
         const TMetaVersion& version)
         : Committer(committer)
         , Result(New<TResult>())
-        , Awaiter(New<TParallelAwaiter>(~committer->CancelableServiceInvoker))
+        , Awaiter(New<TParallelAwaiter>(~committer->CancelableControlInvoker))
         , Version(version)
         // Count the local commit.
         , CommitCount(1)
+        , IsSent(false)
     { }
 
-    TResult::TPtr AddChange(TSharedRef changeData)
+    TResult::TPtr AddChange(const TSharedRef& changeData)
     {
+        VERIFY_THREAD_AFFINITY(Committer->StateThread);
+        YASSERT(!IsSent);
+
         BatchedChanges.push_back(changeData);
         LOG_DEBUG("Added %d change from version %s to batch",
             GetChangeCount(),
@@ -40,17 +45,22 @@ public:
     // Service invoker
     void SendChanges()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        IsSent = true;
+
         LOG_DEBUG("Starting commit of %d changes of version %s",
-            GetChangeCount(),
+            BatchedChanges.ysize(),
             ~Version.ToString());
 
         auto cellManager = Committer->CellManager;
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->GetSelfId()) continue;
+            if (id == cellManager->GetSelfId() ||
+                !Committer->FollowerTracker->IsFollowerActive(id))
+                continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-
             auto request = proxy->ApplyChanges();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
@@ -73,6 +83,9 @@ public:
 
     int GetChangeCount() const
     {
+        VERIFY_THREAD_AFFINITY(Committer->StateThread);
+        YASSERT(!IsSent);
+
         return BatchedChanges.ysize();
     }
 
@@ -81,6 +94,8 @@ private:
     // Service invoker
     bool CheckCommitQuorum()
     {
+        VERIFY_THREAD_AFFINITY(Committer->ControlThread);
+
         if (CommitCount < Committer->CellManager->GetQuorum())
             return false;
 
@@ -96,6 +111,8 @@ private:
     // Service invoker
     void OnCommitted(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
     {
+        VERIFY_THREAD_AFFINITY(Committer->ControlThread);
+
         if (!response->IsOK()) {
             LOG_WARNING("Error committing change %s at peer %d (ErrorCode: %s)",
                 ~Version.ToString(),
@@ -121,6 +138,8 @@ private:
     // Service invoker
     void OnCompleted()
     {
+        VERIFY_THREAD_AFFINITY(Committer->ControlThread);
+
         if (CheckCommitQuorum())
             return;
 
@@ -128,16 +147,17 @@ private:
             ~Version.ToString(),
             CommitCount,
             Committer->CellManager->GetPeerCount());
+
         Result->Set(EResult::MaybeCommitted);
     }
-
-    yvector<TSharedRef> BatchedChanges;
 
     TChangeCommitter::TPtr Committer;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
     TMetaVersion Version;
-    i32 CommitCount; // Service thread
+    i32 CommitCount;
+    volatile bool IsSent;
+    yvector<TSharedRef> BatchedChanges;
 
 };
 
@@ -148,29 +168,44 @@ TChangeCommitter::TChangeCommitter(
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
-    IInvoker::TPtr serviceInvoker,
+    TFollowerTracker::TPtr followerTracker,
+    IInvoker::TPtr controlInvoker,
     const TEpoch& epoch)
     : Config(config)
     , CellManager(cellManager)
     , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
-    , CancelableServiceInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , FollowerTracker(followerTracker)
+    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
     , Epoch(epoch)
-{ }
+{
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    // TODO: this check only makes sense for leader
+    //YASSERT(~followerTracker != NULL);
+    YASSERT(~controlInvoker != NULL);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
+}
 
 void TChangeCommitter::Stop()
 {
-    CancelableServiceInvoker->Cancel();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    CancelableControlInvoker->Cancel();
 }
 
-void TChangeCommitter::SetOnApplyChange(IAction::TPtr onApplyChange)
+TSignal& TChangeCommitter::OnApplyChange()
 {
-    OnApplyChange = onApplyChange;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return OnApplyChange_;
 }
 
 void TChangeCommitter::Flush()
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SessionSpinLock);
     if (~CurrentSession != NULL) {
         FlushCurrentSession();
     }
@@ -178,27 +213,19 @@ void TChangeCommitter::Flush()
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
-    TSharedRef changeData)
+    const TSharedRef& changeData)
 {
-    TMetaVersion version = MetaState->GetVersion();
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto version = MetaState->GetVersion();
+    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+
     TResult::TPtr result;
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        LOG_DEBUG("Starting commit of change %s", ~version.ToString());
-        if (~CurrentSession == NULL) {
-            YASSERT(~TimeoutCookie == NULL);
-            CurrentSession = New<TSession>(TPtr(this), version);
-            TimeoutCookie = TDelayedInvoker::Get()->Submit(
-                FromMethod(
-                    &TChangeCommitter::DelayedFlush,
-                    TPtr(this),
-                    CurrentSession),
-                Config.MaxBatchDelay);
-        }
-
-        result = CurrentSession->AddChange(changeData);
-
-        if (CurrentSession->GetChangeCount() >= Config.MaxBatchSize) {
+        TGuard<TSpinLock> guard(SessionSpinLock);
+        auto session = GetOrCreateCurrentSession();
+        result = session->AddChange(changeData);
+        if (session->GetChangeCount() >= Config.MaxBatchSize) {
             FlushCurrentSession();
         }
     }
@@ -210,9 +237,11 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
-    TMetaVersion version,
-    TSharedRef changeData)
+    const TMetaVersion& version,
+    const TSharedRef& changeData)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return
         FromMethod(
             &TChangeCommitter::DoCommitFollower,
@@ -225,27 +254,27 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
     IAction::TPtr changeAction,
-    TSharedRef changeData)
+    const TSharedRef& changeData)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto appendResult = MetaState
         ->LogChange(changeData)
         ->Apply(FromMethod(&TChangeCommitter::OnAppend));
 
     MetaState->ApplyChange(changeAction);
 
-    // OnApplyChange can be modified concurrently.
-    auto onApplyChange = OnApplyChange;
-    if (~onApplyChange != NULL) {
-        onApplyChange->Do();
-    }
+    OnApplyChange_.Fire();
 
     return appendResult;
 }
 
 TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
-    TMetaVersion version,
-    TSharedRef changeData)
+    const TMetaVersion& version,
+    const TSharedRef& changeData)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     if (MetaState->GetVersion() != version) {
         return New<TResult>(EResult::InvalidVersion);
     }
@@ -261,30 +290,57 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
 
 TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return EResult::Committed;
 }
 
 void TChangeCommitter::FlushCurrentSession()
 {
+    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
     YASSERT(~CurrentSession != NULL);
+
     CurrentSession->SendChanges();
     TDelayedInvoker::Get()->Cancel(TimeoutCookie);
     CurrentSession.Drop();
     TimeoutCookie = TDelayedInvoker::TCookie();
 }
 
+TChangeCommitter::TSession::TPtr TChangeCommitter::GetOrCreateCurrentSession()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
+
+    if (~CurrentSession == NULL) {
+        YASSERT(~TimeoutCookie == NULL);
+        auto version = MetaState->GetVersion();
+        CurrentSession = New<TSession>(TPtr(this), version);
+        TimeoutCookie = TDelayedInvoker::Get()->Submit(
+            FromMethod(
+                &TChangeCommitter::DelayedFlush,
+                TPtr(this),
+                CurrentSession)
+            ->Via(~CancelableControlInvoker),
+            Config.MaxBatchDelay);
+    }
+
+    return CurrentSession;
+}
+
 void TChangeCommitter::DelayedFlush(TSession::TPtr session)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TGuard<TSpinLock> guard(SessionSpinLock);
     if (session != CurrentSession)
         return;
 
-    TMetaVersion version = MetaState->GetVersion();
-    LOG_DEBUG("Batched changed are flushed by timeout (Version: %s)",
-        ~version.ToString())
+    LOG_DEBUG("Flushing batched changes");
+
     FlushCurrentSession();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -1,6 +1,7 @@
 #include "cell_channel.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +106,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
 
     YASSERT(State == EState::Connecting);
 
-    if (result.Id == InvalidPeerId) {
+    if (result.Id == NElection::InvalidPeerId) {
         State = EState::Failed;
         LookupResult.Drop();
         return New< TAsyncResult<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
@@ -125,4 +126,5 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

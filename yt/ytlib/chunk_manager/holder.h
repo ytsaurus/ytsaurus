@@ -9,27 +9,36 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int THolderId;
+const int InvalidHolderId = -1;
+
+DECLARE_ENUM(EHolderState,
+    // The holder had just registered but have not reported any heartbeats yet.
+    (Registered)
+    // The holder is reporting heartbeats.
+    // We have a proper knowledge of its chunk set.
+    (Active)
+);
 
 struct THolder
 {
-    typedef yhash_set<TChunkId> TChunkIds;
-    typedef yvector<TJobId> TJobs;
-
     THolder()
     { }
 
     THolder(
         THolderId id,
         Stroka address,
+        EHolderState state,
         const THolderStatistics& statistics)
         : Id(id)
         , Address(address)
+        , State(state)
         , Statistics(statistics)
     { }
 
     THolder(const THolder& other)
         : Id(other.Id)
         , Address(other.Address)
+        , State(other.State)
         , Statistics(other.Statistics)
         , Chunks(other.Chunks)
         , Jobs(other.Jobs)
@@ -59,10 +68,23 @@ struct THolder
 
     THolderId Id;
     Stroka Address;
+    EHolderState State;
     THolderStatistics Statistics;
-    TChunkIds Chunks;
-    TJobs Jobs;
+    yhash_set<TChunkId> Chunks;
+    yvector<TJobId> Jobs;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicationSink
+{
+    explicit TReplicationSink(const Stroka &address)
+        : Address(address)
+    { }
+
+    Stroka Address;
+    yhash_set<TJobId> JobIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "common.h"
-
-#include "../meta_state/meta_state_manager.h"
+#include "meta_state_manager.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,4 +52,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

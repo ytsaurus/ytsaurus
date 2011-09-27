@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../logging/log.h"
+#include "../transaction/transaction_manager.h"
 
 namespace NYT {
 namespace NRegistry {
@@ -11,6 +13,15 @@ extern NLog::TLogger RegistryLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NTransaction::TTransactionId;
+using NTransaction::TTransaction;
+using NTransaction::TTransactionManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRegistryServiceConfig
+{
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

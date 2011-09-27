@@ -1,6 +1,7 @@
 #include "follower_tracker.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +27,17 @@ void TFollowerTracker::Stop()
     EpochInvoker->Cancel();
 }
 
+bool TFollowerTracker::IsFollowerActive(TPeerId followerId)
+{
+    return FollowerStates[followerId].State == EPeerState::Following;
+}
+
 bool TFollowerTracker::HasActiveQuorum()
 {
     int activeFollowerCount = 0;
     for (int i = 0; i < CellManager->GetPeerCount(); ++i) {
-        TFollowerState& followerState = FollowerStates[i];
-        if (followerState.State == TMetaStateManager::EState::Following) {
+        auto& followerState = FollowerStates[i];
+        if (followerState.State == EPeerState::Following) {
             ++activeFollowerCount;
         }
     }
@@ -47,13 +53,11 @@ void TFollowerTracker::ResetFollowerStates()
 
 void TFollowerTracker::ResetFollowerState(int followerId)
 {
-    ChangeFollowerState(followerId, TMetaStateManager::EState::Stopped);
+    ChangeFollowerState(followerId, EPeerState::Stopped);
     FollowerStates[followerId].Lease = TLeaseManager::TLease();
 }
 
-void TFollowerTracker::ChangeFollowerState(
-    int followerId,
-    TMetaStateManager::EState state)
+void TFollowerTracker::ChangeFollowerState(int followerId, EPeerState state)
 {
     TFollowerState& followerState = FollowerStates[followerId];
     if (followerState.State != state) {
@@ -70,11 +74,11 @@ void TFollowerTracker::OnLeaseExpired(TPeerId followerId)
     ResetFollowerState(followerId);
 }
 
-void TFollowerTracker::ProcessPing(TPeerId followerId, TMetaStateManager::EState state)
+void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerState state)
 {
     ChangeFollowerState(followerId, state);
 
-    TFollowerState& followerState = FollowerStates[followerId];
+    auto& followerState = FollowerStates[followerId];
     if (followerState.Lease == TLeaseManager::TLease()) {
         followerState.Lease = LeaseManager->CreateLease(
             Config.PingTimeout,
@@ -87,4 +91,5 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, TMetaStateManager::EState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT
