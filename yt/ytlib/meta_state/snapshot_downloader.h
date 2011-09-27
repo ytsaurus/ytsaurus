@@ -72,11 +72,11 @@ private:
     static void OnResponse(
         TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
+        TFuture<TSnapshotInfo>::TPtr asyncResult,
         TPeerId peerId);
     static void OnComplete(
         i32 segmentId,
-        TAsyncResult<TSnapshotInfo>::TPtr asyncResult);
+        TFuture<TSnapshotInfo>::TPtr asyncResult);
     EResult DownloadSnapshot(
         i32 segmentId,
         TSnapshotInfo snapshotInfo,

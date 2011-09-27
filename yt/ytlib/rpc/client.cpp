@@ -44,7 +44,7 @@ IMessage::TPtr TClientRequest::Serialize()
         Attachments_);
 }
 
-TAsyncResult<TVoid>::TPtr TClientRequest::DoInvoke(
+TFuture<TVoid>::TPtr TClientRequest::DoInvoke(
     TClientResponse::TPtr response,
     TDuration timeout)
 {

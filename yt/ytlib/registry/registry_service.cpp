@@ -49,14 +49,14 @@ private:
         return "RegistryService";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
     	YASSERT(false);
         UNUSED(stream);
     	return NULL;
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
     	YASSERT(false);
         UNUSED(stream);

@@ -152,7 +152,7 @@ public:
     TChunk::TPtr FindChunk(const TChunkId& chunkId);
 
     //! Fetches meta-information for a given chunk.
-    TAsyncResult<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
+    TFuture<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
 
     //! Returns a (cached) chunk reader.
     /*!

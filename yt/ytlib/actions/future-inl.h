@@ -1,26 +1,26 @@
-#ifndef ASYNC_RESULT_INL_H_
-#error "Direct inclusion of this file is not allowed, include action_util.h"
+#ifndef FUTURE_INL_H_
+#error "Direct inclusion of this file is not allowed, include future.h"
 #endif
-#undef ASYNC_RESULT_INL_H_
+#undef FUTURE_INL_H_
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TAsyncResult<T>::TAsyncResult()
+TFuture<T>::TFuture()
     : IsSet_(false)
     , Value(T())
 {}
 
 template <class T>
-TAsyncResult<T>::TAsyncResult(T value)
+TFuture<T>::TFuture(T value)
     : IsSet_(true)
     , Value(value)
 { }
 
 template <class T>
-void TAsyncResult<T>::Set(T value)
+void TFuture<T>::Set(T value)
 {
     yvector<typename IParamAction<T>::TPtr> subscribers;
 
@@ -44,7 +44,7 @@ void TAsyncResult<T>::Set(T value)
 }
 
 template <class T>
-T TAsyncResult<T>::Get() const
+T TFuture<T>::Get() const
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -65,7 +65,7 @@ T TAsyncResult<T>::Get() const
 }
 
 template <class T>
-bool TAsyncResult<T>::TryGet(T* value) const
+bool TFuture<T>::TryGet(T* value) const
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsSet_) {
@@ -76,13 +76,13 @@ bool TAsyncResult<T>::TryGet(T* value) const
 }
 
 template <class T>
-bool TAsyncResult<T>::IsSet() const
+bool TFuture<T>::IsSet() const
 {
     return IsSet_;
 }
 
 template <class T>
-void TAsyncResult<T>::Subscribe(typename IParamAction<T>::TPtr action)
+void TFuture<T>::Subscribe(typename IParamAction<T>::TPtr action)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsSet_) {
@@ -96,7 +96,7 @@ void TAsyncResult<T>::Subscribe(typename IParamAction<T>::TPtr action)
 template <class T, class TOther>
 void ApplyFuncThunk(
     T value,
-    typename TAsyncResult<TOther>::TPtr otherResult,
+    typename TFuture<TOther>::TPtr otherResult,
     typename IParamFunc<T, TOther>::TPtr func)
 {
     otherResult->Set(func->Do(value));
@@ -104,10 +104,10 @@ void ApplyFuncThunk(
 
 template <class T>
 template <class TOther>
-TIntrusivePtr< TAsyncResult<TOther> >
-TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
+TIntrusivePtr< TFuture<TOther> >
+TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
 {
-    auto otherResult = New< TAsyncResult<TOther> >();
+    auto otherResult = New< TFuture<TOther> >();
     Subscribe(FromMethod(&ApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }
@@ -115,19 +115,19 @@ TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
 template <class T, class TOther>
 void AsyncApplyFuncThunk(
     T value,
-    typename TAsyncResult<TOther>::TPtr otherResult,
-    typename IParamFunc<T, typename TAsyncResult<TOther>::TPtr>::TPtr func)
+    typename TFuture<TOther>::TPtr otherResult,
+    typename IParamFunc<T, typename TFuture<TOther>::TPtr>::TPtr func)
 {
     func->Do(value)->Subscribe(FromMethod(
-        &TAsyncResult<TOther>::Set, otherResult));
+        &TFuture<TOther>::Set, otherResult));
 }
 
 template <class T>
 template <class TOther>
-TIntrusivePtr< TAsyncResult<TOther> >
-TAsyncResult<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TAsyncResult<TOther> > > > func)
+TIntrusivePtr< TFuture<TOther> >
+TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther> > > > func)
 {
-    auto otherResult = New< TAsyncResult<TOther> >();
+    auto otherResult = New< TFuture<TOther> >();
     Subscribe(FromMethod(&AsyncApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
 }

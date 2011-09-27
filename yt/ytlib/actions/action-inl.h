@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include action.h"
 #endif
 
-#include "async_result.h"
+#include "future.h"
 
 namespace NYT {
 
@@ -11,7 +11,7 @@ namespace NYT {
 template <class TResult>
 struct TAsyncFuncTraits
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 
     static void InnerThunk(
         TIntrusivePtr< IFunc<TResult> > func,
@@ -24,30 +24,30 @@ struct TAsyncFuncTraits
         TIntrusivePtr< IFunc<TResult> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = New< TAsyncResult<TResult> >();
+        TAsync result = New< TFuture<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, func, result));
         return result;
     }
 };
 
 template <class TResult>
-struct TAsyncFuncTraits< TIntrusivePtr< TAsyncResult<TResult> > >
+struct TAsyncFuncTraits< TIntrusivePtr< TFuture<TResult> > >
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 
     static void InnerThunk(
         TIntrusivePtr< IFunc<TAsync> > func,
         TAsync result)
     {
         func->Do()->Subscribe(FromMethod(
-            &TAsyncResult<TResult>::Set, result));
+            &TFuture<TResult>::Set, result));
     }
 
     static TAsync OuterThunk(
         TIntrusivePtr< IFunc<TAsync> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = New< TAsyncResult<TResult> >();
+        TAsync result = New< TFuture<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, func, result));
         return result;
     }
@@ -105,7 +105,7 @@ void ParamActionViaThunk(TParam param, IAction::TPtr action)
 template <class TParam, class TResult>
 struct TAsyncParamFuncTraits
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 
     static void InnerThunk(
         TParam param,
@@ -120,16 +120,16 @@ struct TAsyncParamFuncTraits
         TIntrusivePtr< IParamFunc<TParam, TResult> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = New< TAsyncResult<TResult> >();
+        TAsync result = New< TFuture<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, param, func, result));
         return result;
     }
 };
 
 template <class TParam, class TResult>
-struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TAsyncResult<TResult> > >
+struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TFuture<TResult> > >
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 
     static void InnerThunk(
         TParam param,
@@ -137,7 +137,7 @@ struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TAsyncResult<TResult> > >
         TAsync result)
     {
         func->Do(param)->Subscribe(FromMethod(
-            &TAsyncResult<TResult>::Set,
+            &TFuture<TResult>::Set,
             result));
     }
 
@@ -146,7 +146,7 @@ struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TAsyncResult<TResult> > >
         TIntrusivePtr< IParamFunc<TParam, TAsync> > func,
         TIntrusivePtr<IInvoker> invoker)
     {
-        TAsync result = New< TAsyncResult<TResult> >();
+        TAsync result = New< TFuture<TResult> >();
         invoker->Invoke(FromMethod(&InnerThunk, param, func, result));
         return result;
     }

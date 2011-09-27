@@ -3,6 +3,7 @@
 #include "common.h"
 #include "cell_manager.h"
 
+#include "../actions/invoker_util.h"
 #include "../misc/lease_manager.h"
 #include "../misc/thread_affinity.h"
 

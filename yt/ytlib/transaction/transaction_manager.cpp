@@ -221,12 +221,12 @@ private:
         return "TransactionManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
         return Transactions.Save(GetSnapshotInvoker(), stream);
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
         return Transactions.Load(GetSnapshotInvoker(), stream);
     }

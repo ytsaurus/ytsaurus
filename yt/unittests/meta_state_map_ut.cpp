@@ -67,7 +67,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     TMetaStateMap<TKey, TValue> map;
     IInvoker::TPtr invoker = new TActionQueue();
 
-    TAsyncResult<TVoid>::TPtr asyncResult;
+    TFuture<TVoid>::TPtr asyncResult;
 
     asyncResult = map.Save(invoker, stream);
     EXPECT_IS_TRUE(map.Insert("b", TValue(42))); // add to temp table
@@ -176,7 +176,7 @@ TEST_F(TMetaStateMapTest, StressSave)
         bool result = checkMap.insert(MakePair(key, value)).second;
         EXPECT_EQ(map.Insert(key, TValue(value)), result);
     }
-    TAsyncResult<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
+    TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
 
     int numActions = 100000;
     range = 200000;

@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class T>
-class TAsyncResult
+class TFuture
     : public TRefCountedBase
 {
     volatile bool IsSet_;
@@ -23,10 +23,10 @@ class TAsyncResult
     yvector<typename IParamAction<T>::TPtr> Subscribers;
 
 public:
-    typedef TIntrusivePtr<TAsyncResult> TPtr;
+    typedef TIntrusivePtr<TFuture> TPtr;
 
-    TAsyncResult();
-    explicit TAsyncResult(T value);
+    TFuture();
+    explicit TFuture(T value);
 
     void Set(T value);
 
@@ -39,18 +39,18 @@ public:
     void Subscribe(typename IParamAction<T>::TPtr action);
 
     template<class TOther>
-    TIntrusivePtr< TAsyncResult<TOther> > Apply(
+    TIntrusivePtr< TFuture<TOther> > Apply(
         TIntrusivePtr< IParamFunc<T, TOther> > func);
 
     template<class TOther>
-    TIntrusivePtr< TAsyncResult<TOther> > Apply(
-        TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TAsyncResult<TOther>  > > > func);
+    TIntrusivePtr< TFuture<TOther> > Apply(
+        TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther>  > > > func);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-#define ASYNC_RESULT_INL_H_
-#include "async_result-inl.h"
-#undef ASYNC_RESULT_INL_H_
+#define FUTURE_INL_H_
+#include "future-inl.h"
+#undef FUTURE_INL_H_

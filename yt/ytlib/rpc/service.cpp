@@ -1,6 +1,7 @@
 #include "service.h"
 
 #include "../logging/log.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NRpc {

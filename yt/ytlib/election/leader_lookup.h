@@ -3,7 +3,7 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
 #include "../misc/config.h"
@@ -63,7 +63,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TAsyncResult<TResult>::TPtr GetLeader();
+    TFuture<TResult>::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
@@ -82,9 +82,9 @@ private:
     void OnResponse(
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TResult>::TPtr asyncResult,
+        TFuture<TResult>::TPtr asyncResult,
         Stroka address);
-    void OnComplete(TAsyncResult<TResult>::TPtr asyncResult);
+    void OnComplete(TFuture<TResult>::TPtr asyncResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

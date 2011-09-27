@@ -19,7 +19,7 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
 
 template<class T>
 void TParallelAwaiter::Await(
-    TIntrusivePtr< TAsyncResult<T> > result,
+    TIntrusivePtr< TFuture<T> > result,
     TIntrusivePtr< IParamAction<T> > onResult)
 {
     typename IParamAction<T>::TPtr wrappedOnResult;

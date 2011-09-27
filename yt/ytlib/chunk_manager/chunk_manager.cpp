@@ -227,7 +227,7 @@ private:
         return "ChunkManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
@@ -241,7 +241,7 @@ private:
         *stream << CurrentHolderId;
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
