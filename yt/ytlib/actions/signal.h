@@ -8,16 +8,24 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+//! Common base for batched callbacks.
 template<class T>
 class TSignalBase
 {
 public:
+
+    //! Adds #action to be performed on #Fire.
     void Subscribe(typename T::TPtr action)
     {
         TGuard<TSpinLock> guard(SpinLock);
         Actions.push_back(action);
     }
 
+    //! Removes #action from future performance.
+    /*!
+     *  Returns 'true' if #action was in callback list.
+     */
     bool Unsubscribe(typename T::TPtr action)
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -36,10 +44,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Class for subscribtion of actions without parametres
 class TSignal
     : public TSignalBase<IAction>
 {
 public:
+
+    //! Calls action->Do() for all actions subscribed before
     void Fire()
     {
         TGuard<TSpinLock> guard(this->SpinLock);
@@ -57,11 +68,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Class for subscribtion of actions with one parameter
 template<class TParam>
 class TParamSignal
     : public TSignalBase< IParamAction<TParam> >
 {
 public:
+
+    //! Calls action->Do(#arg) for all actions subscribed before
     void Fire(const TParam& arg)
     {
         TGuard<TSpinLock> guard(this->SpinLock);
