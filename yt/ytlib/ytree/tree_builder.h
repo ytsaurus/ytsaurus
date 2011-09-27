@@ -13,8 +13,6 @@ class TTreeBuilder
     : public IYsonConsumer
 {
 public:
-    typedef TIntrusivePtr<TTreeBuilder> TPtr;
-
     TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
     { }

@@ -26,12 +26,12 @@ public:
     class TFluentBase
     {
     protected:
-        TFluentBase(IYsonConsumer::TPtr events, const TParent& parent)
+        TFluentBase(IYsonConsumer* events, const TParent& parent)
             : Events(events)
             , Parent(parent)
         { }
 
-        IYsonConsumer::TPtr Events;
+        IYsonConsumer* Events;
         TParent Parent;
 
     };
@@ -42,7 +42,7 @@ public:
     public:
         typedef TFluentTree TThis;
 
-        TFluentTree(IYsonConsumer::TPtr events)
+        TFluentTree(IYsonConsumer* events)
             : TFluentBase<TVoid>(events, TVoid())
         { }
 
@@ -65,7 +65,7 @@ public:
     public:
         typedef TAny<TParent> TThis;
 
-        TAny(IYsonConsumer::TPtr events, const TParent& parent)
+        TAny(IYsonConsumer* events, const TParent& parent)
             : TFluentBase<TParent>(events, parent)
         { }
 
@@ -131,7 +131,7 @@ public:
         : public TFluentBase<TParent>
     {
     public:
-        TToAttributes(IYsonConsumer::TPtr events, const TParent& parent)
+        TToAttributes(IYsonConsumer* events, const TParent& parent)
             : TFluentBase<TParent>(events, parent)
         { }
 
@@ -149,7 +149,7 @@ public:
     public:
         typedef TAttributes<TParent> TThis;
 
-        TAttributes(IYsonConsumer::TPtr events, const TParent& parent)
+        TAttributes(IYsonConsumer* events, const TParent& parent)
             : TFluentBase<TParent>(events, parent)
         { }
 
@@ -173,7 +173,7 @@ public:
     public:
         typedef TList<TParent> TThis;
 
-        TList(IYsonConsumer::TPtr events, const TParent& parent)
+        TList(IYsonConsumer* events, const TParent& parent)
             : TFluentBase<TParent>(events, parent)
             , Index(0)
         { }
@@ -202,7 +202,7 @@ public:
     public:
         typedef TMap<TParent> TThis;
 
-        TMap(IYsonConsumer::TPtr events, const TParent& parent)
+        TMap(IYsonConsumer* events, const TParent& parent)
             : TFluentBase<TParent>(events, parent)
         { }
 
@@ -219,7 +219,7 @@ public:
         }
     };
 
-    static TFluentTree Create(IYsonConsumer::TPtr events)
+    static TFluentTree Create(IYsonConsumer* events)
     {
         return TFluentTree(events);
     }

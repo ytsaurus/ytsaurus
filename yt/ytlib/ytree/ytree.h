@@ -127,7 +127,7 @@ struct INode
     virtual TNavigateResult YPathNavigate(const TYPath& path) const = 0;
 
     typedef TYPathResult<TVoid> TGetResult;
-    virtual TGetResult YPathGet(const TYPath& path, TIntrusivePtr<IYsonConsumer> events) const = 0;
+    virtual TGetResult YPathGet(const TYPath& path, IYsonConsumer* events) const = 0;
 
     typedef TYPathResult<TVoid> TSetResult;
     virtual TSetResult YPathSet(const TYPath& path, TYsonProducer::TPtr producer) = 0;
@@ -330,7 +330,7 @@ public:
 
     virtual TGetResult YPathGet(
         const TYPath& path,
-        TIntrusivePtr<IYsonConsumer> events) const;
+        IYsonConsumer* events) const;
 
     virtual TSetResult YPathSet(
         const TYPath& path,
