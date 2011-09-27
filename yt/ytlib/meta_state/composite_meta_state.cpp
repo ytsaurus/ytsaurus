@@ -39,7 +39,10 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
     , Role(ERole::None)
-{ }
+{
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~metaState != NULL);
+}
 
 bool TMetaStatePart::IsLeader() const
 {

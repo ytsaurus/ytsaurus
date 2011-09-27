@@ -43,7 +43,7 @@ public:
         const TConfig& config,
         TCellManager::TPtr cellManager);
 
-    EResult GetSnapshot(i32 segmentId, TSnapshotWriter* snapshotWriter);
+    EResult GetSnapshot(i32 segmentId, TSnapshotWriter::TPtr snapshotWriter);
 
 private:
     struct TSnapshotInfo
@@ -80,7 +80,7 @@ private:
     EResult DownloadSnapshot(
         i32 segmentId,
         TSnapshotInfo snapshotInfo,
-        TSnapshotWriter* snapshotWriter);
+        TSnapshotWriter::TPtr snapshotWriter);
     EResult WriteSnapshot(
         i32 segmentId,
         i64 snapshotLength,

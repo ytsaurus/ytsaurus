@@ -19,8 +19,8 @@ public:
     TCellChannel(const TLeaderLookup::TConfig& config);
     
     virtual TFuture<TVoid>::TPtr Send(
-        TIntrusivePtr<NRpc::TClientRequest> request,
-        TIntrusivePtr<NRpc::TClientResponse> response,
+        NRpc::TClientRequest::TPtr request,
+        NRpc::TClientResponse::TPtr response,
         TDuration timeout);
 
 private:
