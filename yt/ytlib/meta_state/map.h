@@ -127,7 +127,7 @@ protected:
 };
 
 //! Snapshotable map used to store various meta-state tables.
-/*
+/*!
  * \tparam TKey Key type.
  * \tparam TValue Value type.
  * \tparam THash Hash function for keys.
@@ -177,6 +177,7 @@ public:
         if (State != EState::Normal) {
             const auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
+                YASSERT(DeletionSet.find(key) == DeletionSet.end());
                 return TTraits::ToPtr(insertionIt->second);
             }
 
@@ -200,6 +201,7 @@ public:
         if (State != EState::Normal) {
             auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
+                YASSERT(DeletionSet.find(key) == DeletionSet.end());
                 return TTraits::ToPtr(insertionIt->second);
             }
 
@@ -269,11 +271,11 @@ public:
             Map.erase(it);
             return true;
         } else {
-            auto it = InsertionMap.find(key);
-            bool wasInInserts = it != InsertionMap.end();
+            bool wasInInserts = (InsertionMap.erase(key) == 1);
             if (Map.find(key) != Map.end()) {
-                YVERIFY(DeletionSet.insert(key).Second());
-                return true;
+                bool wasInDeletions = (DeletionSet.insert(key).Second() == false);
+                YASSERT((wasInInserts && wasInDeletions) == false);
+                return (!wasInDeletions);
             }
             return wasInInserts;
         }
@@ -307,7 +309,7 @@ public:
     }
 
     //! (Unordered) begin()-iterator.
-    /*
+    /*!
      *  Iteration is only possible when no snapshot is being created.
      */
     TIterator Begin()
@@ -317,7 +319,7 @@ public:
     }
 
     //! (Unordered) end()-iterator.
-    /*
+    /*!
      *  Iteration is only possible when no snapshot is being created.
      */
     TIterator End()
@@ -327,7 +329,7 @@ public:
     }
 
     //! (Unordered) const begin()-iterator.
-    /*
+    /*!
      *  Iteration is only possible when no snapshot is being created.
      */
     TConstIterator Begin() const
@@ -337,7 +339,7 @@ public:
     }
 
     //! (Unordered) const end()-iterator.
-    /*
+    /*!
      *  Iteration is only possible when no snapshot is being created.
      */
     TConstIterator End() const
@@ -347,7 +349,7 @@ public:
     }
 
     //! Asynchronously saves the map to the stream.
-    /*
+    /*!
      * This method saves the snapshot of the map as it seen at the moment of
      * invocation. All further updates are accepted but kept in-memory.
      * \param invoker Invoker for actual heavy work.
@@ -371,7 +373,7 @@ public:
     }
 
     //! Asynchronously loads the map from the stream.
-    /*
+    /*!
      * This method loads the snapshot of the map in the background and at some
      * moment in the future swaps current map with the loaded one.
      * \param invoker Invoker for actual heavy work.
@@ -396,6 +398,8 @@ public:
     
 private:
     TMap Map;
+
+    // Each key couldn't be both in InsertionMap and DeletionSet
     TMap InsertionMap;
     TKeySet DeletionSet;
 
@@ -419,9 +423,8 @@ private:
         FOREACH(const auto& item, items) {
             *stream << it->first << it->second;
         }
-
-        State = EState::SavedSnapshot;
         */
+        State = EState::SavedSnapshot;
         return TVoid();
     }
 
@@ -459,13 +462,16 @@ private:
         YASSERT(State == EState::SavedSnapshot);
 
         FOREACH(const auto& pair, InsertionMap) {
+            YASSERT(DeletionSet.find(pair.first) == DeletionSet.end());
             Map[pair.first] = pair.second;
         }
-        InsertionMap.clear();
 
         FOREACH(TKey key, DeletionSet) {
+            YASSERT(InsertionMap.find(key) == InsertionMap.end());
             Map.erase(key);
         }
+
+        InsertionMap.clear();
         DeletionSet.clear();
 
         State = EState::Normal;

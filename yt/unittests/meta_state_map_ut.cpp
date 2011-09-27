@@ -35,7 +35,7 @@ typedef TIntRefCounted TValue;
 
 TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 {
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
 
     EXPECT_IS_TRUE(map.Insert("a", TValue(42))); // add
     EXPECT_EQ(map.Find("a")->Value, 42);
@@ -64,7 +64,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     TBufferedFileOutput output(file);
     TOutputStream* stream = &output;
 
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
     IInvoker::TPtr invoker = new TActionQueue();
 
     TFuture<TVoid>::TPtr asyncResult;
@@ -123,7 +123,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     yhash_map<TKey, int> checkMap;
     IInvoker::TPtr invoker = new TActionQueue();
     {
-        TMetaStateMap<TKey, TValue> map;
+        NMetaState::TMetaStateMap<TKey, TValue> map;
 
         int numValues = 10000;
         int range = 1000;
@@ -138,7 +138,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         map.Save(invoker, stream)->Get();
     }
     {
-        TMetaStateMap<TKey, TValue> map;
+        NMetaState::TMetaStateMap<TKey, TValue> map;
         TBufferedFileInput input(file);
         TInputStream* stream = &input;
 
@@ -165,7 +165,7 @@ TEST_F(TMetaStateMapTest, StressSave)
 
     yhash_map<TKey, int> checkMap;
     IInvoker::TPtr invoker = new TActionQueue();
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
 
     int numValues = 100000;
     int range = 100000;
