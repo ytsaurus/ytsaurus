@@ -318,10 +318,11 @@ TLeaderRecovery::TLeaderRecovery(
     VERIFY_THREAD_AFFINITY(ServiceThread);
 }
 
-TRecovery::TResult::TPtr TLeaderRecovery::Run(const TMetaVersion& version)
+TRecovery::TResult::TPtr TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ServiceThread);
 
+    auto version = MetaState->GetReachableVersion();
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 

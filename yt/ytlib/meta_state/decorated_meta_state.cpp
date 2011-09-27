@@ -21,9 +21,12 @@ TDecoratedMetaState::TDecoratedMetaState(
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
 {
+    YASSERT(~state != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~changeLogCache != NULL);
     VERIFY_INVOKER_AFFINITY(state->GetInvoker(), StateThread);
 
-    ComputeNextVersion();
+    ComputeReachableVersion();
 }
 
 IInvoker::TPtr TDecoratedMetaState::GetInvoker() const
@@ -50,6 +53,7 @@ void TDecoratedMetaState::Clear()
 
 TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 {
+    YASSERT(output != NULL);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started saving snapshot");
@@ -73,6 +77,7 @@ TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
+    YASSERT(input != NULL);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started loading snapshot %d", segmentId);
@@ -104,6 +109,7 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 
 void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 {
+    YASSERT(~changeAction != NULL);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     changeAction->Do();
@@ -115,19 +121,23 @@ void TDecoratedMetaState::IncrementRecordCount()
     UpdateVersion(TMetaVersion(Version.SegmentId, Version.RecordCount + 1));
 }
 
+TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
+{
+    auto changeLog = ChangeLogCache->Get(Version.SegmentId);
+    if (~changeLog == NULL) {
+        LOG_FATAL("The current changelog %d is missing",
+            Version.SegmentId);
+    }
+    return changeLog;
+}
+
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto cachedChangeLog = ChangeLogCache->Get(Version.SegmentId);
-    if (~cachedChangeLog == NULL) {
-        LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
-    }
-
-    return cachedChangeLog->Append(
-        Version.RecordCount,
-        changeData);
+    auto changeLog = GetCurrentChangeLog();
+    return changeLog->Append(Version.RecordCount, changeData);
 }
 
 void TDecoratedMetaState::AdvanceSegment()
@@ -143,17 +153,15 @@ void TDecoratedMetaState::RotateChangeLog()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto currentChangeLog = ChangeLogCache->Get(Version.SegmentId);
-    YASSERT(~currentChangeLog != NULL);
-
-    currentChangeLog->Finalize();
+    auto changeLog = GetCurrentChangeLog();
+    changeLog->Finalize();
 
     AdvanceSegment();
 
-    ChangeLogCache->Create(Version.SegmentId, currentChangeLog->GetRecordCount());
+    ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount());
 }
 
-void TDecoratedMetaState::ComputeNextVersion()
+void TDecoratedMetaState::ComputeReachableVersion()
 {
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
     if (maxSnapshotId == NonexistingSnapshotId) {
@@ -161,16 +169,16 @@ void TDecoratedMetaState::ComputeNextVersion()
         // Let's pretend we have snapshot 0.
         maxSnapshotId = 0;
     } else {
-        TSnapshotReader::TPtr snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
+        auto snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
         LOG_INFO("Latest snapshot is %d", maxSnapshotId);
     }
 
     TMetaVersion currentVersion = TMetaVersion(maxSnapshotId, 0);
 
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
-        TCachedAsyncChangeLog::TPtr changeLog = ChangeLogCache->Get(segmentId);
+        auto changeLog = ChangeLogCache->Get(segmentId);
         if (~changeLog == NULL) {
-            NextVersion = currentVersion;
+            ReachableVersion = currentVersion;
             break;
         }
 
@@ -185,27 +193,32 @@ void TDecoratedMetaState::ComputeNextVersion()
         currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }
 
-    LOG_INFO("Available state is %s", ~NextVersion.ToString());
+    LOG_INFO("Reachable version is %s",
+        ~ReachableVersion.ToString());
 }         
 
 TMetaVersion TDecoratedMetaState::GetVersion() const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    // NB: No need to take a spinlock here since both
+    // GetVersion and UpdateVersion have same affinity.
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::GetNextVersion() const
+TMetaVersion TDecoratedMetaState::GetReachableVersion() const
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    return NextVersion;
+    TGuard<TSpinLock> guard(VersionSpinLock);
+    return ReachableVersion;
 }
 
 void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
 {
+    TGuard<TSpinLock> guard(VersionSpinLock);
     Version = newVersion;
-    NextVersion = Max(NextVersion, Version);
+    ReachableVersion = Max(ReachableVersion, Version);
 }
 
 void TDecoratedMetaState::OnStartLeading()

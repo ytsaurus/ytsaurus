@@ -107,7 +107,7 @@ public:
     /*!
      * \note Thread affinity: ServiceThread.
      */
-    TResult::TPtr Run(const TMetaVersion& version);
+    TResult::TPtr Run();
 
 private:
     virtual bool IsLeader() const;

@@ -127,8 +127,6 @@ private:
 
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
-    TMetaVersion GetNextVersion();
-
     // IElectionCallbacks members
     virtual void OnStartLeading(const TEpoch& epoch);
     virtual void OnStopLeading();

@@ -9,8 +9,7 @@ namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
+    
 class TCompositeMetaState;
 
 class TMetaStatePart

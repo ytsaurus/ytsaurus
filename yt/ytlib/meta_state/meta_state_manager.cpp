@@ -258,7 +258,7 @@ void TMetaStateManager::SendSync(TPeerId peerId, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto version = MetaState->GetNextVersion();
+    auto version = MetaState->GetReachableVersion();
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
@@ -700,14 +700,7 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
         LeaderId,
         ControlInvoker);
 
-    // TODO: get rid of this sync call
-    auto version =
-        FromMethod(&TMetaStateManager::GetNextVersion, TPtr(this))
-        ->AsyncVia(~StateInvoker)
-        ->Do()
-        ->Get();
-
-    LeaderRecovery->Run(version)->Subscribe(
+    LeaderRecovery->Run()->Subscribe(
         FromMethod(&TMetaStateManager::OnLeaderRecoveryComplete, TPtr(this))
         ->Via(~ServiceEpochInvoker));
 }
@@ -891,20 +884,8 @@ TPeerPriority TMetaStateManager::GetPriority()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // TODO: get rid of this sync call
-    auto version =
-        FromMethod(&TMetaStateManager::GetNextVersion, TPtr(this))
-        ->AsyncVia(~StateInvoker)
-        ->Do()
-        ->Get();
-
+    auto version = MetaState->GetReachableVersion();
     return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
-}
-
-TMetaVersion TMetaStateManager::GetNextVersion()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    return MetaState->GetNextVersion();
 }
 
 Stroka TMetaStateManager::FormatPriority(TPeerPriority priority)
