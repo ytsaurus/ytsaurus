@@ -13,37 +13,40 @@ namespace NMetaState {
 template <class TValue>
 struct TMetaStateMapValueTraits
 {
+    typedef TValue TStoredValue;
+
     typedef TValue& TValueRef;
     typedef const TValue& TConstValueRef;
+
     typedef TValue* TValuePtr;
     typedef const TValue* TConstValuePtr;
 
-    static void Destroy(const TValue& value)
+    static void Destroy(const TStoredValue& value)
     {
         UNUSED(value);
     }
 
-    static TValue Clone(const TValue& value)
+    static TStoredValue Clone(const TStoredValue& value)
     {
         return value;
     }
 
-    static TValuePtr ToPtr(TValue& value)
+    static TValuePtr ToPtr(TStoredValue& value)
     {
         return &value;
     }
 
-    static TConstValuePtr ToPtr(const TValue& value)
+    static TConstValuePtr ToPtr(const TStoredValue& value)
     {
         return &value;
     }
 
-    static TValueRef ToRef(TValue* value)
+    static TValueRef ToRef(TValuePtr value)
     {
         return *value;
     }
 
-    static TConstValueRef ToRef(const TValue* value)
+    static TConstValueRef ToRef(TConstValuePtr value)
     {
         return *value;
     }
@@ -54,7 +57,45 @@ struct TMetaStateMapValueTraits
 template <class TValue>
 struct TMetaStateMapPtrTraits
 {
+    typedef TIntrusivePtr<TValue> TStoredValue;
 
+    typedef TValue& TValueRef;
+    typedef const TValue& TConstValueRef;
+
+    typedef TValue* TValuePtr;
+    typedef const TValue* TConstValuePtr;
+
+    static void Destroy(const TStoredValue& value)
+    {
+        UNUSED(value);
+    }
+
+    static TStoredValue Clone(const TStoredValue& value)
+    {
+        UNUSED(value);
+        YASSERT(false);
+        return NULL;
+    }
+
+    static TValuePtr ToPtr(TStoredValue& value)
+    {
+        return ~value;
+    }
+
+    static TConstValuePtr ToPtr(const TStoredValue& value)
+    {
+        return ~value;
+    }
+
+    static TValueRef ToRef(TValuePtr value)
+    {
+        return *value;
+    }
+
+    static TConstValueRef ToRef(TConstValuePtr value)
+    {
+        return *value;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +142,7 @@ class TMetaStateMap
     : public TMetaStateMapBase
 {
 public:
-    typedef yhash_map<TKey, TValue, THash> TMap;
+    typedef yhash_map<TKey, typename TTraits::TStoredValue, THash> TMap;
     typedef yhash_set<TKey, THash> TKeySet;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
@@ -173,7 +214,7 @@ public:
             return NULL;
         }
 
-        typename TTraits::TValueRef value = mapIt->Second();
+        typename TTraits::TStoredValue& value = mapIt->Second();
         if (State != EState::SavingSnapshot) {
             return TTraits::ToPtr(value);
         }
@@ -192,7 +233,7 @@ public:
      */
     typename TTraits::TConstValueRef Get(const TKey& key) const
     {
-        typename TTraits::TConstValuePtr value = Find(key);
+        auto value = Find(key);
         YASSERT(value != NULL);
         return TTraits::ToRef(value);
     }
