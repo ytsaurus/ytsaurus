@@ -63,7 +63,7 @@ TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
     }
 }
 
-TAsyncResult<TVoid>::TPtr TChannel::Send(
+TFuture<TVoid>::TPtr TChannel::Send(
     TClientRequest::TPtr request,
     TClientResponse::TPtr response,
     TDuration timeout)
@@ -73,7 +73,7 @@ TAsyncResult<TVoid>::TPtr TChannel::Send(
     TEntry::TPtr entry = New<TEntry>();
     entry->RequestId = requestId;
     entry->Response = response;
-    entry->Ready = New< TAsyncResult<TVoid> >();
+    entry->Ready = New< TFuture<TVoid> >();
 
     if (timeout != TDuration::Zero()) {
         entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(

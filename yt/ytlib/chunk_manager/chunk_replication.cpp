@@ -296,7 +296,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     startInfo.SetChunkId(chunkId.ToProto());
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %d, HolderId: %d, JobId: %s)",
+    LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",
         ~chunkId.ToString(),
         ~holder.Address,
         holder.Id,

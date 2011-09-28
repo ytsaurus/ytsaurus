@@ -39,7 +39,10 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
     , Role(ERole::None)
-{ }
+{
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~metaState != NULL);
+}
 
 bool TMetaStatePart::IsLeader() const
 {
@@ -113,18 +116,18 @@ IInvoker::TPtr TCompositeMetaState::GetInvoker() const
     return StateInvoker;
 }
 
-TAsyncResult<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
+TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
 {
-    TAsyncResult<TVoid>::TPtr result;
+    TFuture<TVoid>::TPtr result;
     FOREACH(auto& pair, Parts) {
         result = pair.Second()->Save(output);
     }
     return result;
 }
 
-TAsyncResult<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input)
+TFuture<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input)
 {
-    TAsyncResult<TVoid>::TPtr result;
+    TFuture<TVoid>::TPtr result;
     FOREACH(auto& pair, Parts) {
         result = pair.Second()->Load(input);
     }

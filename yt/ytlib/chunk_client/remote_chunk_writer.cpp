@@ -384,7 +384,7 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , Config(config)
     , State(EWriterState::Initializing)
     , IsCloseRequested(false)
-    , Result(New< TAsyncResult<EResult> >())
+    , Result(New< TFuture<EResult> >())
     , WindowSlots(config.WindowSize)
     , AliveNodeCount(addresses.ysize())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
@@ -841,7 +841,7 @@ void TRemoteChunkWriter::CancelAllPings()
     }
 }
 
-void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady)
+void TRemoteChunkWriter::RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(~WindowReady == NULL);
@@ -858,7 +858,7 @@ void TRemoteChunkWriter::RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowRead
 
 IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
     const TSharedRef& data,
-    TAsyncResult<TVoid>::TPtr* ready)
+    TFuture<TVoid>::TPtr* ready)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(ready != NULL);
@@ -899,7 +899,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
         LOG_DEBUG("Window is full (ChunkId: %s)",
             ~ChunkId.ToString());
 
-        *ready = New< TAsyncResult<TVoid> >();
+        *ready = New< TFuture<TVoid> >();
         WriterThread->Invoke(FromMethod(
             &TRemoteChunkWriter::RegisterReadyEvent,
             TPtr(this),
@@ -909,7 +909,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
     }
 }
 
-TAsyncResult<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
+TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 

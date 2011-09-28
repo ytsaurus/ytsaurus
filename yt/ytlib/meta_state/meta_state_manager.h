@@ -40,7 +40,7 @@ public:
         (InvalidState)
     );
 
-    typedef TAsyncResult<ECommitResult> TCommitResult;
+    typedef TFuture<ECommitResult> TCommitResult;
 
     TMetaStateManager(
         const TConfig& config,

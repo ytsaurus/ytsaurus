@@ -26,6 +26,10 @@ TLeaderPinger::TLeaderPinger(
     , Epoch(epoch)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~cellManager != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
     SchedulePing();
 }
 

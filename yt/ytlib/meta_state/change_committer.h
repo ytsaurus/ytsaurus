@@ -28,7 +28,7 @@ public:
         (InvalidVersion)
     );
 
-    typedef TAsyncResult<EResult> TResult;
+    typedef TFuture<EResult> TResult;
 
     struct TConfig
     {

@@ -3,7 +3,7 @@
 #include "meta_state_manager_rpc.h"
 
 #include "../actions/action_util.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 
 #include <util/system/fs.h>
 
@@ -21,12 +21,16 @@ TSnapshotDownloader::TSnapshotDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{}
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
+    YASSERT(~snapshotWriter != NULL);
+
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
@@ -43,7 +47,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
-    auto asyncResult = New< TAsyncResult<TSnapshotInfo> >();
+    auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
@@ -68,7 +72,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 void TSnapshotDownloader::OnResponse(
     TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
+    TFuture<TSnapshotInfo>::TPtr asyncResult,
     TPeerId peerId)
 {
     if (!response->IsOK()) {
@@ -94,7 +98,7 @@ void TSnapshotDownloader::OnResponse(
 
 void TSnapshotDownloader::OnComplete(
     i32 segmentId,
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult)
+    TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
     LOG_INFO("Could not get snapshot %d info from masters", segmentId);
 
@@ -104,7 +108,7 @@ void TSnapshotDownloader::OnComplete(
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TSnapshotInfo snapshotInfo,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
     YASSERT(snapshotInfo.Length >= 0);
     

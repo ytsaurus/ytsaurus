@@ -131,8 +131,15 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , StateInvoker(metaState->GetInvoker())
-{ }
+{
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    StateInvoker = metaState->GetInvoker();
+}
 
 void TSnapshotCreator::CreateDistributed(TMetaVersion version)
 {

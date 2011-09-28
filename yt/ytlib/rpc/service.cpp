@@ -1,6 +1,7 @@
 #include "service.h"
 
 #include "../logging/log.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NRpc {
@@ -204,9 +205,9 @@ TServiceBase::TServiceBase(
     IInvoker::TPtr defaultServiceInvoker,
     Stroka serviceName,
     Stroka loggingCategory)
-    : ServiceLogger(loggingCategory)
-    , DefaultServiceInvoker(defaultServiceInvoker)
+    : DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
+    , ServiceLogger(loggingCategory)
 {
     YASSERT(~defaultServiceInvoker != NULL);
 }

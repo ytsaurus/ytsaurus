@@ -61,11 +61,11 @@ private:
     static void OnResponse(
         TProxy::TRspGetChangeLogInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TPeerId>::TPtr asyncResult,
+        TFuture<TPeerId>::TPtr asyncResult,
         TPeerId peerId,
         TMetaVersion version);
     static void OnComplete(
-        TAsyncResult<TPeerId>::TPtr asyncResult);
+        TFuture<TPeerId>::TPtr asyncResult);
 
 };
 

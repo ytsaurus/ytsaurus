@@ -275,11 +275,11 @@ TChunkStore::TChunks TChunkStore::GetChunks()
     return result;
 }
 
-TAsyncResult<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)
+TFuture<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)
 {
     auto meta = chunk->Meta;
     if (~meta != NULL) {
-        return New< TAsyncResult<TChunkMeta::TPtr> >(meta);
+        return New< TFuture<TChunkMeta::TPtr> >(meta);
     }
 
     auto invoker = chunk->GetLocation()->GetInvoker();

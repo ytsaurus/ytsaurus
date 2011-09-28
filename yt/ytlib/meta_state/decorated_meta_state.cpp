@@ -24,6 +24,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     YASSERT(~state != NULL);
     YASSERT(~snapshotStore != NULL);
     YASSERT(~changeLogCache != NULL);
+
     VERIFY_INVOKER_AFFINITY(state->GetInvoker(), StateThread);
 
     ComputeReachableVersion();
@@ -51,7 +52,7 @@ void TDecoratedMetaState::Clear()
     Version = TMetaVersion();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
+TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 {
     YASSERT(output != NULL);
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -73,7 +74,7 @@ TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TDecoratedMetaState::Load(
+TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {

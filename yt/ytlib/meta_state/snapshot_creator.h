@@ -49,7 +49,7 @@ public:
         { }
     };
 
-    typedef TAsyncResult<TLocalResult> TAsyncLocalResult;
+    typedef TFuture<TLocalResult> TAsyncLocalResult;
 
     TSnapshotCreator(
         const TConfig& config,

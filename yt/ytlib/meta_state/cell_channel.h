@@ -18,9 +18,9 @@ public:
 
     TCellChannel(const TLeaderLookup::TConfig& config);
     
-    virtual TAsyncResult<TVoid>::TPtr Send(
-        TIntrusivePtr<NRpc::TClientRequest> request,
-        TIntrusivePtr<NRpc::TClientResponse> response,
+    virtual TFuture<TVoid>::TPtr Send(
+        NRpc::TClientRequest::TPtr request,
+        NRpc::TClientResponse::TPtr response,
         TDuration timeout);
 
 private:
@@ -31,7 +31,7 @@ private:
         (Failed)
     );
 
-    TAsyncResult<TVoid>::TPtr OnGotChannel(
+    TFuture<TVoid>::TPtr OnGotChannel(
         NRpc::IChannel::TPtr channel,
         NRpc::TClientRequest::TPtr request,
         NRpc::TClientResponse::TPtr response,
@@ -41,16 +41,16 @@ private:
         TVoid,
         NRpc::TClientResponse::TPtr response);
   
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr GetChannel();
+    TFuture<NRpc::IChannel::TPtr>::TPtr GetChannel();
 
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
+    TFuture<NRpc::IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
+    TFuture<NRpc::IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
 
 
     TSpinLock SpinLock;
     TLeaderLookup::TPtr LeaderLookup;
     EState State;
-    TAsyncResult<TLeaderLookup::TResult>::TPtr LookupResult;
+    TFuture<TLeaderLookup::TResult>::TPtr LookupResult;
     NRpc::TChannel::TPtr Channel;
 
 };

@@ -1,6 +1,8 @@
 #include "ephemeral.h"
 #include "ypath.h"
 
+#include "../misc/assert.h"
+
 #include <util/generic/algorithm.h>
 
 namespace NYT {
@@ -9,7 +11,7 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeFactory* TNodeBase::GetFactory() const
+INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
     return TNodeFactory::Get();
 }
@@ -95,7 +97,7 @@ void TMapNode::ReplaceChild( INode::TPtr oldChild, INode::TPtr newChild )
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
-INode::TNavigateResult TMapNode::YPathNavigate(
+IYPathService::TNavigateResult TMapNode::Navigate(
     const TYPath& path) const
 {
     if (path.empty()) {
@@ -115,12 +117,12 @@ INode::TNavigateResult TMapNode::YPathNavigate(
     }
 }
 
-INode::TSetResult TMapNode::YPathSet(
+IYPathService::TSetResult TMapNode::Set(
     const TYPath& path,
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
-        return YPathSetSelf(producer);
+        return SetSelf(producer);
     }
 
     Stroka prefix;
@@ -199,7 +201,7 @@ void TListNode::RemoveChild(INode::TPtr child)
     List.erase(it);
 }
 
-INode::TNavigateResult TListNode::YPathNavigate(
+IYPathService::TNavigateResult TListNode::Navigate(
     const TYPath& path) const
 {
     if (path.empty()) {
@@ -221,12 +223,12 @@ INode::TNavigateResult TListNode::YPathNavigate(
     return GetYPathChild(index, tailPath);
 }
 
-INode::TSetResult TListNode::YPathSet(
+IYPathService::TSetResult TListNode::Set(
     const TYPath& path,
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
-        return YPathSetSelf(producer);
+        return SetSelf(producer);
     }
 
     Stroka prefix;
@@ -262,12 +264,12 @@ INode::TSetResult TListNode::YPathSet(
         return CreateYPathChild(index + 1, tailPath);
     } else {
         auto navigateResult = GetYPathChild(index, tailPath);
-        YASSERT(navigateResult.Code == INode::EYPathCode::Recurse);
+        YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
         return TSetResult::CreateRecurse(navigateResult.RecurseNode, navigateResult.RecursePath);
     }
 }
 
-INode::TSetResult TListNode::CreateYPathChild(
+IYPathService::TSetResult TListNode::CreateYPathChild(
     int beforeIndex,
     const TYPath& tailPath)
 {
@@ -276,7 +278,7 @@ INode::TSetResult TListNode::CreateYPathChild(
     return TSetResult::CreateRecurse(~newChild, tailPath);
 }
 
-INode::TNavigateResult TListNode::GetYPathChild(
+IYPathService::TNavigateResult TListNode::GetYPathChild(
     int index,
     const TYPath& tailPath) const
 {

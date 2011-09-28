@@ -150,7 +150,7 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
         return;
     } 
 
-    TAsyncResult<TVoid>::TPtr ready;
+    TFuture<TVoid>::TPtr ready;
     auto result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
     switch (result) {
         case IChunkWriter::EResult::OK:

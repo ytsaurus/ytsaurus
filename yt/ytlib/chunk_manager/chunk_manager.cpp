@@ -227,7 +227,7 @@ private:
         return "ChunkManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
@@ -241,7 +241,7 @@ private:
         *stream << CurrentHolderId;
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
@@ -656,14 +656,9 @@ TChunkManager::TChunkManager(
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ChunkPlacement(New<TChunkPlacement>(
-        this))
-    , ChunkReplication(New<TChunkReplication>(
-        this,
-        ChunkPlacement))
-    , HolderExpiration(New<THolderExpiration>(
-        config,
-        this))
+    , ChunkPlacement(New<TChunkPlacement>(this))
+    , ChunkReplication(New<TChunkReplication>(this, ChunkPlacement))
+    , HolderExpiration(New<THolderExpiration>(config, this))
     , State(New<TState>(
         config,
         metaStateManager,
@@ -673,6 +668,10 @@ TChunkManager::TChunkManager(
         ChunkPlacement,
         HolderExpiration))
 {
+    YVERIFY(~metaState != NULL);
+    YVERIFY(~server != NULL);
+    YVERIFY(~transactionManager != NULL);
+
     RegisterMethods();
     metaState->RegisterPart(~State);
     server->RegisterService(this);

@@ -52,6 +52,7 @@ TElectionManager::TElectionManager(
     YASSERT(~controlInvoker != NULL);
     YASSERT(~electionCallbacks != NULL);
     YASSERT(~server != NULL);
+
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     Reset();

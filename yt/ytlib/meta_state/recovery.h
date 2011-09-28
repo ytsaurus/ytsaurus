@@ -32,7 +32,7 @@ public:
         (Failed)
     );
 
-    typedef TAsyncResult<EResult> TResult;
+    typedef TFuture<EResult> TResult;
 
     TRecovery(
         const TMetaStateManagerConfig& config,
