@@ -89,7 +89,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    IServiceContext::TPtr context = ~New<TServiceContext>(
+    TServiceContext::TPtr context = New<TServiceContext>(
         service,
         requestId,
         methodName,
