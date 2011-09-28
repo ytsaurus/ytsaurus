@@ -201,14 +201,6 @@ void TMetaStateManager::StartEpoch(const TEpoch& epoch)
     ServiceEpochInvoker = New<TCancelableInvoker>(ControlInvoker);
     Epoch = epoch;
 
-    SnapshotCreator = New<TSnapshotCreator>(
-        TSnapshotCreator::TConfig(),
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        SnapshotStore,
-        Epoch,
-        ControlInvoker);
 }
 
 void TMetaStateManager::StopEpoch()
@@ -221,10 +213,6 @@ void TMetaStateManager::StopEpoch()
     YASSERT(~ServiceEpochInvoker != NULL);
     ServiceEpochInvoker->Cancel();
     ServiceEpochInvoker.Drop();
-
-    YASSERT(~ChangeCommitter != NULL);
-    ChangeCommitter->Stop();
-    ChangeCommitter.Drop();
 
     YASSERT(~SnapshotCreator != NULL);
     SnapshotCreator.Drop();
@@ -712,17 +700,24 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
     YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
+    YASSERT(~LeaderRecovery != NULL);
+    // TODO: try to eliminate this call
+    LeaderRecovery->Stop();
+    LeaderRecovery.Drop();
+
     if (result != TRecovery::EResult::OK) {
         LOG_WARNING("Leader recovery failed, restarting");
         Restart();
         return;
     }
 
+    YASSERT(~FollowerTracker == NULL);
     FollowerTracker = New<TFollowerTracker>(
         TFollowerTracker::TConfig(),
         CellManager,
         ControlInvoker);
 
+    YASSERT(~ChangeCommitter == NULL);
     ChangeCommitter = New<TChangeCommitter>(
         TChangeCommitter::TConfig(),
         CellManager,
@@ -731,8 +726,17 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         FollowerTracker,
         ControlInvoker,
         Epoch);
-
     ChangeCommitter->OnApplyChange().Subscribe(OnApplyChangeAction);
+
+    YASSERT(~SnapshotCreator == NULL);
+    SnapshotCreator = New<TSnapshotCreator>(
+        TSnapshotCreator::TConfig(),
+        CellManager,
+        MetaState,
+        ChangeLogCache,
+        SnapshotStore,
+        Epoch,
+        ControlInvoker);
 
     State = EPeerState::Leading;
 
@@ -771,11 +775,6 @@ void TMetaStateManager::OnStopLeading()
 
     StopEpoch();
 
-    if (~LeaderRecovery != NULL) {
-        LeaderRecovery->Stop();
-        LeaderRecovery.Drop();
-    }
-
     if (~ChangeCommitter != NULL) {
         ChangeCommitter->Stop();
         ChangeCommitter.Drop();
@@ -784,6 +783,10 @@ void TMetaStateManager::OnStopLeading()
     if (~FollowerTracker != NULL) {
         FollowerTracker->Stop();
         FollowerTracker.Drop();
+    }
+
+    if (~SnapshotCreator != NULL) {
+        SnapshotCreator.Drop();
     }
 }
 
@@ -819,12 +822,18 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
     YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
+    YASSERT(~LeaderRecovery != NULL);
+    // TODO: try to eliminate this call
+    LeaderRecovery->Stop();
+    LeaderRecovery.Drop();
+
     if (result != TRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
         Restart();
         return;
     }
 
+    YASSERT(~ChangeCommitter == NULL);
     ChangeCommitter = New<TChangeCommitter>(
         TChangeCommitter::TConfig(),
         CellManager,
@@ -834,11 +843,22 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
         ControlInvoker,
         Epoch);
 
+    YASSERT(~LeaderPinger == NULL);
     LeaderPinger = New<TLeaderPinger>(
         TLeaderPinger::TConfig(),
         this,
         CellManager,
         LeaderId,
+        Epoch,
+        ControlInvoker);
+
+    YASSERT(~SnapshotCreator == NULL);
+    SnapshotCreator = New<TSnapshotCreator>(
+        TSnapshotCreator::TConfig(),
+        CellManager,
+        MetaState,
+        ChangeLogCache,
+        SnapshotStore,
         Epoch,
         ControlInvoker);
 
@@ -878,6 +898,10 @@ void TMetaStateManager::OnStopFollowing()
     if (~LeaderPinger != NULL) {
         LeaderPinger->Stop();
         LeaderPinger.Drop();
+    }
+
+    if (~SnapshotCreator != NULL) {
+        SnapshotCreator.Drop();
     }
 }
 

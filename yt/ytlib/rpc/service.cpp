@@ -218,6 +218,8 @@ void TServiceBase::RegisterMethod(
 {
     YASSERT(~invoker != NULL);
 
+    TGuard<TSpinLock> guard(SpinLock);
+
     if (!RuntimeMethodInfos.insert(MakePair(
         descriptor.MethodName,
         TRuntimeMethodInfo(descriptor, invoker))).Second()) {
@@ -234,6 +236,10 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 
 void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
 {
+    YASSERT(~context != NULL);
+
+    TGuard<TSpinLock> guard(SpinLock);
+
     Stroka methodName = context->GetMethodName();
     auto it = RuntimeMethodInfos.find(methodName);
     if (it == RuntimeMethodInfos.end()) {
@@ -259,6 +265,10 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
 
 void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
 {
+    YASSERT(~context != NULL);
+
+    TGuard<TSpinLock> guard(SpinLock);
+
     auto it = OutstandingRequests.find(context);
     YASSERT(it != OutstandingRequests.end());
     auto& request = it->Second();
@@ -278,6 +288,8 @@ Stroka TServiceBase::GetLoggingCategory() const
 
 Stroka TServiceBase::GetDebugInfo() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     Stroka info = "Service " + ServiceName + ":\n";
     FOREACH(const auto& pair, RuntimeMethodInfos) {
         info += Sprintf("Method %s: %s\n",
