@@ -3,7 +3,6 @@ SET(YT_SOURCE_FILES
     action-inl.h
     action_util.h
     action_queue.cpp
-    prioritized_action_queue.cpp
     invoker.h
     invoker_util.cpp
     future.h
