@@ -20,7 +20,6 @@ void TFileChunkWriter::WriteBlock(const TSharedRef& data)
     blockInfo->SetChecksum(GetChecksum(data));
 
     File->Write(data.Begin(), data.Size());
-    File->Flush();
 }
 
 IChunkWriter::EResult TFileChunkWriter::AsyncWriteBlock(
@@ -48,7 +47,6 @@ void TFileChunkWriter::Close()
     File->Write(metaBlob.begin(), metaBlob.ysize());
     File->Write(&footer, sizeof (footer));
 
-    File->Flush();
     File->Close();
     File.Destroy();
 }
