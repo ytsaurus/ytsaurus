@@ -11,6 +11,7 @@
 #include "../actions/parallel_awaiter.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,14 +61,15 @@ private:
     static void OnResponse(
         TProxy::TRspGetChangeLogInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TPeerId>::TPtr asyncResult,
+        TFuture<TPeerId>::TPtr asyncResult,
         TPeerId peerId,
         TMetaVersion version);
     static void OnComplete(
-        TAsyncResult<TPeerId>::TPtr asyncResult);
+        TFuture<TPeerId>::TPtr asyncResult);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

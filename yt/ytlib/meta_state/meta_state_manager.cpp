@@ -9,8 +9,9 @@
 #include "../misc/guid.h"
 
 namespace NYT {
+namespace NMetaState {
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
 
@@ -27,12 +28,13 @@ TMetaStateManager::TMetaStateManager(
         Logger.GetCategory())
     , State(EPeerState::Stopped)
     , Config(config)
-    , LeaderId(InvalidPeerId)
+    , LeaderId(NElection::InvalidPeerId)
     , ControlInvoker(controlInvoker)
 {
-    YVERIFY(~controlInvoker != NULL);
-    YVERIFY(~metaState != NULL);
-    YVERIFY(~server != NULL);
+    YASSERT(~controlInvoker != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~server != NULL);
+
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
 
@@ -54,8 +56,8 @@ TMetaStateManager::TMetaStateManager(
     CellManager = New<TCellManager>(Config.Cell);
 
     // TODO: fill config
-    ElectionManager = New<TElectionManager>(
-        TElectionManager::TConfig(),
+    ElectionManager = New<NElection::TElectionManager>(
+        NElection::TElectionManager::TConfig(),
         CellManager,
         controlInvoker,
         this,
@@ -73,15 +75,15 @@ TMetaStateManager::~TMetaStateManager()
 
 void TMetaStateManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TMetaStateManager, ScheduleSync);
-    RPC_REGISTER_METHOD(TMetaStateManager, Sync);
-    RPC_REGISTER_METHOD(TMetaStateManager, GetSnapshotInfo);
-    RPC_REGISTER_METHOD(TMetaStateManager, ReadSnapshot);
-    RPC_REGISTER_METHOD(TMetaStateManager, GetChangeLogInfo);
-    RPC_REGISTER_METHOD(TMetaStateManager, ReadChangeLog);
-    RPC_REGISTER_METHOD(TMetaStateManager, ApplyChanges);
-    RPC_REGISTER_METHOD(TMetaStateManager, AdvanceSegment);
-    RPC_REGISTER_METHOD(TMetaStateManager, PingLeader);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleSync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 }
 
 void TMetaStateManager::Restart()
@@ -213,7 +215,7 @@ void TMetaStateManager::StopEpoch()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LeaderId = InvalidPeerId;
+    LeaderId = NElection::InvalidPeerId;
     Epoch = TEpoch();
     
     YASSERT(~ServiceEpochInvoker != NULL);
@@ -240,8 +242,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ScheduleSync)
     context->SetRequestInfo("PeerId: %d", peerId);
    
     if (State != EPeerState::Leading && State != EPeerState::LeaderRecovery) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
-            Sprintf("invalid state %d", (int) State);
+        ythrow TServiceException(EErrorCode::InvalidState) <<
+            Sprintf("Invalid state %d", (int) State);
     }
 
     context->Reply();
@@ -257,7 +259,7 @@ void TMetaStateManager::SendSync(TPeerId peerId, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto version = MetaState->GetNextVersion();
+    auto version = MetaState->GetReachableVersion();
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
@@ -316,8 +318,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
     try {
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid snapshot id %d", snapshotId);
+            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+                Sprintf("Invalid snapshot id %d", snapshotId);
         }
 
         reader->Open();
@@ -338,7 +340,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow TServiceException(EErrorCode::IOError) <<
             Sprintf("IO error while getting snapshot info (SnapshotId: %d, What: %s)",
                 snapshotId,
                 ~CurrentExceptionMessage());
@@ -364,8 +366,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadSnapshot)
     try {
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
-            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid snapshot id %d", snapshotId);
+            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+                Sprintf("Invalid snapshot id %d", snapshotId);
         }
 
         reader->Open(offset);
@@ -401,8 +403,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
     try {
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
-            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid changelog id %d", changeLogId);
+            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+                Sprintf("Invalid changelog id %d", changeLogId);
         }
 
         i32 recordCount = changeLog->GetRecordCount();
@@ -413,7 +415,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetChangeLogInfo)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow TServiceException(EErrorCode::IOError) <<
             Sprintf("IO error while getting changelog info (ChangeLogId: %d, What: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
@@ -439,8 +441,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
     try {
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
-            ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidSegmentId) <<
-                Sprintf("invalid changelog id %d", changeLogId);
+            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+                Sprintf("Invalid changelog id %d", changeLogId);
         }
 
         yvector<TSharedRef> recordData;
@@ -456,7 +458,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ReadChangeLog)
         context->Reply();
     } catch (...) {
         // TODO: fail?
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::IOError) <<
+        ythrow TServiceException(EErrorCode::IOError) <<
             Sprintf("IO error while reading changelog (ChangeLogId: %d, What: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
@@ -477,14 +479,14 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         ~version.ToString());
 
     if (State != EPeerState::Following && State != EPeerState::FollowerRecovery) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
-            Sprintf("invalid state %s", ~State.ToString());
+        ythrow TServiceException(EErrorCode::InvalidState) <<
+            Sprintf("Invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
-            Sprintf("invalid epoch (expected: %s, received: %s)",
+        ythrow TServiceException(EErrorCode::InvalidEpoch) <<
+            Sprintf("Invalid epoch (expected: %s, received: %s)",
                 ~Epoch.ToString(),
                 ~epoch.ToString());
     }
@@ -584,14 +586,14 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
         ~version.ToString());
 
     if (State != EPeerState::Following && State != EPeerState::FollowerRecovery) {
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidState) <<
-            Sprintf("invalid state %s", ~State.ToString());
+        ythrow TServiceException(EErrorCode::InvalidState) <<
+            Sprintf("Invalid state %s", ~State.ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
-        ythrow NRpc::TServiceException(TProxy::EErrorCode::InvalidEpoch) <<
-            Sprintf("invalid epoch: expected %s, received %s",
+        ythrow TServiceException(EErrorCode::InvalidEpoch) <<
+            Sprintf("Invalid epoch: expected %s, received %s",
                 ~Epoch.ToString(),
                 ~epoch.ToString());
     }
@@ -689,7 +691,7 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
     StartEpoch(epoch);
     
     YASSERT(~LeaderRecovery == NULL);
-    LeaderRecovery = new TLeaderRecovery(
+    LeaderRecovery = New<TLeaderRecovery>(
         Config,
         CellManager,
         MetaState,
@@ -699,14 +701,7 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
         LeaderId,
         ControlInvoker);
 
-    // TODO: get rid of this sync call
-    auto version =
-        FromMethod(&TMetaStateManager::GetNextVersion, TPtr(this))
-        ->AsyncVia(~StateInvoker)
-        ->Do()
-        ->Get();
-
-    LeaderRecovery->Run(version)->Subscribe(
+    LeaderRecovery->Run()->Subscribe(
         FromMethod(&TMetaStateManager::OnLeaderRecoveryComplete, TPtr(this))
         ->Via(~ServiceEpochInvoker));
 }
@@ -890,20 +885,8 @@ TPeerPriority TMetaStateManager::GetPriority()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // TODO: get rid of this sync call
-    auto version =
-        FromMethod(&TMetaStateManager::GetNextVersion, TPtr(this))
-        ->AsyncVia(~StateInvoker)
-        ->Do()
-        ->Get();
-
+    auto version = MetaState->GetReachableVersion();
     return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
-}
-
-TMetaVersion TMetaStateManager::GetNextVersion()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    return MetaState->GetNextVersion();
 }
 
 Stroka TMetaStateManager::FormatPriority(TPeerPriority priority)
@@ -924,4 +907,5 @@ EPeerState TMetaStateManager::GetState() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

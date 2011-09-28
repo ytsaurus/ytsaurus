@@ -4,6 +4,7 @@
 #include "../misc/foreach.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,6 +215,8 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
 {
+    YASSERT(~changeAction != NULL);
+
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = MetaState->GetVersion();
@@ -341,4 +344,5 @@ void TChangeCommitter::DelayedFlush(TSession::TPtr session)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

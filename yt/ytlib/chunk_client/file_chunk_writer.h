@@ -25,13 +25,13 @@ public:
     void WriteBlock(const TSharedRef& data);
 
     //! Implements IChunkWriter and calls #AddBlock.
-    virtual EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+    virtual EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
 
 
     //! A synchronous version of #Close.
     void Close();
     //! Implements IChunkWriter and calls #Close.
-    virtual TAsyncResult<EResult>::TPtr AsyncClose();
+    virtual TFuture<EResult>::TPtr AsyncClose();
     virtual void Cancel();
 
 private:

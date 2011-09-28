@@ -18,7 +18,7 @@ struct IBus
         (Failed)
     );
 
-    typedef TAsyncResult<ESendResult> TSendResult;
+    typedef TFuture<ESendResult> TSendResult;
 
     virtual TSendResult::TPtr Send(IMessage::TPtr message) = 0;
     virtual void Terminate() = 0;

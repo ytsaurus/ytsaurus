@@ -4,6 +4,7 @@
 #include "../bus/message.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +26,10 @@ TLeaderPinger::TLeaderPinger(
     , Epoch(epoch)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~cellManager != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
     SchedulePing();
 }
 
@@ -83,4 +88,5 @@ void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

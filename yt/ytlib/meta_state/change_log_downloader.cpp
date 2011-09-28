@@ -2,6 +2,7 @@
 #include "async_change_log.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +15,9 @@ TChangeLogDownloader::TChangeLogDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{ }
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMetaVersion version,
@@ -33,7 +36,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     }
 
     TPeerId sourceId = GetChangeLogSource(version);
-    if (sourceId == InvalidPeerId) {
+    if (sourceId == NElection::InvalidPeerId) {
         return EResult::ChangeLogNotFound;
     }
 
@@ -42,7 +45,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    auto asyncResult = New< TAsyncResult<TPeerId> >();
+    auto asyncResult = New< TFuture<TPeerId> >();
     auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
@@ -160,7 +163,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 void TChangeLogDownloader::OnResponse(
     TProxy::TRspGetChangeLogInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TPeerId>::TPtr asyncResult,
+    TFuture<TPeerId>::TPtr asyncResult,
     TPeerId peerId,
     TMetaVersion version)
 {
@@ -190,13 +193,14 @@ void TChangeLogDownloader::OnResponse(
 }
 
 void TChangeLogDownloader::OnComplete(
-    TAsyncResult<TPeerId>::TPtr asyncResult)
+    TFuture<TPeerId>::TPtr asyncResult)
 {
     LOG_INFO("Unable to find requested records at any master");
 
-    asyncResult->Set(InvalidPeerId);
+    asyncResult->Set(NElection::InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

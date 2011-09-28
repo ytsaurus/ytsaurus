@@ -6,6 +6,7 @@
 #include <util/system/thread.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,7 +269,9 @@ private:
 TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
     : ChangeLog(changeLog)
     , Impl(RefCountedSingleton<TImpl>())
-{ }
+{
+    YASSERT(~changeLog != NULL);
+}
 
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
@@ -406,5 +409,6 @@ void TAsyncChangeLog::Truncate(i32 atRecordId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 

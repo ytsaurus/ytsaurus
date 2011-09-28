@@ -39,9 +39,9 @@ public:
          */
         TDuration RpcTimeout;
 
-        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder
+        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder.
         /*!
-         * If no activity occured during this period -- PingSession call will be send
+         * If no activity occured during this period, PingSession call will be sent.
          */
         TDuration SessionTimeout;
 
@@ -69,12 +69,12 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+    EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TAsyncResult<EResult>::TPtr AsyncClose();
+    TFuture<EResult>::TPtr AsyncClose();
 
 
     /*!
@@ -133,7 +133,7 @@ private:
 
     // Result of write session, set when session is completed.
     // Is returned from #AsyncClose
-    TAsyncResult<EResult>::TPtr Result;
+    TFuture<EResult>::TPtr Result;
 
     TWindow Window;
     TSemaphore WindowSlots;
@@ -150,7 +150,7 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    TAsyncResult<TVoid>::TPtr WindowReady;
+    TFuture<TVoid>::TPtr WindowReady;
 
     static NRpc::TChannelCache ChannelCache;
 
@@ -184,7 +184,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady);
+    void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
     /*!
      * \note Thread affinity: WriterThread

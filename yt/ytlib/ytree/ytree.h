@@ -4,10 +4,9 @@
 #include "ytree_fwd.h"
 #include "yson_events.h"
 
-#include "../actions/action.h"
-#include "../misc/common.h"
+//#include "../actions/action.h"
 #include "../misc/enum.h"
-#include "../misc/ptr.h"
+//#include "../misc/ptr.h"
 
 namespace NYT {
 namespace NYTree {
@@ -72,71 +71,10 @@ struct INode
     {
         TScalarTypeTraits<T>::SetValue(this, value);
     }
-
-
-    DECLARE_ENUM(EYPathCode,
-        (Done)
-        (Recurse)
-        (Error)
-    );
-
-    template <class T>
-    struct TYPathResult
-    {
-        EYPathCode Code;
-        
-        // Done
-        T Value;
-
-        // Recurse
-        TIntrusiveConstPtr<INode> RecurseNode;
-        TYPath RecursePath;
-        
-        // Error
-        Stroka ErrorMessage;
-
-        static TYPathResult CreateDone(const T&value)
-        {
-            TYPathResult result;
-            result.Code = EYPathCode::Done;
-            result.Value = value;
-            return result;
-        }
-
-        static TYPathResult CreateRecurse(
-            TIntrusiveConstPtr<INode> recurseNode,
-            const TYPath& recursePath)
-        {
-            TYPathResult result;
-            result.Code = EYPathCode::Recurse;
-            result.RecurseNode = recurseNode;
-            result.RecursePath = recursePath;
-            return result;
-        }
-
-        static TYPathResult CreateError(Stroka errorMessage)
-        {
-            TYPathResult result;
-            result.Code = EYPathCode::Error;
-            result.ErrorMessage = errorMessage;
-            return result;
-        }
-    };
-
-    typedef TYPathResult< TIntrusiveConstPtr<INode> > TNavigateResult;
-    virtual TNavigateResult YPathNavigate(const TYPath& path) const = 0;
-
-    typedef TYPathResult<TVoid> TGetResult;
-    virtual TGetResult YPathGet(const TYPath& path, TIntrusivePtr<IYsonConsumer> events) const = 0;
-
-    typedef TYPathResult<TVoid> TSetResult;
-    virtual TSetResult YPathSet(const TYPath& path, TYsonProducer::TPtr producer) = 0;
-
-    typedef TYPathResult<TVoid> TRemoveResult;
-    virtual TRemoveResult YPathRemove(const TYPath& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 template<class T>
 struct IScalarNode
@@ -171,6 +109,8 @@ struct IListNode
     typedef TIntrusivePtr<IListNode> TPtr;
     typedef TIntrusiveConstPtr<IListNode> TConstPtr;
 
+    using ICompositeNode::RemoveChild;
+
     virtual yvector<INode::TConstPtr> GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(int index) const = 0;
     virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
@@ -191,6 +131,8 @@ struct IMapNode
 {
     typedef TIntrusivePtr<IMapNode> TPtr;
     typedef TIntrusiveConstPtr<IMapNode> TConstPtr;
+
+    using ICompositeNode::RemoveChild;
 
     virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const = 0;
     virtual INode::TConstPtr FindChild(const Stroka& name) const = 0;
@@ -259,93 +201,6 @@ struct INodeFactory
     virtual IMapNode::TPtr CreateMap() = 0;
     virtual IListNode::TPtr CreateList() = 0;
     virtual IEntityNode::TPtr CreateEntity() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeBase
-    : public virtual INode
-{
-public:
-    virtual INode::TPtr AsMutable() const
-    {
-        return const_cast<TNodeBase*>(this);
-    }
-
-    virtual INode::TConstPtr AsImmutable() const
-    {
-        return const_cast<TNodeBase*>(this);
-    }
-
-#define IMPLEMENT_AS_METHODS(name) \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
-    { \
-        YASSERT(false); \
-        return NULL; \
-    } \
-    \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
-    { \
-        YASSERT(false); \
-        return NULL; \
-    }
-
-    IMPLEMENT_AS_METHODS(String)
-    IMPLEMENT_AS_METHODS(Int64)
-    IMPLEMENT_AS_METHODS(Double)
-    IMPLEMENT_AS_METHODS(Entity)
-    IMPLEMENT_AS_METHODS(List)
-    IMPLEMENT_AS_METHODS(Map)
-
-#undef IMPLEMENT_AS_METHODS
-
-    virtual ICompositeNode::TConstPtr GetParent() const
-    {
-        return Parent;
-    }
-
-    virtual void SetParent(ICompositeNode::TPtr parent)
-    {
-        YASSERT(~parent == NULL || ~Parent == NULL);
-        Parent = parent;
-    }
-
-
-    virtual IMapNode::TConstPtr GetAttributes() const
-    {
-        return Attributes;
-    }
-
-    virtual void SetAttributes(IMapNode::TPtr attributes)
-    {
-        if (~Attributes != NULL) {
-            Attributes->AsMutable()->SetParent(NULL);
-            Attributes = NULL;
-        }
-        Attributes = attributes;
-    }
-
-    virtual TNavigateResult YPathNavigate(
-        const TYPath& path) const;
-
-    virtual TGetResult YPathGet(
-        const TYPath& path,
-        TIntrusivePtr<IYsonConsumer> events) const;
-
-    virtual TSetResult YPathSet(
-        const TYPath& path,
-        TYsonProducer::TPtr producer);
-
-    virtual TRemoveResult YPathRemove(const TYPath& path);
-
-protected:
-    virtual TRemoveResult YPathRemoveSelf();
-    virtual TSetResult YPathSetSelf(TYsonProducer::TPtr producer);
-
-private:
-    ICompositeNode::TPtr Parent;
-    IMapNode::TPtr Attributes;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

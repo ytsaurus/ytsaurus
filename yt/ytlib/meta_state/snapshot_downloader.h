@@ -7,7 +7,9 @@
 
 #include "../rpc/client.h"
 #include "../actions/parallel_awaiter.h"
+
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +43,7 @@ public:
         const TConfig& config,
         TCellManager::TPtr cellManager);
 
-    EResult GetSnapshot(i32 segmentId, TSnapshotWriter* snapshotWriter);
+    EResult GetSnapshot(i32 segmentId, TSnapshotWriter::TPtr snapshotWriter);
 
 private:
     struct TSnapshotInfo
@@ -70,15 +72,15 @@ private:
     static void OnResponse(
         TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
+        TFuture<TSnapshotInfo>::TPtr asyncResult,
         TPeerId peerId);
     static void OnComplete(
         i32 segmentId,
-        TAsyncResult<TSnapshotInfo>::TPtr asyncResult);
+        TFuture<TSnapshotInfo>::TPtr asyncResult);
     EResult DownloadSnapshot(
         i32 segmentId,
         TSnapshotInfo snapshotInfo,
-        TSnapshotWriter* snapshotWriter);
+        TSnapshotWriter::TPtr snapshotWriter);
     EResult WriteSnapshot(
         i32 segmentId,
         i64 snapshotLength,
@@ -88,4 +90,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -1,6 +1,7 @@
 #include "service.h"
 
 #include "../logging/log.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NRpc {
@@ -201,53 +202,68 @@ void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IInvoker::TPtr serviceInvoker,
+    IInvoker::TPtr defaultServiceInvoker,
     Stroka serviceName,
     Stroka loggingCategory)
-    : ServiceLogger(loggingCategory)
-    , ServiceInvoker(serviceInvoker)
+    : DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
+    , ServiceLogger(loggingCategory)
 {
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~defaultServiceInvoker != NULL);
 }
 
 void TServiceBase::RegisterMethod(
-    Stroka methodName,
-    THandler::TPtr handler)
+    const TMethodDescriptor& descriptor,
+    IInvoker::TPtr invoker)
 {
-    bool inserted = MethodInfos.insert(
-        MakePair(methodName, New<TMethodInfo>(handler))).Second();
-    if (!inserted) {
-        LOG_FATAL("Method is already registered (ServiceName: %s, MethodName: %s)",
-            ~ServiceName, ~methodName);
+    YASSERT(~invoker != NULL);
+
+    if (!RuntimeMethodInfos.insert(MakePair(
+        descriptor.MethodName,
+        TRuntimeMethodInfo(descriptor, invoker))).Second()) {
+        ythrow yexception() << Sprintf("Method is already registered (ServiceName: %s, MethodName: %s)",
+            ~ServiceName,
+            ~descriptor.MethodName);
     }
+}
+
+void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
+{
+    RegisterMethod(descriptor, DefaultServiceInvoker);
 }
 
 void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
 {
     Stroka methodName = context->GetMethodName();
-    auto it = MethodInfos.find(methodName);
-    if (it == MethodInfos.end()) {
+    auto it = RuntimeMethodInfos.find(methodName);
+    if (it == RuntimeMethodInfos.end()) {
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
-            ~ServiceName, ~methodName);
-        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
+            ~ServiceName,
+            ~methodName);
+        auto errorMessage = ~New<TRpcErrorResponseMessage>(
             context->GetRequestId(),
             EErrorCode::NoMethod);
         context->GetReplyBus()->Send(errorMessage);
         return;
     }
-    context->StartTime = TInstant::Now();
 
-    THandler::TPtr handler = it->second->Handler;
-    IAction::TPtr wrappedHandler = context->Wrap(handler->Bind(context));
-    ServiceInvoker->Invoke(wrappedHandler);
+    auto& info = it->Second();
+    YVERIFY(OutstandingRequests.insert(MakePair(
+        context,
+        TOutstandingRequest(&info, TInstant::Now()))).Second());
+
+    auto handler = info.Descriptor.Handler;
+    auto wrappedHandler = context->Wrap(handler->Bind(context));
+    info.Invoker->Invoke(wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
 {
-    Stroka methodName = context->GetMethodName();
-    TInstant startTime = context->StartTime;
-    MethodInfos[methodName]->ExecutionTimeAnalyzer.AddDelta(startTime);
+    auto it = OutstandingRequests.find(context);
+    YASSERT(it != OutstandingRequests.end());
+    auto& request = it->Second();
+    request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);
+    OutstandingRequests.erase(it);
 }
 
 Stroka TServiceBase::GetServiceName() const
@@ -263,9 +279,10 @@ Stroka TServiceBase::GetLoggingCategory() const
 Stroka TServiceBase::GetDebugInfo() const
 {
     Stroka info = "Service " + ServiceName + ":\n";
-    FOREACH(const auto& pair, MethodInfos) {
+    FOREACH(const auto& pair, RuntimeMethodInfos) {
         info += Sprintf("Method %s: %s\n",
-            ~pair.first, ~pair.second->ExecutionTimeAnalyzer.GetDebugInfo());
+            ~pair.First(),
+            ~pair.Second().ExecutionTime.GetDebugInfo());
     }
     return info;
 }

@@ -3,6 +3,7 @@
 #endif
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +34,7 @@ TBlob SerializeChange(
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TMessage, class TResult>
-typename TAsyncResult<TResult>::TPtr TMetaStatePart::CommitChange(
+typename TFuture<TResult>::TPtr TMetaStatePart::CommitChange(
     const TMessage& message,
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
     IAction::TPtr errorHandler)
@@ -88,10 +89,10 @@ public:
         , Message(message)
         , ChangeMethod(changeMethod)
         , ErrorHandler(errorHandler)
-        , AsyncResult(New< TAsyncResult<TResult> >())
+        , AsyncResult(New< TFuture<TResult> >())
     { }
 
-    typename TAsyncResult<TResult>::TPtr Run()
+    typename TFuture<TResult>::TPtr Run()
     {
         // TODO: change ns
         NMetaState::NProto::TMsgChangeHeader header;
@@ -130,7 +131,7 @@ private:
     Stroka MethodName;
     typename IParamFunc<const TMessage&, TResult>::TPtr ChangeMethod;
     IAction::TPtr ErrorHandler;
-    typename TAsyncResult<TResult>::TPtr AsyncResult;
+    typename TFuture<TResult>::TPtr AsyncResult;
     TResult Result;
 
 };
@@ -138,4 +139,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

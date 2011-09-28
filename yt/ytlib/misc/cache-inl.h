@@ -43,7 +43,7 @@ TCacheBase<TKey, TValue, THash>::TCacheBase()
 { }
 
 template<class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncResultPtr
+typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
@@ -62,7 +62,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         TIntrusivePtr<TValue> value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
         if (~value != NULL) {
             TItem* item = new TItem();
-            item->AsyncResult = New< TAsyncResult<TValuePtr> >();
+            item->AsyncResult = New< TFuture<TValuePtr> >();
             item->AsyncResult->Set(value);
             LruList.PushFront(item);
             ++LruListSize;
@@ -97,7 +97,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
         }
 
         auto* item = new TItem();
-        item->AsyncResult = New< TAsyncResult<TValuePtr> >();
+        item->AsyncResult = New< TFuture<TValuePtr> >();
         cookie->AsyncResult = item->AsyncResult;
         ItemMap.insert(MakePair(key, item));
 
@@ -293,7 +293,7 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 }
 
 template<class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncResultPtr
+typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::TInsertCookie::GetAsyncResult() const
 {
     return AsyncResult;

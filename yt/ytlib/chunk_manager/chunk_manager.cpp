@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NChunkManager {
 
+using namespace NMetaState;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkManagerLogger;
@@ -20,7 +22,7 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
     , public NTransaction::ITransactionHandler
 {
 public:
@@ -28,8 +30,8 @@ public:
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager,
         TChunkReplication::TPtr chunkReplication,
         TChunkPlacement::TPtr chunkPlacement,
@@ -206,25 +208,18 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TChunkId, TChunk> TChunkMap;
-    typedef TMetaStateMap<THolderId, THolder> THolderMap;
-    typedef yhash_map<Stroka, THolderId> THolderAddressMap;
-    typedef TMetaStateMap<TChunkId, TJobList> TJobListMap;
-    typedef TMetaStateMap<TJobId, TJob> TJobMap;
-    typedef yhash_map<Stroka, TReplicationSink> TReplicationSinkMap;
-    
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
     TChunkReplication::TPtr ChunkReplication;
     TChunkPlacement::TPtr ChunkPlacement;
     THolderExpiration::TPtr HolderExpiration;
     THolderId CurrentHolderId;
-    TChunkMap ChunkMap;
-    THolderMap HolderMap;
-    THolderAddressMap HolderAddressMap;
-    TJobListMap JobListMap;
-    TJobMap JobMap;
-    TReplicationSinkMap ReplicationSinkMap;
+    TMetaStateMap<TChunkId, TChunk> ChunkMap;
+    TMetaStateMap<THolderId, THolder> HolderMap;
+    yhash_map<Stroka, THolderId> HolderAddressMap;
+    TMetaStateMap<TChunkId, TJobList> JobListMap;
+    TMetaStateMap<TJobId, TJob> JobMap;
+    yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const
@@ -232,7 +227,7 @@ private:
         return "ChunkManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
@@ -246,7 +241,7 @@ private:
         *stream << CurrentHolderId;
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
         auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
@@ -513,8 +508,8 @@ private:
         THolder& holder,
         const NProto::TChunkInfo& chunkInfo)
     {
-        THolderId holderId = holder.Id;
-        TChunkId chunkId = TChunkId::FromProto(chunkInfo.GetId());
+        auto holderId = holder.Id;
+        auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
         TChunk* chunk = FindChunkForUpdate(chunkId);
@@ -546,9 +541,9 @@ private:
         THolder& holder,
         const TChunkId& chunkId)
     {
-        THolderId holderId = holder.Id;
+        auto holderId = holder.Id;
 
-        TChunk* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
             LOG_DEBUG("Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
@@ -651,8 +646,8 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TState, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(
@@ -661,14 +656,9 @@ TChunkManager::TChunkManager(
         ChunkManagerLogger.GetCategory())
     , Config(config)
     , TransactionManager(transactionManager)
-    , ChunkPlacement(New<TChunkPlacement>(
-        this))
-    , ChunkReplication(New<TChunkReplication>(
-        this,
-        ChunkPlacement))
-    , HolderExpiration(New<THolderExpiration>(
-        config,
-        this))
+    , ChunkPlacement(New<TChunkPlacement>(this))
+    , ChunkReplication(New<TChunkReplication>(this, ChunkPlacement))
+    , HolderExpiration(New<THolderExpiration>(config, this))
     , State(New<TState>(
         config,
         metaStateManager,
@@ -678,6 +668,10 @@ TChunkManager::TChunkManager(
         ChunkPlacement,
         HolderExpiration))
 {
+    YVERIFY(~metaState != NULL);
+    YVERIFY(~server != NULL);
+    YVERIFY(~transactionManager != NULL);
+
     RegisterMethods();
     metaState->RegisterPart(~State);
     server->RegisterService(this);
@@ -685,18 +679,18 @@ TChunkManager::TChunkManager(
 
 void TChunkManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TChunkManager, RegisterHolder);
-    RPC_REGISTER_METHOD(TChunkManager, HolderHeartbeat);
-    RPC_REGISTER_METHOD(TChunkManager, AddChunk);
-    RPC_REGISTER_METHOD(TChunkManager, FindChunk);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AddChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
 }
 
 void TChunkManager::ValidateHolderId(THolderId holderId)
 {
-    const THolder* holder = FindHolder(holderId);
+    const auto* holder = FindHolder(holderId);
     if (holder == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchHolder) <<
-            Sprintf("invalid or expired holder %d", holderId);
+        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
+            Sprintf("Invalid or expired holder %d", holderId);
     }
 }
 
@@ -704,19 +698,19 @@ void TChunkManager::ValidateChunkId(
     const TChunkId& chunkId,
     const TTransactionId& transactionId)
 {
-    const TChunk* chunk = FindChunk(chunkId);
+    const auto* chunk = FindChunk(chunkId);
     if (chunk == NULL || !chunk->IsVisible(transactionId)) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("invalid chunk %s", ~chunkId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
+            Sprintf("Invalid chunk %s", ~chunkId.ToString());
     }
 }
 
 void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    const TTransaction* transaction = TransactionManager->FindTransaction(transactionId);
+    const auto* transaction = TransactionManager->FindTransaction(transactionId);
     if (transaction == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchChunk) << 
-            Sprintf("invalid transaction %s", ~transactionId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
+            Sprintf("Invalid transaction %s", ~transactionId.ToString());
     }
 }
 
@@ -779,13 +773,13 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     // TODO: do not commit if no changes reported
     UNUSED(response);
 
-    THolderId holderId = request->GetHolderId();
+    auto holderId = request->GetHolderId();
 
     context->SetRequestInfo("HolderId: %d", holderId);
 
     ValidateHolderId(holderId);
 
-    const THolder& holder = GetHolder(holderId);
+    const auto& holder = GetHolder(holderId);
 
     context->SetRequestInfo("Address: %s, HolderId: %d",
         ~holder.Address,
@@ -865,7 +859,7 @@ void TChunkManager::OnHolderHeartbeatProcessed(
     TVoid,
     TCtxHolderHeartbeat::TPtr context)
 {
-    TRspHolderHeartbeat* response = &context->Response();
+    auto* response = &context->Response();
 
     context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
         static_cast<int>(response->JobsToStartSize()),
@@ -876,7 +870,7 @@ void TChunkManager::OnHolderHeartbeatProcessed(
 
 RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
 {
-    TTransactionId transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
 
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
@@ -927,7 +921,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
     ValidateTransactionId(transactionId);
     ValidateChunkId(chunkId, transactionId);
 
-    TChunk& chunk = GetChunkForUpdate(chunkId);
+    auto& chunk = GetChunkForUpdate(chunkId);
 
     // TODO: sort w.r.t. proximity
     FOREACH(auto holderId, chunk.Locations) {

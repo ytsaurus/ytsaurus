@@ -11,6 +11,7 @@
 #include "../actions/signal.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +28,7 @@ public:
         (InvalidVersion)
     );
 
-    typedef TAsyncResult<EResult> TResult;
+    typedef TFuture<EResult> TResult;
 
     struct TConfig
     {
@@ -119,4 +120,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

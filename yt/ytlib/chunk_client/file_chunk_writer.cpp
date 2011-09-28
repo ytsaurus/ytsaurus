@@ -24,7 +24,7 @@ void TFileChunkWriter::WriteBlock(const TSharedRef& data)
 
 IChunkWriter::EResult TFileChunkWriter::AsyncWriteBlock(
     const TSharedRef& data,
-    TAsyncResult<TVoid>::TPtr* ready)
+    TFuture<TVoid>::TPtr* ready)
 {
     *ready = NULL;
     WriteBlock(data);
@@ -51,10 +51,10 @@ void TFileChunkWriter::Close()
     File.Destroy();
 }
 
-TAsyncResult<IChunkWriter::EResult>::TPtr TFileChunkWriter::AsyncClose()
+TFuture<IChunkWriter::EResult>::TPtr TFileChunkWriter::AsyncClose()
 {
     Close();
-    return New< TAsyncResult<EResult> >(EResult::OK);
+    return New< TFuture<EResult> >(EResult::OK);
 }
 
 void TFileChunkWriter::Cancel()

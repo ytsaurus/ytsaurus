@@ -13,7 +13,7 @@ struct TVoid
 { };
 
 template<class T>
-class TAsyncResult;
+class TFuture;
 
 struct IAction;
 
@@ -46,13 +46,13 @@ struct IAction
 template <class TResult>
 struct TAsyncTraits
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 };
 
 template <class TResult>
-struct TAsyncTraits< TIntrusivePtr< TAsyncResult<TResult> > >
+struct TAsyncTraits< TIntrusivePtr< TFuture<TResult> > >
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

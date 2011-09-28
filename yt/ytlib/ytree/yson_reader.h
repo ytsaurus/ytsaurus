@@ -3,6 +3,9 @@
 #include "common.h"
 #include "yson_events.h"
 
+// TODO: move to cpp
+#include "../misc/assert.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -12,7 +15,7 @@ class TYsonReader
     : private TNonCopyable
 {
 public:
-    TYsonReader(IYsonConsumer::TPtr events)
+    TYsonReader(IYsonConsumer* events)
         : Events(events)
     {
         Reset();
@@ -40,7 +43,7 @@ private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 
-    IYsonConsumer::TPtr Events;
+    IYsonConsumer* Events;
     TInputStream* Stream;
     int Lookahead;
 

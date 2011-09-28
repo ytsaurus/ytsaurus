@@ -10,10 +10,10 @@ TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, Stroka holderAdd
     , Proxy(~TRemoteChunkReader::ChannelCache.GetChannel(holderAddress))
 { }
 
-TAsyncResult<IChunkReader::TReadResult>::TPtr
+TFuture<IChunkReader::TReadResult>::TPtr
 TRemoteChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
-    auto result = New< TAsyncResult<TReadResult> >();
+    auto result = New< TFuture<TReadResult> >();
     auto req = Proxy.GetBlocks();
     req->SetChunkId(ChunkId.ToProto());
 
@@ -29,7 +29,7 @@ TRemoteChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return result;
 }
 
-void TRemoteChunkReader::OnBlocksRead(TRspGetBlocks::TPtr rsp, TAsyncResult<TReadResult>::TPtr result)
+void TRemoteChunkReader::OnBlocksRead(TRspGetBlocks::TPtr rsp, TFuture<TReadResult>::TPtr result)
 {
     TReadResult readResult;
     for (int i = 0; i < rsp->Attachments().ysize(); i++) {

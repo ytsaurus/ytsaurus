@@ -5,6 +5,7 @@
 #include "../actions/action_util.h"
 
 namespace NYT {
+namespace NElection {
 
 using namespace NRpc;
 
@@ -32,7 +33,7 @@ const TDuration TElectionManager::TConfig::PotentialFollowerTimeout = TDuration:
 
 TElectionManager::TElectionManager(
     const TConfig& config,
-    TCellManager::TPtr cellManager,
+    NMetaState::TCellManager::TPtr cellManager,
     IInvoker::TPtr controlInvoker,
     IElectionCallbacks::TPtr electionCallbacks,
     NRpc::TServer::TPtr server)
@@ -51,6 +52,7 @@ TElectionManager::TElectionManager(
     YASSERT(~controlInvoker != NULL);
     YASSERT(~electionCallbacks != NULL);
     YASSERT(~server != NULL);
+
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     Reset();
@@ -63,8 +65,8 @@ TElectionManager::~TElectionManager()
 
 void TElectionManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TElectionManager, PingFollower);
-    RPC_REGISTER_METHOD(TElectionManager, GetStatus);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 }
 
 void TElectionManager::Start()
@@ -270,13 +272,15 @@ public:
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(TConfig::RpcTimeout),
-                FromMethod(&TVotingRound::OnResponse, TPtr(this), id));
+                FromMethod(&TThis::OnResponse, TPtr(this), id));
         }
 
-        Awaiter->Complete(FromMethod(&TVotingRound::OnComplete, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TThis::OnComplete, TPtr(this)));
     }
 
 private:
+    typedef TVotingRound TThis;
+
     struct TStatus
     {
         TProxy::EState State;
@@ -760,4 +764,5 @@ void TElectionManager::StopEpoch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

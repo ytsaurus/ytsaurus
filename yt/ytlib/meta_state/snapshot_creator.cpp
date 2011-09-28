@@ -7,6 +7,7 @@
 #include <util/system/fs.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,8 +131,15 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , StateInvoker(metaState->GetInvoker())
-{ }
+{
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    StateInvoker = metaState->GetInvoker();
+}
 
 void TSnapshotCreator::CreateDistributed(TMetaVersion version)
 {
@@ -200,4 +208,5 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

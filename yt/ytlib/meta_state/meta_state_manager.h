@@ -19,6 +19,7 @@
 #include "../misc/thread_affinity.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +27,7 @@ class TLeaderPinger;
 
 class TMetaStateManager
     : public NRpc::TServiceBase
-    , public IElectionCallbacks
+    , public NElection::IElectionCallbacks
 {
 public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
@@ -39,7 +40,7 @@ public:
         (InvalidState)
     );
 
-    typedef TAsyncResult<ECommitResult> TCommitResult;
+    typedef TFuture<ECommitResult> TCommitResult;
 
     TMetaStateManager(
         const TConfig& config,
@@ -88,7 +89,10 @@ public:
         const TSharedRef& changeData);
 
 private:
+    typedef TMetaStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);
@@ -125,8 +129,6 @@ private:
 
     ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
 
-    TMetaVersion GetNextVersion();
-
     // IElectionCallbacks members
     virtual void OnStartLeading(const TEpoch& epoch);
     virtual void OnStopLeading();
@@ -141,7 +143,7 @@ private:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IInvoker::TPtr StateInvoker;
-    TElectionManager::TPtr ElectionManager;
+    NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
@@ -164,4 +166,5 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

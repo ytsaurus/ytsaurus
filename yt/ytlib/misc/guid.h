@@ -14,7 +14,10 @@ struct TGuid
     ui32 Parts[4];
 
     //! Empty constructor.
-    TGuid() { Zero(*this); }
+    TGuid();
+
+    //! Constructor from parts.
+    TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
 
     //! Copy constructor.
     TGuid(const TGuid& guid); // copy ctor

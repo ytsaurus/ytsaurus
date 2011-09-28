@@ -4,6 +4,7 @@
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +31,7 @@ protected:
         class TMessage,
         class TResult
     >
-    static typename TAsyncResult<TResult>::TPtr CommitChange(
+    static typename TFuture<TResult>::TPtr CommitChange(
         TIntrusivePtr<TState> state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&))
@@ -106,4 +107,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

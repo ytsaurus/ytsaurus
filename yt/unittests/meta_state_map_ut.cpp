@@ -35,7 +35,7 @@ typedef TIntRefCounted TValue;
 
 TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 {
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
 
     EXPECT_IS_TRUE(map.Insert("a", TValue(42))); // add
     EXPECT_EQ(map.Find("a")->Value, 42);
@@ -64,10 +64,10 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     TBufferedFileOutput output(file);
     TOutputStream* stream = &output;
 
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
     IInvoker::TPtr invoker = new TActionQueue();
 
-    TAsyncResult<TVoid>::TPtr asyncResult;
+    TFuture<TVoid>::TPtr asyncResult;
 
     asyncResult = map.Save(invoker, stream);
     EXPECT_IS_TRUE(map.Insert("b", TValue(42))); // add to temp table
@@ -123,7 +123,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     yhash_map<TKey, int> checkMap;
     IInvoker::TPtr invoker = new TActionQueue();
     {
-        TMetaStateMap<TKey, TValue> map;
+        NMetaState::TMetaStateMap<TKey, TValue> map;
 
         int numValues = 10000;
         int range = 1000;
@@ -138,7 +138,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         map.Save(invoker, stream)->Get();
     }
     {
-        TMetaStateMap<TKey, TValue> map;
+        NMetaState::TMetaStateMap<TKey, TValue> map;
         TBufferedFileInput input(file);
         TInputStream* stream = &input;
 
@@ -165,7 +165,7 @@ TEST_F(TMetaStateMapTest, StressSave)
 
     yhash_map<TKey, int> checkMap;
     IInvoker::TPtr invoker = new TActionQueue();
-    TMetaStateMap<TKey, TValue> map;
+    NMetaState::TMetaStateMap<TKey, TValue> map;
 
     int numValues = 100000;
     int range = 100000;
@@ -176,7 +176,7 @@ TEST_F(TMetaStateMapTest, StressSave)
         bool result = checkMap.insert(MakePair(key, value)).second;
         EXPECT_EQ(map.Insert(key, TValue(value)), result);
     }
-    TAsyncResult<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
+    TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
 
     int numActions = 100000;
     range = 200000;

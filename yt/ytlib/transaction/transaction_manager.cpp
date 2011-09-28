@@ -15,15 +15,15 @@ static NLog::TLogger& Logger = TransactionLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TState
-    : public TMetaStatePart
+    : public NMetaState::TMetaStatePart
 {
 public:
     typedef TIntrusivePtr<TState> TPtr;
 
     TState(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState)
+        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::TCompositeMetaState::TPtr metaState)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         , LeaseManager(New<TLeaseManager>())
@@ -147,7 +147,7 @@ public:
     }
 
 private:
-    typedef TMetaStateMap<TTransactionId, TTransaction> TTransactionMap;
+    typedef NMetaState::TMetaStateMap<TTransactionId, TTransaction> TTransactionMap;
     typedef yvector<ITransactionHandler::TPtr> THandlers;
 
     //! Configuration.
@@ -221,12 +221,12 @@ private:
         return "TransactionManager";
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
     {
         return Transactions.Save(GetSnapshotInvoker(), stream);
     }
 
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
     {
         return Transactions.Load(GetSnapshotInvoker(), stream);
     }
@@ -258,8 +258,8 @@ private:
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
+    NMetaState::TMetaStateManager::TPtr metaStateManager,
+    NMetaState::TCompositeMetaState::TPtr metaState,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)
     : TMetaStateServiceBase(
@@ -278,10 +278,10 @@ TTransactionManager::TTransactionManager(
 
 void TTransactionManager::RegisterMethods()
 {
-    RPC_REGISTER_METHOD(TTransactionManager, StartTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, CommitTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, AbortTransaction);
-    RPC_REGISTER_METHOD(TTransactionManager, RenewTransactionLease);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
 }
 
 void TTransactionManager::RegisterHander(ITransactionHandler::TPtr handler)
@@ -293,8 +293,8 @@ void TTransactionManager::ValidateTransactionId(const TTransactionId& id)
 {
     const TTransaction* transaction = State->FindTransaction(id);
     if (transaction == NULL) {
-        ythrow NRpc::TServiceException(EErrorCode::NoSuchTransaction) <<
-            Sprintf("unknown or expired transaction %s",
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
+            Sprintf("Unknown or expired transaction %s",
                 ~id.ToString());
     }
 }

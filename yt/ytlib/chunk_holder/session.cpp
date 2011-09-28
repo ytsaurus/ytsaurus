@@ -76,7 +76,7 @@ void TSessionManager::CancelSession(TSession::TPtr session)
         ~chunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
+TFuture<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
 {
     TChunkId chunkId = session->GetChunkId();
 
@@ -179,12 +179,12 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow NRpc::TServiceException(TErrorCode::WindowError)
-            << Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 
     LOG_DEBUG("Chunk block retrieved (ChunkId: %s, BlockIndex: %d)",
@@ -204,11 +204,11 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     TSlot& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        ythrow NRpc::TServiceException(TErrorCode::WindowError)
-            << Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
-            ~blockId.ToString(),
-            WindowStart,
-            Window.ysize());
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+                ~blockId.ToString(),
+                WindowStart,
+                Window.ysize());
     }
 
     slot.State = ESlotState::Received;
@@ -273,7 +273,7 @@ void TSession::OnBlockWritten(TVoid, i32 blockIndex)
     slot.IsWritten->Set(TVoid());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
+TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -283,12 +283,12 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow NRpc::TServiceException(TErrorCode::WindowError)
-            << Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
@@ -304,19 +304,19 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TSession::Finish()
+TFuture<TVoid>::TPtr TSession::Finish()
 {
     CloseLease();
 
     for (i32 blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            ythrow NRpc::TServiceException(TErrorCode::WindowError)
-                << Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
-                WindowStart,
-                Window.ysize(),
-                blockIndex);
+            ythrow TServiceException(EErrorCode::WindowError) <<
+                Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                    ~ChunkId.ToString(),
+                    WindowStart,
+                    Window.ysize(),
+                    blockIndex);
         }
     }
 
@@ -364,7 +364,7 @@ void TSession::DoDeleteFile()
         ~ChunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::CloseFile()
+TFuture<TVoid>::TPtr TSession::CloseFile()
 {
     return
         FromMethod(
@@ -416,12 +416,12 @@ bool TSession::IsInWindow(i32 blockIndex)
 void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
-        ythrow NRpc::TServiceException(TErrorCode::WindowError)
-            << Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 }
 

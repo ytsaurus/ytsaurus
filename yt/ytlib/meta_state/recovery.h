@@ -14,6 +14,7 @@
 #include "../election/election_manager.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +32,7 @@ public:
         (Failed)
     );
 
-    typedef TAsyncResult<EResult> TResult;
+    typedef TFuture<EResult> TResult;
 
     TRecovery(
         const TMetaStateManagerConfig& config,
@@ -53,7 +54,7 @@ protected:
 
     virtual bool IsLeader() const = 0;
 
-    // Work thread
+    // State thread
     TResult::TPtr RecoverFromSnapshot(
         TMetaVersion targetVersion,
         i32 snapshotId);
@@ -77,6 +78,8 @@ protected:
     TCancelableInvoker::TPtr CancelableServiceInvoker;
     TCancelableInvoker::TPtr CancelableStateInvoker;
 
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +90,9 @@ class TLeaderRecovery
 public:
     typedef TIntrusivePtr<TLeaderRecovery> TPtr;
 
+    /*!
+     * \note Thread affinity: ServiceThread.
+     */
     TLeaderRecovery(
         const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
@@ -98,7 +104,10 @@ public:
         IInvoker::TPtr serviceInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
-    TResult::TPtr Run(const TMetaVersion& version);
+    /*!
+     * \note Thread affinity: ServiceThread.
+     */
+    TResult::TPtr Run();
 
 private:
     virtual bool IsLeader() const;
@@ -113,6 +122,9 @@ class TFollowerRecovery
 public:
     typedef TIntrusivePtr<TFollowerRecovery> TPtr;
 
+    /*!
+     * \note Thread affinity: ServiceThread.
+     */
     TFollowerRecovery(
         const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
@@ -124,6 +136,9 @@ public:
         IInvoker::TPtr serviceInvoker);
 
     //! Performs follower recovery brining the follower up-to-date and synched with the leader.
+    /*!
+     * \note Thread affinity: ServiceThread.
+     */
     TResult::TPtr Run();
 
     //! Postpones incoming request for advancing the current segment in the master state.
@@ -131,21 +146,26 @@ public:
      * \param version State in which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed state
      * and postponing succeeded.
+     * \note Thread affinity: ServiceThread.
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
+
     //! Postpones incoming change to the master state.
     /*!
      * \param change Incoming change.
      * \param version State in which the change should be applied.
      * \returns True when applicable change is coherent with the postponed state
      * and postponing succeeded.
+     * \note Thread affinity: ServiceThread.
      */
     EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
+
     //! Handles sync response from the leader
     /*!
      * \param version Current state at leader.
      * \param epoch Current epoch at leader.
      * \param maxSnapshotId Maximum snapshot id at leader.
+     * \note Thread affinity: ServiceThread.
      */
     void Sync(
         const TMetaVersion& version,
@@ -198,10 +218,12 @@ private:
     virtual bool IsLeader() const;
     TResult::TPtr OnSyncReached(EResult result);
 
-    // Work thread.
+    // State thread.
     TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMetaState
 } // namespace NYT

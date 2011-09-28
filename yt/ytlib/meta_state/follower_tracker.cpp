@@ -1,6 +1,7 @@
 #include "follower_tracker.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,9 +16,13 @@ TFollowerTracker::TFollowerTracker(
     : Config(config)
     , CellManager(cellManager)
     , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
-    , FollowerStates(cellManager->GetPeerCount())
     , LeaseManager(New<TLeaseManager>())
 {
+    YASSERT(~cellManager != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    FollowerStates = yvector<TFollowerState>(cellManager->GetPeerCount());
+
     ResetFollowerStates();
 }
 
@@ -90,4 +95,5 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

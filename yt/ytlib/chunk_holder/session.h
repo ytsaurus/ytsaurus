@@ -48,14 +48,16 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TAsyncResult<TVoid>::TPtr FlushBlock(i32 blockIndex);
+    TFuture<TVoid>::TPtr FlushBlock(i32 blockIndex);
 
     void RenewLease();
 
 private:
     friend class TSessionManager;
 
-    typedef TChunkHolderProxy::EErrorCode TErrorCode;
+    typedef TChunkHolderProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -68,12 +70,12 @@ private:
         TSlot()
             : State(ESlotState::Empty)
             , Block(NULL)
-            , IsWritten(New< TAsyncResult<TVoid> >())
+            , IsWritten(New< TFuture<TVoid> >())
         { }
 
         ESlotState State;
         TCachedBlock::TPtr Block;
-        TAsyncResult<TVoid>::TPtr IsWritten;
+        TFuture<TVoid>::TPtr IsWritten;
     };
 
     typedef yvector<TSlot> TWindow;
@@ -92,7 +94,7 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    TAsyncResult<TVoid>::TPtr Finish();
+    TFuture<TVoid>::TPtr Finish();
     void Cancel();
 
     void SetLease(TLeaseManager::TLease lease);
@@ -111,7 +113,7 @@ private:
     void DeleteFile();
     void DoDeleteFile();
 
-    TAsyncResult<TVoid>::TPtr CloseFile();
+    TFuture<TVoid>::TPtr CloseFile();
     TVoid DoCloseFile();
 
     void EnqueueWrites();
@@ -147,7 +149,7 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TAsyncResult<TVoid>::TPtr FinishSession(TSession::TPtr session);
+    TFuture<TVoid>::TPtr FinishSession(TSession::TPtr session);
 
     //! Cancels an earlier opened upload session.
     /*!

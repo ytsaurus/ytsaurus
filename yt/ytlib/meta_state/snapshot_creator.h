@@ -12,6 +12,7 @@
 #include "../rpc/client.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +49,7 @@ public:
         { }
     };
 
-    typedef TAsyncResult<TLocalResult> TAsyncLocalResult;
+    typedef TFuture<TLocalResult> TAsyncLocalResult;
 
     TSnapshotCreator(
         const TConfig& config,
@@ -86,4 +87,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

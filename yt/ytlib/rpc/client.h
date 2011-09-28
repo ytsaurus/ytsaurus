@@ -3,15 +3,17 @@
 #include "channel.h"
 
 #include "../bus/bus_client.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../misc/delayed_invoker.h"
 
 // TODO: forward declaration for friends
 
 namespace NYT {
+namespace NMetaState {
 
 class TCellChannel;
 
+}
 } // namespace NYT
 
 namespace NYT {
@@ -78,7 +80,7 @@ protected:
         Stroka methodName);
 
     virtual bool SerializeBody(TBlob* data) = 0;
-    TAsyncResult<TVoid>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
+    TFuture<TVoid>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
 
 private:
     friend class TChannel;
@@ -108,7 +110,7 @@ private:
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
-    typedef TAsyncResult<typename TTypedResponse::TPtr> TInvokeResult;
+    typedef TFuture<typename TTypedResponse::TPtr> TInvokeResult;
 
     TTypedClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
         : TClientRequest(channel, serviceName, methodName)
@@ -169,7 +171,7 @@ protected:
 
 private:
     friend class TChannel;
-    friend class ::NYT::TCellChannel;
+    friend class ::NYT::NMetaState::TCellChannel;
     friend class TClientRequest;
 
     DECLARE_ENUM(EState,
@@ -221,7 +223,7 @@ public:
     }
 
 private:
-    typename TAsyncResult<TPtr>::TPtr AsyncResult;
+    typename TFuture<TPtr>::TPtr AsyncResult;
 
 
     virtual bool DeserializeBody(TRef data)
@@ -235,7 +237,7 @@ private:
 #define RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method, EErrorCode> TReq##method; \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method, EErrorCode> TRsp##method; \
-    typedef ::NYT::TAsyncResult<TRsp##method::TPtr> TInv##method; \
+    typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \
     { \
