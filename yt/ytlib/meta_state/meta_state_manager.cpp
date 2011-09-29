@@ -753,7 +753,9 @@ void TMetaStateManager::OnApplyChange()
     YASSERT(State == EPeerState::Leading);
 
     auto version = MetaState->GetVersion();
-    if (version.RecordCount >= Config.MaxRecordCount) {
+    if (Config.MaxChangesBetweenSnapshots >= 0 &&
+        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
+    {
         ChangeCommitter->Flush();
         SnapshotCreator->CreateDistributed(version);
     }

@@ -19,7 +19,8 @@ public:
     TSnapshotReader::TPtr GetReader(i32 snapshotId);
     TSnapshotWriter::TPtr GetWriter(i32 snapshotId);
 
-    // Returns NonexistingSnapshotId when no snapshots are found.
+    //! \return The largest id of the snapshot that exists locally
+    //! or #NonexistingSnapshotId if no snapshots are found.
     i32 GetMaxSnapshotId();
 
 private:
