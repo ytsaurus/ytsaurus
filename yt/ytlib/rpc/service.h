@@ -387,6 +387,9 @@ private:
     IInvoker::TPtr DefaultServiceInvoker;
     Stroka ServiceName;
     NLog::TLogger ServiceLogger;
+
+    //! Protects #RuntimeMethodInfos and #OutstandingRequests.
+    TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
     yhash_map<TServiceContext::TPtr, TOutstandingRequest> OutstandingRequests;
 
