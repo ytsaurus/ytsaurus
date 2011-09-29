@@ -69,7 +69,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~requestId.ToString());
 
     if (!Started) {
-        auto errorMessage = ~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::Unavailable);
         replyBus->Send(errorMessage);
@@ -80,7 +80,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 
     auto service = GetService(serviceName);
     if (~service == NULL) {
-        auto errorMessage = ~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::NoService);
         replyBus->Send(errorMessage);
@@ -89,7 +89,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    auto context = New<TServiceContext>(
+    TServiceContext::TPtr context = New<TServiceContext>(
         service,
         requestId,
         methodName,
