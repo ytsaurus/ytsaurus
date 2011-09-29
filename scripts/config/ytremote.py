@@ -6,7 +6,7 @@ DoRun = FileDescr('do_run', ('remote', 'exec'))
 DoStop = FileDescr('do_stop', ('remote', 'exec'))
 DoClean = FileDescr('do_clean', ('remote', 'exec'))
 
-Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
+Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog]
 
 ################################################################
 
