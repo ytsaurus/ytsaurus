@@ -164,8 +164,6 @@ void TPrioritizedActionQueue::ThreadMain()
 {
     try {
         while (true) {
-            // !!! Seems to be incorrect logic
-
             for (i32 i = 0; i < PriorityCount; ++i) {
                 auto* queue = QueueInvokers[i]->GetQueue();
                 IAction::TPtr action;
