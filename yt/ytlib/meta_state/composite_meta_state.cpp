@@ -39,6 +39,7 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
     , Role(ERole::None)
+    , IsRecovery_(false)
 {
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
@@ -52,6 +53,11 @@ bool TMetaStatePart::IsLeader() const
 bool TMetaStatePart::IsFolllower() const
 {
     return Role == ERole::Follower;
+}
+
+bool TMetaStatePart::IsRecovery() const
+{
+    return IsRecovery_;
 }
 
 IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
@@ -73,13 +79,16 @@ IInvoker::TPtr TMetaStatePart::GetEpochStateInvoker() const
 void TMetaStatePart::OnStartLeading()
 {
     YASSERT(Role == ERole::None);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::Leader;
+    IsRecovery_ = true;
 }
 
 void TMetaStatePart::OnStopLeading()
 {
     YASSERT(Role == ERole::Leader);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::None;
 }
@@ -87,15 +96,26 @@ void TMetaStatePart::OnStopLeading()
 void TMetaStatePart::OnStartFollowing()
 {
     YASSERT(Role == ERole::None);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::Follower;
+    IsRecovery_ = true;
 }
 
 void TMetaStatePart::OnStopFollowing()
 {
     YASSERT(Role == ERole::Follower);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::None;
+}
+
+void TMetaStatePart::OnRecoveryComplete()
+{
+    YASSERT(Role == ERole::Leader || Role == ERole::Follower);
+    YASSERT(IsRecovery_);
+
+    IsRecovery_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +210,13 @@ void TCompositeMetaState::OnStopFollowing()
         pair.Second()->OnStopFollowing();
     }
     StopEpoch();
+}
+
+void TCompositeMetaState::OnRecoveryComplete()
+{
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnRecoveryComplete();
+    }
 }
 
 void TCompositeMetaState::StartEpoch()

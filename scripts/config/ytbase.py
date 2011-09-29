@@ -105,6 +105,7 @@ def make_aggregate(node, runcmd):
                     for descr in l.files:
                         if name == descr.name:
                             print >>fd, runcmd(l.local_path(descr.filename))
+                print >>fd, 'wait'
             make_executable(fd.name)
 
     for scls in node.__subclasses__():

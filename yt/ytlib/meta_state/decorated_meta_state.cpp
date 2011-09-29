@@ -250,6 +250,13 @@ void TDecoratedMetaState::OnStopFollowing()
     State->OnStopFollowing();
 }
 
+void TDecoratedMetaState::OnRecoveryComplete()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    State->OnRecoveryComplete();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState

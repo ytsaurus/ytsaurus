@@ -42,6 +42,7 @@ protected:
 
     bool IsLeader() const;
     bool IsFolllower() const;
+    bool IsRecovery() const;
 
     IInvoker::TPtr GetSnapshotInvoker() const;
     IInvoker::TPtr GetStateInvoker() const;
@@ -56,8 +57,11 @@ protected:
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();
+
     virtual void OnStartFollowing();
     virtual void OnStopFollowing();
+
+    virtual void OnRecoveryComplete();
 
     TMetaStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
@@ -82,6 +86,7 @@ private:
     );
 
     ERole Role;
+    bool IsRecovery_;
 
 };
 
@@ -121,8 +126,11 @@ private:
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();
+
     virtual void OnStartFollowing();
     virtual void OnStopFollowing();
+
+    virtual void OnRecoveryComplete();
 
     void StartEpoch();
     void StopEpoch();

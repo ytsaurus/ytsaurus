@@ -122,6 +122,12 @@ public:
      */
     void OnStopFollowing();
 
+    //! Delegates the call to IMetaState::RecoveryComplete.
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    void OnRecoveryComplete();
+
 private:
     void IncrementRecordCount();
     void ComputeReachableVersion();

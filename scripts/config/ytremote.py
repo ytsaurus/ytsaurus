@@ -24,7 +24,7 @@ class RemoteNode(Node):
     @initmethod
     def init(cls):
         cls._init_path()
-        cls.remote_dir = os.path.join('.', cls.path)
+        cls.remote_dir = os.path.join(cls.base_dir, cls.path)
         cls.work_dir = cls.remote_dir
         
         for descr in cls.files:
@@ -71,7 +71,7 @@ class RemoteNode(Node):
     def clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'ssh %s %s' % (cls.host, cls.do_clean_path)
-        
+
 
 class RemoteServer(RemoteNode, ServerNode):
     pass
@@ -89,12 +89,12 @@ def configure(root):
         if not node.__leafs:
             host = getattr(node, 'host', None)
             if host:
-                hosts.add(host)
+                hosts.add((host, node))
     append_hosts(root)
         
     with open(root.local_path('remove_all.' + SCRIPT_EXT), 'w') as fd:
         print >>fd, shebang
-        for host in hosts:
-            print >>fd, 'ssh %s rm -rf %s' % (host, root.path)
+        for host, node in hosts:
+            print >>fd, 'ssh %s rm -rf %s' % (host, os.path.join(node.base_dir, root.path))
     make_executable(fd.name)
         
