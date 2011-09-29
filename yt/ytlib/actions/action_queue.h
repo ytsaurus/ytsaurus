@@ -55,7 +55,6 @@ protected:
     bool IsEmpty() const;
 
 private:
-    bool EnableLogging;
     TThread Thread;
     
     // Don't move it above: we need it to be initialized after #Thread and #WakeupEvent.
