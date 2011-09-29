@@ -17,7 +17,6 @@ cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
 class RemoteNode(Node):
     files = Files
-    base_dir = '.'
     
     def remote_path(cls, filename):
         return os.path.join(cls.remote_dir, filename)
