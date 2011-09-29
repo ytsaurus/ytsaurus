@@ -1,5 +1,7 @@
 #include "json_adapter.h"
 
+#include <util/charset/wide.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -21,12 +23,12 @@ void TJsonAdapter::EndTree()
 
 void TJsonAdapter::StringValue(const Stroka& value)
 {
-    JsonWriter->Value(value);
+    JsonWriter->Value(CharToWide(value));
 }
 
 void TJsonAdapter::Int64Value(i64 value)
 {
-    JsonWriter->Value(value);
+    JsonWriter->Value((i32) value); // temp cast
 }
 
 void TJsonAdapter::DoubleValue(double value)
@@ -46,7 +48,7 @@ void TJsonAdapter::BeginList()
 
 void TJsonAdapter::ListItem(int index)
 {
-    //
+    UNUSED(index);
 }
 
 void TJsonAdapter::EndList()
@@ -61,7 +63,7 @@ void TJsonAdapter::BeginMap()
 
 void TJsonAdapter::MapItem(const Stroka& name)
 {
-    JsonWriter->Key(name);
+    JsonWriter->Key(CharToWide(name));
 }
 
 void TJsonAdapter::EndMap()
@@ -71,17 +73,18 @@ void TJsonAdapter::EndMap()
 
 void TJsonAdapter::BeginAttributes()
 {
-    assert(false);
+    YASSERT(false);
 }
 
 void TJsonAdapter::AttributesItem(const Stroka& name)
 {
-    assert(false);
+    UNUSED(name);
+    YASSERT(false);
 }
 
 void TJsonAdapter::EndAttributes()
 {
-    assert(false);
+    YASSERT(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
