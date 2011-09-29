@@ -13,29 +13,29 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueInvoker
-    : public IInvoker
+class TQueueInvoker;
+
+class TActionQueueBase
+    : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TQueueInvoker> TPtr;
+    typedef TIntrusivePtr<TActionQueueBase> TPtr;
 
-    typedef TLockFreeQueue<IAction::TPtr> TQueue;
+protected:
+    friend class TQueueInvoker;
 
-    TQueueInvoker(Event* wakeupEvent, bool enableLogging = true);
+    TActionQueueBase(bool enableLogging);
 
-    TQueue* GetQueue() const;
-    void Invoke(IAction::TPtr action);
-    void Shutdown();
-
-private:
-    THolder<TQueue> Queue;
-    Event* WakeupEvent;
     bool EnableLogging;
-    volatile bool Finished;
+    volatile bool IsFinished;
+    Event WakeupEvent;
+
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TActionQueue
-    : public TRefCountedBase
+    : public TActionQueueBase
 {
 public:
     typedef TIntrusivePtr<TActionQueue> TPtr;
@@ -47,6 +47,7 @@ public:
     virtual ~TActionQueue();
 
     IInvoker::TPtr GetInvoker();
+
     void Shutdown();
 
 protected:
@@ -55,44 +56,41 @@ protected:
 
 private:
     bool EnableLogging;
-    volatile bool Finished;
     TThread Thread;
-    Event WakeupEvent;
     
-    TQueueInvoker::TPtr QueueInvoker; // Don't move it above - we need it to be initialized after Thread and WakeupEvent
+    // Don't move it above: we need it to be initialized after #Thread and #WakeupEvent.
+    TIntrusivePtr<TQueueInvoker> QueueInvoker;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
+
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TPrioritizedActionQueue
-    : public TRefCountedBase
+    : public TActionQueueBase
 {
 public:
     typedef TIntrusivePtr<TPrioritizedActionQueue> TPtr;
 
-    TPrioritizedActionQueue(i32 priorityCount);
+    TPrioritizedActionQueue(int priorityCount);
 
     ~TPrioritizedActionQueue();
 
-    IInvoker::TPtr GetInvoker(i32 priority);
+    IInvoker::TPtr GetInvoker(int priority);
     void Shutdown();
 
 protected:
     virtual void OnIdle();
-    bool IsEmpty();
 
 private:
-    i32 PriorityCount;
-
-    autoarray<TQueueInvoker::TPtr> QueueInvokers;
+    autoarray< TIntrusivePtr<TQueueInvoker> > QueueInvokers;
 
     TThread Thread;
-    volatile bool Finished;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
-    Event WakeupEvent;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
