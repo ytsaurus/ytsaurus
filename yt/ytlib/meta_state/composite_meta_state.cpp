@@ -107,6 +107,8 @@ TCompositeMetaState::TCompositeMetaState()
 
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 {
+    YASSERT(~part != NULL);
+
     Stroka partName = part->GetPartName();
     YVERIFY(Parts.insert(MakePair(partName, part)).Second());
 }
