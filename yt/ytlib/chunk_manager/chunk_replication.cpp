@@ -18,7 +18,10 @@ TChunkReplication::TChunkReplication(
     TChunkPlacement::TPtr chunkPlacement)
     : ChunkManager(chunkManager)
     , ChunkPlacement(chunkPlacement)
-{ }
+{
+    YASSERT(~chunkManager != NULL);
+    YASSERT(~chunkPlacement != NULL);
+}
 
 void TChunkReplication::RunJobControl(
     const THolder& holder,

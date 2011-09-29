@@ -651,7 +651,7 @@ TChunkManager::TChunkManager(
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(
-        metaState->GetInvoker(),
+        metaState->GetInvoker(), // BUG: fail here if metaState is NULL
         TChunkManagerProxy::GetServiceName(),
         ChunkManagerLogger.GetCategory())
     , Config(config)
@@ -668,9 +668,10 @@ TChunkManager::TChunkManager(
         ChunkPlacement,
         HolderExpiration))
 {
-    YVERIFY(~metaState != NULL);
-    YVERIFY(~server != NULL);
-    YVERIFY(~transactionManager != NULL);
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~server != NULL);
+    YASSERT(~transactionManager != NULL);
 
     RegisterMethods();
     metaState->RegisterPart(~State);
