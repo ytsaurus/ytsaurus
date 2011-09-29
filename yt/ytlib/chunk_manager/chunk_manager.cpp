@@ -67,7 +67,7 @@ public:
 
         ChunkMap.Insert(chunkId, chunk);
 
-        LOG_INFO("Chunk added (ChunkId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk added (ChunkId: %s)",
             ~chunkId.ToString());
 
         return chunkId;
@@ -75,7 +75,7 @@ public:
 
     TVoid RemoveChunk(const NProto::TMsgRemoveChunk& message)
     {
-        TChunkId chunkId = TChunkId::FromProto(message.GetChunkId());
+        auto chunkId = TChunkId::FromProto(message.GetChunkId());
         
         const TChunk& chunk = GetChunk(chunkId);
         DoRemoveChunk(chunk);
@@ -109,7 +109,7 @@ public:
     
         const auto* existingHolder = FindHolder(address);
         if (existingHolder != NULL) {
-            LOG_INFO("Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
                 existingHolder->Id);
             DoUnregisterHolder(*existingHolder);
@@ -128,7 +128,7 @@ public:
             StartHolderTracking(newHolder);
         }
 
-        LOG_INFO("Holder registered (Address: %s, HolderId: %d, %s)",
+        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
             ~address,
             holderId,
             ~statistics.ToString());
@@ -173,7 +173,7 @@ public:
             holder.State = EHolderState::Active;
         }
         
-        LOG_DEBUG("Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
             ~holder.Address,
             holderId,
             ~ToString(isFirstHeartbeat),
@@ -198,7 +198,7 @@ public:
             DoRemoveJob(holder, job);
         }
 
-        LOG_DEBUG("Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
             ~holder.Address,
             holderId,
             static_cast<int>(message.StartedJobsSize()),
@@ -319,11 +319,11 @@ private:
 
     virtual void OnTransactionCommitted(TTransaction& transaction)
     {
-        FOREACH(const TChunkId& chunkId, transaction.AddedChunks) {
-            TChunk& chunk = GetChunkForUpdate(chunkId);
+        FOREACH(const auto& chunkId, transaction.AddedChunks) {
+            auto& chunk = GetChunkForUpdate(chunkId);
             chunk.TransactionId = TTransactionId();
 
-            LOG_DEBUG("Chunk committed (ChunkId: %s)",
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk committed (ChunkId: %s)",
                 ~chunk.Id.ToString());
         }
 
@@ -363,17 +363,17 @@ private:
             StopHolderTracking(holder);
         }
 
-        FOREACH(const TChunkId& chunkId, holder.Chunks) {
-            TChunk& chunk = GetChunkForUpdate(chunkId);
+        FOREACH(const auto& chunkId, holder.Chunks) {
+            auto& chunk = GetChunkForUpdate(chunkId);
             DoRemovedChunkReplicaAtDeadHolder(holder, chunk);
         }
 
-        FOREACH(const TJobId& jobId, holder.Jobs) {
-            const TJob& job = GetJob(jobId);
+        FOREACH(const auto& jobId, holder.Jobs) {
+            const auto& job = GetJob(jobId);
             DoRemoveJobAtDeadHolder(holder, job);
         }
 
-        LOG_INFO("Holder unregistered (Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
             ~holder.Address,
             holderId);
 
@@ -383,10 +383,10 @@ private:
 
     void DoRemoveChunk(const TChunk& chunk)
     {
-        TChunkId chunkId = chunk.Id;
+        auto chunkId = chunk.Id;
         YVERIFY(ChunkMap.Remove(chunkId));
 
-        LOG_INFO("Chunk removed (ChunkId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk removed (ChunkId: %s)",
             ~chunkId.ToString());
     }
 
@@ -395,7 +395,7 @@ private:
         YVERIFY(holder.Chunks.insert(chunk.Id).Second());
         chunk.AddLocation(holder.Id);
 
-        LOG_INFO("Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
             ~chunk.Id.ToString(),
             ~holder.Address,
             holder.Id,
@@ -411,7 +411,7 @@ private:
         YVERIFY(holder.Chunks.erase(chunk.Id) == 1);
         chunk.RemoveLocation(holder.Id);
 
-        LOG_INFO("Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.Id.ToString(),
              ~holder.Address,
              holder.Id);
@@ -425,7 +425,7 @@ private:
     {
         chunk.RemoveLocation(holder.Id);
 
-        LOG_INFO("Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.Id.ToString(),
              ~holder.Address,
              holder.Id);
@@ -457,7 +457,7 @@ private:
 
         RegisterReplicationSinks(job);
 
-        LOG_INFO("Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
             ~holder.Address,
             holder.Id,
@@ -479,7 +479,7 @@ private:
 
         YVERIFY(JobMap.Remove(job.JobId));
 
-        LOG_INFO("Job removed (JobId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.Address,
             holder.Id);
@@ -497,7 +497,7 @@ private:
 
         YVERIFY(JobMap.Remove(job.JobId));
 
-        LOG_INFO("Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.Address,
             holder.Id);
@@ -514,7 +514,7 @@ private:
 
         TChunk* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_ERROR("Unknown chunk added at holder (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
+            LOG_ERROR_IF(!IsRecovery(), "Unknown chunk added at holder (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
                 ~holder.Address,
                 holderId,
                 ~chunkId.ToString(),
@@ -545,7 +545,7 @@ private:
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_DEBUG("Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~holder.Address,
                  holderId);

@@ -678,6 +678,10 @@ void TMetaStateManager::OnStartLeading(const TEpoch& epoch)
     LeaderId = CellManager->GetSelfId();    
     StartEpoch(epoch);
     
+    StateInvoker->Invoke(FromMethod(
+        &TDecoratedMetaState::OnStartLeading,
+        MetaState));
+
     YASSERT(~LeaderRecovery == NULL);
     LeaderRecovery = New<TLeaderRecovery>(
         Config,
@@ -699,6 +703,10 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
+
+    StateInvoker->Invoke(FromMethod(
+        &TDecoratedMetaState::OnRecoveryComplete,
+        MetaState));
 
     YASSERT(~LeaderRecovery != NULL);
     // TODO: try to eliminate this call
@@ -739,10 +747,6 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         ControlInvoker);
 
     State = EPeerState::Leading;
-
-    StateInvoker->Invoke(FromMethod(
-        &TDecoratedMetaState::OnStartLeading,
-        MetaState));
 
     LOG_INFO("Leader recovery complete");
 }
@@ -802,6 +806,10 @@ void TMetaStateManager::OnStartFollowing(TPeerId leaderId, const TEpoch& epoch)
     LeaderId = leaderId;
     StartEpoch(epoch);
 
+    StateInvoker->Invoke(FromMethod(
+        &TDecoratedMetaState::OnStartFollowing,
+        MetaState));
+
     YASSERT(~FollowerRecovery == NULL);
     FollowerRecovery = New<TFollowerRecovery>(
         Config,
@@ -824,10 +832,14 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
     YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
-    YASSERT(~LeaderRecovery != NULL);
+    StateInvoker->Invoke(FromMethod(
+        &TDecoratedMetaState::OnRecoveryComplete,
+        MetaState));
+
+    YASSERT(~FollowerRecovery != NULL);
     // TODO: try to eliminate this call
-    LeaderRecovery->Stop();
-    LeaderRecovery.Drop();
+    FollowerRecovery->Stop();
+    FollowerRecovery.Drop();
 
     if (result != TRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
@@ -865,10 +877,6 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
         ControlInvoker);
 
     State = EPeerState::Following;
-
-    StateInvoker->Invoke(FromMethod(
-        &TDecoratedMetaState::OnStartFollowing,
-        MetaState));
 
     LOG_INFO("Follower recovery complete");
 }

@@ -13,7 +13,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMetaState
-    : public virtual TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IMetaState> TPtr;
 
@@ -28,8 +28,11 @@ struct IMetaState
 
     virtual void OnStartLeading() = 0;
     virtual void OnStopLeading() = 0;
+
     virtual void OnStartFollowing() = 0;
     virtual void OnStopFollowing() = 0;
+
+    virtual void OnRecoveryComplete() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
