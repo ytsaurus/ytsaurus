@@ -228,7 +228,7 @@ void TLogManager::Flush()
     TActionQueue::TPtr queue = Queue;
     if (~queue != NULL) {
         FromMethod(&TLogManager::DoFlush, this)
-            ->AsyncVia(~queue)
+            ->AsyncVia(queue->GetInvoker())
             ->Do()
             ->Get();
     }
@@ -257,7 +257,7 @@ void TLogManager::Write(const TLogEvent& event)
 {
     TActionQueue::TPtr queue = Queue;
     if (~queue != NULL) {
-        queue->Invoke(FromMethod(&TLogManager::DoWrite, this, event));
+        queue->GetInvoker()->Invoke(FromMethod(&TLogManager::DoWrite, this, event));
 
         // TODO: use system-wide exit function
         if (event.GetLevel() == ELogLevel::Fatal) {

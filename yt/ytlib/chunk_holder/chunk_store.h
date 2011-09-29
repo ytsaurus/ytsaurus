@@ -79,7 +79,7 @@ private:
     Stroka Path;
     i64 AvailableSpace;
     i64 UsedSpace;
-    IInvoker::TPtr Invoker;
+    TActionQueue::TPtr ActionQueue;
 
 };
 
