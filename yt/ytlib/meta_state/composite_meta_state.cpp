@@ -39,6 +39,7 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
     , Role(ERole::None)
+    , IsRecovery_(false)
 {
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
@@ -54,14 +55,19 @@ bool TMetaStatePart::IsFolllower() const
     return Role == ERole::Follower;
 }
 
+bool TMetaStatePart::IsRecovery() const
+{
+    return IsRecovery_;
+}
+
 IInvoker::TPtr TMetaStatePart::GetSnapshotInvoker() const
 {
-    return MetaState->SnapshotInvoker;
+    return MetaState->SnapshotActionQueue->GetInvoker();
 }
 
 IInvoker::TPtr TMetaStatePart::GetStateInvoker() const
 {
-    return MetaState->StateInvoker;
+    return MetaState->StateActionQueue->GetInvoker();
 }
 
 IInvoker::TPtr TMetaStatePart::GetEpochStateInvoker() const
@@ -73,13 +79,16 @@ IInvoker::TPtr TMetaStatePart::GetEpochStateInvoker() const
 void TMetaStatePart::OnStartLeading()
 {
     YASSERT(Role == ERole::None);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::Leader;
+    IsRecovery_ = true;
 }
 
 void TMetaStatePart::OnStopLeading()
 {
     YASSERT(Role == ERole::Leader);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::None;
 }
@@ -87,22 +96,33 @@ void TMetaStatePart::OnStopLeading()
 void TMetaStatePart::OnStartFollowing()
 {
     YASSERT(Role == ERole::None);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::Follower;
+    IsRecovery_ = true;
 }
 
 void TMetaStatePart::OnStopFollowing()
 {
     YASSERT(Role == ERole::Follower);
+    YASSERT(!IsRecovery_);
 
     Role = ERole::None;
+}
+
+void TMetaStatePart::OnRecoveryComplete()
+{
+    YASSERT(Role == ERole::Leader || Role == ERole::Follower);
+    YASSERT(IsRecovery_);
+
+    IsRecovery_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeMetaState::TCompositeMetaState()
-    : StateInvoker(~New<TActionQueue>())
-    , SnapshotInvoker(~New<TActionQueue>())
+    : StateActionQueue(New<TActionQueue>())
+    , SnapshotActionQueue(New<TActionQueue>())
 { }
 
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
@@ -113,7 +133,7 @@ void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 
 IInvoker::TPtr TCompositeMetaState::GetInvoker() const
 {
-    return StateInvoker;
+    return StateActionQueue->GetInvoker();
 }
 
 TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output)
@@ -190,10 +210,17 @@ void TCompositeMetaState::OnStopFollowing()
     StopEpoch();
 }
 
+void TCompositeMetaState::OnRecoveryComplete()
+{
+    FOREACH(auto& pair, Parts) {
+        pair.Second()->OnRecoveryComplete();
+    }
+}
+
 void TCompositeMetaState::StartEpoch()
 {
     YASSERT(~EpochStateInvoker == NULL);
-    EpochStateInvoker = New<TCancelableInvoker>(StateInvoker);
+    EpochStateInvoker = New<TCancelableInvoker>(StateActionQueue->GetInvoker());
 }
 
 void TCompositeMetaState::StopEpoch()

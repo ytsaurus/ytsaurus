@@ -18,7 +18,7 @@ TLocation::TLocation(Stroka path)
     : Path(path)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , Invoker(~New<TActionQueue>())
+    , ActionQueue(New<TActionQueue>())
 { }
 
 void TLocation::RegisterChunk(TIntrusivePtr<TChunk> chunk)
@@ -48,7 +48,7 @@ i64 TLocation::GetAvailableSpace()
 
 IInvoker::TPtr TLocation::GetInvoker() const
 {
-    return Invoker;
+    return ActionQueue->GetInvoker();
 }
 
 i64 TLocation::GetUsedSpace() const
