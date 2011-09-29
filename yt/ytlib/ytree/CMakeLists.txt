@@ -11,4 +11,5 @@ SET(YT_SOURCE_FILES
     node.cpp
     ephemeral.cpp
     fluent.h
+    json_adapter.cpp
 )
