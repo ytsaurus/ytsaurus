@@ -15,7 +15,9 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 TChunkPlacement::TChunkPlacement(TChunkManager::TPtr chunkManager)
     : ChunkManager(chunkManager)
-{ }
+{
+    YASSERT(~chunkManager != NULL);
+}
 
 void TChunkPlacement::AddHolder(const THolder& holder)
 {
