@@ -107,8 +107,8 @@ public:
 private:
     friend class TMetaStatePart;
 
-    IInvoker::TPtr StateInvoker;
-    IInvoker::TPtr SnapshotInvoker;
+    TActionQueue::TPtr StateActionQueue;
+    TActionQueue::TPtr SnapshotActionQueue;
     TCancelableInvoker::TPtr EpochStateInvoker;
 
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;

@@ -11,6 +11,7 @@ namespace NLog {
 
 DECLARE_ENUM(ELogLevel,
     (Minimum)
+    (Trace)
     (Debug)
     (Info)
     (Warning)

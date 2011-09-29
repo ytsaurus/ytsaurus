@@ -9,22 +9,34 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-//! Common base for batched callbacks.
+/*!
+ * A signal represents a list of actions (either taking parameters or not).
+ * A client may subscribe to a signal (adding a new handler to the list),
+ * unsubscribe from a signal (removing an earlier added handler),
+ * and fire a signal thus invoking the actions added so far.
+ *
+ * Signals are thread-safe.
+ */
+
 template<class T>
 class TSignalBase
 {
 public:
 
-    //! Adds #action to be performed on #Fire.
+    //! Adds a new handler to the list.
+    /*!
+     * \param action Handler to be added.
+     */
     void Subscribe(typename T::TPtr action)
     {
         TGuard<TSpinLock> guard(SpinLock);
         Actions.push_back(action);
     }
 
-    //! Removes #action from future performance.
+    //! Removes a handler from the list.
     /*!
-     *  Returns 'true' if #action was in callback list.
+     * \param action Handler to be removed.
+     * \return True if #action was in the list of handlers.
      */
     bool Unsubscribe(typename T::TPtr action)
     {
@@ -44,13 +56,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Class for subscribtion of actions without parametres
+//! A signal whose handlers are of type #IAction. \see #TSignalBase<T>.
 class TSignal
     : public TSignalBase<IAction>
 {
 public:
 
-    //! Calls action->Do() for all actions subscribed before
+    //! Calls #IAction::Do for all actions in the list.
     void Fire()
     {
         TGuard<TSpinLock> guard(this->SpinLock);
@@ -68,14 +80,17 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Class for subscribtion of actions with one parameter
+//! A signal whose handlers are of type #IParamAction<T>. \see #TSignalBase<T>
 template<class TParam>
 class TParamSignal
     : public TSignalBase< IParamAction<TParam> >
 {
 public:
 
-    //! Calls action->Do(#arg) for all actions subscribed before
+    //! Calls #IParamAction::Do passing the given #arg for all actions in the list.
+    /*!
+     * \param arg Argument to be passed to the handlers.
+     */
     void Fire(const TParam& arg)
     {
         TGuard<TSpinLock> guard(this->SpinLock);
@@ -93,3 +108,4 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

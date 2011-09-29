@@ -212,7 +212,7 @@ void TRemoteChunkWriter::TGroup::PutGroup()
         YASSERT(node < Writer->Nodes.ysize());
     }
 
-    auto awaiter = New<TParallelAwaiter>(~Writer->WriterThread);
+    auto awaiter = New<TParallelAwaiter>(Writer->WriterThread->GetInvoker());
     auto onSuccess = FromMethod(
         &TGroup::OnPutBlocks, 
         TGroupPtr(this), 
@@ -268,7 +268,7 @@ void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
 
     for (int node = 0; node < IsSent.ysize(); ++node) {
         if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
-            auto awaiter = New<TParallelAwaiter>(~TRemoteChunkWriter::WriterThread);
+            auto awaiter = New<TParallelAwaiter>(TRemoteChunkWriter::WriterThread->GetInvoker());
             auto onSuccess = FromMethod(
                 &TGroup::OnSentBlocks, 
                 TGroupPtr(this), 
@@ -440,7 +440,7 @@ void TRemoteChunkWriter::ShiftWindow()
     if (lastFlushableBlock < 0)
         return;
 
-    auto awaiter = New<TParallelAwaiter>(~WriterThread);
+    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
         if (Nodes[node]->IsAlive && State != EWriterState::Canceled) {
             auto onSuccess = FromMethod(
@@ -656,7 +656,7 @@ void TRemoteChunkWriter::StartSession()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
-    auto awaiter = New<TParallelAwaiter>(~WriterThread);
+    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
         auto onSuccess = FromMethod(
             &TRemoteChunkWriter::OnStartedChunk, 
@@ -729,7 +729,7 @@ void TRemoteChunkWriter::CloseSession()
     LOG_DEBUG("Closing writer (ChunkId: %s)",
         ~ChunkId.ToString());
 
-    auto awaiter = New<TParallelAwaiter>(~WriterThread);
+    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
         if (Nodes[node]->IsAlive) {
             auto onSuccess = FromMethod(
@@ -817,7 +817,7 @@ void TRemoteChunkWriter::SchedulePing(int node)
             &TRemoteChunkWriter::PingSession,
             TPtr(this),
             node)
-        ->Via(~WriterThread),
+        ->Via(WriterThread->GetInvoker()),
         Config.SessionTimeout);
 }
 
@@ -885,7 +885,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
         ++BlockCount;
 
         if (CurrentGroup->GetSize() >= Config.GroupSize) {
-            WriterThread->Invoke(FromMethod(
+            WriterThread->GetInvoker()->Invoke(FromMethod(
                 &TRemoteChunkWriter::AddGroup, 
                 TPtr(this),
                 CurrentGroup));
@@ -900,7 +900,7 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
             ~ChunkId.ToString());
 
         *ready = New< TFuture<TVoid> >();
-        WriterThread->Invoke(FromMethod(
+        WriterThread->GetInvoker()->Invoke(FromMethod(
             &TRemoteChunkWriter::RegisterReadyEvent,
             TPtr(this),
             *ready));
@@ -923,7 +923,7 @@ TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
 
     if (~CurrentGroup != NULL) {
         if (CurrentGroup->GetSize() > 0) {
-            WriterThread->Invoke(FromMethod(
+            WriterThread->GetInvoker()->Invoke(FromMethod(
                 &TRemoteChunkWriter::AddGroup,
                 TPtr(this), 
                 CurrentGroup));
@@ -935,7 +935,7 @@ TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
 
     // Set IsCloseRequested via queue to ensure proper serialization
     // (i.e. the flag will be set when all appended blocks are processed).
-    WriterThread->Invoke(FromMethod(
+    WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteChunkWriter::DoClose, 
         TPtr(this)));
 
@@ -955,7 +955,7 @@ void TRemoteChunkWriter::Cancel()
     // Drop the cyclic reference.
     CurrentGroup.Drop();
 
-    WriterThread->Invoke(FromMethod(
+    WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteChunkWriter::DoCancel, 
         TPtr(this)));
 }

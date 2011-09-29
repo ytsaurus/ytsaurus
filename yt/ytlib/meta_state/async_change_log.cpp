@@ -188,7 +188,7 @@ public:
             queue = it->second;
         }
 
-        Invoke(queue->Append(recordId, data, result));
+        GetInvoker()->Invoke(queue->Append(recordId, data, result));
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
@@ -288,7 +288,7 @@ TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
 void TAsyncChangeLog::Finalize()
 {
     FromMethod(&TImpl::Finalize, Impl, ChangeLog)
-        ->AsyncVia(~Impl)
+        ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
 
@@ -298,7 +298,7 @@ void TAsyncChangeLog::Finalize()
 void TAsyncChangeLog::Flush()
 {
     FromMethod(&TImpl::Flush, Impl, ChangeLog)
-        ->AsyncVia(~Impl)
+        ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
 
