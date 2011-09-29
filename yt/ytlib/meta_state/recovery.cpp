@@ -34,12 +34,14 @@ TRecovery::TRecovery(
     , Epoch(epoch)
     , LeaderId(leaderId)
     , CancelableServiceInvoker(New<TCancelableInvoker>(serviceInvoker))
-    , CancelableStateInvoker(New<TCancelableInvoker>(metaState->GetInvoker()))
 {
-    YASSERT(~serviceInvoker != NULL);
     YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
     YASSERT(~changeLogCache != NULL);
     YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    CancelableStateInvoker = New<TCancelableInvoker>(metaState->GetInvoker());
 
     VERIFY_INVOKER_AFFINITY(CancelableStateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(CancelableServiceInvoker, ServiceThread);
@@ -315,6 +317,12 @@ TLeaderRecovery::TLeaderRecovery(
         leaderId,
         serviceInvoker)
 {
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
     VERIFY_THREAD_AFFINITY(ServiceThread);
 }
 
@@ -363,6 +371,12 @@ TFollowerRecovery::TFollowerRecovery(
     , Result(New<TResult>())
     , SyncReceived(false)
 {
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
     VERIFY_THREAD_AFFINITY(ServiceThread);
 }
 

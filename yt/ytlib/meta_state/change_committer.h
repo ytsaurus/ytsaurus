@@ -15,20 +15,50 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: split into TLeaderCommitter and TFollowerCommitter
-class TChangeCommitter
+//! Common part for #TFollowerCommitter and #TLeaderCommitter
+class TCommitterBase
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TChangeCommitter> TPtr;
+    typedef TIntrusivePtr<TCommitterBase> TPtr;
+
+    TCommitterBase(
+        TDecoratedMetaState::TPtr metaState,
+        IInvoker::TPtr controlInvoker);
+
+    virtual ~TCommitterBase();
 
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
         (InvalidVersion)
     );
-
     typedef TFuture<EResult> TResult;
+
+    static EResult OnAppend(TVoid);
+
+    /*!
+     * \note Thread affinity: any
+     */
+    void Stop();
+
+protected:
+    // Corresponds to ControlThread.
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    // Corresponds to MetaState->GetInvoker().
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
+    TCancelableInvoker::TPtr CancelableControlInvoker;
+    TDecoratedMetaState::TPtr MetaState;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLeaderCommitter
+    : public TCommitterBase
+{
+public:
+    typedef TIntrusivePtr<TLeaderCommitter> TPtr;
 
     struct TConfig
     {
@@ -43,7 +73,7 @@ public:
         int MaxBatchSize;
     };
 
-    TChangeCommitter(
+    TLeaderCommitter(
         const TConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,
@@ -53,22 +83,10 @@ public:
         const TEpoch& epoch);
 
     /*!
-     * \note Thread affinity: any
-     */
-    void Stop();
-
-    /*!
      * \note Thread affinity: StateThread
      */
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
-        const TSharedRef& changeData);
-
-    /*!
-     * \note Thread affinity: ControlThread
-     */
-    TResult::TPtr CommitFollower(
-        const TMetaVersion& version,
         const TSharedRef& changeData);
 
     //! Force to send all pending changes.
@@ -83,32 +101,22 @@ public:
     TSignal& OnApplyChange();
 
 private:
+
     class TSession;
     typedef TMetaStateManagerProxy TProxy;
 
     TResult::TPtr DoCommitLeader(
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
-    TResult::TPtr DoCommitFollower(
-        const TMetaVersion& version,
-        const TSharedRef& changeData);
-    static EResult OnAppend(TVoid);
 
     void DelayedFlush(TIntrusivePtr<TSession> session);
     TIntrusivePtr<TSession> GetOrCreateCurrentSession();
     void FlushCurrentSession();
 
-    // Corresponds to ControlThread.
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    // Corresponds to MetaState->GetInvoker().
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
     TConfig Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
     TFollowerTracker::TPtr FollowerTracker;
-    TCancelableInvoker::TPtr CancelableControlInvoker;
     TEpoch Epoch;
 
     TSignal OnApplyChange_;
@@ -119,6 +127,33 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TFollowerCommitter
+    : public TCommitterBase
+{
+public:
+    typedef TIntrusivePtr<TFollowerCommitter> TPtr;
+
+    TFollowerCommitter(
+        TDecoratedMetaState::TPtr metaState,
+        IInvoker::TPtr controlInvoker);
+
+    /*!
+     * \note Thread affinity: ControlThread
+     */
+    TResult::TPtr CommitFollower(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
+
+private:
+    TResult::TPtr DoCommitFollower(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NMetaState
 } // namespace NYT

@@ -17,10 +17,14 @@ THolderExpiration::THolderExpiration(
     : Config(config)
     , ChunkManager(chunkManager)
     , LeaseManager(New<TLeaseManager>())
-{ }
+{
+    YASSERT(~chunkManager != NULL);
+}
 
 void THolderExpiration::Start(IInvoker::TPtr invoker)
 {
+    YASSERT(~invoker != NULL);
+
     YASSERT(~Invoker == NULL);
     Invoker = invoker;
 }

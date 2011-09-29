@@ -1,6 +1,5 @@
 #include "meta_state_manager.h"
 #include "follower_tracker.h"
-#include "change_committer.h"
 #include "leader_pinger.h"
 
 #include "../actions/action_util.h"
@@ -125,7 +124,7 @@ TMetaStateManager::CommitChangeSync(
     }
 
     return
-        ChangeCommitter
+        LeaderCommitter
         ->CommitLeader(changeAction, changeData)
         ->Apply(FromMethod(&TMetaStateManager::OnChangeCommit, TPtr(this)));
 }
@@ -161,15 +160,15 @@ TMetaStateManager::CommitChangeAsync(
 }
 
 TMetaStateManager::ECommitResult TMetaStateManager::OnChangeCommit(
-    TChangeCommitter::EResult result)
+    TLeaderCommitter::EResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     switch (result) {
-        case TChangeCommitter::EResult::Committed:
+        case TLeaderCommitter::EResult::Committed:
             return TMetaStateManager::ECommitResult::Committed;
 
-        case TChangeCommitter::EResult::MaybeCommitted:
+        case TLeaderCommitter::EResult::MaybeCommitted:
             Restart();
             return TMetaStateManager::ECommitResult::MaybeCommitted;
 
@@ -213,9 +212,6 @@ void TMetaStateManager::StopEpoch()
     YASSERT(~ServiceEpochInvoker != NULL);
     ServiceEpochInvoker->Cancel();
     ServiceEpochInvoker.Drop();
-
-    YASSERT(~SnapshotCreator != NULL);
-    SnapshotCreator.Drop();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -484,12 +480,12 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         case EPeerState::Following: {
             LOG_DEBUG("ApplyChange: applying %d changes", changeCount);
 
-            YASSERT(~ChangeCommitter != NULL);
+            YASSERT(~FollowerCommitter != NULL);
             for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
                 YASSERT(State == EPeerState::Following);
                 TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                auto asyncResult = ChangeCommitter->CommitFollower(commitVersion, changeData);
+                auto asyncResult = FollowerCommitter->CommitFollower(commitVersion, changeData);
                 // Subscribe to the last change
                 if (changeIndex == changeCount - 1) {
                     asyncResult->Subscribe(FromMethod(
@@ -529,7 +525,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
 }
 
 void TMetaStateManager::OnLocalCommit(
-    TChangeCommitter::EResult result,
+    TLeaderCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -540,12 +536,12 @@ void TMetaStateManager::OnLocalCommit(
     TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
 
     switch (result) {
-        case TChangeCommitter::EResult::Committed:
+        case TLeaderCommitter::EResult::Committed:
             response.SetCommitted(true);
             context->Reply();
             break;
 
-        case TChangeCommitter::EResult::InvalidVersion:
+        case TLeaderCommitter::EResult::InvalidVersion:
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             Restart();
 
@@ -725,16 +721,16 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         CellManager,
         ControlInvoker);
 
-    YASSERT(~ChangeCommitter == NULL);
-    ChangeCommitter = New<TChangeCommitter>(
-        TChangeCommitter::TConfig(),
+    YASSERT(~LeaderCommitter == NULL);
+    LeaderCommitter = New<TLeaderCommitter>(
+        TLeaderCommitter::TConfig(),
         CellManager,
         MetaState,
         ChangeLogCache,
         FollowerTracker,
         ControlInvoker,
         Epoch);
-    ChangeCommitter->OnApplyChange().Subscribe(OnApplyChangeAction);
+    LeaderCommitter->OnApplyChange().Subscribe(OnApplyChangeAction);
 
     YASSERT(~SnapshotCreator == NULL);
     SnapshotCreator = New<TSnapshotCreator>(
@@ -760,7 +756,7 @@ void TMetaStateManager::OnApplyChange()
     if (Config.MaxChangesBetweenSnapshots >= 0 &&
         version.RecordCount >= Config.MaxChangesBetweenSnapshots)
     {
-        ChangeCommitter->Flush();
+        LeaderCommitter->Flush();
         SnapshotCreator->CreateDistributed(version);
     }
 }
@@ -777,13 +773,13 @@ void TMetaStateManager::OnStopLeading()
 
     State = EPeerState::Elections;
 
-    ChangeCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
-
     StopEpoch();
 
-    if (~ChangeCommitter != NULL) {
-        ChangeCommitter->Stop();
-        ChangeCommitter.Drop();
+    if (~LeaderCommitter != NULL) {
+        LeaderCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
+
+        LeaderCommitter->Stop();
+        LeaderCommitter.Drop();
     }
 
     if (~FollowerTracker != NULL) {
@@ -847,15 +843,10 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
         return;
     }
 
-    YASSERT(~ChangeCommitter == NULL);
-    ChangeCommitter = New<TChangeCommitter>(
-        TChangeCommitter::TConfig(),
-        CellManager,
+    YASSERT(~FollowerCommitter == NULL);
+    FollowerCommitter = New<TFollowerCommitter>(
         MetaState,
-        ChangeLogCache,
-        TFollowerTracker::TPtr(NULL),
-        ControlInvoker,
-        Epoch);
+        ControlInvoker);
 
     YASSERT(~LeaderPinger == NULL);
     LeaderPinger = New<TLeaderPinger>(
@@ -900,9 +891,9 @@ void TMetaStateManager::OnStopFollowing()
         FollowerRecovery.Drop();
     }
 
-    if (~ChangeCommitter != NULL) {
-        ChangeCommitter->Stop();
-        ChangeCommitter.Drop();
+    if (~FollowerCommitter != NULL) {
+        FollowerCommitter->Stop();
+        FollowerCommitter.Drop();
     }
 
     if (~LeaderPinger != NULL) {
