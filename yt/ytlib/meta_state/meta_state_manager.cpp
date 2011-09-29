@@ -213,9 +213,6 @@ void TMetaStateManager::StopEpoch()
     YASSERT(~ServiceEpochInvoker != NULL);
     ServiceEpochInvoker->Cancel();
     ServiceEpochInvoker.Drop();
-
-    YASSERT(~SnapshotCreator != NULL);
-    SnapshotCreator.Drop();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -777,11 +774,11 @@ void TMetaStateManager::OnStopLeading()
 
     State = EPeerState::Elections;
 
-    ChangeCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
-
     StopEpoch();
 
     if (~ChangeCommitter != NULL) {
+        ChangeCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
+
         ChangeCommitter->Stop();
         ChangeCommitter.Drop();
     }
