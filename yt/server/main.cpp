@@ -30,13 +30,13 @@ void RunChunkHolder(const TChunkHolderConfig& config)
     LOG_INFO("Starting chunk holder on port %d",
         config.Port);
 
-    TActionQueue::TPtr serviceQueue = New<TActionQueue>();
+    auto controlQueue = New<TActionQueue>();
 
-    NRpc::TServer::TPtr server = New<NRpc::TServer>(config.Port);
+    auto server = New<NRpc::TServer>(config.Port);
 
-    TChunkHolder::TPtr chunkHolder = New<TChunkHolder>(
+    auto chunkHolder = New<TChunkHolder>(
         config,
-        serviceQueue->GetInvoker(),
+        controlQueue->GetInvoker(),
         server);
 
     server->Start();
@@ -76,27 +76,27 @@ void RunCellMaster(const TCellMasterConfig& config)
 
     LOG_INFO("Starting cell master on port %d", port);
 
-    TCompositeMetaState::TPtr metaState = New<TCompositeMetaState>();
+    auto metaState = New<TCompositeMetaState>();
 
-    TActionQueue::TPtr liteQueue = ~New<TActionQueue>();
-    IInvoker::TPtr metaStateInvoker = metaState->GetInvoker();
+    auto controlQueue = New<TActionQueue>();
+    auto metaStateInvoker = metaState->GetInvoker();
 
-    NRpc::TServer::TPtr server = New<NRpc::TServer>(port);
+    auto server = New<NRpc::TServer>(port);
 
-    TMetaStateManager::TPtr metaStateManager = New<TMetaStateManager>(
+    auto metaStateManager = New<TMetaStateManager>(
         config.MetaState,
-        liteQueue->GetInvoker(),
+        controlQueue->GetInvoker(),
         ~metaState,
         server);
 
-    TTransactionManager::TPtr transactionManager = New<TTransactionManager>(
+    auto transactionManager = New<TTransactionManager>(
         TTransactionManager::TConfig(),
         metaStateManager,
         metaState,
         metaStateInvoker,
         server);
 
-    TChunkManager::TPtr chunkManager = New<TChunkManager>(
+    auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
         metaStateManager,
         metaState,

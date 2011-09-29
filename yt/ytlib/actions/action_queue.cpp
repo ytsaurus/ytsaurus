@@ -88,8 +88,8 @@ void TActionQueue::Shutdown()
     if (IsFinished)
         return;
 
-    QueueInvoker.Drop();
     IsFinished = true;
+    QueueInvoker.Drop();
     WakeupEvent.Signal();
     Thread.Join();
 }
@@ -116,6 +116,7 @@ void TActionQueue::OnIdle()
 
 IInvoker::TPtr TActionQueue::GetInvoker()
 {
+    YASSERT(!IsFinished);
     auto invoker = ~QueueInvoker;
     YASSERT(invoker != NULL);
     return invoker;
@@ -149,6 +150,7 @@ void* TPrioritizedActionQueue::ThreadFunc(void* param)
 
 IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
 {
+    YASSERT(!IsFinished);
     YASSERT(0 <= priority && priority < static_cast<int>(QueueInvokers.size()));
     auto invoker = ~QueueInvokers[priority];
     YASSERT(invoker != NULL);
