@@ -3,6 +3,7 @@
 #include "message.h"
 
 #include "../misc/assert.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
 namespace NRpc {
@@ -16,22 +17,87 @@ static NLog::TLogger& Logger = RpcLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChannel::TChannel(TBusClient::TPtr client)
+    : Terminated(false)
 {
     Bus = client->CreateBus(this);
 }
 
 TChannel::TChannel(Stroka address)
+    : Terminated(false)
 {
     Bus = New<TBusClient>(address)->CreateBus(this);
+}
+
+TFuture<EErrorCode>::TPtr TChannel::Send(
+    TClientRequest::TPtr request,
+    IClientResponseHandler::TPtr responseHandler,
+    TDuration timeout)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto requestId = request->GetRequestId();
+
+    TActiveRequest activeRequest;
+    activeRequest.RequestId = requestId;
+    activeRequest.ResponseHandler = responseHandler;
+    activeRequest.Ready = New< TFuture<EErrorCode> >();
+
+    if (timeout != TDuration::Zero()) {
+        activeRequest.TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
+            &TChannel::OnTimeout,
+            TPtr(this),
+            requestId),
+            timeout);
+    }
+
+    auto requestMessage = request->Serialize();
+
+    IBus::TPtr bus;
+
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        YASSERT(!Terminated);
+
+        YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).Second());
+
+        Bus->Send(requestMessage)->Subscribe(FromMethod(
+            &TChannel::OnAcknowledgement,
+            TPtr(this),
+            requestId));
+    }
+    
+    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
+        ~requestId.ToString(),
+        ~request->ServiceName,
+        ~request->MethodName);
+
+    return activeRequest.Ready;
+}
+
+void TChannel::Terminate()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (Terminated)
+        return;
+
+    YASSERT(~Bus != NULL);
+    Bus->Terminate();
+    Bus.Drop();
+    Terminated = true;
 }
 
 void TChannel::OnMessage(
     IMessage::TPtr message,
     IBus::TPtr replyBus)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     UNUSED(replyBus);
 
-    const yvector<TSharedRef>& parts = message->GetParts();
+    const auto& parts = message->GetParts();
     if (parts.ysize() == 0) {
         LOG_ERROR("Missing header part");
         return;
@@ -40,122 +106,166 @@ void TChannel::OnMessage(
     TResponseHeader header;
     DeserializeMessage(&header, parts[0]);
 
-    TRequestId requestId = TRequestId::FromProto(header.GetRequestId());
-    TEntry::TPtr entry = FindEntry(requestId);
-    if (~entry == NULL || !Unregister(entry->RequestId)) {
-        LOG_WARNING("Response for an incorrect or obsolete request received (RequestId: %s)",
-            ~requestId.ToString());
-        return;
-    }
-
-    entry->Response->OnResponse(header.GetErrorCode(), message);
-    entry->Ready->Set(TVoid());
-}
-
-TChannel::TEntry::TPtr TChannel::FindEntry(const TRequestId& id)
-{
-    TGuard<TSpinLock> guard(&SpinLock);
-    auto it = Entries.find(id);
-    if (it == Entries.end()) {
-        return NULL;
-    } else {
-        return it->Second();
-    }
-}
-
-TFuture<TVoid>::TPtr TChannel::Send(
-    TClientRequest::TPtr request,
-    TClientResponse::TPtr response,
-    TDuration timeout)
-{
-    TRequestId requestId = request->GetRequestId();
-
-    TEntry::TPtr entry = New<TEntry>();
-    entry->RequestId = requestId;
-    entry->Response = response;
-    entry->Ready = New< TFuture<TVoid> >();
-
-    if (timeout != TDuration::Zero()) {
-        entry->TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
-            &TChannel::OnTimeout,
-            TPtr(this),
-            entry),
-            timeout);
-    }
-
+    auto requestId = TRequestId::FromProto(header.GetRequestId());
+    
     {
         TGuard<TSpinLock> guard(&SpinLock);
-        YVERIFY(Entries.insert(MakePair(requestId, entry)).Second());
+
+        if (Terminated) {
+            LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
+                ~requestId.ToString());
+            return;
+        }
+
+        auto it = ActiveRequests.find(requestId);
+        if (it == ActiveRequests.end()) {
+            // This may happen when the other party responds to an already timed-out request.
+            LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
+                ~requestId.ToString());
+            return;
+        }
+
+        // NB: Make copies, the instance will die soon.
+        auto& activeRequest = it->Second();
+        auto responseHandler = activeRequest.ResponseHandler;
+        auto ready = activeRequest.Ready;
+
+        UnregisterRequest(it);
+
+        // Don't need the guard anymore.
+        guard.Release();
+
+        auto errorCode = header.GetErrorCode();
+        responseHandler->OnResponse(errorCode, message);
+        ready->Set(errorCode);
     }
-    
-    IMessage::TPtr requestMessage = request->Serialize();
-    Bus->Send(requestMessage)->Subscribe(FromMethod(
-        &TChannel::OnAcknowledgement,
-        TPtr(this),
-        entry));
-
-    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
-        ~requestId.ToString(),
-        ~request->ServiceName,
-        ~request->MethodName);
-
-    return entry->Ready;
 }
 
 void TChannel::OnAcknowledgement(
     IBus::ESendResult sendResult,
-    TEntry::TPtr entry)
+    TRequestId requestId)
 {
-    if (sendResult == IBus::ESendResult::Failed) {
-        if (!Unregister(entry->RequestId))
-            return;
-        entry->Response->OnAcknowledgement(sendResult);
-        entry->Ready->Set(TVoid());
-    } else {
-        entry->Response->OnAcknowledgement(sendResult);
-    }
-}
+    VERIFY_THREAD_AFFINITY_ANY();
 
-void TChannel::OnTimeout(TEntry::TPtr entry)
-{
-    if (!Unregister(entry->RequestId))
+    TGuard<TSpinLock> guard(SpinLock);
+
+    auto it = ActiveRequests.find(requestId);
+    if (it == ActiveRequests.end()) {
+        // This is quite typical: one may easily get the actual response before the acknowledgment.
+        LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
+            ~requestId.ToString());
         return;
-    entry->Response->OnTimeout();
-    entry->Ready->Set(TVoid());
+    }
+
+    // NB: Make copies, the instance will die soon.
+    auto& activeRequest = it->Second();
+    auto responseHandler = activeRequest.ResponseHandler;
+    auto ready = activeRequest.Ready;
+
+    if (sendResult == IBus::ESendResult::Failed) {
+        UnregisterRequest(it);
+        
+        // Don't need the guard anymore.
+        guard.Release();
+
+        responseHandler->OnAcknowledgement(sendResult);
+        ready->Set(EErrorCode::TransportError);
+    } else {
+        // Don't need the guard anymore.
+        guard.Release();
+
+        responseHandler->OnAcknowledgement(sendResult);
+    }
 }
 
-bool TChannel::Unregister(const TRequestId& requestId)
+void TChannel::OnTimeout(TRequestId requestId)
 {
-    TEntry::TPtr entry;
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        auto it = Entries.find(requestId);
-        if (it == Entries.end())
-            return false;
+    TGuard<TSpinLock> guard(SpinLock);
 
-        entry = it->Second();
-        Entries.erase(it);
+    auto it = ActiveRequests.find(requestId);
+    if (it == ActiveRequests.end()) {
+        LOG_WARNING("Timeout of an incorrect or obsolete request occurred (RequestId: %s)",
+            ~requestId.ToString());
+        return;
     }
 
-    if (entry->TimeoutCookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(entry->TimeoutCookie);
-        entry->TimeoutCookie = TDelayedInvoker::TCookie();
+    // NB: Make copies, the instance will die soon.
+    auto& activeRequest = it->Second();
+    auto responseHandler = activeRequest.ResponseHandler;
+    auto ready = activeRequest.Ready;
+
+    UnregisterRequest(it);
+
+    // Don't need the guard anymore.
+    guard.Release();
+
+    responseHandler->OnTimeout();
+    ready->Set(EErrorCode::Timeout);
+}
+
+void TChannel::UnregisterRequest(TRequestMap::iterator it)
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+    auto& activeRequest = it->Second();
+    if (activeRequest.TimeoutCookie != TDelayedInvoker::TCookie()) {
+        TDelayedInvoker::Get()->Cancel(activeRequest.TimeoutCookie);
+        activeRequest.TimeoutCookie = TDelayedInvoker::TCookie();
     }
 
-    LOG_DEBUG("Request unregistered (RequestId: %s)", ~requestId.ToString());
-    return true;
+    ActiveRequests.erase(it);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChannelCache::TChannelCache()
+    : IsTerminated(false)
+{ } 
+
 TChannel::TPtr TChannelCache::GetChannel(Stroka address)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // NB: double-checked locking.
+    TGuard<TSpinLock> firstAttemptGuard(SpinLock);
+
+    YASSERT(!IsTerminated);
+
     auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
-        it = ChannelMap.insert(MakePair(address, New<TChannel>(address))).First();
+        firstAttemptGuard.Release();
+        auto channel = New<TChannel>(address);
+
+        TGuard<TSpinLock> secondAttemptGuard(SpinLock);
+        it = ChannelMap.find(address);
+        if (it == ChannelMap.end()) {
+            it = ChannelMap.insert(MakePair(address, channel)).First();
+        } else {
+            channel->Terminate();
+        }
     }
+
     return it->Second();
+}
+
+void TChannelCache::Shutdown()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (IsTerminated)
+        return;
+
+    IsTerminated  = true;
+
+    FOREACH (const auto& pair, ChannelMap) {
+        pair.Second()->Terminate();
+    }
+
+    ChannelMap.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

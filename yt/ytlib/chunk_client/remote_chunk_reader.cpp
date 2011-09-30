@@ -4,6 +4,8 @@
 namespace NYT
 {
 
+NRpc::TChannelCache TRemoteChunkReader::ChannelCache;
+
 TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, Stroka holderAddress)
     : ChunkId(chunkId)
     , Timeout(TDuration::Seconds(15)) // ToDo: make configurable
@@ -40,7 +42,5 @@ void TRemoteChunkReader::OnBlocksRead(TRspGetBlocks::TPtr rsp, TFuture<TReadResu
 
     result->Set(readResult);
 }
-
-NRpc::TChannelCache TRemoteChunkReader::ChannelCache;
 
 } // namespace NYT

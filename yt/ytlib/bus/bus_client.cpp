@@ -5,6 +5,7 @@
 
 #include "../actions/action_util.h"
 #include "../logging/log.h"
+#include "../misc/thread_affinity.h"
 
 #include <quality/NetLiba/UdpHttp.h>
 
@@ -54,6 +55,8 @@ private:
     TRequestIdSet RequestIds;
     TRequestIdSet PingIds;
     THolder<TMessageRearranger> MessageRearranger;
+    //! Protects #Terminated.
+    TSpinLock SpinLock;
 
     void OnMessageDequeued(IMessage::TPtr message);
 
@@ -108,7 +111,7 @@ class TClientDispatcher
         while (!Terminated) {
             if (!ProcessBusRegistrations() &&
                 !ProcessBusUnregistrations() &&
-                !ProcessRequests() &&
+                !ProcessOutgoingRequests() &&
                 !ProcessNLRequests() &&
                 !ProcessNLResponses())
             {
@@ -151,7 +154,7 @@ class TClientDispatcher
     {
         BusMap.erase(bus->SessionId);
 
-        FOREACH(const TGuid& requestId, bus->RequestIds) {
+        FOREACH(const auto& requestId, bus->RequestIds) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
@@ -191,7 +194,7 @@ class TClientDispatcher
             return;
         }
 
-        TPacketHeader* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
+        auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
         if (header == NULL)
             return;
 
@@ -221,7 +224,7 @@ class TClientDispatcher
             return;
         }
 
-        TRequest::TPtr request = requestIt->Second();
+        auto request = requestIt->Second();
 
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
             ~request->SessionId.ToString(),
@@ -246,7 +249,7 @@ class TClientDispatcher
 
     void ProcessNLRequest(TUdpHttpRequest* nlRequest)
     {
-        TPacketHeader* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
+        auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
         if (header == NULL)
             return;
 
@@ -321,7 +324,7 @@ class TClientDispatcher
             ~requestId.ToString(),
             dataSize);
 
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
         bus->ProcessIncomingMessage(message, sequenceId);
 
         if (!isRequest) {
@@ -358,11 +361,11 @@ class TClientDispatcher
             ~requestId.ToString());
 
         // Don't reply to a ping, just register it.
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
         bus->PingIds.insert(requestId);
     }
 
-    bool ProcessRequests()
+    bool ProcessOutgoingRequests()
     {
         bool result = false;
         for (int i = 0; i < MaxRequestsPerCall; ++i) {
@@ -370,12 +373,12 @@ class TClientDispatcher
             if (!RequestQueue.Dequeue(&request))
                 break;
             result = true;
-            ProcessRequest(request);
+            ProcessOutgoingRequest(request);
         }
         return result;
     }
 
-    void ProcessRequest(TRequest::TPtr request)
+    void ProcessOutgoingRequest(TRequest::TPtr request)
     {
         auto busIt = BusMap.find(request->SessionId);
         if (busIt == BusMap.end()) {
@@ -391,7 +394,7 @@ class TClientDispatcher
             }
         }
 
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
 
         TGuid requestId = Requester->SendRequest(bus->Client->ServerAddress, "", &request->Data);
 
@@ -415,8 +418,9 @@ public:
         , Terminated(false)
     {
         Requester = CreateHttpUdpRequester(0);
-        if (~Requester == NULL)
-            throw yexception() << "Failed to create a client dispatcher";
+        if (~Requester == NULL) {
+            throw yexception() << "Failed to create a client NetLiba requester";
+        }
 
         Thread.Start();
 
@@ -438,10 +442,10 @@ public:
         Terminated = true;
         Thread.Join();
 
-        // NB: This doesn't actually stop NetLiba threads
+        // NB: This doesn't actually stop NetLiba threads.
         Requester->StopNoWait();
 
-        // Consider moving somewhere else
+        // TODO: Consider moving somewhere else.
         StopAllNetLibaThreads();
 
         // NB: cannot use log here
@@ -449,14 +453,14 @@ public:
 
     IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage::TPtr message)
     {
-        TSequenceId sequenceId = bus->GenerateSequenceId();
+        auto sequenceId = bus->GenerateSequenceId();
 
         TBlob data;
         if (!EncodeMessagePacket(message, bus->SessionId, sequenceId, &data))
             throw yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
-        TRequest::TPtr request = New<TRequest>(bus->SessionId, &data);
+        auto request = New<TRequest>(bus->SessionId, &data);
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
@@ -513,17 +517,31 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
         FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     SessionId = TGuid::Create();
 }
 
 IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    // NB: We may actually need a barrier here but
+    // since Terminate is used for debugging purposes mainly, we omit it.
+    YASSERT(!Terminated);
+
     return TClientDispatcher::Get()->EnqueueRequest(this, message);
 }
 
 void TBusClient::TBus::Terminate()
 {
-    Terminated = true;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (Terminated)
+            return;
+
+        Terminated = true;
+    }
+
     MessageRearranger.Destroy();
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
 }
@@ -550,14 +568,21 @@ void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
 
 TBusClient::TBusClient(Stroka address)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     ServerAddress = CreateAddress(address, 0);
-    if (ServerAddress == TUdpAddress())
-        throw yexception() << "Failed to resolve the address " << address;
+    if (ServerAddress == TUdpAddress()) {
+        throw yexception() << Sprintf("Failed to resolve the address %s",
+            ~address.Quote());
+    }
 }
 
 IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
-    TBus::TPtr bus = New<TBus>(this, handler);
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~handler != NULL);
+
+    auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);
     return ~bus;
 }

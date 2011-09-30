@@ -11,6 +11,8 @@ namespace NElection {
 
 static NLog::TLogger Logger("LeaderLookup");
 
+NRpc::TChannelCache TLeaderLookup::ChannelCache;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderLookup::TLeaderLookup(const TConfig& config)

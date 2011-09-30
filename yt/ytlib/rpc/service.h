@@ -371,9 +371,9 @@ private:
         { }
     };
 
-    struct TOutstandingRequest
+    struct TActiveRequest
     {
-        TOutstandingRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
+        TActiveRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
             : RuntimeInfo(runtimeInfo)
             , StartTime(startTime)
         {
@@ -391,7 +391,7 @@ private:
     //! Protects #RuntimeMethodInfos and #OutstandingRequests.
     TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
-    yhash_map<TServiceContext::TPtr, TOutstandingRequest> OutstandingRequests;
+    yhash_map<TServiceContext::TPtr, TActiveRequest> ActiveRequests;
 
     virtual void OnBeginRequest(TServiceContext::TPtr context);
     virtual void OnEndRequest(TServiceContext::TPtr context);
