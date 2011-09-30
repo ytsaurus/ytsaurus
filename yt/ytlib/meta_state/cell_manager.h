@@ -30,7 +30,8 @@ public:
 
 private:
     TConfig Config;
-    mutable NRpc::TChannelCache ChannelCache;
+    static NRpc::TChannelCache ChannelCache;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

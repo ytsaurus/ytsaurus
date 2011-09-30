@@ -26,8 +26,9 @@ void TChunkHolderConfig::Read(TJsonObject* json)
     NYT::TryRead(json, L"Locations", &Locations);
 
     int maxChunksSpace;
-    NYT::TryRead(json, L"MaxChunksSpace", &maxChunksSpace);
-    MaxChunksSpace = maxChunksSpace;
+    if (NYT::TryRead(json, L"MaxChunksSpace", &maxChunksSpace)) {
+        MaxChunksSpace = maxChunksSpace;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

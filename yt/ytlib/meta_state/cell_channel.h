@@ -18,10 +18,12 @@ public:
 
     TCellChannel(const TLeaderLookup::TConfig& config);
     
-    virtual TFuture<TVoid>::TPtr Send(
+    virtual TFuture<NRpc::EErrorCode>::TPtr Send(
         NRpc::TClientRequest::TPtr request,
-        NRpc::TClientResponse::TPtr response,
+        NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
+
+    virtual void Terminate();
 
 private:
     DECLARE_ENUM(EState,
@@ -29,17 +31,18 @@ private:
         (Connecting)
         (Connected)
         (Failed)
+        (Terminated)
     );
 
-    TFuture<TVoid>::TPtr OnGotChannel(
+    TFuture<NRpc::EErrorCode>::TPtr OnGotChannel(
         NRpc::IChannel::TPtr channel,
         NRpc::TClientRequest::TPtr request,
-        NRpc::TClientResponse::TPtr response,
+        NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
 
-    TVoid OnResponseReady(
-        TVoid,
-        NRpc::TClientResponse::TPtr response);
+    NRpc::EErrorCode OnResponseReady(
+        NRpc::EErrorCode errorCode,
+        NRpc::IClientResponseHandler::TPtr responseHandler);
   
     TFuture<NRpc::IChannel::TPtr>::TPtr GetChannel();
 

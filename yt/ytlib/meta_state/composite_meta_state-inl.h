@@ -39,6 +39,7 @@ typename TFuture<TResult>::TPtr TMetaStatePart::CommitChange(
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
     IAction::TPtr errorHandler)
 {
+    YASSERT(~changeMethod != NULL);
     return
         New< TUpdate<TMessage, TResult> >(
             MetaStateManager,
@@ -52,6 +53,8 @@ typename TFuture<TResult>::TPtr TMetaStatePart::CommitChange(
 template<class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
+    YASSERT(~changeMethod != NULL);
+
     Stroka changeType = TMessage().GetTypeName();
     auto action = FromMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
@@ -65,6 +68,7 @@ void TMetaStatePart::MethodThunk(
     const TRef& changeData,
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
 {
+    YASSERT(~changeMethod != NULL);
     TMessage message;
     YVERIFY(message.ParseFromArray(changeData.Begin(), changeData.Size()));
 
@@ -90,7 +94,10 @@ public:
         , ChangeMethod(changeMethod)
         , ErrorHandler(errorHandler)
         , AsyncResult(New< TFuture<TResult> >())
-    { }
+    {
+        YASSERT(~stateManager != NULL);
+        YASSERT(~changeMethod != NULL);
+    }
 
     typename TFuture<TResult>::TPtr Run()
     {

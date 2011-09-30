@@ -225,7 +225,7 @@ TLogManager* TLogManager::Get()
 
 void TLogManager::Flush()
 {
-    TActionQueue::TPtr queue = Queue;
+    auto queue = Queue;
     if (~queue != NULL) {
         FromMethod(&TLogManager::DoFlush, this)
             ->AsyncVia(queue->GetInvoker())
@@ -238,10 +238,10 @@ void TLogManager::Shutdown()
 {
     Flush();
     
-    TActionQueue::TPtr queue = Queue;
+    auto queue = Queue;
     if (~queue != NULL) {
+        Queue.Drop();
         queue->Shutdown();
-        Queue = NULL;
     }
 }
 
@@ -255,7 +255,7 @@ TVoid TLogManager::DoFlush()
 
 void TLogManager::Write(const TLogEvent& event)
 {
-    TActionQueue::TPtr queue = Queue;
+    auto queue = Queue;
     if (~queue != NULL) {
         queue->GetInvoker()->Invoke(FromMethod(&TLogManager::DoWrite, this, event));
 
@@ -395,8 +395,7 @@ void TLogger::Write(const TLogEvent& event)
 
 bool TLogger::IsEnabled(ELogLevel level)
 {
-    TLogManager* manager = TLogManager::Get();
-    if (manager->GetConfigVersion() != ConfigVersion) {
+    if (TLogManager::Get()->GetConfigVersion() != ConfigVersion) {
         UpdateConfig();
     }
     return level >= MinLevel;
@@ -404,8 +403,7 @@ bool TLogger::IsEnabled(ELogLevel level)
 
 void TLogger::UpdateConfig()
 {
-    TLogManager* manager = TLogManager::Get();
-    manager->GetLoggerConfig(
+    TLogManager::Get()->GetLoggerConfig(
         Category,
         &MinLevel,
         &ConfigVersion);

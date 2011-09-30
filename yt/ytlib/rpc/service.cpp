@@ -254,9 +254,9 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
     }
 
     auto& info = it->Second();
-    YVERIFY(OutstandingRequests.insert(MakePair(
+    YVERIFY(ActiveRequests.insert(MakePair(
         context,
-        TOutstandingRequest(&info, TInstant::Now()))).Second());
+        TActiveRequest(&info, TInstant::Now()))).Second());
 
     auto handler = info.Descriptor.Handler;
     auto wrappedHandler = context->Wrap(handler->Bind(context));
@@ -269,11 +269,11 @@ void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
 
     TGuard<TSpinLock> guard(SpinLock);
 
-    auto it = OutstandingRequests.find(context);
-    YASSERT(it != OutstandingRequests.end());
+    auto it = ActiveRequests.find(context);
+    YASSERT(it != ActiveRequests.end());
     auto& request = it->Second();
     request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);
-    OutstandingRequests.erase(it);
+    ActiveRequests.erase(it);
 }
 
 Stroka TServiceBase::GetServiceName() const

@@ -12,14 +12,46 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangeCommitter::TSession
+TCommitterBase::TCommitterBase(
+    TDecoratedMetaState::TPtr metaState,
+    IInvoker::TPtr controlInvoker)
+    : MetaState(metaState)
+    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
+{
+    YASSERT(~metaState != NULL);
+    YASSERT(~controlInvoker != NULL);
+
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
+}
+
+TCommitterBase::~TCommitterBase()
+{ }
+
+void TCommitterBase::Stop()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    CancelableControlInvoker->Cancel();
+}
+
+TCommitterBase::EResult TCommitterBase::OnAppend(TVoid)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return EResult::Committed;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLeaderCommitter::TSession
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TChangeCommitter::TPtr committer,
+        TLeaderCommitter::TPtr committer,
         const TMetaVersion& version)
         : Committer(committer)
         , Result(New<TResult>())
@@ -151,7 +183,7 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
-    TChangeCommitter::TPtr Committer;
+    TLeaderCommitter::TPtr Committer;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
     TMetaVersion Version;
@@ -163,7 +195,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeCommitter::TChangeCommitter(
+TLeaderCommitter::TLeaderCommitter(
     const TConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
@@ -171,39 +203,21 @@ TChangeCommitter::TChangeCommitter(
     TFollowerTracker::TPtr followerTracker,
     IInvoker::TPtr controlInvoker,
     const TEpoch& epoch)
-    : Config(config)
+    : TCommitterBase(metaState, controlInvoker)
+    , Config(config)
     , CellManager(cellManager)
-    , MetaState(metaState)
     , ChangeLogCache(changeLogCache)
     , FollowerTracker(followerTracker)
-    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
     , Epoch(epoch)
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
     YASSERT(~changeLogCache != NULL);
-    // TODO: this check only makes sense for leader
-    //YASSERT(~followerTracker != NULL);
+    YASSERT(~followerTracker != NULL);
     YASSERT(~controlInvoker != NULL);
-    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
 }
 
-void TChangeCommitter::Stop()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    CancelableControlInvoker->Cancel();
-}
-
-TSignal& TChangeCommitter::OnApplyChange()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return OnApplyChange_;
-}
-
-void TChangeCommitter::Flush()
+void TLeaderCommitter::Flush()
 {
     TGuard<TSpinLock> guard(SessionSpinLock);
     if (~CurrentSession != NULL) {
@@ -211,7 +225,7 @@ void TChangeCommitter::Flush()
     }
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
+TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
 {
@@ -238,23 +252,59 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::CommitLeader(
     return result;
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::CommitFollower(
-    const TMetaVersion& version,
-    const TSharedRef& changeData)
+void TLeaderCommitter::FlushCurrentSession()
+{
+    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
+    YASSERT(~CurrentSession != NULL);
+
+    CurrentSession->SendChanges();
+    TDelayedInvoker::Get()->Cancel(TimeoutCookie);
+    CurrentSession.Drop();
+    TimeoutCookie = TDelayedInvoker::TCookie();
+}
+
+TLeaderCommitter::TSession::TPtr TLeaderCommitter::GetOrCreateCurrentSession()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
+
+    if (~CurrentSession == NULL) {
+        YASSERT(~TimeoutCookie == NULL);
+        auto version = MetaState->GetVersion();
+        CurrentSession = New<TSession>(TPtr(this), version);
+        TimeoutCookie = TDelayedInvoker::Get()->Submit(
+            FromMethod(
+                &TLeaderCommitter::DelayedFlush,
+                TPtr(this),
+                CurrentSession)
+            ->Via(~CancelableControlInvoker),
+            Config.MaxBatchDelay);
+    }
+
+    return CurrentSession;
+}
+
+void TLeaderCommitter::DelayedFlush(TSession::TPtr session)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return
-        FromMethod(
-            &TChangeCommitter::DoCommitFollower,
-            TPtr(this),
-            version,
-            changeData)
-        ->AsyncVia(MetaState->GetInvoker())
-        ->Do();
+    TGuard<TSpinLock> guard(SessionSpinLock);
+    if (session != CurrentSession)
+        return;
+
+    LOG_DEBUG("Flushing batched changes");
+
+    FlushCurrentSession();
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
+TSignal& TLeaderCommitter::OnApplyChange()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return OnApplyChange_;
+}
+
+TLeaderCommitter::TResult::TPtr TLeaderCommitter::DoCommitLeader(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
 {
@@ -262,7 +312,7 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
 
     auto appendResult = MetaState
         ->LogChange(changeData)
-        ->Apply(FromMethod(&TChangeCommitter::OnAppend));
+        ->Apply(FromMethod(&TLeaderCommitter::OnAppend));
 
     MetaState->ApplyChange(changeAction);
 
@@ -271,7 +321,34 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitLeader(
     return appendResult;
 }
 
-TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
+////////////////////////////////////////////////////////////////////////////////
+
+TFollowerCommitter::TFollowerCommitter(
+    TDecoratedMetaState::TPtr metaState,
+    IInvoker::TPtr controlInvoker)
+    : TCommitterBase(metaState, controlInvoker)
+{
+    YASSERT(~metaState != NULL);
+    YASSERT(~controlInvoker != NULL);
+}
+
+TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
+    const TMetaVersion& version,
+    const TSharedRef& changeData)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return
+        FromMethod(
+            &TFollowerCommitter::DoCommitFollower,
+            TPtr(this),
+            version,
+            changeData)
+        ->AsyncVia(MetaState->GetInvoker())
+        ->Do();
+}
+
+TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
     const TMetaVersion& version,
     const TSharedRef& changeData)
 {
@@ -283,63 +360,11 @@ TChangeCommitter::TResult::TPtr TChangeCommitter::DoCommitFollower(
 
     auto appendResult = MetaState
         ->LogChange(changeData)
-        ->Apply(FromMethod(&TChangeCommitter::OnAppend));
+        ->Apply(FromMethod(&TLeaderCommitter::OnAppend));
 
     MetaState->ApplyChange(changeData);
 
     return appendResult;
-}
-
-TChangeCommitter::EResult TChangeCommitter::OnAppend(TVoid)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return EResult::Committed;
-}
-
-void TChangeCommitter::FlushCurrentSession()
-{
-    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
-    YASSERT(~CurrentSession != NULL);
-
-    CurrentSession->SendChanges();
-    TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-    CurrentSession.Drop();
-    TimeoutCookie = TDelayedInvoker::TCookie();
-}
-
-TChangeCommitter::TSession::TPtr TChangeCommitter::GetOrCreateCurrentSession()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
-
-    if (~CurrentSession == NULL) {
-        YASSERT(~TimeoutCookie == NULL);
-        auto version = MetaState->GetVersion();
-        CurrentSession = New<TSession>(TPtr(this), version);
-        TimeoutCookie = TDelayedInvoker::Get()->Submit(
-            FromMethod(
-                &TChangeCommitter::DelayedFlush,
-                TPtr(this),
-                CurrentSession)
-            ->Via(~CancelableControlInvoker),
-            Config.MaxBatchDelay);
-    }
-
-    return CurrentSession;
-}
-
-void TChangeCommitter::DelayedFlush(TSession::TPtr session)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TGuard<TSpinLock> guard(SessionSpinLock);
-    if (session != CurrentSession)
-        return;
-
-    LOG_DEBUG("Flushing batched changes");
-
-    FlushCurrentSession();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
