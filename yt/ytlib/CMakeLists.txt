@@ -1,7 +1,7 @@
 LIBRARY(ytlib)
 
 IF(CMAKE_COMPILER_IS_GNUXX)
-	SET(CMAKE_CXX_FLAGS "-std=c++0x")
+    SET(CMAKE_CXX_FLAGS "-std=c++0x")
 ENDIF(CMAKE_COMPILER_IS_GNUXX)
 
 SET(HEADERS "")
@@ -66,6 +66,7 @@ PEERDIR(
     quality/Misc
     quality/NetLiba
     dict/json
+    util/server
 )
 
 SET(USE_LF_ALLOCATOR yes)

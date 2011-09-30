@@ -112,7 +112,7 @@ private:
 
     // Service thread
     void OnLocalCommit(
-        TChangeCommitter::EResult result,
+        TLeaderCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
 
     void Restart();
@@ -127,7 +127,7 @@ private:
 
     void OnApplyChange();
 
-    ECommitResult OnChangeCommit(TChangeCommitter::EResult result);
+    ECommitResult OnChangeCommit(TLeaderCommitter::EResult result);
 
     // IElectionCallbacks members
     virtual void OnStartLeading(const TEpoch& epoch);
@@ -155,7 +155,10 @@ private:
     TSnapshotCreator::TPtr SnapshotCreator;
     TLeaderRecovery::TPtr LeaderRecovery;
     TFollowerRecovery::TPtr FollowerRecovery;
-    TChangeCommitter::TPtr ChangeCommitter;
+
+    TLeaderCommitter::TPtr LeaderCommitter;
+    TFollowerCommitter::TPtr FollowerCommitter;
+
     TIntrusivePtr<TFollowerTracker> FollowerTracker;
     TIntrusivePtr<TLeaderPinger> LeaderPinger;
 

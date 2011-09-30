@@ -24,7 +24,9 @@ protected:
         serviceInvoker,
         serviceName,
         loggingCategory)
-    { }
+    {
+        YASSERT(~serviceInvoker != NULL);
+    }
 
     template <
         class TState,
@@ -32,10 +34,12 @@ protected:
         class TResult
     >
     static typename TFuture<TResult>::TPtr CommitChange(
-        TIntrusivePtr<TState> state,
+        typename TState::TPtr state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&))
     {
+        YASSERT(~state != NULL);
+
         return state->CommitChange(
             message,
             FromMethod(changeMethod, state));
@@ -51,11 +55,13 @@ protected:
     static void CommitChange(
         TThis* this_,
         TContext context,
-        TIntrusivePtr<TState> state,
+        typename TState::TPtr state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&),
         void (TThis::* handlerMethod)(TResult result, TContext context))
     {
+        YASSERT(~state != NULL);
+
         TIntrusivePtr<TThis> intrusiveThis(this_);
         NRpc::TServiceContext::TPtr untypedContext(context->GetUntypedContext());
         state
@@ -77,10 +83,12 @@ protected:
     static void CommitChange(
         TThis* this_,
         TContext context,
-        TIntrusivePtr<TState> state,
+        typename TState::TPtr state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&))
     {
+        YASSERT(~state != NULL);
+
         TIntrusivePtr<TThis> intrusiveThis(this_);
         NRpc::TServiceContext::TPtr untypedContext(context->GetUntypedContext());
         state

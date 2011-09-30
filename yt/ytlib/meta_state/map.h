@@ -360,6 +360,7 @@ public:
         IInvoker::TPtr invoker,
         TOutputStream* stream)
     {
+        YASSERT(~invoker != NULL);
         YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
         MaybeMergeTempTables();
 
@@ -384,6 +385,7 @@ public:
         IInvoker::TPtr invoker,
         TInputStream* stream)
     {
+        YASSERT(~invoker != NULL);
         YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
         MaybeMergeTempTables();
 
