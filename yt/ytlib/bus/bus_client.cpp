@@ -494,7 +494,9 @@ public:
 
     Stroka GetDebugInfo()
     {
-        return "ClientDispatcher info:\n" + Requester->GetDebugInfo();
+        return
+            "ClientDispatcher info:\n" + Requester->GetDebugInfo() + "\n" +
+            "Pending data size: " + ToString(Requester->GetPendingDataSize());
     }
 };
 
@@ -504,6 +506,11 @@ public:
 void ShutdownClientDispatcher()
 {
     TClientDispatcher::Get()->Shutdown();
+}
+
+Stroka GetClientDispatcherDebugInfo()
+{
+    return TClientDispatcher::Get()->GetDebugInfo();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
