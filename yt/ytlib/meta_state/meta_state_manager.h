@@ -94,7 +94,6 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ScheduleSync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetSnapshotInfo);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadSnapshot);
@@ -105,7 +104,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
     void RegisterMethods();
-    void SendSync(TPeerId peerId, TEpoch epoch);
+    void SendSync(TEpoch epoch, TCtxSync::TPtr context);
 
     void OnLeaderRecoveryComplete(TRecovery::EResult result);
     void OnFollowerRecoveryComplete(TRecovery::EResult result);

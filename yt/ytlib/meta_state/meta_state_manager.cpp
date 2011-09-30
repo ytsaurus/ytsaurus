@@ -74,7 +74,6 @@ TMetaStateManager::~TMetaStateManager()
 
 void TMetaStateManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleSync));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -214,80 +213,45 @@ void TMetaStateManager::StopEpoch()
     ServiceEpochInvoker.Drop();
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ScheduleSync)
+RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
 {
+    UNUSED(request);
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
     
-    auto peerId = request->GetPeerId();
-
-    context->SetRequestInfo("PeerId: %d", peerId);
-   
     if (State != EPeerState::Leading && State != EPeerState::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
             Sprintf("Invalid state %d", (int) State);
     }
 
-    context->Reply();
-
     StateInvoker->Invoke(FromMethod(
         &TMetaStateManager::SendSync,
         TPtr(this),
-        peerId,
-        Epoch));
+        Epoch,
+        context));
 }
 
-void TMetaStateManager::SendSync(TPeerId peerId, TEpoch epoch)
+void TMetaStateManager::SendSync(TEpoch epoch, TCtxSync::TPtr context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
+    
     auto version = MetaState->GetReachableVersion();
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
-    auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-    auto request = proxy->Sync();
-    request->SetSegmentId(version.SegmentId);
-    request->SetRecordCount(version.RecordCount);
-    request->SetEpoch(epoch.ToProto());
-    request->SetMaxSnapshotId(maxSnapshotId);
-    request->Invoke();
+    auto& response = context->Response();
+    response.SetSegmentId(version.SegmentId);
+    response.SetRecordCount(version.RecordCount);
+    response.SetEpoch(epoch.ToProto());
+    response.SetMaxSnapshotId(maxSnapshotId);
 
-    LOG_DEBUG("Sync sent to peer %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
-        peerId,
-        ~version.ToString(),
-        ~epoch.ToString(),
-        maxSnapshotId);
-}
-
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
-{
-    UNUSED(response);
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TMetaVersion version(
-        request->GetSegmentId(),
-        request->GetRecordCount());
-    auto epoch = TEpoch::FromProto(request->GetEpoch());
-    i32 maxSnapshotId = request->GetMaxSnapshotId();
-
-    context->SetRequestInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
+    context->SetResponseInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
         ~version.ToString(),
         ~epoch.ToString(),
         maxSnapshotId);
 
     context->Reply();
-
-    if (~FollowerRecovery == NULL) {
-        LOG_WARNING("Unexpected sync received");
-        return;
-    }
-
-    FollowerRecovery->Sync(
-        version,
-        epoch,
-        maxSnapshotId);
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)

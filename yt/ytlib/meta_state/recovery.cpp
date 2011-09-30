@@ -384,39 +384,27 @@ TRecovery::TResult::TPtr TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ServiceThread);
 
-    LOG_INFO("Requesting sync from leader");
-
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TFollowerRecovery::OnSyncTimeout, TPtr(this))
-        ->Via(~CancelableServiceInvoker),
-        Config.SyncTimeout);
+    LOG_INFO("Syncing with leader");
 
     TAutoPtr<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
-    auto request = leaderProxy->ScheduleSync();
-    request->SetPeerId(CellManager->GetSelfId());
-    request->Invoke();
+    auto request = leaderProxy->Sync();
+    request->Invoke(Config.SyncTimeout)->Subscribe(
+        FromMethod(&TFollowerRecovery::OnSync, TPtr(this))->Via(
+            ~CancelableServiceInvoker));
 
     return Result;
 }
 
-void TFollowerRecovery::OnSyncTimeout()
+void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
 {
     VERIFY_THREAD_AFFINITY(ServiceThread);
 
-    if (SyncReceived)
+    if (!response->IsOK()) {
+        LOG_WARNING("Error %s during syncing with leader",
+            ~response->GetErrorCode().ToString());
+        Result->Set(EResult::Failed);
         return;
-
-    LOG_INFO("Sync timeout");
-    
-    Result->Set(EResult::Failed);
-}
-
-void TFollowerRecovery::Sync(
-    const TMetaVersion& version,
-    const TEpoch& epoch,
-    i32 maxSnapshotId)
-{
-    VERIFY_THREAD_AFFINITY(ServiceThread);
+    }
 
     if (SyncReceived) {
         LOG_WARNING("Duplicate sync received");
@@ -424,6 +412,20 @@ void TFollowerRecovery::Sync(
     }
         
     SyncReceived = true;
+
+    TMetaVersion version(
+        response->GetSegmentId(),
+        response->GetRecordCount());
+    auto epoch = TEpoch::FromProto(response->GetEpoch());
+    i32 maxSnapshotId = response->GetMaxSnapshotId();
+
+    if (epoch != Epoch) {
+        LOG_ERROR("Incorrect epoch. Expected %s, got %s",
+            ~Epoch.ToString(),
+            ~epoch.ToString());
+        Result->Set(EResult::Failed);
+        return;
+    }
 
     LOG_INFO("Sync received (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
         ~version.ToString(),
