@@ -554,7 +554,7 @@ void TRemoteChunkWriter::DoClose()
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    if (Window.empty()) {
+    if (Window.empty() && State == EWriterState::Writing) {
         CloseSession();
     }
 }
