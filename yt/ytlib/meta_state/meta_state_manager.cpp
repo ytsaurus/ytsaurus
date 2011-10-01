@@ -62,10 +62,6 @@ TMetaStateManager::TMetaStateManager(
         this,
         server);
 
-    OnApplyChangeAction = FromMethod(
-        &TMetaStateManager::OnApplyChange,
-        TPtr(this));
-
     server->RegisterService(this);
 }
 
@@ -669,7 +665,6 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         MetaState));
 
     YASSERT(~LeaderRecovery != NULL);
-    // TODO: try to eliminate this call
     LeaderRecovery->Stop();
     LeaderRecovery.Drop();
 
@@ -694,7 +689,9 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         FollowerTracker,
         ControlInvoker,
         Epoch);
-    LeaderCommitter->OnApplyChange().Subscribe(OnApplyChangeAction);
+    LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
+        &TMetaStateManager::OnApplyChange,
+        TPtr(this)));
 
     YASSERT(~SnapshotCreator == NULL);
     SnapshotCreator = New<TSnapshotCreator>(
@@ -711,20 +708,6 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
     LOG_INFO("Leader recovery complete");
 }
 
-void TMetaStateManager::OnApplyChange()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(State == EPeerState::Leading);
-
-    auto version = MetaState->GetVersion();
-    if (Config.MaxChangesBetweenSnapshots >= 0 &&
-        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
-    {
-        LeaderCommitter->Flush();
-        SnapshotCreator->CreateDistributed(version);
-    }
-}
-
 void TMetaStateManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -739,9 +722,13 @@ void TMetaStateManager::OnStopLeading()
 
     StopEpoch();
 
-    if (~LeaderCommitter != NULL) {
-        LeaderCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
+    if (~LeaderRecovery != NULL) {
+        // This may happen if the recovery gets interrupted.
+        LeaderRecovery->Stop();
+        LeaderRecovery.Drop();
+    }
 
+    if (~LeaderCommitter != NULL) {
         LeaderCommitter->Stop();
         LeaderCommitter.Drop();
     }
@@ -753,6 +740,20 @@ void TMetaStateManager::OnStopLeading()
 
     if (~SnapshotCreator != NULL) {
         SnapshotCreator.Drop();
+    }
+}
+
+void TMetaStateManager::OnApplyChange()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(State == EPeerState::Leading);
+
+    auto version = MetaState->GetVersion();
+    if (Config.MaxChangesBetweenSnapshots >= 0 &&
+        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
+    {
+        LeaderCommitter->Flush();
+        SnapshotCreator->CreateDistributed(version);
     }
 }
 
@@ -797,7 +798,6 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
         MetaState));
 
     YASSERT(~FollowerRecovery != NULL);
-    // TODO: try to eliminate this call
     FollowerRecovery->Stop();
     FollowerRecovery.Drop();
 
@@ -851,6 +851,7 @@ void TMetaStateManager::OnStopFollowing()
     StopEpoch();
 
     if (~FollowerRecovery != NULL) {
+        // This may happen if the recovery gets interrupted.
         FollowerRecovery->Stop();
         FollowerRecovery.Drop();
     }

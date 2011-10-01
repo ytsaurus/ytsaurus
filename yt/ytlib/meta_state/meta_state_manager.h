@@ -109,7 +109,6 @@ private:
     void OnLeaderRecoveryComplete(TRecovery::EResult result);
     void OnFollowerRecoveryComplete(TRecovery::EResult result);
 
-    // Service thread
     void OnLocalCommit(
         TLeaderCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
@@ -119,7 +118,6 @@ private:
     void StartEpoch(const TEpoch& epoch);
     void StopEpoch();
 
-    // Thread-neutral.
     void OnCreateLocalSnapshot(
         TSnapshotCreator::TLocalResult result,
         TCtxAdvanceSegment::TPtr context);
@@ -128,7 +126,7 @@ private:
 
     ECommitResult OnChangeCommit(TLeaderCommitter::EResult result);
 
-    // IElectionCallbacks members
+    // IElectionCallbacks implementation.
     virtual void OnStartLeading(const TEpoch& epoch);
     virtual void OnStopLeading();
     virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& myEpoch);
@@ -146,7 +144,6 @@ private:
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
-    IAction::TPtr OnApplyChangeAction;
 
     // Per epoch, service thread
     TEpoch Epoch;
