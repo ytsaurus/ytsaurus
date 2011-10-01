@@ -51,8 +51,9 @@ namespace NYT {
  * the temporary pointer is destroyed effectively decrementing the reference
  * counter to zero hence triggering object destruction during its initialization.
  *
- * To avoid this undefined behaviour New<T> was introduced. New<T> holds fake
- * reference to an object during its construction effectively preventing
+ * To avoid this undefined behavior <tt>New<T></tt> was introduced.
+ * <tt>New<T></tt> holds a fake
+ * reference to the object during its construction effectively preventing
  * premature destruction.
  *
  * \note An initialization like <tt>TIntrusivePtr&lt;T&gt; p = new T()</tt>
