@@ -15,7 +15,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Common part for #TFollowerCommitter and #TLeaderCommitter
+//! A common base for TFollowerCommitter and TLeaderCommitter.
 class TCommitterBase
     : public TRefCountedBase
 {
@@ -37,6 +37,7 @@ public:
 
     static EResult OnAppend(TVoid);
 
+    //! Releases all resources.
     /*!
      * \note Thread affinity: any
      */
@@ -54,6 +55,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages commits carried out by a leader.
 class TLeaderCommitter
     : public TCommitterBase
 {
@@ -73,6 +75,7 @@ public:
         int MaxBatchSize;
     };
 
+    //! Creates an instance.
     TLeaderCommitter(
         const TConfig& config,
         TCellManager::TPtr cellManager,
@@ -82,8 +85,24 @@ public:
         IInvoker::TPtr controlInvoker,
         const TEpoch& epoch);
 
+    //! Releases all resources.
     /*!
-     * \note Thread affinity: StateThread
+     * \note Thread affinity: any
+     */
+    void Stop();
+
+    //! Initiates a new distributed commit.
+    /*!
+     *  \param changeAction An action that will be called in the context of
+     *  the state thread and will update the state.
+     *  \param changeData A serialized representation of the change that
+     *  will be sent down to follower.
+     *  \return An asynchronous flag indicating the outcome of the distributed commit.
+     *  
+     *  The current implementation regards a distributed commit as completed when the update is
+     *  received, applied, and flushed to the changelog by a quorum of replicas.
+     *  
+     *  \note Thread affinity: StateThread
      */
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
@@ -91,17 +110,17 @@ public:
 
     //! Force to send all pending changes.
     /*!
-     * \note Thread affinity: Any
+     * \note Thread affinity: any
      */
     void Flush();
 
+    //! A signal that gets raised in the state thread after each commit.
     /*!
-     * \note Thread affinity: Any
+     * \note Thread affinity: any
      */
     TSignal& OnApplyChange();
 
 private:
-
     class TSession;
     typedef TMetaStateManagerProxy TProxy;
 
@@ -121,6 +140,7 @@ private:
 
     TSignal OnApplyChange_;
 
+    //! Protects #CurrentSession and TimeoutCookie.
     TSpinLock SessionSpinLock;
     TIntrusivePtr<TSession> CurrentSession;
     TDelayedInvoker::TCookie TimeoutCookie;
@@ -128,18 +148,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages commits carried out by a follower.
 class TFollowerCommitter
     : public TCommitterBase
 {
 public:
     typedef TIntrusivePtr<TFollowerCommitter> TPtr;
 
+    //! Creates an instance.
     TFollowerCommitter(
         TDecoratedMetaState::TPtr metaState,
         IInvoker::TPtr controlInvoker);
 
+    //! Carries out a commit at a follower.
     /*!
-     * \note Thread affinity: ControlThread
+     *  \param version A version that the state is currently expected to have.
+     *  \param changeData A serialized representation of the change that
+     *  the follower must apply.
+     *  \return An asynchronous flag indicating the outcome of the local commit.
+     *  
+     *  The current implementation regards a local commit as completed when the update is
+     *  flushed to the local changelog.
+     *  
+     *  \note Thread affinity: ControlThread
      */
     TResult::TPtr CommitFollower(
         const TMetaVersion& version,

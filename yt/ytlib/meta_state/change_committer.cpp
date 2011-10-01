@@ -217,6 +217,12 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(~controlInvoker != NULL);
 }
 
+void TLeaderCommitter::Stop()
+{
+    TCommitterBase::Stop();
+    OnApplyChange().Clear();
+}
+
 void TLeaderCommitter::Flush()
 {
     TGuard<TSpinLock> guard(SessionSpinLock);
