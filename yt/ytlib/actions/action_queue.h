@@ -52,7 +52,6 @@ public:
 
 protected:
     virtual void OnIdle();
-    bool IsEmpty() const;
 
 private:
     TThread Thread;
