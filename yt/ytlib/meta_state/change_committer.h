@@ -39,7 +39,7 @@ public:
 
     //! Releases all resources.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
     void Stop();
 
@@ -87,7 +87,7 @@ public:
 
     //! Releases all resources.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
     void Stop();
 
