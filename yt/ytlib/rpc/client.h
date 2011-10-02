@@ -6,16 +6,6 @@
 #include "../actions/future.h"
 #include "../misc/delayed_invoker.h"
 
-// TODO: forward declaration for friends
-
-namespace NYT {
-namespace NMetaState {
-
-class TCellChannel;
-
-}
-} // namespace NYT
-
 namespace NYT {
 namespace NRpc {
 
@@ -80,7 +70,7 @@ protected:
         Stroka methodName);
 
     virtual bool SerializeBody(TBlob* data) = 0;
-    TFuture<TVoid>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
+    TFuture<EErrorCode>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
 
 private:
     friend class TChannel;
@@ -136,18 +126,35 @@ private:
     }
 
     static void OnReady(
-        TVoid,
+        EErrorCode errorCode,
         typename TInvokeResult::TPtr asyncResult,
         typename TTypedResponse::TPtr response)
     {
+        UNUSED(errorCode);
         asyncResult->Set(response);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IClientResponseHandler
+    : virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IClientResponseHandler> TPtr;
+
+    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
+
+    virtual void OnResponse(
+        EErrorCode errorCode,
+        NBus::IMessage::TPtr message) = 0;
+
+    virtual void OnTimeout() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClientResponse
-    : public TRefCountedBase
+    : public IClientResponseHandler
 {
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
@@ -170,8 +177,6 @@ protected:
     virtual bool DeserializeBody(TRef data) = 0;
 
 private:
-    friend class TChannel;
-    friend class ::NYT::NMetaState::TCellChannel;
     friend class TClientRequest;
 
     DECLARE_ENUM(EState,
@@ -180,7 +185,7 @@ private:
         (Done)
     );
 
-    // Protects state.
+    //! Protects state.
     TSpinLock SpinLock;
     TRequestId RequestId;
     IChannel::TPtr Channel;
@@ -188,11 +193,13 @@ private:
     EErrorCode ErrorCode;
     yvector<TSharedRef> MyAttachments;
 
+    //! IClientResponseHandler implementation.
+    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
+    virtual void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message);
+    virtual void OnTimeout();
+
     void Deserialize(NBus::IMessage::TPtr message);
     void Complete(EErrorCode errorCode);
-    void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
-    void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message);
-    void OnTimeout();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +231,6 @@ public:
 
 private:
     typename TFuture<TPtr>::TPtr AsyncResult;
-
 
     virtual bool DeserializeBody(TRef data)
     {

@@ -20,7 +20,6 @@ TCommitterBase::TCommitterBase(
 {
     YASSERT(~metaState != NULL);
     YASSERT(~controlInvoker != NULL);
-
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
 }
@@ -30,7 +29,7 @@ TCommitterBase::~TCommitterBase()
 
 void TCommitterBase::Stop()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     CancelableControlInvoker->Cancel();
 }
@@ -217,8 +216,18 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(~controlInvoker != NULL);
 }
 
+void TLeaderCommitter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TCommitterBase::Stop();
+    OnApplyChange().Clear();
+}
+
 void TLeaderCommitter::Flush()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(SessionSpinLock);
     if (~CurrentSession != NULL) {
         FlushCurrentSession();
@@ -229,9 +238,8 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
 {
-    YASSERT(~changeAction != NULL);
-
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(~changeAction != NULL);
 
     auto version = MetaState->GetVersion();
     LOG_DEBUG("Starting commit of change %s", ~version.ToString());

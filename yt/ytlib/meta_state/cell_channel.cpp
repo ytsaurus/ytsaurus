@@ -10,57 +10,76 @@ TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
     , State(EState::NotConnected)
 { }
 
-TFuture<TVoid>::TPtr TCellChannel::Send(
+TFuture<NRpc::EErrorCode>::TPtr TCellChannel::Send(
     NRpc::TClientRequest::TPtr request,
-    NRpc::TClientResponse::TPtr response,
+    NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
     YASSERT(~request != NULL);
-    YASSERT(~response != NULL);
+    YASSERT(~responseHandler != NULL);
+    YASSERT(State != EState::Terminated);
 
     return GetChannel()->Apply(FromMethod(
         &TCellChannel::OnGotChannel,
         TPtr(this),
         request,
-        response,
+        responseHandler,
         timeout));
 }
 
-TFuture<TVoid>::TPtr TCellChannel::OnGotChannel(
+void TCellChannel::Terminate()
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    
+    if (State == EState::Terminated)
+        return;
+
+    if (~Channel != NULL) {
+        Channel->Terminate();
+        Channel.Drop();
+    }
+
+    LookupResult.Drop();
+
+    State = EState::Terminated;
+}
+
+TFuture<NRpc::EErrorCode>::TPtr TCellChannel::OnGotChannel(
     NRpc::IChannel::TPtr channel,
     NRpc::TClientRequest::TPtr request,
-    NRpc::TClientResponse::TPtr response,
+    NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
     if (~channel == NULL) {
-        response->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return New< TFuture<TVoid> >(TVoid());
+        responseHandler->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
+        return New< TFuture<NRpc::EErrorCode> >(NRpc::EErrorCode::Unavailable);
     }
 
     return
         channel
-        ->Send(request, response, timeout)
+        ->Send(request, responseHandler, timeout)
         ->Apply(FromMethod(
             &TCellChannel::OnResponseReady,
             TPtr(this),
-            response));
+            responseHandler));
 }
 
-NYT::TVoid TCellChannel::OnResponseReady(
-    TVoid,
-    NRpc::TClientResponse::TPtr response)
+NRpc::EErrorCode TCellChannel::OnResponseReady(
+    NRpc::EErrorCode errorCode,
+    NRpc::IClientResponseHandler::TPtr responseHandler)
 {
-    auto errorCode = response->GetErrorCode();
     if (errorCode == NRpc::EErrorCode::TransportError ||
         errorCode == NRpc::EErrorCode::Timeout ||
         errorCode == NRpc::EErrorCode::Unavailable)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Failed;
-        LookupResult = NULL;
-        Channel = NULL;
+            if (State != EState::Terminated) {
+            State = EState::Failed;
+            LookupResult.Drop();
+            Channel.Drop();
+        }
     }
-    return TVoid();
+    return errorCode;
 }
 
 TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
@@ -95,6 +114,12 @@ TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
                 &TCellChannel::OnSecondLookupResult,
                 TPtr(this)));
         }
+
+        case EState::Terminated:
+            YASSERT(~LookupResult == NULL);
+            YASSERT(~Channel == NULL);
+            return NULL;
+            break;
 
         default:
             YASSERT(false);

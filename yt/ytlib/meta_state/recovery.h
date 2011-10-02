@@ -213,6 +213,7 @@ private:
      // Service thread
     void OnSyncTimeout();
     TResult::TPtr CapturePostponedChanges();
+    void OnSync(TProxy::TRspSync::TPtr response);
 
     // Thread-neutral.
     virtual bool IsLeader() const;

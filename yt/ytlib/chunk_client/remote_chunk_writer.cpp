@@ -21,6 +21,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkWriter");
+
 NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -554,7 +555,7 @@ void TRemoteChunkWriter::DoClose()
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    if (Window.empty()) {
+    if (Window.empty() && State == EWriterState::Writing) {
         CloseSession();
     }
 }
@@ -724,7 +725,11 @@ void TRemoteChunkWriter::CloseSession()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     YASSERT(IsCloseRequested);
-    YASSERT(State == EWriterState::Writing);
+    YASSERT(State == EWriterState::Writing ||
+            State == EWriterState::Initializing);
+
+    if (State == EWriterState::Initializing)
+        return;
 
     LOG_DEBUG("Closing writer (ChunkId: %s)",
         ~ChunkId.ToString());

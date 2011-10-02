@@ -6,6 +6,7 @@ namespace NYT {
 namespace NBus {
 
 extern void ShutdownClientDispatcher();
+extern Stroka GetClientDispatcherDebugInfo();
 
 }
 }
@@ -30,7 +31,7 @@ TRpcManager* TRpcManager::Get()
 Stroka TRpcManager::GetDebugInfo()
 {
     // TODO: implement
-    return "";
+    return NBus::GetClientDispatcherDebugInfo();
 }
 
 void TRpcManager::Shutdown()

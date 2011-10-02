@@ -14,6 +14,9 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Performs parallel and asynchronous leader lookups.
+/*!
+ * \note Thread affinity: any.
+ */
 class TLeaderLookup
     : public TRefCountedBase
 {
@@ -60,16 +63,13 @@ public:
     TLeaderLookup(const TConfig& config);
 
     //! Performs an asynchronous lookup.
-    /*!
-     * \note Thread affinity: any
-     */
     TFuture<TResult>::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
 
     TConfig Config;
-    NRpc::TChannelCache ChannelCache;
+    static NRpc::TChannelCache ChannelCache;
 
     //! Protects from simultaneously reporting conflicting results.
     /*! 

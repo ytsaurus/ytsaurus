@@ -44,11 +44,11 @@ IMessage::TPtr TClientRequest::Serialize()
         Attachments_);
 }
 
-TFuture<TVoid>::TPtr TClientRequest::DoInvoke(
+TFuture<EErrorCode>::TPtr TClientRequest::DoInvoke(
     TClientResponse::TPtr response,
     TDuration timeout)
 {
-    return Channel->Send(this, response, timeout);
+    return Channel->Send(this, ~response, timeout);
 }
 
 yvector<TSharedRef>& TClientRequest::Attachments()

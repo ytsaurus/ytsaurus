@@ -2,27 +2,16 @@ package NYT.NMetaState.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqScheduleSync
-{
-    optional int32 PeerId = 1;
-}
-
-message TRspScheduleSync
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqSync
+{
+}
+
+message TRspSync
 {
     optional int32 SegmentId = 1;
     optional int32 RecordCount = 2;
     optional bytes Epoch = 3;
     optional int32 MaxSnapshotId = 4;
-}
-
-message TRspSync
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

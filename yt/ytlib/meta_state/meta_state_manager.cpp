@@ -62,10 +62,6 @@ TMetaStateManager::TMetaStateManager(
         this,
         server);
 
-    OnApplyChangeAction = FromMethod(
-        &TMetaStateManager::OnApplyChange,
-        TPtr(this));
-
     server->RegisterService(this);
 }
 
@@ -74,7 +70,6 @@ TMetaStateManager::~TMetaStateManager()
 
 void TMetaStateManager::RegisterMethods()
 {
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleSync));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -214,80 +209,45 @@ void TMetaStateManager::StopEpoch()
     ServiceEpochInvoker.Drop();
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ScheduleSync)
+RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
 {
+    UNUSED(request);
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
     
-    auto peerId = request->GetPeerId();
-
-    context->SetRequestInfo("PeerId: %d", peerId);
-   
     if (State != EPeerState::Leading && State != EPeerState::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
             Sprintf("Invalid state %d", (int) State);
     }
 
-    context->Reply();
-
     StateInvoker->Invoke(FromMethod(
         &TMetaStateManager::SendSync,
         TPtr(this),
-        peerId,
-        Epoch));
+        Epoch,
+        context));
 }
 
-void TMetaStateManager::SendSync(TPeerId peerId, TEpoch epoch)
+void TMetaStateManager::SendSync(TEpoch epoch, TCtxSync::TPtr context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
+    
     auto version = MetaState->GetReachableVersion();
     i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
 
-    auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-    auto request = proxy->Sync();
-    request->SetSegmentId(version.SegmentId);
-    request->SetRecordCount(version.RecordCount);
-    request->SetEpoch(epoch.ToProto());
-    request->SetMaxSnapshotId(maxSnapshotId);
-    request->Invoke();
+    auto& response = context->Response();
+    response.SetSegmentId(version.SegmentId);
+    response.SetRecordCount(version.RecordCount);
+    response.SetEpoch(epoch.ToProto());
+    response.SetMaxSnapshotId(maxSnapshotId);
 
-    LOG_DEBUG("Sync sent to peer %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
-        peerId,
-        ~version.ToString(),
-        ~epoch.ToString(),
-        maxSnapshotId);
-}
-
-RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
-{
-    UNUSED(response);
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TMetaVersion version(
-        request->GetSegmentId(),
-        request->GetRecordCount());
-    auto epoch = TEpoch::FromProto(request->GetEpoch());
-    i32 maxSnapshotId = request->GetMaxSnapshotId();
-
-    context->SetRequestInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
+    context->SetResponseInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
         ~version.ToString(),
         ~epoch.ToString(),
         maxSnapshotId);
 
     context->Reply();
-
-    if (~FollowerRecovery == NULL) {
-        LOG_WARNING("Unexpected sync received");
-        return;
-    }
-
-    FollowerRecovery->Sync(
-        version,
-        epoch,
-        maxSnapshotId);
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager, GetSnapshotInfo)
@@ -705,7 +665,6 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         MetaState));
 
     YASSERT(~LeaderRecovery != NULL);
-    // TODO: try to eliminate this call
     LeaderRecovery->Stop();
     LeaderRecovery.Drop();
 
@@ -730,7 +689,9 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
         FollowerTracker,
         ControlInvoker,
         Epoch);
-    LeaderCommitter->OnApplyChange().Subscribe(OnApplyChangeAction);
+    LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
+        &TMetaStateManager::OnApplyChange,
+        TPtr(this)));
 
     YASSERT(~SnapshotCreator == NULL);
     SnapshotCreator = New<TSnapshotCreator>(
@@ -747,20 +708,6 @@ void TMetaStateManager::OnLeaderRecoveryComplete(TRecovery::EResult result)
     LOG_INFO("Leader recovery complete");
 }
 
-void TMetaStateManager::OnApplyChange()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(State == EPeerState::Leading);
-
-    auto version = MetaState->GetVersion();
-    if (Config.MaxChangesBetweenSnapshots >= 0 &&
-        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
-    {
-        LeaderCommitter->Flush();
-        SnapshotCreator->CreateDistributed(version);
-    }
-}
-
 void TMetaStateManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -775,9 +722,13 @@ void TMetaStateManager::OnStopLeading()
 
     StopEpoch();
 
-    if (~LeaderCommitter != NULL) {
-        LeaderCommitter->OnApplyChange().Unsubscribe(OnApplyChangeAction);
+    if (~LeaderRecovery != NULL) {
+        // This may happen if the recovery gets interrupted.
+        LeaderRecovery->Stop();
+        LeaderRecovery.Drop();
+    }
 
+    if (~LeaderCommitter != NULL) {
         LeaderCommitter->Stop();
         LeaderCommitter.Drop();
     }
@@ -789,6 +740,20 @@ void TMetaStateManager::OnStopLeading()
 
     if (~SnapshotCreator != NULL) {
         SnapshotCreator.Drop();
+    }
+}
+
+void TMetaStateManager::OnApplyChange()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(State == EPeerState::Leading);
+
+    auto version = MetaState->GetVersion();
+    if (Config.MaxChangesBetweenSnapshots >= 0 &&
+        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
+    {
+        LeaderCommitter->Flush();
+        SnapshotCreator->CreateDistributed(version);
     }
 }
 
@@ -833,7 +798,6 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
         MetaState));
 
     YASSERT(~FollowerRecovery != NULL);
-    // TODO: try to eliminate this call
     FollowerRecovery->Stop();
     FollowerRecovery.Drop();
 
@@ -887,6 +851,7 @@ void TMetaStateManager::OnStopFollowing()
     StopEpoch();
 
     if (~FollowerRecovery != NULL) {
+        // This may happen if the recovery gets interrupted.
         FollowerRecovery->Stop();
         FollowerRecovery.Drop();
     }

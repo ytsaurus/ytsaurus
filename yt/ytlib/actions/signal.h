@@ -48,6 +48,13 @@ public:
         return true;
     }
 
+    //! Clears the list of handlers.
+    void Clear()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        Actions.clear();
+    }
+
 protected:
     yvector<typename T::TPtr> Actions;
     TSpinLock SpinLock;
