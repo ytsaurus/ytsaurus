@@ -1,28 +1,44 @@
 ﻿#pragma once
+
+#include "../misc/common.h"
+#include "../misc/ptr.h"
 #include "value.h"
+#include "schema.h"
 
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TChannelBuffer
+class TChannelWriter
+    : public TRefCountedBase
 {
 public:
-    typedef TAutoPtr<TChannelBuffer> TPtr;
+    typedef TIntrusivePtr<TChannelWriter> TPtr;
 
+    TChannelWriter(const TChannel& channel);
     void AddRow(const TTableRow& tableRow);
-    i64 GetBufferSize() const;
-    TSharedRef GetBlock();
+    size_t GetCurrentSize() const;
+    bool HasData() const;
+    TSharedRef FlushBlock();
 
 private:
+    size_t EmptySize() const;
+    void AppendSize(i32 size, TBlob* data);
+    void AppendValue(const TValue& value, TBlob* data);
+
     TChannel Channel;
-    yvector<TBlob> FixedColums;
+
+    //! Current buffers for fixed columns
+    yvector<TBlob> FixedColumns;
+
+    //! Current buffer for range columns
     TBlob RangeColumns;
 
-    yhash_map<THValue, >
+    //! Mapping from fixed column names of the #Channel to their indexes in #FixedColumns
+    yhash_map<TValue, int> ColumnIndexes;
 
+    //! Overall size of current buffers
     i64 CurrentSize;
-    i64 FullSize;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

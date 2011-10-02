@@ -1,105 +1,52 @@
 ﻿#pragma once
 
+#include "../misc/common.h"
+#include "../misc/ptr.h"
 #include "value.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-class TRangeOf
+class TRange
 {
-    T BeginK;
-    T EndK;
-
 public:
+    TRange(const TValue& begin, const TValue& end, bool closedEnd = false);
 
-    TRangeOf(const T& begin, const T& end, bool closedEnd = false)
-        : BeginK(begin)
-        , EndK(end)
-    {
-        if (closedEnd)
-            EndK = MakeOpenFromClosed(end);
-    }
+    const TValue& Begin() const;
+    const TValue& End() const;
 
-    const T& Begin() const { return BeginK; }
-    const T& End() const { return EndK; }
+    bool Match(const TValue& value) const;
+    bool Overlap(const TRange& range) const;
 
-    bool Match(const T& val) const
-    {
-        if (BeginK.IsSet() && val < BeginK)
-            return false;
-
-        if (EndK.IsSet() && val >= EndK)
-            return false;
-
-        return true;
-    }
-
-    // ToDo: make better name
-    bool Intersects(const TRangeOf& range) const
-    {
-        if ((BeginK <= range.BeginK && (!EndK.IsSet() || range.BeginK < EndK)) || 
-            (BeginK < range.EndK && (!EndK.IsSet() || range.EndK <= EndK)) ||
-            (range.BeginK <= BeginK && (!range.EndK.IsSet() || BeginK < range.EndK)))
-            return true;
-        else
-            return false;
-    }
+private:
+    TValue Begin_;
+    TValue End_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// range of column names (holder type only)
 
-template<class T>
-TRangeOf<T> UniteRanges(const TRangeOf<T>& lho, const TRangeOf<T>& rho)
-{
-    /*YASSERT(Intersects(range));
-
-    if (range.BeginK < BeginK)
-        BeginK = range.BeginK;
-    if (EndK.IsSet() && (!range.EndK.IsSet() || (range.EndK > EndK)))
-        EndK = range.EndK;*/
-}
-
-typedef TRangeOf<TValue> TRange;
-
-TValue MakeOpenFromClosed(const TValue& value);
-
-TRange Range(const TValue& begin, const TValue& end, bool closedEnd = false);
-TRange RayRange(const TValue& begin);
-TRange PrefixRange(const TValue& prefix);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// channel: type used for schema descriptions
-// set of stand-alone columns and column ranges
-
+// Part of schema descriptions
+// Set of fixed columns and column ranges
 class TChannel
-    : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TChannel> TPtr;
-
-    TChannel();
-    void AddColumn(const TValue& column);
-    void AddRange(const TRange& range);
-
-    bool IsEmpty() const;
+    TChannel& AddColumn(const TValue& column);
+    TChannel& AddRange(const TRange& range);
+    TChannel& AddRange(const TValue& begin, const TValue& end);
 
     bool Match(const TValue& column) const;
-    bool Match(const TRange& range) const;
-    bool Match(const TChannel& channel) const;
+    bool MatchRanges(const TValue& column) const;
 
-    bool Intersect(const TRange& range) const;
-    bool Intersect(const TChannel& channel) const;
+    const yvector<TValue>& Columns();
+    const yvector<TRange>& Ranges();
 
     TChannel& operator-= (const TChannel& channel);
     const TChannel operator- (const TChannel& channel);
 
 private:
-    yvector<TValue> Columns;
-    yvector<TRange> Ranges;
+    yvector<TValue> Columns_;
+    yvector<TRange> Ranges_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,15 +54,16 @@ private:
 class TSchema
 {
 public:
-    TSchema();
-    void AddChannel(TChannel::TPtr channel);
+    typedef TAutoPtr<TSchema> TPtr;
 
-    const TChannel& GetChannel(int channelIndex) const;
+    TSchema();
+    TSchema& AddChannel(const TChannel& channel);
 
     int GetChannelCount() const;
+    const yvector<TChannel>& Channels() const;
 
 private:
-    yvector<TChannel::TPtr> Channels;
+    yvector<TChannel> Channels_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

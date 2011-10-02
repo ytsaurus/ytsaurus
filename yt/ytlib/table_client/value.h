@@ -1,53 +1,44 @@
 ﻿#pragma once
 
+#include "../misc/common.h"
+#include "../misc/ptr.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Array of bytes. The only data type stored inside tables (column names and values)
-
 class TValue
 {
 public:
+    TValue();
+    TValue(const TSharedRef& data);
+    TValue(TBlob& data);
 
-    TValue(const TSharedRef& data)
-        : Data(data)
-    {}
+    const char* GetData() const;
+    size_t GetSize() const;
 
-    //! Data is swapped out to TValue
-    TValue(TBlob& data)
-        : Data(data)
-    { }
+    const char* Begin() const;
+    const char* End() const;
 
-    const char* GetData() const { return Data.Begin(); }
-    size_t GetSize() const { return Data.Size(); }
+    bool IsEmpty() const;
+    bool IsNull() const;
 
-    const char* Begin() const { return Data.Begin(); }
-    const char* End() const { return Data.End(); }
+    Stroka ToString() const;
+    TBlob ToBlob() const;
 
-    bool IsEmpty() const { return (Data != NULL) && (Size == 0); }
-    bool IsNull() const { return Data.Begin() == NULL; }
-
-    static TValue Null() 
-    {
-        TBlob blob(0);
-        TRef ref;
-        TSharedRef data(blob, ref);
-        return TValue(data);
-    }
-
-    Stroka AsString() const { return Stroka(Data.Begin(), Data.End()); }
+    static TValue Null();
 
 private:
-    const TSharedRef Data;
+    TSharedRef Data;
 };
 
-bool operator==(const TValue& a, const TValue& b);
-bool operator!=(const TValue& a, const TValue& b);
-bool operator< (const TValue& a, const TValue& b);
-bool operator> (const TValue& a, const TValue& b);
-bool operator<=(const TValue& a, const TValue& b);
-bool operator>=(const TValue& a, const TValue& b);
+bool operator==(const TValue& lhs, const TValue& rhs);
+bool operator!=(const TValue& lhs, const TValue& rhs);
+bool operator< (const TValue& lhs, const TValue& rhs);
+bool operator> (const TValue& lhs, const TValue& rhs);
+bool operator<=(const TValue& lhs, const TValue& rhs);
+bool operator>=(const TValue& lhs, const TValue& rhs);
 
 // construct from POD types
 template <class T>
@@ -60,9 +51,11 @@ TValue Value(const T& data)
 template <>
 TValue Value(const Stroka& data)
 {
-    TBlob blob(~data, ~data + data.Length());
+    TBlob blob(~data, ~data + data.Size());
     return TValue(blob);
 }
+
+TValue NextValue(const TValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

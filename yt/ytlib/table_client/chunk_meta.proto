@@ -1,0 +1,31 @@
+package NYT.NTableClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRange
+{
+    required bytes Begin = 1;
+    required bytes End = 2;
+}
+
+message TBlockInfo
+{
+    required int32 BlockIndex = 1;
+    required int64 EndRow = 2;
+}
+
+message TChannel 
+{
+    repeated bytes Columns = 1;
+    repeated TRange Ranges = 2;
+    repeated TBlockInfo Blocks = 3;
+}
+
+message TChunkMeta
+{
+    repeated TChannel Channels = 1;
+    required int32 Compressor = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
