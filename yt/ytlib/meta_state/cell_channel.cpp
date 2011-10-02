@@ -60,13 +60,10 @@ TFuture<NRpc::EErrorCode>::TPtr TCellChannel::OnGotChannel(
         ->Send(request, responseHandler, timeout)
         ->Apply(FromMethod(
             &TCellChannel::OnResponseReady,
-            TPtr(this),
-            responseHandler));
+            TPtr(this)));
 }
 
-NRpc::EErrorCode TCellChannel::OnResponseReady(
-    NRpc::EErrorCode errorCode,
-    NRpc::IClientResponseHandler::TPtr responseHandler)
+NRpc::EErrorCode TCellChannel::OnResponseReady(NRpc::EErrorCode errorCode)
 {
     if (errorCode == NRpc::EErrorCode::TransportError ||
         errorCode == NRpc::EErrorCode::Timeout ||

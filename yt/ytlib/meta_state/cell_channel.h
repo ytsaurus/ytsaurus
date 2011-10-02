@@ -40,9 +40,7 @@ private:
         NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
 
-    NRpc::EErrorCode OnResponseReady(
-        NRpc::EErrorCode errorCode,
-        NRpc::IClientResponseHandler::TPtr responseHandler);
+    NRpc::EErrorCode OnResponseReady(NRpc::EErrorCode errorCode);
   
     TFuture<NRpc::IChannel::TPtr>::TPtr GetChannel();
 

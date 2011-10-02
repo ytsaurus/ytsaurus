@@ -46,8 +46,6 @@ public:
         static const TDuration ReadyToFollowTimeout;
         static const TDuration PotentialFollowerTimeout;
         static const TDuration VotingPeriod;
-
-        TConfig();
     };
 
     TElectionManager(
@@ -56,8 +54,6 @@ public:
         IInvoker::TPtr controlInvoker,
         IElectionCallbacks::TPtr electionCallbacks,
         NRpc::TServer::TPtr server);
-
-    ~TElectionManager();
 
     /*!
      * \note Thread affinity: any
