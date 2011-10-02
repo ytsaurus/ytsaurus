@@ -174,7 +174,8 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
 
         // Don't panic upon getting TransportError or Unavailable.
         if (errorCode != NRpc::EErrorCode::TransportError && 
-            errorCode != NRpc::EErrorCode::Unavailable) {
+            errorCode != NRpc::EErrorCode::Unavailable)
+        {
             OnDisconnected();
         }
 
