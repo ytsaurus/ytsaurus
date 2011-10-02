@@ -40,8 +40,9 @@ i64 TLocation::GetAvailableSpace()
     try {
         AvailableSpace = NFS::GetAvailableSpace(Path);
     } catch (...) {
-        LOG_FATAL("Failed to compute available space at storage location %s: %s",
-            ~Path.Quote(), ~CurrentExceptionMessage());
+        LOG_FATAL("Failed to compute available space at %s: %s",
+            ~Path.Quote(),
+            ~CurrentExceptionMessage());
     }
     return AvailableSpace;
 }
@@ -138,7 +139,7 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
 void TChunkStore::ScanChunks()
 {
     try {
-        FOREACH(auto location, Locations) {
+        FOREACH(const auto& location, Locations) {
             auto path = location->GetPath();
 
             NFS::ForcePath(~path);
@@ -221,12 +222,12 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
     // Pick every location with a probability proportional to its load.
     double freeFactorSum = 0;
-    FOREACH(auto location, Locations) {
+    FOREACH(const auto& location, Locations) {
         freeFactorSum += (1 - location->GetLoadFactor());
     }
 
     double random = RandomNumber<double>() * freeFactorSum;
-    FOREACH(auto location, Locations) {
+    FOREACH(const auto& location, Locations) {
         random -= (1 - location->GetLoadFactor());
         if (random < 0) {
             return location;
@@ -252,7 +253,7 @@ THolderStatistics TChunkStore::GetStatistics() const
 {
     THolderStatistics result;
 
-    FOREACH(auto location, Locations) {
+    FOREACH(const auto& location, Locations) {
         result.AvailableSpace += location->GetAvailableSpace();
         result.UsedSpace += location->GetUsedSpace();
     }
@@ -269,7 +270,7 @@ TChunkStore::TChunks TChunkStore::GetChunks()
 {
     TChunks result;
     result.reserve(ChunkMap.ysize());
-    FOREACH(auto pair, ChunkMap) {
+    FOREACH(const auto& pair, ChunkMap) {
         result.push_back(pair.Second());
     }
     return result;
