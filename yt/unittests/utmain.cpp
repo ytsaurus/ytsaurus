@@ -20,6 +20,34 @@ Stroka GenerateRandomFileName(const char* prefix)
  
 } // namespace NYT
 
+namespace testing {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Matcher<const Stroka&>::Matcher(const Stroka& s)
+{
+    *this = Eq(s);
+}
+
+Matcher<const Stroka&>::Matcher(const char* s)
+{
+    *this = Eq(Stroka(s));
+}
+
+Matcher<Stroka>::Matcher(const Stroka& s)
+{
+    *this = Eq(s);
+}
+
+Matcher<Stroka>::Matcher(const char* s)
+{
+    *this = Eq(Stroka(s));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace testing
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
