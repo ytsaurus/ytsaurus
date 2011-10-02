@@ -349,7 +349,7 @@ TEST(TYTreeFluentTest, Complex)
     EXPECT_CALL(mock, StringValue("world"));
     EXPECT_CALL(mock, EndList());
     EXPECT_CALL(mock, BeginAttributes());
-    EXPECT_CALL(mock, AttributesItem("kind"));
+    EXPECT_CALL(mock, AttributesItem("hot"));
     EXPECT_CALL(mock, StringValue("chocolate"));
     EXPECT_CALL(mock, EndAttributes());
 
@@ -375,28 +375,43 @@ TEST(TYTreeFluentTest, Complex)
         .BeginTree()
             .BeginList()
                 // 0
-                .Item().WithAttributes().Value(42).BeginAttributes()
+                .Item().WithAttributes()
+                .Value(42)
+                .BeginAttributes()
                     .Item("attr1").Value(-1)
                     .Item("attr2").Value(-2)
                 .EndAttributes()
+
                 // 1
-                .Item().Value(17)
+                .Item()
+                .Value(17)
+
                 // 2
-                .Item().BeginList().EndList()
+                .Item()
+                .BeginList()
+                .EndList()
+
                 // 3
-                .Item().WithAttributes().BeginList()
+                .Item().WithAttributes()
+                .BeginList()
                     .Item().Value("hello")
                     .Item().Value("world")
-                .EndList().BeginAttributes()
-                    .Item("kind").Value("chocolate")
+                .EndList()
+                .BeginAttributes()
+                    .Item("hot").Value("chocolate")
                 .EndAttributes()
+
                 // 4
-                .Item().BeginMap()
+                .Item()
+                .BeginMap()
                     .Item("aaa").Value(1)
                     .Item("bbb").Value(2)
                 .EndMap()
+
                 // 5
-                .Item().WithAttributes().EntityValue().BeginAttributes()
+                .Item().WithAttributes()
+                .EntityValue()
+                .BeginAttributes()
                     .Item("type").Value("extra")
                 .EndAttributes()
             .EndList()
