@@ -4,9 +4,12 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TPeriodicInvoker::TPeriodicInvoker(IAction::TPtr action, TDuration period)
     : Action(action)
     , Period(period)
+    , CancelableInvoker(New<TCancelableInvoker>(TSyncInvoker::Get()))
 { }
 
 TPeriodicInvoker::~TPeriodicInvoker()
@@ -18,7 +21,7 @@ TPeriodicInvoker::~TPeriodicInvoker()
 
 bool TPeriodicInvoker::IsActive() const
 {
-    return ~Cookie != NULL;
+    return CancelableInvoker->IsCanceled();
 }
 
 void TPeriodicInvoker::Start()
@@ -29,6 +32,7 @@ void TPeriodicInvoker::Start()
 void TPeriodicInvoker::Stop()
 {
     YASSERT(IsActive());
+    CancelableInvoker->Cancel();
     TDelayedInvoker::Get()->Cancel(Cookie);
     Cookie = NULL;
 }
@@ -37,8 +41,11 @@ void TPeriodicInvoker::PerformAction()
 {
     Action->Do();
     Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TPeriodicInvoker::PerformAction, TPtr(this)),
+        FromMethod(&TPeriodicInvoker::PerformAction, TPtr(this))
+        ->Via(~CancelableInvoker),
         Period);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
