@@ -95,7 +95,7 @@ private:
     }
 
 
-    virtual void StringValue(const Stroka& value)
+    virtual void StringScalar(const Stroka& value)
     {
         // TODO: escaping
         Stream->Write('"');
@@ -103,17 +103,17 @@ private:
         Stream->Write('"');
     }
 
-    virtual void Int64Value(i64 value)
+    virtual void Int64Scalar(i64 value)
     {
         Stream->Write(ToString(value));
     }
 
-    virtual void DoubleValue(double value)
+    virtual void DoubleScalar(double value)
     {
         Stream->Write(ToString(value));
     }
 
-    virtual void EntityValue()
+    virtual void EntityScalar()
     {
         SetEmptyEntity();
     }
