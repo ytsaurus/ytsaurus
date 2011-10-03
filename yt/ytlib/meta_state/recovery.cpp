@@ -384,7 +384,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ServiceThread);
 
-    LOG_INFO("Syncing with leader");
+    LOG_INFO("Synchronizing with leader");
 
     TAutoPtr<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
     auto request = leaderProxy->Sync();
@@ -400,7 +400,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     VERIFY_THREAD_AFFINITY(ServiceThread);
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error %s during syncing with leader",
+        LOG_WARNING("Error %s during synchronization with leader",
             ~response->GetErrorCode().ToString());
         Result->Set(EResult::Failed);
         return;
@@ -420,7 +420,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     i32 maxSnapshotId = response->GetMaxSnapshotId();
 
     if (epoch != Epoch) {
-        LOG_ERROR("Incorrect epoch. Expected %s, got %s",
+        LOG_ERROR("Invalid epoch (expected: %s, got %s)",
             ~Epoch.ToString(),
             ~epoch.ToString());
         Result->Set(EResult::Failed);
