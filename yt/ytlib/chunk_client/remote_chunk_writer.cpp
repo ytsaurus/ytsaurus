@@ -144,6 +144,14 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
+    void CheckSendResponse(
+        TRemoteChunkWriter::TRspSendBlocks::TPtr rsp, 
+        int srcNode, 
+        int dstNode);
+
+    /*!
+     * \note Thread affinity: WriterThread.
+     */
     void OnSentBlocks(int srcNode, int dstNode);
 };
 
@@ -269,16 +277,11 @@ void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
     for (int node = 0; node < IsSent.ysize(); ++node) {
         if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
             auto awaiter = New<TParallelAwaiter>(TRemoteChunkWriter::WriterThread->GetInvoker());
-            auto onSuccess = FromMethod(
-                &TGroup::OnSentBlocks, 
-                TGroupPtr(this), 
-                srcNode, 
-                node);
             auto onResponse = FromMethod(
-                &TRemoteChunkWriter::CheckResponse<TRspSendBlocks>, 
-                Writer, 
-                srcNode, 
-                onSuccess);
+                &TGroup::CheckSendResponse,
+                TGroupPtr(this),
+                srcNode,
+                node);
             awaiter->Await(SendBlocks(srcNode, node), onResponse);
             awaiter->Complete(FromMethod(&TGroup::Process, TGroupPtr(this)));
             break;
@@ -304,6 +307,25 @@ TRemoteChunkWriter::TGroup::SendBlocks(int srcNode, int dstNode)
     req->SetBlockCount(Blocks.ysize());
     req->SetAddress(Writer->Nodes[dstNode]->Address);
     return req->Invoke(Writer->Config.RpcTimeout);
+}
+
+void TRemoteChunkWriter::TGroup::CheckSendResponse(
+    TRemoteChunkWriter::TRspSendBlocks::TPtr rsp, 
+    int srcNode, 
+    int dstNode)
+{
+    if (rsp->GetErrorCode() == TProxy::EErrorCode::RemoteCallFailed) {
+        Writer->OnNodeDied(dstNode);
+        return;
+    }
+
+    auto onSuccess = FromMethod(
+        &TGroup::OnSentBlocks, 
+        TGroupPtr(this), 
+        srcNode, 
+        dstNode);
+
+    Writer->CheckResponse<TRemoteChunkWriter::TRspSendBlocks>(rsp, srcNode, onSuccess);
 }
 
 void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
