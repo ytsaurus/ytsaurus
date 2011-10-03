@@ -14,12 +14,7 @@ class TYsonWriter
 public:
     typedef TIntrusivePtr<TYsonWriter> TPtr;
 
-    TYsonWriter(TOutputStream* stream)
-        : Stream(stream)
-        , IsFirstItem(false)
-        , IsEmptyEntity(false)
-        , Indent(0)
-    { }
+    TYsonWriter(TOutputStream* stream);
 
 private:
     TOutputStream* Stream;
@@ -29,154 +24,39 @@ private:
 
     static const int IndentSize = 4;
 
-    void WriteIndent()
-    {
-        for (int i = 0; i < IndentSize * Indent; ++i) {
-            Stream->Write(' ');
-        }
-    }
+    void WriteIndent();
 
-    void SetEmptyEntity()
-    {
-        IsEmptyEntity = true;
-    }
+    void SetEmptyEntity();
 
-    void ResetEmptyEntity()
-    {
-        IsEmptyEntity = false;
-    }
+    void ResetEmptyEntity();
 
-    void FlushEmptyEntity()
-    {
-        if (IsEmptyEntity) {
-            Stream->Write("<>");
-            IsEmptyEntity = false;
-        }
-    }
+    void FlushEmptyEntity();
 
-    void BeginCollection(char openBracket)
-    {
-        Stream->Write(openBracket);
-        IsFirstItem = true;
-    }
+    void BeginCollection(char openBracket);
 
-    void CollectionItem()
-    {
-        if (IsFirstItem) {
-            Stream->Write('\n');
-            ++Indent;
-        } else {
-            FlushEmptyEntity();
-            Stream->Write(",\n");
-        }
-        WriteIndent();
-        IsFirstItem = false;
-    }
+    void CollectionItem(char separator);
 
-    void EndCollection(char closeBracket)
-    {
-        FlushEmptyEntity();
-        if (!IsFirstItem) {
-            Stream->Write('\n');
-            --Indent;
-            WriteIndent();
-        }
-        Stream->Write(closeBracket);
-        IsFirstItem = false;
-    }
+    void EndCollection(char closeBracket);
 
+    virtual void BeginTree();
+    virtual void EndTree();
 
-    virtual void BeginTree()
-    { }
+    virtual void StringScalar(const Stroka& value);
+    virtual void Int64Scalar(i64 value);
+    virtual void DoubleScalar(double value);
+    virtual void EntityScalar();
 
-    virtual void EndTree()
-    {
-        FlushEmptyEntity();
-    }
+    virtual void BeginList();
+    virtual void ListItem(int index);
+    virtual void EndList();
 
+    virtual void BeginMap();
+    virtual void MapItem(const Stroka& name);
+    virtual void EndMap();
 
-    virtual void StringScalar(const Stroka& value)
-    {
-        // TODO: escaping
-        Stream->Write('"');
-        Stream->Write(value);
-        Stream->Write('"');
-    }
-
-    virtual void Int64Scalar(i64 value)
-    {
-        Stream->Write(ToString(value));
-    }
-
-    virtual void DoubleScalar(double value)
-    {
-        Stream->Write(ToString(value));
-    }
-
-    virtual void EntityScalar()
-    {
-        SetEmptyEntity();
-    }
-
-
-    virtual void BeginList()
-    {
-        BeginCollection('[');
-    }
-
-    virtual void ListItem(int index)
-    {
-        UNUSED(index);
-        CollectionItem();
-    }
-
-    virtual void EndList()
-    {
-        EndCollection(']');
-    }
-
-    virtual void BeginMap()
-    {
-        BeginCollection('{');
-    }
-
-    virtual void MapItem(const Stroka& name)
-    {
-        CollectionItem();
-        // TODO: escaping
-        Stream->Write(name);
-        Stream->Write(": ");
-    }
-
-    virtual void EndMap()
-    {
-        EndCollection('}');
-    }
-
-
-    virtual void BeginAttributes()
-    {
-        if (IsEmptyEntity) {
-            ResetEmptyEntity();
-        } else {
-            Stream->Write(' ');
-        }
-        BeginCollection('<');
-    }
-
-    virtual void AttributesItem(const Stroka& name)
-    {
-        CollectionItem();
-        // TODO: escaping
-        Stream->Write(name);
-        Stream->Write(": ");
-        IsFirstItem = false;
-    }
-
-    virtual void EndAttributes()
-    {
-        EndCollection('>');
-    }
+    virtual void BeginAttributes();
+    virtual void AttributesItem(const Stroka& name);
+    virtual void EndAttributes();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

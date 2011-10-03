@@ -3,8 +3,6 @@
 #include "common.h"
 #include "yson_events.h"
 
-// TODO: move to cpp
-#include "../misc/assert.h"
 
 namespace NYT {
 namespace NYTree {
@@ -15,29 +13,9 @@ class TYsonReader
     : private TNonCopyable
 {
 public:
-    TYsonReader(IYsonConsumer* events)
-        : Events(events)
-    {
-        Reset();
-    }
+    TYsonReader(IYsonConsumer* events);
 
-    void Read(TInputStream* stream)
-    {
-        try {
-            Stream = stream;
-            Events->BeginTree();
-            ParseAny();
-            int ch = ReadChar();
-            if (ch != Eos) {
-                ythrow yexception() << Sprintf("Unexpected symbol %s in YSON",
-                    ~Stroka(static_cast<char>(ch)).Quote());
-            }
-            Events->EndTree();
-        } catch (...) {
-            Reset();
-            throw;
-        }
-    }
+    void Read(TInputStream* stream);
 
 private:
     static const int Eos = -1;
@@ -47,297 +25,40 @@ private:
     TInputStream* Stream;
     int Lookahead;
 
-    void Reset()
-    {
-        Stream = NULL;
-        Lookahead = NoLookahead;
-    }
+    void Reset();
 
-    int ReadChar()
-    {
-        if (Lookahead == NoLookahead) {
-            PeekChar();
-        }
+    int ReadChar();
 
-        int result = Lookahead;
-        Lookahead = NoLookahead;
-        return result;
-    }
+    void ExpectChar(char expectedCh);
 
-    void ExpectChar(char expectedCh)
-    {
-        int readCh = ReadChar();
-        if (readCh == Eos) {
-            // TODO:
-            ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON",
-                ~Stroka(expectedCh).Quote());
-        }
-        if (static_cast<char>(readCh) != expectedCh) {
-            // TODO:
-            ythrow yexception() << Sprintf("Found %s while expecting %s in YSON",
-                ~Stroka(static_cast<char>(readCh)).Quote(),
-                ~Stroka(expectedCh).Quote());
-        }
-    }
+    int PeekChar();
 
-    int PeekChar()
-    {
-        if (Lookahead != NoLookahead) {
-            return Lookahead;
-        }
+    static bool IsWhitespace(int ch);
 
-        char ch;
-        if (Stream->ReadChar(ch)) {
-            Lookahead = ch;
-        } else {
-            Lookahead = Eos;
-        }
+    void SkipWhitespaces();
 
-        return Lookahead;
-    }
+    Stroka ReadString();
 
-    static bool IsWhitespace(int ch)
-    {
-        return
-            ch == '\n' ||
-            ch == '\r' ||
-            ch == '\t' ||
-            ch == ' ';
-    }
+    Stroka ReadNumericLike();
 
-    void SkipWhitespaces()
-    {
-        while (IsWhitespace(PeekChar())) {
-            ReadChar();
-        }
-    }
+    void ParseAny();
 
-    Stroka ReadString()
-    {
-        Stroka result;
-        if (PeekChar() == '"') {
-            YVERIFY(ReadChar() == '"');
-            while (true) {
-                int ch = ReadChar();
-                if (ch == Eos) {
-                    // TODO:
-                    ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"String\" literal in YSON");
-                }
-                if (ch == '"')
-                    break;
-                result.append(static_cast<char>(ch));
-            }
-        } else {
-            while (true) {
-                int ch = PeekChar();
-                if (!(ch >= 'a' && ch <= 'z' ||
-                      ch >= 'A' && ch <= 'Z' ||
-                      ch == '_' ||
-                      ch >= '0' && ch <= '9' && !result.Empty()))
-                      break;
-                ReadChar();
-                result.append(static_cast<char>(ch));
-            }
-        }
-        return result;
-    }
+    void ParseAttributesItem();
+    void ParseAttributes();
 
-    Stroka ReadNumericLike()
-    {
-        Stroka result;
-        while (true) {
-            int ch = PeekChar();
-            if (!(ch >= '0' && ch <= '9' ||
-                  ch == '+' ||
-                  ch == '-' ||
-                  ch == '.' ||
-                  ch == 'e' || ch == 'E'))
-                break;
-            ReadChar();
-            result.append(static_cast<char>(ch));
-        }
-        if (result.Empty()) {
-            // TODO:
-            ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"Numeric\" literal in YSON");
-        }
-        return result;
-    }
+    void ParseListItem(int index);
+    void ParseList();
 
-    void ParseAny()
-    {
-        SkipWhitespaces();
-        int ch = PeekChar();
-        switch (ch) {
-            case '[':
-                ParseList();
-                ParseAttributes();
-                break;
+    void ParseMapItem();
+    void ParseMap();
 
-            case '{':
-                ParseMap();
-                ParseAttributes();
-                break;
+    void ParseEntity();
 
-            case '<':
-                ParseEntity();
-                ParseAttributes();
-                break;
+    void ParseString();
 
-            default:
-                if (ch >= '0' && ch <= '9' ||
-                    ch == '+' ||
-                    ch == '-')
-                {
-                    ParseNumeric();
-                    ParseAttributes();
-                } else if (ch >= 'a' && ch <= 'z' ||
-                           ch >= 'A' && ch <= 'Z' ||
-                           ch == '_' ||
-                           ch == '"')
-                {
-                    ParseString();
-                    ParseAttributes();
-                } else {
-                    // TODO:
-                    ythrow yexception() << Sprintf("Unexpected %s in YSON",
-                        ~Stroka(static_cast<char>(ch)).Quote());
-                }
-                break;
-        }
-    }
+    static bool IsIntegerLike(const Stroka& str);
 
-    void ParseAttributesItem()
-    {
-        SkipWhitespaces();
-        Stroka name = ReadString();
-        if (name.Empty()) {
-            // TODO:
-            ythrow yexception() << Sprintf("Empty attribute name in YSON");
-        }
-        SkipWhitespaces();
-        ExpectChar(':');
-        Events->AttributesItem(name);
-        ParseAny();
-    }
-
-    void ParseAttributes()
-    {
-        SkipWhitespaces();
-        if (PeekChar() != '<')
-            return;
-        YVERIFY(ReadChar() == '<');
-        Events->BeginAttributes();
-        while (true) {
-            SkipWhitespaces();
-            if (PeekChar() == '>')
-                break;
-            ParseAttributesItem();
-            if (PeekChar() == '>')
-                break;
-            ExpectChar(',');
-        }
-        YVERIFY(ReadChar() == '>');
-        Events->EndAttributes();
-    }
-
-    void ParseListItem(int index)
-    {
-        Events->ListItem(index);
-        ParseAny();
-    }
-
-    void ParseList()
-    {
-        YVERIFY(ReadChar() == '[');
-        Events->BeginList();
-        for (int index = 0; true; ++index) {
-            SkipWhitespaces();
-            if (PeekChar() == ']')
-                break;
-            ParseListItem(index);
-            if (PeekChar() == ']')
-                break;
-            ExpectChar(',');
-        }
-        YVERIFY(ReadChar() == ']');
-        Events->EndList();
-    }
-
-    void ParseMapItem()
-    {
-        SkipWhitespaces();
-        Stroka name = ReadString();
-        if (name.Empty()) {
-            // TODO:
-            ythrow yexception() << Sprintf("Empty map item name in YSON");
-        }
-        SkipWhitespaces();
-        ExpectChar(':');
-        Events->MapItem(name);
-        ParseAny();
-    }
-
-    void ParseMap()
-    {
-        YVERIFY(ReadChar() == '{');
-        Events->BeginMap();
-        while (true) {
-            SkipWhitespaces();
-            if (PeekChar() == '}')
-                break;
-            ParseMapItem();
-            if (PeekChar() == '}')
-                break;
-            ExpectChar(',');
-        }
-        YVERIFY(ReadChar() == '}');
-        Events->EndMap();
-    }
-
-    void ParseEntity()
-    {
-        Events->EntityScalar();
-    }
-
-    void ParseString()
-    {
-        Stroka value = ReadString();
-        Events->StringScalar(value);
-    }
-
-    static bool IsIntegerLike(const Stroka& str)
-    {
-        for (int i = 0; i < static_cast<int>(str.length()); ++i) {
-            char ch = str[i];
-            if (ch == '.' || ch == 'e' || ch == 'E')
-                return false;
-        }
-        return true;
-    }
-
-    void ParseNumeric()
-    {
-        Stroka str = ReadNumericLike();
-        if (IsIntegerLike(str)) {
-            try {
-                i64 value = FromString<i64>(str);
-                Events->Int64Scalar(value);
-            } catch (...) {
-                // TODO:
-                ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON",
-                    ~str.Quote());
-            }
-        } else {
-            try {
-                double value = FromString<double>(str);
-                Events->DoubleScalar(value);
-            } catch (...) {
-                // TODO:
-                ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON",
-                    ~str.Quote());
-            }
-        }
-    }
+    void ParseNumeric();
 
 };
 
