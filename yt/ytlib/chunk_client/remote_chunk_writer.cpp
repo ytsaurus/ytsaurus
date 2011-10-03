@@ -725,11 +725,7 @@ void TRemoteChunkWriter::CloseSession()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     YASSERT(IsCloseRequested);
-    YASSERT(State == EWriterState::Writing ||
-            State == EWriterState::Initializing);
-
-    if (State == EWriterState::Initializing)
-        return;
+    YASSERT(State == EWriterState::Writing);
 
     LOG_DEBUG("Closing writer (ChunkId: %s)",
         ~ChunkId.ToString());
