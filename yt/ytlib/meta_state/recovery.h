@@ -34,6 +34,9 @@ public:
 
     typedef TFuture<EResult> TResult;
 
+    /*!
+     * \note Thread affinity: ServiceThread.
+     */
     TRecovery(
         const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
@@ -44,6 +47,9 @@ public:
         TPeerId leaderId,
         IInvoker::TPtr serviceInvoker);
 
+    /*!
+     * \note Thread affinity: Any.
+     */
     void Stop();
 
 protected:
@@ -160,18 +166,6 @@ public:
      */
     EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
 
-    //! Handles sync response from the leader
-    /*!
-     * \param version Current state at leader.
-     * \param epoch Current epoch at leader.
-     * \param maxSnapshotId Maximum snapshot id at leader.
-     * \note Thread affinity: ServiceThread.
-     */
-    void Sync(
-        const TMetaVersion& version,
-        const TEpoch& epoch,
-        i32 maxSnapshotId);
-
 private:
     struct TPostponedChange
     {
@@ -211,7 +205,6 @@ private:
     bool SyncReceived;
 
      // Service thread
-    void OnSyncTimeout();
     TResult::TPtr CapturePostponedChanges();
     void OnSync(TProxy::TRspSync::TPtr response);
 

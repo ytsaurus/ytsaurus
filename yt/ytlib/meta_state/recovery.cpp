@@ -41,6 +41,8 @@ TRecovery::TRecovery(
     YASSERT(~snapshotStore != NULL);
     YASSERT(~serviceInvoker != NULL);
 
+    VERIFY_THREAD_AFFINITY(ServiceThread);
+
     CancelableStateInvoker = New<TCancelableInvoker>(metaState->GetInvoker());
 
     VERIFY_INVOKER_AFFINITY(CancelableStateInvoker, StateThread);
@@ -49,6 +51,8 @@ TRecovery::TRecovery(
 
 void TRecovery::Stop()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     CancelableServiceInvoker->Cancel();
     CancelableStateInvoker->Cancel();
 }
