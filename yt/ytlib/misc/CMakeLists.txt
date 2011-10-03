@@ -24,6 +24,7 @@ SET(YT_SOURCE_FILES
     string.h
     foreach.h
     thread_affinity.h
+    periodic_invoker.cpp
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h
