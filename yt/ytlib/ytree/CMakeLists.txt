@@ -13,4 +13,5 @@ SET(YT_SOURCE_FILES
     fluent.h
     json_adapter.cpp
     http_tree_server.cpp
+    monitoring_manager.cpp
 )
