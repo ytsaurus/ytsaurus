@@ -11,7 +11,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFluentYsonParser
+class TFluentYsonBuilder
     : private TNonCopyable
 {
 public:
@@ -69,42 +69,54 @@ public:
             : TFluentBase<TParent>(events, parent)
         { }
 
-        TParent Value(const Stroka& value)
+        TParent Scalar(const Stroka& value)
         {
-            this->Events->StringValue(value);
+            this->Events->StringScalar(value);
             return this->Parent;
         }
 
-        TParent Value(i32 value)
+        // A stupid language with a stupid type system.
+        TParent Scalar(const char* value)
         {
-            return Value(static_cast<i64>(value));
-        }
-
-        TParent Value(i64 value)
-        {
-            this->Events->Int64Value(value);
+            this->Events->StringScalar(Stroka(value));
             return this->Parent;
         }
 
-        TParent Value(float value)
+        TParent Scalar(i32 value)
         {
-            return Value(static_cast<double>(value));
+            return Scalar(static_cast<i64>(value));
         }
 
-        TParent Value(double value)
+        TParent Scalar(ui32 value)
         {
-            this->Events->DoubleValue(value);
+            return Scalar(static_cast<i64>(value));
+        }
+
+        TParent Scalar(i64 value)
+        {
+            this->Events->Int64Scalar(value);
             return this->Parent;
         }
 
-        TParent Value(bool value)
+        TParent Scalar(float value)
         {
-            return Value(value ? Stroka("true") : Stroka("false"));
+            return Scalar(static_cast<double>(value));
         }
 
-        TParent EntityValue()
+        TParent Scalar(double value)
         {
-            this->Events->EntityValue();
+            this->Events->DoubleScalar(value);
+            return this->Parent;
+        }
+
+        TParent Scalar(bool value)
+        {
+            return Scalar(value ? Stroka("true") : Stroka("false"));
+        }
+
+        TParent EntityScalar()
+        {
+            this->Events->EntityScalar();
             return this->Parent;
         }
 

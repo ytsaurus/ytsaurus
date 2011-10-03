@@ -110,7 +110,7 @@ NYTree::INode::TPtr TRefCountedTracker::GetDebugInfoYTree(int sortByColumn)
     i64 totalCreated = 0;
 
     NYTree::TTreeBuilder builder(NYTree::NEphemeral::TNodeFactory::Get());
-    auto current = NYTree::TFluentYsonParser::Create(&builder)
+    auto current = NYTree::TFluentYsonBuilder::Create(&builder)
         .BeginTree()
             .BeginMap()
                 .Item("statistics").BeginList();

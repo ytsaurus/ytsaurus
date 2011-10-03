@@ -15,9 +15,6 @@ static NLog::TLogger Logger("Election");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TElectionManager::TConfig::TConfig()
-{ }
-
 // TODO: refactor
 const int Multiplier = 1000;
 
@@ -59,9 +56,6 @@ TElectionManager::TElectionManager(
     RegisterMethods();
     server->RegisterService(this);
 }
-
-TElectionManager::~TElectionManager()
-{ }
 
 void TElectionManager::RegisterMethods()
 {
@@ -503,25 +497,28 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
         ~epoch.ToString(),
         leaderId);
 
-    if (State != TProxy::EState::Following)
+    if (State != TProxy::EState::Following) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
                Sprintf("Ping from a leader while in an invalid state (LeaderId: %d, Epoch: %s, State: %s)",
                    leaderId,
                    ~epoch.ToString(),
                    ~State.ToString());
+    }
 
-    if (leaderId != LeaderId)
+    if (leaderId != LeaderId) {
         ythrow TServiceException(EErrorCode::InvalidLeader) <<
                Sprintf("Ping from an invalid leader: expected %d, got %d",
                    LeaderId,
                    leaderId);
+    }
 
-    if (epoch != Epoch)
+    if (epoch != Epoch) {
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
                Sprintf("Ping with invalid epoch from leader %d: expected %s, got %s",
                    leaderId,
                    ~Epoch.ToString(),
                    ~epoch.ToString());
+    }
 
     TDelayedInvoker::Get()->Cancel(PingTimeoutCookie);
 
