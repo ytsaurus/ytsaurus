@@ -24,9 +24,6 @@ TCommitterBase::TCommitterBase(
     VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
 }
 
-TCommitterBase::~TCommitterBase()
-{ }
-
 void TCommitterBase::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -368,7 +365,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
 
     auto appendResult = MetaState
         ->LogChange(changeData)
-        ->Apply(FromMethod(&TLeaderCommitter::OnAppend));
+        ->Apply(FromMethod(&TFollowerCommitter::OnAppend));
 
     MetaState->ApplyChange(changeData);
 
