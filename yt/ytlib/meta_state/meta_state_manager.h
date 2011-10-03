@@ -104,7 +104,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
     void RegisterMethods();
-    void SendSync(TEpoch epoch, TCtxSync::TPtr context);
+    void SendSync(const TEpoch& epoch, TCtxSync::TPtr context);
 
     void OnLeaderRecoveryComplete(TRecovery::EResult result);
     void OnFollowerRecoveryComplete(TRecovery::EResult result);
