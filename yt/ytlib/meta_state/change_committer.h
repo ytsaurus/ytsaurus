@@ -20,13 +20,9 @@ class TCommitterBase
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TCommitterBase> TPtr;
-
     TCommitterBase(
         TDecoratedMetaState::TPtr metaState,
         IInvoker::TPtr controlInvoker);
-
-    virtual ~TCommitterBase();
 
     DECLARE_ENUM(EResult,
         (Committed)
@@ -35,8 +31,6 @@ public:
     );
     typedef TFuture<EResult> TResult;
 
-    static EResult OnAppend(TVoid);
-
     //! Releases all resources.
     /*!
      *  \note Thread affinity: ControlThread
@@ -44,13 +38,15 @@ public:
     void Stop();
 
 protected:
+    static EResult OnAppend(TVoid);
+
     // Corresponds to ControlThread.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     // Corresponds to MetaState->GetInvoker().
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
-    TCancelableInvoker::TPtr CancelableControlInvoker;
     TDecoratedMetaState::TPtr MetaState;
+    TCancelableInvoker::TPtr CancelableControlInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

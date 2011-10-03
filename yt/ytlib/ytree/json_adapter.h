@@ -19,10 +19,10 @@ public:
     virtual void BeginTree();
     virtual void EndTree();
 
-    virtual void StringValue(const Stroka& value);
-    virtual void Int64Value(i64 value);
-    virtual void DoubleValue(double value);
-    virtual void EntityValue();
+    virtual void StringScalar(const Stroka& value);
+    virtual void Int64Scalar(i64 value);
+    virtual void DoubleScalar(double value);
+    virtual void EntityScalar();
 
     virtual void BeginList();
     virtual void ListItem(int index);

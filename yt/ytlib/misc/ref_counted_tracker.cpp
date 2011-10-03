@@ -118,17 +118,17 @@ NYTree::INode::TPtr TRefCountedTracker::GetDebugInfoYTree(int sortByColumn)
     FOREACH(const auto& item, items) {
         current = current
                     .Item().BeginMap()
-                        .Item("name").Value(DemangleCxxName(item.Key->name()))
-                        .Item("created").Value(static_cast<i64>(item.CreatedObjects))
-                        .Item("alive").Value(static_cast<i64>(item.AliveObjects))
+                        .Item("name").Scalar(DemangleCxxName(item.Key->name()))
+                        .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
+                        .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
                     .EndMap();
     }
 
     current
                 .EndList()
                 .Item("total").BeginMap()
-                    .Item("created").Value(totalCreated)
-                    .Item("alive").Value(totalAlive)
+                    .Item("created").Scalar(totalCreated)
+                    .Item("alive").Scalar(totalAlive)
                 .EndMap()
             .EndMap()
         .EndTree();
