@@ -21,7 +21,6 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkWriter");
-
 NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -348,7 +347,7 @@ void TRemoteChunkWriter::TGroup::Process()
     YASSERT(Writer->State == EWriterState::Writing);
 
     LOG_DEBUG("Processing group (ChunkId: %s, Blocks: %d-%d)",
-        ~Writer->ChunkId.ToString(), 
+        ~Writer->ChunkId.ToString(),
         StartBlockIndex, 
         GetEndBlockIndex());
 
@@ -560,13 +559,9 @@ void TRemoteChunkWriter::DoClose()
     }
 }
 
-void TRemoteChunkWriter::DoCancel()
+void TRemoteChunkWriter::Shutdown()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
-    if (State == EWriterState::Closed ||
-        State == EWriterState::Canceled)
-        return;
 
     // Some groups may still be pending.
     // Drop the references to ensure proper resource disposal.
@@ -575,6 +570,22 @@ void TRemoteChunkWriter::DoCancel()
     Result->Set(EResult::Failed);
     State = EWriterState::Canceled;
     CancelAllPings();
+
+    if (~WindowReady != NULL) {
+        WindowReady->Set(TVoid());
+        WindowReady.Drop();
+    }
+}
+
+void TRemoteChunkWriter::DoCancel()
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (State == EWriterState::Closed ||
+        State == EWriterState::Canceled)
+        return;
+
+    Shutdown();
 
     LOG_DEBUG("Writer canceled (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -622,9 +633,8 @@ void TRemoteChunkWriter::OnNodeDied(int node)
 
     if (State != EWriterState::Canceled && AliveNodeCount == 0) {
         YASSERT(State != EWriterState::Closed);
-        State = EWriterState::Canceled;
-        Result->Set(EResult::Failed);
-        CancelAllPings();
+
+        Shutdown();
 
         LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
@@ -808,6 +818,12 @@ void TRemoteChunkWriter::PingSession(int node)
 void TRemoteChunkWriter::SchedulePing(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (State == EWriterState::Closed ||
+        State == EWriterState::Canceled)
+    {
+        return;
+    }
 
     auto cookie = Nodes[node]->Cookie;
     if (cookie != TDelayedInvoker::TCookie()) {
