@@ -22,6 +22,7 @@ public:
         ((SessionAlreadyExists)(3))
         ((ChunkAlreadyExists)(4))
         ((WindowError)(5))
+        ((UnmatchedBlockContent)(6))
     );
 
     static Stroka GetServiceName() 

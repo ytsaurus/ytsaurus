@@ -198,17 +198,29 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 {
     TBlockId blockId(ChunkId, blockIndex);
 
+    if (blockIndex < WindowStart) {
+        LOG_WARNING("Received block has been shifted out of the window already (BlockId: %s)",
+            ~blockId.ToString());
+        return;
+    }
+
     VerifyInWindow(blockIndex);
 
     RenewLease();
 
     TSlot& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
-                ~blockId.ToString(),
-                WindowStart,
-                Window.ysize());
+        if (CompareMemory(slot.Block->GetData(), data)) {
+            LOG_WARNING("Block has been already received (BlockId: %s)",
+                ~blockId.ToString());
+            return;
+        }
+
+        ythrow TServiceException(EErrorCode::UnmatchedBlockContent) <<
+            Sprintf("block with the same blockId but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+            ~blockId.ToString(),
+            WindowStart,
+            Window.ysize());
     }
 
     slot.State = ESlotState::Received;
