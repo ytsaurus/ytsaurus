@@ -21,22 +21,22 @@ void TJsonAdapter::EndTree()
     JsonWriter->End();
 }
 
-void TJsonAdapter::StringValue(const Stroka& value)
+void TJsonAdapter::StringScalar(const Stroka& value)
 {
     JsonWriter->Value(CharToWide(value));
 }
 
-void TJsonAdapter::Int64Value(i64 value)
+void TJsonAdapter::Int64Scalar(i64 value)
 {
     JsonWriter->Value((i32) value); // temp cast
 }
 
-void TJsonAdapter::DoubleValue(double value)
+void TJsonAdapter::DoubleScalar(double value)
 {
     JsonWriter->Value(value);
 }
 
-void TJsonAdapter::EntityValue()
+void TJsonAdapter::EntityScalar()
 {
     JsonWriter->Null();
 }

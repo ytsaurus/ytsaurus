@@ -60,19 +60,19 @@ private:
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Events->StringValue(node->GetValue<Stroka>());
+                Events->StringScalar(node->GetValue<Stroka>());
                 break;
 
             case ENodeType::Int64:
-                Events->Int64Value(node->GetValue<i64>());
+                Events->Int64Scalar(node->GetValue<i64>());
                 break;
 
             case ENodeType::Double:
-                Events->DoubleValue(node->GetValue<double>());
+                Events->DoubleScalar(node->GetValue<double>());
                 break;
 
             case ENodeType::Entity:
-                Events->EntityValue();
+                Events->EntityScalar();
                 break;
 
             default:
