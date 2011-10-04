@@ -6,6 +6,8 @@
 #include <yt/ytlib/chunk_holder/chunk_holder.h>
 #include <yt/ytlib/chunk_manager/chunk_manager.h>
 #include <yt/ytlib/transaction/transaction_manager.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/ytlib/monitoring/http_tree_server.h>
 
 using namespace NYT;
 
@@ -22,6 +24,9 @@ using NChunkManager::TChunkManager;
 
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
+
+using NMonitoring::TMonitoringManager;
+using NMonitoring::THttpTreeServer;
 
 NLog::TLogger Logger("Server");
 
@@ -67,6 +72,8 @@ struct TCellMasterConfig
     }
 };
 
+THttpTreeServer* MonitoringServer; // TODO: encapsulate this
+
 void RunCellMaster(const TCellMasterConfig& config)
 {
     // TODO: extract method
@@ -103,6 +110,15 @@ void RunCellMaster(const TCellMasterConfig& config)
         server,
         transactionManager);
 
+    auto monitorManager = New<TMonitoringManager>();
+    monitorManager->Register(
+        "/refcounted",
+        FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+    // TODO: register more monitoring infos
+
+    MonitoringServer = new THttpTreeServer(monitorManager->GetProducer(), 3000); // TODO: port to be configured
+    
+    MonitoringServer->Start();
     metaStateManager->Start();
     server->Start();
 }

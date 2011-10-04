@@ -101,16 +101,14 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
     return stream;
 }
 
-NYTree::INode::TPtr TRefCountedTracker::GetDebugInfoYTree(int sortByColumn)
+void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
     auto items = GetItems();
-    SortItems(items, sortByColumn);
-
+    
     i64 totalAlive = 0;
     i64 totalCreated = 0;
 
-    NYTree::TTreeBuilder builder(NYTree::NEphemeral::TNodeFactory::Get());
-    auto current = NYTree::TFluentYsonBuilder::Create(&builder)
+    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
         .BeginTree()
             .BeginMap()
                 .Item("statistics").BeginList();
@@ -132,8 +130,6 @@ NYTree::INode::TPtr TRefCountedTracker::GetDebugInfoYTree(int sortByColumn)
                 .EndMap()
             .EndMap()
         .EndTree();
-
-    return builder.GetRoot();
 }
 
 i64 TRefCountedTracker::GetAliveObjects(TKey key)
