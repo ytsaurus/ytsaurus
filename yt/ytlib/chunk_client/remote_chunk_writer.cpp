@@ -363,8 +363,12 @@ void TRemoteChunkWriter::TGroup::Process()
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
-    if (Writer->State == EWriterState::Canceled)
+    if (Writer->State == EWriterState::Canceled ||
+        // This can be if the last response came from the node considered dead
+        Writer->State == EWriterState::Closed)
+    {
         return;
+    }
 
     YASSERT(Writer->State == EWriterState::Writing);
 
