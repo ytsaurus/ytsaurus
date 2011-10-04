@@ -43,10 +43,12 @@ TRecovery::TRecovery(
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    CancelableStateInvoker = New<TCancelableInvoker>(metaState->GetInvoker());
+    auto stateInvoker = metaState->GetInvoker();
 
-    VERIFY_INVOKER_AFFINITY(CancelableStateInvoker, StateThread);
-    VERIFY_INVOKER_AFFINITY(CancelableControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+
+    CancelableStateInvoker = New<TCancelableInvoker>(stateInvoker);
 }
 
 void TRecovery::Stop()
