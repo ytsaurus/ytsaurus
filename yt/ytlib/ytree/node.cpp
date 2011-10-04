@@ -9,8 +9,8 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TGetResult TNodeBase::Get(
-    const TYPath& path,
-    IYsonConsumer* events) const
+    TYPath path,
+    IYsonConsumer* events)
 {
     auto navigateResult = Navigate(path);
     switch (navigateResult.Code) {
@@ -22,7 +22,7 @@ IYPathService::TGetResult TNodeBase::Get(
 
         case IYPathService::ECode::Recurse:
             return TGetResult::CreateRecurse(
-                navigateResult.RecurseNode,
+                navigateResult.RecurseService,
                 navigateResult.RecursePath);
 
         case IYPathService::ECode::Error:
@@ -36,7 +36,7 @@ IYPathService::TGetResult TNodeBase::Get(
 }
 
 IYPathService::TNavigateResult TNodeBase::Navigate(
-    const TYPath& path) const
+    TYPath path)
 {
     UNUSED(path);
     if (path.empty()) {
@@ -47,7 +47,7 @@ IYPathService::TNavigateResult TNodeBase::Navigate(
 }
 
 IYPathService::TSetResult TNodeBase::Set(
-    const TYPath& path, 
+    TYPath path, 
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
@@ -58,7 +58,7 @@ IYPathService::TSetResult TNodeBase::Set(
     switch (navigateResult.Code) {
         case IYPathService::ECode::Recurse:
             return TSetResult::CreateRecurse(
-                navigateResult.RecurseNode,
+                navigateResult.RecurseService,
                 navigateResult.RecursePath);
 
         case IYPathService::ECode::Error:
@@ -72,7 +72,7 @@ IYPathService::TSetResult TNodeBase::Set(
 }
 
 IYPathService::TRemoveResult TNodeBase::Remove(
-    const TYPath& path)
+    TYPath path)
 {
     if (path.empty()) {
         return RemoveSelf();
@@ -82,7 +82,7 @@ IYPathService::TRemoveResult TNodeBase::Remove(
     switch (navigateResult.Code) {
         case IYPathService::ECode::Recurse:
             return TRemoveResult::CreateRecurse(
-                navigateResult.RecurseNode,
+                navigateResult.RecurseService,
                 navigateResult.RecursePath);
 
         case IYPathService::ECode::Error:
