@@ -49,7 +49,7 @@ TValue Value(const T& data)
 }
 
 template <>
-TValue Value(const Stroka& data)
+inline TValue Value<Stroka>(const Stroka& data)
 {
     TBlob blob(~data, ~data + data.Size());
     return TValue(blob);
