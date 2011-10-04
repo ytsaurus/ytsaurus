@@ -107,7 +107,7 @@ typedef TScalarNodeImpl<double>  TDoubleNodeImpl;
 //////////////////////////////////////////////////////////////////////////////// 
 
 class TCypressState;
-
+/*
 template <class IBase, class TImpl>
 class TCypressNodeBase
     : public NYTree::TNodeBase
@@ -218,7 +218,7 @@ DECLARE_SCALAR_TYPE(Double, double);
 
 #undef DECLARE_SCALAR_TYPE
 #undef DECLARE_TYPE_OVERRIDES
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress
