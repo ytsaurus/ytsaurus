@@ -21,19 +21,18 @@ Logging = {
 }
 
 Port = 9091
-HostPattern = 'n01-04%0.2dg:%d'
-MasterAddresses = opts.limit_iter('--masters', [HostPattern % (0, Port)])
+MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) for i in xrange(3)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
-    
-class Server(Base):
-    bin_path = '/home/psushin/yt-svn/yt/yt/server/server'
+    base_dir = '/yt/disk1/'
     
     def get_log(cls, fd):
         print >>fd, shebang
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
     
+class Server(Base):
+    bin_path = '/home/yt/src/yt/server/server'
     
 class Master(RemoteServer, Server):
     address = Subclass(MasterAddresses)
@@ -44,8 +43,8 @@ class Master(RemoteServer, Server):
 	        'Cell' : {
     	        'Addresses' : MasterAddresses
         	},
-            'SnapshotLocation' : '%(work_dir)s/snapshots',
-            'LogLocation' : '%(work_dir)s/logs',
+            'SnapshotLocation' : '/yt/disk2/snapshots',
+            'LogLocation' : '/yt/disk2/logs',
         },            
         'Logging' : Logging
     })
@@ -65,13 +64,13 @@ class Master(RemoteServer, Server):
     
 class Holder(RemoteServer, Server):
     address = Subclass(opts.limit_iter('--holders',
-            [HostPattern % (x, Port) for x in xrange(1, 41)]))
+            ['n01-04%0.2dg:%d' % (x, Port) for x in xrange(100)]))
     
     params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
     
     config = Template({ 
         'Masters' : { 'Addresses' : MasterAddresses },
-        'Locations' : ['/yt/disk1/node'],
+        'Locations' : ['/yt/disk2/node', '/yt/disk3/node', '/yt/disk4/node'],
         'Logging' : Logging
     })
     
@@ -81,46 +80,21 @@ class Holder(RemoteServer, Server):
         for location in cls.config['Locations']:
             print >>fd, 'rm -rf %s' % location
 
-class Client(Base, Node):
-    files = [Config, Run]
-    bin_path = '/home/psushin/yt-svn/yt/yt/experiments/send_chunk/send_chunk'
+class Client(Base, RemoteNode):
+    bin_path = '/home/yt/src/yt/experiments/send_chunk/send_chunk'
+
     params = Template('--config %(config_path)s')
 
-    Logging = {
-        'Writers' : [
-            {
-                'Name' : "File",
-                'Type' : "File",
-                'FileName' : "%(log_path)s",
-                'Pattern' : "$(datetime) $(level) $(category) $(message)"
-            },
-            {
-                'Name' : "ChunkWriter",
-                'Type' : "StdErr",
-                'Pattern' : "$(datetime) $(level) $(category) $(message)"
-            }
-        ],
-        'Rules' : [
-            { 
-                'Categories' : [ "*" ], 
-                'MinLevel' : "Debug", 
-                'Writers' : [ "File" ] 
-            }, 
-            { 
-                'Categories' : [ "DumbTransaction", "ChunkWriter" ], 
-                'MinLevel' : "Debug", 
-                'Writers' : [ "ChunkWriter" ] 
-            } 
-        ]
-    }
+    host = Subclass(opts.limit_iter('--clients', 
+        ['n01-04%0.2dg' % d for d in xrange(5, 90)]))
 
     config = Template({ 
-        'ReplicationFactor' : 1,
-        'BlockSize' : 1048576,
+        'ReplicationFactor' : 2,
+        'BlockSize' : 2 ** 20,
 
         'ThreadPool' : {
             'PoolSize' : 1,
-            'TaskCount' : 1 
+            'TaskCount' : 1000 
         },
 
         'Logging' : Logging,
@@ -130,18 +104,18 @@ class Client(Base, Node):
         },
 
         'DataSource' : {
-            'Size' : 1048576 * 200 
+            'Size' : (2 ** 20) * 256 
         },
 
         'ChunkWriter' : {
             'WindowSize' : 40,
-            'GroupSize' : 8 * 2 ** 20 
+            'GroupSize' : 8 * (2 ** 20)
         } 
     })
 
-    def run(cls, fd):
+    def do_clean(cls, fd):
         print >>fd, shebang
-        print >>fd, cls.bin_path + ' ' + cls.params
+        print >>fd, 'rm -f %s' % cls.log_path
 
 configure(Base)
     
