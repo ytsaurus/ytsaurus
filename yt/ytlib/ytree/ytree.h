@@ -4,9 +4,7 @@
 #include "ytree_fwd.h"
 #include "yson_events.h"
 
-//#include "../actions/action.h"
 #include "../misc/enum.h"
-//#include "../misc/ptr.h"
 
 namespace NYT {
 namespace NYTree {
@@ -74,7 +72,6 @@ struct INode
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 template<class T>
 struct IScalarNode

@@ -98,7 +98,7 @@ void TMapNode::ReplaceChild( INode::TPtr oldChild, INode::TPtr newChild )
 }
 
 IYPathService::TNavigateResult TMapNode::Navigate(
-    const TYPath& path) const
+    TYPath path)
 {
     if (path.empty()) {
         return TNavigateResult::CreateDone(AsImmutable());
@@ -113,12 +113,12 @@ IYPathService::TNavigateResult TMapNode::Navigate(
         return TNavigateResult::CreateError(Sprintf("Child %s it not found",
             ~prefix.Quote()));
     } else {
-        return TNavigateResult::CreateRecurse(child, tailPath);
+        return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
     }
 }
 
 IYPathService::TSetResult TMapNode::Set(
-    const TYPath& path,
+    TYPath path,
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
@@ -131,11 +131,11 @@ IYPathService::TSetResult TMapNode::Set(
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        auto newChild = GetFactory()->CreateMap();
+        INode::TPtr newChild = ~GetFactory()->CreateMap();
         AddChild(~newChild, prefix);
-        return TSetResult::CreateRecurse(~newChild, tailPath);
+        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
     } else {
-        return TSetResult::CreateRecurse(child, tailPath);
+        return TSetResult::CreateRecurse(AsYPath(child), tailPath);
     }
 }
 
@@ -202,7 +202,7 @@ void TListNode::RemoveChild(INode::TPtr child)
 }
 
 IYPathService::TNavigateResult TListNode::Navigate(
-    const TYPath& path) const
+    TYPath path)
 {
     if (path.empty()) {
         return TNavigateResult::CreateDone(AsImmutable());
@@ -224,7 +224,7 @@ IYPathService::TNavigateResult TListNode::Navigate(
 }
 
 IYPathService::TSetResult TListNode::Set(
-    const TYPath& path,
+    TYPath path,
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
@@ -265,22 +265,22 @@ IYPathService::TSetResult TListNode::Set(
     } else {
         auto navigateResult = GetYPathChild(index, tailPath);
         YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
-        return TSetResult::CreateRecurse(navigateResult.RecurseNode, navigateResult.RecursePath);
+        return TSetResult::CreateRecurse(navigateResult.RecurseService, navigateResult.RecursePath);
     }
 }
 
 IYPathService::TSetResult TListNode::CreateYPathChild(
     int beforeIndex,
-    const TYPath& tailPath)
+    TYPath tailPath)
 {
     auto newChild = GetFactory()->CreateMap();
     AddChild(~newChild, beforeIndex);
-    return TSetResult::CreateRecurse(~newChild, tailPath);
+    return TSetResult::CreateRecurse(AsYPath(newChild->AsMutable()), tailPath);
 }
 
 IYPathService::TNavigateResult TListNode::GetYPathChild(
     int index,
-    const TYPath& tailPath) const
+    TYPath tailPath) const
 {
     int count = GetChildCount();
     if (count == 0) {
@@ -294,7 +294,7 @@ IYPathService::TNavigateResult TListNode::GetYPathChild(
     }
 
     auto child = FindChild(index);
-    return TNavigateResult::CreateRecurse(child, tailPath);
+    return TNavigateResult::CreateRecurse(AsYPath(child->AsMutable()), tailPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
