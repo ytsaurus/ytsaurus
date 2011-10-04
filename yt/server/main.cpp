@@ -57,7 +57,7 @@ struct TCellMasterConfig
     int MonitoringPort;
 
     TCellMasterConfig()
-        : MonitoringPort(8080)
+        : MonitoringPort(10000)
     { }
 
     //! Reads configuration from JSON.
