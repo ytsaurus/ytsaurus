@@ -412,7 +412,8 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
         return;
     }
 
-    YASSERT(SyncReceived);
+    YASSERT(!SyncReceived);
+    SyncReceived = true;
 
     TMetaVersion version(
         response->GetSegmentId(),
