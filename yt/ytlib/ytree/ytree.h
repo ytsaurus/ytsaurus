@@ -55,8 +55,8 @@ struct INode
     virtual TIntrusiveConstPtr<IMapNode> GetAttributes() const = 0;
     virtual void SetAttributes(TIntrusivePtr<IMapNode> attributes) = 0;
 
-    virtual TIntrusiveConstPtr<ICompositeNode> GetParent() const = 0;
-    virtual void SetParent(TIntrusivePtr<ICompositeNode> parent) = 0;
+    virtual ICompositeNode* GetParent() const = 0;
+    virtual void SetParent(ICompositeNode* parent) = 0;
 
     template<class T>
     T GetValue() const

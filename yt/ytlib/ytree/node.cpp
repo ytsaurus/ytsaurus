@@ -97,7 +97,7 @@ IYPathService::TRemoveResult TNodeBase::Remove(
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 {
-    if (~Parent == NULL) {
+    if (Parent == NULL) {
         return TRemoveResult::CreateError("Cannot remove the root");
     }
 
@@ -107,7 +107,7 @@ IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
-    if (~Parent == NULL) {
+    if (Parent == NULL) {
         return TSetResult::CreateError("Cannot update the root");
     }
 

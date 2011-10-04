@@ -14,6 +14,10 @@ class TNodeBase
     , public virtual INode
 {
 public:
+    TNodeBase()
+        : Parent(NULL)
+    { }
+
     virtual INode::TPtr AsMutable() const
     {
         return dynamic_cast<INode*>(AsMutableImpl());
@@ -46,14 +50,14 @@ public:
 
 #undef IMPLEMENT_AS_METHODS
 
-    virtual ICompositeNode::TConstPtr GetParent() const
+    virtual ICompositeNode* GetParent() const
     {
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNode::TPtr parent)
+    virtual void SetParent(ICompositeNode* parent)
     {
-        YASSERT(~parent == NULL || ~Parent == NULL);
+        YASSERT(parent == NULL || Parent == NULL);
         Parent = parent;
     }
 
@@ -93,7 +97,7 @@ protected:
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
 
 private:
-    ICompositeNode::TPtr Parent;
+    ICompositeNode* Parent;
     IMapNode::TPtr Attributes;
 
 };
