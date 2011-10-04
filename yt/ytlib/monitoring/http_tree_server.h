@@ -1,18 +1,19 @@
 #pragma once
 
-#include "yson_events.h"
+#include "../misc/common.h"
+#include "../ytree/yson_events.h"
 
 #include <util/server/http.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpTreeServer
 {
 public:
-    THttpTreeServer(TYsonProducer::TPtr ysonProducer, ui16 port);
+    THttpTreeServer(NYTree::TYsonProducer::TPtr ysonProducer, ui16 port);
 
     void Start();
     void Stop();
@@ -27,5 +28,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NMonitoring
 } // namespace NYT

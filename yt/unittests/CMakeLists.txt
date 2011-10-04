@@ -3,7 +3,7 @@ PROGRAM(unittester)
 SRCS(
     utmain.cpp
     framework/framework.cpp
-    #change_log_ut.cpp
+    change_log_ut.cpp
     async_result_ut.cpp
     snapshot_ut.cpp
     preprocessor_ut.cpp
@@ -15,6 +15,7 @@ SRCS(
     #meta_state_map_ut.cpp
     foreach_ut.cpp
     thread_affinity_ut.cpp
+    #ytree_fluent_ut.cpp
 )
 
 PEERDIR(

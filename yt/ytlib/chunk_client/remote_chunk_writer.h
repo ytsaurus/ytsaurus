@@ -276,6 +276,11 @@ private:
      */
     void CancelPing(int node);
 
+     /*!
+     * \note Thread affinity: WriterThread
+     */
+    void Shutdown();
+
     /*!
      * \note Thread affinity: WriterThread
      */

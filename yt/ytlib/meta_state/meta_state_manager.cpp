@@ -219,7 +219,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
     
     if (State != EPeerState::Leading && State != EPeerState::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
-            Sprintf("Invalid state %d", (int) State);
+            Sprintf("Invalid state %s", ~State.ToString());
     }
 
     StateInvoker->Invoke(FromMethod(
@@ -229,7 +229,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, Sync)
         context));
 }
 
-void TMetaStateManager::SendSync(TEpoch epoch, TCtxSync::TPtr context)
+void TMetaStateManager::SendSync(const TEpoch& epoch, TCtxSync::TPtr context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     

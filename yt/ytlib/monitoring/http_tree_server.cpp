@@ -1,9 +1,11 @@
 #include "http_tree_server.h"
 
-#include "json_adapter.h"
+#include "../ytree/json_adapter.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NMonitoring {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,5 +75,5 @@ THttpTreeServer::THttpTreeServer(TYsonProducer::TPtr ysonProducer, ui16 port)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NMonitoring
 } // namespace NYT

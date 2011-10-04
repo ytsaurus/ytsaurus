@@ -38,22 +38,22 @@ private:
     }
 
 
-    virtual void StringValue(const Stroka& value)
+    virtual void StringScalar(const Stroka& Scalar)
     {
-        Push(~Factory->CreateString(value));
+        Push(~Factory->CreateString(Scalar));
     }
 
-    virtual void Int64Value(i64 value)
+    virtual void Int64Scalar(i64 Scalar)
     {
-        Push(~Factory->CreateInt64(value));
+        Push(~Factory->CreateInt64(Scalar));
     }
 
-    virtual void DoubleValue(double value)
+    virtual void DoubleScalar(double Scalar)
     {
-        Push(~Factory->CreateDouble(value));
+        Push(~Factory->CreateDouble(Scalar));
     }
 
-    virtual void EntityValue()
+    virtual void EntityScalar()
     {
         Push(~Factory->CreateEntity());
     }

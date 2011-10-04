@@ -34,6 +34,9 @@ public:
 
     typedef TFuture<EResult> TResult;
 
+    /*!
+     * \note Thread affinity: ControlThread.
+     */
     TRecovery(
         const TMetaStateManagerConfig& config,
         TCellManager::TPtr cellManager,
@@ -42,8 +45,11 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TEpoch epoch,
         TPeerId leaderId,
-        IInvoker::TPtr serviceInvoker);
+        IInvoker::TPtr controlInvoker);
 
+    /*!
+     * \note Thread affinity: Any.
+     */
     void Stop();
 
 protected:
@@ -75,11 +81,11 @@ protected:
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
     TPeerId LeaderId;
-    TCancelableInvoker::TPtr CancelableServiceInvoker;
+    TCancelableInvoker::TPtr CancelableControlInvoker;
     TCancelableInvoker::TPtr CancelableStateInvoker;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +97,7 @@ public:
     typedef TIntrusivePtr<TLeaderRecovery> TPtr;
 
     /*!
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     TLeaderRecovery(
         const TMetaStateManagerConfig& config,
@@ -101,11 +107,11 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TEpoch epoch,
         TPeerId leaderId,
-        IInvoker::TPtr serviceInvoker);
+        IInvoker::TPtr controlInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
     /*!
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     TResult::TPtr Run();
 
@@ -123,7 +129,7 @@ public:
     typedef TIntrusivePtr<TFollowerRecovery> TPtr;
 
     /*!
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     TFollowerRecovery(
         const TMetaStateManagerConfig& config,
@@ -133,11 +139,11 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TEpoch epoch,
         TPeerId leaderId,
-        IInvoker::TPtr serviceInvoker);
+        IInvoker::TPtr controlInvoker);
 
     //! Performs follower recovery brining the follower up-to-date and synched with the leader.
     /*!
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     TResult::TPtr Run();
 
@@ -146,7 +152,7 @@ public:
      * \param version State in which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed state
      * and postponing succeeded.
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
 
@@ -156,21 +162,9 @@ public:
      * \param version State in which the change should be applied.
      * \returns True when applicable change is coherent with the postponed state
      * and postponing succeeded.
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
-
-    //! Handles sync response from the leader
-    /*!
-     * \param version Current state at leader.
-     * \param epoch Current epoch at leader.
-     * \param maxSnapshotId Maximum snapshot id at leader.
-     * \note Thread affinity: ServiceThread.
-     */
-    void Sync(
-        const TMetaVersion& version,
-        const TEpoch& epoch,
-        i32 maxSnapshotId);
 
 private:
     struct TPostponedChange
@@ -205,13 +199,12 @@ private:
     // Thread-neutral.
     TResult::TPtr Result;
 
-    // Service thread
+    // Control thread
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     bool SyncReceived;
 
-     // Service thread
-    void OnSyncTimeout();
+    // Control thread
     TResult::TPtr CapturePostponedChanges();
     void OnSync(TProxy::TRspSync::TPtr response);
 

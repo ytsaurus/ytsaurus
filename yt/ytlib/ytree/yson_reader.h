@@ -296,13 +296,13 @@ private:
 
     void ParseEntity()
     {
-        Events->EntityValue();
+        Events->EntityScalar();
     }
 
     void ParseString()
     {
         Stroka value = ReadString();
-        Events->StringValue(value);
+        Events->StringScalar(value);
     }
 
     static bool IsIntegerLike(const Stroka& str)
@@ -321,7 +321,7 @@ private:
         if (IsIntegerLike(str)) {
             try {
                 i64 value = FromString<i64>(str);
-                Events->Int64Value(value);
+                Events->Int64Scalar(value);
             } catch (...) {
                 // TODO:
                 ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON",
@@ -330,7 +330,7 @@ private:
         } else {
             try {
                 double value = FromString<double>(str);
-                Events->DoubleValue(value);
+                Events->DoubleScalar(value);
             } catch (...) {
                 // TODO:
                 ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON",
