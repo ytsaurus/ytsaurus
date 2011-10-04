@@ -71,11 +71,6 @@ public:
         Server.Drop();
     }
 
-    TGUID SendReply(TReply::TPtr reply)
-    {
-        return Server->Requester->SendRequest(ClientAddress, "", &reply->Data);
-    }
-
     void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
     {
         MessageRearranger->EnqueueMessage(message, sequenceId);
@@ -89,6 +84,11 @@ public:
     TGuid GetPingId() const
     {
         return PingId;
+    }
+
+    TUdpAddress GetClientAddress() const
+    {
+        return ClientAddress;
     }
 
     // IBus implementation.
@@ -333,7 +333,10 @@ bool TBusServer::ProcessReplies()
 
 void TBusServer::ProcessReply(TSession::TPtr session, TReply::TPtr reply)
 {
-    TGuid requestId = session->SendReply(reply);
+    TGuid requestId = Requester->SendRequest(
+        session->GetClientAddress(),
+        "",
+        &reply->Data);
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Reply: %p)",
         ~session->GetSessionId().ToString(),
         ~requestId.ToString(),
