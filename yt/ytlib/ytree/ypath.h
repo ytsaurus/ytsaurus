@@ -10,7 +10,10 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IYPathService
+    : virtual TRefCountedBase
 {
+    typedef TIntrusivePtr<IYPathService> TPtr;
+
     DECLARE_ENUM(ECode,
         (Done)
         (Recurse)
@@ -26,13 +29,13 @@ struct IYPathService
         T Value;
 
         // Recurse
-        TIntrusiveConstPtr<INode> RecurseNode;
+        IYPathService::TPtr RecurseService;
         TYPath RecursePath;
         
         // Error
         Stroka ErrorMessage;
 
-        static TResult CreateDone(const T&value)
+        static TResult CreateDone(const T& value)
         {
             TResult result;
             result.Code = ECode::Done;
@@ -41,12 +44,12 @@ struct IYPathService
         }
 
         static TResult CreateRecurse(
-            TIntrusiveConstPtr<INode> recurseNode,
-            const TYPath& recursePath)
+            IYPathService::TPtr recurseService,
+            TYPath recursePath)
         {
             TResult result;
             result.Code = ECode::Recurse;
-            result.RecurseNode = recurseNode;
+            result.RecurseService = recurseService;
             result.RecursePath = recursePath;
             return result;
         }
@@ -61,42 +64,45 @@ struct IYPathService
     };
 
     typedef TResult< TIntrusiveConstPtr<INode> > TNavigateResult;
-    virtual TNavigateResult Navigate(const TYPath& path) const = 0;
+    virtual TNavigateResult Navigate(TYPath path) = 0;
 
     typedef TResult<TVoid> TGetResult;
-    virtual TGetResult Get(const TYPath& path, IYsonConsumer* events) const = 0;
+    virtual TGetResult Get(TYPath path, IYsonConsumer* events) = 0;
 
     typedef TResult<TVoid> TSetResult;
-    virtual TSetResult Set(const TYPath& path, TYsonProducer::TPtr producer) = 0;
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) = 0;
 
     typedef TResult<TVoid> TRemoveResult;
-    virtual TRemoveResult Remove(const TYPath& path) = 0;
+    virtual TRemoveResult Remove(TYPath path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IYPathService::TPtr AsYPath(INode::TPtr node);
+IYPathService::TPtr AsYPath(INode::TConstPtr node);
+
 void ChopYPathPrefix(
-    const TYPath& path,
+    TYPath path,
     Stroka* prefix,
     TYPath* tailPath);
 
 INode::TConstPtr NavigateYPath(
-    INode::TConstPtr root,
-    const TYPath& path);
+    IYPathService::TPtr rootService,
+    TYPath path);
 
 void GetYPath(
-    INode::TConstPtr root,
-    const TYPath& path,
-    IYsonConsumer* events);
+    IYPathService::TPtr rootService,
+    TYPath path,
+    IYsonConsumer* consumer);
 
 void SetYPath(
-    INode::TConstPtr root,
-    const TYPath& path,
+    IYPathService::TPtr rootService,
+    TYPath path,
     TYsonProducer::TPtr producer);
 
 void RemoveYPath(
-    INode::TConstPtr root,
-    const TYPath& path);
+    IYPathService::TPtr rootService,
+    TYPath path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

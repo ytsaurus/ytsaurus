@@ -8,7 +8,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ChopYPathPrefix(
-    const TYPath& path,
+    TYPath path,
     Stroka* prefix,
     TYPath* tailPath)
 {
@@ -38,8 +38,8 @@ void ChopYPathPrefix(
 ////////////////////////////////////////////////////////////////////////////////
 
 TYPath GetResolvedYPathPrefix(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath)
+    TYPath wholePath,
+    TYPath unresolvedPath)
 {
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
     YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
@@ -48,7 +48,7 @@ TYPath GetResolvedYPathPrefix(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ParseYPathRoot(const TYPath& path)
+TYPath ParseYPathRoot(TYPath path)
 {
     if (path.empty()) {
         ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
@@ -63,33 +63,39 @@ TYPath ParseYPathRoot(const TYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService* AsYPath(INode::TPtr node)
+IYPathService::TPtr AsYPath(INode::TPtr node)
 {
-    return dynamic_cast<IYPathService*>(~node);
+    YASSERT(~node != NULL);
+    auto* service = dynamic_cast<IYPathService*>(~node);
+    YASSERT(service != NULL);
+    return service;
 }
 
-const IYPathService* AsYPath(INode::TConstPtr node)
+IYPathService::TPtr AsYPath(INode::TConstPtr node)
 {
-    return const_cast<IYPathService*>(dynamic_cast<const IYPathService*>(~node));
+    YASSERT(~node != NULL);
+    auto* service = dynamic_cast<IYPathService*>(const_cast<INode*>(~node));
+    YASSERT(service != NULL);
+    return service;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TYPathOperationState
 {
-    INode::TConstPtr CurrentNode;
+    IYPathService::TPtr CurrentService;
     TYPath CurrentPath;
 };
 
 template <class T>
 T ExecuteYPathOperation(
-    INode::TConstPtr root,
-    const TYPath& path,
+    IYPathService::TPtr rootService,
+    TYPath path,
     typename IParamFunc<TYPathOperationState, IYPathService::TResult<T> >::TPtr action,
     Stroka operationName)
 {
     TYPathOperationState state;
-    state.CurrentNode = root;
+    state.CurrentService = rootService;
     state.CurrentPath = ParseYPathRoot(path);
 
     while (true) {
@@ -99,7 +105,7 @@ T ExecuteYPathOperation(
                 return result.Value;
 
             case IYPathService::ECode::Recurse:
-                state.CurrentNode = result.RecurseNode;
+                state.CurrentService = result.RecurseService;
                 state.CurrentPath = result.RecursePath;
                 break;
 
@@ -122,20 +128,15 @@ T ExecuteYPathOperation(
 IYPathService::TNavigateResult NavigateYPathAction(
     TYPathOperationState state)
 {
-    auto service = AsYPath(state.CurrentNode);
-    if (service == NULL) {
-        return IYPathService::TNavigateResult::CreateError("YPath is not supported");
-    } else {
-        return service->Navigate(state.CurrentPath);
-    }
+    return state.CurrentService->Navigate(state.CurrentPath);
 }
 
 INode::TConstPtr NavigateYPath(
-    INode::TConstPtr root,
-    const TYPath& path)
+    IYPathService::TPtr rootService,
+    TYPath path)
 {
     return ExecuteYPathOperation<INode::TConstPtr>(
-        root,
+        rootService,
         path,
         FromMethod(&NavigateYPathAction),
         "navigate");
@@ -147,23 +148,18 @@ IYPathService::TGetResult GetYPathAction(
     TYPathOperationState state,
     IYsonConsumer* events)
 {
-    auto service = AsYPath(state.CurrentNode);
-    if (service == NULL) {
-        return IYPathService::TGetResult::CreateError("YPath is not supported");
-    } else {
-        return service->Get(state.CurrentPath, events);
-    }
+    return state.CurrentService->Get(state.CurrentPath, events);
 }
 
 void GetYPath(
-    INode::TConstPtr root,
-    const TYPath& path,
-    IYsonConsumer* events)
+    IYPathService::TPtr rootService,
+    TYPath path,
+    IYsonConsumer* consumer)
 {
     ExecuteYPathOperation<TVoid>(
-        root,
+        rootService,
         path,
-        FromMethod(&GetYPathAction, events),
+        FromMethod(&GetYPathAction, consumer),
         "get");
 }
 
@@ -173,21 +169,16 @@ IYPathService::TSetResult SetYPathAction(
     TYPathOperationState state,
     TYsonProducer::TPtr producer)
 {
-    auto service = AsYPath(state.CurrentNode->AsMutable());
-    if (service == NULL) {
-        return IYPathService::TSetResult::CreateError("YPath is not supported");
-    } else {
-        return service->Set(state.CurrentPath, producer);
-    }
+    return state.CurrentService->Set(state.CurrentPath, producer);
 }
 
 void SetYPath(
-    INode::TConstPtr root,
-    const TYPath& path,
+    IYPathService::TPtr rootService,
+    TYPath path,
     TYsonProducer::TPtr producer)
 {
     ExecuteYPathOperation<TVoid>(
-        root,
+        rootService,
         path,
         FromMethod(&SetYPathAction, producer),
         "set");
@@ -198,20 +189,15 @@ void SetYPath(
 inline IYPathService::TRemoveResult RemoveYPathAction(
     TYPathOperationState state)
 {
-    auto service = AsYPath(state.CurrentNode->AsMutable());
-    if (service == NULL) {
-        return IYPathService::TSetResult::CreateError("YPath is not supported");
-    } else {
-        return service->Remove(state.CurrentPath);
-    }
+    return state.CurrentService->Remove(state.CurrentPath);
 }
 
 void RemoveYPath(
-    INode::TConstPtr root,
-    const TYPath& path)
+    IYPathService::TPtr rootService,
+    TYPath path)
 {
     ExecuteYPathOperation<TVoid>(
-        root,
+        rootService,
         path,
         FromMethod(&RemoveYPathAction),
         "remove");

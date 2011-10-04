@@ -198,12 +198,6 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 {
     TBlockId blockId(ChunkId, blockIndex);
 
-    if (blockIndex < WindowStart) {
-        LOG_WARNING("Received block has been shifted out of the window already (BlockId: %s)",
-            ~blockId.ToString());
-        return;
-    }
-
     VerifyInWindow(blockIndex);
 
     RenewLease();

@@ -1,21 +1,21 @@
 #pragma once
 
 #include "common.h"
-#include "registry_service_rpc.pb.h"
+#include "cypress_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 
 namespace NYT {
-namespace NRegistry {
+namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRegistryServiceProxy
+class TCypressServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TRegistryServiceProxy> TPtr;
+    typedef TIntrusivePtr<TCypressServiceProxy> TPtr;
 
     DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((ShitHappens)(1))
@@ -23,10 +23,10 @@ public:
 
     static Stroka GetServiceName()
     {
-        return "RegistryService";
+        return "CypressService";
     }
 
-    TRegistryServiceProxy(NRpc::IChannel::TPtr channel)
+    TCypressServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -39,5 +39,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRegistry
+} // namespace NCypress
 } // namespace NYT

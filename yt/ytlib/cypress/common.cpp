@@ -1,16 +1,14 @@
 #include "common.h"
 
 namespace NYT {
-namespace NRegistry {
+namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger RegistryLogger("Registry");
-
-TNodeId RootId(0x6b27e36a, 0x46ab2162, 0x97ec4520, 0x362ab292);
+NLog::TLogger CypressLogger("Cypress");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NCypress
 } // namespace NYT
 
