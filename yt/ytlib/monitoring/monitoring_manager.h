@@ -30,10 +30,14 @@ private:
 
     static const TDuration Period; // TODO: make configurable
 
-    TProducerMap MonitoringMap;
-    NYTree::INode::TConstPtr Root;
-
+    bool IsStarted;
     TPeriodicInvoker::TPtr PeriodicInvoker;
+
+    //! Protects #MonitoringMap.
+    TSpinLock SpinLock;
+    TProducerMap MonitoringMap;
+
+    NYTree::INode::TConstPtr Root;
 
     void Update();
     void Visit(NYTree::IYsonConsumer* consumer);

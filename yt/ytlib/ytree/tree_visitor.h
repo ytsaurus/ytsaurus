@@ -87,7 +87,7 @@ private:
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
             Events->ListItem(i);
-            Visit(child);
+            VisitAny(child);
         }
         Events->EndList();
     }
@@ -97,7 +97,7 @@ private:
         Events->BeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
             Events->MapItem(pair.First());
-            Visit(pair.Second());
+            VisitAny(pair.Second());
         }
         Events->EndMap();
     }
@@ -107,7 +107,7 @@ private:
         Events->BeginAttributes();
         FOREACH(const auto& pair, node->GetChildren()) {
             Events->AttributesItem(pair.First());
-            Visit(pair.Second());
+            VisitAny(pair.Second());
         }
         Events->EndAttributes();
     }

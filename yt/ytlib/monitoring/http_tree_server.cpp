@@ -21,18 +21,19 @@ public:
     {
         if (strnicmp(~Headers[0], "GET ", 4)) {
             Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";
-        } else {
-            Output() <<
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Type: text/json\r\n"
-                "\r\n";
+            return true;
+        } 
 
-            TJsonWriter writer(CODES_UTF8, &Output());
-            TJsonAdapter adapter(&writer);
-            YsonProducer->Do(&adapter);
+        Output() <<
+            "HTTP/1.0 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n";
 
-            Output() << "\r\n";
-        }
+        TJsonWriter writer(CODES_UTF8, &Output());
+        TJsonAdapter adapter(&writer);
+        YsonProducer->Do(&adapter);
+
+        Output() << "\r\n";
 
         return true;
     }

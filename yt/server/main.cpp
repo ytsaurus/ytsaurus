@@ -54,7 +54,10 @@ struct TCellMasterConfig
     //! Meta state configuration.
     TMetaStateManager::TConfig MetaState;
 
+    int MonitoringPort;
+
     TCellMasterConfig()
+        : MonitoringPort(8080)
     { }
 
     //! Reads configuration from JSON.
@@ -110,13 +113,17 @@ void RunCellMaster(const TCellMasterConfig& config)
         server,
         transactionManager);
 
-    auto monitorManager = New<TMonitoringManager>();
-    monitorManager->Register(
+    auto monitoringManager = New<TMonitoringManager>();
+    monitoringManager->Register(
         "/refcounted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
     // TODO: register more monitoring infos
 
-    MonitoringServer = new THttpTreeServer(monitorManager->GetProducer(), 3000); // TODO: port to be configured
+    monitoringManager->Start();
+
+    MonitoringServer = new THttpTreeServer(
+        monitoringManager->GetProducer(),
+        config.MonitoringPort);
     
     MonitoringServer->Start();
     metaStateManager->Start();
