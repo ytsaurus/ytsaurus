@@ -35,7 +35,7 @@ public:
     typedef TFuture<EResult> TResult;
 
     /*!
-     * \note Thread affinity: ServiceThread.
+     * \note Thread affinity: ControlThread.
      */
     TRecovery(
         const TMetaStateManagerConfig& config,

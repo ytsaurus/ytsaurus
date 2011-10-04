@@ -33,7 +33,6 @@ TRecovery::TRecovery(
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , LeaderId(leaderId)
-    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
@@ -43,10 +42,13 @@ TRecovery::TRecovery(
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    CancelableStateInvoker = New<TCancelableInvoker>(metaState->GetInvoker());
+    auto stateInvoker = metaState->GetInvoker();
 
-    VERIFY_INVOKER_AFFINITY(CancelableStateInvoker, StateThread);
-    VERIFY_INVOKER_AFFINITY(CancelableControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+
+    CancelableStateInvoker = New<TCancelableInvoker>(stateInvoker);
+    CancelableControlInvoker = New<TCancelableInvoker>(controlInvoker);
 }
 
 void TRecovery::Stop()

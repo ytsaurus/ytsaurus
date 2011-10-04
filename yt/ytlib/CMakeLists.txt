@@ -52,8 +52,9 @@ YT_SUBDIRECTORY(rpc)
 YT_SUBDIRECTORY(bus)
 YT_SUBDIRECTORY(transaction)
 YT_SUBDIRECTORY(ytree)
-YT_SUBDIRECTORY(registry)
+YT_SUBDIRECTORY(cypress)
 YT_SUBDIRECTORY(table_client)
+YT_SUBDIRECTORY(monitoring)
 
 # Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(
@@ -67,6 +68,7 @@ PEERDIR(
     quality/NetLiba
     dict/json
     util/server
+    library/json
 )
 
 SET(USE_LF_ALLOCATOR yes)

@@ -147,6 +147,16 @@ bool TChannel::MatchRanges(const TValue& column) const
     return false;
 }
 
+const yvector<TValue>& TChannel::Columns()
+{
+    return Columns_;
+}
+
+const yvector<TRange>& TChannel::Ranges()
+{
+    return Ranges_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()

@@ -73,17 +73,17 @@ public:
     }
 
     virtual TNavigateResult Navigate(
-        const TYPath& path) const;
+        TYPath path);
 
     virtual TGetResult Get(
-        const TYPath& path,
-        IYsonConsumer* events) const;
+        TYPath path,
+        IYsonConsumer* events);
 
     virtual TSetResult Set(
-        const TYPath& path,
+        TYPath path,
         TYsonProducer::TPtr producer);
 
-    virtual TRemoveResult Remove(const TYPath& path);
+    virtual TRemoveResult Remove(TYPath path);
 
 protected:
     virtual TNodeBase* AsMutableImpl() const;
