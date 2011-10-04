@@ -3,6 +3,7 @@
 #include "../ytree/ephemeral.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
+#include "../ytree/tree_visitor.h"
 
 namespace NYT {
 namespace NMonitoring {
@@ -53,6 +54,17 @@ void TMonitoringManager::Update()
         SetYPath(newRootService, pair.first, pair.second);
     }
     Root = ~newRoot;
+}
+
+void TMonitoringManager::Visit(IYsonConsumer* consumer)
+{
+    TTreeVisitor visitor(consumer);
+    visitor.Visit(GetRoot());
+}
+
+TYsonProducer::TPtr TMonitoringManager::GetProducer()
+{
+    return FromMethod(&TMonitoringManager::Visit, TPtr(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

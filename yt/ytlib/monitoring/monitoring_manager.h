@@ -23,6 +23,8 @@ public:
     void Start();
     void Stop();
 
+    NYTree::TYsonProducer::TPtr GetProducer();
+
 private:
     typedef yhash<Stroka, NYTree::TYsonProducer::TPtr> TProducerMap;
 
@@ -34,6 +36,7 @@ private:
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
     void Update();
+    void Visit(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
