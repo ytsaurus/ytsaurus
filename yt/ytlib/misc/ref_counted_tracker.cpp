@@ -104,6 +104,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
 void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
     auto items = GetItems();
+    SortItems(items, -1);
     
     i64 totalAlive = 0;
     i64 totalCreated = 0;
@@ -114,6 +115,9 @@ void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
                 .Item("statistics").BeginList();
 
     FOREACH(const auto& item, items) {
+        totalAlive += item.AliveObjects;
+        totalCreated += item.CreatedObjects;
+
         current = current
                     .Item().BeginMap()
                         .Item("name").Scalar(DemangleCxxName(item.Key->name()))
