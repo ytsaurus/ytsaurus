@@ -69,9 +69,15 @@ THttpTreeServer::THttpTreeServer(TYsonProducer::TPtr ysonProducer, ui16 port)
     Server.Reset(new THttpServer(~Callback, THttpServerOptions(port)));
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void THttpTreeServer::Start()
+{
+    Server->Start();
+}
 
-
+void THttpTreeServer::Stop()
+{
+    Server->Stop();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
