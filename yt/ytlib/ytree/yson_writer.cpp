@@ -9,11 +9,12 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TYsonWriter::TYsonWriter(TOutputStream* stream)
+TYsonWriter::TYsonWriter(TOutputStream* stream, bool isBinaryOutput)
         : Stream(stream)
         , IsFirstItem(false)
         , IsEmptyEntity(false)
         , Indent(0)
+        , IsBinaryOutput(isBinaryOutput)
 { }
 
 void TYsonWriter::WriteIndent()
@@ -56,7 +57,9 @@ void TYsonWriter::CollectionItem(char separator)
         FlushEmptyEntity();
         Stream->Write(separator + "\n");
     }
-    WriteIndent();
+    if (!IsBinaryOutput) {
+        WriteIndent();
+    }
     IsFirstItem = false;
 }
 
@@ -66,7 +69,9 @@ void TYsonWriter::EndCollection(char closeBracket)
     if (!IsFirstItem) {
         Stream->Write('\n');
         --Indent;
-        WriteIndent();
+        if (!IsBinaryOutput) {
+            WriteIndent();
+        }
     }
     Stream->Write(closeBracket);
     IsFirstItem = false;
@@ -81,30 +86,44 @@ void TYsonWriter::EndTree()
     FlushEmptyEntity();
 }
 
-
 void TYsonWriter::StringScalar(const Stroka& value)
 {
-    // TODO: escaping
-    Stream->Write('"');
-    Stream->Write(value);
-    Stream->Write('"');
+    if (IsBinaryOutput) {
+        Stream->Write(StringMarker);
+        Stream->Write(static_cast<i32>(value.size()));
+        Stream->Write(value);
+    } else {
+        // TODO: escaping
+        Stream->Write('"');
+        Stream->Write(value);
+        Stream->Write('"');
+    }
 }
 
 void TYsonWriter::Int64Scalar(i64 value)
 {
-    Stream->Write(ToString(value));
+    if (IsBinaryOutput) {
+        Stream->Write(Int64Marker);
+        Stream->Write(value);
+    } else {
+        Stream->Write(ToString(value));
+    }
 }
 
 void TYsonWriter::DoubleScalar(double value)
 {
-    Stream->Write(ToString(value));
+    if (IsBinaryOutput) {
+        Stream->Write(DoubleMarker);
+        Stream->Write(value);
+    } else {
+        Stream->Write(ToString(value));
+    }
 }
 
 void TYsonWriter::EntityScalar()
 {
     SetEmptyEntity();
 }
-
 
 void TYsonWriter::BeginList()
 {

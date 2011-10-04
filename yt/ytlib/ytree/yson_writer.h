@@ -14,7 +14,7 @@ class TYsonWriter
 public:
     typedef TIntrusivePtr<TYsonWriter> TPtr;
 
-    TYsonWriter(TOutputStream* stream);
+    TYsonWriter(TOutputStream* stream, bool isBinaryOutput = false);
 
 private:
     TOutputStream* Stream;
@@ -22,20 +22,18 @@ private:
     bool IsEmptyEntity;
     int Indent;
 
+    bool IsBinaryOutput;
+
     static const int IndentSize = 4;
 
     void WriteIndent();
 
     void SetEmptyEntity();
-
     void ResetEmptyEntity();
-
     void FlushEmptyEntity();
 
     void BeginCollection(char openBracket);
-
     void CollectionItem(char separator);
-
     void EndCollection(char closeBracket);
 
     virtual void BeginTree();

@@ -51,6 +51,21 @@ int TYsonReader::ReadChar()
     return result;
 }
 
+Stroka TYsonReader::ReadChars(int numChars)
+{
+    Stroka result;
+    for (int i = 0; i < numChars; ++i) {
+        int ch = ReadChar();
+        if (ch == Eos) {
+            // TODO:
+            ythrow yexception() << Sprintf("Couldn't read %d byte out of %d in YSON",
+                i + 1, numChars);
+        }
+        result.append(static_cast<char>(ch));
+    }
+    return result;
+}
+
 void TYsonReader::ExpectChar(char expectedCh)
 {
     int readCh = ReadChar();
@@ -167,6 +182,21 @@ void TYsonReader::ParseAny()
 
         case '<':
             ParseEntity();
+            ParseAttributes();
+            break;
+
+        case StringMarker:
+            ParseBinaryString();
+            ParseAttributes();
+            break;
+
+        case Int64Marker:
+            ParseBinaryInt64();
+            ParseAttributes();
+            break;
+
+        case DoubleMarker:
+            ParseBinaryDouble();
             ParseAttributes();
             break;
 
@@ -325,6 +355,29 @@ void TYsonReader::ParseNumeric()
         }
     }
 }
+
+void TYsonReader::ParseBinaryString()
+{
+    ExpectChar(StringMarker);
+    i32 strLength = FromString<i32>(ReadChars(4));
+    Stroka result = ReadChars(strLength);
+    Events->StringScalar(result);
+}
+
+void TYsonReader::ParseBinaryInt64()
+{
+    ExpectChar(Int64Marker);
+    i64 value = FromString<i64>(ReadChars(sizeof(i64)));
+    Events->Int64Scalar(value);
+}
+
+void TYsonReader::ParseBinaryDouble()
+{
+    ExpectChar(DoubleMarker);
+    double value = FromString<double>(ReadChars(sizeof(double)));
+    Events->DoubleScalar(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

@@ -28,17 +28,16 @@ private:
     void Reset();
 
     int ReadChar();
+    Stroka ReadChars(int numChars);
 
     void ExpectChar(char expectedCh);
 
     int PeekChar();
 
     static bool IsWhitespace(int ch);
-
     void SkipWhitespaces();
 
     Stroka ReadString();
-
     Stroka ReadNumericLike();
 
     void ParseAny();
@@ -56,8 +55,11 @@ private:
 
     void ParseString();
 
-    static bool IsIntegerLike(const Stroka& str);
+    void ParseBinaryString();
+    void ParseBinaryInt64();
+    void ParseBinaryDouble();
 
+    static bool IsIntegerLike(const Stroka& str);
     void ParseNumeric();
 
 };

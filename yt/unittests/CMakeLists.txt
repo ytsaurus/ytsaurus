@@ -15,7 +15,9 @@ SRCS(
     #meta_state_map_ut.cpp
     foreach_ut.cpp
     thread_affinity_ut.cpp
-    #ytree_fluent_ut.cpp
+    ytree_fluent_ut.cpp
+    yson_reader_ut.cpp
+    yson_writer_ut.cpp
 )
 
 PEERDIR(
