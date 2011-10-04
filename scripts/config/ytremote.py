@@ -5,8 +5,10 @@ Prepare = FileDescr('prepare', ('aggregate', 'exec', ))
 DoRun = FileDescr('do_run', ('remote', 'exec'))
 DoStop = FileDescr('do_stop', ('remote', 'exec'))
 DoClean = FileDescr('do_clean', ('remote', 'exec'))
+DoTest = FileDescr('do_test', ('remote', 'exec'))
+Test = FileDescr('test', ('aggregate', 'exec'))
 
-Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog]
+Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
 
 ################################################################
 
@@ -14,15 +16,21 @@ shebang = '#!/bin/bash'
 ulimit = 'ulimit -c unlimited'
 cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S -- %(params)s'
+cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
+            '--pidfile %(work_dir)s/pid -m -S'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
-def wrap_cmd(cmd):
-    return '''cmd="%s"
-$cmd
-if [ $? -ne 0 ]; then
-        echo "Command failed: ", $cmd
+def wrap_cmd(cmd, silent=False):
+    res = ['cmd="%s"' % cmd]
+    if silent:
+        res.append('$cmd 2&>1 1>/dev/null')
+    else:
+        res.append('$cmd')
+    res.append('''if [ $? -ne 0 ]; then
+        echo "Command failed: " $cmd
         exit
-fi''' % cmd
+fi''')
+    return '\n'.join(res)
 
 
 class RemoteNode(Node):
@@ -73,11 +81,24 @@ class RemoteNode(Node):
     stop_tmpl = Template(cmd_stop)
     def do_stop(cls, fd):
         print >>fd, shebang
-        print >>fd, wrap_cmd(cls.stop_tmpl)
+        print >>fd, wrap_cmd(cls.stop_tmpl, True)
+
+    test_tmpl = Template(cmd_test)
+    def do_test(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'cmd="%s"' % cls.test_tmpl
+        print >>fd, '$cmd 2>&1 1>/dev/null'
+        print >>fd, 'if [ $? -eq 0 ]; then'
+        print >>fd, 'echo "Node is dead: %s, host: %s"' % (cls.work_dir, cls.host)
+        print >>fd, 'fi' 
     
     def stop(cls, fd):
         print >>fd, shebang
         print >>fd, 'ssh %s %s' % (cls.host, cls.do_stop_path)
+
+    def test(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'ssh %s %s' % (cls.host, cls.do_test_path)
         
     def clean(cls, fd):
         print >>fd, shebang

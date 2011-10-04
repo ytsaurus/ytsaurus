@@ -21,7 +21,7 @@ Logging = {
 }
 
 Port = 9091
-MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) for i in xrange(3)])
+MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) for i in xrange(1, 4)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
@@ -35,6 +35,7 @@ class Server(Base):
     bin_path = '/home/yt/src/yt/server/server'
     
 class Master(RemoteServer, Server):
+    base_dir = './'
     address = Subclass(MasterAddresses)
     params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
@@ -43,17 +44,18 @@ class Master(RemoteServer, Server):
 	        'Cell' : {
     	        'Addresses' : MasterAddresses
         	},
-            'SnapshotLocation' : '/yt/disk2/snapshots',
-            'LogLocation' : '/yt/disk2/logs',
+            'SnapshotLocation' : '%(work_dir)s/snapshots',
+            'LogLocation' : '%(work_dir)s/logs',
         },            
         'Logging' : Logging
     })
     
     def do_run(cls, fd):
         print >>fd, shebang
-        print >>fd, 'mkdir -p %s' % cls.config['MetaState']['SnapshotLocation']
-        print >>fd, 'mkdir -p %s' % cls.config['MetaState']['LogLocation']
-        print >>fd, cls.run_tmpl
+        print >>fd, wrap_cmd('mkdir -p %s' % cls.config['MetaState']['SnapshotLocation'])
+        print >>fd, wrap_cmd('mkdir -p %s' % cls.config['MetaState']['LogLocation'])
+        print >>fd, ulimit
+        print >>fd, wrap_cmd(cls.run_tmpl)
         
     def do_clean(cls, fd):
         print >>fd, shebang
