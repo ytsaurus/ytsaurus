@@ -101,11 +101,10 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
     return stream;
 }
 
-void TRefCountedTracker::GetDebugInfo(NYTree::IYsonConsumer* consumer, int sortByColumn)
+void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
     auto items = GetItems();
-    SortItems(items, sortByColumn);
-
+    
     i64 totalAlive = 0;
     i64 totalCreated = 0;
 

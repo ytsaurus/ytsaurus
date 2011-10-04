@@ -58,7 +58,7 @@ public:
 
     static Stroka GetDebugInfo(int sortByColumn = -1);
     // TODO: experiment
-    static void GetDebugInfo(NYTree::IYsonConsumer* consumer, int sortByColumn = -1);
+    static void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
     static i64 GetAliveObjects(TKey key);
     static i64 GetCreatedObjects(TKey key);
 
