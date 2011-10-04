@@ -33,7 +33,6 @@ TRecovery::TRecovery(
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , LeaderId(leaderId)
-    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
@@ -49,6 +48,7 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     CancelableStateInvoker = New<TCancelableInvoker>(stateInvoker);
+    CancelableControlInvoker = New<TCancelableInvoker>(controlInvoker);
 }
 
 void TRecovery::Stop()
