@@ -54,6 +54,7 @@ YT_SUBDIRECTORY(transaction)
 YT_SUBDIRECTORY(ytree)
 YT_SUBDIRECTORY(registry)
 YT_SUBDIRECTORY(table_client)
+YT_SUBDIRECTORY(monitoring)
 
 # Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(

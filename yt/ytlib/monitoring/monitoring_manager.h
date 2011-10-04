@@ -1,13 +1,12 @@
 #pragma once
 
-#include "common.h"
-#include "ytree_fwd.h"
-#include "ytree.h"
-
+#include "../ytree/ytree.h"
 #include "../misc/periodic_invoker.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NMonitoring {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMonitoringManager
     : public TRefCountedBase
@@ -17,25 +16,27 @@ public:
 
     TMonitoringManager();
 
-    void Register(TYPath path, TYsonProducer::TPtr producer);
-    void Unregister(TYPath path);
-    INode::TPtr GetRoot() const;
+    void Register(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
+    void Unregister(NYTree::TYPath path);
+    NYTree::INode::TConstPtr GetRoot() const;
 
     void Start();
     void Stop();
 
 private:
-    typedef yhash<Stroka, TYsonProducer::TPtr> TProducerMap;
+    typedef yhash<Stroka, NYTree::TYsonProducer::TPtr> TProducerMap;
 
     static const TDuration Period; // TODO: make configurable
 
     TProducerMap MonitoringMap;
-    INode::TPtr Root;
+    NYTree::INode::TConstPtr Root;
 
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
-    void Process();
+    void Update();
 };
 
-} // namespace NYTree
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMonitoring
 } // namespace NYT

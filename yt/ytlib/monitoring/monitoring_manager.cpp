@@ -1,24 +1,28 @@
 #include "monitoring_manager.h"
 
-#include "ephemeral.h"
-
-#include "actions/action_util.h"
+#include "../ytree/ephemeral.h"
+#include "../actions/action_util.h"
+#include "../misc/assert.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NMonitoring {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 TMonitoringManager::TMonitoringManager()
 { 
     PeriodicInvoker = new TPeriodicInvoker(
-        FromMethod(&TMonitoringManager::Process, TPtr(this)),
+        FromMethod(&TMonitoringManager::Update, TPtr(this)),
         Period);
 }
 
 void TMonitoringManager::Register(TYPath path, TYsonProducer::TPtr producer)
 {
-    YVERIFY(MonitoringMap.insert(MakePair(Stroka(path), producer)).Second());
+    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).Second());
 }
 
 void TMonitoringManager::Unregister(TYPath path)
@@ -26,7 +30,7 @@ void TMonitoringManager::Unregister(TYPath path)
     YVERIFY(MonitoringMap.erase(Stroka(path)));
 }
 
-INode::TPtr TMonitoringManager::GetRoot() const
+INode::TConstPtr TMonitoringManager::GetRoot() const
 {
     return Root;
 }
@@ -41,7 +45,7 @@ void TMonitoringManager::Stop()
     PeriodicInvoker->Stop();
 }
 
-void TMonitoringManager::Process()
+void TMonitoringManager::Update()
 {
     auto newRoot = NEphemeral::TNodeFactory::Get()->CreateMap();
     FOREACH(const auto& pair, MonitoringMap) {
@@ -50,5 +54,7 @@ void TMonitoringManager::Process()
     Root = ~newRoot;
 }
 
-} // namespace NYTree
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMonitoring
 } // namespace NYT

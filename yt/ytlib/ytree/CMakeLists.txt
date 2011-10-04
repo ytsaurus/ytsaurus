@@ -12,6 +12,4 @@ SET(YT_SOURCE_FILES
     ephemeral.cpp
     fluent.h
     json_adapter.cpp
-    http_tree_server.cpp
-    monitoring_manager.cpp
 )
