@@ -649,6 +649,12 @@ void TRemoteChunkWriter::OnNodeDied(int node)
     if (!Nodes[node]->IsAlive)
         return;
 
+    if (State == EWriterState::Canceled || 
+        State == EWriterState::Closed)
+    {
+        return;
+    }
+
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
