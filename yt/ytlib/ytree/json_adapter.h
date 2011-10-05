@@ -3,7 +3,13 @@
 #include "common.h"
 #include "yson_events.h"
 
-#include <dict/json/json.h>
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NJson {
+    class TJsonWriter;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NYTree {
@@ -14,7 +20,8 @@ class TJsonAdapter
     : public IYsonConsumer
 {
 public:
-    TJsonAdapter(TJsonWriter* jsonWriter);
+    TJsonAdapter(TOutputStream* output);
+    ~TJsonAdapter();
 
     virtual void BeginTree();
     virtual void EndTree();
@@ -37,7 +44,7 @@ public:
     virtual void EndAttributes();
 
 private:
-    TJsonWriter* JsonWriter;
+    THolder<NJson::TJsonWriter> JsonWriter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

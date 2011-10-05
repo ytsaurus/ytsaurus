@@ -14,3 +14,8 @@ SET(YT_SOURCE_FILES
     fluent.h
     json_adapter.cpp
 )
+
+include_directories(
+  ${SOURCE_ROOT}/include
+)
+

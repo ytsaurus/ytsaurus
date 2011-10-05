@@ -1,49 +1,55 @@
 #include "json_adapter.h"
 
-#include <util/charset/wide.h>
+#include <library/json/json_writer.h>
 
 namespace NYT {
 namespace NYTree {
 
+using NJson::TJsonWriter;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonAdapter::TJsonAdapter(TJsonWriter* jsonWriter)
-    : JsonWriter(jsonWriter)
+TJsonAdapter::TJsonAdapter(TOutputStream* output)
+    : JsonWriter(new TJsonWriter(output, true))
 { }
+
+TJsonAdapter::~TJsonAdapter()
+{
+}
 
 void TJsonAdapter::BeginTree()
 {
-    JsonWriter->Start();
+    // ?
 }
 
 void TJsonAdapter::EndTree()
 {
-    JsonWriter->End();
+    // ?
 }
 
 void TJsonAdapter::StringScalar(const Stroka& value)
 {
-    JsonWriter->Value(CharToWide(value));
+    JsonWriter->Write(value);
 }
 
 void TJsonAdapter::Int64Scalar(i64 value)
 {
-    JsonWriter->Value((i32) value); // temp cast
+    JsonWriter->Write(value);
 }
 
 void TJsonAdapter::DoubleScalar(double value)
 {
-    JsonWriter->Value(value);
+    JsonWriter->Write(value);
 }
 
 void TJsonAdapter::EntityScalar()
 {
-    JsonWriter->Null();
+    // ?
 }
 
 void TJsonAdapter::BeginList()
 {
-    JsonWriter->StartArray();
+    JsonWriter->OpenArray();
 }
 
 void TJsonAdapter::ListItem(int index)
@@ -53,22 +59,22 @@ void TJsonAdapter::ListItem(int index)
 
 void TJsonAdapter::EndList()
 {
-    JsonWriter->EndArray();
+    JsonWriter->CloseArray();
 }
 
 void TJsonAdapter::BeginMap()
 {
-    JsonWriter->StartObject();
+    JsonWriter->OpenMap();
 }
 
 void TJsonAdapter::MapItem(const Stroka& name)
 {
-    JsonWriter->Key(CharToWide(name));
+    JsonWriter->Write(name);
 }
 
 void TJsonAdapter::EndMap()
 {
-    JsonWriter->EndObject();
+    JsonWriter->CloseMap();
 }
 
 void TJsonAdapter::BeginAttributes()

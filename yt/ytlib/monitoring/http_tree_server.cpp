@@ -29,8 +29,7 @@ public:
             "Content-Type: text/plain\r\n"
             "\r\n";
 
-        TJsonWriter writer(CODES_UTF8, &Output());
-        TJsonAdapter adapter(&writer);
+        TJsonAdapter adapter(&Output());
         YsonProducer->Do(&adapter);
 
         Output() << "\r\n";
