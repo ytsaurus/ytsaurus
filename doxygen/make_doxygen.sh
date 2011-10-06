@@ -6,7 +6,7 @@ CURRENT_BRANCH=$( ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) | awk
 CURRENT_COMMIT=$( ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) | awk '{print $3}' )
 GENERATED_AT=$(date +"%F %T %z (%a, %d %b %Y)")
 
-svn update $SOURCE
+(cd ${SOURCE} && git pull --ff-only -q)
 
 cat ${SOURCE}/doxygen/yt.cfg.template \
     | sed "s!%%CURRENT_BRANCH%%!${CURRENT_BRANCH}!" \
