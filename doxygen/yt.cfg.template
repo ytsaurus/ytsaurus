@@ -25,19 +25,19 @@ DOXYFILE_ENCODING      = UTF-8
 # The PROJECT_NAME tag is a single word (or a sequence of words surrounded
 # by quotes) that should identify the project.
 
-PROJECT_NAME           = YTable
+PROJECT_NAME           = YT
 
 # The PROJECT_NUMBER tag can be used to enter a project or revision number.
 # This could be handy for archiving the generated documentation or
 # if some version control system is used.
 
-PROJECT_NUMBER         = "Revision %%LAST_CHANGED_REV%%"
+PROJECT_NUMBER         = "(%%CURRENT_BRANCH%% at %%CURRENT_COMMIT%%)"
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer
 # a quick idea about the purpose of the project. Keep the description short.
 
-PROJECT_BRIEF          = "Last Changed Date: %%LAST_CHANGED_DATE%%<br />Last Generated Date: %%LAST_GENERATED_DATE%%"
+PROJECT_BRIEF          = "Generated At: %%GENERATED_AT%%"
 
 # With the PROJECT_LOGO tag one can specify an logo or icon that is
 # included in the documentation. The maximum height of the logo should not
