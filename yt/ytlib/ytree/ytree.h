@@ -43,10 +43,10 @@ struct INode
     virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0; \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0;
 
+    DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Int64)
     DECLARE_AS_METHODS(Double)
-    DECLARE_AS_METHODS(Entity)
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
 
@@ -55,8 +55,8 @@ struct INode
     virtual TIntrusiveConstPtr<IMapNode> GetAttributes() const = 0;
     virtual void SetAttributes(TIntrusivePtr<IMapNode> attributes) = 0;
 
-    virtual ICompositeNode* GetParent() const = 0;
-    virtual void SetParent(ICompositeNode* parent) = 0;
+    virtual TIntrusiveConstPtr<ICompositeNode> GetParent() const = 0;
+    virtual void SetParent(TIntrusivePtr<ICompositeNode> parent) = 0;
 
     template<class T>
     T GetValue() const

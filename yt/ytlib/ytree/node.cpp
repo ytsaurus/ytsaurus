@@ -97,34 +97,43 @@ IYPathService::TRemoveResult TNodeBase::Remove(
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 {
-    if (Parent == NULL) {
+    auto parent = GetParent();
+
+    if (~parent == NULL) {
         return TRemoveResult::CreateError("Cannot remove the root");
     }
 
-    Parent->RemoveChild(this);
+    auto mutableParent = parent->AsMutable()->AsComposite();
+    mutableParent->RemoveChild(this);
+
     return TRemoveResult::CreateDone(TVoid());
 }
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
-    if (Parent == NULL) {
+    auto parent = GetParent();
+
+    if (~parent == NULL) {
         return TSetResult::CreateError("Cannot update the root");
     }
 
+    auto mutableParent = parent->AsMutable()->AsComposite();
+
     TTreeBuilder builder(GetFactory());
     producer->Do(&builder);
-    Parent->ReplaceChild(this, builder.GetRoot());
+    mutableParent->ReplaceChild(this, builder.GetRoot());
+
     return TSetResult::CreateDone(TVoid());
 }
 
-TNodeBase* TNodeBase::AsMutableImpl() const
+TNodeBase::TPtr TNodeBase::AsMutableImpl() const
 {
     return const_cast<TNodeBase*>(this);
 }
 
-const TNodeBase* TNodeBase::AsImmutableImpl() const
+TNodeBase::TConstPtr TNodeBase::AsImmutableImpl() const
 {
-    return this;
+    return const_cast<TNodeBase*>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

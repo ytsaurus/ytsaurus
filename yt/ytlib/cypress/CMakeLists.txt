@@ -1,6 +1,7 @@
 SET(YT_SOURCE_FILES
     common.cpp
     node.cpp
+    node_proxy.cpp
     lock.cpp
     cypress_state.cpp
     cypress_service.cpp

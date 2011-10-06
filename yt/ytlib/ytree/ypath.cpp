@@ -67,6 +67,7 @@ IYPathService::TPtr AsYPath(INode::TPtr node)
 {
     YASSERT(~node != NULL);
     auto* service = dynamic_cast<IYPathService*>(~node);
+    // TODO: exception?
     YASSERT(service != NULL);
     return service;
 }
@@ -75,6 +76,7 @@ IYPathService::TPtr AsYPath(INode::TConstPtr node)
 {
     YASSERT(~node != NULL);
     auto* service = dynamic_cast<IYPathService*>(const_cast<INode*>(~node));
+    // TODO: exception?
     YASSERT(service != NULL);
     return service;
 }

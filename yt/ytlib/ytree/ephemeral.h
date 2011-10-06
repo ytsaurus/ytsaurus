@@ -15,7 +15,19 @@ class TEphemeralNodeBase
     : public ::NYT::NYTree::TNodeBase
 {
 public:
+    TEphemeralNodeBase();
+
     virtual INodeFactory* GetFactory() const;
+
+    virtual ICompositeNode::TConstPtr GetParent() const;
+    virtual void SetParent(ICompositeNode::TPtr parent);
+
+    virtual IMapNode::TConstPtr GetAttributes() const;
+    virtual void SetAttributes(IMapNode::TPtr attributes);
+
+private:
+    ICompositeNode* Parent;
+    IMapNode::TPtr Attributes;
 
 };
 
@@ -49,6 +61,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_TYPE_OVERRIDES(name) \
+public: \
     virtual ENodeType GetType() const \
     { \
         return ENodeType::name; \
@@ -81,13 +94,26 @@ DECLARE_SCALAR_TYPE(Double, double);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapNode
+template <class IBase>
+class TCompositeNodeBase
     : public TEphemeralNodeBase
-    , public virtual IMapNode
+    , public virtual IBase
 {
 public:
+    virtual ICompositeNode::TPtr AsComposite()
+    {
+        return this;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapNode
+    : public TCompositeNodeBase<IMapNode>
+{
     DECLARE_TYPE_OVERRIDES(Map)
 
+public:
     virtual void Clear();
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const;
@@ -112,12 +138,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TEphemeralNodeBase
-    , public virtual IListNode
+    : public TCompositeNodeBase<IListNode>
 {
-public:
     DECLARE_TYPE_OVERRIDES(List)
 
+public:
     virtual void Clear();
     virtual int GetChildCount() const;
     virtual yvector<INode::TConstPtr> GetChildren() const;

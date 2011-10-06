@@ -4,18 +4,10 @@
 #include "node.h"
 #include "lock.h"
 
+#include "../misc/id_generator.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"
-
-//#include "cypress_service_rpc.h"
-//
-//
-//#include "../meta_state/meta_state_service.h"
-//#include "../rpc/server.h"
-//#include "../ytree/node.h"
-//
-//#include "../ytree/node.h"
 
 namespace NYT {
 namespace NCypress {
@@ -35,21 +27,23 @@ public:
         TTransactionManager::TPtr transactionManager);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
-    METAMAP_ACCESSORS_DECL(Node, TCypressNodeImplBase, TBranchedNodeId);
+    METAMAP_ACCESSORS_DECL(Node, TCypressNodeBase, TBranchedNodeId);
+
+    INode::TConstPtr GetNode(
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId);
 
 private:
     TTransactionManager::TPtr TransactionManager;
+    TIdGenerator<TGuid> NodeIdGenerator;
     
     NMetaState::TMetaStateMap<
         TLockId,
         TLock> Locks;
     NMetaState::TMetaStateMap<
         TBranchedNodeId,
-        TCypressNodeImplBase,
-        NMetaState::TMetaStateMapPtrTraits<TCypressNodeImplBase> > Nodes;
-
-
-    //TMetaStateMap<TNodeId, IRegistryNode, TMetaStateMapPtrTraits<IRegistryNode> > NodeMap;
+        TCypressNodeBase,
+        NMetaState::TMetaStateMapPtrTraits<TCypressNodeBase> > Nodes;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;

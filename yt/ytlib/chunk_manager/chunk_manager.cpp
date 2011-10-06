@@ -9,6 +9,7 @@
 #include "../misc/guid.h"
 #include "../misc/assert.h"
 #include "../misc/string.h"
+#include "../misc/id_generator.h"
 
 namespace NYT {
 namespace NChunkManager {
@@ -42,7 +43,6 @@ public:
         , ChunkReplication(chunkReplication)
         , ChunkPlacement(chunkPlacement)
         , HolderExpiration(holderExpiration)
-        , CurrentHolderId(0)
     {
         RegisterMethod(this, &TState::AddChunk);
         RegisterMethod(this, &TState::RemoveChunk);
@@ -105,7 +105,7 @@ public:
         Stroka address = message.GetAddress();
         auto statistics = THolderStatistics::FromProto(message.GetStatistics());
     
-        THolderId holderId = CurrentHolderId++;
+        THolderId holderId = HolderIdGenerator.Next();
     
         const auto* existingHolder = FindHolder(address);
         if (existingHolder != NULL) {
@@ -213,7 +213,7 @@ private:
     TChunkReplication::TPtr ChunkReplication;
     TChunkPlacement::TPtr ChunkPlacement;
     THolderExpiration::TPtr HolderExpiration;
-    THolderId CurrentHolderId;
+    TIdGenerator<THolderId> HolderIdGenerator;
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
@@ -238,7 +238,7 @@ private:
     //! Saves the local state (not including the maps).
     void DoSave(TOutputStream* stream)
     {
-        *stream << CurrentHolderId;
+        *stream << HolderIdGenerator;
     }
 
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
@@ -254,7 +254,7 @@ private:
     //! Loads the local state (not including the maps).
     void DoLoad(TInputStream* stream)
     {
-        *stream >> CurrentHolderId;
+        *stream >> HolderIdGenerator;
     }
 
     TVoid OnLoaded(TVoid)

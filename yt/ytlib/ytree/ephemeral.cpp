@@ -11,9 +11,38 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEphemeralNodeBase::TEphemeralNodeBase()
+    : Parent(NULL)
+{ }
+
 INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
     return TNodeFactory::Get();
+}
+
+ICompositeNode::TConstPtr TEphemeralNodeBase::GetParent() const
+{
+    return Parent;
+}
+
+void TEphemeralNodeBase::SetParent(ICompositeNode::TPtr parent)
+{
+    YASSERT(~parent == NULL || Parent == NULL);
+    Parent = ~parent;
+}
+
+IMapNode::TConstPtr TEphemeralNodeBase::GetAttributes() const
+{
+    return Attributes;
+}
+
+void TEphemeralNodeBase::SetAttributes(IMapNode::TPtr attributes)
+{
+    if (~Attributes != NULL) {
+        Attributes->AsMutable()->SetParent(NULL);
+        Attributes = NULL;
+    }
+    Attributes = attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +84,7 @@ bool TMapNode::AddChild(INode::TPtr child, const Stroka& name)
     }
 }
 
-bool TMapNode::RemoveChild( const Stroka& name )
+bool TMapNode::RemoveChild(const Stroka& name)
 {
     auto it = NameToChild.find(name);
     if (it == NameToChild.end())
@@ -69,8 +98,10 @@ bool TMapNode::RemoveChild( const Stroka& name )
     return true;
 }
 
-void TMapNode::RemoveChild( INode::TPtr child )
+void TMapNode::RemoveChild(INode::TPtr child)
 {
+    child->AsMutable()->SetParent(NULL);
+
     auto it = ChildToName.find(child);
     YASSERT(it != ChildToName.end());
 
@@ -79,7 +110,7 @@ void TMapNode::RemoveChild( INode::TPtr child )
     YVERIFY(NameToChild.erase(name) == 1);
 }
 
-void TMapNode::ReplaceChild( INode::TPtr oldChild, INode::TPtr newChild )
+void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
     if (oldChild == newChild)
         return;
@@ -164,7 +195,7 @@ INode::TConstPtr TListNode::FindChild(int index) const
     return index >= 0 && index < List.ysize() ? List[index] : NULL;
 }
 
-void TListNode::AddChild( INode::TPtr child, int beforeIndex /*= -1*/ )
+void TListNode::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
 {
     if (beforeIndex < 0) {
         List.push_back(child); 

@@ -14,18 +14,17 @@ class TNodeBase
     , public virtual INode
 {
 public:
-    TNodeBase()
-        : Parent(NULL)
-    { }
+    typedef TIntrusivePtr<TNodeBase> TPtr;
+    typedef TIntrusiveConstPtr<TNodeBase> TConstPtr;
 
     virtual INode::TPtr AsMutable() const
     {
-        return dynamic_cast<INode*>(AsMutableImpl());
+        return dynamic_cast<INode*>(~AsMutableImpl());
     }
 
     virtual INode::TConstPtr AsImmutable() const
     {
-        return dynamic_cast<INode*>(const_cast<TNodeBase*>(AsImmutableImpl()));
+        return dynamic_cast<INode*>(const_cast<TNodeBase*>(~AsImmutableImpl()));
     }
 
 #define IMPLEMENT_AS_METHODS(name) \
@@ -41,40 +40,16 @@ public:
         return NULL; \
     }
 
+    IMPLEMENT_AS_METHODS(Entity)
+    IMPLEMENT_AS_METHODS(Composite)
+
     IMPLEMENT_AS_METHODS(String)
     IMPLEMENT_AS_METHODS(Int64)
     IMPLEMENT_AS_METHODS(Double)
-    IMPLEMENT_AS_METHODS(Entity)
     IMPLEMENT_AS_METHODS(List)
     IMPLEMENT_AS_METHODS(Map)
 
 #undef IMPLEMENT_AS_METHODS
-
-    virtual ICompositeNode* GetParent() const
-    {
-        return Parent;
-    }
-
-    virtual void SetParent(ICompositeNode* parent)
-    {
-        YASSERT(parent == NULL || Parent == NULL);
-        Parent = parent;
-    }
-
-
-    virtual IMapNode::TConstPtr GetAttributes() const
-    {
-        return Attributes;
-    }
-
-    virtual void SetAttributes(IMapNode::TPtr attributes)
-    {
-        if (~Attributes != NULL) {
-            Attributes->AsMutable()->SetParent(NULL);
-            Attributes = NULL;
-        }
-        Attributes = attributes;
-    }
 
     virtual TNavigateResult Navigate(
         TYPath path);
@@ -90,15 +65,13 @@ public:
     virtual TRemoveResult Remove(TYPath path);
 
 protected:
-    virtual TNodeBase* AsMutableImpl() const;
-    virtual const TNodeBase* AsImmutableImpl() const;
+    virtual TNodeBase::TPtr AsMutableImpl() const;
+    virtual TNodeBase::TConstPtr AsImmutableImpl() const;
 
     virtual TRemoveResult RemoveSelf();
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
 
 private:
-    ICompositeNode* Parent;
-    IMapNode::TPtr Attributes;
 
 };
 

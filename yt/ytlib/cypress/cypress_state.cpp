@@ -21,6 +21,14 @@ TCypressState::TCypressState(
     transactionManager->RegisterHander(this);
 }
 
+INode::TConstPtr TCypressState::GetNode(
+    const TTransactionId& transactionId,
+    const TNodeId& nodeId)
+{
+    // TODO:
+    return NULL;
+}
+
 Stroka TCypressState::GetPartName() const
 {
     return "Cypress";
@@ -29,14 +37,14 @@ Stroka TCypressState::GetPartName() const
 TFuture<TVoid>::TPtr TCypressState::Save(TOutputStream* stream)
 {
     YASSERT(false);
-    UNUSED(stream);
+    *stream << NodeIdGenerator;
     return NULL;
 }
 
 TFuture<TVoid>::TPtr TCypressState::Load(TInputStream* stream)
 {
     YASSERT(false);
-    UNUSED(stream);
+    *stream >> NodeIdGenerator;
     return NULL;
 }
 
@@ -59,7 +67,7 @@ void TCypressState::OnTransactionAborted(TTransaction& transaction)
 }
 
 METAMAP_ACCESSORS_IMPL(TCypressState, Lock, TLock, TLockId, Locks);
-METAMAP_ACCESSORS_IMPL(TCypressState, Node, TCypressNodeImplBase, TBranchedNodeId, Nodes);
+METAMAP_ACCESSORS_IMPL(TCypressState, Node, TCypressNodeBase, TBranchedNodeId, Nodes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

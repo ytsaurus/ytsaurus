@@ -52,13 +52,32 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressNodeImplBase
+#define DECLARE_PROPERTY(name, type) \
+private: \
+    type name ## _; \
+public: \
+    type& name() \
+    { \
+        return name ## _; \
+    } \
+    \
+    const type& name() const \
+    { \
+        return name ## _; \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressNodeBase
     : public TRefCountedBase
 {
-public:
-    typedef yhash_set<TLockId> TLocks;
+    DECLARE_PROPERTY(Locks, yhash_set<TLockId>)
+    DECLARE_PROPERTY(ParentId, TNodeId)
 
-    TCypressNodeImplBase(const TBranchedNodeId& id)
+public:
+    typedef TIntrusivePtr<TCypressNodeBase> TPtr;
+
+    TCypressNodeBase(const TBranchedNodeId& id)
         : Id(id)
     { }
 
@@ -67,159 +86,53 @@ public:
         return Id;
     }
 
-    TLocks& Locks()
-    {
-        return Locks_;
-    }
-
-
 private:
     TBranchedNodeId Id;
-    TLocks Locks_;
 
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
 
 template<class TValue>
-class TScalarNodeImpl
-    : public TCypressNodeImplBase
-{
-public:
-    TScalarNodeImpl(const TBranchedNodeId& id)
-        : TCypressNodeImplBase(id)
-    { }
-
-    TValue& Value()
-    {
-        return Value_;
-    }
-
-private:
-    TValue Value_;
-
-};
-
-typedef TScalarNodeImpl<Stroka>  TStringNodeImpl;
-typedef TScalarNodeImpl<i64>     TInt64NodeImpl;
-typedef TScalarNodeImpl<double>  TDoubleNodeImpl;
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-class TCypressState;
-/*
-template <class IBase, class TImpl>
-class TCypressNodeBase
-    : public NYTree::TNodeBase
-    , public virtual IBase
-{
-public:
-    TCypressNodeBase(
-        TIntrusivePtr<TCypressState> state,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-        : State(state)
-        , TransactionId(transactionId)
-        , NodeId(nodeId)
-    {
-        YASSERT(~state != NULL);
-
-        Impl = state->FindNode(TBranchedNodeId(nodeId, transactionId));
-        if (Impl == NULL) {
-            Impl = state->FindNode(TBranchedNodeId(nodeId, TTransactionId()));
-        }
-        YASSERT(Impl != NULL);
-    }
-
-private:
-    TIntrusivePtr<TCypressState> State;
-    TTransactionId TransactionId;
-    TNodeId NodeId;
-    TIntrusiveConstPtr<TImpl> Impl;
-
-    // TNodeBase overrides.
-    virtual NYTree::TNodeBase* AsMutableImpl() const
-    {
-        // TODO:
-        return NYTree::TNodeBase::AsMutableImpl();
-    }
-
-    virtual const NYTree::TNodeBase* AsImmutableImpl() const
-    {
-        // TODO:
-        return NYTree::TNodeBase::AsImmutableImpl();
-    }
-};
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-template <class TValue, class IBase, class TImpl>
 class TScalarNode
-    : public TCypressNodeBase<IBase, TImpl>
+    : public TCypressNodeBase
 {
+    DECLARE_PROPERTY(Value, TValue)
+
 public:
-    TScalarNode(
-        TIntrusivePtr<TCypressState> state,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-    :   TCypressNodeBase<IBase, TImpl>(
-            state,
-            transactionId,
-            nodeId)
+    TScalarNode(const TBranchedNodeId& id)
+        : TCypressNodeBase(id)
     { }
 
-    virtual TValue GetValue() const
-    {
-        return TValue();
-        // TODO:
-        //return Impl->Value();
-    }
+};
 
-    virtual void SetValue(const TValue& value)
-    {
-        // TODO:
-    }
+typedef TScalarNode<Stroka>  TStringNode;
+typedef TScalarNode<i64>     TInt64Node;
+typedef TScalarNode<double>  TDoubleNode;
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+class TMapNode
+    : public TCypressNodeBase
+{
+    typedef yhash_map<Stroka, TNodeId> TNameToChild;
+    typedef yhash_map<TNodeId, Stroka> TChildToName;
+
+    DECLARE_PROPERTY(NameToChild, TNameToChild)
+    DECLARE_PROPERTY(ChildToName, TChildToName)
+
+public:
+    TMapNode(const TBranchedNodeId& id)
+        : TCypressNodeBase(id)
+    { }
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-#define DECLARE_TYPE_OVERRIDES(name) \
-    virtual NYTree::ENodeType GetType() const \
-    { \
-        return NYTree::ENodeType::name; \
-    } \
-    \
-    virtual NYTree::I ## name ## Node::TConstPtr As ## name() const \
-    { \
-        return const_cast<T ## name ## Node*>(this); \
-    } \
-    \
-    virtual NYTree::I ## name ## Node::TPtr As ## name() \
-    { \
-        return this; \
-    }
+#undef DECLARE_PROPERTY
 
-#define DECLARE_SCALAR_TYPE(name, type) \
-    class T ## name ## Node \
-        : public TScalarNode<type, NYTree::I ## name ## Node, T ## name ## NodeImpl> \
-    { \
-    public: \
-        DECLARE_TYPE_OVERRIDES(name) \
-    \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64, i64);
-DECLARE_SCALAR_TYPE(Double, double);
-
-////////////////////////////////////////////////////////////////////////////////
-
-#undef DECLARE_SCALAR_TYPE
-#undef DECLARE_TYPE_OVERRIDES
-*/
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////// 
 
 } // namespace NCypress
 } // namespace NYT
@@ -230,7 +143,7 @@ struct hash<NYT::NCypress::TBranchedNodeId>
 {
     i32 operator()(const NYT::NCypress::TBranchedNodeId& id) const
     {
-        return (i32) THash<NYT::TGuid>()(id.NodeId) * 497 +
-               (i32) THash<NYT::TGuid>()(id.TransactionId);
+        return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
+               static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
     }
 };
