@@ -2,19 +2,19 @@
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 set +x
 
-rm -rf ${SOURCE}/doxygen/output
-mkdir -p ${SOURCE}/doxygen/output
+rm -rf ${TARGET}/pending
+mkdir -p ${TARGET}/pending
 
 set +e
 
 ${SOURCE}/doxygen/make_doxygen.sh \
-     > ${SOURCE}/doxygen/output/run_stdout.txt \
-    2> ${SOURCE}/doxygen/output/run_stderr.txt
+     > ${TARGET}/pending/run_stdout.txt \
+    2> ${TARGET}/pending/run_stderr.txt
 
 rc=$?
 
 if [[ $rc == 0 ]]; then
-    rm -rf ${SOURCE}/doxygen/stable-output
-    mv ${SOURCE}/doxygen/output ${SOURCE}/doxygen/stable-output
+    rm -rf ${TARGET}/current
+    mv ${TARGET}/pending ${TARGET}/current
 fi
 
