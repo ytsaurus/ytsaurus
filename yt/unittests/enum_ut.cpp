@@ -1,6 +1,6 @@
 #include "../ytlib/misc/enum.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 

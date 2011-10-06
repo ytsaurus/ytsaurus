@@ -1,6 +1,6 @@
 #include "../ytlib/misc/pattern_formatter.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 

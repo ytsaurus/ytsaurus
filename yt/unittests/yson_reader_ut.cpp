@@ -1,6 +1,6 @@
 #include "../ytlib/ytree/yson_reader.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NYTree {

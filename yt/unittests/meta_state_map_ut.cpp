@@ -3,7 +3,7 @@
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NUnitTest {

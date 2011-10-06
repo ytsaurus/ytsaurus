@@ -3,7 +3,7 @@
 #include "../ytlib/misc/ptr.h"
 #include "../ytlib/misc/ref_counted_tracker.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 

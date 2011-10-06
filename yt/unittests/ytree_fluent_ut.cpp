@@ -1,7 +1,7 @@
 #include "../ytlib/ytree/yson_events.h"
 #include "../ytlib/ytree/fluent.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 using ::testing::Types;
 using ::testing::InSequence;
