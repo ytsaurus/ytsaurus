@@ -115,7 +115,7 @@ TEST_F(TChangeLogTest, Finalized)
 
 TEST_F(TChangeLogTest, ReadWrite)
 {
-    const int logRecordCount = 64;
+    const int logRecordCount = 16;
 
     {
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
