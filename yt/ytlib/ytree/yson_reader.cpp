@@ -4,6 +4,7 @@
 #include "yson_format.h"
 
 #include "../misc/assert.h"
+#include "../actions/action_util.h"
 
 namespace NYT {
 namespace NYTree {
@@ -376,6 +377,17 @@ void TYsonReader::ParseBinaryDouble()
     ExpectChar(DoubleMarker);
     double value = FromString<double>(ReadChars(sizeof(double)));
     Events->DoubleScalar(value);
+}
+
+TYsonProducer::TPtr TYsonReader::GetProducer(TInputStream* stream)
+{
+    return FromMethod(&TYsonReader::GetProducerThunk, stream);
+}
+
+void TYsonReader::GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream)
+{
+    TYsonReader reader(consumer);
+    reader.Read(stream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,14 +7,13 @@ namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-TYsonWriter::TYsonWriter(TOutputStream* stream, bool isBinaryOutput)
-        : Stream(stream)
-        , IsFirstItem(false)
-        , IsEmptyEntity(false)
-        , Indent(0)
-        , IsBinaryOutput(isBinaryOutput)
+    
+TYsonWriter::TYsonWriter(TOutputStream* stream, bool isBinary)
+    : Stream(stream)
+    , IsFirstItem(false)
+    , IsEmptyEntity(false)
+    , Indent(0)
+    , IsBinary(isBinary)
 { }
 
 void TYsonWriter::WriteIndent()
@@ -57,7 +56,7 @@ void TYsonWriter::CollectionItem(char separator)
         FlushEmptyEntity();
         Stream->Write(separator + "\n");
     }
-    if (!IsBinaryOutput) {
+    if (!IsBinary) {
         WriteIndent();
     }
     IsFirstItem = false;
@@ -69,7 +68,7 @@ void TYsonWriter::EndCollection(char closeBracket)
     if (!IsFirstItem) {
         Stream->Write('\n');
         --Indent;
-        if (!IsBinaryOutput) {
+        if (!IsBinary) {
             WriteIndent();
         }
     }
@@ -88,7 +87,7 @@ void TYsonWriter::EndTree()
 
 void TYsonWriter::StringScalar(const Stroka& value)
 {
-    if (IsBinaryOutput) {
+    if (IsBinary) {
         Stream->Write(StringMarker);
         Stream->Write(static_cast<i32>(value.size()));
         Stream->Write(value);
@@ -102,7 +101,7 @@ void TYsonWriter::StringScalar(const Stroka& value)
 
 void TYsonWriter::Int64Scalar(i64 value)
 {
-    if (IsBinaryOutput) {
+    if (IsBinary) {
         Stream->Write(Int64Marker);
         Stream->Write(value);
     } else {
@@ -112,7 +111,7 @@ void TYsonWriter::Int64Scalar(i64 value)
 
 void TYsonWriter::DoubleScalar(double value)
 {
-    if (IsBinaryOutput) {
+    if (IsBinary) {
         Stream->Write(DoubleMarker);
         Stream->Write(value);
     } else {
