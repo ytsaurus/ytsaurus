@@ -79,6 +79,7 @@ public:
 
     TCypressNodeBase(const TBranchedNodeId& id)
         : Id(id)
+        , ParentId_(NullNodeId)
     { }
 
     const TBranchedNodeId& GetId()

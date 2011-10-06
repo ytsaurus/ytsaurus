@@ -49,7 +49,11 @@ TFuture<TVoid>::TPtr TCypressState::Load(TInputStream* stream)
 }
 
 void TCypressState::Clear()
-{ }
+{
+    TBranchedNodeId id(RootNodeId, NullTransactionId);
+    TCypressNodeBase::TPtr root = ~New<TMapNode>(id);
+    YVERIFY(Nodes.Insert(id, root));
+}
 
 void TCypressState::OnTransactionStarted(TTransaction& transaction)
 {

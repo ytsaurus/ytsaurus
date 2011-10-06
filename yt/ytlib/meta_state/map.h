@@ -152,7 +152,7 @@ public:
      * Does nothing if the key is already in map
      * \returns True iff the key is new.
      */
-    bool Insert(const TKey& key, typename TTraits::TConstValueRef value)
+    bool Insert(const TKey& key, typename TTraits::TStoredValue value)
     {
         if (State == EState::SavedSnapshot) {
             MergeTempTables();

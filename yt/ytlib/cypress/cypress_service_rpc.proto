@@ -19,7 +19,7 @@ message TReqSet
 {
     required bytes TransactionId = 1;
     required bytes Path = 2;
-    required bytes Values = 3;
+    required bytes Value = 3;
 }
 
 message TRspSet

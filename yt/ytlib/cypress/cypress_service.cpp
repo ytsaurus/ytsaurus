@@ -1,4 +1,9 @@
 #include "cypress_service.h"
+
+#include "../ytree/ypath.h"
+#include "../ytree/yson_reader.h"
+#include "../ytree/yson_writer.h"
+
 //#include "registry_service.pb.h"
 //
 //#include "../misc/foreach.h"
@@ -9,6 +14,8 @@
 
 namespace NYT {
 namespace NCypress {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,26 +58,58 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    // TODO: validate transaction id
+
+    auto root = State->GetNode(transactionId, RootNodeId);
+
+    Stroka output;
+    TStringOutput outputStream(output);
+    TYsonWriter writer(&outputStream, false); // TODO: use binary
+
+    try {
+        GetYPath(AsYPath(root), path, &writer);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    response->SetValue(output);
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
-    Stroka value = request->GetValues();
+    Stroka value = request->GetValue();
 
     context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    // TODO: validate transaction id
+
+    auto root = State->GetNode(transactionId, RootNodeId);
+
+    TStringInput inputStream(request->GetValue());
+    auto producer = TYsonReader::GetProducer(&inputStream);
+
+    try {
+        SetYPath(AsYPath(root), path, producer);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
 
@@ -78,8 +117,18 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    auto root = State->GetNode(transactionId, RootNodeId);
+
+    // TODO: validate transaction id
+
+    try {
+        RemoveYPath(AsYPath(root), path);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
