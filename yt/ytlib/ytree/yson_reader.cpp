@@ -51,20 +51,19 @@ int TYsonReader::ReadChar()
     return result;
 }
 
-Stroka TYsonReader::ReadChars(int numChars)
+void TYsonReader::ReadChars(int charCount, char* buffer)
 {
-    Stroka result;
-    for (int i = 0; i < numChars; ++i) {
+    for (int i = 0; i < charCount; ++i) {
         int ch = ReadChar();
         if (ch == Eos) {
             // TODO:
-            ythrow yexception() << Sprintf("Couldn't read %d byte out of %d in YSON",
-                i + 1, numChars);
+            ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d",
+                i + 1, charCount);
         }
-        result.append(static_cast<char>(ch));
+        buffer[i] = ch;
     }
-    return result;
 }
+
 
 void TYsonReader::ExpectChar(char expectedCh)
 {
@@ -144,7 +143,7 @@ Stroka TYsonReader::ReadString()
     return result;
 }
 
-Stroka TYsonReader::ReadNumericLike()
+Stroka TYsonReader::ReadNumeric()
 {
     Stroka result;
     while (true) {
@@ -322,7 +321,7 @@ void TYsonReader::ParseString()
     Events->StringScalar(value);
 }
 
-bool TYsonReader::IsIntegerLike(const Stroka& str)
+bool TYsonReader::SeemsInteger(const Stroka& str)
 {
     for (int i = 0; i < static_cast<int>(str.length()); ++i) {
         char ch = str[i];
@@ -334,8 +333,8 @@ bool TYsonReader::IsIntegerLike(const Stroka& str)
 
 void TYsonReader::ParseNumeric()
 {
-    Stroka str = ReadNumericLike();
-    if (IsIntegerLike(str)) {
+    Stroka str = ReadNumeric();
+    if (SeemsInteger(str)) {
         try {
             i64 value = FromString<i64>(str);
             Events->Int64Scalar(value);
@@ -359,22 +358,24 @@ void TYsonReader::ParseNumeric()
 void TYsonReader::ParseBinaryString()
 {
     ExpectChar(StringMarker);
-    i32 strLength = FromString<i32>(ReadChars(4));
-    Stroka result = ReadChars(strLength);
+    i32 length = ReadRaw<i32>();
+    Stroka result;
+    result.resize(length);
+    ReadChars(length, result.begin());
     Events->StringScalar(result);
 }
 
 void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
-    i64 value = FromString<i64>(ReadChars(sizeof(i64)));
+    i64 value = ReadRaw<i64>();
     Events->Int64Scalar(value);
 }
 
 void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
-    double value = FromString<double>(ReadChars(sizeof(double)));
+    double value = ReadRaw<double>();
     Events->DoubleScalar(value);
 }
 

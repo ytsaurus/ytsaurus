@@ -28,7 +28,18 @@ private:
     void Reset();
 
     int ReadChar();
-    Stroka ReadChars(int numChars);
+    void ReadChars(int charCount, char* buffer);
+
+    template<class T>
+    T ReadRaw()
+    {
+        int charCount = sizeof(T);
+        char buffer[charCount];
+        ReadChars(charCount, buffer);
+        return *reinterpret_cast<T*>(buffer);
+    }
+
+    Stroka ReadChars(int charsCount);
 
     void ExpectChar(char expectedCh);
 
@@ -38,7 +49,7 @@ private:
     void SkipWhitespaces();
 
     Stroka ReadString();
-    Stroka ReadNumericLike();
+    Stroka ReadNumeric();
 
     void ParseAny();
 
@@ -59,7 +70,7 @@ private:
     void ParseBinaryInt64();
     void ParseBinaryDouble();
 
-    static bool IsIntegerLike(const Stroka& str);
+    static bool SeemsInteger(const Stroka& str);
     void ParseNumeric();
 
 };
