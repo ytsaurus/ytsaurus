@@ -15,9 +15,6 @@ class TMockConsumer
     : public NYTree::IYsonConsumer
 {
 public:
-    MOCK_METHOD0(BeginTree, void());
-    MOCK_METHOD0(EndTree, void());
-
     MOCK_METHOD1(StringScalar, void(const Stroka& value));
     MOCK_METHOD1(Int64Scalar, void(i64 value));
     MOCK_METHOD1(DoubleScalar, void(double value));
@@ -51,15 +48,11 @@ TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, StringScalar("Hello World"));
-    EXPECT_CALL(mock, EndTree());
 
     TypeParam passedScalar = "Hello World";
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .Scalar(passedScalar)
-        .EndTree();
+        .Scalar(passedScalar);
 }
 
 typedef Types<const char*, Stroka>
@@ -87,15 +80,11 @@ TYPED_TEST_P(TYTreeFluentIntegerScalarTest, Ok)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, Int64Scalar(42));
-    EXPECT_CALL(mock, EndTree());
 
     TypeParam passedScalar = 42;
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .Scalar(passedScalar)
-        .EndTree();
+        .Scalar(passedScalar);
 }
 
 // TODO: Add <ui8, ui16, ui32, ui64> to the list of used types.
@@ -125,15 +114,11 @@ TYPED_TEST_P(TYTreeFluentFloatScalarTest, Ok)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, DoubleScalar(::testing::DoubleEq(3.14f)));
-    EXPECT_CALL(mock, EndTree());
 
     TypeParam passedScalar = 3.14f;
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .Scalar(passedScalar)
-        .EndTree();
+        .Scalar(passedScalar);
 }
 
 typedef Types<float, double>
@@ -154,16 +139,12 @@ TEST(TYTreeFluentMapTest, Empty)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginMap());
     EXPECT_CALL(mock, EndMap());
-    EXPECT_CALL(mock, EndTree());
-
+    
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .BeginMap()
-            .EndMap()
-        .EndTree();
+        .BeginMap()
+        .EndMap();
 }
 
 TEST(TYTreeFluentMapTest, Simple)
@@ -171,25 +152,21 @@ TEST(TYTreeFluentMapTest, Simple)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginMap());
     EXPECT_CALL(mock, MapItem("foo"));
     EXPECT_CALL(mock, Int64Scalar(10));
     EXPECT_CALL(mock, MapItem("bar"));
     EXPECT_CALL(mock, Int64Scalar(20));
     EXPECT_CALL(mock, EndMap());
-    EXPECT_CALL(mock, EndTree());
 
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .BeginMap()
-                .Item("foo")
-                .Scalar(10)
+        .BeginMap()
+            .Item("foo")
+            .Scalar(10)
 
-                .Item("bar")
-                .Scalar(20)
-            .EndMap()
-        .EndTree();
+            .Item("bar")
+            .Scalar(20)
+        .EndMap();
 }
 
 TEST(TYTreeFluentMapTest, Nested)
@@ -197,7 +174,6 @@ TEST(TYTreeFluentMapTest, Nested)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginMap());
     EXPECT_CALL(mock, MapItem("foo"));
     EXPECT_CALL(mock, BeginMap());
@@ -207,21 +183,18 @@ TEST(TYTreeFluentMapTest, Nested)
     EXPECT_CALL(mock, MapItem("bar"));
     EXPECT_CALL(mock, Int64Scalar(42));
     EXPECT_CALL(mock, EndMap());
-    EXPECT_CALL(mock, EndTree());
 
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
+        .BeginMap()
+            .Item("foo")
             .BeginMap()
-                .Item("foo")
-                .BeginMap()
-                    .Item("xxx")
-                    .Scalar(17)
-                .EndMap()
-
-                .Item("bar")
-                .Scalar(42)
+                .Item("xxx")
+                .Scalar(17)
             .EndMap()
-        .EndTree();
+
+            .Item("bar")
+            .Scalar(42)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,16 +208,12 @@ TEST(TYTreeFluentListTest, Empty)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginList());
     EXPECT_CALL(mock, EndList());
-    EXPECT_CALL(mock, EndTree());
-
+    
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .BeginList()
-            .EndList()
-        .EndTree();
+        .BeginList()
+        .EndList();
 }
 
 TEST(TYTreeFluentListTest, Simple)
@@ -252,25 +221,21 @@ TEST(TYTreeFluentListTest, Simple)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginList());
     EXPECT_CALL(mock, ListItem(0));
     EXPECT_CALL(mock, StringScalar("foo"));
     EXPECT_CALL(mock, ListItem(1));
     EXPECT_CALL(mock, StringScalar("bar"));
     EXPECT_CALL(mock, EndList());
-    EXPECT_CALL(mock, EndTree());
 
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
-            .BeginList()
-                .Item()
-                .Scalar("foo")
+        .BeginList()
+            .Item()
+            .Scalar("foo")
 
-                .Item()
-                .Scalar("bar")
-            .EndList()
-        .EndTree();
+            .Item()
+            .Scalar("bar")
+        .EndList();
 }
 
 TEST(TYTreeFluentListTest, Nested)
@@ -278,7 +243,6 @@ TEST(TYTreeFluentListTest, Nested)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginList());
     EXPECT_CALL(mock, ListItem(0));
     EXPECT_CALL(mock, BeginList());
@@ -288,21 +252,18 @@ TEST(TYTreeFluentListTest, Nested)
     EXPECT_CALL(mock, ListItem(1));
     EXPECT_CALL(mock, StringScalar("bar"));
     EXPECT_CALL(mock, EndList());
-    EXPECT_CALL(mock, EndTree());
 
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
+        .BeginList()
+            .Item()
             .BeginList()
                 .Item()
-                .BeginList()
-                    .Item()
-                    .Scalar("foo")
-                .EndList()
-
-                .Item()
-                .Scalar("bar")
+                .Scalar("foo")
             .EndList()
-        .EndTree();
+
+            .Item()
+            .Scalar("bar")
+        .EndList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +274,6 @@ TEST(TYTreeFluentTest, Complex)
     TMockConsumer mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, BeginList());
 
     EXPECT_CALL(mock, ListItem(0));
@@ -361,53 +321,50 @@ TEST(TYTreeFluentTest, Complex)
     EXPECT_CALL(mock, EndAttributes());
 
     EXPECT_CALL(mock, EndList());
-    EXPECT_CALL(mock, EndTree());
 
     NYTree::TFluentYsonBuilder::Create(&mock)
-        .BeginTree()
+        .BeginList()
+            // 0
+            .Item().WithAttributes()
+            .Scalar(42)
+            .BeginAttributes()
+                .Item("attr1").Scalar(-1)
+                .Item("attr2").Scalar(-2)
+            .EndAttributes()
+
+            // 1
+            .Item()
+            .Scalar(17)
+
+            // 2
+            .Item()
             .BeginList()
-                // 0
-                .Item().WithAttributes()
-                .Scalar(42)
-                .BeginAttributes()
-                    .Item("attr1").Scalar(-1)
-                    .Item("attr2").Scalar(-2)
-                .EndAttributes()
-
-                // 1
-                .Item()
-                .Scalar(17)
-
-                // 2
-                .Item()
-                .BeginList()
-                .EndList()
-
-                // 3
-                .Item().WithAttributes()
-                .BeginList()
-                    .Item().Scalar("hello")
-                    .Item().Scalar("world")
-                .EndList()
-                .BeginAttributes()
-                    .Item("hot").Scalar("chocolate")
-                .EndAttributes()
-
-                // 4
-                .Item()
-                .BeginMap()
-                    .Item("aaa").Scalar(1)
-                    .Item("bbb").Scalar(2)
-                .EndMap()
-
-                // 5
-                .Item().WithAttributes()
-                .EntityScalar()
-                .BeginAttributes()
-                    .Item("type").Scalar("extra")
-                .EndAttributes()
             .EndList()
-        .EndTree();
+
+            // 3
+            .Item().WithAttributes()
+            .BeginList()
+                .Item().Scalar("hello")
+                .Item().Scalar("world")
+            .EndList()
+            .BeginAttributes()
+                .Item("hot").Scalar("chocolate")
+            .EndAttributes()
+
+            // 4
+            .Item()
+            .BeginMap()
+                .Item("aaa").Scalar(1)
+                .Item("bbb").Scalar(2)
+            .EndMap()
+
+            // 5
+            .Item().WithAttributes()
+            .EntityScalar()
+            .BeginAttributes()
+                .Item("type").Scalar("extra")
+            .EndAttributes()
+        .EndList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,17 +27,6 @@ private:
     INodeFactory* Factory;
     yvector<INode::TPtr> Stack;
 
-    virtual void BeginTree()
-    {
-        YASSERT(Stack.ysize() == 0);
-    }
-
-    virtual void EndTree()
-    {
-        YASSERT(Stack.ysize() == 1);
-    }
-
-
     virtual void StringScalar(const Stroka& value)
     {
         auto node = Factory->CreateString();

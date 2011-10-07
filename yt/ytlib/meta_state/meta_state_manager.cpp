@@ -6,9 +6,12 @@
 #include "../misc/serialize.h"
 #include "../misc/fs.h"
 #include "../misc/guid.h"
+#include "../ytree/fluent.h"
 
 namespace NYT {
 namespace NMetaState {
+
+using NElection::TElectionManager;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +58,7 @@ TMetaStateManager::TMetaStateManager(
     CellManager = New<TCellManager>(Config.Cell);
 
     // TODO: fill config
-    ElectionManager = New<NElection::TElectionManager>(
+    ElectionManager = New<TElectionManager>(
         NElection::TElectionManager::TConfig(),
         CellManager,
         controlInvoker,
@@ -898,6 +901,31 @@ EPeerState TMetaStateManager::GetState() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return State;
+}
+
+void TMetaStateManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+{
+    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
+        .BeginMap()
+            .Item("state").Scalar(State.ToString())
+            .Item("version").Scalar(MetaState->GetVersion().ToString())
+            .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
+            .Item("elections").Do(
+                FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager));
+    auto followerTracker = FollowerTracker;
+    if (~followerTracker != NULL) {
+        auto list = current
+            .Item("followers_active").BeginList();
+        for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+            list = list
+                .Item().Scalar(followerTracker->IsFollowerActive(id));
+        }
+        current = list
+            .EndList()
+            .Item("has_quorum").Scalar(followerTracker->HasActiveQuorum());
+    }
+    current
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

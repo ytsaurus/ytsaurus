@@ -763,20 +763,18 @@ void TElectionManager::StopEpoch()
 void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
     auto current = NYTree::TFluentYsonBuilder::Create(consumer)
-        .BeginTree()
-            .BeginMap()
-                .Item("state").Scalar(State.ToString())
-                .Item("peers").BeginList();
+        .BeginMap()
+            .Item("state").Scalar(State.ToString())
+            .Item("peers").BeginList();
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         current = current
-                    .Item().Scalar(CellManager->GetPeerAddress(id));
+                .Item().Scalar(CellManager->GetPeerAddress(id));
     }
     current
-                .EndList()
-                .Item("leader_id").Scalar(LeaderId)
-                .Item("vote_id").Scalar(VoteId)
-            .EndMap()
-        .EndTree();
+            .EndList()
+            .Item("leader_id").Scalar(LeaderId)
+            .Item("vote_id").Scalar(VoteId)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

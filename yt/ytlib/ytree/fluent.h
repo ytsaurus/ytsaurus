@@ -36,28 +36,6 @@ public:
 
     };
 
-    class TFluentTree
-        : public TFluentBase<TVoid>
-    {
-    public:
-        typedef TFluentTree TThis;
-
-        TFluentTree(IYsonConsumer* events)
-            : TFluentBase<TVoid>(events, TVoid())
-        { }
-
-        TAny<TFluentTree> BeginTree()
-        {
-            Events->BeginTree();
-            return TAny<TFluentTree>(Events, *this);
-        }
-
-        void EndTree()
-        {
-            Events->EndTree();
-        }
-    };
-
     template<class TParent>
     class TAny
         : public TFluentBase<TParent>
@@ -135,6 +113,19 @@ public:
         TAny< TToAttributes<TParent> > WithAttributes()
         {
             return TAny< TToAttributes<TParent> >(this->Events, TToAttributes<TParent>(this->Events, this->Parent));
+        }
+
+        TParent Do(TYsonProducer::TPtr producer)
+        {
+            producer->Do(this->Events);
+            return this->Parent;
+        }
+
+        template<class T>
+        TParent Do(const T& func)
+        {
+            func(this->Events);
+            return this->Parent;
         }
     };
 
@@ -231,11 +222,10 @@ public:
         }
     };
 
-    static TFluentTree Create(IYsonConsumer* events)
+    static TAny<TVoid> Create(IYsonConsumer* events)
     {
-        return TFluentTree(events);
+        return TAny<TVoid>(events, TVoid());
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -139,6 +139,10 @@ void RunCellMaster(const TCellMasterConfig& config)
     monitoringManager->Register(
         "/refcounted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+    monitoringManager->Register(
+        "/meta_state",
+        FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
+
     // TODO: register more monitoring infos
 
     monitoringManager->Start();

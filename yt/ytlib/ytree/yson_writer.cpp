@@ -78,14 +78,6 @@ void TYsonWriter::EndCollection(char closeBracket)
 }
 
 
-void TYsonWriter::BeginTree()
-{ }
-
-void TYsonWriter::EndTree()
-{
-    FlushEmptyEntity();
-}
-
 void TYsonWriter::StringScalar(const Stroka& value)
 {
     if (IsBinary) {

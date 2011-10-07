@@ -83,6 +83,12 @@ public:
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 
+    //! Gets info for monitoring in YSON format
+    /*!
+     * \note Thread affinity: any
+     */
+    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+
 private:
     typedef TMetaStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;

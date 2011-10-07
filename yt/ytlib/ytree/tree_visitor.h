@@ -19,9 +19,7 @@ public:
 
     void Visit(INode::TPtr root)
     {
-        Events->BeginTree();
         VisitAny(root);
-        Events->EndTree();
     }
 
 private:

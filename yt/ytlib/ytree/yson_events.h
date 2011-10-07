@@ -14,9 +14,6 @@ struct IYsonConsumer
     virtual ~IYsonConsumer()
     { }
 
-    virtual void BeginTree() = 0;
-    virtual void EndTree() = 0;
-
     virtual void StringScalar(const Stroka& value) = 0;
     virtual void Int64Scalar(i64 value) = 0;
     virtual void DoubleScalar(double value) = 0;

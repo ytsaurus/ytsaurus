@@ -35,9 +35,6 @@ private:
     void CollectionItem(char separator);
     void EndCollection(char closeBracket);
 
-    virtual void BeginTree();
-    virtual void EndTree();
-
     virtual void StringScalar(const Stroka& value);
     virtual void Int64Scalar(i64 value);
     virtual void DoubleScalar(double value);
