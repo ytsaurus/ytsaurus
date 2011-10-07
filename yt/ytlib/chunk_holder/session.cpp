@@ -255,6 +255,10 @@ void TSession::EnqueueWrites()
 
 TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 {
+    LOG_DEBUG("Start writing chunk block (ChunkId: %s, BlockIndex: %d)",
+        ~ChunkId.ToString(),
+        blockIndex);
+
     try {
         Writer->WriteBlock(block->GetData());
     } catch (...) {
