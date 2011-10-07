@@ -3,6 +3,7 @@
 #include "../misc/serialize.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
+#include "../ytree/fluent.h"
 
 namespace NYT {
 namespace NElection {
@@ -757,6 +758,25 @@ void TElectionManager::StopEpoch()
     LeaderId = InvalidPeerId;
     Epoch = TGuid();
     EpochStart = TInstant();
+}
+
+void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+{
+    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
+        .BeginTree()
+            .BeginMap()
+                .Item("state").Scalar(State.ToString())
+                .Item("peers").BeginList();
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        current = current
+                    .Item().Scalar(CellManager->GetPeerAddress(id));
+    }
+    current
+                .EndList()
+                .Item("leader_id").Scalar(LeaderId)
+                .Item("vote_id").Scalar(VoteId)
+            .EndMap()
+        .EndTree();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
