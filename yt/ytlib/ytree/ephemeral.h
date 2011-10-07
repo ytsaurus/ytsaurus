@@ -99,9 +99,14 @@ class TCompositeNodeBase
     , public virtual IBase
 {
 public:
-    virtual ICompositeNode::TPtr AsComposite()
+    virtual TIntrusivePtr<ICompositeNode> AsComposite()
     {
         return this;
+    }
+
+    virtual TIntrusiveConstPtr<ICompositeNode> AsComposite() const
+    {
+        return const_cast< TCompositeNodeBase<IBase>* >(this);
     }
 };
 

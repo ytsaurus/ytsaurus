@@ -103,8 +103,8 @@ class TCypressNodeBase
 
 public:
     TCypressNodeBase(const TBranchedNodeId& id)
-        : Id(id)
-        , ParentId_(NullNodeId)
+        : ParentId_(NullNodeId)
+        , Id(id)
     { }
 
     virtual const TBranchedNodeId& GetId()

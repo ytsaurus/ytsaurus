@@ -37,8 +37,11 @@ public:
 private:
     TAtomic Current;
 
-    friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator& generator);
-    friend TInputStream& operator >> (TInputStream& stream, TIdGenerator& generator);
+    template <class T>
+    friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator<T>& generator);
+
+    template <class T>
+    friend TInputStream& operator >> (TInputStream& stream, TIdGenerator<T>& generator);
 
 };
 
@@ -71,11 +74,9 @@ public:
 private:
     TAtomic Current;
 
-    template <class T>
-    friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator<T>& generator);
+    friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator<TGuid>& generator);
 
-    template <class T>
-    friend TInputStream& operator >> (TInputStream& stream, TIdGenerator<T>& generator);
+    friend TInputStream& operator >> (TInputStream& stream, TIdGenerator<TGuid>& generator);
 
 };
 
