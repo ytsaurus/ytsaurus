@@ -238,6 +238,7 @@ private:
     //! Saves the local state (not including the maps).
     void DoSave(TOutputStream* stream)
     {
+        UNUSED(stream);
         //*stream << HolderIdGenerator;
     }
 
@@ -254,6 +255,7 @@ private:
     //! Loads the local state (not including the maps).
     void DoLoad(TInputStream* stream)
     {
+        UNUSED(stream);
         //*stream >> HolderIdGenerator;
     }
 
@@ -842,13 +844,19 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
         &jobsToStart,
         &jobsToStop);
 
-    ToProto(*response->MutableJobsToStart(), jobsToStart);
-    ToProto(*response->MutableJobsToStop(), jobsToStop, false);
-
     NProto::TMsgHeartbeatResponse responseMessage;
     responseMessage.SetHolderId(holderId);
-    responseMessage.MutableStartedJobs()->MergeFrom(response->GetJobsToStart());
-    responseMessage.MutableStoppedJobs()->MergeFrom(response->GetJobsToStop());
+
+    FOREACH (const auto& jobInfo, jobsToStart) {
+        *response->AddJobsToStart() = jobInfo;
+        *responseMessage.AddStartedJobs() = jobInfo;
+    }
+
+    FOREACH (const auto& jobId, jobsToStop) {
+        auto protoJobId = jobId.ToProto();
+        response->AddJobsToStop(protoJobId);
+        responseMessage.AddStoppedJobs(protoJobId);
+    }
 
     CommitChange(
         this, context, State, responseMessage,

@@ -64,7 +64,7 @@ public:
         YASSERT(!IsSent);
 
         BatchedChanges.push_back(changeData);
-        LOG_DEBUG("Added %d change from version %s to batch",
+        LOG_DEBUG("Batched %d change(s) starting from version %s",
             GetChangeCount(),
             ~Version.ToString());
         return Result;
