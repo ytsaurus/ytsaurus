@@ -70,6 +70,7 @@ TClientResponse::TClientResponse(
     , Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
+    , InvokeInstant(TInstant::Now())
 { }
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
@@ -166,6 +167,11 @@ yvector<TSharedRef>& TClientResponse::Attachments()
 EErrorCode TClientResponse::GetErrorCode() const
 {
     return ErrorCode;
+}
+
+TInstant TClientResponse::GetInvokeInstant() const
+{
+    return InvokeInstant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

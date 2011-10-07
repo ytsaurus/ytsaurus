@@ -5,6 +5,7 @@
 #include "../bus/bus_client.h"
 #include "../actions/future.h"
 #include "../misc/delayed_invoker.h"
+#include "../misc/metric.h"
 
 namespace NYT {
 namespace NRpc {
@@ -169,6 +170,8 @@ public:
     bool IsRpcError() const;
     bool IsServiceError() const;
 
+    TInstant GetInvokeInstant() const;
+
 protected:
     TClientResponse(
         const TRequestId& requestId,
@@ -192,6 +195,7 @@ private:
     EState State;
     EErrorCode ErrorCode;
     yvector<TSharedRef> MyAttachments;
+    TInstant InvokeInstant;
 
     //! IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
