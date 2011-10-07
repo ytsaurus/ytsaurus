@@ -71,11 +71,11 @@ public:
 private:
     TAtomic Current;
 
-    template <class T>
-    friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator<T>& generator);
+    //template <class T>
+    //friend TOutputStream& operator << (TOutputStream& stream, const TIdGenerator<T>& generator);
 
-    template <class T>
-    friend TInputStream& operator >> (TInputStream& stream, TIdGenerator<T>& generator);
+    //template <class T>
+    //friend TInputStream& operator >> (TInputStream& stream, TIdGenerator<T>& generator);
 
 };
 
@@ -83,22 +83,22 @@ private:
 
 // Always use a fixed-width type for serialization.
 
-template <class T>
-inline TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator)
-{
-    ui64 current = static_cast<ui64>(generator.Current);
-    stream << current;
-    return stream;
-}
-
-template <class T>
-inline TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator)
-{
-    ui64 current;
-    stream >> current;
-    generator.Current = static_cast<intptr_t>(current);
-    return stream;
-}
+//template <class T>
+//inline TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator)
+//{
+//    ui64 current = static_cast<ui64>(generator.Current);
+//    stream << current;
+//    return stream;
+//}
+//
+//template <class T>
+//inline TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator)
+//{
+//    ui64 current;
+//    stream >> current;
+//    generator.Current = static_cast<intptr_t>(current);
+//    return stream;
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 

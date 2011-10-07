@@ -116,12 +116,12 @@ public:
 
     virtual const ICypressNode& GetImpl() const
     {
-        return GetTypedImpl();
+        return this->GetTypedImpl();
     }
 
     virtual ICypressNode& GetMutableImpl()
     {
-        return GetMutableTypedImpl();
+        return this->GetMutableTypedImpl();
     }
 
     virtual ICompositeNode::TPtr GetParent() const
@@ -207,12 +207,12 @@ public:
 
     virtual TValue GetValue() const
     {
-        return GetTypedImpl().Value();
+        return this->GetTypedImpl().Value();
     }
 
     virtual void SetValue(const TValue& value)
     {
-        GetMutableTypedImpl().Value() = value;
+        this->GetMutableTypedImpl().Value() = value;
     }
 };
 
