@@ -8,6 +8,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+class TIdGenerator;
+
+template <class T>
+TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator);
+
+template <class T>
+TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Generates a consequent deterministic ids of a given numeric type.
 /*! 
  *  When a fresh instance is created, it gets initialized with zero.
@@ -81,7 +92,7 @@ private:
 // Always use a fixed-width type for serialization.
 
 template <class T>
-inline TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator)
+TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator)
 {
     ui64 current = static_cast<ui64>(generator.Current);
     stream << current;
@@ -89,7 +100,7 @@ inline TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerato
 }
 
 template <class T>
-inline TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator)
+TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator)
 {
     ui64 current;
     stream >> current;
