@@ -422,10 +422,10 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , BlockCount(0)
     , WindowReady(NULL)
     , StartChunkTiming(0, 1000, 20)
-    , FinishChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
     , SendBlocksTiming(0, 1000, 20)
     , FlushBlockTiming(0, 1000, 20)
+    , FinishChunkTiming(0, 1000, 20)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -1027,12 +1027,12 @@ void TRemoteChunkWriter::Cancel()
 Stroka TRemoteChunkWriter::GetDebugInfo()
 {
     return Sprintf(
-        "ChunkId: %s\n"
-        "StartChunk timing: %s\n"
-        "FinishChunk timing: %s\n"
-        "PutBlocks timing: %s\n"
-        "SendBlocks timing: %s\n"
-        "FlushBlocks timing: %s\n",
+        "ChunkId: %s; "
+        "StartChunk: (%s); "
+        "FinishChunk timing: (%s); "
+        "PutBlocks timing: (%s); "
+        "SendBlocks timing: (%s); "
+        "FlushBlocks timing: (%s); ",
         ~ChunkId.ToString(), 
         ~StartChunkTiming.GetDebugInfo(),
         ~FinishChunkTiming.GetDebugInfo(),
