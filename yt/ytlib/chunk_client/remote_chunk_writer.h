@@ -4,6 +4,7 @@
 
 #include "../misc/lazy_ptr.h"
 #include "../misc/config.h"
+#include "../misc/metric.h"
 #include "../misc/semaphore.h"
 #include "../misc/thread_affinity.h"
 #include "../rpc/client.h"
@@ -87,7 +88,7 @@ public:
     /*!
      * \note Thread affinity: any.
      */
-    static Stroka GetDebugInfo();
+    Stroka GetDebugInfo();
 
 private:
 
@@ -154,13 +155,11 @@ private:
 
     static NRpc::TChannelCache ChannelCache;
 
-    /* ToDo: implement metrics
-
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
     TMetric SendBlocksTiming;
     TMetric FlushBlockTiming;
-    TMetric FinishChunkTiming;*/
+    TMetric FinishChunkTiming;
 
 private:
     /*!
@@ -290,7 +289,11 @@ private:
      * \note Thread affinity: WriterThread
      */
     template<class TResponse>
-    void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);
+    void CheckResponse(
+        typename TResponse::TPtr rsp, 
+        int node, 
+        IAction::TPtr onSuccess,
+        TMetric* metric);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
