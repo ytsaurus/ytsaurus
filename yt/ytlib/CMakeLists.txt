@@ -67,8 +67,8 @@ PEERDIR(
     quality/Misc
     quality/NetLiba
     dict/json
-    util/server
     library/json
+    util/server
 )
 
 SET(USE_LF_ALLOCATOR yes)
