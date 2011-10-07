@@ -46,7 +46,10 @@ public:
     //! Stops periodic updates.
     void Stop();
 
-    //! Provides YSON producer for all monitoring info. Doesn't expire.
+    //! Provides YSON producer for all monitoring info.
+    /*!
+     * \note Producer is sustained between updates.
+     */
     NYTree::TYsonProducer::TPtr GetProducer();
 
 private:
