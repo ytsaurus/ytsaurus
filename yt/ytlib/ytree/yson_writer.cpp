@@ -54,7 +54,8 @@ void TYsonWriter::CollectionItem(char separator)
         ++Indent;
     } else {
         FlushEmptyEntity();
-        Stream->Write(separator + "\n");
+        Stream->Write(separator);
+        Stream->Write('\n');
     }
     if (!IsBinary) {
         WriteIndent();
@@ -150,7 +151,9 @@ void TYsonWriter::MapItem(const Stroka& name)
     CollectionItem(MapItemSeparator);
     // TODO: escaping
     Stream->Write(name);
-    Stream->Write(KeyValueSeparator + " ");
+    Stream->Write(' ');
+    Stream->Write(KeyValueSeparator);
+    Stream->Write(' ');
 }
 
 void TYsonWriter::EndMap()
@@ -174,7 +177,9 @@ void TYsonWriter::AttributesItem(const Stroka& name)
     CollectionItem(MapItemSeparator);
     // TODO: escaping
     Stream->Write(name);
-    Stream->Write(KeyValueSeparator + " ");
+    Stream->Write(' ');
+    Stream->Write(KeyValueSeparator);
+    Stream->Write(' ');
     IsFirstItem = false;
 }
 

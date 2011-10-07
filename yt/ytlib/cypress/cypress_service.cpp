@@ -1,16 +1,6 @@
 #include "cypress_service.h"
 
-#include "../ytree/ypath.h"
-#include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
-
-//#include "registry_service.pb.h"
-//
-//#include "../misc/foreach.h"
-//#include "../misc/serialize.h"
-//#include "../misc/guid.h"
-//#include "../misc/assert.h"
-//#include "../misc/string.h"
 
 namespace NYT {
 namespace NCypress {
@@ -60,14 +50,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
 
     // TODO: validate transaction id
 
-    auto root = State->GetNode(transactionId, RootNodeId);
+    auto root = State->GetNode(RootNodeId, transactionId);
 
     Stroka output;
     TStringOutput outputStream(output);
     TYsonWriter writer(&outputStream, false); // TODO: use binary
 
     try {
-        GetYPath(AsYPath(root), path, &writer);
+        State->GetYPath(transactionId, path, &writer);
     } catch (...) {
         // TODO:
         context->Reply(EErrorCode::ShitHappens);
@@ -91,13 +81,17 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 
     // TODO: validate transaction id
 
-    auto root = State->GetNode(transactionId, RootNodeId);
+    auto root = State->GetNode(RootNodeId, transactionId);
 
-    TStringInput inputStream(request->GetValue());
-    auto producer = TYsonReader::GetProducer(&inputStream);
+    NProto::TMsgSetPath message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(path);
+    message.SetValue(value);
 
     try {
-        SetYPath(AsYPath(root), path, producer);
+        CommitChange(
+            this, context, State, message,
+            &TCypressState::SetYPath);
     } catch (...) {
         // TODO:
         context->Reply(EErrorCode::ShitHappens);
@@ -117,12 +111,18 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    auto root = State->GetNode(transactionId, RootNodeId);
+    auto root = State->GetNode(RootNodeId, transactionId);
 
     // TODO: validate transaction id
 
+    NProto::TMsgRemovePath message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(path);
+
     try {
-        RemoveYPath(AsYPath(root), path);
+        CommitChange(
+            this, context, State, message,
+            &TCypressState::RemoveYPath);
     } catch (...) {
         // TODO:
         context->Reply(EErrorCode::ShitHappens);

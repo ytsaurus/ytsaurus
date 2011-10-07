@@ -4,8 +4,8 @@ SET(YT_SOURCE_FILES
     node_proxy.cpp
     lock.cpp
     cypress_state.cpp
+    cypress_state.proto
     cypress_service.cpp
     cypress_service_rpc.h
-    cypress_service.proto
     cypress_service_rpc.proto
 )

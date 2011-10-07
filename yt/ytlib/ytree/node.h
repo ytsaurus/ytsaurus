@@ -15,26 +15,15 @@ class TNodeBase
 {
 public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
-    typedef TIntrusiveConstPtr<TNodeBase> TConstPtr;
-
-    virtual INode::TPtr AsMutable() const
-    {
-        return dynamic_cast<INode*>(~AsMutableImpl());
-    }
-
-    virtual INode::TConstPtr AsImmutable() const
-    {
-        return dynamic_cast<INode*>(const_cast<TNodeBase*>(~AsImmutableImpl()));
-    }
 
 #define IMPLEMENT_AS_METHODS(name) \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
     { \
         YASSERT(false); \
         return NULL; \
     } \
     \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
+    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
     { \
         YASSERT(false); \
         return NULL; \
@@ -65,13 +54,8 @@ public:
     virtual TRemoveResult Remove(TYPath path);
 
 protected:
-    virtual TNodeBase::TPtr AsMutableImpl() const;
-    virtual TNodeBase::TConstPtr AsImmutableImpl() const;
-
     virtual TRemoveResult RemoveSelf();
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
-
-private:
 
 };
 

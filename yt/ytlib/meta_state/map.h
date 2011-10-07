@@ -10,110 +10,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValue>
-struct TMetaStateMapValueTraits
-{
-    typedef TValue TStoredValue;
-
-    typedef TValue& TValueRef;
-    typedef const TValue& TConstValueRef;
-
-    typedef TValue* TValuePtr;
-    typedef const TValue* TConstValuePtr;
-
-    static void Destroy(const TStoredValue& value)
-    {
-        UNUSED(value);
-    }
-
-    static TStoredValue Clone(const TStoredValue& value)
-    {
-        return value;
-    }
-
-    static TValuePtr ToPtr(TStoredValue& value)
-    {
-        return &value;
-    }
-
-    static TConstValuePtr ToPtr(const TStoredValue& value)
-    {
-        return &value;
-    }
-
-    static TValueRef ToRef(TValuePtr value)
-    {
-        return *value;
-    }
-
-    static TConstValueRef ToRef(TConstValuePtr value)
-    {
-        return *value;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TValue>
-struct TMetaStateMapPtrTraits
-{
-    typedef TIntrusivePtr<TValue> TStoredValue;
-
-    typedef TValue& TValueRef;
-    typedef const TValue& TConstValueRef;
-
-    typedef TValue* TValuePtr;
-    typedef const TValue* TConstValuePtr;
-
-    static void Destroy(const TStoredValue& value)
-    {
-        UNUSED(value);
-    }
-
-    static TStoredValue Clone(const TStoredValue& value)
-    {
-        UNUSED(value);
-        YASSERT(false);
-        return NULL;
-    }
-
-    static TValuePtr ToPtr(TStoredValue& value)
-    {
-        return ~value;
-    }
-
-    static TConstValuePtr ToPtr(const TStoredValue& value)
-    {
-        return ~value;
-    }
-
-    static TValueRef ToRef(TValuePtr value)
-    {
-        return *value;
-    }
-
-    static TConstValueRef ToRef(TConstValuePtr value)
-    {
-        return *value;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: get rid of TODOS :)
-// 
-// TODO: What are the guarantees?
-// Shall forUpdate alter the behavior of Find and Get to wait until snapshot would be created?
-// NO, it should return a copy
-// Shall Load/Save do all work via passed invoker?
-// YES
-// Shall Load guarantee that map swap will be atomic?
-// NO, there will be no concurrent access at this time
-
-// Guarantees:
-// All public functions will be called from one thread
-
-// Hack to use smart enums.
+// TODO: DECLARE_ENUM cannot be used in a template class.
 class TMetaStateMapBase
     : private TNonCopyable
 {
@@ -123,10 +20,11 @@ protected:
         (SavingSnapshot)
         (SavedSnapshot)
     );
+
     EState State;
 };
 
-//! Snapshotable map used to store various meta-state tables.
+//! Snapshottable map used to store various meta-state tables.
 /*!
  * \tparam TKey Key type.
  * \tparam TValue Value type.
@@ -135,36 +33,52 @@ protected:
 template <
     class TKey,
     class TValue,
-    class TTraits = TMetaStateMapValueTraits<TValue>,
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
     : public TMetaStateMapBase
 {
 public:
-    typedef yhash_map<TKey, typename TTraits::TStoredValue, THash> TMap;
+    typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef yhash_set<TKey, THash> TKeySet;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 
+    ~TMetaStateMap()
+    {
+        FOREACH (const auto& pair, Map) {
+            delete pair.Second();
+        }
+        Map.clear();
+
+        FOREACH (const auto& pair, InsertionMap) {
+            delete pair.Second();
+        }
+        InsertionMap.clear();
+    }
+
     //! Inserts a key-value pair.
     /*!
-     * Does nothing if the key is already in map
-     * \returns True iff the key is new.
+     *  Does nothing if the key is already in map.
+     *  \returns True iff the key is new.
      */
-    bool Insert(const TKey& key, typename TTraits::TStoredValue value)
+    bool Insert(const TKey& key, TValue* value)
     {
         if (State == EState::SavedSnapshot) {
             MergeTempTables();
         }
+
         if (State == EState::Normal) {
-            return Map.insert(MakePair(key, value)).second;
+            return Map.insert(MakePair(key, value)).Second();
         }
-        bool isAlreadyDeleted = (DeletionSet.erase(key) == 1);
+
+        bool isAlreadyDeleted = DeletionSet.erase(key) == 1;
         if (isAlreadyDeleted || Map.find(key) == Map.end()) {
-            return InsertionMap.insert(MakePair(key, value)).second;
+            return InsertionMap.insert(MakePair(key, value)).Second();
+        } else {
+            return false;
         }
-        return false;
+
     }
 
     //! Tries to find a value by its key. The returned value is read-only.
@@ -172,13 +86,13 @@ public:
      * \param key A key.
      * \return Pointer to the const value if found, NULL otherwise.
      */
-    typename TTraits::TConstValuePtr Find(const TKey& key) const
+    const TValue* Find(const TKey& key) const
     {
         if (State != EState::Normal) {
             const auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
                 YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                return TTraits::ToPtr(insertionIt->second);
+                return insertionIt->Second();
             }
 
             const auto deletionIt = DeletionSet.find(key);
@@ -188,7 +102,7 @@ public:
         }
 
         const auto it = Map.find(key);
-        return it == Map.end() ? NULL : TTraits::ToPtr(it->Second());
+        return it == Map.end() ? NULL : it->Second();
     }
 
     //! Tries to find a value by its key. May return a modifiable copy if snapshot creation is in progress.
@@ -196,13 +110,13 @@ public:
      * \param key A key.
      * \return Pointer to the value if found,  otherwise.
      */
-    typename TTraits::TValuePtr FindForUpdate(const TKey& key)
+    TValue* FindForUpdate(const TKey& key)
     {
         if (State != EState::Normal) {
             auto insertionIt = InsertionMap.find(key);
             if (insertionIt != InsertionMap.end()) {
                 YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                return TTraits::ToPtr(insertionIt->second);
+                return insertionIt->Second();
             }
 
             auto deletionIt = DeletionSet.find(key);
@@ -216,41 +130,41 @@ public:
             return NULL;
         }
 
-        typename TTraits::TStoredValue& value = mapIt->Second();
+        TValue* value = mapIt->Second();
         if (State != EState::SavingSnapshot) {
-            return TTraits::ToPtr(value);
+            return value;
         }
 
-        auto clonedValue = TTraits::Clone(value);
-        auto insertionPair = InsertionMap.insert(MakePair(key, clonedValue));
-        YASSERT(insertionPair.second);
-        return TTraits::ToPtr(insertionPair.First()->Second());
+        TAutoPtr<TValue> clonedValue = value->Clone();
+        auto insertionPair = InsertionMap.insert(MakePair(key, clonedValue.Release()));
+        YASSERT(insertionPair.Second());
+        return insertionPair.First()->Second();
     }
 
     //! Returns a read-only value corresponding to the key.
     /*!
-     * In contrast to #Find this method fails if the key does not exist in the map.
-     * \param key A key.
-     * \returns Const reference to the value.
+     *  In contrast to #Find this method fails if the key does not exist in the map.
+     *  \param key A key.
+     *  \returns Const reference to the value.
      */
-    typename TTraits::TConstValueRef Get(const TKey& key) const
+    const TValue& Get(const TKey& key) const
     {
         auto value = Find(key);
         YASSERT(value != NULL);
-        return TTraits::ToRef(value);
+        return *value;
     }
 
     //! Returns a modifiable value corresponding to the key.
     /*!
-     * In contrast to #Find this method fails if the key does not exist in the map.
-     * \param key A key.
-     * \returns Reference to the value.
+     *  In contrast to #Find this method fails if the key does not exist in the map.
+     *  \param key A key.
+     *  \returns Reference to the value.
      */
-    typename TTraits::TValueRef GetForUpdate(const TKey& key)
+    TValue& GetForUpdate(const TKey& key)
     {
         auto value = FindForUpdate(key);
         YASSERT(value != NULL);
-        return TTraits::ToRef(value);
+        return *value;
     }
 
     //! Removes the key from the map.
@@ -262,22 +176,23 @@ public:
         if (State == EState::SavedSnapshot) {
             MergeTempTables();
         }
+
         if (State == EState::Normal) {
             auto it = Map.find(key);
             if (it == Map.end()) {
                 return false;
             }
-            TTraits::Destroy(it->Second());
+            delete it->Second();
             Map.erase(it);
             return true;
         } else {
-            bool wasInInserts = (InsertionMap.erase(key) == 1);
+            bool wasInInsertion = InsertionMap.erase(key) == 1;
             if (Map.find(key) != Map.end()) {
-                bool wasInDeletions = (DeletionSet.insert(key).Second() == false);
-                YASSERT((wasInInserts && wasInDeletions) == false);
-                return (!wasInDeletions);
+                bool wasInDeletion = !DeletionSet.insert(key).Second();
+                YASSERT(!wasInInsertion || !wasInDeletion);
+                return !wasInDeletion;
             }
-            return wasInInserts;
+            return wasInInsertion;
         }
     }
 
@@ -296,15 +211,18 @@ public:
     {
         if (State == EState::Normal) {
             FOREACH(const auto& pair, Map) {
-                TTraits::Destroy(pair.Second());
+                delete pair.Second();
             }
             Map.clear();
-            return;
-        }
+        } else {
+            FOREACH (const auto& pair, InsertionMap) {
+                delete pair.Second();
+            }
+            InsertionMap.clear();
 
-        InsertionMap.clear();
-        FOREACH(const auto& pair, Map) {
-            DeletionSet.insert(pair.first);
+            FOREACH(const auto& pair, Map) {
+                DeletionSet.insert(pair.first);
+            }
         }
     }
 
@@ -364,8 +282,8 @@ public:
         YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
         MaybeMergeTempTables();
 
-        YASSERT(InsertionMap.size() == 0);
-        YASSERT(DeletionSet.size() == 0);
+        YASSERT(InsertionMap.empty());
+        YASSERT(DeletionSet.empty());
         State = EState::SavingSnapshot;
         return
             FromMethod(&TMetaStateMap::DoSave, this, stream)
@@ -460,17 +378,23 @@ private:
 
     void MergeTempTables()
     {
-        // TODO: use traits
         YASSERT(State == EState::SavedSnapshot);
 
         FOREACH(const auto& pair, InsertionMap) {
             YASSERT(DeletionSet.find(pair.first) == DeletionSet.end());
+            auto it = Map.find(pair.First());
+            if (it != Map.end()) {
+                delete it->Second();
+            }
             Map[pair.first] = pair.second;
         }
 
-        FOREACH(TKey key, DeletionSet) {
+        FOREACH(const auto& key, DeletionSet) {
             YASSERT(InsertionMap.find(key) == InsertionMap.end());
-            Map.erase(key);
+            auto it = Map.find(key);
+            YASSERT(it != Map.end());
+            delete it->Second();
+            Map.erase(it);
         }
 
         InsertionMap.clear();
@@ -478,7 +402,6 @@ private:
 
         State = EState::Normal;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,14 +413,14 @@ private:
 namespace NYT {
 namespace NForeach {
 
-template<class TKey, class TValue, class TTraits, class THash>
-inline auto Begin(NMetaState::TMetaStateMap<TKey, TValue, TTraits, THash>& collection) -> decltype(collection.Begin())
+template<class TKey, class TValue, class THash>
+inline auto Begin(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
-template<class TKey, class TValue, class TTraits, class THash>
-inline auto End(NMetaState::TMetaStateMap<TKey, TValue, TTraits, THash>& collection) -> decltype(collection.End())
+template<class TKey, class TValue, class THash>
+inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
 {
     return collection.End();
 }
@@ -534,6 +457,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, TTraits, THash>& collect
         return (map).GetForUpdate(id); \
     }
 
+// TODO: drop this
 #define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
     { \

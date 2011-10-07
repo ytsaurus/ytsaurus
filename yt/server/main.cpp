@@ -2,10 +2,17 @@
 #include <util/datetime/base.h>
 
 #include <yt/ytlib/actions/action_queue.h>
+
 #include <yt/ytlib/rpc/server.h>
+
 #include <yt/ytlib/chunk_holder/chunk_holder.h>
 #include <yt/ytlib/chunk_manager/chunk_manager.h>
+
 #include <yt/ytlib/transaction/transaction_manager.h>
+
+#include <yt/ytlib/cypress/cypress_state.h>
+#include <yt/ytlib/cypress/cypress_service.h>
+
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_tree_server.h>
 
@@ -24,6 +31,9 @@ using NChunkManager::TChunkManager;
 
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
+
+using NCypress::TCypressState;
+using NCypress::TCypressService;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::THttpTreeServer;
@@ -112,6 +122,18 @@ void RunCellMaster(const TCellMasterConfig& config)
         metaState,
         server,
         transactionManager);
+
+
+    auto cypressState = New<TCypressState>(
+        metaStateManager,
+        metaState,
+        transactionManager);
+
+    auto cypressService = New<TCypressService>(
+        TCypressService::TConfig(),
+        metaState->GetInvoker(),
+        server,
+        cypressState);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(

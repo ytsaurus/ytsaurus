@@ -60,10 +60,10 @@ public:
         auto chunkId = TChunkId::FromProto(message.GetChunkId());
         auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
-        TChunk chunk(chunkId, transactionId);
-
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.AddedChunks.push_back(chunkId);
+
+        auto* chunk = new TChunk(chunkId, transactionId);
 
         ChunkMap.Insert(chunkId, chunk);
 
@@ -115,7 +115,7 @@ public:
             DoUnregisterHolder(*existingHolder);
         }
 
-        THolder newHolder(
+        auto* newHolder = new THolder(
             holderId,
             address,
             EHolderState::Registered,
@@ -125,7 +125,7 @@ public:
         YVERIFY(HolderAddressMap.insert(MakePair(address, holderId)).Second());
 
         if (IsLeader()) {
-            StartHolderTracking(newHolder);
+            StartHolderTracking(*newHolder);
         }
 
         LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
@@ -238,7 +238,7 @@ private:
     //! Saves the local state (not including the maps).
     void DoSave(TOutputStream* stream)
     {
-        *stream << HolderIdGenerator;
+        //*stream << HolderIdGenerator;
     }
 
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
@@ -254,7 +254,7 @@ private:
     //! Loads the local state (not including the maps).
     void DoLoad(TInputStream* stream)
     {
-        *stream >> HolderIdGenerator;
+        //*stream >> HolderIdGenerator;
     }
 
     TVoid OnLoaded(TVoid)
@@ -262,14 +262,14 @@ private:
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
-            const auto& holder = pair.Second();
-            YVERIFY(HolderAddressMap.insert(MakePair(holder.Address, holder.Id)).Second());
+            auto* holder = pair.Second();
+            YVERIFY(HolderAddressMap.insert(MakePair(holder->Address, holder->Id)).Second());
         }
 
         // Reconstruct ReplicationSinkMap.
         ReplicationSinkMap.clear();
         FOREACH (const auto& pair, JobMap) {
-            RegisterReplicationSinks(pair.Second());
+            RegisterReplicationSinks(*pair.Second());
         }
 
         // TODO: Reconstruct JobListMap
@@ -291,8 +291,8 @@ private:
         TMetaStatePart::OnStartLeading();
 
         HolderExpiration->Start(GetEpochStateInvoker());
-        FOREACH(auto pair, HolderMap) {
-            StartHolderTracking(pair.Second());
+        FOREACH(const auto& pair, HolderMap) {
+            StartHolderTracking(*pair.Second());
         }
 
         ChunkReplication->Start(GetEpochStateInvoker());
@@ -302,8 +302,8 @@ private:
     {
         TMetaStatePart::OnStopLeading();
 
-        FOREACH(auto pair, HolderMap) {
-            StopHolderTracking(pair.Second());
+        FOREACH(const auto& pair, HolderMap) {
+            StopHolderTracking(*pair.Second());
         }
         HolderExpiration->Stop();
 
@@ -442,7 +442,7 @@ private:
         auto targetAddresses = FromProto<Stroka>(jobInfo.GetTargetAddresses());
         auto jobType = EJobType(jobInfo.GetType());
 
-        TJob job(
+        auto* job = new TJob(
             jobType,
             jobId,
             chunkId,
@@ -455,7 +455,7 @@ private:
 
         holder.AddJob(jobId);
 
-        RegisterReplicationSinks(job);
+        RegisterReplicationSinks(*job);
 
         LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
@@ -562,7 +562,7 @@ private:
         if (list != NULL)
             return *list;
 
-        YVERIFY(JobListMap.Insert(id, TJobList(id)));
+        YVERIFY(JobListMap.Insert(id, new TJobList(id)));
         return GetJobListForUpdate(id);
     }
 

@@ -19,10 +19,10 @@ public:
 
     virtual INodeFactory* GetFactory() const;
 
-    virtual ICompositeNode::TConstPtr GetParent() const;
+    virtual ICompositeNode::TPtr GetParent() const;
     virtual void SetParent(ICompositeNode::TPtr parent);
 
-    virtual IMapNode::TConstPtr GetAttributes() const;
+    virtual IMapNode::TPtr GetAttributes() const;
     virtual void SetAttributes(IMapNode::TPtr attributes);
 
 private:
@@ -67,12 +67,12 @@ public: \
         return ENodeType::name; \
     } \
     \
-    virtual I ## name ## Node::TConstPtr As ## name() const \
+    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
     { \
         return const_cast<T ## name ## Node*>(this); \
     } \
     \
-    virtual I ## name ## Node::TPtr As ## name() \
+    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
     { \
         return this; \
     }
@@ -81,16 +81,15 @@ public: \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
     { \
-    public: \
         DECLARE_TYPE_OVERRIDES(name) \
-    \
-    }
+    };
 
-////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64, i64);
-DECLARE_SCALAR_TYPE(Double, double);
+DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Double, double)
+
+#undef DECLARE_SCALAR_TYPE
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,8 +115,8 @@ class TMapNode
 public:
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const;
-    virtual INode::TConstPtr FindChild(const Stroka& name) const;
+    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const;
+    virtual INode::TPtr FindChild(const Stroka& name) const;
     virtual bool AddChild(INode::TPtr child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
@@ -145,8 +144,8 @@ class TListNode
 public:
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector<INode::TConstPtr> GetChildren() const;
-    virtual INode::TConstPtr FindChild(int index) const;
+    virtual yvector<INode::TPtr> GetChildren() const;
+    virtual INode::TPtr FindChild(int index) const;
     virtual void AddChild(INode::TPtr child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
@@ -159,7 +158,7 @@ public:
         TYsonProducer::TPtr producer);
 
 private:
-    yvector<INode::TConstPtr> List;
+    yvector<INode::TPtr> List;
 
     TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
     TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath);
@@ -172,12 +171,9 @@ class TEntityNode
     : public TEphemeralNodeBase
     , public virtual IEntityNode
 {
-public:
     DECLARE_TYPE_OVERRIDES(Entity)
-
 };
 
-#undef DECLARE_SCALAR_TYPE
 #undef DECLARE_TYPE_OVERRIDES
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,9 +184,9 @@ class TNodeFactory
 public:
     static INodeFactory* Get();
 
-    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka());
-    virtual IInt64Node::TPtr CreateInt64(i64 value = 0);
-    virtual IDoubleNode::TPtr CreateDouble(double value = 0);
+    virtual IStringNode::TPtr CreateString();
+    virtual IInt64Node::TPtr CreateInt64();
+    virtual IDoubleNode::TPtr CreateDouble();
     virtual IMapNode::TPtr CreateMap();
     virtual IListNode::TPtr CreateList();
     virtual IEntityNode::TPtr CreateEntity();

@@ -67,16 +67,6 @@ IYPathService::TPtr AsYPath(INode::TPtr node)
 {
     YASSERT(~node != NULL);
     auto* service = dynamic_cast<IYPathService*>(~node);
-    // TODO: exception?
-    YASSERT(service != NULL);
-    return service;
-}
-
-IYPathService::TPtr AsYPath(INode::TConstPtr node)
-{
-    YASSERT(~node != NULL);
-    auto* service = dynamic_cast<IYPathService*>(const_cast<INode*>(~node));
-    // TODO: exception?
     YASSERT(service != NULL);
     return service;
 }
@@ -133,11 +123,11 @@ IYPathService::TNavigateResult NavigateYPathAction(
     return state.CurrentService->Navigate(state.CurrentPath);
 }
 
-INode::TConstPtr NavigateYPath(
+INode::TPtr NavigateYPath(
     IYPathService::TPtr rootService,
     TYPath path)
 {
-    return ExecuteYPathOperation<INode::TConstPtr>(
+    return ExecuteYPathOperation<INode::TPtr>(
         rootService,
         path,
         FromMethod(&NavigateYPathAction),

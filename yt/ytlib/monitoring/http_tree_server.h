@@ -13,7 +13,7 @@ namespace NMonitoring {
 class THttpTreeServer
 {
 public:
-    THttpTreeServer(NYTree::TYsonProducer::TPtr ysonProducer, ui16 port);
+    THttpTreeServer(NYTree::TYsonProducer::TPtr ysonProducer, int port);
 
     void Start();
     void Stop();

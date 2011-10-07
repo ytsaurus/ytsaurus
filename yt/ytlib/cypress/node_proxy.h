@@ -12,15 +12,68 @@ namespace NCypress {
 
 struct ICypressNodeProxy
     : public virtual TRefCountedBase
+    , public virtual INode
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
-    typedef TIntrusiveConstPtr<ICypressNodeProxy> TConstPtr;
 
     virtual TTransactionId GetTransactionId() const = 0;
     virtual TNodeId GetNodeId() const = 0;
 
-    virtual TNodeId GetParentId() const = 0;
-    virtual void SetParentId(const TNodeId& parentId) = 0;
+    virtual const ICypressNode& GetImpl() const = 0;
+    virtual ICypressNode& GetMutableImpl() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeFactory
+    : public INodeFactory
+{
+public:
+    TNodeFactory(
+        TCypressState::TPtr state,
+        const TTransactionId& transactionId)
+        : State(state)
+        , TransactionId(transactionId)
+    {
+        YASSERT(~state != NULL);
+    }
+
+    virtual IStringNode::TPtr CreateString()
+    {
+        return State->CreateStringNode(TransactionId);
+    }
+
+    virtual IInt64Node::TPtr CreateInt64()
+    {
+        return State->CreateInt64Node(TransactionId);
+    }
+
+    virtual IDoubleNode::TPtr CreateDouble()
+    {
+        return State->CreateDoubleNode(TransactionId);
+    }
+
+    virtual IMapNode::TPtr CreateMap()
+    {
+        return State->CreateMapNode(TransactionId);
+    }
+
+    virtual IListNode::TPtr CreateList()
+    {
+        YASSERT(false);
+        return NULL;
+    }
+
+    virtual IEntityNode::TPtr CreateEntity()
+    {
+        YASSERT(false);
+        return NULL;
+    }
+
+private:
+    TCypressState::TPtr State;
+    TTransactionId TransactionId;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +81,7 @@ struct ICypressNodeProxy
 template <class IBase, class TImpl>
 class TCypressNodeProxyBase
     : public TNodeBase
-    , public virtual ICypressNodeProxy
+    , public ICypressNodeProxy
     , public virtual IBase
 {
 public:
@@ -37,20 +90,18 @@ public:
     TCypressNodeProxyBase(
         TCypressState::TPtr state,
         const TTransactionId& transactionId,
-        const TNodeId& nodeId,
-        bool isMutable)
+        const TNodeId& nodeId)
         : State(state)
         , TransactionId(transactionId)
         , NodeId(nodeId)
-        , IsMutable(isMutable)
+        , NodeFactory(state, transactionId)
     {
         YASSERT(~state != NULL);
+    }
 
-        Impl = FindImpl(TBranchedNodeId(nodeId, transactionId), isMutable);
-        if (~Impl == NULL) {
-            Impl = FindImpl(TBranchedNodeId(nodeId, NullTransactionId), isMutable);
-        }
-        YASSERT(~Impl != NULL);
+    INodeFactory* GetFactory() const
+    {
+        return &NodeFactory;
     }
 
     virtual TTransactionId GetTransactionId() const
@@ -63,30 +114,29 @@ public:
         return NodeId;
     }
 
-    virtual ICompositeNode::TConstPtr GetParent() const
+    virtual const ICypressNode& GetImpl() const
     {
-        return GetProxy<ICompositeNode>(Impl->ParentId());
+        return GetTypedImpl();
+    }
+
+    virtual ICypressNode& GetMutableImpl()
+    {
+        return GetMutableTypedImpl();
+    }
+
+    virtual ICompositeNode::TPtr GetParent() const
+    {
+        return GetProxy<ICompositeNode>(GetImpl().ParentId());
     }
 
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
         auto parentProxy = ToProxy(INode::TPtr(~parent));
-        Impl->ParentId() = parentProxy->GetNodeId();
+        GetMutableImpl().ParentId() = parentProxy->GetNodeId();
     }
 
-    virtual TNodeId GetParentId() const
+    virtual IMapNode::TPtr GetAttributes() const
     {
-        return Impl->ParentId();
-    }
-
-    void SetParentId(const TNodeId& parentId)
-    {
-        Impl->ParentId() = parentId;
-    }
-
-    virtual IMapNode::TConstPtr GetAttributes() const
-    {
-        YASSERT(false);
         return NULL;
     }
 
@@ -100,32 +150,41 @@ protected:
     TCypressState::TPtr State;
     TTransactionId TransactionId;
     TNodeId NodeId;
-    bool IsMutable;
-    TIntrusivePtr<TImpl> Impl;
 
-    TIntrusivePtr<TImpl> FindImpl(const TBranchedNodeId& id, bool isMutable)
+    mutable TNodeFactory NodeFactory;
+
+    const TImpl& GetTypedImpl() const
     {
-        if (isMutable) {
-            return dynamic_cast<TImpl*>(State->FindNodeForUpdate(id));
-        } else {
-            return dynamic_cast<TImpl*>(const_cast<TCypressNodeBase*>(State->FindNode(id)));
+        auto impl = State->FindNode(TBranchedNodeId(NodeId, TransactionId));
+        if (impl == NULL) {
+            impl = State->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
         }
+        YASSERT(impl != NULL);
+        return *dynamic_cast<const TImpl*>(impl);
+    }
+
+    TImpl& GetMutableTypedImpl()
+    {
+        auto impl = State->FindNodeForUpdate(TBranchedNodeId(NodeId, TransactionId));
+        if (impl == NULL) {
+            impl = State->FindNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
+        }
+        YASSERT(impl != NULL);
+        return *dynamic_cast<TImpl*>(impl);
     }
 
     template <class T>
-    TIntrusiveConstPtr<T> GetProxy(const TNodeId& nodeId) const
+    TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
     {
-        return dynamic_cast<T*>(const_cast<INode*>(~State->GetNode(TransactionId, nodeId)));
+        auto node = State->FindNode(nodeId, TransactionId);
+        YASSERT(~node != NULL);
+        return dynamic_cast<T*>(~node);
     }
 
     static typename ICypressNodeProxy::TPtr ToProxy(INode::TPtr node)
     {
+        YASSERT(~node != NULL);
         return dynamic_cast<ICypressNodeProxy*>(~node);
-    }
-
-    static typename ICypressNodeProxy::TConstPtr ToProxy(INode::TConstPtr node)
-    {
-        return dynamic_cast<ICypressNodeProxy*>(const_cast<INode*>(~node));
     }
 };
 
@@ -139,23 +198,21 @@ public:
     TScalarNodeProxy(
         TCypressState::TPtr state,
         const TTransactionId& transactionId,
-        const TNodeId& nodeId,
-        bool isMutable)
+        const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
             state,
             transactionId,
-            nodeId,
-            isMutable)
+            nodeId)
     { }
 
     virtual TValue GetValue() const
     {
-        return Impl->Value();
+        return GetTypedImpl().Value();
     }
 
     virtual void SetValue(const TValue& value)
     {
-        Impl->Value() = value;
+        GetMutableTypedImpl().Value() = value;
     }
 };
 
@@ -168,30 +225,14 @@ public: \
         return ENodeType::name; \
     } \
     \
-    virtual I ## name ## Node::TConstPtr As ## name() const \
+    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
     { \
         return const_cast<T ## name ## NodeProxy*>(this); \
     } \
     \
-    virtual I ## name ## Node::TPtr As ## name() \
+    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
     { \
         return this; \
-    } \
-    \
-    virtual INodeFactory* GetFactory() const \
-    { \
-        YASSERT(false); \
-        return NULL; \
-    } \
-private: \
-    virtual TNodeBase::TPtr AsMutableImpl() const \
-    { \
-        return ~New<T ## name ## NodeProxy>(State, TransactionId, NodeId, true); \
-    } \
-    \
-    virtual TNodeBase::TConstPtr AsImmutableImpl() const \
-    { \
-        return ~New<T ## name ## NodeProxy>(State, TransactionId, NodeId, false); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,20 +247,25 @@ private: \
         T ## name ## NodeProxy( \
             TCypressState::TPtr state, \
             const TTransactionId& transactionId, \
-            const TNodeId& nodeId, \
-            bool isMutable) \
+            const TNodeId& nodeId) \
             : TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node>( \
                 state, \
                 transactionId, \
-                nodeId, \
-                isMutable) \
+                nodeId) \
         { } \
+    }; \
+    \
+    inline ICypressNodeProxy::TPtr T ## name ## Node::GetProxy( \
+        TIntrusivePtr<TCypressState> state, \
+        const TTransactionId& transactionId) const \
+    { \
+        return ~New<T ## name ## NodeProxy>(state, transactionId, Id.NodeId); \
     }
 
 
-DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64, i64);
-DECLARE_SCALAR_TYPE(Double, double);
+DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE
 
@@ -233,17 +279,20 @@ protected:
     TCompositeNodeProxyBase(
         TCypressState::TPtr state,
         const TTransactionId& transactionId,
-        const TNodeId& nodeId,
-        bool isMutable)
+        const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
             state,
             transactionId,
-            nodeId,
-            isMutable)
+            nodeId)
     { }
 
 public:
-    virtual ICompositeNode::TPtr AsComposite()
+    virtual TIntrusiveConstPtr<ICompositeNode> AsComposite() const
+    {
+        return const_cast<TCompositeNodeProxyBase*>(this);
+    }
+
+    virtual TIntrusivePtr<ICompositeNode> AsComposite()
     {
         return this;
     }
@@ -260,13 +309,12 @@ public:
     TMapNodeProxy(
         TCypressState::TPtr state,
         const TTransactionId& transactionId,
-        const TNodeId& nodeId,
-        bool isMutable);
+        const TNodeId& nodeId);
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const;
-    virtual INode::TConstPtr FindChild(const Stroka& name) const;
+    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const;
+    virtual INode::TPtr FindChild(const Stroka& name) const;
     virtual bool AddChild(INode::TPtr child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);

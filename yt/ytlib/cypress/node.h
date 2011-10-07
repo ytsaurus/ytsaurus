@@ -52,16 +52,42 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ICypressNodeProxy;
+class TCypressState;
+
+struct ICypressNode
+{
+    virtual ~ICypressNode()
+    { }
+
+    virtual const TBranchedNodeId& GetId() = 0;
+
+    virtual const TNodeId& ParentId() const = 0;
+    virtual TNodeId& ParentId() = 0;
+
+    virtual const yhash_set<TLockId>& Locks() const = 0;
+    virtual yhash_set<TLockId>& Locks() = 0;
+
+    virtual TAutoPtr<ICypressNode> Clone() const = 0;
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressState> state,
+        const TTransactionId& transactionId) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: move
 #define DECLARE_PROPERTY(name, type) \
 private: \
     type name ## _; \
 public: \
-    type& name() \
+    FORCED_INLINE type& name() \
     { \
         return name ## _; \
     } \
     \
-    const type& name() const \
+    FORCED_INLINE const type& name() const \
     { \
         return name ## _; \
     }
@@ -69,25 +95,24 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressNodeBase
-    : public TRefCountedBase
+    : public ICypressNode
 {
-    DECLARE_PROPERTY(Locks, yhash_set<TLockId>)
+    // This also overrides appropriate methods from ICypressNode.
+    DECLARE_PROPERTY(Locks, yhash_set<TLockId>)  
     DECLARE_PROPERTY(ParentId, TNodeId)
 
 public:
-    typedef TIntrusivePtr<TCypressNodeBase> TPtr;
-
     TCypressNodeBase(const TBranchedNodeId& id)
         : Id(id)
         , ParentId_(NullNodeId)
     { }
 
-    const TBranchedNodeId& GetId()
+    virtual const TBranchedNodeId& GetId()
     {
         return Id;
     }
 
-private:
+protected:
     TBranchedNodeId Id;
 
 };
@@ -95,21 +120,47 @@ private:
 //////////////////////////////////////////////////////////////////////////////// 
 
 template<class TValue>
-class TScalarNode
+class TScalarNodeBase
     : public TCypressNodeBase
 {
     DECLARE_PROPERTY(Value, TValue)
 
 public:
-    TScalarNode(const TBranchedNodeId& id)
+    TScalarNodeBase(const TBranchedNodeId& id)
         : TCypressNodeBase(id)
     { }
-
 };
 
-typedef TScalarNode<Stroka>  TStringNode;
-typedef TScalarNode<i64>     TInt64Node;
-typedef TScalarNode<double>  TDoubleNode;
+#define DECLARE_SCALAR_TYPE(name, type) \
+    class T ## name ## Node \
+        : public TScalarNodeBase<type> \
+    { \
+    public: \
+        T ## name ## Node(const TBranchedNodeId& id) \
+            : TScalarNodeBase<type>(id) \
+        { } \
+        \
+        T ## name ## Node(const T ## name ## Node& other) \
+            : TScalarNodeBase<type>(other.Id) \
+        { \
+            Value() = other.Value(); \
+        } \
+        \
+        virtual TAutoPtr<ICypressNode> Clone() const \
+        { \
+            return new T ## name ## Node(*this); \
+        } \
+        \
+        virtual TIntrusivePtr<ICypressNodeProxy> GetProxy( \
+            TIntrusivePtr<TCypressState> state, \
+            const TTransactionId& transactionId) const; \
+    };
+
+DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Double, double)
+
+#undef DECLARE_SCALAR_TYPE
 
 //////////////////////////////////////////////////////////////////////////////// 
 
@@ -123,14 +174,33 @@ class TMapNode
     DECLARE_PROPERTY(ChildToName, TChildToName)
 
 public:
+    // TODO: move to impl
     TMapNode(const TBranchedNodeId& id)
         : TCypressNodeBase(id)
     { }
 
+    // TODO: move to impl
+    TMapNode(const TMapNode& other)
+        : TCypressNodeBase(other.Id)
+    {
+        NameToChild() = other.NameToChild();
+        ChildToName() = other.ChildToName();
+    }
+
+    // TODO: move to impl
+    virtual TAutoPtr<ICypressNode> Clone() const
+    {
+        return new TMapNode(*this);
+    }
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressState> state,
+        const TTransactionId& transactionId) const;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+// TODO: drop
 #undef DECLARE_PROPERTY
 
 //////////////////////////////////////////////////////////////////////////////// 
