@@ -104,6 +104,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             cookie->AsyncResult = item->AsyncResult;
             cookie->Active = true;
             cookie->Cache = this;
+
             return true;
         }
 
@@ -114,6 +115,8 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 
             LruList.PushFront(item);
             ++LruListSize;
+
+            cookie->AsyncResult = item->AsyncResult;
 
             guard.Release();
 
