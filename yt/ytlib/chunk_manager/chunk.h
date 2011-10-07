@@ -13,9 +13,6 @@ struct TChunk
 
     static const i64 UnknownSize = -1;
 
-    TChunk()
-    { }
-
     TChunk(
         const TChunkId& id,
         const TTransactionId& transactionId)
@@ -31,12 +28,9 @@ struct TChunk
         , Locations(other.Locations)
     { }
 
-    TChunk& operator = (const TChunk& other)
+    TAutoPtr<TChunk> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TChunk(*this);
     }
 
     bool IsVisible(const NTransaction::TTransactionId& transactionId) const

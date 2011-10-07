@@ -10,11 +10,10 @@ namespace NYTree {
 
 class TYsonWriter
     : public IYsonConsumer
+    , private TNonCopyable
 {
 public:
-    typedef TIntrusivePtr<TYsonWriter> TPtr;
-
-    TYsonWriter(TOutputStream* stream, bool isBinaryOutput = false);
+    TYsonWriter(TOutputStream* stream, bool isBinary = false);
 
 private:
     TOutputStream* Stream;
@@ -22,7 +21,7 @@ private:
     bool IsEmptyEntity;
     int Indent;
 
-    bool IsBinaryOutput;
+    bool IsBinary;
 
     static const int IndentSize = 4;
 

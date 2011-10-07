@@ -30,33 +30,29 @@ struct INode
     : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<INode> TPtr;
-    typedef TIntrusiveConstPtr<INode> TConstPtr;
 
     virtual ENodeType GetType() const = 0;
     
     virtual INodeFactory* GetFactory() const = 0;
 
-    virtual INode::TPtr AsMutable() const = 0;
-    virtual INode::TConstPtr AsImmutable() const = 0;
-
 #define DECLARE_AS_METHODS(name) \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0; \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0;
+    virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0; \
+    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0;
 
+    DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Int64)
     DECLARE_AS_METHODS(Double)
-    DECLARE_AS_METHODS(Entity)
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
 
 #undef DECLARE_AS_METHODS
 
-    virtual TIntrusiveConstPtr<IMapNode> GetAttributes() const = 0;
+    virtual TIntrusivePtr<IMapNode> GetAttributes() const = 0;
     virtual void SetAttributes(TIntrusivePtr<IMapNode> attributes) = 0;
 
-    virtual ICompositeNode* GetParent() const = 0;
-    virtual void SetParent(ICompositeNode* parent) = 0;
+    virtual TIntrusivePtr<ICompositeNode> GetParent() const = 0;
+    virtual void SetParent(TIntrusivePtr<ICompositeNode> parent) = 0;
 
     template<class T>
     T GetValue() const
@@ -89,7 +85,6 @@ struct ICompositeNode
     : virtual INode
 {
     typedef TIntrusivePtr<ICompositeNode> TPtr;
-    typedef TIntrusiveConstPtr<ICompositeNode> TConstPtr;
 
     virtual void Clear() = 0;
     virtual int GetChildCount() const = 0;
@@ -104,16 +99,15 @@ struct IListNode
     : ICompositeNode
 {
     typedef TIntrusivePtr<IListNode> TPtr;
-    typedef TIntrusiveConstPtr<IListNode> TConstPtr;
 
     using ICompositeNode::RemoveChild;
 
-    virtual yvector<INode::TConstPtr> GetChildren() const = 0;
-    virtual INode::TConstPtr FindChild(int index) const = 0;
+    virtual yvector<INode::TPtr> GetChildren() const = 0;
+    virtual INode::TPtr FindChild(int index) const = 0;
     virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
     virtual bool RemoveChild(int index) = 0;
 
-    INode::TConstPtr GetChild(int index) const
+    INode::TPtr GetChild(int index) const
     {
         auto child = FindChild(index);
         YASSERT(~child != NULL);
@@ -127,16 +121,15 @@ struct IMapNode
     : ICompositeNode
 {
     typedef TIntrusivePtr<IMapNode> TPtr;
-    typedef TIntrusiveConstPtr<IMapNode> TConstPtr;
 
     using ICompositeNode::RemoveChild;
 
-    virtual yvector< TPair<Stroka, INode::TConstPtr> > GetChildren() const = 0;
-    virtual INode::TConstPtr FindChild(const Stroka& name) const = 0;
+    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+    virtual INode::TPtr FindChild(const Stroka& name) const = 0;
     virtual bool AddChild(INode::TPtr child, const Stroka& name) = 0;
     virtual bool RemoveChild(const Stroka& name) = 0;
 
-    INode::TConstPtr GetChild(const Stroka& name) const
+    INode::TPtr GetChild(const Stroka& name) const
     {
         auto child = FindChild(name);
         YASSERT(~child != NULL);
@@ -150,7 +143,6 @@ struct IEntityNode
     : virtual INode
 {
     typedef TIntrusivePtr<IEntityNode> TPtr;
-    typedef TIntrusiveConstPtr<IEntityNode> TConstPtr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +152,6 @@ struct IEntityNode
         : IScalarNode<type> \
     { \
         typedef TIntrusivePtr<I ## name ## Node> TPtr; \
-        typedef TIntrusiveConstPtr<I ## name ## Node> TConstPtr; \
     }; \
     \
     template<> \
@@ -168,14 +159,14 @@ struct IEntityNode
     { \
         typedef I ## name ## Node TNode; \
         \
-        static type GetValue(const INode* tailNode) \
+        static type GetValue(const INode* node) \
         { \
-            return tailNode->As ## name()->GetValue(); \
+            return node->As ## name()->GetValue(); \
         } \
         \
-        static void SetValue(INode* tailNode, const type& value) \
+        static void SetValue(INode* node, const type& value) \
         { \
-            tailNode->As ## name()->SetValue(value); \
+            node->As ## name()->SetValue(value); \
         } \
     };
 
@@ -192,9 +183,9 @@ struct INodeFactory
     virtual ~INodeFactory()
     { }
 
-    virtual IStringNode::TPtr CreateString(const Stroka& value = Stroka()) = 0;
-    virtual IInt64Node::TPtr CreateInt64(i64 value = 0) = 0;
-    virtual IDoubleNode::TPtr CreateDouble(double value = 0) = 0;
+    virtual IStringNode::TPtr CreateString() = 0;
+    virtual IInt64Node::TPtr CreateInt64() = 0;
+    virtual IDoubleNode::TPtr CreateDouble() = 0;
     virtual IMapNode::TPtr CreateMap() = 0;
     virtual IListNode::TPtr CreateList() = 0;
     virtual IEntityNode::TPtr CreateEntity() = 0;

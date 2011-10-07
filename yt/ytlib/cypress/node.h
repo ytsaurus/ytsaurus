@@ -52,174 +52,158 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressNodeImplBase
-    : public TRefCountedBase
-{
-public:
-    typedef yhash_set<TLockId> TLocks;
+struct ICypressNodeProxy;
+class TCypressState;
 
-    TCypressNodeImplBase(const TBranchedNodeId& id)
-        : Id(id)
+struct ICypressNode
+{
+    virtual ~ICypressNode()
     { }
 
-    const TBranchedNodeId& GetId()
+    virtual const TBranchedNodeId& GetId() = 0;
+
+    virtual const TNodeId& ParentId() const = 0;
+    virtual TNodeId& ParentId() = 0;
+
+    virtual const yhash_set<TLockId>& Locks() const = 0;
+    virtual yhash_set<TLockId>& Locks() = 0;
+
+    virtual TAutoPtr<ICypressNode> Clone() const = 0;
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressState> state,
+        const TTransactionId& transactionId) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: move
+#define DECLARE_PROPERTY(name, type) \
+private: \
+    type name ## _; \
+public: \
+    FORCED_INLINE type& name() \
+    { \
+        return name ## _; \
+    } \
+    \
+    FORCED_INLINE const type& name() const \
+    { \
+        return name ## _; \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressNodeBase
+    : public ICypressNode
+{
+    // This also overrides appropriate methods from ICypressNode.
+    DECLARE_PROPERTY(Locks, yhash_set<TLockId>)  
+    DECLARE_PROPERTY(ParentId, TNodeId)
+
+public:
+    TCypressNodeBase(const TBranchedNodeId& id)
+        : Id(id)
+        , ParentId_(NullNodeId)
+    { }
+
+    virtual const TBranchedNodeId& GetId()
     {
         return Id;
     }
 
-    TLocks& Locks()
-    {
-        return Locks_;
-    }
-
-
-private:
+protected:
     TBranchedNodeId Id;
-    TLocks Locks_;
 
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
 
 template<class TValue>
-class TScalarNodeImpl
-    : public TCypressNodeImplBase
+class TScalarNodeBase
+    : public TCypressNodeBase
 {
+    DECLARE_PROPERTY(Value, TValue)
+
 public:
-    TScalarNodeImpl(const TBranchedNodeId& id)
-        : TCypressNodeImplBase(id)
+    TScalarNodeBase(const TBranchedNodeId& id)
+        : TCypressNodeBase(id)
     { }
-
-    TValue& Value()
-    {
-        return Value_;
-    }
-
-private:
-    TValue Value_;
-
 };
-
-typedef TScalarNodeImpl<Stroka>  TStringNodeImpl;
-typedef TScalarNodeImpl<i64>     TInt64NodeImpl;
-typedef TScalarNodeImpl<double>  TDoubleNodeImpl;
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-class TCypressState;
-/*
-template <class IBase, class TImpl>
-class TCypressNodeBase
-    : public NYTree::TNodeBase
-    , public virtual IBase
-{
-public:
-    TCypressNodeBase(
-        TIntrusivePtr<TCypressState> state,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-        : State(state)
-        , TransactionId(transactionId)
-        , NodeId(nodeId)
-    {
-        YASSERT(~state != NULL);
-
-        Impl = state->FindNode(TBranchedNodeId(nodeId, transactionId));
-        if (Impl == NULL) {
-            Impl = state->FindNode(TBranchedNodeId(nodeId, TTransactionId()));
-        }
-        YASSERT(Impl != NULL);
-    }
-
-private:
-    TIntrusivePtr<TCypressState> State;
-    TTransactionId TransactionId;
-    TNodeId NodeId;
-    TIntrusiveConstPtr<TImpl> Impl;
-
-    // TNodeBase overrides.
-    virtual NYTree::TNodeBase* AsMutableImpl() const
-    {
-        // TODO:
-        return NYTree::TNodeBase::AsMutableImpl();
-    }
-
-    virtual const NYTree::TNodeBase* AsImmutableImpl() const
-    {
-        // TODO:
-        return NYTree::TNodeBase::AsImmutableImpl();
-    }
-};
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-template <class TValue, class IBase, class TImpl>
-class TScalarNode
-    : public TCypressNodeBase<IBase, TImpl>
-{
-public:
-    TScalarNode(
-        TIntrusivePtr<TCypressState> state,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-    :   TCypressNodeBase<IBase, TImpl>(
-            state,
-            transactionId,
-            nodeId)
-    { }
-
-    virtual TValue GetValue() const
-    {
-        return TValue();
-        // TODO:
-        //return Impl->Value();
-    }
-
-    virtual void SetValue(const TValue& value)
-    {
-        // TODO:
-    }
-};
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-#define DECLARE_TYPE_OVERRIDES(name) \
-    virtual NYTree::ENodeType GetType() const \
-    { \
-        return NYTree::ENodeType::name; \
-    } \
-    \
-    virtual NYTree::I ## name ## Node::TConstPtr As ## name() const \
-    { \
-        return const_cast<T ## name ## Node*>(this); \
-    } \
-    \
-    virtual NYTree::I ## name ## Node::TPtr As ## name() \
-    { \
-        return this; \
-    }
 
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
-        : public TScalarNode<type, NYTree::I ## name ## Node, T ## name ## NodeImpl> \
+        : public TScalarNodeBase<type> \
     { \
     public: \
-        DECLARE_TYPE_OVERRIDES(name) \
-    \
-    }
+        T ## name ## Node(const TBranchedNodeId& id) \
+            : TScalarNodeBase<type>(id) \
+        { } \
+        \
+        T ## name ## Node(const T ## name ## Node& other) \
+            : TScalarNodeBase<type>(other.Id) \
+        { \
+            Value() = other.Value(); \
+        } \
+        \
+        virtual TAutoPtr<ICypressNode> Clone() const \
+        { \
+            return new T ## name ## Node(*this); \
+        } \
+        \
+        virtual TIntrusivePtr<ICypressNodeProxy> GetProxy( \
+            TIntrusivePtr<TCypressState> state, \
+            const TTransactionId& transactionId) const; \
+    };
 
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64, i64);
-DECLARE_SCALAR_TYPE(Double, double);
-
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE
-#undef DECLARE_TYPE_OVERRIDES
-*/
-////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+class TMapNode
+    : public TCypressNodeBase
+{
+    typedef yhash_map<Stroka, TNodeId> TNameToChild;
+    typedef yhash_map<TNodeId, Stroka> TChildToName;
+
+    DECLARE_PROPERTY(NameToChild, TNameToChild)
+    DECLARE_PROPERTY(ChildToName, TChildToName)
+
+public:
+    // TODO: move to impl
+    TMapNode(const TBranchedNodeId& id)
+        : TCypressNodeBase(id)
+    { }
+
+    // TODO: move to impl
+    TMapNode(const TMapNode& other)
+        : TCypressNodeBase(other.Id)
+    {
+        NameToChild() = other.NameToChild();
+        ChildToName() = other.ChildToName();
+    }
+
+    // TODO: move to impl
+    virtual TAutoPtr<ICypressNode> Clone() const
+    {
+        return new TMapNode(*this);
+    }
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressState> state,
+        const TTransactionId& transactionId) const;
+};
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+// TODO: drop
+#undef DECLARE_PROPERTY
+
+//////////////////////////////////////////////////////////////////////////////// 
 
 } // namespace NCypress
 } // namespace NYT
@@ -230,7 +214,7 @@ struct hash<NYT::NCypress::TBranchedNodeId>
 {
     i32 operator()(const NYT::NCypress::TBranchedNodeId& id) const
     {
-        return (i32) THash<NYT::TGuid>()(id.NodeId) * 497 +
-               (i32) THash<NYT::TGuid>()(id.TransactionId);
+        return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
+               static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
     }
 };

@@ -16,7 +16,7 @@ IYPathService::TGetResult TNodeBase::Get(
     switch (navigateResult.Code) {
         case IYPathService::ECode::Done: {
             TTreeVisitor visitor(events);
-            visitor.Visit(navigateResult.Value->AsImmutable());
+            visitor.Visit(navigateResult.Value/*->AsImmutable()*/);
             return TGetResult::CreateDone(TVoid());
         }
 
@@ -40,7 +40,7 @@ IYPathService::TNavigateResult TNodeBase::Navigate(
 {
     UNUSED(path);
     if (path.empty()) {
-        return TNavigateResult::CreateDone(AsImmutable());
+        return TNavigateResult::CreateDone(this/*AsImmutable()*/);
     } else {
         return TNavigateResult::CreateError("Cannot navigate from the node");
     }
@@ -97,34 +97,30 @@ IYPathService::TRemoveResult TNodeBase::Remove(
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 {
-    if (Parent == NULL) {
+    auto parent = GetParent();
+
+    if (~parent == NULL) {
         return TRemoveResult::CreateError("Cannot remove the root");
     }
 
-    Parent->RemoveChild(this);
+    parent->AsComposite()->RemoveChild(this);
+
     return TRemoveResult::CreateDone(TVoid());
 }
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
-    if (Parent == NULL) {
+    auto parent = GetParent();
+
+    if (~parent == NULL) {
         return TSetResult::CreateError("Cannot update the root");
     }
 
     TTreeBuilder builder(GetFactory());
     producer->Do(&builder);
-    Parent->ReplaceChild(this, builder.GetRoot());
+    parent->AsComposite()->ReplaceChild(this, builder.GetRoot());
+
     return TSetResult::CreateDone(TVoid());
-}
-
-TNodeBase* TNodeBase::AsMutableImpl() const
-{
-    return const_cast<TNodeBase*>(this);
-}
-
-const TNodeBase* TNodeBase::AsImmutableImpl() const
-{
-    return this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

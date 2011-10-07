@@ -17,7 +17,7 @@ public:
         : Events(events)
     { }
 
-    void Visit(INode::TConstPtr root)
+    void Visit(INode::TPtr root)
     {
         Events->BeginTree();
         VisitAny(root);
@@ -27,7 +27,7 @@ public:
 private:
     IYsonConsumer* Events;
 
-    void VisitAny(INode::TConstPtr node)
+    void VisitAny(INode::TPtr node)
     {
         switch (node->GetType()) {
             case ENodeType::String:
@@ -56,7 +56,7 @@ private:
         }
     }
 
-    void VisitScalar(INode::TConstPtr node)
+    void VisitScalar(INode::TPtr node)
     {
         switch (node->GetType()) {
             case ENodeType::String:
@@ -81,7 +81,7 @@ private:
         }
     }
 
-    void VisitList(IListNode::TConstPtr node)
+    void VisitList(IListNode::TPtr node)
     {
         Events->BeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
@@ -92,7 +92,7 @@ private:
         Events->EndList();
     }
 
-    void VisitMap(IMapNode::TConstPtr node)
+    void VisitMap(IMapNode::TPtr node)
     {
         Events->BeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
@@ -102,7 +102,7 @@ private:
         Events->EndMap();
     }
 
-    void VisitAttributes(IMapNode::TConstPtr node)
+    void VisitAttributes(IMapNode::TPtr node)
     {
         Events->BeginAttributes();
         FOREACH(const auto& pair, node->GetChildren()) {

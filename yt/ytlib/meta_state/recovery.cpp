@@ -59,7 +59,7 @@ void TRecovery::Stop()
     CancelableStateInvoker->Cancel();
 }
 
-TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
+TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
     TMetaVersion targetVersion,
     i32 snapshotId)
 {
@@ -341,7 +341,7 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 
     return FromMethod(
-               &TRecovery::RecoverFromSnapshot,
+               &TRecovery::RecoverFromSnapshotAndChangeLog,
                TPtr(this),
                version,
                maxAvailableSnapshotId)
@@ -351,6 +351,8 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
 
 bool TLeaderRecovery::IsLeader() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return true;
 }
 
@@ -406,7 +408,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error %s during synchronization with leader",
+        LOG_ERROR("Error synchronizing with the leader (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
         Result->Set(EResult::Failed);
         return;
@@ -440,7 +442,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
 
     FromMethod(
-        &TRecovery::RecoverFromSnapshot,
+        &TRecovery::RecoverFromSnapshotAndChangeLog,
         TPtr(this),
         PostponedVersion,
         snapshotId)

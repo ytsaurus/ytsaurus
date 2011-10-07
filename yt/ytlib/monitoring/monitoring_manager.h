@@ -34,11 +34,11 @@ public:
      */
     void Unregister(NYTree::TYPath path);
 
-    //! Provides root node containing info for all registered systems
+    //! Provides a root node containing info for all registered systems.
     /*!
-     * \note Every update, previous root expires and a new root is generated.
+     * \note Every update, the previous root expires and a new root is generated.
      */
-    NYTree::INode::TConstPtr GetRoot() const;
+    NYTree::INode::TPtr GetRoot() const;
 
     //! Starts periodic updates.
     void Start();
@@ -64,7 +64,7 @@ private:
     TSpinLock SpinLock;
     TProducerMap MonitoringMap;
 
-    NYTree::INode::TConstPtr Root;
+    NYTree::INode::TPtr Root;
 
     void Update();
     void Visit(NYTree::IYsonConsumer* consumer);

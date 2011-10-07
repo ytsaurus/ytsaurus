@@ -63,7 +63,7 @@ struct IYPathService
         }
     };
 
-    typedef TResult< TIntrusiveConstPtr<INode> > TNavigateResult;
+    typedef TResult<INode::TPtr> TNavigateResult;
     virtual TNavigateResult Navigate(TYPath path) = 0;
 
     typedef TResult<TVoid> TGetResult;
@@ -79,14 +79,13 @@ struct IYPathService
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TPtr AsYPath(INode::TPtr node);
-IYPathService::TPtr AsYPath(INode::TConstPtr node);
 
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
     TYPath* tailPath);
 
-INode::TConstPtr NavigateYPath(
+INode::TPtr NavigateYPath(
     IYPathService::TPtr rootService,
     TYPath path);
 

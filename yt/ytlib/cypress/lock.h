@@ -23,6 +23,18 @@ public:
         , Mode(mode)
     { }
 
+    TLock(const TLock& other)
+        : Id(other.Id)
+        , NodeId(other.NodeId)
+        , TransactionId(other.TransactionId)
+        , Mode(other.Mode)
+    { }
+
+    TAutoPtr<TLock> Clone() const
+    {
+        return new TLock(*this);
+    }
+
     TLockId GetId() const
     {
         return Id;

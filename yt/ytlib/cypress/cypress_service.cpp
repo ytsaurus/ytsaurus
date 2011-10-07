@@ -1,14 +1,11 @@
 #include "cypress_service.h"
-//#include "registry_service.pb.h"
-//
-//#include "../misc/foreach.h"
-//#include "../misc/serialize.h"
-//#include "../misc/guid.h"
-//#include "../misc/assert.h"
-//#include "../misc/string.h"
+
+#include "../ytree/yson_writer.h"
 
 namespace NYT {
 namespace NCypress {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,26 +48,62 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    // TODO: validate transaction id
+
+    auto root = State->GetNode(RootNodeId, transactionId);
+
+    Stroka output;
+    TStringOutput outputStream(output);
+    TYsonWriter writer(&outputStream, false); // TODO: use binary
+
+    try {
+        State->GetYPath(transactionId, path, &writer);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    response->SetValue(output);
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
-    Stroka value = request->GetValues();
+    Stroka value = request->GetValue();
 
     context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    // TODO: validate transaction id
+
+    auto root = State->GetNode(RootNodeId, transactionId);
+
+    NProto::TMsgSetPath message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(path);
+    message.SetValue(value);
+
+    try {
+        CommitChange(
+            this, context, State, message,
+            &TCypressState::SetYPath);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
 
@@ -78,8 +111,24 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    UNUSED(response);
-    YASSERT(false);
+    auto root = State->GetNode(RootNodeId, transactionId);
+
+    // TODO: validate transaction id
+
+    NProto::TMsgRemovePath message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(path);
+
+    try {
+        CommitChange(
+            this, context, State, message,
+            &TCypressState::RemoveYPath);
+    } catch (...) {
+        // TODO:
+        context->Reply(EErrorCode::ShitHappens);
+    }
+
+    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)

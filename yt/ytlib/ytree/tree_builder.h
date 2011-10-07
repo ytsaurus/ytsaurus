@@ -38,19 +38,25 @@ private:
     }
 
 
-    virtual void StringScalar(const Stroka& Scalar)
+    virtual void StringScalar(const Stroka& value)
     {
-        Push(~Factory->CreateString(Scalar));
+        auto node = Factory->CreateString();
+        node->SetValue(value);
+        Push(~node);
     }
 
-    virtual void Int64Scalar(i64 Scalar)
+    virtual void Int64Scalar(i64 value)
     {
-        Push(~Factory->CreateInt64(Scalar));
+        auto node = Factory->CreateInt64();
+        node->SetValue(value);
+        Push(~node);
     }
 
-    virtual void DoubleScalar(double Scalar)
+    virtual void DoubleScalar(double value)
     {
-        Push(~Factory->CreateDouble(Scalar));
+        auto node = Factory->CreateDouble();
+        node->SetValue(value);
+        Push(~node);
     }
 
     virtual void EntityScalar()
@@ -96,7 +102,9 @@ private:
     virtual void MapItem(const Stroka& name)
     {
         AddToMap();
-        Push(~Factory->CreateString(name));
+        auto node = Factory->CreateString();
+        node->SetValue(name);
+        Push(~node);
     }
 
     virtual void EndMap()

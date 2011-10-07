@@ -13,11 +13,6 @@ namespace NTransaction {
 
 struct TTransaction
 {
-    typedef yvector<TChunkId> TChunks;
-
-    TTransaction()
-    { }
-
     TTransaction(const TTransaction& other)
         : Id(other.Id)
         , Lease(other.Lease)
@@ -27,6 +22,11 @@ struct TTransaction
     TTransaction(const TTransactionId& id)
         : Id(id)
     { }
+
+    TAutoPtr<TTransaction> Clone() const
+    {
+        return new TTransaction(*this);
+    }
 
     TTransaction& operator = (const TTransaction& other)
     {
@@ -39,7 +39,7 @@ struct TTransaction
 
     TTransactionId Id;
     TLeaseManager::TLease Lease;
-    TChunks AddedChunks;
+    yvector<TChunkId> AddedChunks;
 };
 
 // TODO: move to cpp

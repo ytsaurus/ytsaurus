@@ -37,15 +37,15 @@ public:
     {
         TTransactionId id = TTransactionId::FromProto(message.GetTransactionId());
 
-        TTransaction transaction(id);
-        if (IsLeader()) {
-            CreateLease(transaction);
-        }
-
+        auto* transaction = new TTransaction(id);
         YVERIFY(Transactions.Insert(id, transaction));
 
+        if (IsLeader()) {
+            CreateLease(*transaction);
+        }
+
         FOREACH(auto& handler, Handlers) {
-            handler->OnTransactionStarted(transaction);
+            handler->OnTransactionStarted(*transaction);
         }
 
         LOG_INFO("Transaction started (TransactionId: %s)",
@@ -202,7 +202,7 @@ private:
     void CreateAllLeases()
     {
         FOREACH(auto& pair, Transactions) {
-            CreateLease(pair.second);
+            CreateLease(*pair.Second());
         }
         LOG_INFO("Created fresh leases for all transactions");
     }
@@ -210,7 +210,7 @@ private:
     void CloseAllLeases()
     {
         FOREACH(auto& pair, Transactions) {
-            CloseLease(pair.second);
+            CloseLease(*pair.Second());
         }
         LOG_INFO("Closed all transaction leases");
     }
