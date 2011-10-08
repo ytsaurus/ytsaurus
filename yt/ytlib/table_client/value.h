@@ -4,6 +4,7 @@
 #include "../misc/ptr.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,8 +13,8 @@ class TValue
 {
 public:
     TValue();
-    TValue(const TSharedRef& data);
-    TValue(TBlob& data);
+    TValue(TRef data);
+    TValue(Stroka data);
 
     const char* GetData() const;
     size_t GetSize() const;
@@ -30,7 +31,7 @@ public:
     static TValue Null();
 
 private:
-    TSharedRef Data;
+    TRef Data;
 };
 
 bool operator==(const TValue& lhs, const TValue& rhs);
@@ -55,24 +56,9 @@ inline TValue Value<Stroka>(const Stroka& data)
     return TValue(blob);
 }
 
-TValue NextValue(const TValue& value);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef yhash_map<TValue, TValue> TTableRow;
-
-////////////////////////////////////////////////////////////////////////////////
-
+} // namespace NTableClient
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template<>
-struct THash<NYT::TValue>
-{
-    size_t operator()(const NYT::TValue& value) const
-    {
-        return MurmurHash<ui32>(value.GetData(), value.GetSize());
-    }
-};
-

@@ -11,7 +11,7 @@ message TRange
 message TBlockInfo
 {
     required int32 BlockIndex = 1;
-    required int64 EndRow = 2;
+    required int64 LastRow = 2;
 }
 
 message TChannel 
@@ -24,7 +24,7 @@ message TChannel
 message TChunkMeta
 {
     repeated TChannel Channels = 1;
-    required int32 Compressor = 2;
+    required int32 Codec = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

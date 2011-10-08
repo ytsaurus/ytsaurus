@@ -1,53 +1,49 @@
 ﻿#include "table_writer.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableWriter::TTableWriter(
     const TConfig& config, 
     IChunkWriter::TPtr chunkWriter,
-    TSchema::TPtr schema,
-    ICompressor::TPtr compressor)
-    : Config(config)
+    const TSchema& schema,
+    ICodec::TPtr compressor)
+    : IsClosed(false)
+    , Config(config)
     , CurrentBlockIndex(0)
     , CurrentRowIndex(0)
     , ChunkWriter(chunkWriter)
     , Schema(schema)
-    , Compressor(compressor)
+    , Codec(compressor)
 {
     // Fill protobuf chunk meta
-    FOREACH(auto channel, Schema->Channels()) {
+    FOREACH(auto channel, Schema.Channels()) {
         auto* protoChannel = ChunkMeta.AddChannels();
-        FOREACH(auto& column, channel.Columns()) {
-            protoChannel->AddColumns(column.GetData(), column.GetSize());
-        }
-
-        FOREACH(auto& range, channel.Ranges()) {
-            auto* protoRange = protoChannel->AddRanges();
-            protoRange->SetBegin(range.Begin().GetData(), range.Begin().GetSize());
-            protoRange->SetEnd(range.End().GetData(), range.End().GetSize());
-        }
-
+        channel.FillProto(protoChannel);
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 }
 
-TTableWriter& TTableWriter::Write(const TValue& column, const TValue& value)
+TTableWriter& TTableWriter::Write(TColumn column, TValue value)
 {
-    // Old value for this column will be overwritten, if present
-    CurrentRow[column] = value;
+    YASSERT(!SetColumns.has(column));
+    SetColumns.insert(column);
+    FOREACH(auto& channelWriter, ChannelWriters) {
+        channelWriter->Write(column, value);
+    }
     return *this;
 }
 
-void TTableWriter::AddRow() 
+void TTableWriter::EndRow() 
 {
     for (int channelIndex = 0; 
         channelIndex < ChannelWriters.size(); 
         ++channelIndex) 
     {
-        TChannelWriter::TPtr channel = ChannelWriters[channelIndex];
-        channel->AddRow(CurrentRow);
+        auto channel = ChannelWriters[channelIndex];
+        channel->EndRow();
         if (channel->GetCurrentSize() > Config.BlockSize) {
             AddBlock(channelIndex);
         }
@@ -56,42 +52,53 @@ void TTableWriter::AddRow()
     // NB: here you can extract sample key and other 
     // meta required for master
 
+    SetColumns.clear();
     ++CurrentRowIndex;
-    CurrentRow.clear();
 }
 
 void TTableWriter::AddBlock(int channelIndex)
 {
-    auto* blockInfo = ChunkMeta.MutableChannels(channelIndex)->AddBlocks();
+    NProto::TBlockInfo* blockInfo = ChunkMeta.MutableChannels(channelIndex)->AddBlocks();
     blockInfo->SetBlockIndex(CurrentBlockIndex);
-    blockInfo->SetEndRow(CurrentRowIndex);
+    blockInfo->SetLastRow(CurrentRowIndex);
 
     auto channel = ChannelWriters[channelIndex];
-    auto data = Compressor->Compress(channel->FlushBlock());
+    auto data = Codec->Compress(channel->FlushBlock());
     ChunkWriter->WriteBlock(data);
     ++CurrentBlockIndex;
 }
 
 void TTableWriter::Close()
 {
-    YASSERT(CurrentRow.empty());
+    if (IsClosed) {
+        return;
+    }
+
+    YASSERT(SetColumns.empty());
 
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++ channelIndex) {
         auto channel = ChannelWriters[channelIndex];
-        if (channel->HasData()) {
+        if (channel->HasUnflushedData()) {
             AddBlock(channelIndex);
         }
     }
 
-    ChunkMeta.SetCompressor(Compressor->GetId());
+    ChunkMeta.SetCodec(Codec->GetId());
 
     TBlob metaBlock(ChunkMeta.ByteSize());
     YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), metaBlock.size()));
 
     ChunkWriter->WriteBlock(TSharedRef(metaBlock));
     ChunkWriter->Close();
+    IsClosed = true;
+}
+
+TTableWriter::~TTableWriter()
+{
+    Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

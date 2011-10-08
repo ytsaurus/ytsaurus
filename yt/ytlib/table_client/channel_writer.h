@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
-#include "../misc/ptr.h"
+#include "common.h"
 #include "value.h"
 #include "schema.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -16,31 +16,36 @@ public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
     TChannelWriter(const TChannel& channel);
-    void AddRow(const TTableRow& tableRow);
+    void Write(TColumn column, TValue value);
+    void EndRow();
     size_t GetCurrentSize() const;
-    bool HasData() const;
+    bool HasUnflushedData() const;
     TSharedRef FlushBlock();
 
 private:
-    size_t EmptySize() const;
-    void AppendSize(i32 size, TBlob* data);
-    void AppendValue(const TValue& value, TBlob* data);
+    size_t GetEmptySize() const;
+    void AppendSize(ui32 size, TBlob* data);
+    void AppendValue(TValue value, TBlob* data);
 
     TChannel Channel;
 
-    //! Current buffers for fixed columns
+    //! Current buffers for fixed columns.
     yvector<TBlob> FixedColumns;
 
-    //! Current buffer for range columns
+    //! Current buffer for range columns.
     TBlob RangeColumns;
 
-    //! Mapping from fixed column names of the #Channel to their indexes in #FixedColumns
-    yhash_map<TValue, int> ColumnIndexes;
+    //! Mapping from fixed column names of the #Channel to their indexes in #FixedColumns.
+    yhash_map<TColumn, int> ColumnIndexes;
 
-    //! Overall size of current buffers
-    i64 CurrentSize;
+    //! Is fixed column with corresponding index already set in the current row.
+    yvector<bool> ColumnSetFlags;
+
+    //! Overall size of current buffers.
+    size_t CurrentSize;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

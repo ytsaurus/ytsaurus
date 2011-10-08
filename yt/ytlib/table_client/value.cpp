@@ -1,20 +1,20 @@
 ﻿#include "value.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TValue::TValue(const TSharedRef& data)
-    : Data(data)
-{}
-
-//! Data is swapped out to TValue
-TValue::TValue(TBlob& data)
+TValue::TValue(TRef data)
     : Data(data)
 { }
 
+TValue::TValue(Stroka data)
+    : Data(data.begin(), data.Size())
+{ }
+
 TValue::TValue()
-    : Data(TValue::Null().Data)
+    : Data(NULL, 0)
 { }
 
 const char* TValue::GetData() const
@@ -47,14 +47,6 @@ bool TValue::IsNull() const
     return Data.Begin() == NULL;
 }
 
-TValue TValue::Null() 
-{
-    TSharedRef::TBlobPtr blob;
-    TRef ref(NULL, 0);
-    TSharedRef data(blob, ref);
-    return TValue(data);
-}
-
 Stroka TValue::ToString() const
 {
     return Stroka(Data.Begin(), Data.End());
@@ -63,20 +55,6 @@ Stroka TValue::ToString() const
 TBlob TValue::ToBlob() const
 {
     return Data.ToBlob();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TValue NextValue(const TValue& value)
-{
-    TBlob blob = value.ToBlob();
-    if (blob.back() < 0xFF) {
-        ++blob.back();
-    } else {
-        blob.push_back('\0');
-    }
-
-    return TValue(blob);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,4 +116,5 @@ bool operator>=(const TValue& lhs, const TValue& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

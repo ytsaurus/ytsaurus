@@ -1,27 +1,31 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
+#include "common.h"
 #include "../chunk_client/chunk_writer.h"
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
-#include "chunk_meta.pb.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICompressor
+typedef int TCodecId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICodec
     : public TNonCopyable
 {
 public:
-    typedef TAutoPtr<ICompressor> TPtr;
+    typedef TAutoPtr<ICodec> TPtr;
 
     virtual TSharedRef Compress(const TSharedRef& block) = 0;
 
     //! Compressor id, written to chunk meta
-    virtual int GetId() const = 0;
-    virtual ~ICompressor() { }
+    virtual TCodecId GetId() const = 0;
+    virtual ~ICodec() { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,6 +40,7 @@ public:
         int BlockSize;
 
         TConfig()
+            // ToDo: make configurable
             : BlockSize(8 * 1024 * 1024)
         { }
     };
@@ -43,35 +48,42 @@ public:
     TTableWriter(
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
-        TSchema::TPtr schema,
-        ICompressor::TPtr compressor);
+        const TSchema& schema,
+        ICodec::TPtr compressor);
 
-    TTableWriter& Write(const TValue& column, const TValue& value);
-    void AddRow();
+    TTableWriter& Write(TColumn column, TValue value);
+    void EndRow();
     void Close();
+    ~TTableWriter();
 
 private:
     // thread may block here, if chunkwriter window is overfilled
     void AddBlock(int channelIndex); 
 
 private:
+    bool IsClosed;
+
     TConfig Config;
     IChunkWriter::TPtr ChunkWriter;
 
     int CurrentBlockIndex;
+
+    // ToDo: consider changing to int or completely removing
     i64 CurrentRowIndex;
 
-    TSchema::TPtr Schema;
+    TSchema Schema;
 
-    TTableRow CurrentRow;
+    //! Columns already set in current row
+    yhash_set<TColumn> SetColumns;
 
     yvector<TChannelWriter::TPtr> ChannelWriters;
 
-    ICompressor::TPtr Compressor;
+    ICodec::TPtr Codec;
 
-    NTableClient::NProto::TChunkMeta ChunkMeta;
+    NProto::TChunkMeta ChunkMeta;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

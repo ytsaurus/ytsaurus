@@ -1,59 +1,64 @@
 ﻿#include "channel_writer.h"
-#include "../misc/foreach.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TChannelWriter::TChannelWriter(const TChannel& channel)
     : Channel(channel)
     , FixedColumns(Channel.Columns().size())
-     // size of block header - used to store sizes of fixed columns
+    , ColumnSetFlags(Channel.Columns().size())
 {
     for (int index = 0; index < Channel.Columns().size(); ++index) {
         auto& column = Channel.Columns()[index];
         ColumnIndexes[column] = index;
     }
-    CurrentSize = EmptySize();
+    CurrentSize = GetEmptySize();
 }
 
-void TChannelWriter::AddRow(const TTableRow& tableRow)
+void TChannelWriter::Write(TColumn column, TValue value)
 {
-    yvector<bool> columnFlags(FixedColumns.size(), false);
-    FOREACH(const auto& rowItem, tableRow) {
-        auto it = ColumnIndexes.find(rowItem.first);
-        if (it != ColumnIndexes.end()) {
-            // Fixed column
-            int columnIdx = it->second;
-            TBlob& columnData = FixedColumns[columnIdx];
-            AppendValue(rowItem.second, &columnData);
-
-            YASSERT(!columnFlags[columnIdx]);
-            columnFlags[columnIdx] = true;
-        } else if (Channel.MatchRanges(rowItem.first)) {
-            AppendValue(rowItem.first, &RangeColumns);
-            AppendValue(rowItem.second, &RangeColumns);
-        }
+    if (!Channel.Contains(column)) {
+        return;
     }
 
-    for(int columnIdx = 0; columnIdx  < columnFlags.ysize(); ++columnIdx) {
-        if (!columnFlags[columnIdx]) {
+    auto it = ColumnIndexes.find(column);
+    if (it == ColumnIndexes.end()) {
+        AppendValue(TValue(column), &RangeColumns);
+        AppendValue(value, &RangeColumns);
+    } else {
+        int columnIndex = it->Second();
+        TBlob& columnData = FixedColumns[columnIndex];
+        AppendValue(value, &columnData);
+        ColumnSetFlags[columnIndex] = true;
+    }
+}
+
+void TChannelWriter::EndRow()
+{
+    for(int columnIdx = 0; columnIdx < ColumnSetFlags.ysize(); ++columnIdx) {
+        if (ColumnSetFlags[columnIdx]) {
+            // Clean flags
+            ColumnSetFlags[columnIdx] = false;
+        } else {
             TBlob& columnData = FixedColumns[columnIdx];
-            AppendValue(TValue::Null(), &columnData);
+            AppendValue(TValue(), &columnData);
         }
     }
 
     // End of the row
-    AppendValue(TValue::Null(), &RangeColumns);
+    AppendValue(TValue(), &RangeColumns);
 }
 
-void TChannelWriter::AppendSize(i32 value, TBlob* data)
-{
-    data->insert(data->end(), (char*)(&value), (char*)(&value + 1));
+void TChannelWriter::AppendSize(ui32 value, TBlob* data) {
+    data->insert(data->end(), 
+        reinterpret_cast<ui8*>(&value), 
+        reinterpret_cast<ui8*>(&value + 1));
     CurrentSize += sizeof(value);
 }
 
-void TChannelWriter::AppendValue(const TValue& value, TBlob* data)
+void TChannelWriter::AppendValue(TValue value, TBlob* data)
 {
     AppendSize(value.GetSize(), data);
     data->insert(data->end(), value.Begin(), value.End());
@@ -65,14 +70,14 @@ size_t TChannelWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-size_t TChannelWriter::EmptySize() const
+size_t TChannelWriter::GetEmptySize() const
 {
     return FixedColumns.size() * sizeof(i32);
 }
 
-bool TChannelWriter::HasData() const
+bool TChannelWriter::HasUnflushedData() const
 {
-    return CurrentSize > EmptySize();
+    return CurrentSize > GetEmptySize();
 }
 
 TSharedRef TChannelWriter::FlushBlock()
@@ -81,9 +86,9 @@ TSharedRef TChannelWriter::FlushBlock()
     auto curPos = block.begin();
 
     FOREACH(const auto& column, FixedColumns) {
-        i32 size = column.size();
-        memcpy(curPos, &size, sizeof(i32));
-        curPos += sizeof(i32);
+        ui32 size = column.size();
+        *reinterpret_cast<i32*>(curPos) = size;
+        curPos += sizeof(size);
     }
 
     FOREACH(auto& column, FixedColumns) {
@@ -95,11 +100,12 @@ TSharedRef TChannelWriter::FlushBlock()
     memcpy(curPos, RangeColumns.begin(), RangeColumns.size());
     RangeColumns.clear();
 
-    CurrentSize = EmptySize();
+    CurrentSize = GetEmptySize();
 
     return TSharedRef(block);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

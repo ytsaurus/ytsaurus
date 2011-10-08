@@ -4,6 +4,7 @@ SET(YT_SOURCE_FILES
     schema.cpp   
     channel_writer.cpp
     table_writer.cpp
+	common.h
 )
 
 

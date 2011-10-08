@@ -1,27 +1,39 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
-#include "../misc/ptr.h"
+#include "common.h"
 #include "value.h"
 
 namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef Stroka TColumn;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRange
 {
 public:
-    TRange(const TValue& begin, const TValue& end, bool closedEnd = false);
+    TRange(TColumn begin, TColumn end);
 
-    const TValue& Begin() const;
-    const TValue& End() const;
+    //! Creates open range
+    TRange(TColumn begin);
 
-    bool Match(const TValue& value) const;
-    bool Overlap(const TRange& range) const;
+    TColumn Begin() const;
+    TColumn End() const;
+
+    void FillProto(NProto::TRange* protoRange) const;
+
+    bool Contains(TColumn value) const;
+    bool Overlaps(const TRange& range) const;
+
+    //! True if range is open
+    bool IsOpen() const;
 
 private:
-    TValue Begin_;
-    TValue End_;
+    TColumn Begin_;
+    TColumn End_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,21 +43,22 @@ private:
 class TChannel
 {
 public:
-    TChannel& AddColumn(const TValue& column);
+    TChannel& AddColumn(TColumn column);
     TChannel& AddRange(const TRange& range);
-    TChannel& AddRange(const TValue& begin, const TValue& end);
+    TChannel& AddRange(TColumn begin, TColumn end);
 
-    bool Match(const TValue& column) const;
-    bool MatchRanges(const TValue& column) const;
+    bool Contains(TColumn column) const;
+    bool ContainsInRanges(TColumn column) const;
 
-    const yvector<TValue>& Columns();
-    const yvector<TRange>& Ranges();
+    void FillProto(NProto::TChannel* protoChannel) const;
+
+    const yvector<TColumn>& Columns();
 
     TChannel& operator-= (const TChannel& channel);
     const TChannel operator- (const TChannel& channel);
 
 private:
-    yvector<TValue> Columns_;
+    yvector<TColumn> Columns_;
     yvector<TRange> Ranges_;
 };
 
@@ -54,12 +67,8 @@ private:
 class TSchema
 {
 public:
-    typedef TAutoPtr<TSchema> TPtr;
-
     TSchema();
     TSchema& AddChannel(const TChannel& channel);
-
-    int GetChannelCount() const;
     const yvector<TChannel>& Channels() const;
 
 private:
@@ -68,4 +77,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT
