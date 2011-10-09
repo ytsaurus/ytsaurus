@@ -21,7 +21,7 @@ namespace NBus {
 static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
-static const int MaxNLCallsPerIteration = 100;
+static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
 static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
@@ -123,7 +123,7 @@ class TClientDispatcher
 
     bool ProcessBusRegistrations()
     {
-        LOG_TRACE("Processing bus registrations");
+        LOG_TRACE("Processing client bus registrations");
 
         bool result = false;
         TBusClient::TBus::TPtr bus;
@@ -136,7 +136,7 @@ class TClientDispatcher
 
     bool ProcessBusUnregistrations()
     {
-        LOG_TRACE("Processing bus unregistrations");
+        LOG_TRACE("Processing client bus unregistrations");
 
         bool result = false;
         TBusClient::TBus::TPtr bus;
@@ -180,7 +180,7 @@ class TClientDispatcher
 
     bool ProcessIncomingNLResponses()
     {
-        LOG_TRACE("Processing incoming NetLiba responses");
+        LOG_TRACE("Processing incoming client NetLiba responses");
 
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {
@@ -244,7 +244,7 @@ class TClientDispatcher
 
     bool ProcessIncomingNLRequests()
     {
-        LOG_TRACE("Processing incoming NetLiba requests");
+        LOG_TRACE("Processing incoming client NetLiba requests");
 
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {
@@ -378,7 +378,7 @@ class TClientDispatcher
 
     bool ProcessOutcomingRequests()
     {
-        LOG_TRACE("Processing outcoming NetLiba requests");
+        LOG_TRACE("Processing outcoming client NetLiba requests");
 
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {

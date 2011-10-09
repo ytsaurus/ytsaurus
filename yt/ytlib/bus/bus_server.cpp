@@ -19,7 +19,7 @@ namespace NBus {
 static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
-static const int MaxNLCallsPerIteration = 100;
+static const int MaxNLCallsPerIteration = 10;
 static const TDuration ServerSleepQuantum = TDuration::MilliSeconds(10);
 static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
@@ -231,7 +231,7 @@ void TBusServer::ThreadMain()
 
 bool TBusServer::ProcessIncomingNLRequests()
 {
-    LOG_TRACE("Processing incoming NetLiba requests");
+    LOG_TRACE("Processing incoming NetLiba server requests");
 
     int callCount = 0;
     while (callCount < MaxNLCallsPerIteration) {
@@ -266,12 +266,12 @@ void TBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
 
 bool TBusServer::ProcessIncomingNLResponses()
 {
-    LOG_TRACE("Processing incoming NetLiba responses");
+    LOG_TRACE("Processing incoming NetLiba server responses");
 
     int callCount = 0;
     while (callCount < MaxNLCallsPerIteration) {
         TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
-        if (~nlResponse== NULL)
+        if (~nlResponse == NULL)
             break;
 
         ++callCount;
@@ -324,7 +324,7 @@ void TBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
 
 bool TBusServer::ProcessOutcomingResponses()
 {
-    LOG_TRACE("Processing outcoming responses");
+    LOG_TRACE("Processing outcoming server responses");
 
     int callCount = 0;
     while (callCount < MaxNLCallsPerIteration) {
