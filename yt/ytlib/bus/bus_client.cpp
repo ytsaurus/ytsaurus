@@ -21,7 +21,7 @@ namespace NBus {
 static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
-static const int MaxRequestsPerCall = 100;
+static const int MaxNLCallsPerIteration = 100;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
 static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
@@ -101,7 +101,7 @@ class TClientDispatcher
 
     static void* ThreadFunc(void* param)
     {
-        TClientDispatcher* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
+        auto* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
         dispatcher->ThreadMain();
         return NULL;
     }
@@ -111,10 +111,11 @@ class TClientDispatcher
         while (!Terminated) {
             if (!ProcessBusRegistrations() &&
                 !ProcessBusUnregistrations() &&
-                !ProcessOutgoingRequests() &&
-                !ProcessNLRequests() &&
-                !ProcessNLResponses())
+                !ProcessOutcomingRequests() &&
+                !ProcessIncomingNLRequests() &&
+                !ProcessIncomingNLResponses())
             {
+                LOG_TRACE("Client is idle");
                 GetEvent().WaitT(ClientSleepQuantum);
             }
         }
@@ -122,6 +123,8 @@ class TClientDispatcher
 
     bool ProcessBusRegistrations()
     {
+        LOG_TRACE("Processing bus registrations");
+
         bool result = false;
         TBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
@@ -133,6 +136,8 @@ class TClientDispatcher
 
     bool ProcessBusUnregistrations()
     {
+        LOG_TRACE("Processing bus unregistrations");
+
         bool result = false;
         TBusClient::TBus::TPtr bus;
         while (BusUnregisterQueue.Dequeue(&bus)) {
@@ -173,20 +178,23 @@ class TClientDispatcher
             ~bus);
     }
 
-    bool ProcessNLResponses()
+    bool ProcessIncomingNLResponses()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing incoming NetLiba responses");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
             if (~nlResponse == NULL)
                 break;
-            result = true;
-            ProcessNLResponse(~nlResponse);
+            
+            ++callCount;
+            ProcessIncomingNLResponse(~nlResponse);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessNLResponse(TUdpHttpResponse* nlResponse)
+    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     {
         if (nlResponse->Ok != TUdpHttpResponse::OK)
         {
@@ -234,20 +242,23 @@ class TClientDispatcher
         RequestMap.erase(requestIt);
     }
 
-    bool ProcessNLRequests()
+    bool ProcessIncomingNLRequests()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing incoming NetLiba requests");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpRequest> nlRequest = Requester->GetRequest();
             if (~nlRequest == NULL)
                 break;
-            result = true;
-            ProcessNLRequest(~nlRequest);
+
+            ++callCount;
+            ProcessIncomingNLRequest(~nlRequest);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessNLRequest(TUdpHttpRequest* nlRequest)
+    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
     {
         auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
         if (header == NULL)
@@ -365,20 +376,23 @@ class TClientDispatcher
         bus->PingIds.insert(requestId);
     }
 
-    bool ProcessOutgoingRequests()
+    bool ProcessOutcomingRequests()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing outcoming NetLiba requests");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TRequest::TPtr request;
             if (!RequestQueue.Dequeue(&request))
                 break;
-            result = true;
-            ProcessOutgoingRequest(request);
+
+            ++callCount;
+            ProcessOutcomingRequest(request);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessOutgoingRequest(TRequest::TPtr request)
+    void ProcessOutcomingRequest(TRequest::TPtr request)
     {
         auto busIt = BusMap.find(request->SessionId);
         if (busIt == BusMap.end()) {

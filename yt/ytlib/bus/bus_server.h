@@ -28,7 +28,7 @@ public:
 
 private:
     class TSession;
-    struct TReply;
+    struct TOutcomingResponse;
 
     friend class TSession;
 
@@ -41,23 +41,23 @@ private:
     TThread Thread;
     TSessionMap SessionMap;
     TPingMap PingMap;
-    TLockFreeQueue< TIntrusivePtr<TSession> > PendingReplySessions;
+    TLockFreeQueue< TIntrusivePtr<TSession> > SessionsWithPendingResponses;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
 
     Event& GetEvent();
 
-    bool ProcessNLRequests();
-    void ProcessNLRequest(TUdpHttpRequest* nlRequest);
+    bool ProcessIncomingNLRequests();
+    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest);
 
-    bool ProcessNLResponses();
-    void ProcessNLResponse(TUdpHttpResponse* nlResponse);
+    bool ProcessIncomingNLResponses();
+    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse);
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
 
-    void EnqueueReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
-    bool ProcessReplies();
-    void ProcessReply(TIntrusivePtr<TSession> session, TIntrusivePtr<TReply> reply);
+    void EnqueueOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
+    bool ProcessOutcomingResponses();
+    void ProcessOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
