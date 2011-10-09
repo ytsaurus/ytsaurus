@@ -113,6 +113,11 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
     }
 }
 
+int TSessionManager::GetSessionCount()
+{
+    return SessionMap.ysize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(

@@ -133,11 +133,11 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     return result;
 }
 
-THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxLoadFactor)
+THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxFillCoeff)
 {
     FOREACH (const auto& pair, LoadFactorMap) {
         const auto& holder = ChunkManager->GetHolder(pair.second);
-        if (GetLoadFactor(holder) > maxLoadFactor) {
+        if (GetFillCoeff(holder) > maxFillCoeff) {
             break;
         }
         if (IsValidBalancingTarget(holder, chunk)) {
@@ -227,16 +227,25 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder) const
 {
     const auto& statistics = holder.Statistics;
     return
+        GetFillCoeff(holder) +
+        ActiveSessionsPenalityCoeff * statistics.SessionCount;
+}
+
+double TChunkPlacement::GetFillCoeff(const THolder& holder) const
+{
+    const auto& statistics = holder.Statistics;
+    return
         (1.0 + statistics.UsedSpace) /
         (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
 }
 
 bool TChunkPlacement::IsFull(const THolder& holder) const
 {
-    if (GetLoadFactor(holder) > MaxHolderLoadFactor)
+    if (GetFillCoeff(holder) > MaxHolderFillCoeff)
         return true;
 
-    if (holder.Statistics.AvailableSpace - holder.Statistics.UsedSpace < MinHolderFreeSpace)
+    const auto& statistics = holder.Statistics;
+    if (statistics.AvailableSpace - statistics.UsedSpace < MinHolderFreeSpace)
         return true;
 
     return false;

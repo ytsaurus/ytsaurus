@@ -160,6 +160,9 @@ public:
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const TChunkId& chunkId);
 
+    //! Returns the number of currently active session.
+    int GetSessionCount();
+
 private:
     friend class TSession;
 

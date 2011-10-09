@@ -48,10 +48,11 @@ extern int MaxRemovalJobsPerHolder;
 extern TDuration ChunkRefreshDelay;
 extern TDuration ChunkRefreshQuantum;
 extern int MaxChunksPerRefresh;
-extern double MinChunkBalancingLoadFactorDiff;
-extern double MinChunkBalancingLoadFactor;
-extern double MaxHolderLoadFactor;
+extern double MinChunkBalancingFillCoeffDiff;
+extern double MinChunkBalancingFillCoeff;
+extern double MaxHolderFillCoeff;
 extern i64 MinHolderFreeSpace;
+extern double ActiveSessionsPenalityCoeff;
 
 ////////////////////////////////////////////////////////////////////////////////
 

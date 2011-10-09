@@ -238,10 +238,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
         return EScheduleFlags::None;
     }
 
-    double maxLoadFactor =
-        ChunkPlacement->GetLoadFactor(sourceHolder) -
-        MinChunkBalancingLoadFactorDiff;
-    THolderId targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxLoadFactor);
+    double maxFillCoeff =
+        ChunkPlacement->GetFillCoeff(sourceHolder) -
+        MinChunkBalancingFillCoeffDiff;
+    THolderId targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -340,7 +340,7 @@ void TChunkReplication::ScheduleJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetLoadFactor(holder) > MinChunkBalancingLoadFactor)
+        ChunkPlacement->GetFillCoeff(holder) > MinChunkBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {

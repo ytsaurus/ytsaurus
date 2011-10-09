@@ -19,15 +19,15 @@ public:
     void RemoveHolder(const THolder& holder);
     void UpdateHolder(const THolder& holder);
 
-
     double GetLoadFactor(const THolder& holder) const;
+    double GetFillCoeff(const THolder& holder) const;
 
     yvector<THolderId> GetUploadTargets(int count);
     yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);
     yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);
-    THolderId GetBalancingTarget(const TChunk& chunk, double maxLoadFactor);
+    THolderId GetBalancingTarget(const TChunk& chunk, double maxFillCoeff);
    
 private:
     typedef ymultimap<double, THolderId> TLoadFactorMap;

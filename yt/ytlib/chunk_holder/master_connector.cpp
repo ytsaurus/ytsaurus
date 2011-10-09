@@ -22,10 +22,12 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(
     const TConfig& config,
     TChunkStore::TPtr chunkStore,
+    TSessionManager::TPtr sessionManager,
     TReplicator::TPtr replicator,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
+    , SessionManager(sessionManager)
     , Replicator(replicator)
     , ServiceInvoker(serviceInvoker)
     , Registered(false)
@@ -71,7 +73,7 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
     
-    auto statistics = ChunkStore->GetStatistics();
+    auto statistics = ComputeStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     request->SetAddress(Address);
@@ -82,6 +84,25 @@ void TMasterConnector::SendRegister()
 
     LOG_INFO("Register request sent (%s)",
         ~statistics.ToString());
+}
+
+THolderStatistics TMasterConnector::ComputeStatistics()
+{
+    THolderStatistics result;
+
+    FOREACH(const auto& location, ChunkStore->GetLocations()) {
+        result.AvailableSpace += location->GetAvailableSpace();
+        result.UsedSpace += location->GetUsedSpace();
+    }
+
+    if (Config.MaxChunksSpace >= 0) {
+        result.AvailableSpace = Max((i64) 0, Config.MaxChunksSpace - result.UsedSpace);
+    }
+
+    result.ChunkCount = ChunkStore->GetChunkCount();
+    result.SessionCount = SessionManager->GetSessionCount();
+
+    return result;
 }
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
@@ -111,7 +132,7 @@ void TMasterConnector::SendHeartbeat()
     YASSERT(HolderId != InvalidHolderId);
     request->SetHolderId(HolderId);
 
-    auto statistics = ChunkStore->GetStatistics();
+    auto statistics = ComputeStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     if (IncrementalHeartbeat) {
