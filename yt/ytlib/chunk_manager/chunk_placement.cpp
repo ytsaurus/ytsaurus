@@ -96,7 +96,7 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 
         PickRandom(it, jt, count, result);
 
-        it = jt + 1;
+        it = jt;
     }
 
     return result;
