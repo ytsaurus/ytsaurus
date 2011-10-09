@@ -48,23 +48,57 @@ void TChunkPlacement::AddHolderSessionHint(const THolder& holder)
     ++HintedSessionsMap[holder.Id];
 }
 
+void PickRandom(
+    yvector<const THolder*>::iterator holderBegin,
+    yvector<const THolder*>::iterator holderEnd,
+    int replicaCount,
+    yvector<THolderId>& result)
+{
+    unsigned int holdersRemaining = NStl::distance(holderBegin, holderEnd);
+    unsigned int replicasNeeded = Min(static_cast<int>(holdersRemaining), replicaCount - result.ysize());
+    for (auto holderCurrent = holderBegin; holderCurrent != holderEnd; ++holderCurrent) {
+        const auto* holder = *holderCurrent;
+        if (RandomNumber(holdersRemaining) < replicasNeeded) {
+            result.push_back(holder->Id);
+            --replicasNeeded;
+        }
+        --holdersRemaining;
+    }
+}
+
 yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 {
     // TODO: check replication fan-in in case this is a replication job
     yvector<THolderId> result;
     result.reserve(count);
-    unsigned int replicasNeeded = count;
-    unsigned int holdersRemaining = IteratorMap.size();
+
+    yvector<const THolder*> holders;
+    holders.reserve(LoadFactorMap.size());
+
     FOREACH(const auto& pair, LoadFactorMap) {
         const auto& holder = ChunkManager->GetHolder(pair.second);
-        if (IsValidUploadTarget(holder) &&
-            RandomNumber(holdersRemaining) < replicasNeeded)
-        {
-            result.push_back(holder.Id);
-            --replicasNeeded;
+        if (IsValidUploadTarget(holder)) {
+            holders.push_back(&holder);
         }
-        --holdersRemaining;
     }
+
+    Sort(holders.begin(), holders.end(),
+        [&] (const THolder* lhs, const THolder* rhs) {
+            return GetSessionCount(*lhs) < GetSessionCount(*rhs);
+        });
+
+    auto it = holders.begin();
+    while (it != holders.end()) {
+        auto jt = it;
+        while (jt != holders.end() && GetSessionCount(*(*it)) == GetSessionCount(*(*jt))) {
+            ++jt;
+        }
+
+        PickRandom(it, jt, count, result);
+
+        it = jt + 1;
+    }
+
     return result;
 }
 
@@ -230,14 +264,18 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
     return result;
 }
 
+int TChunkPlacement::GetSessionCount(const THolder& holder) const
+{
+    auto hintIt = HintedSessionsMap.find(holder.Id);
+    return hintIt == HintedSessionsMap.end() ? 0 : hintIt->Second();
+}
+
 double TChunkPlacement::GetLoadFactor(const THolder& holder) const
 {
     const auto& statistics = holder.Statistics;
-    auto hintIt = HintedSessionsMap.find(holder.Id);
-    int hintedSessionCount = hintIt == HintedSessionsMap.end() ? 0 : hintIt->Second();
     return
         GetFillCoeff(holder) +
-        ActiveSessionsPenalityCoeff * (statistics.SessionCount + hintedSessionCount);
+        ActiveSessionsPenalityCoeff * (statistics.SessionCount + GetSessionCount(holder));
 }
 
 double TChunkPlacement::GetFillCoeff(const THolder& holder) const

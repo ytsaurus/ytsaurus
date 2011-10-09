@@ -40,6 +40,7 @@ private:
     yhash_map<THolderId, int> HintedSessionsMap;
 
     bool IsFull(const THolder& holder) const;
+    int GetSessionCount(const THolder& holder) const;
     bool IsValidUploadTarget(const THolder& targetHolder) const;
     bool IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk) const;
 
