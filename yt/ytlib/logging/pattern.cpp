@@ -26,11 +26,12 @@ static Stroka FormatLevel(ELogLevel level)
 {
     switch (level)
     {
+        case ELogLevel::Trace:   return "T";
         case ELogLevel::Debug:   return "D";
         case ELogLevel::Info:    return "I";
         case ELogLevel::Warning: return "W";
         case ELogLevel::Error:   return "E";
-        case ELogLevel::Fatal:   return "F";
+        case ELogLevel::Fatal:   return "F";77
         default: YASSERT(false); return "?";
     }
 }
