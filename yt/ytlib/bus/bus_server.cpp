@@ -333,11 +333,10 @@ bool TBusServer::ProcessOutcomingResponses()
             break;
 
         auto response = session->DequeueResponse();
-        if (~response == NULL)
-            break;
-
-        ++callCount;
-        ProcessOutcomingResponse(session, response);
+        if (~response != NULL) {
+            ++callCount;
+            ProcessOutcomingResponse(session, response);
+        }
     }
     return callCount > 0;
 }
