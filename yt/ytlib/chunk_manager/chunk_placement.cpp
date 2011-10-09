@@ -234,8 +234,7 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder) const
 {
     const auto& statistics = holder.Statistics;
     auto hintIt = HintedSessionsMap.find(holder.Id);
-    YASSERT(hintIt != HintedSessionsMap.end());
-    int hintedSessionCount = hintIt->Second();
+    int hintedSessionCount = hintIt == HintedSessionsMap.end() ? 0 : hintIt->Second();
     return
         GetFillCoeff(holder) +
         ActiveSessionsPenalityCoeff * (statistics.SessionCount + hintedSessionCount);
