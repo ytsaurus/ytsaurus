@@ -24,6 +24,7 @@ void TChunkPlacement::AddHolder(const THolder& holder)
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, holder.Id));
     YVERIFY(IteratorMap.insert(MakePair(holder.Id, it)).Second());
+    YVERIFY(HintedSessionsMap.insert(MakePair(holder.Id, 0)).Second());
 }
 
 void TChunkPlacement::RemoveHolder(const THolder& holder)
@@ -33,12 +34,18 @@ void TChunkPlacement::RemoveHolder(const THolder& holder)
     auto preferenceIt = iteratorIt->Second();
     LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
+    YVERIFY(HintedSessionsMap.erase(holder.Id) == 1);
 }
 
 void TChunkPlacement::UpdateHolder(const THolder& holder)
 {
     RemoveHolder(holder);
     AddHolder(holder);
+}
+
+void TChunkPlacement::AddHolderSessionHint(const THolder& holder)
+{
+    ++HintedSessionsMap[holder.Id];
 }
 
 yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
@@ -226,9 +233,12 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
 double TChunkPlacement::GetLoadFactor(const THolder& holder) const
 {
     const auto& statistics = holder.Statistics;
+    auto hintIt = HintedSessionsMap.find(holder.Id);
+    YASSERT(hintIt != HintedSessionsMap.end());
+    int hintedSessionCount = hintIt->Second();
     return
         GetFillCoeff(holder) +
-        ActiveSessionsPenalityCoeff * statistics.SessionCount;
+        ActiveSessionsPenalityCoeff * (statistics.SessionCount + hintedSessionCount);
 }
 
 double TChunkPlacement::GetFillCoeff(const THolder& holder) const

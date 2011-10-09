@@ -18,6 +18,7 @@ public:
     void AddHolder(const THolder& holder);
     void RemoveHolder(const THolder& holder);
     void UpdateHolder(const THolder& holder);
+    void AddHolderSessionHint(const THolder& holder);
 
     double GetLoadFactor(const THolder& holder) const;
     double GetFillCoeff(const THolder& holder) const;
@@ -36,6 +37,7 @@ private:
     TChunkManager::TPtr ChunkManager;
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
+    yhash_map<THolderId, int> HintedSessionsMap;
 
     bool IsFull(const THolder& holder) const;
     bool IsValidUploadTarget(const THolder& targetHolder) const;

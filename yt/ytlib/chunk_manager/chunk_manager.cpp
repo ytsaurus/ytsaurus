@@ -890,6 +890,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = GetHolder(holderId);
         response->AddHolderAddresses(holder.Address);
+        ChunkPlacement->AddHolderSessionHint(holder);
     }
 
     auto chunkId = TChunkId::Create();

@@ -199,6 +199,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     FOREACH (auto holderId, targets) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         targetAddresses.push_back(holder.Address);
+        ChunkPlacement->AddHolderSessionHint(holder);
     }
 
     auto jobId = TJobId::Create();
@@ -241,7 +242,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
         MinChunkBalancingFillCoeffDiff;
-    THolderId targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
+    auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -251,6 +252,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     }
 
     const auto& targetHolder = ChunkManager->GetHolder(targetHolderId);
+    ChunkPlacement->AddHolderSessionHint(targetHolder);
     
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;
