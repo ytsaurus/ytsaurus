@@ -219,8 +219,8 @@ Event& TBusServer::GetEvent()
 void TBusServer::ThreadMain()
 {
     while (!Terminated) {
-        if (!ProcessIncomingNLRequests() &&
-            !ProcessIncomingNLResponses() &&
+        if (!ProcessIncomingNLRequests() &
+            !ProcessIncomingNLResponses() &
             !ProcessOutcomingResponses())
         {
             LOG_TRACE("Server is idle");
@@ -231,7 +231,7 @@ void TBusServer::ThreadMain()
 
 bool TBusServer::ProcessIncomingNLRequests()
 {
-    LOG_TRACE("Processing incoming NetLiba server requests");
+    LOG_TRACE("Processing incoming server NetLiba requests");
 
     int callCount = 0;
     while (callCount < MaxNLCallsPerIteration) {
@@ -266,7 +266,7 @@ void TBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
 
 bool TBusServer::ProcessIncomingNLResponses()
 {
-    LOG_TRACE("Processing incoming NetLiba server responses");
+    LOG_TRACE("Processing incoming server NetLiba responses");
 
     int callCount = 0;
     while (callCount < MaxNLCallsPerIteration) {

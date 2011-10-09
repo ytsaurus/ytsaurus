@@ -109,10 +109,11 @@ class TClientDispatcher
     void ThreadMain()
     {
         while (!Terminated) {
-            if (!ProcessBusRegistrations() &&
-                !ProcessBusUnregistrations() &&
-                !ProcessOutcomingRequests() &&
-                !ProcessIncomingNLRequests() &&
+            // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
+            if (!ProcessBusRegistrations() &
+                !ProcessBusUnregistrations() &
+                !ProcessOutcomingRequests() &
+                !ProcessIncomingNLRequests() &
                 !ProcessIncomingNLResponses())
             {
                 LOG_TRACE("Client is idle");
