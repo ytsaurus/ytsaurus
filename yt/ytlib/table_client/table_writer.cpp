@@ -9,14 +9,14 @@ TTableWriter::TTableWriter(
     const TConfig& config, 
     IChunkWriter::TPtr chunkWriter,
     const TSchema& schema,
-    ICodec::TPtr compressor)
+    ICodec::TPtr codec)
     : IsClosed(false)
     , Config(config)
     , CurrentBlockIndex(0)
     , CurrentRowIndex(0)
     , ChunkWriter(chunkWriter)
     , Schema(schema)
-    , Codec(compressor)
+    , Codec(codec)
 {
     // Fill protobuf chunk meta
     FOREACH(auto channel, Schema.Channels()) {

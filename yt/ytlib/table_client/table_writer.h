@@ -49,7 +49,7 @@ public:
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
         const TSchema& schema,
-        ICodec::TPtr compressor);
+        ICodec::TPtr codec);
 
     TTableWriter& Write(TColumn column, TValue value);
     void EndRow();
