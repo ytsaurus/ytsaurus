@@ -121,6 +121,7 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
         }
     }
 
+    // TODO: fixme, pass forbiddenAddresses to GetUploadTargets
     auto candidates = GetUploadTargets(count + forbiddenAddresses.size());
 
     yvector<THolderId> result;
