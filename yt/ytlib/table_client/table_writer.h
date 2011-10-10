@@ -16,14 +16,10 @@ typedef int TCodecId;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICodec
-    : public TNonCopyable
 {
-public:
-    typedef TAutoPtr<ICodec> TPtr;
+    virtual TSharedRef Encode(const TSharedRef& block) = 0;
 
-    virtual TSharedRef Compress(const TSharedRef& block) = 0;
-
-    //! Compressor id, written to chunk meta
+    //! Globally identifies codec type within YT.
     virtual TCodecId GetId() const = 0;
     virtual ~ICodec() { }
 };
@@ -32,7 +28,8 @@ public:
 
 //! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
 //! Single-threaded
-class TTableWriter 
+class TTableWriter
+    : public TNonCopyable
 {
 public:
     struct TConfig
@@ -41,7 +38,7 @@ public:
 
         TConfig()
             // ToDo: make configurable
-            : BlockSize(8 * 1024 * 1024)
+            : BlockSize(1024 * 1024)
         { }
     };
 
@@ -49,15 +46,14 @@ public:
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
         const TSchema& schema,
-        ICodec::TPtr codec);
-
-    TTableWriter& Write(TColumn column, TValue value);
-    void EndRow();
-    void Close();
+        ICodec* codec);
     ~TTableWriter();
 
+    void Write(const TColumn& column, TValue value);
+    void EndRow();
+    void Close();
+
 private:
-    // thread may block here, if chunkwriter window is overfilled
     void AddBlock(int channelIndex); 
 
 private:
@@ -68,17 +64,14 @@ private:
 
     int CurrentBlockIndex;
 
-    // ToDo: consider changing to int or completely removing
-    i64 CurrentRowIndex;
-
     TSchema Schema;
 
     //! Columns already set in current row
-    yhash_set<TColumn> SetColumns;
+    yhash_set<TColumn> UsedColumns;
 
     yvector<TChannelWriter::TPtr> ChannelWriters;
 
-    ICodec::TPtr Codec;
+    ICodec* Codec;
 
     NProto::TChunkMeta ChunkMeta;
 };

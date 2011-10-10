@@ -7,17 +7,18 @@ namespace NTableClient {
 
 TChannelWriter::TChannelWriter(const TChannel& channel)
     : Channel(channel)
-    , FixedColumns(Channel.Columns().size())
-    , ColumnSetFlags(Channel.Columns().size())
+    , FixedColumns(Channel.GetColumns().size())
+    , IsColumnUsed(Channel.GetColumns().size())
+    , CurrentRowCount(0)
 {
-    for (int index = 0; index < Channel.Columns().size(); ++index) {
-        auto& column = Channel.Columns()[index];
+    for (int index = 0; index < Channel.GetColumns().size(); ++index) {
+        auto& column = Channel.GetColumns()[index];
         ColumnIndexes[column] = index;
     }
     CurrentSize = GetEmptySize();
 }
 
-void TChannelWriter::Write(TColumn column, TValue value)
+void TChannelWriter::Write(const TColumn& column, TValue value)
 {
     if (!Channel.Contains(column)) {
         return;
@@ -31,16 +32,16 @@ void TChannelWriter::Write(TColumn column, TValue value)
         int columnIndex = it->Second();
         TBlob& columnData = FixedColumns[columnIndex];
         AppendValue(value, &columnData);
-        ColumnSetFlags[columnIndex] = true;
+        IsColumnUsed[columnIndex] = true;
     }
 }
 
 void TChannelWriter::EndRow()
 {
-    for(int columnIdx = 0; columnIdx < ColumnSetFlags.ysize(); ++columnIdx) {
-        if (ColumnSetFlags[columnIdx]) {
+    for(int columnIdx = 0; columnIdx < IsColumnUsed.ysize(); ++columnIdx) {
+        if (IsColumnUsed[columnIdx]) {
             // Clean flags
-            ColumnSetFlags[columnIdx] = false;
+            IsColumnUsed[columnIdx] = false;
         } else {
             TBlob& columnData = FixedColumns[columnIdx];
             AppendValue(TValue(), &columnData);
@@ -49,9 +50,10 @@ void TChannelWriter::EndRow()
 
     // End of the row
     AppendValue(TValue(), &RangeColumns);
+    ++ CurrentRowCount;
 }
 
-void TChannelWriter::AppendSize(ui32 value, TBlob* data) {
+void TChannelWriter::AppendSize(i32 value, TBlob* data) {
     data->insert(data->end(), 
         reinterpret_cast<ui8*>(&value), 
         reinterpret_cast<ui8*>(&value + 1));
@@ -86,7 +88,7 @@ TSharedRef TChannelWriter::FlushBlock()
     auto curPos = block.begin();
 
     FOREACH(const auto& column, FixedColumns) {
-        ui32 size = column.size();
+        i32 size = column.size();
         *reinterpret_cast<i32*>(curPos) = size;
         curPos += sizeof(size);
     }
@@ -101,8 +103,14 @@ TSharedRef TChannelWriter::FlushBlock()
     RangeColumns.clear();
 
     CurrentSize = GetEmptySize();
+    CurrentRowCount = 0;
 
     return TSharedRef(block);
+}
+
+int TChannelWriter::GetCurrentRowCount() const
+{
+    return CurrentRowCount;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

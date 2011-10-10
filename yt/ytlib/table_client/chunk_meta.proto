@@ -6,12 +6,13 @@ message TRange
 {
     required bytes Begin = 1;
     required bytes End = 2;
+    required bool IsInfinite = 3;
 }
 
 message TBlockInfo
 {
     required int32 BlockIndex = 1;
-    required int64 LastRow = 2;
+    required int32 RowCount = 2;
 }
 
 message TChannel 
@@ -24,7 +25,7 @@ message TChannel
 message TChunkMeta
 {
     repeated TChannel Channels = 1;
-    required int32 Codec = 2;
+    required int32 CodecId = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

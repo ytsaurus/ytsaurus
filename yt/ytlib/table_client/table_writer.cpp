@@ -9,34 +9,31 @@ TTableWriter::TTableWriter(
     const TConfig& config, 
     IChunkWriter::TPtr chunkWriter,
     const TSchema& schema,
-    ICodec::TPtr codec)
+    ICodec* codec)
     : IsClosed(false)
     , Config(config)
     , CurrentBlockIndex(0)
-    , CurrentRowIndex(0)
     , ChunkWriter(chunkWriter)
     , Schema(schema)
     , Codec(codec)
 {
     // Fill protobuf chunk meta
-    FOREACH(auto channel, Schema.Channels()) {
-        auto* protoChannel = ChunkMeta.AddChannels();
-        channel.FillProto(protoChannel);
+    FOREACH(auto channel, Schema.GetChannels()) {
+        *ChunkMeta.AddChannels() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 }
 
-TTableWriter& TTableWriter::Write(TColumn column, TValue value)
+void TTableWriter::Write(const TColumn& column, TValue value)
 {
-    YASSERT(!SetColumns.has(column));
-    SetColumns.insert(column);
+    YASSERT(!UsedColumns.has(column));
+    UsedColumns.insert(column);
     FOREACH(auto& channelWriter, ChannelWriters) {
         channelWriter->Write(column, value);
     }
-    return *this;
 }
 
-void TTableWriter::EndRow() 
+void TTableWriter::EndRow()
 {
     for (int channelIndex = 0; 
         channelIndex < ChannelWriters.size(); 
@@ -52,18 +49,19 @@ void TTableWriter::EndRow()
     // NB: here you can extract sample key and other 
     // meta required for master
 
-    SetColumns.clear();
-    ++CurrentRowIndex;
+    UsedColumns.clear();
 }
 
+// thread may block here, if chunkwriter window is overfilled
 void TTableWriter::AddBlock(int channelIndex)
 {
+    auto channel = ChannelWriters[channelIndex];
+
     NProto::TBlockInfo* blockInfo = ChunkMeta.MutableChannels(channelIndex)->AddBlocks();
     blockInfo->SetBlockIndex(CurrentBlockIndex);
-    blockInfo->SetLastRow(CurrentRowIndex);
+    blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto channel = ChannelWriters[channelIndex];
-    auto data = Codec->Compress(channel->FlushBlock());
+    auto data = Codec->Encode(channel->FlushBlock());
     ChunkWriter->WriteBlock(data);
     ++CurrentBlockIndex;
 }
@@ -74,7 +72,7 @@ void TTableWriter::Close()
         return;
     }
 
-    YASSERT(SetColumns.empty());
+    YASSERT(UsedColumns.empty());
 
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++ channelIndex) {
         auto channel = ChannelWriters[channelIndex];
@@ -83,7 +81,7 @@ void TTableWriter::Close()
         }
     }
 
-    ChunkMeta.SetCodec(Codec->GetId());
+    ChunkMeta.SetCodecId(Codec->GetId());
 
     TBlob metaBlock(ChunkMeta.ByteSize());
     YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), metaBlock.size()));

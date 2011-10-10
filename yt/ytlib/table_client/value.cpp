@@ -9,8 +9,8 @@ TValue::TValue(TRef data)
     : Data(data)
 { }
 
-TValue::TValue(Stroka data)
-    : Data(data.begin(), data.Size())
+TValue::TValue(const Stroka& data)
+    : Data(const_cast<char*>(data.begin()), data.Size())
 { }
 
 TValue::TValue()
@@ -59,24 +59,26 @@ TBlob TValue::ToBlob() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareValue(const TValue& lhs, const TValue& rhs)
+int CompareValue(TValue lhs, TValue rhs)
 {
-    if (lhs.IsNull()) {
-        if (rhs.IsNull()) {
-            return 0;
-        } else {
-            return 1;
-        }
-    } else if (rhs.IsNull()) {
+    if (lhs.IsNull() && rhs.IsNull()) {
+        return 0;
+    }
+
+    if (rhs.IsNull()) {
         return -1;
+    }
+
+    if (lhs.IsNull()) {
+        return 1;
     }
 
     size_t lhsSize = lhs.GetSize();
     size_t rhsSize = rhs.GetSize();
-    size_t min = Min(lhsSize, rhsSize);
+    size_t minSize = Min(lhsSize, rhsSize);
 
-    if (min > 0) {
-        int result = memcmp(lhs.GetData(), rhs.GetData(), min);
+    if (minSize > 0) {
+        int result = memcmp(lhs.GetData(), rhs.GetData(), minSize);
         if (result != 0)
             return result;
     }

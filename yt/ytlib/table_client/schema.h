@@ -12,26 +12,27 @@ typedef Stroka TColumn;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Range of columns used as a part of channel description.
 class TRange
 {
 public:
-    TRange(TColumn begin, TColumn end);
+    TRange(const TColumn& begin, const TColumn& end);
 
-    //! Creates open range
-    TRange(TColumn begin);
+    //! Creates infinite range.
+    TRange(const TColumn& begin);
 
     TColumn Begin() const;
     TColumn End() const;
 
-    void FillProto(NProto::TRange* protoRange) const;
+    NProto::TRange ToProto() const;
 
-    bool Contains(TColumn value) const;
+    bool Contains(const TColumn& value) const;
     bool Overlaps(const TRange& range) const;
 
-    //! True if range is open
-    bool IsOpen() const;
+    bool IsInfinite() const;
 
 private:
+    bool IsInfinite_;
     TColumn Begin_;
     TColumn End_;
 };
@@ -43,23 +44,22 @@ private:
 class TChannel
 {
 public:
-    TChannel& AddColumn(TColumn column);
-    TChannel& AddRange(const TRange& range);
-    TChannel& AddRange(TColumn begin, TColumn end);
+    void AddColumn(const TColumn& column);
+    void AddRange(const TRange& range);
+    void AddRange(const TColumn& begin, const TColumn& end);
 
-    bool Contains(TColumn column) const;
-    bool ContainsInRanges(TColumn column) const;
+    bool Contains(const TColumn& column) const;
+    bool ContainsInRanges(const TColumn& column) const;
 
-    void FillProto(NProto::TChannel* protoChannel) const;
+    NProto::TChannel ToProto() const;
 
-    const yvector<TColumn>& Columns();
+    const yvector<TColumn>& GetColumns();
 
-    TChannel& operator-= (const TChannel& channel);
-    const TChannel operator- (const TChannel& channel);
+    friend void operator-= (TChannel& lhs, const TChannel& rhs);
 
 private:
-    yvector<TColumn> Columns_;
-    yvector<TRange> Ranges_;
+    yvector<TColumn> Columns;
+    yvector<TRange> Ranges;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,11 +68,11 @@ class TSchema
 {
 public:
     TSchema();
-    TSchema& AddChannel(const TChannel& channel);
-    const yvector<TChannel>& Channels() const;
+    void AddChannel(const TChannel& channel);
+    const yvector<TChannel>& GetChannels() const;
 
 private:
-    yvector<TChannel> Channels_;
+    yvector<TChannel> Channels;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

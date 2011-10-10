@@ -28,15 +28,17 @@ TColumn NextColumn(TColumn column)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange::TRange(TColumn begin, TColumn end)
-    : Begin_(begin)
+TRange::TRange(const TColumn& begin, const TColumn& end)
+    : IsInfinite_(false)
+    , Begin_(begin)
     , End_(end)
 {
     YASSERT(begin < end);
 }
 
-TRange::TRange(TColumn begin)
-    : Begin_(begin)
+TRange::TRange(const TColumn& begin)
+    : IsInfinite_(false)
+    , Begin_(begin)
     , End_("")
 { }
 
@@ -50,18 +52,20 @@ TColumn TRange::End() const
     return End_;
 }
 
-void TRange::FillProto(NProto::TRange* protoRange) const
+NProto::TRange TRange::ToProto() const
 {
-    protoRange->SetBegin(Begin_);
-    protoRange->SetEnd(Begin_);
+    NProto::TRange protoRange;
+    protoRange.SetBegin(Begin_);
+    protoRange.SetEnd(End_);
+    return protoRange;
 }
 
-bool TRange::Contains(TColumn value) const
+bool TRange::Contains(const TColumn& value) const
 {
     if (value < Begin_)
         return false;
 
-    if (!IsOpen() && value >= End_)
+    if (!IsInfinite() && value >= End_)
         return false;
 
     return true;
@@ -69,9 +73,9 @@ bool TRange::Contains(TColumn value) const
 
 bool TRange::Overlaps(const TRange& range) const
 {
-    if ((Begin_ <= range.Begin_ && (IsOpen() || range.Begin_ < End_)) || 
-        (Begin_ < range.End_ && (IsOpen() || range.End_ <= End_)) ||
-        (range.Begin_ <= Begin_ && (range.IsOpen() || Begin_ < range.End_)))
+    if ((Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ < End_)) || 
+        (Begin_ < range.End_ && (IsInfinite() || range.End_ <= End_)) ||
+        (range.Begin_ <= Begin_ && (range.IsInfinite() || Begin_ < range.End_)))
     {
         return true;
     } else {
@@ -79,102 +83,50 @@ bool TRange::Overlaps(const TRange& range) const
     }
 }
 
-bool TRange::IsOpen() const
+bool TRange::IsInfinite() const
 {
-    return End_.Empty();
+    return IsInfinite_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannel& TChannel::AddColumn(TColumn column)
+void TChannel::AddColumn(const TColumn& column)
 {
-    FOREACH(auto& oldColumn, Columns_){
+    FOREACH(auto& oldColumn, Columns){
         if (oldColumn == column) {
-            return *this;
+            return;
         }
     }
 
-    Columns_.push_back(column);
-    return *this;
+    Columns.push_back(column);
 }
 
-TChannel& TChannel::AddRange(const TRange& range)
+void TChannel::AddRange(const TRange& range)
 {
-    Ranges_.push_back(range);
-    return *this;
+    Ranges.push_back(range);
 }
 
-TChannel& TChannel::AddRange(TColumn begin, TColumn end)
+void TChannel::AddRange(const TColumn& begin, const TColumn& end)
 {
-    Ranges_.push_back(TRange(begin, end));
-    return *this;
+    Ranges.push_back(TRange(begin, end));
 }
 
-void TChannel::FillProto(NProto::TChannel* protoChannel) const
+NProto::TChannel TChannel::ToProto() const
 {
-    FOREACH(auto column, Columns_) {
-        protoChannel->AddColumns(~column);
+    NProto::TChannel protoChannel;
+    FOREACH(auto column, Columns) {
+        protoChannel.AddColumns(~column);
     }
 
-    FOREACH(const auto& range, Ranges_) {
-        auto* protoRange = protoChannel->AddRanges();
-        range.FillProto(protoRange);
+    FOREACH(const auto& range, Ranges) {
+        *protoChannel.AddRanges() = range.ToProto();
     }
+    return protoChannel;
 }
 
-TChannel& TChannel::operator-= (const TChannel& rhsChannel)
+bool TChannel::Contains(const TColumn& column) const
 {
-    yvector<TColumn> newColumns;
-    FOREACH(auto column, Columns_) {
-        if (!rhsChannel.Contains(column)) {
-            newColumns.push_back(column);
-        }
-    }
-    Columns_.swap(newColumns);
-
-    yvector<TRange> rhsRanges(rhsChannel.Ranges_);
-    FOREACH(auto column, rhsChannel.Columns_) {
-        // add single columns as ranges
-        rhsRanges.push_back(TRange(column, NextColumn(column)));
-    }
-
-    yvector<TRange> newRanges;
-    FOREACH(auto& rhs, rhsRanges) {
-        FOREACH(auto& lhs, Ranges_) {
-            if (!lhs.Overlaps(rhs)) {
-                newRanges.push_back(lhs);
-                continue;
-            } 
-
-            if (lhs.Begin() < rhs.Begin()) {
-                newRanges.push_back(TRange(lhs.Begin(), rhs.Begin()));
-            }
-
-            if (rhs.IsOpen()) {
-                continue;
-            }
-
-            if (lhs.IsOpen()) {
-                newRanges.push_back(TRange(rhs.End()));
-            } else if (lhs.End() > rhs.End()) {
-                newRanges.push_back(TRange(rhs.End(), lhs.End()));
-            }
-        }
-        Ranges_.swap(newRanges);
-        newRanges.clear();
-    }
-
-    return *this;
-}
-
-const TChannel TChannel::operator- (const TChannel& channel)
-{
-    return (TChannel(*this) -= channel);
-}
-
-bool TChannel::Contains(TColumn column) const
-{
-    FOREACH(auto& oldColumn, Columns_) {
+    FOREACH(auto& oldColumn, Columns) {
         if (oldColumn == column) {
             return true;
         }
@@ -182,9 +134,9 @@ bool TChannel::Contains(TColumn column) const
     return ContainsInRanges(column);
 }
 
-bool TChannel::ContainsInRanges(TColumn column) const
+bool TChannel::ContainsInRanges(const TColumn& column) const
 {
-    FOREACH(auto& range, Ranges_) {
+    FOREACH(auto& range, Ranges) {
         if (range.Contains(column)) {
             return true;
         }
@@ -192,30 +144,78 @@ bool TChannel::ContainsInRanges(TColumn column) const
     return false;
 }
 
-const yvector<TColumn>& TChannel::Columns()
+const yvector<TColumn>& TChannel::GetColumns()
 {
-    return Columns_;
+    return Columns;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void operator-= (TChannel& lhs, const TChannel& rhs)
+{
+    yvector<TColumn> newColumns;
+    FOREACH(auto column, lhs.Columns) {
+        if (!rhs.Contains(column)) {
+            newColumns.push_back(column);
+        }
+    }
+    lhs.Columns.swap(newColumns);
+
+    yvector<TRange> rhsRanges(rhs.Ranges);
+    FOREACH(auto column, rhs.Columns) {
+        // add single columns as ranges
+        rhsRanges.push_back(TRange(column, NextColumn(column)));
+    }
+
+    yvector<TRange> newRanges;
+    FOREACH(auto& rhsRange, rhsRanges) {
+        FOREACH(auto& lhsRange, lhs.Ranges) {
+            if (!lhsRange.Overlaps(rhsRange)) {
+                newRanges.push_back(lhsRange);
+                continue;
+            } 
+
+            if (lhsRange.Begin() < rhsRange.Begin()) {
+                newRanges.push_back(TRange(lhsRange.Begin(), rhsRange.Begin()));
+            }
+
+            if (rhsRange.IsInfinite()) {
+                continue;
+            }
+
+            if (lhsRange.IsInfinite()) {
+                newRanges.push_back(TRange(rhsRange.End()));
+            } else if (lhsRange.End() > rhsRange.End()) {
+                newRanges.push_back(TRange(rhsRange.End(), lhsRange.End()));
+            }
+        }
+        lhs.Ranges.swap(newRanges);
+        newRanges.clear();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()
+{
+    TChannel trashChannel;
+    trashChannel.AddRange(TRange(""));
+
     // NB: this "trash" channel will be present in any chunk,
     // cause this is how table writer works now. But if it's empty,
     // its blocks will be successfully compressed
-    : Channels_(1, TChannel().AddRange("", ""))
-{ }
-
-TSchema& TSchema::AddChannel(const TChannel& channel)
-{
-    Channels_.front() -= channel; 
-    Channels_.push_back(channel);
-    return *this;
+    Channels.push_back(trashChannel);
 }
 
-const yvector<TChannel>& TSchema::Channels() const
+void TSchema::AddChannel(const TChannel& channel)
 {
-    return Channels_;
+    Channels.front() -= channel; 
+    Channels.push_back(channel);
+}
+
+const yvector<TChannel>& TSchema::GetChannels() const
+{
+    return Channels;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

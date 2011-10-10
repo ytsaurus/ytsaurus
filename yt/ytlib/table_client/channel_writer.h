@@ -16,15 +16,19 @@ public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
     TChannelWriter(const TChannel& channel);
-    void Write(TColumn column, TValue value);
+    void Write(const TColumn& column, TValue value);
     void EndRow();
+
     size_t GetCurrentSize() const;
+    int GetCurrentRowCount() const;
     bool HasUnflushedData() const;
+
     TSharedRef FlushBlock();
 
 private:
+    //! Size reserved for column offsets
     size_t GetEmptySize() const;
-    void AppendSize(ui32 size, TBlob* data);
+    void AppendSize(i32 size, TBlob* data);
     void AppendValue(TValue value, TBlob* data);
 
     TChannel Channel;
@@ -39,10 +43,13 @@ private:
     yhash_map<TColumn, int> ColumnIndexes;
 
     //! Is fixed column with corresponding index already set in the current row.
-    yvector<bool> ColumnSetFlags;
+    yvector<bool> IsColumnUsed;
 
     //! Overall size of current buffers.
     size_t CurrentSize;
+
+    //! Number of rows in the current unflushed buffer.
+    int CurrentRowCount;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
