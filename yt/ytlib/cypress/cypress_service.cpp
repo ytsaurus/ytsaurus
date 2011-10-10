@@ -6,6 +6,7 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,13 +92,12 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
     try {
         CommitChange(
             this, context, State, message,
-            &TCypressState::SetYPath);
+            &TCypressState::SetYPath,
+            ECommitMode::MayFail);
     } catch (...) {
         // TODO:
         context->Reply(EErrorCode::ShitHappens);
     }
-
-    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
@@ -122,13 +122,12 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
     try {
         CommitChange(
             this, context, State, message,
-            &TCypressState::RemoveYPath);
+            &TCypressState::RemoveYPath,
+            ECommitMode::MayFail);
     } catch (...) {
         // TODO:
         context->Reply(EErrorCode::ShitHappens);
     }
-
-    context->Reply();
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)

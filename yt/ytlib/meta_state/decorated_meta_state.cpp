@@ -133,12 +133,14 @@ TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
 }
 
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
+    const TMetaVersion& version,
     const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(version.SegmentId == Version.SegmentId);
 
     auto changeLog = GetCurrentChangeLog();
-    return changeLog->Append(Version.RecordCount, changeData);
+    return changeLog->Append(version.RecordCount, changeData);
 }
 
 void TDecoratedMetaState::AdvanceSegment()

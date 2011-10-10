@@ -84,7 +84,9 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncChangeLog::TAppendResult::TPtr LogChange(const TSharedRef& changeData);
+    TAsyncChangeLog::TAppendResult::TPtr LogChange(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
     
     //! Updates the version so as to switch to a new segment.
     /*!

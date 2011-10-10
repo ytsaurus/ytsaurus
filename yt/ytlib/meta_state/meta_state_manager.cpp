@@ -91,7 +91,9 @@ void TMetaStateManager::Restart()
 }
 
 TMetaStateManager::TCommitResult::TPtr
-TMetaStateManager::CommitChangeSync(const TSharedRef& changeData)
+TMetaStateManager::CommitChangeSync(
+    const TSharedRef& changeData,
+    ECommitMode mode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -100,13 +102,15 @@ TMetaStateManager::CommitChangeSync(const TSharedRef& changeData)
             &IMetaState::ApplyChange,
             MetaState->GetState(),
             changeData),
-        changeData);
+        changeData,
+        mode);
 }
 
 TMetaStateManager::TCommitResult::TPtr
 TMetaStateManager::CommitChangeSync(
     IAction::TPtr changeAction,
-    const TSharedRef& changeData)
+    const TSharedRef& changeData,
+    ECommitMode mode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -120,7 +124,7 @@ TMetaStateManager::CommitChangeSync(
 
     return
         LeaderCommitter
-        ->CommitLeader(changeAction, changeData)
+        ->CommitLeader(changeAction, changeData, mode)
         ->Apply(FromMethod(&TMetaStateManager::OnChangeCommit, TPtr(this)));
 }
 
@@ -149,27 +153,28 @@ TMetaStateManager::CommitChangeAsync(
             &TMetaStateManager::CommitChangeSync,
             TPtr(this),
             changeAction,
-            changeData)
+            changeData,
+            ECommitMode::NeverFails)
         ->AsyncVia(~StateInvoker)
         ->Do();
 }
 
-TMetaStateManager::ECommitResult TMetaStateManager::OnChangeCommit(
+ECommitResult TMetaStateManager::OnChangeCommit(
     TLeaderCommitter::EResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     switch (result) {
         case TLeaderCommitter::EResult::Committed:
-            return TMetaStateManager::ECommitResult::Committed;
+            return ECommitResult::Committed;
 
         case TLeaderCommitter::EResult::MaybeCommitted:
             Restart();
-            return TMetaStateManager::ECommitResult::MaybeCommitted;
+            return ECommitResult::MaybeCommitted;
 
         default:
             YASSERT(false);
-            return TMetaStateManager::ECommitResult::NotCommitted;
+            return ECommitResult::NotCommitted;
     }
 }
 

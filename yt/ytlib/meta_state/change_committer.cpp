@@ -40,13 +40,13 @@ TCommitterBase::EResult TCommitterBase::OnAppend(TVoid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLeaderCommitter::TSession
+class TLeaderCommitter::TBatch
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TSession> TPtr;
+    typedef TIntrusivePtr<TBatch> TPtr;
 
-    TSession(
+    TBatch(
         TLeaderCommitter::TPtr committer,
         const TMetaVersion& version)
         : Committer(committer)
@@ -70,7 +70,6 @@ public:
         return Result;
     }
 
-    // Service invoker
     void SendChanges()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -99,14 +98,14 @@ public:
 
             Awaiter->Await(
                 request->Invoke(Committer->Config.RpcTimeout),
-                FromMethod(&TSession::OnCommitted, TPtr(this), id));
+                FromMethod(&TBatch::OnCommitted, TPtr(this), id));
 
             LOG_DEBUG("Change of %s is sent to peer %d",
                 ~Version.ToString(),
                 id);
         }
 
-        Awaiter->Complete(FromMethod(&TSession::OnCompleted, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
     }
 
     int GetChangeCount() const
@@ -225,15 +224,16 @@ void TLeaderCommitter::Flush()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SessionSpinLock);
-    if (~CurrentSession != NULL) {
-        FlushCurrentSession();
+    TGuard<TSpinLock> guard(BatchSpinLock);
+    if (~CurrentBatch != NULL) {
+        FlushCurrentBatch();
     }
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     IAction::TPtr changeAction,
-    const TSharedRef& changeData)
+    const TSharedRef& changeData,
+    ECommitMode mode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(~changeAction != NULL);
@@ -242,64 +242,107 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     LOG_DEBUG("Starting commit of change %s", ~version.ToString());
 
     TResult::TPtr result;
-    {
-        TGuard<TSpinLock> guard(SessionSpinLock);
-        auto session = GetOrCreateCurrentSession();
-        result = session->AddChange(changeData);
-        if (session->GetChangeCount() >= Config.MaxBatchSize) {
-            FlushCurrentSession();
+    switch (mode) {
+        case ECommitMode::NeverFails: {
+            result = BatchChange(version, changeData);
+            // TODO: handle result
+            MetaState->LogChange(version, changeData);
+            try {
+                MetaState->ApplyChange(changeAction);
+            } catch (...) {
+                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s, What: %s)",
+                    ~mode.ToString(),
+                    ~MetaState->GetVersion().ToString(),
+                    ~CurrentExceptionMessage());
+            }
+            OnApplyChange_.Fire();
+            break;
         }
-    }
 
-    DoCommitLeader(changeAction, changeData);
+        case ECommitMode::MayFail: {
+            try {
+                MetaState->ApplyChange(changeAction);
+            } catch (...) {
+                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s, What: %s)",
+                    ~mode.ToString(),
+                    ~MetaState->GetVersion().ToString(),
+                    ~CurrentExceptionMessage());
+                throw;
+            }
+            result = BatchChange(version, changeData);
+            // TODO: handle result
+            MetaState->LogChange(version, changeData);
+            OnApplyChange_.Fire();
+            break;
+        }
+
+        default:
+            YASSERT(false);
+            break;
+
+    }
     LOG_DEBUG("Change %s is committed locally", ~version.ToString());
 
     return result;
 }
 
-void TLeaderCommitter::FlushCurrentSession()
-{
-    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
-    YASSERT(~CurrentSession != NULL);
 
-    CurrentSession->SendChanges();
-    TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-    CurrentSession.Drop();
-    TimeoutCookie = TDelayedInvoker::TCookie();
+TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
+    const TMetaVersion& version,
+    const TSharedRef& changeData)
+{
+    TGuard<TSpinLock> guard(BatchSpinLock);
+    auto batch = GetOrCreateBatch(version);
+    auto result = batch->AddChange(changeData);
+    if (batch->GetChangeCount() >= Config.MaxBatchSize) {
+        FlushCurrentBatch();
+    }
+    return result;
 }
 
-TLeaderCommitter::TSession::TPtr TLeaderCommitter::GetOrCreateCurrentSession()
+void TLeaderCommitter::FlushCurrentBatch()
+{
+    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
+    YASSERT(~CurrentBatch != NULL);
+
+    CurrentBatch->SendChanges();
+    TDelayedInvoker::Get()->Cancel(BatchTimeoutCookie);
+    CurrentBatch.Drop();
+    BatchTimeoutCookie = TDelayedInvoker::TCookie();
+}
+
+TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
+    const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    VERIFY_SPINLOCK_AFFINITY(SessionSpinLock);
+    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
 
-    if (~CurrentSession == NULL) {
-        YASSERT(~TimeoutCookie == NULL);
-        auto version = MetaState->GetVersion();
-        CurrentSession = New<TSession>(TPtr(this), version);
-        TimeoutCookie = TDelayedInvoker::Get()->Submit(
+    if (~CurrentBatch == NULL) {
+        YASSERT(~BatchTimeoutCookie == NULL);
+        CurrentBatch = New<TBatch>(TPtr(this), version);
+        BatchTimeoutCookie = TDelayedInvoker::Get()->Submit(
             FromMethod(
                 &TLeaderCommitter::DelayedFlush,
                 TPtr(this),
-                CurrentSession)
+                CurrentBatch)
             ->Via(~CancelableControlInvoker),
             Config.MaxBatchDelay);
     }
 
-    return CurrentSession;
+    return CurrentBatch;
 }
 
-void TLeaderCommitter::DelayedFlush(TSession::TPtr session)
+void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TGuard<TSpinLock> guard(SessionSpinLock);
-    if (session != CurrentSession)
+    TGuard<TSpinLock> guard(BatchSpinLock);
+    if (batch != CurrentBatch)
         return;
 
     LOG_DEBUG("Flushing batched changes");
 
-    FlushCurrentSession();
+    FlushCurrentBatch();
 }
 
 TSignal& TLeaderCommitter::OnApplyChange()
@@ -307,23 +350,6 @@ TSignal& TLeaderCommitter::OnApplyChange()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return OnApplyChange_;
-}
-
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::DoCommitLeader(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto appendResult = MetaState
-        ->LogChange(changeData)
-        ->Apply(FromMethod(&TLeaderCommitter::OnAppend));
-
-    MetaState->ApplyChange(changeAction);
-
-    OnApplyChange_.Fire();
-
-    return appendResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,7 +390,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
     }
 
     auto appendResult = MetaState
-        ->LogChange(changeData)
+        ->LogChange(version, changeData)
         ->Apply(FromMethod(&TFollowerCommitter::OnAppend));
 
     MetaState->ApplyChange(changeData);

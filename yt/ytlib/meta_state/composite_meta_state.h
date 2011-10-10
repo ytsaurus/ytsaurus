@@ -26,7 +26,8 @@ public:
     typename TFuture<TResult>::TPtr CommitChange(
         const TMessage& message,
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-        IAction::TPtr errorHandler = NULL);
+        IAction::TPtr errorHandler = NULL,
+        ECommitMode mode = ECommitMode::NeverFails);
 
 protected:
     template<class TMessage, class TResult>

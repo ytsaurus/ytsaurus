@@ -102,7 +102,8 @@ public:
      */
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
-        const TSharedRef& changeData);
+        const TSharedRef& changeData,
+        ECommitMode mode);
 
     //! Force to send all pending changes.
     /*!
@@ -117,16 +118,15 @@ public:
     TSignal& OnApplyChange();
 
 private:
-    class TSession;
+    class TBatch;
     typedef TMetaStateManagerProxy TProxy;
 
-    TResult::TPtr DoCommitLeader(
-        IAction::TPtr changeAction,
+    void DelayedFlush(TIntrusivePtr<TBatch> batch);
+    TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
+    TResult::TPtr BatchChange(
+        const TMetaVersion& version,
         const TSharedRef& changeData);
-
-    void DelayedFlush(TIntrusivePtr<TSession> session);
-    TIntrusivePtr<TSession> GetOrCreateCurrentSession();
-    void FlushCurrentSession();
+    void FlushCurrentBatch();
 
     TConfig Config;
     TCellManager::TPtr CellManager;
@@ -136,10 +136,10 @@ private:
 
     TSignal OnApplyChange_;
 
-    //! Protects #CurrentSession and TimeoutCookie.
-    TSpinLock SessionSpinLock;
-    TIntrusivePtr<TSession> CurrentSession;
-    TDelayedInvoker::TCookie TimeoutCookie;
+    //! Protects #CurrentBatch and #TimeoutCookie.
+    TSpinLock BatchSpinLock;
+    TIntrusivePtr<TBatch> CurrentBatch;
+    TDelayedInvoker::TCookie BatchTimeoutCookie;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

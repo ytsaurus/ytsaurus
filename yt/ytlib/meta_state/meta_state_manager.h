@@ -33,13 +33,6 @@ public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
     typedef TMetaStateManagerConfig TConfig;
 
-    DECLARE_ENUM(ECommitResult,
-        (Committed)
-        (MaybeCommitted)
-        (NotCommitted)
-        (InvalidState)
-    );
-
     typedef TFuture<ECommitResult> TCommitResult;
 
     TMetaStateManager(
@@ -66,14 +59,16 @@ public:
      * \note Thread affinity: StateThread
      */
     TCommitResult::TPtr CommitChangeSync(
-        const TSharedRef& changeData);
+        const TSharedRef& changeData,
+        ECommitMode mode = ECommitMode::NeverFails);
 
     /*!
      * \note Thread affinity: StateThread
      */
     TCommitResult::TPtr CommitChangeSync(
         IAction::TPtr changeAction,
-        const TSharedRef& changeData);
+        const TSharedRef& changeData,
+        ECommitMode mode = ECommitMode::NeverFails);
 
     /*!
      * \note Thread affinity: any

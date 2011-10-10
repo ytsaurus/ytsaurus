@@ -502,10 +502,12 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     
     FOREACH(const auto& change, *changes) {
         switch (change.Type) {
-            case TPostponedChange::EType::Change:
-                MetaState->LogChange(change.ChangeData);
+            case TPostponedChange::EType::Change: {
+                auto version = MetaState->GetVersion();
+                MetaState->LogChange(version, change.ChangeData);
                 MetaState->ApplyChange(change.ChangeData);
                 break;
+            }
 
             case TPostponedChange::EType::SegmentAdvance:
                 MetaState->RotateChangeLog();

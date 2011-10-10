@@ -20,10 +20,10 @@ protected:
         IInvoker::TPtr serviceInvoker,
         Stroka serviceName,
         Stroka loggingCategory)
-    : NRpc::TServiceBase(
-        serviceInvoker,
-        serviceName,
-        loggingCategory)
+        : NRpc::TServiceBase(
+            serviceInvoker,
+            serviceName,
+            loggingCategory)
     {
         YASSERT(~serviceInvoker != NULL);
     }
@@ -36,13 +36,16 @@ protected:
     static typename TFuture<TResult>::TPtr CommitChange(
         typename TState::TPtr state,
         const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&))
+        TResult (TState::* changeMethod)(const TMessage&),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
         YASSERT(~state != NULL);
 
         return state->CommitChange(
             message,
-            FromMethod(changeMethod, state));
+            FromMethod(changeMethod, state),
+            NULL,
+            mode);
     }
 
     template <
@@ -58,7 +61,8 @@ protected:
         typename TState::TPtr state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&),
-        void (TThis::* handlerMethod)(TResult result, TContext context))
+        void (TThis::* handlerMethod)(TResult result, TContext context),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
         YASSERT(~state != NULL);
 
@@ -68,7 +72,8 @@ protected:
             ->CommitChange(
                 message,
                 FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext))
+                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext),
+                mode)
             ->Subscribe(
                 FromMethod(handlerMethod, intrusiveThis, context));
     }
@@ -85,7 +90,8 @@ protected:
         TContext context,
         typename TState::TPtr state,
         const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&))
+        TResult (TState::* changeMethod)(const TMessage&),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
         YASSERT(~state != NULL);
 
@@ -95,7 +101,8 @@ protected:
             ->CommitChange(
                 message,
                 FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext))
+                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext),
+                mode)
             ->Subscribe(
                 FromMethod(&TMetaStateServiceBase::OnCommitSuccess<TResult>, intrusiveThis, untypedContext));
     }

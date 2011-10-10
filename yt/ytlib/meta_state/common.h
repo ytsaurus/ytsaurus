@@ -53,6 +53,18 @@ DECLARE_ENUM(EPeerState,
     (Leading)
 );
 
+DECLARE_ENUM(ECommitResult,
+    (Committed)
+    (MaybeCommitted)
+    (NotCommitted)
+    (InvalidState)
+);
+
+DECLARE_ENUM(ECommitMode,
+    (NeverFails)
+    (MayFail)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 // TODO: refactor
 

@@ -37,16 +37,19 @@ template<class TMessage, class TResult>
 typename TFuture<TResult>::TPtr TMetaStatePart::CommitChange(
     const TMessage& message,
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-    IAction::TPtr errorHandler)
+    IAction::TPtr errorHandler,
+    ECommitMode mode)
 {
     YASSERT(~changeMethod != NULL);
+
     return
         New< TUpdate<TMessage, TResult> >(
             MetaStateManager,
             GetPartName(),
             message,
             changeMethod,
-            errorHandler)
+            errorHandler,
+            mode)
         ->Run();
 }
 
@@ -69,6 +72,7 @@ void TMetaStatePart::MethodThunk(
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
 {
     YASSERT(~changeMethod != NULL);
+
     TMessage message;
     YVERIFY(message.ParseFromArray(changeData.Begin(), changeData.Size()));
 
@@ -87,12 +91,14 @@ public:
         Stroka partName,
         const TMessage& message,
         typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod,
-        IAction::TPtr errorHandler)
+        IAction::TPtr errorHandler,
+        ECommitMode mode)
         : StateManager(stateManager)
         , PartName(partName)
         , Message(message)
         , ChangeMethod(changeMethod)
         , ErrorHandler(errorHandler)
+        , Mode(mode)
         , AsyncResult(New< TFuture<TResult> >())
     {
         YASSERT(~stateManager != NULL);
@@ -101,8 +107,7 @@ public:
 
     typename TFuture<TResult>::TPtr Run()
     {
-        // TODO: change ns
-        NMetaState::NProto::TMsgChangeHeader header;
+        NProto::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
         auto changeData = SerializeChange(header, Message);
@@ -110,7 +115,8 @@ public:
         StateManager
             ->CommitChangeSync(
                 FromMethod(&TUpdate::InvokeChangeMethod, TPtr(this)),
-                TSharedRef(changeData))
+                TSharedRef(changeData),
+                Mode)
             ->Subscribe(
                 FromMethod(&TUpdate::OnCommitted, TPtr(this)));
 
@@ -123,9 +129,9 @@ private:
         Result = ChangeMethod->Do(Message);
     }
 
-    void OnCommitted(TMetaStateManager::ECommitResult commitResult)
+    void OnCommitted(ECommitResult commitResult)
     {
-        if (commitResult == TMetaStateManager::ECommitResult::Committed) {
+        if (commitResult == ECommitResult::Committed) {
             AsyncResult->Set(Result);
         } else if (~ErrorHandler != NULL) {
             ErrorHandler->Do();
@@ -138,6 +144,7 @@ private:
     Stroka MethodName;
     typename IParamFunc<const TMessage&, TResult>::TPtr ChangeMethod;
     IAction::TPtr ErrorHandler;
+    ECommitMode Mode;
     typename TFuture<TResult>::TPtr AsyncResult;
     TResult Result;
 
