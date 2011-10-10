@@ -219,6 +219,7 @@ Event& TBusServer::GetEvent()
 void TBusServer::ThreadMain()
 {
     while (!Terminated) {
+        // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
         if (!ProcessIncomingNLRequests() &
             !ProcessIncomingNLResponses() &
             !ProcessOutcomingResponses())
