@@ -24,6 +24,7 @@ public:
     double GetFillCoeff(const THolder& holder) const;
 
     yvector<THolderId> GetUploadTargets(int count);
+    yvector<THolderId> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
     yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);

@@ -68,6 +68,11 @@ void PickRandom(
 
 yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 {
+    return GetUploadTargets(count, yhash_set<Stroka>());
+}
+
+yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses)
+{
     // TODO: check replication fan-in in case this is a replication job
     yvector<THolderId> result;
     result.reserve(count);
@@ -77,7 +82,8 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 
     FOREACH(const auto& pair, LoadFactorMap) {
         const auto& holder = ChunkManager->GetHolder(pair.second);
-        if (IsValidUploadTarget(holder)) {
+        if (IsValidUploadTarget(holder) &&
+            forbiddenAddresses.find(holder.Address) == forbiddenAddresses.end()) {
             holders.push_back(&holder);
         }
     }
@@ -121,21 +127,7 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
         }
     }
 
-    // TODO: fixme, pass forbiddenAddresses to GetUploadTargets
-    auto candidates = GetUploadTargets(count + forbiddenAddresses.size());
-
-    yvector<THolderId> result;
-    FOREACH(auto holderId, candidates) {
-        if (result.ysize() >= count)
-            break;
-
-        const auto& holder = ChunkManager->GetHolder(holderId);
-        if (forbiddenAddresses.find(holder.Address) == forbiddenAddresses.end()) {
-            result.push_back(holder.Id);
-        }
-    }
-
-    return result;
+    return GetUploadTargets(count, forbiddenAddresses);
 }
 
 THolderId TChunkPlacement::GetReplicationSource(const TChunk& chunk)
