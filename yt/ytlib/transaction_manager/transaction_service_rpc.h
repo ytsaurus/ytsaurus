@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "transaction_manager_rpc.pb.h"
+#include "transaction_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
