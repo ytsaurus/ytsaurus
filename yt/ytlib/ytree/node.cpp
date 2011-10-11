@@ -50,7 +50,7 @@ IYPathService::TSetResult TNodeBase::Set(
     TYsonProducer::TPtr producer)
 {
     if (!path.empty()) {
-        return Navigate(path).As<TSetResult>();
+        return Navigate(path);
     }
 
     return SetSelf(producer);
@@ -60,7 +60,7 @@ IYPathService::TRemoveResult TNodeBase::Remove(
     TYPath path)
 {
     if (!path.empty()) {
-        return Navigate(path).As<TRemoveResult>();
+        return Navigate(path);
     }
 
     return RemoveSelf();

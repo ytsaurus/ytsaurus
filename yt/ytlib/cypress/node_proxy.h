@@ -150,7 +150,7 @@ public:
     virtual TLockResult Lock(TYPath path)
     {
         if (!path.empty()) {
-            return Navigate(path).As<IYPathService::TLockResult>();
+            return Navigate(path);
         }
 
         return LockSelf();

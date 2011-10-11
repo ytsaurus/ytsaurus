@@ -15,6 +15,7 @@ struct IYPathService
     typedef TIntrusivePtr<IYPathService> TPtr;
 
     DECLARE_ENUM(ECode,
+        (Undefined)
         (Done)
         (Recurse)
         (Error)
@@ -23,6 +24,30 @@ struct IYPathService
     template <class T>
     struct TResult
     {
+        TResult()
+            : Code(ECode::Undefined)
+        { }
+
+        template <class TOther>
+        TResult(const TResult<TOther>& other)
+        {
+            Code = other.Code;
+            switch (other.Code) {
+                case ECode::Recurse:
+                    RecurseService = other.RecurseService;
+                    RecursePath = other.RecursePath;
+                    break;
+
+                case ECode::Error:
+                    ErrorMessage = other.ErrorMessage;
+                    break;
+
+                default:
+                    YASSERT(false);
+                    break;
+            }
+        }
+
         ECode Code;
         
         // Done
@@ -60,22 +85,6 @@ struct IYPathService
             result.Code = ECode::Error;
             result.ErrorMessage = errorMessage;
             return result;
-        }
-
-        template <class TOther>
-        TOther As() const
-        {
-            switch (Code) {
-                case ECode::Recurse:
-                    return TOther::CreateRecurse(RecurseService, RecursePath);
-
-                case ECode::Error:
-                    return TOther::CreateError(ErrorMessage);
-
-                default:
-                    YASSERT(false);
-                    return TOther();
-            }
         }
     };
 
