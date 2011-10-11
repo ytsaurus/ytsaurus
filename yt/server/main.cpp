@@ -28,8 +28,8 @@ using NChunkHolder::TChunkHolder;
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
 
-//using NChunkManager::TChunkManagerConfig;
-//using NChunkManager::TChunkManager;
+using NChunkManager::TChunkManagerConfig;
+using NChunkManager::TChunkManager;
 
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
@@ -120,12 +120,12 @@ void RunCellMaster(const TCellMasterConfig& config)
         metaStateManager->GetStateInvoker(),
         server);
 
-    //auto chunkManager = New<TChunkManager>(
-    //    TChunkManagerConfig(),
-    //    metaStateManager,
-    //    metaState,
-    //    server,
-    //    transactionManager);
+    auto chunkManager = New<TChunkManager>(
+        TChunkManagerConfig(),
+        metaStateManager,
+        metaState,
+        server,
+        transactionManager);
 
     auto cypressManager = New<TCypressManager>(
         metaStateManager,
