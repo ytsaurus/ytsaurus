@@ -456,11 +456,6 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (map).GetForUpdate(id); \
-    } \
-    \
-    yvector<const entityType*> declaringType::Get ## entityName ## s() \
-    { \
-        return (map).GetValues(); \
     }
 
 // TODO: drop this
