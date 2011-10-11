@@ -126,7 +126,9 @@ void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
     LOG_DEBUG("Response received (RequestId: %s)",
         ~RequestId.ToString());
 
-    Deserialize(message);
+    if (errorCode.IsOK()) {
+        Deserialize(message);
+    }
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
