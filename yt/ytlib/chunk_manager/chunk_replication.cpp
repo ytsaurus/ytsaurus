@@ -582,6 +582,7 @@ void TChunkReplication::Start(IInvoker::TPtr invoker)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(~Invoker == NULL);
+    YASSERT(~invoker != NULL);
     Invoker = invoker;
     ScheduleNextRefresh();
 }

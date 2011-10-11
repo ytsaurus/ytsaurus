@@ -58,14 +58,14 @@ TFuture<EErrorCode>::TPtr TChannel::Send(
         TGuard<TSpinLock> guard(SpinLock);
 
         YASSERT(!Terminated);
-
         YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).Second());
-
-        Bus->Send(requestMessage)->Subscribe(FromMethod(
-            &TChannel::OnAcknowledgement,
-            TPtr(this),
-            requestId));
+        bus = Bus;
     }
+
+    bus->Send(requestMessage)->Subscribe(FromMethod(
+        &TChannel::OnAcknowledgement,
+        TPtr(this),
+        requestId));
     
     LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
         ~requestId.ToString(),

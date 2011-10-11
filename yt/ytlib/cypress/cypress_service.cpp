@@ -5,8 +5,10 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NRpc;
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NTransaction::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,16 +17,16 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressService::TCypressService(
-    const TConfig& config,
     TCypressManager::TPtr cypressManager,
+    TTransactionManager::TPtr transactionManager,
     IInvoker::TPtr serviceInvoker,
     NRpc::TServer::TPtr server)
     : TMetaStateServiceBase(
         serviceInvoker,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
-    , Config(config)
     , CypressManager(cypressManager)
+    , TransactionManager(transactionManager)
 {
     YASSERT(~cypressManager != NULL);
     YASSERT(~serviceInvoker != NULL);
@@ -43,10 +45,58 @@ void TCypressService::RegisterMethods()
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
 }
 
+void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
+{
+    if (TransactionManager->FindTransaction(transactionId) == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
+            Sprintf("Invalid transaction (TransactionId: %s)", ~transactionId.ToString());
+    }
+}
+
+void TCypressService::ExecuteRecoverable(
+    const TTransactionId& transactionId,
+    NRpc::TServiceContext::TPtr context,
+    IAction::TPtr action)
+{
+    ValidateTransactionId(transactionId);
+
+    try {
+        action->Do();
+    } catch (const TServiceException&) {
+        throw;
+    } catch (...) {
+        context->Reply(EErrorCode::RecoverableError);
+    }
+}
+
+void TCypressService::ExecuteUnrecoverable(
+    const TTransactionId& transactionId,
+    NRpc::TServiceContext::TPtr context,
+    IAction::TPtr action)
+{
+    ValidateTransactionId(transactionId);
+
+    try {
+        action->Do();
+    } catch (const TServiceException&) {
+        throw;
+    } catch (...) {
+        context->Reply(EErrorCode::UnrecoverableError);
+
+        TMsgAbortTransaction message;
+        message.SetTransactionId(transactionId.ToProto());
+        CommitChange(
+            TransactionManager, message,
+            &TTransactionManager::AbortTransaction);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
 
@@ -54,24 +104,31 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
         ~transactionId.ToString(),
         ~path);
 
-    // TODO: validate transaction id
+    ExecuteRecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromMethod(
+            &TCypressService::DoGet,
+            TPtr(this),
+            transactionId,
+            path,
+            context));
+}
 
-    auto root = CypressManager->GetNode(RootNodeId, transactionId);
-
+void TCypressService::DoGet(
+    const TTransactionId& transactionId,
+    const Stroka& path,
+    TCtxGet::TPtr context)
+{
     Stroka output;
     TStringOutput outputStream(output);
     TYsonWriter writer(&outputStream, false); // TODO: use binary
 
-    try {
-        CypressManager->GetYPath(transactionId, path, &writer);
-    } catch (...) {
-        // TODO: use proper error code
-        context->Reply(EErrorCode::ShitHappens);
+    CypressManager->GetYPath(transactionId, path, &writer);
 
-        // TODO: abort transaction
-    }
-
+    auto* response = &context->Response();
     response->SetValue(output);
+
     context->Reply();
 }
 
@@ -87,26 +144,33 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
         ~transactionId.ToString(),
         ~path);
 
-    // TODO: validate transaction id
+    ExecuteUnrecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromMethod(
+            &TCypressService::DoSet,
+            TPtr(this),
+            transactionId,
+            path,
+            value,
+            context));
+}
 
-    auto root = CypressManager->GetNode(RootNodeId, transactionId);
-
+void TCypressService::DoSet(
+    const TTransactionId& transactionId,
+    const Stroka& path,
+    const Stroka& value,
+    TCtxSet::TPtr context)
+{
     NProto::TMsgSetPath message;
     message.SetTransactionId(transactionId.ToProto());
     message.SetPath(path);
     message.SetValue(value);
 
-    try {
-        CommitChange(
-            this, context, CypressManager, message,
-            &TCypressManager::SetYPath,
-            ECommitMode::MayFail);
-    } catch (...) {
-        // TODO: use proper error code
-        context->Reply(EErrorCode::ShitHappens);
-
-        // TODO: abort transaction
-    }
+    CommitChange(
+        this, context, CypressManager, message,
+        &TCypressManager::SetYPath,
+        ECommitMode::MayFail);
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
@@ -120,29 +184,36 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    auto root = CypressManager->GetNode(RootNodeId, transactionId);
+    ExecuteUnrecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromMethod(
+            &TCypressService::DoRemove,
+            TPtr(this),
+            transactionId,
+            path,
+            context));
+}
 
-    // TODO: validate transaction id
-
+void TCypressService::DoRemove(
+    const TTransactionId& transactionId,
+    const Stroka& path,
+    TCtxRemove::TPtr context)
+{
     NProto::TMsgRemovePath message;
     message.SetTransactionId(transactionId.ToProto());
     message.SetPath(path);
 
-    try {
-        CommitChange(
-            this, context, CypressManager, message,
-            &TCypressManager::RemoveYPath,
-            ECommitMode::MayFail);
-    } catch (...) {
-        // TODO: use proper error code
-        context->Reply(EErrorCode::ShitHappens);
-
-        // TODO: abort transaction
-    }
+    CommitChange(
+        this, context, CypressManager, message,
+        &TCypressManager::RemoveYPath,
+        ECommitMode::MayFail);
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
 {
+    UNUSED(response);
+
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
     auto mode = ELockMode(request->GetMode());
@@ -152,8 +223,25 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
         ~path,
         ~mode.ToString());
 
-    UNUSED(response);
-    YASSERT(false);
+    ExecuteRecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromMethod(
+            &TCypressService::DoLock,
+            TPtr(this),
+            transactionId,
+            path,
+            context));
+}
+
+void TCypressService::DoLock(
+    const TTransactionId& transactionId,
+    const Stroka& path,
+    TCtxLock::TPtr context)
+{
+    UNUSED(transactionId);
+    UNUSED(path);
+    UNUSED(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

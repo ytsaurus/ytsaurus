@@ -911,7 +911,7 @@ void TMetaStateManager::OnFollowerRecoveryComplete(TRecovery::EResult result)
     }
 
     GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoLeaderRecoveryComplete,
+        &TThis::DoFollowerRecoveryComplete,
         TPtr(this)));
 
     YASSERT(~FollowerCommitter == NULL);
@@ -1022,7 +1022,8 @@ void TMetaStateManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     auto current = NYTree::TFluentYsonBuilder::Create(consumer)
         .BeginMap()
             .Item("state").Scalar(ControlStatus.ToString())
-            .Item("version").Scalar(MetaState->GetVersion().ToString())
+            // TODO: fixme, thread affinity
+            //.Item("version").Scalar(MetaState->GetVersion().ToString())
             .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
             .Item("elections").Do(FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager));
     // TODO: refactor
@@ -1049,7 +1050,7 @@ TSignal& TMetaStateManager::OnStartLeading2()
 
 TSignal& TMetaStateManager::OnStopLeading2()
 {
-    return OnStartLeading_;
+    return OnStopLeading_;
 }
 
 TSignal& TMetaStateManager::OnStartFollowing2()

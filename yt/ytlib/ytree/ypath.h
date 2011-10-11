@@ -35,7 +35,7 @@ struct IYPathService
         // Error
         Stroka ErrorMessage;
 
-        static TResult CreateDone(const T& value)
+        static TResult CreateDone(const T& value = T())
         {
             TResult result;
             result.Code = ECode::Done;
@@ -61,6 +61,22 @@ struct IYPathService
             result.ErrorMessage = errorMessage;
             return result;
         }
+
+        template <class TOther>
+        TOther As() const
+        {
+            switch (Code) {
+                case ECode::Recurse:
+                    return TOther::CreateRecurse(RecurseService, RecursePath);
+
+                case ECode::Error:
+                    return TOther::CreateError(ErrorMessage);
+
+                default:
+                    YASSERT(false);
+                    return TOther();
+            }
+        }
     };
 
     typedef TResult<INode::TPtr> TNavigateResult;
@@ -74,6 +90,9 @@ struct IYPathService
 
     typedef TResult<TVoid> TRemoveResult;
     virtual TRemoveResult Remove(TYPath path) = 0;
+
+    typedef TResult<TVoid> TLockResult;
+    virtual TLockResult Lock(TYPath path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,6 +119,10 @@ void SetYPath(
     TYsonProducer::TPtr producer);
 
 void RemoveYPath(
+    IYPathService::TPtr rootService,
+    TYPath path);
+
+void LockYPath(
     IYPathService::TPtr rootService,
     TYPath path);
 

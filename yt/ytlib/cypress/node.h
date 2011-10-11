@@ -3,9 +3,12 @@
 #include "common.h"
 
 #include "../ytree/node.h"
+#include "../transaction_manager/common.h"
 
 namespace NYT {
 namespace NCypress {
+
+using NTransaction::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +21,8 @@ struct TBranchedNodeId
     //! Id of the transaction that had branched the node.
     TTransactionId TransactionId;
 
-    TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId)
+    TBranchedNodeId(
+        const TNodeId& nodeId, const TTransactionId& transactionId)
         : NodeId(nodeId)
         , TransactionId(transactionId)
     { }

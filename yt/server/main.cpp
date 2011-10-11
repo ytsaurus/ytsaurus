@@ -133,8 +133,8 @@ void RunCellMaster(const TCellMasterConfig& config)
         transactionManager);
 
     auto cypressService = New<TCypressService>(
-        TCypressService::TConfig(),
         cypressManager,
+        transactionManager,
         metaStateManager->GetStateInvoker(),
         server);
 

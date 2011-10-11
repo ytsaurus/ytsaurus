@@ -1,7 +1,9 @@
 #pragma once
 
 #include "common.h"
+
 #include "../chunk_holder/common.h"
+#include "../cypress/common.h"
 
 namespace NYT {
 namespace NTransaction {
@@ -13,7 +15,7 @@ class TTransaction
 public:
     TTransaction(const TTransaction& other)
         : Id(other.Id)
-        , AddedChunks_(other.AddedChunks_)
+        , AddedChunkIds_(other.AddedChunkIds_)
     { }
 
     TTransaction(const TTransactionId& id)
@@ -30,14 +32,20 @@ public:
         return Id;
     }
 
-    yvector<TChunkId>& AddedChunks()
+    yvector<TChunkId>& AddedChunkIds()
     {
-        return AddedChunks_;
+        return AddedChunkIds_;
+    }
+
+    yvector<NCypress::TLockId>& LockIds()
+    {
+        return LockIds_;
     }
 
 private:
     TTransactionId Id;
-    yvector<TChunkId> AddedChunks_;
+    yvector<TChunkId> AddedChunkIds_;
+    yvector<NCypress::TLockId> LockIds_;
 
 };
 

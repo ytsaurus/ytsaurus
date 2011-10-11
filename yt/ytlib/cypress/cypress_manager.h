@@ -3,8 +3,10 @@
 #include "common.h"
 #include "node.h"
 #include "lock.h"
-#include "cypress_state.pb.h"
+#include "cypress_manager.pb.h"
 
+#include "../transaction_manager/transaction.h"
+#include "../transaction_manager/transaction_manager.h"
 #include "../ytree/ypath.h"
 #include "../misc/id_generator.h"
 #include "../meta_state/meta_state_manager.h"
@@ -14,7 +16,14 @@
 namespace NYT {
 namespace NCypress {
 
+using NTransaction::TTransaction;
+using NTransaction::NullTransactionId;
+using NTransaction::TTransactionManager;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class IBase, class TImpl>
+class TCypressNodeProxyBase;
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
@@ -28,7 +37,6 @@ public:
         NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager);
 
-    METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
     INode::TPtr FindNode(
@@ -43,6 +51,10 @@ public:
     IInt64Node::TPtr  CreateInt64Node(const TTransactionId& transactionId);
     IDoubleNode::TPtr CreateDoubleNode(const TTransactionId& transactionId);
     IMapNode::TPtr    CreateMapNode(const TTransactionId& transactionId);
+
+    METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
+
+    TLock* CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 
     void GetYPath(
         const TTransactionId& transactionId,
@@ -63,11 +75,15 @@ public:
     TVoid RemoveYPath(const NProto::TMsgRemovePath& message);
 
 private:
+    template <class IBase, class TImpl>
+    friend class TCypressNodeProxyBase;
+
     TTransactionManager::TPtr TransactionManager;
-    TIdGenerator<TGuid> NodeIdGenerator;
+    TIdGenerator<TNodeId> NodeIdGenerator;
+    TIdGenerator<TLockId> LockIdGenerator;
     
-    NMetaState::TMetaStateMap<TLockId, TLock> Locks;
-    NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode> Nodes;
+    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
+    NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode> NodeMap;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;
@@ -75,17 +91,15 @@ private:
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
-    // ITransactionHandler implementation.
-    virtual void OnTransactionStarted(TTransaction& transaction);
-    virtual void OnTransactionCommitted(TTransaction& transaction);
-    virtual void OnTransactionAborted(TTransaction& transaction);
+    void OnTransactionCommitted(TTransaction& transaction);
+    void OnTransactionAborted(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
     {
         TBranchedNodeId id(NodeIdGenerator.Next(), transactionId);
         auto* nodeImpl = new TImpl(id);
-        YVERIFY(Nodes.Insert(id, nodeImpl));
+        YVERIFY(NodeMap.Insert(id, nodeImpl));
         return ~New<TProxy>(this, transactionId, id.NodeId);
     }
 

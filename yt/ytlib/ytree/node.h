@@ -53,6 +53,8 @@ public:
 
     virtual TRemoveResult Remove(TYPath path);
 
+    virtual TLockResult Lock(TYPath path);
+
 protected:
     virtual TRemoveResult RemoveSelf();
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);

@@ -48,6 +48,7 @@ void TChunkPlacement::AddHolderSessionHint(const THolder& holder)
     ++HintedSessionsMap[holder.Id];
 }
 
+// TODO: refactor
 void PickRandom(
     yvector<const THolder*>::iterator holderBegin,
     yvector<const THolder*>::iterator holderEnd,

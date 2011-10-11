@@ -16,8 +16,8 @@ IYPathService::TGetResult TNodeBase::Get(
     switch (navigateResult.Code) {
         case IYPathService::ECode::Done: {
             TTreeVisitor visitor(events);
-            visitor.Visit(navigateResult.Value/*->AsImmutable()*/);
-            return TGetResult::CreateDone(TVoid());
+            visitor.Visit(navigateResult.Value);
+            return TGetResult::CreateDone();
         }
 
         case IYPathService::ECode::Recurse:
@@ -38,61 +38,38 @@ IYPathService::TGetResult TNodeBase::Get(
 IYPathService::TNavigateResult TNodeBase::Navigate(
     TYPath path)
 {
-    UNUSED(path);
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this/*AsImmutable()*/);
-    } else {
+    if (!path.empty()) {
         return TNavigateResult::CreateError("Cannot navigate from the node");
     }
+
+    return TNavigateResult::CreateDone(this);
 }
 
 IYPathService::TSetResult TNodeBase::Set(
     TYPath path, 
     TYsonProducer::TPtr producer)
 {
-    if (path.empty()) {
-        return SetSelf(producer);
+    if (!path.empty()) {
+        return Navigate(path).As<TSetResult>();
     }
 
-    auto navigateResult = Navigate(path);
-    switch (navigateResult.Code) {
-        case IYPathService::ECode::Recurse:
-            return TSetResult::CreateRecurse(
-                navigateResult.RecurseService,
-                navigateResult.RecursePath);
-
-        case IYPathService::ECode::Error:
-            return TSetResult::CreateError(
-                navigateResult.ErrorMessage);
-
-        default:
-            YASSERT(false);
-            return TSetResult();
-    }
+    return SetSelf(producer);
 }
 
 IYPathService::TRemoveResult TNodeBase::Remove(
     TYPath path)
 {
-    if (path.empty()) {
-        return RemoveSelf();
+    if (!path.empty()) {
+        return Navigate(path).As<TRemoveResult>();
     }
 
-    auto navigateResult = Navigate(path);
-    switch (navigateResult.Code) {
-        case IYPathService::ECode::Recurse:
-            return TRemoveResult::CreateRecurse(
-                navigateResult.RecurseService,
-                navigateResult.RecursePath);
+    return RemoveSelf();
+}
 
-        case IYPathService::ECode::Error:
-            return TRemoveResult::CreateError(
-                navigateResult.ErrorMessage);
-
-        default:
-            YASSERT(false);
-            return TRemoveResult();
-    }
+IYPathService::TLockResult TNodeBase::Lock(TYPath path)
+{
+    UNUSED(path);
+    return TLockResult::CreateError("Locking is not supported");
 }
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
@@ -105,7 +82,7 @@ IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 
     parent->AsComposite()->RemoveChild(this);
 
-    return TRemoveResult::CreateDone(TVoid());
+    return TRemoveResult::CreateDone();
 }
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
@@ -120,7 +97,7 @@ IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
     producer->Do(&builder);
     parent->AsComposite()->ReplaceChild(this, builder.GetRoot());
 
-    return TSetResult::CreateDone(TVoid());
+    return TSetResult::CreateDone();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

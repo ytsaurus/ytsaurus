@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NMetaState;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = CypressLogger;
@@ -14,16 +16,21 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressManager::TCypressManager(
-    NMetaState::TMetaStateManager::TPtr metaStateManager,
-    NMetaState::TCompositeMetaState::TPtr metaState,
+    TMetaStateManager::TPtr metaStateManager,
+    TCompositeMetaState::TPtr metaState,
     TTransactionManager::TPtr transactionManager)
     : TMetaStatePart(metaStateManager, metaState)
     , TransactionManager(transactionManager)
 {
     YASSERT(~transactionManager != NULL);
 
-    //transactionManager->RegisterHander(this);
-    
+    transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
+        &TThis::OnTransactionCommitted,
+        TPtr(this)));
+    transactionManager->OnTransactionAborted().Subscribe(FromMethod(
+        &TThis::OnTransactionAborted,
+        TPtr(this)));
+
     RegisterMethod(this, &TThis::SetYPath);
     RegisterMethod(this, &TThis::RemoveYPath);
 
@@ -71,6 +78,14 @@ IDoubleNode::TPtr TCypressManager::CreateDoubleNode(const TTransactionId& transa
 IMapNode::TPtr TCypressManager::CreateMapNode(const TTransactionId& transactionId)
 {
     return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId);
+}
+
+TLock* TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
+{
+    auto id = LockIdGenerator.Next();
+    auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
+    YVERIFY(LockMap.Insert(id, lock));
+    return lock;
 }
 
 void TCypressManager::GetYPath(
@@ -125,14 +140,16 @@ Stroka TCypressManager::GetPartName() const
 TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
 {
     YASSERT(false);
-    *stream << NodeIdGenerator;
+    *stream << NodeIdGenerator
+            << LockIdGenerator;
     return NULL;
 }
 
 TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
 {
     YASSERT(false);
-    *stream >> NodeIdGenerator;
+    *stream >> NodeIdGenerator
+            >> LockIdGenerator;
     return NULL;
 }
 
@@ -140,12 +157,7 @@ void TCypressManager::Clear()
 {
     TBranchedNodeId id(RootNodeId, NullTransactionId);
     auto* root = new TMapNode(id);
-    YVERIFY(Nodes.Insert(id, root));
-}
-
-void TCypressManager::OnTransactionStarted(TTransaction& transaction)
-{
-    UNUSED(transaction);
+    YVERIFY(NodeMap.Insert(id, root));
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
@@ -158,8 +170,8 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
     UNUSED(transaction);
 }
 
-METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, Locks);
-METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, Nodes);
+METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
+METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

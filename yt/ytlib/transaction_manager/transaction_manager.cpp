@@ -19,6 +19,10 @@ TTransactionManager::TTransactionManager(
     : TMetaStatePart(metaStateManager, metaState)
     , Config(config)
 {
+    RegisterMethod(this, &TThis::StartTransaction);
+    RegisterMethod(this, &TThis::CommitTransaction);
+    RegisterMethod(this, &TThis::AbortTransaction);
+
     metaState->RegisterPart(this);
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
@@ -181,11 +185,8 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto it = LeaseMap.find(id);
-    if (it == LeaseMap.end())
+    if (FindTransaction(id) == NULL)
         return;
-
-    LeaseMap.erase(it);
 
     NProto::TMsgAbortTransaction message;
     message.SetTransactionId(id.ToProto());

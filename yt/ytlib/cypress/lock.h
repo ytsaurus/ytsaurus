@@ -2,10 +2,12 @@
 
 #include "common.h"
 
-#include "../misc/enum.h"
+#include "../transaction_manager/common.h"
 
 namespace NYT {
 namespace NCypress {
+
+using NTransaction::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -89,15 +89,15 @@ public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
     TCypressNodeProxyBase(
-        TCypressManager::TPtr state,
+        TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : State(state)
+        : CypressManager(cypressManager)
         , TransactionId(transactionId)
         , NodeId(nodeId)
-        , NodeFactory(state, transactionId)
+        , NodeFactory(cypressManager, transactionId)
     {
-        YASSERT(~state != NULL);
+        YASSERT(~cypressManager != NULL);
     }
 
     INodeFactory* GetFactory() const
@@ -122,7 +122,7 @@ public:
 
     virtual ICypressNode& GetMutableImpl()
     {
-        return this->GetMutableTypedImpl();
+        return this->GetTypedImplForUpdate();
     }
 
     virtual ICompositeNode::TPtr GetParent() const
@@ -147,37 +147,57 @@ public:
         YASSERT(false);
     }
 
+    virtual TLockResult Lock(TYPath path)
+    {
+        if (!path.empty()) {
+            return Navigate(path).As<TLockResult>();
+        }
+
+        return LockSelf();
+    }
+
 protected:
-    TCypressManager::TPtr State;
+    TCypressManager::TPtr CypressManager;
     TTransactionId TransactionId;
     TNodeId NodeId;
-
     mutable TNodeFactory NodeFactory;
+
+
+    const ICypressNode& GetImpl(const TNodeId& nodeId) const
+    {
+        auto impl = CypressManager->FindNode(TBranchedNodeId(nodeId, TransactionId));
+        if (impl == NULL) {
+            impl = CypressManager->FindNode(TBranchedNodeId(nodeId, NullTransactionId));
+        }
+        return *impl;
+    }
+
+    ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
+    {
+        auto impl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, TransactionId));
+        if (impl == NULL) {
+            impl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        }
+        YASSERT(impl != NULL);
+        return *impl;
+    }
+
 
     const TImpl& GetTypedImpl() const
     {
-        auto impl = State->FindNode(TBranchedNodeId(NodeId, TransactionId));
-        if (impl == NULL) {
-            impl = State->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
-        }
-        YASSERT(impl != NULL);
-        return *dynamic_cast<const TImpl*>(impl);
+        return dynamic_cast<const TImpl&>(GetImpl(NodeId));
     }
 
-    TImpl& GetMutableTypedImpl()
+    TImpl& GetTypedImplForUpdate()
     {
-        auto impl = State->FindNodeForUpdate(TBranchedNodeId(NodeId, TransactionId));
-        if (impl == NULL) {
-            impl = State->FindNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
-        }
-        YASSERT(impl != NULL);
-        return *dynamic_cast<TImpl*>(impl);
+        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId));
     }
+
 
     template <class T>
     TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
     {
-        auto node = State->FindNode(nodeId, TransactionId);
+        auto node = CypressManager->FindNode(nodeId, TransactionId);
         YASSERT(~node != NULL);
         return dynamic_cast<T*>(~node);
     }
@@ -186,6 +206,38 @@ protected:
     {
         YASSERT(~node != NULL);
         return dynamic_cast<ICypressNodeProxy*>(~node);
+    }
+
+
+    TLockResult LockSelf()
+    {
+        auto& impl = GetTypedImplForUpdate();
+
+        // Make sure that the node is not locked by another transaction.
+        FOREACH (const auto& lockId, impl.Locks()) {
+            const auto& lock = CypressManager->GetLock(lockId);
+            if (lock.GetTransactionId() != TransactionId) {
+                return TLockResult::CreateError(Sprintf("Node is already locked by another transaction (TransactionId: %s)",
+                    ~lock.GetTransactionId().ToString()));
+            }
+        }
+
+        // Create a lock.
+        auto* lock = CypressManager->CreateLock(NodeId, TransactionId);
+
+        // Register the lock in the transaction.
+        auto& transaction = CypressManager->TransactionManager->GetTransactionForUpdate(TransactionId);
+        transaction.LockIds().push_back(lock->GetId());
+
+        // Apply the lock to the nodes up to the root.
+        auto currentNodeId = impl.GetId().NodeId;
+        while (currentNodeId != NullNodeId) {
+            auto& impl = GetImplForUpdate(currentNodeId);
+            impl.Locks().insert(lock->GetId());
+            currentNodeId = impl.ParentId();
+        }
+
+        return TLockResult::CreateDone();
     }
 };
 
@@ -213,7 +265,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->GetMutableTypedImpl().Value() = value;
+        this->GetTypedImplForUpdate().Value() = value;
     }
 };
 
@@ -246,21 +298,21 @@ public: \
     \
     public: \
         T ## name ## NodeProxy( \
-            TCypressManager::TPtr state, \
+            TCypressManager::TPtr cypressManager, \
             const TTransactionId& transactionId, \
             const TNodeId& nodeId) \
             : TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node>( \
-                state, \
+                cypressManager, \
                 transactionId, \
                 nodeId) \
         { } \
     }; \
     \
     inline ICypressNodeProxy::TPtr T ## name ## Node::GetProxy( \
-        TIntrusivePtr<TCypressManager> state, \
+        TIntrusivePtr<TCypressManager> cypressManager, \
         const TTransactionId& transactionId) const \
     { \
-        return ~New<T ## name ## NodeProxy>(state, transactionId, Id.NodeId); \
+        return ~New<T ## name ## NodeProxy>(cypressManager, transactionId, Id.NodeId); \
     }
 
 

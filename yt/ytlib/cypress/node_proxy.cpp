@@ -18,7 +18,7 @@ TMapNodeProxy::TMapNodeProxy(
 void TMapNodeProxy::Clear()
 {
     // TODO: refcount
-    auto& impl = GetMutableTypedImpl();
+    auto& impl = GetTypedImplForUpdate();
     impl.NameToChild().clear();
     impl.ChildToName().clear();
 }
@@ -51,7 +51,7 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
     // TODO: refcount
-    auto& impl = GetMutableTypedImpl();
+    auto& impl = GetTypedImplForUpdate();
 
     auto childProxy = ToProxy(child);
     auto childId = childProxy->GetNodeId();
@@ -69,7 +69,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
 {
     // TODO: refcount
 
-    auto& impl = GetMutableTypedImpl();
+    auto& impl = GetTypedImplForUpdate();
 
     auto it = impl.NameToChild().find(name);
     if (it == impl.NameToChild().end())
@@ -88,7 +88,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
 {
     // TODO: refcount
 
-    auto& impl = GetMutableTypedImpl();
+    auto& impl = GetTypedImplForUpdate();
     
     auto childProxy = ToProxy(child);
     childProxy->GetMutableImpl().ParentId() = NullNodeId;
@@ -105,7 +105,7 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
     // TODO: refcount
 
-    auto& impl = GetMutableTypedImpl();
+    auto& impl = GetTypedImplForUpdate();
 
     if (oldChild == newChild)
         return;

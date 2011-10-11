@@ -178,7 +178,7 @@ void SetYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline IYPathService::TRemoveResult RemoveYPathAction(
+IYPathService::TRemoveResult RemoveYPathAction(
     TYPathOperationState state)
 {
     return state.CurrentService->Remove(state.CurrentPath);
@@ -193,6 +193,25 @@ void RemoveYPath(
         path,
         FromMethod(&RemoveYPathAction),
         "remove");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathService::TLockResult LockYPathAction(
+    TYPathOperationState state)
+{
+    return state.CurrentService->Lock(state.CurrentPath);
+}
+
+void LockYPath(
+    IYPathService::TPtr rootService,
+    TYPath path)
+{
+    ExecuteYPathOperation<TVoid>(
+        rootService,
+        path,
+        FromMethod(&LockYPathAction),
+        "lock");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

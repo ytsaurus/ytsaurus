@@ -66,7 +66,7 @@ public:
         auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.AddedChunks().push_back(chunkId);
+        transaction.AddedChunkIds().push_back(chunkId);
 
         auto* chunk = new TChunk(chunkId, transactionId);
 
@@ -320,7 +320,7 @@ private:
 
     virtual void OnTransactionCommitted(TTransaction& transaction)
     {
-        FOREACH(const auto& chunkId, transaction.AddedChunks()) {
+        FOREACH(const auto& chunkId, transaction.AddedChunkIds()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             chunk.TransactionId = TTransactionId();
 
@@ -333,7 +333,7 @@ private:
 
     virtual void OnTransactionAborted(TTransaction& transaction)
     {
-        FOREACH(const TChunkId& chunkId, transaction.AddedChunks()) {
+        FOREACH(const TChunkId& chunkId, transaction.AddedChunkIds()) {
             const TChunk& chunk = GetChunk(chunkId);
             DoRemoveChunk(chunk);
         }
@@ -710,10 +710,9 @@ void TChunkManager::ValidateChunkId(
 
 void TChunkManager::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    const auto* transaction = TransactionManager->FindTransaction(transactionId);
-    if (transaction == NULL) {
-        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
-            Sprintf("Invalid transaction %s", ~transactionId.ToString());
+    if (TransactionManager->FindTransaction(transactionId) == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
+            Sprintf("Invalid transaction (TransactionId: %s)", ~transactionId.ToString());
     }
 }
 

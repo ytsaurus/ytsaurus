@@ -11,9 +11,12 @@ namespace NMonitoring {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpTreeServer
+    : public TNonCopyable
 {
 public:
-    THttpTreeServer(NYTree::TYsonProducer::TPtr ysonProducer, int port);
+    THttpTreeServer(
+        NYTree::TYsonProducer::TPtr ysonProducer,
+        int port);
 
     void Start();
     void Stop();

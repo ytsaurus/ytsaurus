@@ -63,7 +63,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpTreeServer::THttpTreeServer(TYsonProducer::TPtr ysonProducer, int port)
+THttpTreeServer::THttpTreeServer(
+    TYsonProducer::TPtr ysonProducer,
+    int port)
     : Callback(new TCallback(ysonProducer))
 {
     Server.Reset(new THttpServer(

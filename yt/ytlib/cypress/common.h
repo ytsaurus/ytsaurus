@@ -2,8 +2,8 @@
 
 #include "../misc/common.h"
 #include "../misc/enum.h"
+#include "../misc/guid.h"
 #include "../logging/log.h"
-#include "../transaction_manager/transaction_manager.h"
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
 
@@ -15,11 +15,6 @@ namespace NCypress {
 extern NLog::TLogger CypressLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NTransaction::TTransactionId;
-using NTransaction::NullTransactionId;
-using NTransaction::TTransaction;
-using NTransaction::TTransactionManager;
 
 using namespace NYTree;
 
@@ -39,12 +34,6 @@ DECLARE_ENUM(ELockMode,
 
 extern TNodeId NullNodeId;
 extern TNodeId RootNodeId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCypressServiceConfig
-{
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
