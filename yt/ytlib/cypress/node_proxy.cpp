@@ -159,13 +159,14 @@ IYPathService::TSetResult TMapNodeProxy::Set(
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     auto child = FindChild(prefix);
-    if (~child == NULL) {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
-        AddChild(~newChild, prefix);
-        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
-    } else {
+    if (~child != NULL) {
         return TSetResult::CreateRecurse(AsYPath(child), tailPath);
     }
+
+    INode::TPtr newChild = ~GetFactory()->CreateMap();
+    AddChild(~newChild, prefix);
+
+    return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

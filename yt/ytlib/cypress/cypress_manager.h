@@ -102,6 +102,8 @@ private:
     void OnTransactionAborted(TTransaction& transaction);
 
     void ReleaseLocks(TTransaction& transaction);
+    void MergeBranchedNodes(TTransaction& transaction);
+    void RemoveBranchedNodes(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)

@@ -77,6 +77,9 @@ struct ICypressNode
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const = 0;
+
+    virtual ICypressNode& Branch() = 0;
+    virtual void Merge(const ICypressNode& branchedNode) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +117,17 @@ public:
     virtual const TBranchedNodeId& GetId()
     {
         return Id;
+    }
+
+    virtual ICypressNode& Branch()
+    {
+        YASSERT(false);
+        return *this;
+    }
+
+    virtual void Merge(const ICypressNode& branchedNode)
+    {
+        YASSERT(false);
     }
 
 protected:

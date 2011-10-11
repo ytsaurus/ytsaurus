@@ -229,7 +229,7 @@ protected:
         auto& transaction = CypressManager->TransactionManager->GetTransactionForUpdate(TransactionId);
         transaction.LockIds().push_back(lock->GetId());
 
-        // Apply the lock to the nodes up to the root.
+        // Walk up to the root and apply locks.
         auto currentNodeId = NodeId;
         while (currentNodeId != NullNodeId) {
             // NB: Locks are always assigned to nonbranched nodes.
@@ -239,6 +239,16 @@ protected:
         }
 
         return TLockResult::CreateDone();
+    }
+
+    bool IsBranched() const
+    {
+        return CypressManager->FindNode(TBranchedNodeId(NullNodeId, TransactionId)) != NULL;
+    }
+
+    ICypressNodeProxy::TPtr Branch()
+    {
+
     }
 };
 

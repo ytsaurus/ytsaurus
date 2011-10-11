@@ -8,6 +8,9 @@
 namespace NYT {
 namespace NTransaction {
 
+using NCypress::TNodeId;
+using NCypress::TLockId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
@@ -16,6 +19,8 @@ public:
     TTransaction(const TTransaction& other)
         : Id(other.Id)
         , AddedChunkIds_(other.AddedChunkIds_)
+        , LockIds_(other.LockIds_)
+        , BranchedNodeIds_(other.BranchedNodeIds_)
     { }
 
     TTransaction(const TTransactionId& id)
@@ -37,15 +42,21 @@ public:
         return AddedChunkIds_;
     }
 
-    yvector<NCypress::TLockId>& LockIds()
+    yvector<TLockId>& LockIds()
     {
         return LockIds_;
+    }
+
+    yvector<TNodeId>& BranchedNodeIds()
+    {
+        return BranchedNodeIds_;
     }
 
 private:
     TTransactionId Id;
     yvector<TChunkId> AddedChunkIds_;
-    yvector<NCypress::TLockId> LockIds_;
+    yvector<TLockId> LockIds_;
+    yvector<TNodeId> BranchedNodeIds_;
 
 };
 

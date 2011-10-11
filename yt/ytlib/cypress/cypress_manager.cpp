@@ -178,24 +178,47 @@ void TCypressManager::Clear()
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 {
     ReleaseLocks(transaction);
+    MergeBranchedNodes(transaction);
+    RemoveBranchedNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction& transaction)
 {
     ReleaseLocks(transaction);
+    RemoveBranchedNodes(transaction);
 }
 
 void TCypressManager::ReleaseLocks(TTransaction& transaction)
 {
+    // Iterate over all locks created by the transaction.
     FOREACH (const auto& lockId, transaction.LockIds()) {
         const auto& lock = LockMap.Get(lockId);
+
+        // Walk up to the root and remove locks.
         auto currentNodeId = lock.GetNodeId();
         while (currentNodeId != NullNodeId) {
+            // NB: Locks are always assigned to nonbranched nodes.
             auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
             YVERIFY(node.Locks().erase(lockId) == 1);
             currentNodeId = node.ParentId();
         }
         YVERIFY(LockMap.Remove(lockId));
+    }
+}
+
+void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
+{
+    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
+        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        const auto& branchedNode = NodeMap.Get(TBranchedNodeId(nodeId, transaction.GetId()));
+        node.Merge(branchedNode);
+    }
+}
+
+void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
+{
+    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
+        YVERIFY(NodeMap.Remove(TBranchedNodeId(nodeId, transaction.GetId())));
     }
 }
 
