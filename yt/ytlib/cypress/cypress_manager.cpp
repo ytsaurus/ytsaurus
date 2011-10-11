@@ -33,6 +33,7 @@ TCypressManager::TCypressManager(
 
     RegisterMethod(this, &TThis::SetYPath);
     RegisterMethod(this, &TThis::RemoveYPath);
+    RegisterMethod(this, &TThis::LockYPath);
 
     metaState->RegisterPart(this);
 }
@@ -106,7 +107,7 @@ void TCypressManager::SetYPath(
     NYTree::SetYPath(AsYPath(root), path, producer);
 }
 
-TVoid TCypressManager::SetYPath(const NProto::TMsgSetPath& message)
+TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
@@ -124,11 +125,25 @@ void TCypressManager::RemoveYPath(
     NYTree::RemoveYPath(AsYPath(root), path);
 }
 
-TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemovePath& message)
+TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
     RemoveYPath(transactionId, path);
+    return TVoid();
+}
+
+void TCypressManager::LockYPath(const TTransactionId& transactionId, TYPath path)
+{
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::LockYPath(AsYPath(root), path);
+}
+
+NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
+{
+    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
+    auto path = message.GetPath();
+    LockYPath(transactionId, path);
     return TVoid();
 }
 
@@ -162,12 +177,26 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 {
-    UNUSED(transaction);
+    ReleaseLocks(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction& transaction)
 {
-    UNUSED(transaction);
+    ReleaseLocks(transaction);
+}
+
+void TCypressManager::ReleaseLocks(TTransaction& transaction)
+{
+    FOREACH (const auto& lockId, transaction.LockIds()) {
+        const auto& lock = LockMap.Get(lockId);
+        auto currentNodeId = lock.GetNodeId();
+        while (currentNodeId != NullNodeId) {
+            auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
+            YVERIFY(node.Locks().erase(lockId) == 1);
+            currentNodeId = node.ParentId();
+        }
+        YVERIFY(LockMap.Remove(lockId));
+    }
 }
 
 METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);

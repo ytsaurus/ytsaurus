@@ -44,7 +44,6 @@ message TReqLock
 {
     required bytes TransactionId = 1;
     required bytes Path = 2;
-    required int32 Mode = 3;
 }
 
 message TRspLock

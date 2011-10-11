@@ -230,9 +230,10 @@ protected:
         transaction.LockIds().push_back(lock->GetId());
 
         // Apply the lock to the nodes up to the root.
-        auto currentNodeId = impl.GetId().NodeId;
+        auto currentNodeId = NodeId;
         while (currentNodeId != NullNodeId) {
-            auto& impl = GetImplForUpdate(currentNodeId);
+            // NB: Locks are always assigned to nonbranched nodes.
+            auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
             impl.Locks().insert(lock->GetId());
             currentNodeId = impl.ParentId();
         }

@@ -49,7 +49,7 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 {
     if (TransactionManager->FindTransaction(transactionId) == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("Invalid transaction (TransactionId: %s)", ~transactionId.ToString());
+            Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
     }
 }
 
@@ -162,7 +162,7 @@ void TCypressService::DoSet(
     const Stroka& value,
     TCtxSet::TPtr context)
 {
-    NProto::TMsgSetPath message;
+    NProto::TMsgSet message;
     message.SetTransactionId(transactionId.ToProto());
     message.SetPath(path);
     message.SetValue(value);
@@ -184,7 +184,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    ExecuteUnrecoverable(
+    ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
         FromMethod(
@@ -200,7 +200,7 @@ void TCypressService::DoRemove(
     const Stroka& path,
     TCtxRemove::TPtr context)
 {
-    NProto::TMsgRemovePath message;
+    NProto::TMsgRemove message;
     message.SetTransactionId(transactionId.ToProto());
     message.SetPath(path);
 
@@ -216,12 +216,10 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
-    auto mode = ELockMode(request->GetMode());
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s, Mode: %s",
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
-        ~path,
-        ~mode.ToString());
+        ~path);
 
     ExecuteRecoverable(
         transactionId,
@@ -239,9 +237,14 @@ void TCypressService::DoLock(
     const Stroka& path,
     TCtxLock::TPtr context)
 {
-    UNUSED(transactionId);
-    UNUSED(path);
-    UNUSED(context);
+    NProto::TMsgLock message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(path);
+
+    CommitChange(
+        this, context, CypressManager, message,
+        &TCypressManager::LockYPath,
+        ECommitMode::MayFail);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

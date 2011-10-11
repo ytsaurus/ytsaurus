@@ -66,13 +66,20 @@ public:
         TYPath path,
         TYsonProducer::TPtr producer);
 
-    TVoid SetYPath(const NProto::TMsgSetPath& message);
+    TVoid SetYPath(const NProto::TMsgSet& message);
 
     void RemoveYPath(
         const TTransactionId& transactionId,
         TYPath path);
 
-    TVoid RemoveYPath(const NProto::TMsgRemovePath& message);
+    TVoid RemoveYPath(const NProto::TMsgRemove& message);
+
+    void LockYPath(
+        const TTransactionId& transactionId,
+        TYPath path);
+
+    TVoid LockYPath(const NProto::TMsgLock& message);
+
 
 private:
     template <class IBase, class TImpl>
@@ -93,6 +100,8 @@ private:
 
     void OnTransactionCommitted(TTransaction& transaction);
     void OnTransactionAborted(TTransaction& transaction);
+
+    void ReleaseLocks(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
