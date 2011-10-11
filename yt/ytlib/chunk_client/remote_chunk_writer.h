@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common.h"
 #include "chunk_writer.h"
 
 #include "../misc/lazy_ptr.h"
@@ -7,8 +8,7 @@
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
 #include "../misc/thread_affinity.h"
-#include "../rpc/client.h"
-#include "../chunk_client/common.h"
+
 #include "../chunk_holder/chunk_holder_rpc.h"
 #include "../actions/action_queue.h"
 
@@ -152,8 +152,6 @@ private:
     int BlockCount;
 
     TFuture<TVoid>::TPtr WindowReady;
-
-    static NRpc::TChannelCache ChannelCache;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;

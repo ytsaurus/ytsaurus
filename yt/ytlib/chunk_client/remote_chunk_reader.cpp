@@ -1,46 +1,92 @@
 ﻿#include "remote_chunk_reader.h"
+#include "holder_channel_cache.h"
+
+#include "../misc/foreach.h"
 #include "../actions/action_util.h"
 
 namespace NYT
 {
 
-NRpc::TChannelCache TRemoteChunkReader::ChannelCache;
+///////////////////////////////////////////////////////////////////////////////
 
-TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, Stroka holderAddress)
+static NLog::TLogger Logger("ChunkReader");
+
+///////////////////////////////////////////////////////////////////////////////
+
+TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, const yvector<Stroka>& holderAddresses)
     : ChunkId(chunkId)
     , Timeout(TDuration::Seconds(15)) // ToDo: make configurable
-    , Proxy(~TRemoteChunkReader::ChannelCache.GetChannel(holderAddress))
-{ }
+    , HolderAddresses(holderAddresses)
+    , ExecutionTime(0, 1000, 20)
+{
+    CurrentHolder = 0;
+}
 
 TFuture<IChunkReader::TReadResult>::TPtr
 TRemoteChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     auto result = New< TFuture<TReadResult> >();
-    auto req = Proxy.GetBlocks();
+
+    DoReadBlocks(blockIndexes, result);
+
+    return result;
+}
+
+void TRemoteChunkReader::DoReadBlocks(
+    const yvector<int>& blockIndexes, 
+    TFuture<TReadResult>::TPtr result)
+{
+    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    auto req = proxy.GetBlocks();
     req->SetChunkId(ChunkId.ToProto());
 
-    for (int i = 0; i < blockIndexes.ysize(); ++i) {
-        req->AddBlockIndexes(blockIndexes[i]);
+    FOREACH(auto index, blockIndexes) {
+        req->AddBlockIndexes(index);
     }
 
     req->Invoke(Timeout)->Subscribe(FromMethod(
         &TRemoteChunkReader::OnBlocksRead, 
         TPtr(this), 
-        result));
-
-    return result;
+        result,
+        blockIndexes));
 }
 
-void TRemoteChunkReader::OnBlocksRead(TRspGetBlocks::TPtr rsp, TFuture<TReadResult>::TPtr result)
+void TRemoteChunkReader::OnBlocksRead(
+    TRspGetBlocks::TPtr rsp, 
+    TFuture<TReadResult>::TPtr result, 
+    const yvector<int>& blockIndexes)
 {
-    TReadResult readResult;
-    for (int i = 0; i < rsp->Attachments().ysize(); i++) {
-        // Since all attachments reference the same rpc response
-        // memory will be freed only when all the blocks will die
-        readResult.Blocks.push_back(rsp->Attachments()[i]);
-    }
+    if (rsp->IsOK()) {
+        ExecutionTime.AddDelta(rsp->GetInvokeInstant());
 
-    result->Set(readResult);
+        TReadResult readResult;
+        for (int i = 0; i < rsp->Attachments().ysize(); i++) {
+            // Since all attachments reference the same rpc response
+            // memory will be freed only when all the blocks die
+            readResult.Blocks.push_back(rsp->Attachments()[i]);
+        }
+
+        readResult.Result = EResult::OK;
+        result->Set(readResult);
+    } else if (ChangeCurrentHolder()) {
+        DoReadBlocks(blockIndexes, result);
+    } else {
+        TReadResult readResult;
+        readResult.Result = EResult::Failed;
+        result->Set(readResult);
+    }
 }
+
+bool TRemoteChunkReader::ChangeCurrentHolder()
+{
+    ++CurrentHolder;
+    if (CurrentHolder < HolderAddresses.ysize()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

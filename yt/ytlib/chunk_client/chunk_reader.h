@@ -3,6 +3,7 @@
 #include "../misc/common.h"
 #include "../misc/ptr.h"
 #include "../actions/future.h"
+#include "../misc/enum.h"
 
 namespace NYT
 {
@@ -16,11 +17,18 @@ struct IChunkReader
 {
     typedef TIntrusivePtr<IChunkReader> TPtr;
 
+    DECLARE_ENUM(EResult, 
+        (OK)
+        (Failed)
+    );
+
     //! Describes a result of #ReadBlocks.
     struct TReadResult
     {
         //! Blocks data.
         yvector<TSharedRef> Blocks;
+
+        EResult Result;
     };
 
     //! Reads (asynchronously) a given set of blocks.

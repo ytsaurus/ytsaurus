@@ -1,4 +1,5 @@
 #include "remote_chunk_writer.h"
+#include "holder_channel_cache.h"
 #include "chunk_holder.pb.h"
 
 #include "../misc/serialize.h"
@@ -21,7 +22,6 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkWriter");
-NRpc::TChannelCache TRemoteChunkWriter::ChannelCache;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -445,7 +445,7 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     FOREACH(const auto& address, addresses) {
-        Nodes.push_back(New<TNode>(address, ~ChannelCache.GetChannel(address)));
+        Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
     }
 }
 
