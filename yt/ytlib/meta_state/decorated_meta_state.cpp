@@ -20,21 +20,30 @@ TDecoratedMetaState::TDecoratedMetaState(
     : State(state)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
+    , StateQueue(New<TActionQueue>())
+    , SnapshotQueue(New<TActionQueue>())
 {
     YASSERT(~state != NULL);
     YASSERT(~snapshotStore != NULL);
     YASSERT(~changeLogCache != NULL);
 
-    VERIFY_INVOKER_AFFINITY(state->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(StateQueue->GetInvoker(), StateThread);
 
     ComputeReachableVersion();
 }
 
-IInvoker::TPtr TDecoratedMetaState::GetInvoker() const
+IInvoker::TPtr TDecoratedMetaState::GetStateInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return State->GetInvoker();
+    return StateQueue->GetInvoker();
+}
+
+IInvoker::TPtr TDecoratedMetaState::GetSnapshotInvoker()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return SnapshotQueue->GetInvoker();
 }
 
 IMetaState::TPtr TDecoratedMetaState::GetState() const
@@ -59,7 +68,7 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 
     LOG_INFO("Started saving snapshot");
 
-    return State->Save(output)->Apply(FromMethod(
+    return State->Save(output, GetSnapshotInvoker())->Apply(FromMethod(
         &TDecoratedMetaState::OnSave,
         TPtr(this),
         TInstant::Now()));
@@ -84,7 +93,7 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
     LOG_INFO("Started loading snapshot %d", segmentId);
 
     UpdateVersion(TMetaVersion(segmentId, 0));
-    return State->Load(input)->Apply(FromMethod(
+    return State->Load(input, GetSnapshotInvoker())->Apply(FromMethod(
         &TDecoratedMetaState::OnLoad,
         TPtr(this),
         TInstant::Now()));
@@ -222,41 +231,6 @@ void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
     TGuard<TSpinLock> guard(VersionSpinLock);
     Version = newVersion;
     ReachableVersion = Max(ReachableVersion, Version);
-}
-
-void TDecoratedMetaState::OnStartLeading()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    State->OnStartLeading();
-}
-
-void TDecoratedMetaState::OnStopLeading()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    State->OnStopLeading();
-}
-
-void TDecoratedMetaState::OnStartFollowing()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    State->OnStartFollowing();
-}
-
-void TDecoratedMetaState::OnStopFollowing()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    State->OnStopFollowing();
-}
-
-void TDecoratedMetaState::OnRecoveryComplete()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    State->OnRecoveryComplete();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

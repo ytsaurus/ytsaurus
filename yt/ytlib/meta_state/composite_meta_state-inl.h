@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state.h"
 #endif
 
+#include "composite_meta_state_detail.h"
+
 namespace NYT {
 namespace NMetaState {
 

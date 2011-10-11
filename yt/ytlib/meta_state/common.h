@@ -44,7 +44,7 @@ const i32 NonexistingSnapshotId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPeerState, 
+DECLARE_ENUM(EPeerStatus, 
     (Stopped)
     (Elections)
     (FollowerRecovery)
@@ -57,7 +57,7 @@ DECLARE_ENUM(ECommitResult,
     (Committed)
     (MaybeCommitted)
     (NotCommitted)
-    (InvalidState)
+    (InvalidStatus)
 );
 
 DECLARE_ENUM(ECommitMode,

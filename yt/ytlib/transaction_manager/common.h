@@ -1,9 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
 #include "../misc/guid.h"
-
 #include "../logging/log.h"
 
 namespace NYT {

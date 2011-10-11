@@ -16,17 +16,22 @@ static NLog::TLogger& Logger = CypressLogger;
 
 TCypressService::TCypressService(
     const TConfig& config,
+    TCypressManager::TPtr cypressManager,
     IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server,
-    TCypressState::TPtr state)
+    NRpc::TServer::TPtr server)
     : TMetaStateServiceBase(
         serviceInvoker,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , Config(config)
-    , State(state)
+    , CypressManager(cypressManager)
 {
+    YASSERT(~cypressManager != NULL);
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~server!= NULL);
+
     RegisterMethods();
+
     server->RegisterService(this);
 }
 
@@ -51,17 +56,19 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
 
     // TODO: validate transaction id
 
-    auto root = State->GetNode(RootNodeId, transactionId);
+    auto root = CypressManager->GetNode(RootNodeId, transactionId);
 
     Stroka output;
     TStringOutput outputStream(output);
     TYsonWriter writer(&outputStream, false); // TODO: use binary
 
     try {
-        State->GetYPath(transactionId, path, &writer);
+        CypressManager->GetYPath(transactionId, path, &writer);
     } catch (...) {
-        // TODO:
+        // TODO: use proper error code
         context->Reply(EErrorCode::ShitHappens);
+
+        // TODO: abort transaction
     }
 
     response->SetValue(output);
@@ -82,7 +89,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 
     // TODO: validate transaction id
 
-    auto root = State->GetNode(RootNodeId, transactionId);
+    auto root = CypressManager->GetNode(RootNodeId, transactionId);
 
     NProto::TMsgSetPath message;
     message.SetTransactionId(transactionId.ToProto());
@@ -91,12 +98,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 
     try {
         CommitChange(
-            this, context, State, message,
-            &TCypressState::SetYPath,
+            this, context, CypressManager, message,
+            &TCypressManager::SetYPath,
             ECommitMode::MayFail);
     } catch (...) {
-        // TODO:
+        // TODO: use proper error code
         context->Reply(EErrorCode::ShitHappens);
+
+        // TODO: abort transaction
     }
 }
 
@@ -111,7 +120,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
-    auto root = State->GetNode(RootNodeId, transactionId);
+    auto root = CypressManager->GetNode(RootNodeId, transactionId);
 
     // TODO: validate transaction id
 
@@ -121,12 +130,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
 
     try {
         CommitChange(
-            this, context, State, message,
-            &TCypressState::RemoveYPath,
+            this, context, CypressManager, message,
+            &TCypressManager::RemoveYPath,
             ECommitMode::MayFail);
     } catch (...) {
-        // TODO:
+        // TODO: use proper error code
         context->Reply(EErrorCode::ShitHappens);
+
+        // TODO: abort transaction
     }
 }
 

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_state.h"
+#include "cypress_manager.h"
+
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
 
@@ -30,7 +31,7 @@ class TNodeFactory
 {
 public:
     TNodeFactory(
-        TCypressState::TPtr state,
+        TCypressManager::TPtr state,
         const TTransactionId& transactionId)
         : State(state)
         , TransactionId(transactionId)
@@ -71,7 +72,7 @@ public:
     }
 
 private:
-    TCypressState::TPtr State;
+    TCypressManager::TPtr State;
     TTransactionId TransactionId;
 
 };
@@ -88,7 +89,7 @@ public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
     TCypressNodeProxyBase(
-        TCypressState::TPtr state,
+        TCypressManager::TPtr state,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : State(state)
@@ -147,7 +148,7 @@ public:
     }
 
 protected:
-    TCypressState::TPtr State;
+    TCypressManager::TPtr State;
     TTransactionId TransactionId;
     TNodeId NodeId;
 
@@ -196,7 +197,7 @@ class TScalarNodeProxy
 {
 public:
     TScalarNodeProxy(
-        TCypressState::TPtr state,
+        TCypressManager::TPtr state,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
@@ -245,7 +246,7 @@ public: \
     \
     public: \
         T ## name ## NodeProxy( \
-            TCypressState::TPtr state, \
+            TCypressManager::TPtr state, \
             const TTransactionId& transactionId, \
             const TNodeId& nodeId) \
             : TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node>( \
@@ -256,7 +257,7 @@ public: \
     }; \
     \
     inline ICypressNodeProxy::TPtr T ## name ## Node::GetProxy( \
-        TIntrusivePtr<TCypressState> state, \
+        TIntrusivePtr<TCypressManager> state, \
         const TTransactionId& transactionId) const \
     { \
         return ~New<T ## name ## NodeProxy>(state, transactionId, Id.NodeId); \
@@ -277,7 +278,7 @@ class TCompositeNodeProxyBase
 {
 protected:
     TCompositeNodeProxyBase(
-        TCypressState::TPtr state,
+        TCypressManager::TPtr state,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
@@ -307,7 +308,7 @@ class TMapNodeProxy
 
 public:
     TMapNodeProxy(
-        TCypressState::TPtr state,
+        TCypressManager::TPtr state,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 

@@ -8,9 +8,9 @@
 #include "../chunk_holder/common.h"
 #include "../chunk_holder/replicator.h"
 
-#include "../transaction/common.h"
-#include "../transaction/transaction.h"
-#include "../transaction/transaction_manager.h"
+#include "../transaction_manager/common.h"
+#include "../transaction_manager/transaction.h"
+#include "../transaction_manager/transaction_manager.h"
 
 namespace NYT {
 namespace NChunkManager {

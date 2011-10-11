@@ -21,7 +21,7 @@ TCommitterBase::TCommitterBase(
     YASSERT(~metaState != NULL);
     YASSERT(~controlInvoker != NULL);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(metaState->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(metaState->GetStateInvoker(), StateThread);
 }
 
 void TCommitterBase::Stop()
@@ -375,7 +375,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
             TPtr(this),
             version,
             changeData)
-        ->AsyncVia(MetaState->GetInvoker())
+        ->AsyncVia(MetaState->GetStateInvoker())
         ->Do();
 }
 

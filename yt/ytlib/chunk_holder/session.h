@@ -171,8 +171,6 @@ private:
     TChunkStore::TPtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
 
-    TLeaseManager::TPtr LeaseManager;
-
     typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
     TSessionMap SessionMap;
 

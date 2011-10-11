@@ -1,4 +1,4 @@
-#include "cypress_state.h"
+#include "cypress_manager.h"
 #include "node_proxy.h"
 
 #include "../ytree/yson_reader.h"
@@ -13,7 +13,7 @@ static NLog::TLogger& Logger = CypressLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressState::TCypressState(
+TCypressManager::TCypressManager(
     NMetaState::TMetaStateManager::TPtr metaStateManager,
     NMetaState::TCompositeMetaState::TPtr metaState,
     TTransactionManager::TPtr transactionManager)
@@ -22,14 +22,15 @@ TCypressState::TCypressState(
 {
     YASSERT(~transactionManager != NULL);
 
-    metaState->RegisterPart(this);
-    transactionManager->RegisterHander(this);
+    //transactionManager->RegisterHander(this);
     
     RegisterMethod(this, &TThis::SetYPath);
     RegisterMethod(this, &TThis::RemoveYPath);
+
+    metaState->RegisterPart(this);
 }
 
-INode::TPtr TCypressState::FindNode(
+INode::TPtr TCypressManager::FindNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -43,7 +44,7 @@ INode::TPtr TCypressState::FindNode(
     return ~impl->GetProxy(this, transactionId);
 }
 
-INode::TPtr TCypressState::GetNode(
+INode::TPtr TCypressManager::GetNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -52,27 +53,27 @@ INode::TPtr TCypressState::GetNode(
     return node;
 }
 
-IStringNode::TPtr TCypressState::CreateStringNode(const TTransactionId& transactionId)
+IStringNode::TPtr TCypressManager::CreateStringNode(const TTransactionId& transactionId)
 {
     return ~CreateNode<TStringNode, TStringNodeProxy>(transactionId);
 }
 
-IInt64Node::TPtr TCypressState::CreateInt64Node(const TTransactionId& transactionId)
+IInt64Node::TPtr TCypressManager::CreateInt64Node(const TTransactionId& transactionId)
 {
     return ~CreateNode<TInt64Node, TInt64NodeProxy>(transactionId);
 }
 
-IDoubleNode::TPtr TCypressState::CreateDoubleNode(const TTransactionId& transactionId)
+IDoubleNode::TPtr TCypressManager::CreateDoubleNode(const TTransactionId& transactionId)
 {
     return ~CreateNode<TDoubleNode, TDoubleNodeProxy>(transactionId);
 }
 
-IMapNode::TPtr TCypressState::CreateMapNode(const TTransactionId& transactionId)
+IMapNode::TPtr TCypressManager::CreateMapNode(const TTransactionId& transactionId)
 {
     return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId);
 }
 
-void TCypressState::GetYPath(
+void TCypressManager::GetYPath(
     const TTransactionId& transactionId,
     TYPath path,
     IYsonConsumer* consumer)
@@ -81,7 +82,7 @@ void TCypressState::GetYPath(
     NYTree::GetYPath(AsYPath(root), path, consumer);
 }
 
-void TCypressState::SetYPath(
+void TCypressManager::SetYPath(
     const TTransactionId& transactionId,
     TYPath path,
     TYsonProducer::TPtr producer )
@@ -90,7 +91,7 @@ void TCypressState::SetYPath(
     NYTree::SetYPath(AsYPath(root), path, producer);
 }
 
-TVoid TCypressState::SetYPath(const NProto::TMsgSetPath& message)
+TVoid TCypressManager::SetYPath(const NProto::TMsgSetPath& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
@@ -100,7 +101,7 @@ TVoid TCypressState::SetYPath(const NProto::TMsgSetPath& message)
     return TVoid();
 }
 
-void TCypressState::RemoveYPath(
+void TCypressManager::RemoveYPath(
     const TTransactionId& transactionId,
     TYPath path)
 {
@@ -108,7 +109,7 @@ void TCypressState::RemoveYPath(
     NYTree::RemoveYPath(AsYPath(root), path);
 }
 
-TVoid TCypressState::RemoveYPath(const NProto::TMsgRemovePath& message)
+TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemovePath& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
@@ -116,49 +117,49 @@ TVoid TCypressState::RemoveYPath(const NProto::TMsgRemovePath& message)
     return TVoid();
 }
 
-Stroka TCypressState::GetPartName() const
+Stroka TCypressManager::GetPartName() const
 {
     return "Cypress";
 }
 
-TFuture<TVoid>::TPtr TCypressState::Save(TOutputStream* stream)
+TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
 {
     YASSERT(false);
     *stream << NodeIdGenerator;
     return NULL;
 }
 
-TFuture<TVoid>::TPtr TCypressState::Load(TInputStream* stream)
+TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
 {
     YASSERT(false);
     *stream >> NodeIdGenerator;
     return NULL;
 }
 
-void TCypressState::Clear()
+void TCypressManager::Clear()
 {
     TBranchedNodeId id(RootNodeId, NullTransactionId);
     auto* root = new TMapNode(id);
     YVERIFY(Nodes.Insert(id, root));
 }
 
-void TCypressState::OnTransactionStarted(TTransaction& transaction)
+void TCypressManager::OnTransactionStarted(TTransaction& transaction)
 {
     UNUSED(transaction);
 }
 
-void TCypressState::OnTransactionCommitted(TTransaction& transaction)
+void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 {
     UNUSED(transaction);
 }
 
-void TCypressState::OnTransactionAborted(TTransaction& transaction)
+void TCypressManager::OnTransactionAborted(TTransaction& transaction)
 {
     UNUSED(transaction);
 }
 
-METAMAP_ACCESSORS_IMPL(TCypressState, Lock, TLock, TLockId, Locks);
-METAMAP_ACCESSORS_IMPL(TCypressState, Node, ICypressNode, TBranchedNodeId, Nodes);
+METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, Locks);
+METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, Nodes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

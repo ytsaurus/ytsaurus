@@ -245,7 +245,7 @@ public:
         YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
         return Map.end();
     }
-
+    
     //! (Unordered) const begin()-iterator.
     /*!
      *  Iteration is only possible when no snapshot is being created.
@@ -434,7 +434,8 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     const entityType* Find ## entityName(const idType& id) const; \
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
-    entityType& Get ## entityName ## ForUpdate(const idType& id)
+    entityType& Get ## entityName ## ForUpdate(const idType& id); \
+    yvector<const entityType*> Get ## entityName ## s();
 
 #define METAMAP_ACCESSORS_IMPL(declaringType, entityName, entityType, idType, map) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
@@ -455,6 +456,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (map).GetForUpdate(id); \
+    } \
+    \
+    yvector<const entityType*> declaringType::Get ## entityName ## s() \
+    { \
+        return (map).GetValues(); \
     }
 
 // TODO: drop this

@@ -135,7 +135,8 @@ private:
         request->SetEpoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(TConfig::RpcTimeout),
-            FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id));
+            FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id)
+            ->Via(~ElectionManager->ControlEpochInvoker));
     }
 
     void SchedulePing(TPeerId id)
@@ -508,14 +509,14 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 
     if (leaderId != LeaderId) {
         ythrow TServiceException(EErrorCode::InvalidLeader) <<
-               Sprintf("Ping from an invalid leader: expected %d, got %d",
+               Sprintf("Ping from an invalid leader (expected: %d, got: %d)",
                    LeaderId,
                    leaderId);
     }
 
     if (epoch != Epoch) {
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-               Sprintf("Ping with invalid epoch from leader %d: expected %s, got %s",
+               Sprintf("Ping with invalid epoch from leader %d (expected: %s, got %s)",
                    leaderId,
                    ~Epoch.ToString(),
                    ~epoch.ToString());

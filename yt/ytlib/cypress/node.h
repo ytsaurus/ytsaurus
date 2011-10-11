@@ -53,7 +53,7 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICypressNodeProxy;
-class TCypressState;
+class TCypressManager;
 
 struct ICypressNode
 {
@@ -71,7 +71,7 @@ struct ICypressNode
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        TIntrusivePtr<TCypressState> state,
+        TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const = 0;
 };
 
@@ -152,7 +152,7 @@ public:
         } \
         \
         virtual TIntrusivePtr<ICypressNodeProxy> GetProxy( \
-            TIntrusivePtr<TCypressState> state, \
+            TIntrusivePtr<TCypressManager> state, \
             const TTransactionId& transactionId) const; \
     };
 
@@ -194,7 +194,7 @@ public:
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        TIntrusivePtr<TCypressState> state,
+        TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
 };
 

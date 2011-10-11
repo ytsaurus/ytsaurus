@@ -42,7 +42,7 @@ TRecovery::TRecovery(
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto stateInvoker = metaState->GetInvoker();
+    auto stateInvoker = metaState->GetStateInvoker();
 
     VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);

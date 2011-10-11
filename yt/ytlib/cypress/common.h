@@ -3,7 +3,7 @@
 #include "../misc/common.h"
 #include "../misc/enum.h"
 #include "../logging/log.h"
-#include "../transaction/transaction_manager.h"
+#include "../transaction_manager/transaction_manager.h"
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
 

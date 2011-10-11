@@ -6,7 +6,7 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMapNodeProxy::TMapNodeProxy(
-    TCypressState::TPtr state,
+    TCypressManager::TPtr state,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCompositeNodeProxyBase(

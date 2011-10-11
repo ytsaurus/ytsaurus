@@ -2,10 +2,10 @@
 
 #include "common.h"
 #include "cypress_service_rpc.h"
-#include "cypress_state.h"
+#include "cypress_manager.h"
 
 #include "../rpc/server.h"
-#include "../rpc/server.h"
+#include "../meta_state/meta_state_service.h"
 
 namespace NYT {
 namespace NCypress {
@@ -22,9 +22,9 @@ public:
     //! Creates an instance.
     TCypressService(
         const TConfig& config,
+        TCypressManager::TPtr cypressManager,
         IInvoker::TPtr serviceInvoker,
-        NRpc::TServer::TPtr server,
-        TCypressState::TPtr state);
+        NRpc::TServer::TPtr server);
 
 private:
     typedef TCypressService TThis;
@@ -35,7 +35,7 @@ private:
     TConfig Config;
     
     //! Meta-state.
-    TCypressState::TPtr State;
+    TCypressManager::TPtr CypressManager;
 
     //! Registers RPC methods.
     void RegisterMethods();

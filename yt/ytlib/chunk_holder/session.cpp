@@ -23,7 +23,6 @@ TSessionManager::TSessionManager(
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)
     , ServiceInvoker(serviceInvoker)
-    , LeaseManager(New<TLeaseManager>())
 { }
 
 TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
@@ -32,7 +31,7 @@ TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
     if (it == SessionMap.end())
         return NULL;
     
-    TSession::TPtr session = it->Second();
+    auto session = it->Second();
     session->RenewLease();
     return session;
 }
@@ -41,11 +40,11 @@ TSession::TPtr TSessionManager::StartSession(
     const TChunkId& chunkId,
     int windowSize)
 {
-    TLocation::TPtr location = ChunkStore->GetNewChunkLocation();
+    auto location = ChunkStore->GetNewChunkLocation();
 
     auto session = New<TSession>(this, chunkId, location, windowSize);
 
-    TLeaseManager::TLease lease = LeaseManager->CreateLease(
+    auto lease = TLeaseManager::Get()->CreateLease(
         Config.SessionTimeout,
         FromMethod(
             &TSessionManager::OnLeaseExpired,
@@ -66,7 +65,7 @@ TSession::TPtr TSessionManager::StartSession(
 
 void TSessionManager::CancelSession(TSession::TPtr session)
 {
-    TChunkId chunkId = session->GetChunkId();
+    auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
@@ -78,7 +77,7 @@ void TSessionManager::CancelSession(TSession::TPtr session)
 
 TFuture<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
 {
-    TChunkId chunkId = session->GetChunkId();
+    auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
@@ -148,12 +147,12 @@ void TSession::SetLease(TLeaseManager::TLease lease)
 
 void TSession::RenewLease()
 {
-    SessionManager->LeaseManager->RenewLease(Lease);
+    TLeaseManager::Get()->RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
-    SessionManager->LeaseManager->CloseLease(Lease);
+    TLeaseManager::Get()->CloseLease(Lease);
 }
 
 IInvoker::TPtr TSession::GetInvoker()
@@ -182,7 +181,7 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 
     RenewLease();
 
-    const TSlot& slot = GetSlot(blockIndex);
+    const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
@@ -207,7 +206,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     RenewLease();
 
-    TSlot& slot = GetSlot(blockIndex);
+    auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
         if (CompareMemory(slot.Block->GetData(), data)) {
             LOG_WARNING("Block has been already received (BlockId: %s)",
@@ -282,7 +281,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 
 void TSession::OnBlockWritten(TVoid, i32 blockIndex)
 {
-    TSlot& slot = GetSlot(blockIndex);
+    auto& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
     slot.IsWritten->Set(TVoid());

@@ -16,15 +16,14 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressState
+class TCypressManager
     : public NMetaState::TMetaStatePart
-    , public NTransaction::ITransactionHandler
 {
 public:
-    typedef TCypressState TThis;
+    typedef TCypressManager TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    TCypressState(
+    TCypressManager(
         NMetaState::TMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager);
@@ -72,8 +71,8 @@ private:
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream);
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker);
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
     // ITransactionHandler implementation.

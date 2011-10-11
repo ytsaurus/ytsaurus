@@ -1,5 +1,7 @@
 #include "lease_manager.h"
 
+#include "../misc/delayed_invoker.h"
+#include "../misc/thread_affinity.h"
 #include "../actions/action_util.h"
 
 namespace NYT
@@ -7,30 +9,32 @@ namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLeaseManager::ExpireLease(TLease lease)
+TLeaseManager* TLeaseManager::Get()
 {
-    if (EraseLease(lease)) {
-        lease->OnExpire->Do();
-    }
+    return Singleton<TLeaseManager>();
 }
 
-TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction::TPtr onExpire)
+TLeaseManager::TLease TLeaseManager::CreateLease(
+    TDuration timeout,
+    IAction::TPtr onExpire)
 {
-    TLease entry = New<TEntry>(timeout, onExpire);
-    entry->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TLeaseManager::ExpireLease, TPtr(this), entry),
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~onExpire != NULL);
+
+    auto lease = New<TEntry>(timeout, onExpire);
+    lease->Cookie = TDelayedInvoker::Get()->Submit(
+        FromMethod(&TLeaseManager::ExpireLease, this, lease),
         timeout);
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        Leases.insert(entry);
-    }
-    return entry;
+    return lease;
 }
 
 bool TLeaseManager::RenewLease(TLease lease)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!Leases.has(lease))
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~lease != NULL);
+
+    TGuard<TSpinLock> guard(lease->SpinLock);
+    if (!lease->IsValid)
         return false;
 
     TDelayedInvoker::Get()->Cancel(lease->Cookie);
@@ -40,24 +44,36 @@ bool TLeaseManager::RenewLease(TLease lease)
     return true;
 }
 
-bool TLeaseManager::EraseLease(TLease lease)
+bool TLeaseManager::CloseLease(TLease lease)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = Leases.find(lease);
-    if (it == Leases.end())
-        return false;
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~lease != NULL);
 
-    Leases.erase(it);
+    TGuard<TSpinLock> guard(lease->SpinLock);
+    if (!lease->IsValid)
+        return false;
+    
+    InvalidateLease(lease);
     return true;
 }
 
-bool TLeaseManager::CloseLease(TLease lease)
+void TLeaseManager::ExpireLease(TLease lease)
 {
-    if (!EraseLease(lease)) {
-        return false;
+    TGuard<TSpinLock> guard(lease->SpinLock);
+    if (lease->IsValid) {
+        InvalidateLease(lease);
+        guard.Release();
+        lease->OnExpire->Do();
     }
+}
+
+void TLeaseManager::InvalidateLease(TLease lease)
+{
+    VERIFY_SPINLOCK_AFFINITY(lease->SpinLock);
+
     TDelayedInvoker::Get()->Cancel(lease->Cookie);
-    return true;
+    lease->Cookie = TDelayedInvoker::TCookie();
+    lease->IsValid = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

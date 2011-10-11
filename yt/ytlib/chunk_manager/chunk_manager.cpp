@@ -10,6 +10,7 @@
 #include "../misc/assert.h"
 #include "../misc/string.h"
 #include "../misc/id_generator.h"
+#include "../transaction_manager/transaction_manager.h"
 
 namespace NYT {
 namespace NChunkManager {
@@ -24,7 +25,6 @@ static NLog::TLogger& Logger = ChunkManagerLogger;
 
 class TChunkManager::TState
     : public NMetaState::TMetaStatePart
-    , public NTransaction::ITransactionHandler
 {
 public:
     typedef TIntrusivePtr<TState> TPtr;
@@ -51,7 +51,12 @@ public:
         RegisterMethod(this, &TState::HeartbeatRequest);
         RegisterMethod(this, &TState::HeartbeatResponse);
 
-        transactionManager->RegisterHander(this);
+        transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
+            &TThis::OnTransactionCommitted,
+            TPtr(this)));
+        transactionManager->OnTransactionAborted().Subscribe(FromMethod(
+            &TThis::OnTransactionAborted,
+            TPtr(this)));
     }
 
 
@@ -61,7 +66,7 @@ public:
         auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.AddedChunks.push_back(chunkId);
+        transaction.AddedChunks().push_back(chunkId);
 
         auto* chunk = new TChunk(chunkId, transactionId);
 
@@ -208,6 +213,8 @@ public:
     }
 
 private:
+    typedef TState TThis;
+
     TConfig Config;
     TTransactionManager::TPtr TransactionManager;
     TChunkReplication::TPtr ChunkReplication;
@@ -227,9 +234,8 @@ private:
         return "ChunkManager";
     }
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker)
     {
-        auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
         HolderMap.Save(invoker, stream);
         return ChunkMap.Save(invoker, stream);
@@ -242,9 +248,8 @@ private:
         //*stream << HolderIdGenerator;
     }
 
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker)
     {
-        auto invoker = GetSnapshotInvoker();
         invoker->Invoke(FromMethod(&TState::DoLoad, TPtr(this), stream));
         HolderMap.Load(invoker, stream);
         return ChunkMap.Load(invoker, stream)->Apply(FromMethod(
@@ -292,12 +297,12 @@ private:
     {
         TMetaStatePart::OnStartLeading();
 
-        HolderExpiration->Start(GetEpochStateInvoker());
+        HolderExpiration->Start(MetaStateManager->GetEpochStateInvoker());
         FOREACH(const auto& pair, HolderMap) {
             StartHolderTracking(*pair.Second());
         }
 
-        ChunkReplication->Start(GetEpochStateInvoker());
+        ChunkReplication->Start(MetaStateManager->GetEpochStateInvoker());
     }
 
     virtual void OnStopLeading()
@@ -313,15 +318,9 @@ private:
     }
 
 
-    // ITransactionHandler overrides.
-    virtual void OnTransactionStarted(TTransaction& transaction)
-    {
-        UNUSED(transaction);
-    }
-
     virtual void OnTransactionCommitted(TTransaction& transaction)
     {
-        FOREACH(const auto& chunkId, transaction.AddedChunks) {
+        FOREACH(const auto& chunkId, transaction.AddedChunks()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             chunk.TransactionId = TTransactionId();
 
@@ -334,7 +333,7 @@ private:
 
     virtual void OnTransactionAborted(TTransaction& transaction)
     {
-        FOREACH(const TChunkId& chunkId, transaction.AddedChunks) {
+        FOREACH(const TChunkId& chunkId, transaction.AddedChunks()) {
             const TChunk& chunk = GetChunk(chunkId);
             DoRemoveChunk(chunk);
         }
@@ -653,7 +652,8 @@ TChunkManager::TChunkManager(
     NRpc::TServer::TPtr server,
     TTransactionManager::TPtr transactionManager)
     : TMetaStateServiceBase(
-        metaState->GetInvoker(), // BUG: fail here if metaState is NULL
+        // BUG: fail here if metaStateManager is NULL
+        metaStateManager->GetStateInvoker(),
         TChunkManagerProxy::GetServiceName(),
         ChunkManagerLogger.GetCategory())
     , Config(config)
