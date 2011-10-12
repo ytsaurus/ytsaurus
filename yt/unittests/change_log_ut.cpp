@@ -17,11 +17,10 @@ protected:
     THolder<TTempFile> TemporaryFile;
     THolder<TTempFile> TemporaryIndexFile;
 
-
     virtual void SetUp()
     {
-        TemporaryFile.Reset(new TTempFile("tmp"));
-        TemporaryIndexFile.Reset(new TTempFile("tmp.index"));
+        TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("ChangeLog")));
+        TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
     }
 
     virtual void TearDown()
@@ -67,7 +66,6 @@ protected:
         }
     }
 };
-
 
 TEST_F(TChangeLogTest, EmptyChangeLog)
 {
@@ -128,6 +126,7 @@ TEST_F(TChangeLogTest, ReadWrite)
         }
 
         changeLog->Flush();
+
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckReads<ui32>(changeLog, logRecordCount);
     }
@@ -159,9 +158,8 @@ TEST_F(TChangeLogTest, TestCorrupted)
     }
 
     {
-        // TODO: fix this! (couldn't find tmp in current dir)
-        // Truncate file!
-        TFile changeLogFile("tmp", RdWr);
+        // Truncate file.
+        TFile changeLogFile(TemporaryFile->Name(), RdWr);
         changeLogFile.Resize(changeLogFile.GetLength() - 1);
     }
 
@@ -196,7 +194,7 @@ TEST_F(TChangeLogTest, Truncate)
 
     {
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
+        changeLog->Create(0);
 
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
@@ -205,6 +203,7 @@ TEST_F(TChangeLogTest, Truncate)
         }
 
         changeLog->Flush();
+
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
@@ -240,6 +239,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
         }
 
         changeLog->Flush();
+
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
