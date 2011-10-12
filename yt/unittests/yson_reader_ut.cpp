@@ -50,9 +50,7 @@ TEST_F(TYsonReaderTest, Int64)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, Int64Scalar(100500));
-    EXPECT_CALL(mock, EndTree());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -66,9 +64,7 @@ TEST_F(TYsonReaderTest, Double)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, DoubleScalar(::testing::DoubleEq(3.1415926)));
-    EXPECT_CALL(mock, EndTree());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -82,9 +78,7 @@ TEST_F(TYsonReaderTest, StringStartingWithLetter)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, StringScalar("Hello_789_World_123"));
-    EXPECT_CALL(mock, EndTree());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -98,9 +92,7 @@ TEST_F(TYsonReaderTest, StringStartingWithQuote)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, StringScalar("abcdeABCDE <1234567> + (10_000) - = 900   "));
-    EXPECT_CALL(mock, EndTree());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -114,16 +106,13 @@ TEST_F(TYsonReaderTest, EntityWithEmptyAttributes)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, BeginTree());
     EXPECT_CALL(mock, EntityScalar());
     EXPECT_CALL(mock, BeginAttributes());
     EXPECT_CALL(mock, EndAttributes());
-    EXPECT_CALL(mock, EndTree());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
 }
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
