@@ -18,17 +18,17 @@ TLeaderPinger::TLeaderPinger(
     TCellManager::TPtr cellManager,
     TPeerId leaderId,
     TEpoch epoch,
-    IInvoker::TPtr serviceInvoker)
+    IInvoker::TPtr controlInvoker)
     : Config(config)
     , MetaStateManager(metaStateManager)
     , CellManager(cellManager)
     , LeaderId(leaderId)
     , Epoch(epoch)
-    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , CancelableInvoker(New<TCancelableInvoker>(controlInvoker))
 {
     YASSERT(~metaStateManager != NULL);
     YASSERT(~cellManager != NULL);
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~controlInvoker != NULL);
 
     SchedulePing();
 }
@@ -52,12 +52,12 @@ void TLeaderPinger::SchedulePing()
 
 void TLeaderPinger::SendPing()
 {
-    auto state = MetaStateManager->GetState();
+    auto status = MetaStateManager->GetControlStatus();
     auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     auto request = proxy->PingLeader();
     request->SetEpoch(Epoch.ToProto());
     request->SetFollowerId(CellManager->GetSelfId());
-    request->SetState(state);
+    request->SetStatus(status);
     request->Invoke(Config.RpcTimeout)->Subscribe(
         FromMethod(
         &TLeaderPinger::OnSendPing, TPtr(this))
@@ -65,7 +65,7 @@ void TLeaderPinger::SendPing()
 
     LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %s)",
         LeaderId,
-        ~state.ToString());
+        ~status.ToString());
 }
 
 void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)

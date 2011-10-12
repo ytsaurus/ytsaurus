@@ -4,16 +4,17 @@
 #include "../misc/ptr.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Array of bytes. The only data type stored inside tables (column names and values)
+//! Array of bytes. The only data type stored inside tables (column names and values).
 class TValue
 {
 public:
     TValue();
-    TValue(const TSharedRef& data);
-    TValue(TBlob& data);
+    TValue(TRef data);
+    TValue(const Stroka& data);
 
     const char* GetData() const;
     size_t GetSize() const;
@@ -24,13 +25,12 @@ public:
     bool IsEmpty() const;
     bool IsNull() const;
 
+    // ToDo: do we really need it?
     Stroka ToString() const;
     TBlob ToBlob() const;
 
-    static TValue Null();
-
 private:
-    TSharedRef Data;
+    const TRef Data;
 };
 
 bool operator==(const TValue& lhs, const TValue& rhs);
@@ -40,39 +40,7 @@ bool operator> (const TValue& lhs, const TValue& rhs);
 bool operator<=(const TValue& lhs, const TValue& rhs);
 bool operator>=(const TValue& lhs, const TValue& rhs);
 
-// construct from POD types
-template <class T>
-TValue Value(const T& data)
-{
-    TBlob blob(&data, &data + sizeof(T));
-    return TValue(blob);
-}
-
-template <>
-inline TValue Value<Stroka>(const Stroka& data)
-{
-    TBlob blob(~data, ~data + data.Size());
-    return TValue(blob);
-}
-
-TValue NextValue(const TValue& value);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef yhash_map<TValue, TValue> TTableRow;
-
-////////////////////////////////////////////////////////////////////////////////
-
+} // namespace NTableClient
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-template<>
-struct THash<NYT::TValue>
-{
-    size_t operator()(const NYT::TValue& value) const
-    {
-        return MurmurHash<ui32>(value.GetData(), value.GetSize());
-    }
-};
-

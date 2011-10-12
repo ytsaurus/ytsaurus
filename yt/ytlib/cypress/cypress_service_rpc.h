@@ -18,7 +18,9 @@ public:
     typedef TIntrusivePtr<TCypressServiceProxy> TPtr;
 
     DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
-        ((ShitHappens)(1))
+        ((NoSuchTransaction)(1))
+        ((RecoverableError)(2))
+        ((UnrecoverableError)(3))
     );
 
     static Stroka GetServiceName()

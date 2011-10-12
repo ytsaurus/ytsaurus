@@ -229,7 +229,8 @@ void TRemoteChunkWriter::TGroup::PutGroup()
         &TRemoteChunkWriter::CheckResponse<TRspPutBlocks>, 
         Writer, 
         node, 
-        onSuccess);
+        onSuccess,
+        &Writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(node), onResponse);
     awaiter->Complete(FromMethod(
         &TRemoteChunkWriter::TGroup::Process, 
@@ -325,7 +326,11 @@ void TRemoteChunkWriter::TGroup::CheckSendResponse(
         srcNode, 
         dstNode);
 
-    Writer->CheckResponse<TRemoteChunkWriter::TRspSendBlocks>(rsp, srcNode, onSuccess);
+    Writer->CheckResponse<TRemoteChunkWriter::TRspSendBlocks>(
+        rsp, 
+        srcNode, 
+        onSuccess,
+        &Writer->SendBlocksTiming);
 }
 
 void TRemoteChunkWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
@@ -416,6 +421,11 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
     , WindowReady(NULL)
+    , StartChunkTiming(0, 1000, 20)
+    , PutBlocksTiming(0, 1000, 20)
+    , SendBlocksTiming(0, 1000, 20)
+    , FlushBlockTiming(0, 1000, 20)
+    , FinishChunkTiming(0, 1000, 20)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -478,7 +488,8 @@ void TRemoteChunkWriter::ShiftWindow()
                 &TRemoteChunkWriter::CheckResponse<TRspFlushBlock>, 
                 TPtr(this), 
                 node, 
-                onSuccess);
+                onSuccess,
+                &FlushBlockTiming);
             awaiter->Await(FlushBlock(node, lastFlushableBlock), onResponse);
         }
     }
@@ -677,11 +688,13 @@ template<class TResponse>
 void TRemoteChunkWriter::CheckResponse(
     typename TResponse::TPtr rsp,
     int node,
-    IAction::TPtr onSuccess)
+    IAction::TPtr onSuccess, 
+    TMetric* metric)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (rsp->IsOK()) {
+        metric->AddDelta(rsp->GetInvokeInstant());
         onSuccess->Do();
         return;
     } 
@@ -707,9 +720,10 @@ void TRemoteChunkWriter::StartSession()
             node);
         auto onResponse = FromMethod(
             &TRemoteChunkWriter::CheckResponse<TRspStartChunk>, 
-            TPtr(this), 
-            node, 
-            onSuccess);
+            TPtr(this),
+            node,
+            onSuccess,
+            &StartChunkTiming);
         awaiter->Await(StartChunk(node), onResponse);
     }
     awaiter->Complete(FromMethod(&TRemoteChunkWriter::OnSessionStarted, TPtr(this)));
@@ -783,7 +797,8 @@ void TRemoteChunkWriter::CloseSession()
                 &TRemoteChunkWriter::CheckResponse<TRspFinishChunk>, 
                 TPtr(this), 
                 node, 
-                onSuccess);
+                onSuccess, 
+                &FinishChunkTiming);
             awaiter->Await(FinishChunk(node), onResponse);
         }
     }
@@ -1005,27 +1020,25 @@ void TRemoteChunkWriter::Cancel()
     CurrentGroup.Drop();
 
     WriterThread->GetInvoker()->Invoke(FromMethod(
-        &TRemoteChunkWriter::DoCancel, 
+        &TRemoteChunkWriter::DoCancel,
         TPtr(this)));
 }
 
 Stroka TRemoteChunkWriter::GetDebugInfo()
 {
-    TStringStream ss;
-    // ToDo: implement metrics
-    
- /*   ss << "PutBlocks: mean " << TPutBlocksCall::TimeStat.GetMean() << "ms, std " << 
-        TPutBlocksCall::TimeStat.GetStd() << "ms, calls " << TPutBlocksCall::TimeStat.GetNum() << Endl;
-    ss << "SendBlocks: mean " << TSendBlocksCall::TimeStat.GetMean() << "ms, std " << 
-        TSendBlocksCall::TimeStat.GetStd() << "ms, calls " << TSendBlocksCall::TimeStat.GetNum() << Endl;
-    ss << "FlushBlocks: mean " << TFlushBlocksCall::TimeStat.GetMean() << "ms, std " << 
-        TFlushBlocksCall::TimeStat.GetStd() << "ms, calls " << TFlushBlocksCall::TimeStat.GetNum() << Endl;
-    ss << "StartChunk: mean " << TStartChunkCall::TimeStat.GetMean() << "ms, std " << 
-        TStartChunkCall::TimeStat.GetStd() << "ms, calls " << TStartChunkCall::TimeStat.GetNum() << Endl;
-    ss << "FinishChunk: mean " << TFinishChunkCall::TimeStat.GetMean() << "ms, std " << 
-        TFinishChunkCall::TimeStat.GetStd() << "ms, calls " << TFinishChunkCall::TimeStat.GetNum() << Endl;
-*/
-    return ss;
+    return Sprintf(
+        "ChunkId: %s; "
+        "StartChunk: (%s); "
+        "FinishChunk timing: (%s); "
+        "PutBlocks timing: (%s); "
+        "SendBlocks timing: (%s); "
+        "FlushBlocks timing: (%s); ",
+        ~ChunkId.ToString(), 
+        ~StartChunkTiming.GetDebugInfo(),
+        ~FinishChunkTiming.GetDebugInfo(),
+        ~PutBlocksTiming.GetDebugInfo(),
+        ~SendBlocksTiming.GetDebugInfo(),
+        ~FlushBlockTiming.GetDebugInfo());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

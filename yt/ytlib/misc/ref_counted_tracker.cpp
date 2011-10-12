@@ -110,30 +110,28 @@ void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     i64 totalCreated = 0;
 
     auto current = NYTree::TFluentYsonBuilder::Create(consumer)
-        .BeginTree()
-            .BeginMap()
-                .Item("statistics").BeginList();
+        .BeginMap()
+            .Item("statistics").BeginList();
 
     FOREACH(const auto& item, items) {
         totalAlive += item.AliveObjects;
         totalCreated += item.CreatedObjects;
 
         current = current
-                    .Item().BeginMap()
-                        .Item("name").Scalar(DemangleCxxName(item.Key->name()))
-                        .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
-                        .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
-                    .EndMap();
+                .Item().BeginMap()
+                    .Item("name").Scalar(DemangleCxxName(item.Key->name()))
+                    .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
+                    .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
+                .EndMap();
     }
 
     current
-                .EndList()
-                .Item("total").BeginMap()
-                    .Item("created").Scalar(totalCreated)
-                    .Item("alive").Scalar(totalAlive)
-                .EndMap()
+            .EndList()
+            .Item("total").BeginMap()
+                .Item("created").Scalar(totalCreated)
+                .Item("alive").Scalar(totalAlive)
             .EndMap()
-        .EndTree();
+        .EndMap();
 }
 
 i64 TRefCountedTracker::GetAliveObjects(TKey key)

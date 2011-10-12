@@ -26,9 +26,13 @@ public:
     typename TFuture<TResult>::TPtr CommitChange(
         const TMessage& message,
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-        IAction::TPtr errorHandler = NULL);
+        IAction::TPtr errorHandler = NULL,
+        ECommitMode mode = ECommitMode::NeverFails);
 
 protected:
+    TMetaStateManager::TPtr MetaStateManager;
+    TIntrusivePtr<TCompositeMetaState> MetaState;
+
     template<class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
@@ -44,30 +48,17 @@ protected:
     bool IsFolllower() const;
     bool IsRecovery() const;
 
-    IInvoker::TPtr GetSnapshotInvoker() const;
-    IInvoker::TPtr GetStateInvoker() const;
-    IInvoker::TPtr GetEpochStateInvoker() const;
-
     virtual Stroka GetPartName() const = 0;
-
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output) = 0;
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input) = 0;
-
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker) = 0;
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker) = 0;
     virtual void Clear() = 0;
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();
 
-    virtual void OnStartFollowing();
-    virtual void OnStopFollowing();
-
-    virtual void OnRecoveryComplete();
-
-    TMetaStateManager::TPtr MetaStateManager;
-    TIntrusivePtr<TCompositeMetaState> MetaState;
-
 private:
     friend class TCompositeMetaState;
+    typedef TMetaStatePart TThis;
 
     void CommitChange(Stroka changeType, TRef changeData);
 
@@ -79,15 +70,6 @@ private:
     template<class TMessage, class TResult>
     class TUpdate;
 
-    DECLARE_ENUM(ERole,
-        (None)
-        (Leader)
-        (Follower)
-    );
-
-    ERole Role;
-    bool IsRecovery_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,18 +80,10 @@ class TCompositeMetaState
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
 
-    TCompositeMetaState();
-
-    virtual IInvoker::TPtr GetInvoker() const;
-
     void RegisterPart(TMetaStatePart::TPtr part);
 
 private:
     friend class TMetaStatePart;
-
-    TActionQueue::TPtr StateActionQueue;
-    TActionQueue::TPtr SnapshotActionQueue;
-    TCancelableInvoker::TPtr EpochStateInvoker;
 
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
@@ -117,51 +91,14 @@ private:
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input);
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
 
     virtual void ApplyChange(const TRef& changeData);
 
     virtual void Clear();
 
-    virtual void OnStartLeading();
-    virtual void OnStopLeading();
-
-    virtual void OnStartFollowing();
-    virtual void OnStopFollowing();
-
-    virtual void OnRecoveryComplete();
-
-    void StartEpoch();
-    void StopEpoch();
-
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-#pragma pack(push, 4)
-
-struct TFixedChangeHeader
-{
-    i32 HeaderSize;
-    i32 MessageSize;
-};
-
-#pragma pack(pop)
-
-template <class TMessage>
-TBlob SerializeChange(
-    const NMetaState::NProto::TMsgChangeHeader& header,
-    const TMessage& message);
-
-void DeserializeChangeHeader(
-    TRef changeData,
-    NMetaState::NProto::TMsgChangeHeader* header);
-
-void DeserializeChange(
-    TRef changeData,
-    NMetaState::NProto::TMsgChangeHeader* header,
-    TRef* messageData);
 
 ////////////////////////////////////////////////////////////////////////////////
 

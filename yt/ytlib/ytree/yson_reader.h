@@ -13,9 +13,11 @@ class TYsonReader
     : private TNonCopyable
 {
 public:
-    TYsonReader(IYsonConsumer* events);
+    TYsonReader(IYsonConsumer* consumer);
 
     void Read(TInputStream* stream);
+
+    static TYsonProducer::TPtr GetProducer(TInputStream* stream);
 
 private:
     static const int Eos = -1;
@@ -24,6 +26,8 @@ private:
     IYsonConsumer* Events;
     TInputStream* Stream;
     int Lookahead;
+
+    static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
     void Reset();
 

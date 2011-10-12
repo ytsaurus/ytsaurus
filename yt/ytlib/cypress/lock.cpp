@@ -1,4 +1,4 @@
-#include "common.h"
+#include "lock.h"
 
 namespace NYT {
 namespace NCypress {

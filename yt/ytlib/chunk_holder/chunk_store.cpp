@@ -249,21 +249,9 @@ Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
     return GetChunkFileName(chunk->GetId(), chunk->GetLocation());
 }
 
-THolderStatistics TChunkStore::GetStatistics() const
+const yvector<TLocation::TPtr> TChunkStore::GetLocations() const
 {
-    THolderStatistics result;
-
-    FOREACH(const auto& location, Locations) {
-        result.AvailableSpace += location->GetAvailableSpace();
-        result.UsedSpace += location->GetUsedSpace();
-    }
-
-    if (Config.MaxChunksSpace >= 0) {
-        result.AvailableSpace = Max((i64) 0, Config.MaxChunksSpace - result.UsedSpace);
-    }
-
-    result.ChunkCount = ChunkMap.ysize();
-    return result;
+    return Locations;
 }
 
 TChunkStore::TChunks TChunkStore::GetChunks()
@@ -274,6 +262,11 @@ TChunkStore::TChunks TChunkStore::GetChunks()
         result.push_back(pair.Second());
     }
     return result;
+}
+
+int TChunkStore::GetChunkCount()
+{
+    return ChunkMap.ysize();
 }
 
 TFuture<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)

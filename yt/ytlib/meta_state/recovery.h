@@ -21,6 +21,7 @@ namespace NMetaState {
 class TLeaderRecovery;
 class TFollowerRecovery;
 
+//! Base class for both leader and follower recovery models.
 class TRecovery
     : public TRefCountedBase
 {
@@ -34,6 +35,7 @@ public:
 
     typedef TFuture<EResult> TResult;
 
+    //! Constructs an instance.
     /*!
      * \note Thread affinity: ControlThread.
      */
@@ -58,22 +60,60 @@ protected:
 
     typedef TMetaStateManagerProxy TProxy;
 
+    //! Must be derived the the inheritors to control the recovery behavior.
+    /*!
+     * \note Thread affinity: Any.
+     */
     virtual bool IsLeader() const = 0;
 
-    // State thread
-    TResult::TPtr RecoverFromSnapshot(
+    //! Recovers to a desired state by first loading a snapshot
+    //! and then applying changelogs, if necessary.
+    /*!
+     *  \param targetVersion A version to reach.
+     *  \param snapshotId A snapshot to start recovery with.
+     *  \returns An async result that gets when the recovery completes.
+     *  
+     *  \note Thread affinity: StateThread.
+     */
+    TResult::TPtr RecoverFromSnapshotAndChangeLog(
         TMetaVersion targetVersion,
         i32 snapshotId);
+
+    //! Recovers to a desired state by applying changelogs.
+    /*!
+     *  \param targetVersion A version to reach.
+     *  \param expectedPrevRecordCount The 'PrevRecordCount' value that
+     *  the first changelog is expected to have.
+     *  \returns An async result that gets when the recovery completes.
+     *  
+     *  Additional unnamed parameters are due to implementation details.
+     * 
+     *  \note Thread affinity: StateThread.
+     */
     TResult::TPtr RecoverFromChangeLog(
         TVoid,
         TSnapshotReader::TPtr,
         TMetaVersion targetVersion,
         i32 expectedPrevRecordCount);
+
+    //! Applies records from a given changes up to a given one.
+    /*!
+     *  The current segment id should match that of #changeLog.
+     *  
+     *  The methods ensured that no change is applied twice.
+     *  In particular, if the 'record count' of part the current version is positive, it skips
+     *  the suitable prefix of #changeLog.
+     *
+     *  \param changeLog A changelog to apply.
+     *  \param targetRecordCount The 'record count' part of the desired target version.
+     *  
+     * \note Thread affinity: StateThread.
+     */
     void ApplyChangeLog(
         TAsyncChangeLog& changeLog,
         i32 targetRecordCount);
 
-    // Thread-neutral.
+    // Any thread.
     TMetaStateManagerConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
@@ -90,12 +130,14 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Drives leader recovery.
 class TLeaderRecovery
     : public TRecovery
 {
 public:
     typedef TIntrusivePtr<TLeaderRecovery> TPtr;
 
+    //! Constructs an instance.
     /*!
      * \note Thread affinity: ControlThread.
      */
@@ -122,12 +164,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Drives follower recovery.
 class TFollowerRecovery
     : public TRecovery
 {
 public:
     typedef TIntrusivePtr<TFollowerRecovery> TPtr;
 
+    //! Constructs an instance.
     /*!
      * \note Thread affinity: ControlThread.
      */
@@ -141,13 +185,13 @@ public:
         TPeerId leaderId,
         IInvoker::TPtr controlInvoker);
 
-    //! Performs follower recovery brining the follower up-to-date and synched with the leader.
+    //! Performs follower recovery brining the follower up-to-date and synchronized with the leader.
     /*!
      * \note Thread affinity: ControlThread.
      */
     TResult::TPtr Run();
 
-    //! Postpones incoming request for advancing the current segment in the master state.
+    //! Postpones an incoming request for advancing the current segment.
     /*!
      * \param version State in which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed state
@@ -156,12 +200,13 @@ public:
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
 
-    //! Postpones incoming change to the master state.
+    //! Postpones an incoming change.
     /*!
      * \param change Incoming change.
      * \param version State in which the change should be applied.
-     * \returns True when applicable change is coherent with the postponed state
+     * \returns True when the change is coherent with the postponed state
      * and postponing succeeded.
+     * 
      * \note Thread affinity: ControlThread.
      */
     EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
@@ -196,7 +241,7 @@ private:
 
     typedef yvector<TPostponedChange> TPostponedChanges;
 
-    // Thread-neutral.
+    // Any thread.
     TResult::TPtr Result;
 
     // Control thread
@@ -204,16 +249,13 @@ private:
     TMetaVersion PostponedVersion;
     bool SyncReceived;
 
-    // Control thread
     TResult::TPtr CapturePostponedChanges();
-    void OnSync(TProxy::TRspSync::TPtr response);
+    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
-    // Thread-neutral.
-    virtual bool IsLeader() const;
+    void OnSync(TProxy::TRspSync::TPtr response);
     TResult::TPtr OnSyncReached(EResult result);
 
-    // State thread.
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    virtual bool IsLeader() const;
 
 };
 

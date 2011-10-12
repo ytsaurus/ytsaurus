@@ -1,0 +1,25 @@
+package NYT.NCypress.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMsgSet
+{
+    required bytes TransactionId = 1;
+    required bytes Path = 2;
+    required bytes Value = 3;
+}
+
+message TMsgRemove
+{
+    required bytes TransactionId = 1;
+    required bytes Path = 2;
+}
+
+message TMsgLock
+{
+    required bytes TransactionId = 1;
+    required bytes Path = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

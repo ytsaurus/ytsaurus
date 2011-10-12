@@ -63,10 +63,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpTreeServer::THttpTreeServer(TYsonProducer::TPtr ysonProducer, ui16 port)
+THttpTreeServer::THttpTreeServer(
+    TYsonProducer::TPtr ysonProducer,
+    int port)
     : Callback(new TCallback(ysonProducer))
 {
-    Server.Reset(new THttpServer(~Callback, THttpServerOptions(port)));
+    Server.Reset(new THttpServer(
+        ~Callback,
+        THttpServerOptions(static_cast<ui16>(port))));
 }
 
 void THttpTreeServer::Start()

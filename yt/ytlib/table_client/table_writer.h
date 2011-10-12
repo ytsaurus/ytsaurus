@@ -1,34 +1,35 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
+#include "common.h"
 #include "../chunk_client/chunk_writer.h"
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
-#include "chunk_meta.pb.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICompressor
-    : public TNonCopyable
+typedef int TCodecId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICodec
 {
-public:
-    typedef TAutoPtr<ICompressor> TPtr;
+    virtual TSharedRef Encode(const TSharedRef& block) = 0;
 
-    virtual TSharedRef Compress(const TSharedRef& block) = 0;
-
-    //! Compressor id, written to chunk meta
-    virtual int GetId() const = 0;
-    virtual ~ICompressor() { }
+    //! Globally identifies codec type within YT.
+    virtual TCodecId GetId() const = 0;
+    virtual ~ICodec() { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
 //! Single-threaded
-class TTableWriter 
+class TTableWriter
+    : public TNonCopyable
 {
 public:
     struct TConfig
@@ -36,42 +37,46 @@ public:
         int BlockSize;
 
         TConfig()
-            : BlockSize(8 * 1024 * 1024)
+            // ToDo: make configurable
+            : BlockSize(1024 * 1024)
         { }
     };
 
     TTableWriter(
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
-        TSchema::TPtr schema,
-        ICompressor::TPtr compressor);
+        const TSchema& schema,
+        ICodec* codec);
+    ~TTableWriter();
 
-    TTableWriter& Write(const TValue& column, const TValue& value);
-    void AddRow();
+    void Write(const TColumn& column, TValue value);
+    void EndRow();
     void Close();
 
 private:
-    // thread may block here, if chunkwriter window is overfilled
     void AddBlock(int channelIndex); 
 
 private:
+    bool IsClosed;
+
     TConfig Config;
     IChunkWriter::TPtr ChunkWriter;
 
     int CurrentBlockIndex;
-    i64 CurrentRowIndex;
 
-    TSchema::TPtr Schema;
+    TSchema Schema;
 
-    TTableRow CurrentRow;
+    //! Columns already set in current row
+    yhash_set<TColumn> UsedColumns;
 
     yvector<TChannelWriter::TPtr> ChannelWriters;
 
-    ICompressor::TPtr Compressor;
+    ICodec* Codec;
 
-    NTableClient::NProto::TChunkMeta ChunkMeta;
+    NProto::TChunkMeta ChunkMeta;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

@@ -138,7 +138,7 @@ TSnapshotCreator::TSnapshotCreator(
     YASSERT(~snapshotStore != NULL);
     YASSERT(~serviceInvoker != NULL);
 
-    StateInvoker = metaState->GetInvoker();
+    StateInvoker = metaState->GetStateInvoker();
 }
 
 void TSnapshotCreator::CreateDistributed(TMetaVersion version)

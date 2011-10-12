@@ -23,10 +23,17 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TChangeLogCache::TPtr changeLogCache);
 
+    //! Returns the invoker used for updating the state.
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetInvoker() const;
+    IInvoker::TPtr GetStateInvoker();
+
+    //! Returns the invoker used for creating snapshots.
+    /*!
+     * \note Thread affinity: any
+     */
+    IInvoker::TPtr GetSnapshotInvoker();
 
     //! Returns the current version of the state.
     /*!
@@ -37,9 +44,10 @@ public:
     //! Returns the maximum reachable version of the state that
     //! can be obtained by reading the local snapshots, changelogs.
     /*!
-     * It is always no smaller than #GetVersion.
-     * Since the reachable version is used to determine the current priority
-     * during elections it can be read from an arbitrary thread.
+     *  It is always no smaller than #GetVersion.
+     *  Since the reachable version is used to determine the current priority
+     *  during elections it can be read from an arbitrary thread.
+     *
      * \note Thread affinity: any
      */
     TMetaVersion GetReachableVersion() const;
@@ -84,7 +92,9 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncChangeLog::TAppendResult::TPtr LogChange(const TSharedRef& changeData);
+    TAsyncChangeLog::TAppendResult::TPtr LogChange(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
     
     //! Updates the version so as to switch to a new segment.
     /*!
@@ -98,36 +108,6 @@ public:
      */
     void RotateChangeLog();
 
-    //! Delegates the call to IMetaState::OnStartLeading.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void OnStartLeading();
-
-    //! Delegates the call to IMetaState::OnStopLeading.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void OnStopLeading();
-
-    //! Delegates the call to IMetaState::OnStartFollowing.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void OnStartFollowing();
-
-    //! Delegates the call to IMetaState::OnStopFollowing.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void OnStopFollowing();
-
-    //! Delegates the call to IMetaState::RecoveryComplete.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void OnRecoveryComplete();
-
 private:
     void IncrementRecordCount();
     void ComputeReachableVersion();
@@ -140,6 +120,9 @@ private:
     IMetaState::TPtr State;
     TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
+
+    TActionQueue::TPtr StateQueue;
+    TActionQueue::TPtr SnapshotQueue;
 
     TSpinLock VersionSpinLock;
     TMetaVersion Version;

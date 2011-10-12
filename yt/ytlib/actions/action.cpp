@@ -7,19 +7,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void ActionViaThunk(IInvoker::TPtr invoker, IAction::TPtr action)
-{
-    invoker->Invoke(action);
-}
-
-} // namespace <anonymous>
-
 IAction::TPtr IAction::Via(IInvoker::TPtr invoker)
 {
+    YASSERT(~invoker != NULL);
+
     return FromMethod(
-        ActionViaThunk,
+        &IInvoker::Invoke,
         invoker,
         this);
 }

@@ -9,9 +9,6 @@ namespace NChunkManager {
 
 struct TJob
 {
-    TJob()
-    { }
-
     TJob(
         EJobType type,
         const TJobId& jobId,
@@ -33,12 +30,9 @@ struct TJob
         , TargetAddresses(other.TargetAddresses)
     { }
 
-    TJob& operator = (const TJob& other)
+    TAutoPtr<TJob> Clone()
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TJob(*this);
     }
 
     EJobType Type;
@@ -53,11 +47,6 @@ struct TJob
 
 struct TJobList
 {
-    typedef yvector<TJobId> TJobs;
-
-    TJobList()
-    { }
-
     TJobList(const TChunkId& chunkId)
         : ChunkId(chunkId)
     { }
@@ -67,12 +56,9 @@ struct TJobList
         , Jobs(other.Jobs)
     { }
 
-    TJobList& operator = (const TJobList& other)
+    TAutoPtr<TJobList> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TJobList(*this);
     }
 
     void AddJob(const TJobId& id)
@@ -89,7 +75,7 @@ struct TJobList
     }
     
     TChunkId ChunkId;
-    TJobs Jobs;
+    yvector<TJobId> Jobs;
 
 };
 

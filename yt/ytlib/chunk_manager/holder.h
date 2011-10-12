@@ -21,9 +21,6 @@ DECLARE_ENUM(EHolderState,
 
 struct THolder
 {
-    THolder()
-    { }
-
     THolder(
         THolderId id,
         Stroka address,
@@ -44,12 +41,9 @@ struct THolder
         , Jobs(other.Jobs)
     { }
 
-    THolder& operator = (const THolder& other)
+    TAutoPtr<THolder> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new THolder(*this);
     }
 
     void AddJob(const TJobId& id)

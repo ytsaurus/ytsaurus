@@ -4,6 +4,7 @@
 #include "yson_format.h"
 
 #include "../misc/assert.h"
+#include "../actions/action_util.h"
 
 namespace NYT {
 namespace NYTree {
@@ -20,14 +21,12 @@ void TYsonReader::Read(TInputStream* stream)
 {
     try {
         Stream = stream;
-        Events->BeginTree();
         ParseAny();
         int ch = ReadChar();
         if (ch != Eos) {
             ythrow yexception() << Sprintf("Unexpected symbol %s in YSON",
                 ~Stroka(static_cast<char>(ch)).Quote());
         }
-        Events->EndTree();
     } catch (...) {
         Reset();
         throw;
@@ -376,6 +375,17 @@ void TYsonReader::ParseBinaryDouble()
     ExpectChar(DoubleMarker);
     double value = FromString<double>(ReadChars(sizeof(double)));
     Events->DoubleScalar(value);
+}
+
+TYsonProducer::TPtr TYsonReader::GetProducer(TInputStream* stream)
+{
+    return FromMethod(&TYsonReader::GetProducerThunk, stream);
+}
+
+void TYsonReader::GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream)
+{
+    TYsonReader reader(consumer);
+    reader.Read(stream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

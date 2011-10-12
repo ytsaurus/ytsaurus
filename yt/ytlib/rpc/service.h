@@ -140,6 +140,7 @@ protected:
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
     NLog::TLogger ServiceLogger;
+    bool IsReplied;
 
     TBlob ResponseBody;
     yvector<TSharedRef> ResponseAttachments;

@@ -1,5 +1,6 @@
 SET(YT_SOURCE_FILES
     common.h
+    id_generator.h
     lease_manager.cpp
     metric.cpp
     config.h

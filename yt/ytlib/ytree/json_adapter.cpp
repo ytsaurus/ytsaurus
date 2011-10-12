@@ -17,16 +17,6 @@ TJsonAdapter::~TJsonAdapter()
 {
 }
 
-void TJsonAdapter::BeginTree()
-{
-    // ?
-}
-
-void TJsonAdapter::EndTree()
-{
-    // ?
-}
-
 void TJsonAdapter::StringScalar(const Stroka& value)
 {
     JsonWriter->Write(value);
@@ -44,7 +34,8 @@ void TJsonAdapter::DoubleScalar(double value)
 
 void TJsonAdapter::EntityScalar()
 {
-    // ?
+    BeginMap();
+    EndMap();
 }
 
 void TJsonAdapter::BeginList()

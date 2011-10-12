@@ -26,6 +26,7 @@ static Stroka FormatLevel(ELogLevel level)
 {
     switch (level)
     {
+        case ELogLevel::Trace:   return "T";
         case ELogLevel::Debug:   return "D";
         case ELogLevel::Info:    return "I";
         case ELogLevel::Warning: return "W";

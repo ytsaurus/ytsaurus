@@ -16,7 +16,6 @@ TFollowerTracker::TFollowerTracker(
     : Config(config)
     , CellManager(cellManager)
     , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
-    , LeaseManager(New<TLeaseManager>())
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~serviceInvoker != NULL);
@@ -33,7 +32,7 @@ void TFollowerTracker::Stop()
 
 bool TFollowerTracker::IsFollowerActive(TPeerId followerId)
 {
-    return FollowerStates[followerId].State == EPeerState::Following;
+    return FollowerStates[followerId].Status == EPeerStatus::Following;
 }
 
 bool TFollowerTracker::HasActiveQuorum()
@@ -41,7 +40,7 @@ bool TFollowerTracker::HasActiveQuorum()
     int activeFollowerCount = 0;
     for (int i = 0; i < CellManager->GetPeerCount(); ++i) {
         auto& followerState = FollowerStates[i];
-        if (followerState.State == EPeerState::Following) {
+        if (followerState.Status == EPeerStatus::Following) {
             ++activeFollowerCount;
         }
     }
@@ -57,19 +56,19 @@ void TFollowerTracker::ResetFollowerStates()
 
 void TFollowerTracker::ResetFollowerState(int followerId)
 {
-    ChangeFollowerState(followerId, EPeerState::Stopped);
+    ChangeFollowerStatus(followerId, EPeerStatus::Stopped);
     FollowerStates[followerId].Lease = TLeaseManager::TLease();
 }
 
-void TFollowerTracker::ChangeFollowerState(int followerId, EPeerState state)
+void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
 {
-    TFollowerState& followerState = FollowerStates[followerId];
-    if (followerState.State != state) {
-        LOG_INFO("Follower state changed (FollowerId: %d, OldState: %s, NewState: %s)",
+    auto& followerState = FollowerStates[followerId];
+    if (followerState.Status != status) {
+        LOG_INFO("Follower state changed (FollowerId: %d, OldStatus: %s, NewStatus: %s)",
             followerId,
-            ~followerState.State.ToString(),
-            ~state.ToString());
-        followerState.State = state;
+            ~followerState.Status.ToString(),
+            ~status.ToString());
+        followerState.Status = status;
     }
 }
 
@@ -78,18 +77,18 @@ void TFollowerTracker::OnLeaseExpired(TPeerId followerId)
     ResetFollowerState(followerId);
 }
 
-void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerState state)
+void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
 {
-    ChangeFollowerState(followerId, state);
+    ChangeFollowerStatus(followerId, status);
 
     auto& followerState = FollowerStates[followerId];
     if (followerState.Lease == TLeaseManager::TLease()) {
-        followerState.Lease = LeaseManager->CreateLease(
+        followerState.Lease = TLeaseManager::Get()->CreateLease(
             Config.PingTimeout,
             FromMethod(&TFollowerTracker::OnLeaseExpired, TPtr(this), followerId)
             ->Via(~EpochInvoker));
     } else {
-        LeaseManager->RenewLease(followerState.Lease);
+        TLeaseManager::Get()->RenewLease(followerState.Lease);
     }
 }
 

@@ -65,8 +65,10 @@ class Master(RemoteServer, Server):
     
     
 class Holder(RemoteServer, Server):
-    address = Subclass(opts.limit_iter('--holders',
-            ['n01-04%0.2dg:%d' % (x, Port) for x in xrange(100)]))
+    groupid = Subclass(xrange(10))
+    nodeid = Subclass(xrange(10))
+    host = Template('n01-04%(groupid)d%(nodeid)dg')
+    port = Port
     
     params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
     

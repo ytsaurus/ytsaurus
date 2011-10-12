@@ -17,22 +17,11 @@ struct IMetaState
 {
     typedef TIntrusivePtr<IMetaState> TPtr;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output) = 0;
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input) = 0;
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker) = 0;
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker) = 0;
 
     virtual void ApplyChange(const TRef& changeData) = 0;
-
     virtual void Clear() = 0;
-
-    virtual IInvoker::TPtr GetInvoker() const = 0;
-
-    virtual void OnStartLeading() = 0;
-    virtual void OnStopLeading() = 0;
-
-    virtual void OnStartFollowing() = 0;
-    virtual void OnStopFollowing() = 0;
-
-    virtual void OnRecoveryComplete() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

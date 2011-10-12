@@ -88,6 +88,7 @@ struct THolderStatistics
     i64 AvailableSpace;
     i64 UsedSpace;
     i32 ChunkCount;
+    i32 SessionCount;
 
     static THolderStatistics FromProto(const NChunkManager::NProto::THolderStatistics& proto)
     {
@@ -95,6 +96,7 @@ struct THolderStatistics
         result.AvailableSpace = proto.GetAvailableSpace();
         result.UsedSpace = proto.GetUsedSpace();
         result.ChunkCount = proto.GetChunkCount();
+        result.SessionCount = proto.GetSessionCount();
         return result;
     }
 
@@ -104,15 +106,17 @@ struct THolderStatistics
         result.SetAvailableSpace(AvailableSpace);
         result.SetUsedSpace(UsedSpace);
         result.SetChunkCount(ChunkCount);
+        result.SetSessionCount(SessionCount);
         return result;
     }
 
     Stroka ToString() const
     {
-        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d",
+        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d, SessionCount: %d",
             AvailableSpace,
             UsedSpace,
-            ChunkCount);
+            ChunkCount,
+            SessionCount);
     }
 };
 

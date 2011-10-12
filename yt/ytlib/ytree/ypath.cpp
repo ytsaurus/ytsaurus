@@ -71,14 +71,6 @@ IYPathService::TPtr AsYPath(INode::TPtr node)
     return service;
 }
 
-IYPathService::TPtr AsYPath(INode::TConstPtr node)
-{
-    YASSERT(~node != NULL);
-    auto* service = dynamic_cast<IYPathService*>(const_cast<INode*>(~node));
-    YASSERT(service != NULL);
-    return service;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TYPathOperationState
@@ -131,11 +123,11 @@ IYPathService::TNavigateResult NavigateYPathAction(
     return state.CurrentService->Navigate(state.CurrentPath);
 }
 
-INode::TConstPtr NavigateYPath(
+INode::TPtr NavigateYPath(
     IYPathService::TPtr rootService,
     TYPath path)
 {
-    return ExecuteYPathOperation<INode::TConstPtr>(
+    return ExecuteYPathOperation<INode::TPtr>(
         rootService,
         path,
         FromMethod(&NavigateYPathAction),
@@ -186,7 +178,7 @@ void SetYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline IYPathService::TRemoveResult RemoveYPathAction(
+IYPathService::TRemoveResult RemoveYPathAction(
     TYPathOperationState state)
 {
     return state.CurrentService->Remove(state.CurrentPath);
@@ -201,6 +193,25 @@ void RemoveYPath(
         path,
         FromMethod(&RemoveYPathAction),
         "remove");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathService::TLockResult LockYPathAction(
+    TYPathOperationState state)
+{
+    return state.CurrentService->Lock(state.CurrentPath);
+}
+
+void LockYPath(
+    IYPathService::TPtr rootService,
+    TYPath path)
+{
+    ExecuteYPathOperation<TVoid>(
+        rootService,
+        path,
+        FromMethod(&LockYPathAction),
+        "lock");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
