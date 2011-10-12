@@ -2,10 +2,12 @@
 
 #include "common.h"
 
-#include "../misc/enum.h"
+#include "../transaction_manager/common.h"
 
 namespace NYT {
 namespace NCypress {
+
+using NTransaction::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +24,18 @@ public:
         , TransactionId(transactionId)
         , Mode(mode)
     { }
+
+    TLock(const TLock& other)
+        : Id(other.Id)
+        , NodeId(other.NodeId)
+        , TransactionId(other.TransactionId)
+        , Mode(other.Mode)
+    { }
+
+    TAutoPtr<TLock> Clone() const
+    {
+        return new TLock(*this);
+    }
 
     TLockId GetId() const
     {

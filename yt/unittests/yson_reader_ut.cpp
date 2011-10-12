@@ -2,7 +2,7 @@
 #include <util/stream/mem.h>
 
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NYTree {

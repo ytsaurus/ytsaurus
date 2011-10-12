@@ -92,6 +92,14 @@ private:
     struct TItem
         : public TIntrusiveListItem<TItem>
     {
+        TItem()
+            : AsyncResult(New< TFuture<TValuePtr> >())
+        { }
+
+        explicit TItem(const TValuePtr& value)
+            : AsyncResult(New< TFuture<TValuePtr> >(value))
+        { }
+
         TFuturePtr AsyncResult;
     };
 

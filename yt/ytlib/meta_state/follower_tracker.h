@@ -4,8 +4,8 @@
 #include "cell_manager.h"
 
 #include "../actions/invoker_util.h"
-#include "../misc/lease_manager.h"
 #include "../misc/thread_affinity.h"
+#include "../misc/lease_manager.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -35,16 +35,16 @@ public:
     void Stop();
     bool HasActiveQuorum();
     bool IsFollowerActive(TPeerId followerId);
-    void ProcessPing(TPeerId followerId, EPeerState state);
+    void ProcessPing(TPeerId followerId, EPeerStatus status);
 
 private:
     struct TFollowerState
     {
-        EPeerState State;
+        EPeerStatus Status;
         TLeaseManager::TLease Lease;
     };
 
-    void ChangeFollowerState(int followerId, EPeerState  state);
+    void ChangeFollowerStatus(int followerId, EPeerStatus  status);
     void ResetFollowerState(int followerId);
     void ResetFollowerStates();
     void OnLeaseExpired(TPeerId followerId);
@@ -53,7 +53,6 @@ private:
     TCellManager::TPtr CellManager;
     TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;
-    TLeaseManager::TPtr LeaseManager;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

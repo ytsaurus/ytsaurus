@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "transaction_manager_rpc.pb.h"
+#include "transaction_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
@@ -11,11 +11,11 @@ namespace NTransaction {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerProxy
+class TTransactionServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TTransactionManagerProxy> TPtr;
+    typedef TIntrusivePtr<TTransactionServiceProxy> TPtr;
 
     DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
         ((NoSuchTransaction)(1))
@@ -23,10 +23,10 @@ public:
 
     static Stroka GetServiceName()
     {
-        return "TransactionManager";
+        return "TransactionService";
     }
 
-    TTransactionManagerProxy(NRpc::IChannel::TPtr channel)
+    TTransactionServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

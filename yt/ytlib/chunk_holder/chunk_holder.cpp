@@ -41,6 +41,7 @@ TChunkHolder::TChunkHolder(
         MasterConnector = New<TMasterConnector>(
             Config,
             ChunkStore,
+            SessionManager,
             Replicator,
             serviceInvoker);
     } else {

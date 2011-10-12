@@ -2,10 +2,18 @@
 #include <util/datetime/base.h>
 
 #include <yt/ytlib/actions/action_queue.h>
+
 #include <yt/ytlib/rpc/server.h>
+
 #include <yt/ytlib/chunk_holder/chunk_holder.h>
 #include <yt/ytlib/chunk_manager/chunk_manager.h>
-#include <yt/ytlib/transaction/transaction_manager.h>
+
+#include <yt/ytlib/transaction_manager/transaction_manager.h>
+#include <yt/ytlib/transaction_manager/transaction_service.h>
+
+#include <yt/ytlib/cypress/cypress_manager.h>
+#include <yt/ytlib/cypress/cypress_service.h>
+
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_tree_server.h>
 
@@ -18,12 +26,16 @@ using NChunkHolder::TChunkHolderConfig;
 using NChunkHolder::TChunkHolder;
 
 using NTransaction::TTransactionManager;
+using NTransaction::TTransactionService;
 
 using NChunkManager::TChunkManagerConfig;
 using NChunkManager::TChunkManager;
 
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
+
+using NCypress::TCypressManager;
+using NCypress::TCypressService;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::THttpTreeServer;
@@ -89,7 +101,6 @@ void RunCellMaster(const TCellMasterConfig& config)
     auto metaState = New<TCompositeMetaState>();
 
     auto controlQueue = New<TActionQueue>();
-    auto metaStateInvoker = metaState->GetInvoker();
 
     auto server = New<NRpc::TServer>(port);
 
@@ -102,8 +113,11 @@ void RunCellMaster(const TCellMasterConfig& config)
     auto transactionManager = New<TTransactionManager>(
         TTransactionManager::TConfig(),
         metaStateManager,
-        metaState,
-        metaStateInvoker,
+        metaState);
+
+    auto transactionService = New<TTransactionService>(
+        transactionManager,
+        metaStateManager->GetStateInvoker(),
         server);
 
     auto chunkManager = New<TChunkManager>(
@@ -113,10 +127,25 @@ void RunCellMaster(const TCellMasterConfig& config)
         server,
         transactionManager);
 
+    auto cypressManager = New<TCypressManager>(
+        metaStateManager,
+        metaState,
+        transactionManager);
+
+    auto cypressService = New<TCypressService>(
+        cypressManager,
+        transactionManager,
+        metaStateManager->GetStateInvoker(),
+        server);
+
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/refcounted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+    monitoringManager->Register(
+        "/meta_state",
+        FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
+
     // TODO: register more monitoring infos
 
     monitoringManager->Start();

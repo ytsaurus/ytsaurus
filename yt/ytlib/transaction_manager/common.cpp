@@ -7,6 +7,8 @@ namespace NTransaction {
 
 NLog::TLogger TransactionLogger("Transaction");
 
+TTransactionId NullTransactionId(0, 0, 0, 0);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransaction

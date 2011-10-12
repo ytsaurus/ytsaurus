@@ -1,8 +1,8 @@
 PROGRAM(unittester)
 
 SRCS(
+    ${ARCADIA_ROOT}/contrib/testing/framework.cpp
     utmain.cpp
-    framework/framework.cpp
     change_log_ut.cpp
     async_result_ut.cpp
     snapshot_ut.cpp

@@ -59,9 +59,9 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         if (valueIt == ValueMap.end())
             return NULL;
 
-        TIntrusivePtr<TValue> value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+        auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
         if (~value != NULL) {
-            TItem* item = new TItem();
+            auto* item = new TItem();
             item->AsyncResult = New< TFuture<TValuePtr> >();
             item->AsyncResult->Set(value);
             LruList.PushFront(item);
@@ -91,28 +91,33 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 
         auto itemIt = ItemMap.find(key);
         if (itemIt != ItemMap.end()) {
-            TItem* item = itemIt->Second();
+            auto* item = itemIt->Second();
             cookie->AsyncResult = item->AsyncResult;
             return false;
         }
 
-        auto* item = new TItem();
-        item->AsyncResult = New< TFuture<TValuePtr> >();
-        cookie->AsyncResult = item->AsyncResult;
-        ItemMap.insert(MakePair(key, item));
-
         auto valueIt = ValueMap.find(key);
         if (valueIt == ValueMap.end()) {
+            auto* item = new TItem();
+            ItemMap.insert(MakePair(key, item));
+
+            cookie->AsyncResult = item->AsyncResult;
             cookie->Active = true;
             cookie->Cache = this;
+
             return true;
         }
 
         auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
         if (~value != NULL) {
-            item->AsyncResult->Set(value);
+            auto* item = new TItem(value);
+            ItemMap.insert(MakePair(key, item));
+
             LruList.PushFront(item);
             ++LruListSize;
+
+            cookie->AsyncResult = item->AsyncResult;
+
             guard.Release();
 
             Trim();

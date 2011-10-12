@@ -1,54 +1,81 @@
-﻿#include "../misc/foreach.h"
-#include "schema.h"
+﻿#include "schema.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange::TRange(const TValue& begin, const TValue& end, bool closedEnd)
+TColumn NextColumn(TColumn column)
 {
-    if (end.IsNull() || begin < end) {
-        Begin_ = begin;
-        End_ = end;
-    } else {
-        Begin_ = end;
-        End_ = begin;
+    if (column.Empty()) {
+        return "\0";
     }
 
-    if (closedEnd)
-        End_ = NextValue(End_);
+    // ToDo: need code review
+    TColumn result;
+    if (column.back() != 0xFF) {
+        result.reserve(column.Size());
+        result.append(~column, column.Size() - 1);
+        result.append(column.back() + 1);
+    } else {
+        result.reserve(column.Size() + 1);
+        result.append(column);
+        result.append('\0');
+    }
+
+    return result;
 }
 
-const TValue& TRange::Begin() const
+////////////////////////////////////////////////////////////////////////////////
+
+TRange::TRange(const TColumn& begin, const TColumn& end)
+    : IsInfinite_(false)
+    , Begin_(begin)
+    , End_(end)
+{
+    YASSERT(begin < end);
+}
+
+TRange::TRange(const TColumn& begin)
+    : IsInfinite_(false)
+    , Begin_(begin)
+    , End_("")
+{ }
+
+TColumn TRange::Begin() const
 {
     return Begin_;
 }
 
-const TValue& TRange::End() const
+TColumn TRange::End() const
 {
     return End_;
 }
 
-bool TRange::Match(const TValue& value) const
+NProto::TRange TRange::ToProto() const
+{
+    NProto::TRange protoRange;
+    protoRange.SetBegin(Begin_);
+    protoRange.SetEnd(End_);
+    return protoRange;
+}
+
+bool TRange::Contains(const TColumn& value) const
 {
     if (value < Begin_)
         return false;
 
-    if (!End_.IsNull() && value >= End_)
+    if (!IsInfinite() && value >= End_)
         return false;
 
     return true;
 }
 
-bool TRange::Overlap(const TRange& range) const
+bool TRange::Overlaps(const TRange& range) const
 {
-    if ((Begin_ <= range.Begin_ && 
-        (!End_.IsNull() || range.Begin_ < End_)) || 
-        (Begin_ < range.End_ && 
-        (!End_.IsNull() || range.End_ <= End_)) ||
-        (range.Begin_ <= Begin_ && 
-        (!range.End_.IsNull() || Begin_ < range.End_))) 
+    if ((Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ < End_)) || 
+        (Begin_ < range.End_ && (IsInfinite() || range.End_ <= End_)) ||
+        (range.Begin_ <= Begin_ && (range.IsInfinite() || Begin_ < range.End_)))
     {
         return true;
     } else {
@@ -56,133 +83,142 @@ bool TRange::Overlap(const TRange& range) const
     }
 }
 
+bool TRange::IsInfinite() const
+{
+    return IsInfinite_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannel& TChannel::AddColumn(const TValue& column)
+void TChannel::AddColumn(const TColumn& column)
 {
-    FOREACH(auto& oldColumn, Columns_){
+    FOREACH(auto& oldColumn, Columns){
         if (oldColumn == column) {
-            return *this;
+            return;
         }
     }
 
-    Columns_.push_back(column);
-    return *this;
+    Columns.push_back(column);
 }
 
-TChannel& TChannel::AddRange(const TRange& range)
+void TChannel::AddRange(const TRange& range)
 {
-    Ranges_.push_back(range);
-    return *this;
+    Ranges.push_back(range);
 }
 
-TChannel& TChannel::AddRange(const TValue& begin, const TValue& end)
+void TChannel::AddRange(const TColumn& begin, const TColumn& end)
 {
-    Ranges_.push_back(TRange(begin, end));
-    return *this;
+    Ranges.push_back(TRange(begin, end));
 }
 
-TChannel& TChannel::operator-= (const TChannel& rhsChannel)
+NProto::TChannel TChannel::ToProto() const
 {
-    yvector<TValue> newColumns;
-    FOREACH(auto& column, Columns_) {
-        if (!rhsChannel.Match(column)) {
-            newColumns.push_back(column);
-        }
-    }
-    Columns_.swap(newColumns);
-
-    yvector<TRange> rhsRanges(rhsChannel.Ranges_);
-    FOREACH(auto& column, rhsChannel.Columns_) {
-        // add single columns as ranges
-        rhsRanges.push_back(TRange(column, column, true));
+    NProto::TChannel protoChannel;
+    FOREACH(auto column, Columns) {
+        protoChannel.AddColumns(~column);
     }
 
-    yvector<TRange> newRanges;
-    FOREACH(auto& rhs, rhsRanges) {
-        FOREACH(auto& lhs, Ranges_) {
-            if (!lhs.Overlap(rhs)) {
-                newRanges.push_back(lhs);
-            } else {
-                if (lhs.Begin() < rhs.Begin()) {
-                    newRanges.push_back(TRange(lhs.Begin(), rhs.Begin()));
-                }
-
-                if (!rhs.End().IsNull() && 
-                    (lhs.End().IsNull() || lhs.End() > rhs.End())) 
-                {
-                    newRanges.push_back(TRange(rhs.End(), lhs.End()));
-                }
-            }
-        }
-        Ranges_.swap(newRanges);
-        newRanges.clear();
+    FOREACH(const auto& range, Ranges) {
+        *protoChannel.AddRanges() = range.ToProto();
     }
-
-    return *this;
+    return protoChannel;
 }
 
-const TChannel TChannel::operator- (const TChannel& channel)
+bool TChannel::Contains(const TColumn& column) const
 {
-    return (TChannel(*this) -= channel);
-}
-
-bool TChannel::Match(const TValue& column) const
-{
-    FOREACH(auto& oldColumn, Columns_) {
+    FOREACH(auto& oldColumn, Columns) {
         if (oldColumn == column) {
             return true;
         }
     }
-    return MatchRanges(column);
+    return ContainsInRanges(column);
 }
 
-bool TChannel::MatchRanges(const TValue& column) const
+bool TChannel::ContainsInRanges(const TColumn& column) const
 {
-    FOREACH(auto& range, Ranges_) {
-        if (range.Match(column)) {
+    FOREACH(auto& range, Ranges) {
+        if (range.Contains(column)) {
             return true;
         }
     }
     return false;
 }
 
-const yvector<TValue>& TChannel::Columns()
+const yvector<TColumn>& TChannel::GetColumns()
 {
-    return Columns_;
+    return Columns;
 }
 
-const yvector<TRange>& TChannel::Ranges()
+////////////////////////////////////////////////////////////////////////////////
+
+void operator-= (TChannel& lhs, const TChannel& rhs)
 {
-    return Ranges_;
+    yvector<TColumn> newColumns;
+    FOREACH(auto column, lhs.Columns) {
+        if (!rhs.Contains(column)) {
+            newColumns.push_back(column);
+        }
+    }
+    lhs.Columns.swap(newColumns);
+
+    yvector<TRange> rhsRanges(rhs.Ranges);
+    FOREACH(auto column, rhs.Columns) {
+        // add single columns as ranges
+        rhsRanges.push_back(TRange(column, NextColumn(column)));
+    }
+
+    yvector<TRange> newRanges;
+    FOREACH(auto& rhsRange, rhsRanges) {
+        FOREACH(auto& lhsRange, lhs.Ranges) {
+            if (!lhsRange.Overlaps(rhsRange)) {
+                newRanges.push_back(lhsRange);
+                continue;
+            } 
+
+            if (lhsRange.Begin() < rhsRange.Begin()) {
+                newRanges.push_back(TRange(lhsRange.Begin(), rhsRange.Begin()));
+            }
+
+            if (rhsRange.IsInfinite()) {
+                continue;
+            }
+
+            if (lhsRange.IsInfinite()) {
+                newRanges.push_back(TRange(rhsRange.End()));
+            } else if (lhsRange.End() > rhsRange.End()) {
+                newRanges.push_back(TRange(rhsRange.End(), lhsRange.End()));
+            }
+        }
+        lhs.Ranges.swap(newRanges);
+        newRanges.clear();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()
-    // NB: this "other" channel will be present in any chunk,
+{
+    TChannel trashChannel;
+    trashChannel.AddRange(TRange(""));
+
+    // NB: this "trash" channel will be present in any chunk,
     // cause this is how table writer works now. But if it's empty,
     // its blocks will be successfully compressed
-    : Channels_(1, TChannel().AddRange(TValue::Null(), TValue::Null()))
-{ }
-
-TSchema& TSchema::AddChannel(const TChannel& channel)
-{
-    Channels_.front() -= channel; 
-    Channels_.push_back(channel);
-    return *this;
+    Channels.push_back(trashChannel);
 }
 
-int TSchema::GetChannelCount() const
+void TSchema::AddChannel(const TChannel& channel)
 {
-    return Channels_.ysize();
+    Channels.front() -= channel; 
+    Channels.push_back(channel);
 }
 
-const yvector<TChannel>& TSchema::Channels() const
+const yvector<TChannel>& TSchema::GetChannels() const
 {
-    return Channels_;
+    return Channels;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

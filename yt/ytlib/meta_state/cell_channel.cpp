@@ -116,7 +116,6 @@ TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel == NULL);
             return NULL;
-            break;
 
         default:
             YASSERT(false);

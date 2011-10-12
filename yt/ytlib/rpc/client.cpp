@@ -70,6 +70,7 @@ TClientResponse::TClientResponse(
     , Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
+    , InvokeInstant(TInstant::Now())
 { }
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
@@ -125,7 +126,9 @@ void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
     LOG_DEBUG("Response received (RequestId: %s)",
         ~RequestId.ToString());
 
-    Deserialize(message);
+    if (errorCode.IsOK()) {
+        Deserialize(message);
+    }
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
@@ -166,6 +169,11 @@ yvector<TSharedRef>& TClientResponse::Attachments()
 EErrorCode TClientResponse::GetErrorCode() const
 {
     return ErrorCode;
+}
+
+TInstant TClientResponse::GetInvokeInstant() const
+{
+    return InvokeInstant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

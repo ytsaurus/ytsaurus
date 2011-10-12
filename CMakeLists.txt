@@ -8,7 +8,6 @@ SET(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/include/global.cmake NO_POLICY_SCOPE)
 
-ADD_SUBDIRECTORY(contrib/yajl)
 ADD_DIRS(util)
 ADD_DIRS(library/json)
 ADD_DIRS(yt)

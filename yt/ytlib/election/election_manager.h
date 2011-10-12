@@ -69,6 +69,12 @@ public:
      * \note Thread affinity: any
      */
     void Restart();
+
+    //! Gets info for monitoring in YSON format
+    /*!
+     * \note Thread affinity: any
+     */
+    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
     
 private:
     typedef TElectionManager TThis;

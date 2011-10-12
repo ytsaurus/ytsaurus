@@ -27,30 +27,25 @@ private:
     INodeFactory* Factory;
     yvector<INode::TPtr> Stack;
 
-    virtual void BeginTree()
+    virtual void StringScalar(const Stroka& value)
     {
-        YASSERT(Stack.ysize() == 0);
+        auto node = Factory->CreateString();
+        node->SetValue(value);
+        Push(~node);
     }
 
-    virtual void EndTree()
+    virtual void Int64Scalar(i64 value)
     {
-        YASSERT(Stack.ysize() == 1);
+        auto node = Factory->CreateInt64();
+        node->SetValue(value);
+        Push(~node);
     }
 
-
-    virtual void StringScalar(const Stroka& Scalar)
+    virtual void DoubleScalar(double value)
     {
-        Push(~Factory->CreateString(Scalar));
-    }
-
-    virtual void Int64Scalar(i64 Scalar)
-    {
-        Push(~Factory->CreateInt64(Scalar));
-    }
-
-    virtual void DoubleScalar(double Scalar)
-    {
-        Push(~Factory->CreateDouble(Scalar));
+        auto node = Factory->CreateDouble();
+        node->SetValue(value);
+        Push(~node);
     }
 
     virtual void EntityScalar()
@@ -96,7 +91,9 @@ private:
     virtual void MapItem(const Stroka& name)
     {
         AddToMap();
-        Push(~Factory->CreateString(name));
+        auto node = Factory->CreateString();
+        node->SetValue(name);
+        Push(~node);
     }
 
     virtual void EndMap()

@@ -199,6 +199,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     FOREACH (auto holderId, targets) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         targetAddresses.push_back(holder.Address);
+        ChunkPlacement->AddHolderSessionHint(holder);
     }
 
     auto jobId = TJobId::Create();
@@ -238,10 +239,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
         return EScheduleFlags::None;
     }
 
-    double maxLoadFactor =
-        ChunkPlacement->GetLoadFactor(sourceHolder) -
-        MinChunkBalancingLoadFactorDiff;
-    THolderId targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxLoadFactor);
+    double maxFillCoeff =
+        ChunkPlacement->GetFillCoeff(sourceHolder) -
+        MinChunkBalancingFillCoeffDiff;
+    auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -251,6 +252,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     }
 
     const auto& targetHolder = ChunkManager->GetHolder(targetHolderId);
+    ChunkPlacement->AddHolderSessionHint(targetHolder);
     
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;
@@ -340,7 +342,7 @@ void TChunkReplication::ScheduleJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetLoadFactor(holder) > MinChunkBalancingLoadFactor)
+        ChunkPlacement->GetFillCoeff(holder) > MinChunkBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
@@ -580,6 +582,7 @@ void TChunkReplication::Start(IInvoker::TPtr invoker)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(~Invoker == NULL);
+    YASSERT(~invoker != NULL);
     Invoker = invoker;
     ScheduleNextRefresh();
 }

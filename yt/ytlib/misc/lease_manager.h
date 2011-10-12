@@ -1,11 +1,8 @@
 #pragma once
 
-#include "hash.h"
-
-#include "../misc/delayed_invoker.h"
-
 #include "../actions/action.h"
 #include "../actions/invoker.h"
+#include "../misc/delayed_invoker.h"
 
 namespace NYT 
 {
@@ -13,37 +10,38 @@ namespace NYT
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaseManager
-    : public TRefCountedBase
+    : public TNonCopyable
 {
     struct TEntry
         : public TRefCountedBase
     {
+        bool IsValid;
         TDuration Timeout;
         IAction::TPtr OnExpire;
         TDelayedInvoker::TCookie Cookie;
+        TSpinLock SpinLock;
 
-        TEntry(TDuration delay, IAction::TPtr onExpire)
-            : Timeout(delay)
+        TEntry(TDuration timeout, IAction::TPtr onExpire)
+            : IsValid(true)
+            , Timeout(timeout)
             , OnExpire(onExpire)
-        {}
+        { }
     };
 
 public:
-    typedef TIntrusivePtr<TLeaseManager> TPtr;
     typedef TIntrusivePtr<TEntry> TLease;
+
+    static TLeaseManager* Get();
 
     TLease CreateLease(TDuration timeout, IAction::TPtr expiryCallback);
     bool RenewLease(TLease lease);
     bool CloseLease(TLease lease);
 
 private:
-    typedef yhash_set<TLease> TLeases;
-
-    TSpinLock SpinLock;
-    TLeases Leases;
-
     bool EraseLease(TLease lease);
     void ExpireLease(TLease lease);
+    void InvalidateLease(TLease lease);
+
 };
 
 

@@ -2,7 +2,7 @@
 
 #include <util/generic/yexception.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 using ::testing::_;
 using ::testing::A;

@@ -176,11 +176,14 @@ public:
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(TChunk::TPtr chunk);
 
-    //! Returns current statistics.
-    THolderStatistics GetStatistics() const;
-
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
+
+    //! Returns the number of registered chunks.
+    int GetChunkCount();
+
+    //! Returns locations.
+    const yvector<TLocation::TPtr> GetLocations() const;
 
     //! Raised when a chunk is added.
     TParamSignal<TChunk::TPtr>& ChunkAdded();

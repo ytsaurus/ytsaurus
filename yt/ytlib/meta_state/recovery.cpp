@@ -42,7 +42,7 @@ TRecovery::TRecovery(
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto stateInvoker = metaState->GetInvoker();
+    auto stateInvoker = metaState->GetStateInvoker();
 
     VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
@@ -59,7 +59,7 @@ void TRecovery::Stop()
     CancelableStateInvoker->Cancel();
 }
 
-TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshot(
+TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
     TMetaVersion targetVersion,
     i32 snapshotId)
 {
@@ -341,7 +341,7 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 
     return FromMethod(
-               &TRecovery::RecoverFromSnapshot,
+               &TRecovery::RecoverFromSnapshotAndChangeLog,
                TPtr(this),
                version,
                maxAvailableSnapshotId)
@@ -351,6 +351,8 @@ TRecovery::TResult::TPtr TLeaderRecovery::Run()
 
 bool TLeaderRecovery::IsLeader() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return true;
 }
 
@@ -406,7 +408,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error %s during synchronization with leader",
+        LOG_ERROR("Error synchronizing with the leader (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
         Result->Set(EResult::Failed);
         return;
@@ -440,7 +442,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
 
     FromMethod(
-        &TRecovery::RecoverFromSnapshot,
+        &TRecovery::RecoverFromSnapshotAndChangeLog,
         TPtr(this),
         PostponedVersion,
         snapshotId)
@@ -500,10 +502,12 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     
     FOREACH(const auto& change, *changes) {
         switch (change.Type) {
-            case TPostponedChange::EType::Change:
-                MetaState->LogChange(change.ChangeData);
+            case TPostponedChange::EType::Change: {
+                auto version = MetaState->GetVersion();
+                MetaState->LogChange(version, change.ChangeData);
                 MetaState->ApplyChange(change.ChangeData);
                 break;
+            }
 
             case TPostponedChange::EType::SegmentAdvance:
                 MetaState->RotateChangeLog();

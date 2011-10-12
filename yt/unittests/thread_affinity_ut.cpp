@@ -3,7 +3,7 @@
 #include "../ytlib/actions/action_queue.h"
 #include "../ytlib/actions/action_util.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 

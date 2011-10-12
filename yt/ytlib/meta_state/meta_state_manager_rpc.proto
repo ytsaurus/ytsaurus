@@ -77,7 +77,7 @@ message TReqPingLeader
 {
     required bytes Epoch = 1;
     required int32 FollowerId = 2;
-    required int32 State = 3;
+    required int32 Status = 3;
 }
 
 message TRspPingLeader

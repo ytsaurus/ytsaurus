@@ -3,7 +3,7 @@
 
 #include <util/generic/yexception.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 

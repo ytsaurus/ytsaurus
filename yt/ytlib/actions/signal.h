@@ -17,12 +17,10 @@ namespace NYT {
  *
  * Signals are thread-safe.
  */
-
 template<class T>
 class TSignalBase
 {
 public:
-
     //! Adds a new handler to the list.
     /*!
      * \param action Handler to be added.
@@ -93,7 +91,6 @@ class TParamSignal
     : public TSignalBase< IParamAction<TParam> >
 {
 public:
-
     //! Calls #IParamAction::Do passing the given #arg for all actions in the list.
     /*!
      * \param arg Argument to be passed to the handlers.

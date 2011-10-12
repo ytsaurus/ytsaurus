@@ -1,20 +1,20 @@
 ﻿#include "value.h"
 
 namespace NYT {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TValue::TValue(const TSharedRef& data)
-    : Data(data)
-{}
-
-//! Data is swapped out to TValue
-TValue::TValue(TBlob& data)
+TValue::TValue(TRef data)
     : Data(data)
 { }
 
+TValue::TValue(const Stroka& data)
+    : Data(const_cast<char*>(data.begin()), data.Size())
+{ }
+
 TValue::TValue()
-    : Data(TValue::Null().Data)
+    : Data(NULL, 0)
 { }
 
 const char* TValue::GetData() const
@@ -47,14 +47,6 @@ bool TValue::IsNull() const
     return Data.Begin() == NULL;
 }
 
-TValue TValue::Null() 
-{
-    TSharedRef::TBlobPtr blob;
-    TRef ref(NULL, 0);
-    TSharedRef data(blob, ref);
-    return TValue(data);
-}
-
 Stroka TValue::ToString() const
 {
     return Stroka(Data.Begin(), Data.End());
@@ -67,38 +59,26 @@ TBlob TValue::ToBlob() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TValue NextValue(const TValue& value)
+int CompareValue(TValue lhs, TValue rhs)
 {
-    TBlob blob = value.ToBlob();
-    if (blob.back() < 0xFF) {
-        ++blob.back();
-    } else {
-        blob.push_back('\0');
+    if (lhs.IsNull() && rhs.IsNull()) {
+        return 0;
     }
 
-    return TValue(blob);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int CompareValue(const TValue& lhs, const TValue& rhs)
-{
-    if (lhs.IsNull()) {
-        if (rhs.IsNull()) {
-            return 0;
-        } else {
-            return 1;
-        }
-    } else if (rhs.IsNull()) {
+    if (rhs.IsNull()) {
         return -1;
+    }
+
+    if (lhs.IsNull()) {
+        return 1;
     }
 
     size_t lhsSize = lhs.GetSize();
     size_t rhsSize = rhs.GetSize();
-    size_t min = Min(lhsSize, rhsSize);
+    size_t minSize = Min(lhsSize, rhsSize);
 
-    if (min > 0) {
-        int result = memcmp(lhs.GetData(), rhs.GetData(), min);
+    if (minSize > 0) {
+        int result = memcmp(lhs.GetData(), rhs.GetData(), minSize);
         if (result != 0)
             return result;
     }
@@ -138,4 +118,5 @@ bool operator>=(const TValue& lhs, const TValue& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT

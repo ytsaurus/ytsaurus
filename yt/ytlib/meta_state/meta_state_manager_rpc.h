@@ -21,7 +21,7 @@ public:
         ((InvalidSegmentId)(1))
         ((InvalidEpoch)(2))
         ((InvalidVersion)(3))
-        ((InvalidState)(4))
+        ((InvalidStatus)(4))
         ((IOError)(5))
     );
 

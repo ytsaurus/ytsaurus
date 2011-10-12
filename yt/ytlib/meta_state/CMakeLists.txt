@@ -23,6 +23,7 @@ SET(YT_SOURCE_FILES
     map.h
     composite_meta_state-inl.h
     composite_meta_state.cpp
+    composite_meta_state_detail.cpp
     meta_state_service.h
     cell_channel.cpp
 )

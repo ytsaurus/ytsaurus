@@ -16,7 +16,6 @@ THolderExpiration::THolderExpiration(
     TChunkManager::TPtr chunkManager)
     : Config(config)
     , ChunkManager(chunkManager)
-    , LeaseManager(New<TLeaseManager>())
 {
     YASSERT(~chunkManager != NULL);
 }
@@ -40,8 +39,8 @@ void THolderExpiration::AddHolder(const THolder& holder)
     YASSERT(~Invoker != NULL);
     auto pair = HolderInfoMap.insert(MakePair(holder.Id, THolderInfo()));
     YASSERT(pair.Second());
-    THolderInfo& holderInfo = pair.First()->Second();
-    holderInfo.Lease = LeaseManager->CreateLease(
+    auto& holderInfo = pair.First()->Second();
+    holderInfo.Lease = TLeaseManager::Get()->CreateLease(
         Config.HolderLeaseTimeout,
         FromMethod(
             &THolderExpiration::OnExpired,
@@ -52,22 +51,22 @@ void THolderExpiration::AddHolder(const THolder& holder)
 
 void THolderExpiration::RemoveHolder(const THolder& holder)
 {
-    THolderInfo& holderInfo = GetHolderInfo(holder.Id);
-    LeaseManager->CloseLease(holderInfo.Lease);
+    auto& holderInfo = GetHolderInfo(holder.Id);
+    TLeaseManager::Get()->CloseLease(holderInfo.Lease);
     YASSERT(HolderInfoMap.erase(holder.Id) == 1);
 }
 
 void THolderExpiration::RenewHolder(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
-    THolderInfo& holderInfo = GetHolderInfo(holder.Id);
-    LeaseManager->RenewLease(holderInfo.Lease);
+    auto& holderInfo = GetHolderInfo(holder.Id);
+    TLeaseManager::Get()->RenewLease(holderInfo.Lease);
 }
 
 void THolderExpiration::OnExpired(THolderId holderId)
 {
     // Check if the holder is still registered.
-    THolderInfo* holderInfo = FindHolderInfo(holderId);
+    auto* holderInfo = FindHolderInfo(holderId);
     if (holderInfo == NULL)
         return;
 

@@ -35,7 +35,6 @@ private:
      
     TConfig Config;
     TChunkManager::TPtr ChunkManager;
-    TLeaseManager::TPtr LeaseManager;
     THolderInfoMap HolderInfoMap;
     IInvoker::TPtr Invoker;
 

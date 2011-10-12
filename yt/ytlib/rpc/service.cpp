@@ -28,10 +28,15 @@ TServiceContext::TServiceContext(
     , RequestBody(message->GetParts().at(1))
     , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
     , ServiceLogger(service->GetLoggingCategory())
+    , IsReplied(false)
 { }
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
+    // Failure here means that #Reply is called twice.
+    YASSERT(!IsReplied);
+
+    IsReplied = true;
     LogResponseInfo(errorCode);
     Service->OnEndRequest(this);
     DoReply(errorCode);
@@ -39,7 +44,6 @@ void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 
 void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
-    // Failure here means that #Reply is called twice.
     YASSERT(State == EState::Received);
 
     IMessage::TPtr message;

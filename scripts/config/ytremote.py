@@ -64,8 +64,12 @@ class RemoteNode(Node):
         
         for descr in cls.files:
             if 'remote' in descr.attrs:
-                cmd = "rsync %s %s:%s" % (os.path.join(cls.local_path(descr.filename)), 
-                    cls.host, cls.remote_dir)
+                try:
+                    cmd = "rsync %s %s:%s" % (os.path.join(cls.local_path(descr.filename)), 
+                        cls.host, cls.remote_dir)
+                except:
+                    print cls.__dict__
+                    raise 'Zadnica'
                 print >>fd, wrap_cmd(cmd) 
 
     run_tmpl = Template(cmd_run)

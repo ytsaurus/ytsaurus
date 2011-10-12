@@ -11,9 +11,38 @@ namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEphemeralNodeBase::TEphemeralNodeBase()
+    : Parent(NULL)
+{ }
+
 INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
     return TNodeFactory::Get();
+}
+
+ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
+{
+    return Parent;
+}
+
+void TEphemeralNodeBase::SetParent(ICompositeNode::TPtr parent)
+{
+    YASSERT(~parent == NULL || Parent == NULL);
+    Parent = ~parent;
+}
+
+IMapNode::TPtr TEphemeralNodeBase::GetAttributes() const
+{
+    return Attributes;
+}
+
+void TEphemeralNodeBase::SetAttributes(IMapNode::TPtr attributes)
+{
+    if (~Attributes != NULL) {
+        Attributes->SetParent(NULL);
+        Attributes = NULL;
+    }
+    Attributes = attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +50,7 @@ INodeFactory* TEphemeralNodeBase::GetFactory() const
 void TMapNode::Clear()
 {
     FOREACH(const auto& pair, NameToChild) {
-        pair.Second()->AsMutable()->SetParent(NULL);
+        pair.Second()->SetParent(NULL);
     }
     NameToChild.clear();
     ChildToName.clear();
@@ -32,13 +61,13 @@ int TMapNode::GetChildCount() const
     return NameToChild.ysize();
 }
 
-yvector< TPair<Stroka, INode::TConstPtr> > TMapNode::GetChildren() const
+yvector< TPair<Stroka, INode::TPtr> > TMapNode::GetChildren() const
 {
-    return yvector< TPair<Stroka, INode::TConstPtr> >(NameToChild.begin(), NameToChild.end());
+    return yvector< TPair<Stroka, INode::TPtr> >(NameToChild.begin(), NameToChild.end());
 }
 
 
-INode::TConstPtr TMapNode::FindChild(const Stroka& name) const
+INode::TPtr TMapNode::FindChild(const Stroka& name) const
 {
     auto it = NameToChild.find(name);
     return it == NameToChild.end() ? NULL : it->Second();
@@ -55,22 +84,24 @@ bool TMapNode::AddChild(INode::TPtr child, const Stroka& name)
     }
 }
 
-bool TMapNode::RemoveChild( const Stroka& name )
+bool TMapNode::RemoveChild(const Stroka& name)
 {
     auto it = NameToChild.find(name);
     if (it == NameToChild.end())
         return false;
 
     auto child = it->Second(); 
-    child->AsMutable()->SetParent(NULL);
+    child->SetParent(NULL);
     NameToChild.erase(it);
     YVERIFY(ChildToName.erase(child) == 1);
 
     return true;
 }
 
-void TMapNode::RemoveChild( INode::TPtr child )
+void TMapNode::RemoveChild(INode::TPtr child)
 {
+    child->SetParent(NULL);
+
     auto it = ChildToName.find(child);
     YASSERT(it != ChildToName.end());
 
@@ -79,7 +110,7 @@ void TMapNode::RemoveChild( INode::TPtr child )
     YVERIFY(NameToChild.erase(name) == 1);
 }
 
-void TMapNode::ReplaceChild( INode::TPtr oldChild, INode::TPtr newChild )
+void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
     if (oldChild == newChild)
         return;
@@ -101,7 +132,7 @@ IYPathService::TNavigateResult TMapNode::Navigate(
     TYPath path)
 {
     if (path.empty()) {
-        return TNavigateResult::CreateDone(AsImmutable());
+        return TNavigateResult::CreateDone(this);
     }
 
     Stroka prefix;
@@ -144,7 +175,7 @@ IYPathService::TSetResult TMapNode::Set(
 void TListNode::Clear()
 {
     FOREACH(const auto& node, List) {
-        node->AsMutable()->SetParent(NULL);
+        node->SetParent(NULL);
     }
     List.clear();
 }
@@ -154,17 +185,17 @@ int TListNode::GetChildCount() const
     return List.ysize();
 }
 
-yvector<INode::TConstPtr> TListNode::GetChildren() const
+yvector<INode::TPtr> TListNode::GetChildren() const
 {
     return List;
 }
 
-INode::TConstPtr TListNode::FindChild(int index) const
+INode::TPtr TListNode::FindChild(int index) const
 {
     return index >= 0 && index < List.ysize() ? List[index] : NULL;
 }
 
-void TListNode::AddChild( INode::TPtr child, int beforeIndex /*= -1*/ )
+void TListNode::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
 {
     if (beforeIndex < 0) {
         List.push_back(child); 
@@ -179,7 +210,7 @@ bool TListNode::RemoveChild(int index)
     if (index < 0 || index >= List.ysize())
         return false;
 
-    List[index]->AsMutable()->SetParent(NULL);
+    List[index]->SetParent(NULL);
     List.erase(List.begin() + index);
     return true;
 }
@@ -205,7 +236,7 @@ IYPathService::TNavigateResult TListNode::Navigate(
     TYPath path)
 {
     if (path.empty()) {
-        return TNavigateResult::CreateDone(AsImmutable());
+        return TNavigateResult::CreateDone(this);
     }
 
     Stroka prefix;
@@ -275,7 +306,7 @@ IYPathService::TSetResult TListNode::CreateYPathChild(
 {
     auto newChild = GetFactory()->CreateMap();
     AddChild(~newChild, beforeIndex);
-    return TSetResult::CreateRecurse(AsYPath(newChild->AsMutable()), tailPath);
+    return TSetResult::CreateRecurse(AsYPath(~newChild), tailPath);
 }
 
 IYPathService::TNavigateResult TListNode::GetYPathChild(
@@ -294,7 +325,7 @@ IYPathService::TNavigateResult TListNode::GetYPathChild(
     }
 
     auto child = FindChild(index);
-    return TNavigateResult::CreateRecurse(AsYPath(child->AsMutable()), tailPath);
+    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,25 +335,19 @@ INodeFactory* TNodeFactory::Get()
     return Singleton<TNodeFactory>();
 }
 
-IStringNode::TPtr TNodeFactory::CreateString(const Stroka& value /*= Stroka()*/)
+IStringNode::TPtr TNodeFactory::CreateString()
 {
-    IStringNode::TPtr node = ~New<TStringNode>();
-    node->SetValue(value);
-    return node;
+    return ~New<TStringNode>();
 }
 
-IInt64Node::TPtr TNodeFactory::CreateInt64(i64 value /*= 0*/)
+IInt64Node::TPtr TNodeFactory::CreateInt64()
 {
-    IInt64Node::TPtr node = ~New<TInt64Node>();
-    node->SetValue(value);
-    return node;
+    return ~New<TInt64Node>();
 }
 
-IDoubleNode::TPtr TNodeFactory::CreateDouble(double value /*= 0*/)
+IDoubleNode::TPtr TNodeFactory::CreateDouble()
 {
-    IDoubleNode::TPtr node = ~New<TDoubleNode>();
-    node->SetValue(value);
-    return node;
+    return ~New<TDoubleNode>();
 }
 
 IMapNode::TPtr TNodeFactory::CreateMap()
