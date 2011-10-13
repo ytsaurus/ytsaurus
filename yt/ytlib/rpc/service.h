@@ -234,13 +234,15 @@ public:
 
     void Reply(EErrorCode errorCode = EErrorCode::OK)
     {
-        TBlob responseData;
-        if (!SerializeMessage(&Response_, &responseData)) {
-            ythrow TServiceException(EErrorCode::ProtocolError) <<
-                "Error serializing response";
+        if (errorCode.IsOK()) {
+            TBlob responseData;
+            if (!SerializeMessage(&Response_, &responseData)) {
+                ythrow TServiceException(EErrorCode::ProtocolError) <<
+                    "Error serializing response";
+            }
+            Context->SetResponseBody(&responseData);
+            Context->SetResponseAttachments(&Response_.Attachments());
         }
-        Context->SetResponseBody(&responseData);
-        Context->SetResponseAttachments(&Response_.Attachments());
         Context->Reply(errorCode);
     }
 
