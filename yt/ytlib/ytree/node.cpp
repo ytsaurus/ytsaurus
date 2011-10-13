@@ -74,30 +74,38 @@ IYPathService::TLockResult TNodeBase::Lock(TYPath path)
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
 {
-    auto parent = GetParent();
-
-    if (~parent == NULL) {
-        return TRemoveResult::CreateError("Cannot remove the root");
+    try {
+        DoRemoveSelf();
+    } catch (const TYPathException& ex) {
+        return TRemoveResult::CreateError(ex.what());
     }
-
-    parent->AsComposite()->RemoveChild(this);
-
     return TRemoveResult::CreateDone();
 }
 
-IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
+void TNodeBase::DoRemoveSelf()
 {
     auto parent = GetParent();
 
     if (~parent == NULL) {
-        return TSetResult::CreateError("Cannot update the root");
+        ythrow TYPathException() << "Cannot remove the root";
     }
 
-    TTreeBuilder builder(GetFactory());
-    producer->Do(&builder);
-    parent->AsComposite()->ReplaceChild(this, builder.GetRoot());
+    parent->AsComposite()->RemoveChild(this);
+}
 
+IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
+{
+    try {
+        DoSetSelf(producer);
+    } catch (const TYPathException& ex) {
+        return TRemoveResult::CreateError(ex.what());
+    }
     return TSetResult::CreateDone();
+}
+
+void TNodeBase::DoSetSelf(TYsonProducer::TPtr producer)
+{
+    throw TYPathException() << "Cannot modify the node";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

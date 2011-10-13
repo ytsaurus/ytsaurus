@@ -22,9 +22,6 @@ using NTransaction::TTransactionManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class IBase, class TImpl>
-class TCypressNodeProxyBase;
-
 class TCypressManager
     : public NMetaState::TMetaStatePart
 {
@@ -56,6 +53,8 @@ public:
 
     TLock* CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 
+    ICypressNode& BranchNode(const ICypressNode& node, const TTransactionId& transactionId);
+
     void GetYPath(
         const TTransactionId& transactionId,
         TYPath path,
@@ -82,9 +81,6 @@ public:
 
 
 private:
-    template <class IBase, class TImpl>
-    friend class TCypressNodeProxyBase;
-
     TTransactionManager::TPtr TransactionManager;
     TIdGenerator<TNodeId> NodeIdGenerator;
     TIdGenerator<TLockId> LockIdGenerator;

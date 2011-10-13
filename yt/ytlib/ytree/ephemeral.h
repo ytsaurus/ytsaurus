@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "node.h"
+#include "ypath_detail.h"
 
 #include "../misc/hash.h"
 
@@ -75,6 +76,11 @@ public: \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() \
     { \
         return this; \
+    } \
+    \
+    virtual void DoSetSelf(TYsonProducer::TPtr producer) \
+    { \
+        SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
     }
 
 #define DECLARE_SCALAR_TYPE(name, type) \

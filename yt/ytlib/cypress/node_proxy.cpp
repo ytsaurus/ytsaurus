@@ -58,7 +58,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
     if (impl.NameToChild().insert(MakePair(name, childId)).Second()) {
         YVERIFY(impl.ChildToName().insert(MakePair(childId, name)).Second());
-        childProxy->GetMutableImpl().ParentId() = NodeId;
+        childProxy->GetImplForUpdate().ParentId() = NodeId;
         return true;
     } else {
         return false;
@@ -77,7 +77,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
 
     const auto& childId = it->Second();
     auto childProxy = GetProxy<ICypressNodeProxy>(childId);
-    auto& childImpl = childProxy->GetMutableImpl();
+    auto& childImpl = childProxy->GetImplForUpdate();
     childImpl.ParentId() = NullNodeId;
     impl.NameToChild().erase(it);
     YVERIFY(impl.ChildToName().erase(childId) == 1);
@@ -91,7 +91,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
     auto& impl = GetTypedImplForUpdate();
     
     auto childProxy = ToProxy(child);
-    childProxy->GetMutableImpl().ParentId() = NullNodeId;
+    childProxy->GetImplForUpdate().ParentId() = NullNodeId;
 
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
@@ -118,11 +118,11 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     Stroka name = it->Second();
 
-    oldChildProxy->GetMutableImpl().ParentId() = NullNodeId;
+    oldChildProxy->GetImplForUpdate().ParentId() = NullNodeId;
     impl.ChildToName().erase(it);
 
     impl.NameToChild()[name] = newChildProxy->GetNodeId();
-    newChildProxy->GetMutableImpl().ParentId() = NodeId;
+    newChildProxy->GetImplForUpdate().ParentId() = NodeId;
     YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).Second());
 }
 

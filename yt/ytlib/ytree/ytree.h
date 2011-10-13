@@ -36,8 +36,8 @@ struct INode
     virtual INodeFactory* GetFactory() const = 0;
 
 #define DECLARE_AS_METHODS(name) \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() = 0; \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const = 0;
+    virtual TIntrusivePtr<I##name##Node> As##name() = 0; \
+    virtual TIntrusiveConstPtr<I##name##Node> As##name() const = 0;
 
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
@@ -74,6 +74,7 @@ struct IScalarNode
     : virtual INode
 {
     typedef T TValue;
+    typedef TIntrusivePtr< IScalarNode<T> > TPtr;
 
     virtual TValue GetValue() const = 0;
     virtual void SetValue(const TValue& value) = 0;
@@ -148,25 +149,25 @@ struct IEntityNode
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_SCALAR_TYPE(name, type) \
-    struct I ## name ## Node \
+    struct I##name##Node \
         : IScalarNode<type> \
     { \
-        typedef TIntrusivePtr<I ## name ## Node> TPtr; \
+        typedef TIntrusivePtr<I##name##Node> TPtr; \
     }; \
     \
     template<> \
     struct TScalarTypeTraits<type> \
     { \
-        typedef I ## name ## Node TNode; \
+        typedef I##name##Node TNode; \
         \
         static type GetValue(const INode* node) \
         { \
-            return node->As ## name()->GetValue(); \
+            return node->As##name()->GetValue(); \
         } \
         \
         static void SetValue(INode* node, const type& value) \
         { \
-            node->As ## name()->SetValue(value); \
+            node->As##name()->SetValue(value); \
         } \
     };
 

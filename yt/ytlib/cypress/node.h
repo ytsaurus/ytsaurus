@@ -64,13 +64,13 @@ struct ICypressNode
     virtual ~ICypressNode()
     { }
 
-    virtual const TBranchedNodeId& GetId() = 0;
+    virtual const TBranchedNodeId& GetId() const = 0;
 
     virtual const TNodeId& ParentId() const = 0;
     virtual TNodeId& ParentId() = 0;
 
-    virtual const yhash_set<TLockId>& Locks() const = 0;
-    virtual yhash_set<TLockId>& Locks() = 0;
+    virtual const yhash_set<TLockId>& LockIds() const = 0;
+    virtual yhash_set<TLockId>& LockIds() = 0;
 
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 
@@ -107,7 +107,7 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_PROPERTY(Locks, yhash_set<TLockId>)  
+    DECLARE_PROPERTY(LockIds, yhash_set<TLockId>)  
     DECLARE_PROPERTY(ParentId, TNodeId)
 
 public:
@@ -116,7 +116,7 @@ public:
         , Id(id)
     { }
 
-    virtual const TBranchedNodeId& GetId()
+    virtual const TBranchedNodeId& GetId() const
     {
         return Id;
     }

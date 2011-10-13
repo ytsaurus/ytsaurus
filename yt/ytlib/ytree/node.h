@@ -17,13 +17,13 @@ public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
 
 #define IMPLEMENT_AS_METHODS(name) \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
+    virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
         YASSERT(false); \
         return NULL; \
     } \
     \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
+    virtual TIntrusiveConstPtr<I##name##Node> As##name() const \
     { \
         YASSERT(false); \
         return NULL; \
@@ -56,8 +56,11 @@ public:
     virtual TLockResult Lock(TYPath path);
 
 protected:
-    virtual TRemoveResult RemoveSelf();
-    virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
+    TRemoveResult RemoveSelf();
+    virtual void DoRemoveSelf();
+
+    TSetResult SetSelf(TYsonProducer::TPtr producer);
+    virtual void DoSetSelf(TYsonProducer::TPtr producer);
 
 };
 
