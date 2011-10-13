@@ -78,7 +78,7 @@ void TYsonWriter::EndCollection(char closeBracket)
 }
 
 
-void TYsonWriter::StringScalar(const Stroka& value)
+void TYsonWriter::OnStringScalar(const Stroka& value)
 {
     if (IsBinary) {
         Stream->Write(StringMarker);
@@ -92,7 +92,7 @@ void TYsonWriter::StringScalar(const Stroka& value)
     }
 }
 
-void TYsonWriter::Int64Scalar(i64 value)
+void TYsonWriter::OnInt64Scalar(i64 value)
 {
     if (IsBinary) {
         Stream->Write(Int64Marker);
@@ -102,7 +102,7 @@ void TYsonWriter::Int64Scalar(i64 value)
     }
 }
 
-void TYsonWriter::DoubleScalar(double value)
+void TYsonWriter::OnDoubleScalar(double value)
 {
     if (IsBinary) {
         Stream->Write(DoubleMarker);
@@ -112,33 +112,33 @@ void TYsonWriter::DoubleScalar(double value)
     }
 }
 
-void TYsonWriter::EntityScalar()
+void TYsonWriter::OnEntityScalar()
 {
     SetEmptyEntity();
 }
 
-void TYsonWriter::BeginList()
+void TYsonWriter::OnBeginList()
 {
     BeginCollection('[');
 }
 
-void TYsonWriter::ListItem(int index)
+void TYsonWriter::OnListItem(int index)
 {
     UNUSED(index);
     CollectionItem(ListItemSeparator);
 }
 
-void TYsonWriter::EndList()
+void TYsonWriter::OnEndList()
 {
     EndCollection(']');
 }
 
-void TYsonWriter::BeginMap()
+void TYsonWriter::OnBeginMap()
 {
     BeginCollection('{');
 }
 
-void TYsonWriter::MapItem(const Stroka& name)
+void TYsonWriter::OnMapItem(const Stroka& name)
 {
     CollectionItem(MapItemSeparator);
     // TODO: escaping
@@ -148,13 +148,13 @@ void TYsonWriter::MapItem(const Stroka& name)
     Stream->Write(' ');
 }
 
-void TYsonWriter::EndMap()
+void TYsonWriter::OnEndMap()
 {
     EndCollection('}');
 }
 
 
-void TYsonWriter::BeginAttributes()
+void TYsonWriter::OnBeginAttributes()
 {
     if (IsEmptyEntity) {
         ResetEmptyEntity();
@@ -164,7 +164,7 @@ void TYsonWriter::BeginAttributes()
     BeginCollection('<');
 }
 
-void TYsonWriter::AttributesItem(const Stroka& name)
+void TYsonWriter::OnAttributesItem(const Stroka& name)
 {
     CollectionItem(MapItemSeparator);
     // TODO: escaping
@@ -175,7 +175,7 @@ void TYsonWriter::AttributesItem(const Stroka& name)
     IsFirstItem = false;
 }
 
-void TYsonWriter::EndAttributes()
+void TYsonWriter::OnEndAttributes()
 {
     EndCollection('>');
 }

@@ -26,6 +26,7 @@ SET(YT_SOURCE_FILES
     foreach.h
     thread_affinity.h
     periodic_invoker.cpp
+    zigzag.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

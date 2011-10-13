@@ -211,7 +211,7 @@ protected:
 
     TLockResult LockSelf()
     {
-        auto& impl = GetTypedImplForUpdate();
+        auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
 
         // Make sure that the node is not locked by another transaction.
         FOREACH (const auto& lockId, impl.Locks()) {
@@ -232,7 +232,6 @@ protected:
         // Walk up to the root and apply locks.
         auto currentNodeId = NodeId;
         while (currentNodeId != NullNodeId) {
-            // NB: Locks are always assigned to nonbranched nodes.
             auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
             impl.Locks().insert(lock->GetId());
             currentNodeId = impl.ParentId();

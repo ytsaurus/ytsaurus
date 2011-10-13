@@ -47,16 +47,16 @@ void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
     YASSERT(State == EState::Received);
 
     IMessage::TPtr message;
-    if (errorCode.IsRpcError()) {
-        message = ~New<TRpcErrorResponseMessage>(
-            RequestId,
-            errorCode);
-    } else {
+    if (errorCode.IsOK()) {
         message = ~New<TRpcResponseMessage>(
             RequestId,
             errorCode,
             &ResponseBody,
             ResponseAttachments);
+    } else {
+        message = ~New<TRpcErrorResponseMessage>(
+            RequestId,
+            errorCode);
     }
 
     ReplyBus->Send(message);
