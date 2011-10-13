@@ -210,7 +210,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 {
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
         auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        const auto& branchedNode = NodeMap.Get(TBranchedNodeId(nodeId, transaction.GetId()));
+        auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transaction.GetId()));
         node.Merge(branchedNode);
     }
 }

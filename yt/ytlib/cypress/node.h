@@ -78,8 +78,10 @@ struct ICypressNode
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const = 0;
 
-    virtual ICypressNode& Branch() = 0;
-    virtual void Merge(const ICypressNode& branchedNode) = 0;
+    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const = 0;
+    
+    // #branchedNode is non-cost for performance reasons (i.e. to swap the data instead of copying).
+    virtual void Merge(ICypressNode& branchedNode) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,17 +121,6 @@ public:
         return Id;
     }
 
-    virtual ICypressNode& Branch()
-    {
-        YASSERT(false);
-        return *this;
-    }
-
-    virtual void Merge(const ICypressNode& branchedNode)
-    {
-        YASSERT(false);
-    }
-
 protected:
     TBranchedNodeId Id;
 
@@ -138,50 +129,55 @@ protected:
 //////////////////////////////////////////////////////////////////////////////// 
 
 template<class TValue>
-class TScalarNodeBase
+class TScalarNode
     : public TCypressNodeBase
 {
     DECLARE_PROPERTY(Value, TValue)
 
+private:
+    typedef TScalarNode<TValue> TThis;
+
 public:
-    TScalarNodeBase(const TBranchedNodeId& id)
+    TScalarNode(const TBranchedNodeId& id)
         : TCypressNodeBase(id)
     { }
+
+    TScalarNode(const TBranchedNodeId& id, const TThis& other)
+        : TCypressNodeBase(id)
+        , Value_(other.Value_)
+    { }
+
+    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const
+    {
+        YASSERT(!Id.IsBranched());
+        return new TThis(
+            TBranchedNodeId(Id.NodeId, transactionId),
+            *this);
+    }
+
+    virtual void Merge(ICypressNode& branchedNode)
+    {
+        const auto& typedBranchedNode = dynamic_cast<const TThis&>(branchedNode);
+        Value() = typedBranchedNode.Value();
+    }
+
+    virtual TAutoPtr<ICypressNode> Clone() const
+    {
+        return new TThis(Id, *this);
+    }
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressManager> state,
+        const TTransactionId& transactionId) const;
 };
 
-#define DECLARE_SCALAR_TYPE(name, type) \
-    class T ## name ## Node \
-        : public TScalarNodeBase<type> \
-    { \
-    public: \
-        T ## name ## Node(const TBranchedNodeId& id) \
-            : TScalarNodeBase<type>(id) \
-        { } \
-        \
-        T ## name ## Node(const T ## name ## Node& other) \
-            : TScalarNodeBase<type>(other.Id) \
-        { \
-            Value() = other.Value(); \
-        } \
-        \
-        virtual TAutoPtr<ICypressNode> Clone() const \
-        { \
-            return new T ## name ## Node(*this); \
-        } \
-        \
-        virtual TIntrusivePtr<ICypressNodeProxy> GetProxy( \
-            TIntrusivePtr<TCypressManager> state, \
-            const TTransactionId& transactionId) const; \
-    };
-
-DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
-DECLARE_SCALAR_TYPE(Double, double)
-
-#undef DECLARE_SCALAR_TYPE
+typedef TScalarNode<Stroka> TStringNode;
+typedef TScalarNode<i64>    TInt64Node;
+typedef TScalarNode<double> TDoubleNode;
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+// TODO: move impl to cpp
 class TMapNode
     : public TCypressNodeBase
 {
@@ -191,24 +187,39 @@ class TMapNode
     DECLARE_PROPERTY(NameToChild, TNameToChild)
     DECLARE_PROPERTY(ChildToName, TChildToName)
 
+private:
+    typedef TMapNode TThis;
+
 public:
-    // TODO: move to impl
     TMapNode(const TBranchedNodeId& id)
         : TCypressNodeBase(id)
     { }
 
-    // TODO: move to impl
-    TMapNode(const TMapNode& other)
-        : TCypressNodeBase(other.Id)
+    TMapNode(const TBranchedNodeId& id, const TThis& other)
+        : TCypressNodeBase(id)
     {
         NameToChild() = other.NameToChild();
         ChildToName() = other.ChildToName();
     }
 
-    // TODO: move to impl
+    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const
+    {
+        YASSERT(!Id.IsBranched());
+        return new TThis(
+            TBranchedNodeId(Id.NodeId, transactionId),
+            *this);
+    }
+
+    virtual void Merge(ICypressNode& branchedNode)
+    {
+        auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
+        NameToChild().swap(typedBranchedNode.NameToChild());
+        ChildToName().swap(typedBranchedNode.ChildToName());
+    }
+
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TMapNode(*this);
+        return new TThis(Id, *this);
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
