@@ -61,9 +61,10 @@ void TLeaseManager::ExpireLease(TLease lease)
 {
     TGuard<TSpinLock> guard(lease->SpinLock);
     if (lease->IsValid) {
+        IAction::TPtr onExpire = lease->OnExpire;
         InvalidateLease(lease);
         guard.Release();
-        lease->OnExpire->Do();
+        onExpire->Do();
     }
 }
 
@@ -74,6 +75,7 @@ void TLeaseManager::InvalidateLease(TLease lease)
     TDelayedInvoker::Get()->Cancel(lease->Cookie);
     lease->Cookie = TDelayedInvoker::TCookie();
     lease->IsValid = false;
+    lease->OnExpire.Drop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
