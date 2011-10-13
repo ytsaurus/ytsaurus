@@ -1,6 +1,7 @@
 #pragma once
 
 #include "guid.h"
+#include "zigzag.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -116,6 +117,18 @@ inline yvector<TArrayItem> FromProto(
     }
     return array;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Functions to read and write varints from stream
+
+void WriteVarInt(ui64 value, TOutputStream* output);
+void WriteVarInt32(i32 value, TOutputStream* output);
+void WriteVarInt64(i64 value, TOutputStream* output);
+
+ui64 ReadVarInt(TInputStream* input);
+i32 ReadVarInt32(TInputStream* input);
+i64 ReadVarInt64(TInputStream* input);
 
 ////////////////////////////////////////////////////////////////////////////////
 
