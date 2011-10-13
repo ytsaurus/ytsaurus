@@ -105,7 +105,7 @@ TEST(TEnumTest, Polymorphism2)
     first = second;
 
     EXPECT_EQ("Chip", first.ToString());
-    EXPECT_EQ("EMySecond(1)", second.ToString());
+    EXPECT_EQ("Chip", second.ToString());
 }
 
 TEST(TEnumTest, Polymorphism3)

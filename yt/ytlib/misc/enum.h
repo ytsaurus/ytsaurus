@@ -9,6 +9,7 @@
 #include "rvalue.h"
 
 #include <util/string/cast.h>
+#include <util/generic/typehelpers.h>
 #include <util/generic/yexception.h>
 
 namespace NYT {
@@ -20,6 +21,12 @@ namespace NYT {
  * \ingroup yt_commons
  *
  * \{
+ *
+ * A string literal could be associated with an instance of polymorphic
+ * enumeration and this literal is preserved during casts. Note that
+ * the instance does not take ownership of the associated string literal
+ * (i. e. does not free() the string in destructor). This is due to the fact
+ * that only statically allocated literals are associated with the instance.
  *
  * \page yt_enum_examples Examples
  * Please refer to the unit test for an actual example of usage
@@ -68,23 +75,23 @@ public:
     //! Default constructor.
     TPolymorphicEnumBase()
         : Value(0)
-        , Name(NULL)
+        , Literal(NULL)
     { }
 
     TPolymorphicEnumBase(const TPolymorphicEnumBase<TDerived>& other)
         : Value(other.Value)
-        , Name(other.Name)
+        , Literal(other.Literal)
     { }
 
     TPolymorphicEnumBase(TPolymorphicEnumBase<TDerived>&& other)
         : Value(MoveRV(other.Value))
-        , Name(MoveRV(other.Name))
+        , Literal(MoveRV(other.Literal))
     { }
 
     //! Explicit constructor.
-    explicit TPolymorphicEnumBase(int value, const char* name = NULL)
+    explicit TPolymorphicEnumBase(int value, const char* literal = NULL)
         : Value(value)
-        , Name(name)
+        , Literal(literal)
     { }
 
     //! Returns underlying integral value.
@@ -93,9 +100,15 @@ public:
         return Value;
     }
 
+    //! Checks whether there is an associated string literal with this value.
+    bool HasAssociatedStringLiteral() const
+    {
+        return Literal != NULL;
+    }
+
 protected:
     int Value;
-    const char* Name;
+    const char* Literal;
 };
 
 /*! \} */
@@ -161,6 +174,7 @@ protected:
             TBase::operator=(MoveRV(other)); \
             return *this; \
         } \
+        \
         name& operator=(const EDomain& e) \
         { \
             TBase::operator=(MoveRV(name::SpawnFauxBase(static_cast<int>(e)))); \
@@ -172,8 +186,8 @@ protected:
             return static_cast<EDomain>(Value); \
         } \
         \
-    private: \
-        static const char* GetStringByValue(int value) \
+    public: \
+        static const char* GetLiteralByValue(int value) \
         { \
             switch (value) \
             { \
@@ -183,13 +197,12 @@ protected:
             } \
         } \
         \
-        static bool GetValueByString(const char* str, int* target) \
+        static bool GetValueByLiteral(const char* literal, int* target) \
         { \
             PP_FOR_EACH(ENUM__VALUE_BY_STRING_ITEM, seq); \
             return false; \
         } \
         \
-    public: \
         static name FromString(const Stroka& str) \
         { \
             return MoveRV(FromString(str.c_str())); \
@@ -198,7 +211,7 @@ protected:
         static name FromString(const char* str) \
         { \
             int value; \
-            if (!GetValueByString(str, &value)) { \
+            if (!GetValueByLiteral(str, &value)) { \
                 ythrow yexception() \
                     << "Error parsing " PP_STRINGIZE(name) " value '" << str << "'"; \
             } else { \
@@ -209,7 +222,7 @@ protected:
         static bool FromString(const char* str, name* target) \
         { \
             int value; \
-            if (!GetValueByString(str, &value)) { \
+            if (!GetValueByLiteral(str, &value)) { \
                 return false; \
             } else { \
                 *target = MoveRV(name::SpawnFauxBase(value)); \
@@ -233,7 +246,7 @@ protected:
     PP_ELEMENT(seq, 0) = PP_ELEMENT(seq, 1) PP_COMMA
 //! \}
 
-//! #GetStringByValue() helper.
+//! #GetLiteralByValue() helper.
 //! \{
 #define ENUM__STRING_BY_VALUE_ITEM(item) \
     PP_IF( \
@@ -250,7 +263,7 @@ protected:
         return PP_STRINGIZE(item);
 //! \}
 
-//! #GetValueByString() helper.
+//! #GetValueByLiteral() helper.
 //! \{
 #define ENUM__VALUE_BY_STRING_ITEM(item) \
     PP_IF( \
@@ -263,7 +276,7 @@ protected:
     ENUM__VALUE_BY_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__VALUE_BY_STRING_ITEM_ATOMIC(item) \
-    if (::strcmp(str, PP_STRINGIZE(item)) == 0) { \
+    if (::strcmp(literal, PP_STRINGIZE(item)) == 0) { \
         *target = static_cast<int>(item); \
         return true; \
     }
@@ -305,19 +318,19 @@ protected:
 #define BEGIN_DECLARE_ENUM(name, seq) \
     ENUM__CLASS(name, ::NYT::TEnumBase<name>, seq) \
     private: \
-        static TBase SpawnFauxBase(int value_) \
+        static TBase SpawnFauxBase(int value) \
         { \
-            return MoveRV(TBase(value_)); \
+            return MoveRV(TBase(value)); \
         } \
         \
     public: \
-        explicit name(int value_) \
-            : TBase(value_) \
+        explicit name(int value) \
+            : TBase(value) \
         { } \
         \
         Stroka ToString() const \
         { \
-            const char* str = GetStringByValue(Value); \
+            const char* str = GetLiteralByValue(Value); \
             if (EXPECT_TRUE(str != NULL)) { \
                 return str; \
             } else { \
@@ -358,32 +371,39 @@ protected:
 #define BEGIN_DECLARE_POLY_ENUM(name, scope, seq) \
     ENUM__CLASS(name, ::NYT::TPolymorphicEnumBase<scope>, seq) \
     private: \
-        static TBase SpawnFauxBase(int value_, const char* name_ = NULL) \
+        static TBase SpawnFauxBase(int value, const char* literal = NULL) \
         { \
             return MoveRV(TBase( \
-                value_, name_ ? name_ : GetStringByValue(value_) \
+                value, literal ? literal : GetLiteralByValue(value) \
             )); \
         } \
         \
     public: \
-        explicit name(int value_, const char* name_ = NULL) \
-            : TBase(value_, name_ ? name_ : GetStringByValue(value_)) \
+        explicit name(int value, const char* literal = NULL) \
+            : TBase(value, literal ? literal : GetLiteralByValue(value)) \
         { } \
         \
         Stroka ToString() const \
         { \
-            if (Name) { \
-                return Name; \
+            if (Literal) { \
+                return Literal; \
             } \
             \
-            const char* str = GetStringByValue(Value); \
+            const char* str = name::GetLiteralByValue(Value); \
             if (EXPECT_TRUE(str != NULL)) { \
                 return str; \
-            } else { \
-                return Stroka::Join( \
-                    PP_STRINGIZE(name) "(", ::ToString(Value), ")" \
-                ); \
             } \
+            \
+            if (!TSameType<name, scope>::Result) { \
+                str = scope::GetLiteralByValue(Value); \
+                if (EXPECT_TRUE(str != NULL)) { \
+                    return str; \
+                } \
+            } \
+            \
+            return Stroka::Join( \
+                PP_STRINGIZE(name) "(", ::ToString(Value), ")" \
+            ); \
         } \
         \
         ENUM__RELATIONAL_OPERATORS(name)
