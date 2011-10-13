@@ -49,14 +49,14 @@ public:
 
         TParent Scalar(const Stroka& value)
         {
-            this->Events->StringScalar(value);
+            this->Events->OnStringScalar(value);
             return this->Parent;
         }
 
         // A stupid language with a stupid type system.
         TParent Scalar(const char* value)
         {
-            this->Events->StringScalar(Stroka(value));
+            this->Events->OnStringScalar(Stroka(value));
             return this->Parent;
         }
 
@@ -72,7 +72,7 @@ public:
 
         TParent Scalar(i64 value)
         {
-            this->Events->Int64Scalar(value);
+            this->Events->OnInt64Scalar(value);
             return this->Parent;
         }
 
@@ -83,7 +83,7 @@ public:
 
         TParent Scalar(double value)
         {
-            this->Events->DoubleScalar(value);
+            this->Events->OnDoubleScalar(value);
             return this->Parent;
         }
 
@@ -94,19 +94,19 @@ public:
 
         TParent EntityScalar()
         {
-            this->Events->EntityScalar();
+            this->Events->OnEntityScalar();
             return this->Parent;
         }
 
         TList<TParent> BeginList()
         {
-            this->Events->BeginList();
+            this->Events->OnBeginList();
             return TList<TParent>(this->Events, this->Parent);
         }
 
         TMap<TParent> BeginMap()
         {
-            this->Events->BeginMap();
+            this->Events->OnBeginMap();
             return TMap<TParent>(this->Events, this->Parent);
         }
 
@@ -140,7 +140,7 @@ public:
 
         TAttributes<TParent> BeginAttributes()
         {
-            this->Events->BeginAttributes();
+            this->Events->OnBeginAttributes();
             return TAttributes<TParent>(this->Events, this->Parent);
         }
     };
@@ -158,13 +158,13 @@ public:
 
         TAny<TThis> Item(const Stroka& name)
         {
-            this->Events->AttributesItem(name);
+            this->Events->OnAttributesItem(name);
             return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndAttributes()
         {
-            this->Events->EndAttributes();
+            this->Events->OnEndAttributes();
             return this->Parent;
         }
     };
@@ -183,13 +183,13 @@ public:
 
         TAny<TThis> Item()
         {
-            this->Events->ListItem(Index++);
+            this->Events->OnListItem(Index++);
             return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndList()
         {
-            this->Events->EndList();
+            this->Events->OnEndList();
             return this->Parent;
         }
 
@@ -211,13 +211,13 @@ public:
 
         TAny<TThis> Item(const Stroka& name)
         {
-            this->Events->MapItem(name);
+            this->Events->OnMapItem(name);
             return TAny<TThis>(this->Events, *this);
         }
 
         TParent EndMap()
         {
-            this->Events->EndMap();
+            this->Events->OnEndMap();
             return this->Parent;
         }
     };
