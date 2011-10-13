@@ -75,12 +75,16 @@ public:
     //! Returns the load factor.
     double GetLoadFactor() const;
 
+    void IncSessionCount();
+    void DecSessionCount();
+    int GetSessionCount() const;
+
 private:
     Stroka Path;
     i64 AvailableSpace;
     i64 UsedSpace;
     TActionQueue::TPtr ActionQueue;
-
+    int SessionCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +142,7 @@ class TChunkStore
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;
     typedef yvector<TChunk::TPtr> TChunks;
+    typedef yvector<TLocation::TPtr> TLocations;
 
     //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
@@ -183,7 +188,7 @@ public:
     int GetChunkCount();
 
     //! Returns locations.
-    const yvector<TLocation::TPtr> GetLocations() const;
+    const TLocations GetLocations() const;
 
     //! Raised when a chunk is added.
     TParamSignal<TChunk::TPtr>& ChunkAdded();
@@ -196,7 +201,7 @@ private:
     class TReaderCache;
 
     TChunkHolderConfig Config;
-    yvector<TLocation::TPtr> Locations;
+    TLocations Locations;
 
     typedef yhash_map<TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
