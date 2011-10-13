@@ -24,16 +24,11 @@ public:
         (Following)
     );
 
-    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
+    RPC_DECLARE_PROXY(ElectionManager,
         ((InvalidState)(1))
         ((InvalidLeader)(2))
         ((InvalidEpoch)(3))
     );
-
-    static Stroka GetServiceName()
-    {
-        return "ElectionManager";
-    }
 
     TElectionManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())

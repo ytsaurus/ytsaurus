@@ -37,7 +37,7 @@ private:
     template<class T>
     T ReadRaw()
     {
-        int charCount = sizeof(T);
+        const int charCount = sizeof(T);
         char buffer[charCount];
         ReadChars(charCount, buffer);
         return *reinterpret_cast<T*>(buffer);

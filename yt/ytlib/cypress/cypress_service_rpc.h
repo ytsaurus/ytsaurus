@@ -17,16 +17,11 @@ class TCypressServiceProxy
 public:
     typedef TIntrusivePtr<TCypressServiceProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
+    RPC_DECLARE_PROXY(CypressService,
         ((NoSuchTransaction)(1))
         ((RecoverableError)(2))
         ((UnrecoverableError)(3))
     );
-
-    static Stroka GetServiceName()
-    {
-        return "CypressService";
-    }
 
     TCypressServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())

@@ -17,14 +17,9 @@ class TTransactionServiceProxy
 public:
     typedef TIntrusivePtr<TTransactionServiceProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
+    RPC_DECLARE_PROXY(TransactionService,
         ((NoSuchTransaction)(1))
     );
-
-    static Stroka GetServiceName()
-    {
-        return "TransactionService";
-    }
 
     TTransactionServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())

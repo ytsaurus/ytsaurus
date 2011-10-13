@@ -58,19 +58,19 @@ private:
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Events->StringScalar(node->GetValue<Stroka>());
+                Events->OnStringScalar(node->GetValue<Stroka>());
                 break;
 
             case ENodeType::Int64:
-                Events->Int64Scalar(node->GetValue<i64>());
+                Events->OnInt64Scalar(node->GetValue<i64>());
                 break;
 
             case ENodeType::Double:
-                Events->DoubleScalar(node->GetValue<double>());
+                Events->OnDoubleScalar(node->GetValue<double>());
                 break;
 
             case ENodeType::Entity:
-                Events->EntityScalar();
+                Events->OnEntityScalar();
                 break;
 
             default:
@@ -81,33 +81,33 @@ private:
 
     void VisitList(IListNode::TPtr node)
     {
-        Events->BeginList();
+        Events->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
-            Events->ListItem(i);
+            Events->OnListItem(i);
             VisitAny(child);
         }
-        Events->EndList();
+        Events->OnEndList();
     }
 
     void VisitMap(IMapNode::TPtr node)
     {
-        Events->BeginMap();
+        Events->OnBeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
-            Events->MapItem(pair.First());
+            Events->OnMapItem(pair.First());
             VisitAny(pair.Second());
         }
-        Events->EndMap();
+        Events->OnEndMap();
     }
 
     void VisitAttributes(IMapNode::TPtr node)
     {
-        Events->BeginAttributes();
+        Events->OnBeginAttributes();
         FOREACH(const auto& pair, node->GetChildren()) {
-            Events->AttributesItem(pair.First());
+            Events->OnAttributesItem(pair.First());
             VisitAny(pair.Second());
         }
-        Events->EndAttributes();
+        Events->OnEndAttributes();
     }
 
 };

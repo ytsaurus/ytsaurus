@@ -27,6 +27,8 @@ public:
         TLocation::TPtr location,
         int windowSize);
 
+    ~TSession();
+
     //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 

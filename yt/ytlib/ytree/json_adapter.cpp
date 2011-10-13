@@ -17,69 +17,69 @@ TJsonAdapter::~TJsonAdapter()
 {
 }
 
-void TJsonAdapter::StringScalar(const Stroka& value)
+void TJsonAdapter::OnStringScalar(const Stroka& value)
 {
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::Int64Scalar(i64 value)
+void TJsonAdapter::OnInt64Scalar(i64 value)
 {
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::DoubleScalar(double value)
+void TJsonAdapter::OnDoubleScalar(double value)
 {
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::EntityScalar()
+void TJsonAdapter::OnEntityScalar()
 {
-    BeginMap();
-    EndMap();
+    OnBeginMap();
+    OnEndMap();
 }
 
-void TJsonAdapter::BeginList()
+void TJsonAdapter::OnBeginList()
 {
     JsonWriter->OpenArray();
 }
 
-void TJsonAdapter::ListItem(int index)
+void TJsonAdapter::OnListItem(int index)
 {
     UNUSED(index);
 }
 
-void TJsonAdapter::EndList()
+void TJsonAdapter::OnEndList()
 {
     JsonWriter->CloseArray();
 }
 
-void TJsonAdapter::BeginMap()
+void TJsonAdapter::OnBeginMap()
 {
     JsonWriter->OpenMap();
 }
 
-void TJsonAdapter::MapItem(const Stroka& name)
+void TJsonAdapter::OnMapItem(const Stroka& name)
 {
     JsonWriter->Write(name);
 }
 
-void TJsonAdapter::EndMap()
+void TJsonAdapter::OnEndMap()
 {
     JsonWriter->CloseMap();
 }
 
-void TJsonAdapter::BeginAttributes()
+void TJsonAdapter::OnBeginAttributes()
 {
     YASSERT(false);
 }
 
-void TJsonAdapter::AttributesItem(const Stroka& name)
+void TJsonAdapter::OnAttributesItem(const Stroka& name)
 {
     UNUSED(name);
     YASSERT(false);
 }
 
-void TJsonAdapter::EndAttributes()
+void TJsonAdapter::OnEndAttributes()
 {
     YASSERT(false);
 }

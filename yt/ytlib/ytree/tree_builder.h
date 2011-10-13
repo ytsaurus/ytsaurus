@@ -27,46 +27,46 @@ private:
     INodeFactory* Factory;
     yvector<INode::TPtr> Stack;
 
-    virtual void StringScalar(const Stroka& value)
+    virtual void OnStringScalar(const Stroka& value)
     {
         auto node = Factory->CreateString();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void Int64Scalar(i64 value)
+    virtual void OnInt64Scalar(i64 value)
     {
         auto node = Factory->CreateInt64();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void DoubleScalar(double value)
+    virtual void OnDoubleScalar(double value)
     {
         auto node = Factory->CreateDouble();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void EntityScalar()
+    virtual void OnEntityScalar()
     {
         Push(~Factory->CreateEntity());
     }
 
 
-    virtual void BeginList()
+    virtual void OnBeginList()
     {
         Push(~Factory->CreateList());
         Push(NULL);
     }
 
-    virtual void ListItem(int index)
+    virtual void OnListItem(int index)
     {
         UNUSED(index);
         AddToList();
     }
 
-    virtual void EndList()
+    virtual void OnEndList()
     {
         AddToList();
     }
@@ -81,14 +81,14 @@ private:
     }
 
 
-    virtual void BeginMap()
+    virtual void OnBeginMap()
     {
         Push(~Factory->CreateMap());
         Push(NULL);
         Push(NULL);
     }
 
-    virtual void MapItem(const Stroka& name)
+    virtual void OnMapItem(const Stroka& name)
     {
         AddToMap();
         auto node = Factory->CreateString();
@@ -96,7 +96,7 @@ private:
         Push(~node);
     }
 
-    virtual void EndMap()
+    virtual void OnEndMap()
     {
         AddToMap();
     }
@@ -112,19 +112,19 @@ private:
     }
 
     
-    virtual void BeginAttributes()
+    virtual void OnBeginAttributes()
     {
-        BeginMap();
+        OnBeginMap();
     }
 
-    virtual void AttributesItem(const Stroka& name)
+    virtual void OnAttributesItem(const Stroka& name)
     {
-        MapItem(name);
+        OnMapItem(name);
     }
 
-    virtual void EndAttributes()
+    virtual void OnEndAttributes()
     {
-        EndMap();
+        OnEndMap();
         auto attributes = Pop()->AsMap();
         auto node = Peek();
         node->SetAttributes(attributes);

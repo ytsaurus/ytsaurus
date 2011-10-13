@@ -17,18 +17,13 @@ class TMetaStateManagerProxy
 public:
     typedef TIntrusivePtr<TMetaStateManagerProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
+    RPC_DECLARE_PROXY(MetaStateManager,
         ((InvalidSegmentId)(1))
         ((InvalidEpoch)(2))
         ((InvalidVersion)(3))
         ((InvalidStatus)(4))
         ((IOError)(5))
     );
-
-    static Stroka GetServiceName() 
-    {
-        return "MetaStateManager";
-    }
 
     TMetaStateManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())

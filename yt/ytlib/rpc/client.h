@@ -244,6 +244,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define RPC_DECLARE_PROXY(serviceName, errorCodes) \
+    static Stroka GetServiceName() \
+    { \
+        return PP_STRINGIZE(serviceName); \
+    } \
+    \
+    DECLARE_POLY_ENUM2(E##serviceName##ErrorCode, NRpc::EErrorCode, \
+        errorCodes \
+    ); \
+    \
+    typedef E##serviceName##ErrorCode EErrorCode;
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method, EErrorCode> TReq##method; \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method, EErrorCode> TRsp##method; \

@@ -1,9 +1,11 @@
 #include "chunk_store.h"
 
 #include "../misc/foreach.h"
+#include "../misc/assert.h"
 
 #include <util/folder/filelist.h>
 #include <util/random/random.h>
+#include <utility>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -19,6 +21,7 @@ TLocation::TLocation(Stroka path)
     , AvailableSpace(0)
     , UsedSpace(0)
     , ActionQueue(New<TActionQueue>())
+    , SessionCount(0)
 { }
 
 void TLocation::RegisterChunk(TIntrusivePtr<TChunk> chunk)
@@ -65,6 +68,23 @@ Stroka TLocation::GetPath() const
 double TLocation::GetLoadFactor() const
 {
     return (double) UsedSpace / (UsedSpace + AvailableSpace);
+}
+
+void TLocation::IncSessionCount()
+{
+    ++SessionCount;
+    LOG_DEBUG("Location %s has %i sessions", ~Path, SessionCount);
+}
+
+void TLocation::DecSessionCount()
+{
+    --SessionCount;
+    LOG_DEBUG("Location %s has %i sessions", ~Path, SessionCount);
+}
+    
+int TLocation::GetSessionCount() const
+{
+    return SessionCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,23 +240,38 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
 
 TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
-    // Pick every location with a probability proportional to its load.
-    double freeFactorSum = 0;
-    FOREACH(const auto& location, Locations) {
-        freeFactorSum += (1 - location->GetLoadFactor());
-    }
+    using namespace std;
 
-    double random = RandomNumber<double>() * freeFactorSum;
-    FOREACH(const auto& location, Locations) {
-        random -= (1 - location->GetLoadFactor());
-        if (random < 0) {
-            return location;
+    YASSERT(!Locations.empty());
+
+    // Return location with minimum sessions.
+
+    vector<TLocations::const_iterator> tmp;
+    tmp.reserve(Locations.size());
+
+    TLocations::const_iterator it = Locations.begin();
+    int minSessionCount = (*it)->GetSessionCount();
+
+    tmp.push_back(it++);
+
+    for (; it != Locations.end(); ++it) {
+        int c = (*it)->GetSessionCount();
+        if (c > minSessionCount) {
+            continue;
         }
+        if (c < minSessionCount) {
+            tmp.clear();
+            minSessionCount = c;
+        }
+        tmp.push_back(it);
     }
 
-    // In theory, this should never happen.
-    // In practice, doubles are imprecise.
-    return Locations.back();
+    // If we have sevaral locations with the same opened sessions amount,
+    // let's shuffle it.
+
+    random_shuffle(tmp.begin(), tmp.end());
+
+    return *tmp.front();
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
