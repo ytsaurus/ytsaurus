@@ -211,7 +211,6 @@ ECommitResult TMetaStateManager::OnChangeCommit(
 
         default:
             YUNREACHABLE();
-            return ECommitResult::NotCommitted;
     }
 }
 
@@ -501,7 +500,6 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
 
         default:
             YUNREACHABLE();
-            break;
     }
 }
 
@@ -588,7 +586,6 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
 
         default:
             YUNREACHABLE();
-            break;
     }
 }
 
@@ -610,7 +607,6 @@ void TMetaStateManager::OnCreateLocalSnapshot(
             break;
         default:
             YUNREACHABLE();
-            break;
     }
 }
 

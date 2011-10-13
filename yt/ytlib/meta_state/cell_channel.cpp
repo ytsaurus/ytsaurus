@@ -120,7 +120,6 @@ TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
 
         default:
             YUNREACHABLE();
-            return NULL;
     }
 }
 

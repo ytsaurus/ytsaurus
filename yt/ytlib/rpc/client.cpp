@@ -106,7 +106,6 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
 
             default:
                 YUNREACHABLE();
-                break;
         }
     }
 }

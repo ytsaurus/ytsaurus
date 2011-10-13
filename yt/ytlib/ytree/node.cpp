@@ -31,7 +31,6 @@ IYPathService::TGetResult TNodeBase::Get(
 
         default:
             YUNREACHABLE();
-            return TGetResult();
     }
 }
 

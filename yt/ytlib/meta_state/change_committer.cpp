@@ -278,7 +278,6 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
 
         default:
             YUNREACHABLE();
-            break;
 
     }
     LOG_DEBUG("Change %s is committed locally", ~version.ToString());

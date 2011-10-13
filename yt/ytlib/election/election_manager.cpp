@@ -617,7 +617,6 @@ void TElectionManager::DoStop()
             break;
         default:
             YUNREACHABLE();
-            break;
     }
 }
 

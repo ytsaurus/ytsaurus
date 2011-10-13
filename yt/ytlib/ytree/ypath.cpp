@@ -30,7 +30,6 @@ void ChopYPathPrefix(
 
             default:
                 YUNREACHABLE();
-                break;
         }
     }
 }
@@ -110,7 +109,6 @@ T ExecuteYPathOperation(
 
             default:
                 YUNREACHABLE();
-                break;
         }
     }
 }

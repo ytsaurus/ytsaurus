@@ -87,7 +87,6 @@ void TJob::Start()
 
         default:
             YUNREACHABLE();
-            break;
     }
 }
 
@@ -187,7 +186,6 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 
         default:
             YUNREACHABLE();
-            break;
     }
 }
 
@@ -213,7 +211,6 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
 
         default:
             YUNREACHABLE();
-            break;
     }
 }
 

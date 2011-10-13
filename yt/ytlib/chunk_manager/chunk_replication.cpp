@@ -109,7 +109,6 @@ void TChunkReplication::ProcessExistingJobs(
 
                     default:
                         YUNREACHABLE();
-                        break;
                 }
                 LOG_INFO("Job running (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
@@ -134,7 +133,6 @@ void TChunkReplication::ProcessExistingJobs(
 
             default:
                 YUNREACHABLE();
-                break;
         }
     }
 }
@@ -424,7 +422,6 @@ void TChunkReplication::GetReplicaStatistics(
 
                 default:
                     YUNREACHABLE();
-                    break;
                 }
         }
     }

@@ -45,7 +45,6 @@ private:
 
             default:
                 YUNREACHABLE();
-                break;
         }
 
         auto attributes = node->GetAttributes();
@@ -75,7 +74,6 @@ private:
 
             default:
                 YUNREACHABLE();
-                break;
         }
     }
 

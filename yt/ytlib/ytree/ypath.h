@@ -44,7 +44,6 @@ struct IYPathService
 
                 default:
                     YUNREACHABLE();
-                    break;
             }
         }
 

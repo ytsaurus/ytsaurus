@@ -70,7 +70,6 @@ struct IChunkWriter
 
                 default:
                     YUNREACHABLE();
-                    break;
             }
         }
     }
