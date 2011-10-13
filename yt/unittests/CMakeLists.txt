@@ -18,6 +18,7 @@ SRCS(
     ytree_fluent_ut.cpp
     yson_reader_ut.cpp
     yson_writer_ut.cpp
+    zigzag_ut.cpp
 )
 
 PEERDIR(
