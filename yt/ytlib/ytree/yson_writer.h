@@ -35,22 +35,22 @@ private:
     void CollectionItem(char separator);
     void EndCollection(char closeBracket);
 
-    virtual void StringScalar(const Stroka& value);
-    virtual void Int64Scalar(i64 value);
-    virtual void DoubleScalar(double value);
-    virtual void EntityScalar();
+    virtual void OnStringScalar(const Stroka& value);
+    virtual void OnInt64Scalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntityScalar();
 
-    virtual void BeginList();
-    virtual void ListItem(int index);
-    virtual void EndList();
+    virtual void OnBeginList();
+    virtual void OnListItem(int index);
+    virtual void OnEndList();
 
-    virtual void BeginMap();
-    virtual void MapItem(const Stroka& name);
-    virtual void EndMap();
+    virtual void OnBeginMap();
+    virtual void OnMapItem(const Stroka& name);
+    virtual void OnEndMap();
 
-    virtual void BeginAttributes();
-    virtual void AttributesItem(const Stroka& name);
-    virtual void EndAttributes();
+    virtual void OnBeginAttributes();
+    virtual void OnAttributesItem(const Stroka& name);
+    virtual void OnEndAttributes();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

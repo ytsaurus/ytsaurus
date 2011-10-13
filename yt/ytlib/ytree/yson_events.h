@@ -14,22 +14,22 @@ struct IYsonConsumer
     virtual ~IYsonConsumer()
     { }
 
-    virtual void StringScalar(const Stroka& value) = 0;
-    virtual void Int64Scalar(i64 value) = 0;
-    virtual void DoubleScalar(double value) = 0;
-    virtual void EntityScalar() = 0;
+    virtual void OnStringScalar(const Stroka& value) = 0;
+    virtual void OnInt64Scalar(i64 value) = 0;
+    virtual void OnDoubleScalar(double value) = 0;
+    virtual void OnEntityScalar() = 0;
 
-    virtual void BeginList() = 0;
-    virtual void ListItem(int index) = 0;
-    virtual void EndList() = 0;
+    virtual void OnBeginList() = 0;
+    virtual void OnListItem(int index) = 0;
+    virtual void OnEndList() = 0;
 
-    virtual void BeginMap() = 0;
-    virtual void MapItem(const Stroka& name) = 0;
-    virtual void EndMap() = 0;
+    virtual void OnBeginMap() = 0;
+    virtual void OnMapItem(const Stroka& name) = 0;
+    virtual void OnEndMap() = 0;
 
-    virtual void BeginAttributes() = 0;
-    virtual void AttributesItem(const Stroka& name) = 0;
-    virtual void EndAttributes() = 0;
+    virtual void OnBeginAttributes() = 0;
+    virtual void OnAttributesItem(const Stroka& name) = 0;
+    virtual void OnEndAttributes() = 0;
 };
 
 typedef IParamAction<IYsonConsumer*> TYsonProducer;

@@ -16,25 +16,22 @@ class TMockConsumer
     : public NYTree::IYsonConsumer
 {
 public:
-    MOCK_METHOD0(BeginTree, void());
-    MOCK_METHOD0(EndTree, void());
+    MOCK_METHOD1(OnStringScalar, void(const Stroka& value));
+    MOCK_METHOD1(OnInt64Scalar, void(i64 value));
+    MOCK_METHOD1(OnDoubleScalar, void(double value));
+    MOCK_METHOD0(OnEntityScalar, void());
 
-    MOCK_METHOD1(StringScalar, void(const Stroka& value));
-    MOCK_METHOD1(Int64Scalar, void(i64 value));
-    MOCK_METHOD1(DoubleScalar, void(double value));
-    MOCK_METHOD0(EntityScalar, void());
+    MOCK_METHOD0(OnBeginList, void());
+    MOCK_METHOD1(OnListItem, void(int index));
+    MOCK_METHOD0(OnEndList, void());
 
-    MOCK_METHOD0(BeginList, void());
-    MOCK_METHOD1(ListItem, void(int index));
-    MOCK_METHOD0(EndList, void());
+    MOCK_METHOD0(OnBeginMap, void());
+    MOCK_METHOD1(OnMapItem, void(const Stroka& name));
+    MOCK_METHOD0(OnEndMap, void());
 
-    MOCK_METHOD0(BeginMap, void());
-    MOCK_METHOD1(MapItem, void(const Stroka& name));
-    MOCK_METHOD0(EndMap, void());
-
-    MOCK_METHOD0(BeginAttributes, void());
-    MOCK_METHOD1(AttributesItem, void(const Stroka& name));
-    MOCK_METHOD0(EndAttributes, void());
+    MOCK_METHOD0(OnBeginAttributes, void());
+    MOCK_METHOD1(OnAttributesItem, void(const Stroka& name));
+    MOCK_METHOD0(OnEndAttributes, void());
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +47,7 @@ TEST_F(TYsonReaderTest, Int64)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, Int64Scalar(100500));
+    EXPECT_CALL(mock, OnInt64Scalar(100500));
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -64,7 +61,7 @@ TEST_F(TYsonReaderTest, Double)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, DoubleScalar(::testing::DoubleEq(3.1415926)));
+    EXPECT_CALL(mock, OnDoubleScalar(::testing::DoubleEq(3.1415926)));
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -78,7 +75,7 @@ TEST_F(TYsonReaderTest, StringStartingWithLetter)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, StringScalar("Hello_789_World_123"));
+    EXPECT_CALL(mock, OnStringScalar("Hello_789_World_123"));
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -92,7 +89,7 @@ TEST_F(TYsonReaderTest, StringStartingWithQuote)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, StringScalar("abcdeABCDE <1234567> + (10_000) - = 900   "));
+    EXPECT_CALL(mock, OnStringScalar("abcdeABCDE <1234567> + (10_000) - = 900   "));
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);
@@ -106,9 +103,9 @@ TEST_F(TYsonReaderTest, EntityWithEmptyAttributes)
     StrictMock<TMockConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, EntityScalar());
-    EXPECT_CALL(mock, BeginAttributes());
-    EXPECT_CALL(mock, EndAttributes());
+    EXPECT_CALL(mock, OnEntityScalar());
+    EXPECT_CALL(mock, OnBeginAttributes());
+    EXPECT_CALL(mock, OnEndAttributes());
 
     TYsonReader reader(&mock);
     reader.Read(&inputStream);

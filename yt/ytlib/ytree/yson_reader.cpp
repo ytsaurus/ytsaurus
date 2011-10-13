@@ -231,7 +231,7 @@ void TYsonReader::ParseAttributesItem()
     }
     SkipWhitespaces();
     ExpectChar(MapItemSeparator);
-    Events->AttributesItem(name);
+    Events->OnAttributesItem(name);
     ParseAny();
 }
 
@@ -241,7 +241,7 @@ void TYsonReader::ParseAttributes()
     if (PeekChar() != '<')
         return;
     YVERIFY(ReadChar() == '<');
-    Events->BeginAttributes();
+    Events->OnBeginAttributes();
     while (true) {
         SkipWhitespaces();
         if (PeekChar() == '>')
@@ -252,19 +252,19 @@ void TYsonReader::ParseAttributes()
         ExpectChar(MapItemSeparator);
     }
     YVERIFY(ReadChar() == '>');
-    Events->EndAttributes();
+    Events->OnEndAttributes();
 }
 
 void TYsonReader::ParseListItem(int index)
 {
-    Events->ListItem(index);
+    Events->OnListItem(index);
     ParseAny();
 }
 
 void TYsonReader::ParseList()
 {
     YVERIFY(ReadChar() == '[');
-    Events->BeginList();
+    Events->OnBeginList();
     for (int index = 0; true; ++index) {
         SkipWhitespaces();
         if (PeekChar() == ']')
@@ -275,7 +275,7 @@ void TYsonReader::ParseList()
         ExpectChar(ListItemSeparator);
     }
     YVERIFY(ReadChar() == ']');
-    Events->EndList();
+    Events->OnEndList();
 }
 
 void TYsonReader::ParseMapItem()
@@ -288,14 +288,14 @@ void TYsonReader::ParseMapItem()
     }
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
-    Events->MapItem(name);
+    Events->OnMapItem(name);
     ParseAny();
 }
 
 void TYsonReader::ParseMap()
 {
     YVERIFY(ReadChar() == '{');
-    Events->BeginMap();
+    Events->OnBeginMap();
     while (true) {
         SkipWhitespaces();
         if (PeekChar() == '}')
@@ -306,18 +306,18 @@ void TYsonReader::ParseMap()
         ExpectChar(MapItemSeparator);
     }
     YVERIFY(ReadChar() == '}');
-    Events->EndMap();
+    Events->OnEndMap();
 }
 
 void TYsonReader::ParseEntity()
 {
-    Events->EntityScalar();
+    Events->OnEntityScalar();
 }
 
 void TYsonReader::ParseString()
 {
     Stroka value = ReadString();
-    Events->StringScalar(value);
+    Events->OnStringScalar(value);
 }
 
 bool TYsonReader::SeemsInteger(const Stroka& str)
@@ -336,7 +336,7 @@ void TYsonReader::ParseNumeric()
     if (SeemsInteger(str)) {
         try {
             i64 value = FromString<i64>(str);
-            Events->Int64Scalar(value);
+            Events->OnInt64Scalar(value);
         } catch (...) {
             // TODO:
             ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON",
@@ -345,7 +345,7 @@ void TYsonReader::ParseNumeric()
     } else {
         try {
             double value = FromString<double>(str);
-            Events->DoubleScalar(value);
+            Events->OnDoubleScalar(value);
         } catch (...) {
             // TODO:
             ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON",
@@ -361,21 +361,21 @@ void TYsonReader::ParseBinaryString()
     Stroka result;
     result.resize(length);
     ReadChars(length, result.begin());
-    Events->StringScalar(result);
+    Events->OnStringScalar(result);
 }
 
 void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
     i64 value = ReadRaw<i64>();
-    Events->Int64Scalar(value);
+    Events->OnInt64Scalar(value);
 }
 
 void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
     double value = ReadRaw<double>();
-    Events->DoubleScalar(value);
+    Events->OnDoubleScalar(value);
 }
 
 TYsonProducer::TPtr TYsonReader::GetProducer(TInputStream* stream)
