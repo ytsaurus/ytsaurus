@@ -197,7 +197,6 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
         // Walk up to the root and remove locks.
         auto currentNodeId = lock.GetNodeId();
         while (currentNodeId != NullNodeId) {
-            // NB: Locks are always assigned to nonbranched nodes.
             auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
             YVERIFY(node.Locks().erase(lockId) == 1);
             currentNodeId = node.ParentId();
