@@ -29,7 +29,7 @@ void ChopYPathPrefix(
                 break;
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }
@@ -109,7 +109,7 @@ T ExecuteYPathOperation(
                     ~result.ErrorMessage);
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }

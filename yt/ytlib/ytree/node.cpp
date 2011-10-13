@@ -30,7 +30,7 @@ IYPathService::TGetResult TNodeBase::Get(
                 navigateResult.ErrorMessage);
 
         default:
-            YASSERT(false);
+            YUNREACHABLE();
             return TGetResult();
     }
 }

@@ -514,7 +514,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
                 break;
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }

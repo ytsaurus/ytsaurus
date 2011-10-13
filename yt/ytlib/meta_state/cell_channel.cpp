@@ -1,3 +1,4 @@
+#include "../misc/assert.h"
 #include "cell_channel.h"
 
 namespace NYT {
@@ -118,7 +119,7 @@ TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
             return NULL;
 
         default:
-            YASSERT(false);
+            YUNREACHABLE();
             return NULL;
     }
 }

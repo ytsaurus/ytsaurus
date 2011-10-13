@@ -1,3 +1,4 @@
+#include "../misc/assert.h"
 #include "client.h"
 #include "message.h"
 
@@ -104,7 +105,7 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
                 break;
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }

@@ -277,7 +277,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
         }
 
         default:
-            YASSERT(false);
+            YUNREACHABLE();
             break;
 
     }

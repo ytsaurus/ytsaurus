@@ -590,7 +590,7 @@ private:
                 break;
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }
@@ -611,7 +611,7 @@ private:
                 break;
 
             default:
-                YASSERT(false);
+                YUNREACHABLE();
                 break;
         }
     }
