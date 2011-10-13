@@ -16,7 +16,7 @@ class TChunkHolderProxy
 public:
     typedef TIntrusivePtr<TChunkHolderProxy> TPtr;
 
-    DECLARE_POLY_ENUM2(EErrorCode, NRpc::EErrorCode,
+    RPC_DECLARE_PROXY(ChunkHolder,
         ((RemoteCallFailed)(1))
         ((NoSuchSession)(2))
         ((SessionAlreadyExists)(3))
@@ -24,11 +24,6 @@ public:
         ((WindowError)(5))
         ((UnmatchedBlockContent)(6))
     );
-
-    static Stroka GetServiceName() 
-    {
-        return "ChunkHolder";
-    }
 
     TChunkHolderProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
