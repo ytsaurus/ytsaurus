@@ -63,43 +63,44 @@ void WriteVarInt64(i64 value, TOutputStream* output)
     WriteVarInt(static_cast<ui64>(ZigZagEncode64(value)), output);
 }
 
-ui64 ReadVarInt(TInputStream* input)
+int ReadVarInt(ui64* value, TInputStream* input)
 {
     size_t count = 0;
     ui64 result = 0;
 
-    bool stop = false;
-    while (!stop) {
-        ui8 byte;
-        if (count > 9 * sizeof(ui64) / 8) {
+    ui8 byte = 0;
+    do {
+        if (7 * count > 8 * sizeof(ui64) ) {
             // TODO: exception message
             throw yexception();
         }
         input->Read(&byte, 1);
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
         ++count;
-        if ((byte & 0x80) == 0) {
-            stop = true;
-        }
-    }
-    return result;
+    } while (byte & 0x80);
+
+    *value = result;
+    return count;
 }
 
-i32 ReadVarInt32(TInputStream* input)
+int ReadVarInt32(i32* value, TInputStream* input)
 {
-    ui64 value = ReadVarInt(input);
-    if (value > Max<ui32>()) {
+    ui64 varInt;
+    int bytesRead = ReadVarInt(&varInt, input);
+    if (varInt > Max<ui32>()) {
         // TODO: exception message
         throw yexception();
     }
-
-    return ZigZagDecode32(static_cast<ui32> (value));
+    *value = ZigZagDecode32(static_cast<ui32> (varInt));
+    return bytesRead;
 }
 
-i64 ReadVarInt64(TInputStream* input)
+int ReadVarInt64(i64* value, TInputStream* input)
 {
-    ui64 value = ReadVarInt(input);
-    return ZigZagDecode64(value);
+    ui64 varInt;
+    int bytesRead = ReadVarInt(&varInt, input);
+    *value = ZigZagDecode64(varInt);
+    return bytesRead;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

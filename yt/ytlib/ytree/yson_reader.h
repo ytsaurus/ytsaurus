@@ -27,23 +27,16 @@ private:
     TInputStream* Stream;
     int Lookahead;
 
+    int LineIndex;
+    int Position;
+    int Offset;
+
     static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
     void Reset();
 
-    int ReadChar();
-    void ReadChars(int charCount, char* buffer);
-
-    template<class T>
-    T ReadRaw()
-    {
-        const int charCount = sizeof(T);
-        char buffer[charCount];
-        ReadChars(charCount, buffer);
-        return *reinterpret_cast<T*>(buffer);
-    }
-
-    Stroka ReadChars(int charsCount);
+    int ReadChar(bool binaryInput = false);
+    Stroka ReadChars(int charCount, bool binaryInput = false);
 
     void ExpectChar(char expectedCh);
 
