@@ -106,10 +106,13 @@ public:
                     YASSERT(MainMap.find(key) == MainMap.end());
                     YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
                 }
+                break;
+
             case EState::HasPendingChanges:
             case EState::Normal:
                 MergeTempTablesIfNeeded();
                 YVERIFY(MainMap.insert(MakePair(key, value)).Second());
+                break;
 
             default:
                 YUNREACHABLE();
@@ -239,6 +242,7 @@ public:
                 YASSERT(it != MainMap.end());
                 delete it->Second();
                 MainMap.erase(it);
+                break;
             }
             case EState::SavingSnapshot:
                 if (MainMap.find(key) == MainMap.end()) {
@@ -247,6 +251,7 @@ public:
                     UpdateMap.erase(key);
                     YVERIFY(DeletionSet.insert(key).Second());
                 }
+                break;
 
             default:
                 YUNREACHABLE();
