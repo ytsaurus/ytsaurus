@@ -4,6 +4,7 @@
 #include "yson_format.h"
 
 #include "../misc/assert.h"
+#include "../misc/serialize.h"
 #include "../actions/action_util.h"
 
 namespace NYT {
@@ -357,24 +358,25 @@ void TYsonReader::ParseNumeric()
 void TYsonReader::ParseBinaryString()
 {
     ExpectChar(StringMarker);
-    i32 length = ReadRaw<i32>();
+    i32 length = ReadVarInt32(Stream);
     Stroka result;
     result.resize(length);
-    ReadChars(length, result.begin());
+    Stream->Read(&result, length);
     Events->OnStringScalar(result);
 }
 
 void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
-    i64 value = ReadRaw<i64>();
+    i64 value = ReadVarInt64(Stream);
     Events->OnInt64Scalar(value);
 }
 
 void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
-    double value = ReadRaw<double>();
+    double value;
+    Stream->Read(&value, sizeof(double));
     Events->OnDoubleScalar(value);
 }
 
