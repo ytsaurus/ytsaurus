@@ -30,6 +30,7 @@ private:
     int LineIndex;
     int Position;
     int Offset;
+    Stroka GetPositionInfo();
 
     static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
