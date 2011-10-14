@@ -35,7 +35,7 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgCreateTransaction
     auto id = TTransactionId::FromProto(message.GetTransactionId());
 
     auto* transaction = new TTransaction(id);
-    YVERIFY(TransactionMap.Insert(id, transaction));
+    TransactionMap.Insert(id, transaction);
     
     if (IsLeader()) {
         CreateLease(*transaction);
@@ -63,7 +63,7 @@ NYT::TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& m
 
     OnTransactionCommitted_.Fire(transaction);
 
-    YASSERT(TransactionMap.Remove(id));
+    TransactionMap.Remove(id);
 
     LOG_INFO("Transaction committed (TransactionId: %s)",
         ~id.ToString());
@@ -85,7 +85,7 @@ NYT::TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& mes
 
     OnTransactionAborted_.Fire(transaction);
 
-    YASSERT(TransactionMap.Remove(id));
+    TransactionMap.Remove(id);
 
     LOG_INFO("Transaction aborted (TransactionId: %s)",
         ~id.ToString());

@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include "../misc/property.h"
 #include "../chunk_holder/common.h"
 #include "../cypress/common.h"
 
@@ -15,6 +16,11 @@ using NCypress::TLockId;
 
 class TTransaction
 {
+    DECLARE_BYREF_RW_PROPERTY(AddedChunkIds, yvector<TChunkId>);
+    DECLARE_BYREF_RW_PROPERTY(LockIds, yvector<TLockId>);
+    DECLARE_BYREF_RW_PROPERTY(BranchedNodeIds, yvector<TNodeId>);
+    DECLARE_BYREF_RW_PROPERTY(CreatedNodeIds, yvector<TNodeId>);
+
 public:
     TTransaction(const TTransaction& other)
         : Id(other.Id)
@@ -54,32 +60,8 @@ public:
         return Id;
     }
 
-    yvector<TChunkId>& AddedChunkIds()
-    {
-        return AddedChunkIds_;
-    }
-
-    yvector<TLockId>& LockIds()
-    {
-        return LockIds_;
-    }
-
-    yvector<TNodeId>& BranchedNodeIds()
-    {
-        return BranchedNodeIds_;
-    }
-
-    yvector<TNodeId>& CreatedNodeIds()
-    {
-        return CreatedNodeIds_;
-    }
-
 private:
     TTransactionId Id;
-    yvector<TChunkId> AddedChunkIds_;
-    yvector<TLockId> LockIds_;
-    yvector<TNodeId> BranchedNodeIds_;
-    yvector<TNodeId> CreatedNodeIds_;
 
 };
 

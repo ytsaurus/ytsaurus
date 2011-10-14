@@ -126,8 +126,8 @@ public:
             EHolderState::Registered,
             statistics);
 
-        YVERIFY(HolderMap.Insert(holderId, newHolder));
-        YVERIFY(HolderAddressMap.insert(MakePair(address, holderId)).Second());
+        HolderMap.Insert(holderId, newHolder);
+        HolderAddressMap.insert(MakePair(address, holderId)).Second();
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
@@ -379,13 +379,13 @@ private:
             holderId);
 
         YVERIFY(HolderAddressMap.erase(holder.Address) == 1);
-        YVERIFY(HolderMap.Remove(holderId));
+        HolderMap.Remove(holderId);
     }
 
     void DoRemoveChunk(const TChunk& chunk)
     {
         auto chunkId = chunk.Id;
-        YVERIFY(ChunkMap.Remove(chunkId));
+        ChunkMap.Remove(chunkId);
 
         LOG_INFO_IF(!IsRecovery(), "Chunk removed (ChunkId: %s)",
             ~chunkId.ToString());
@@ -449,7 +449,7 @@ private:
             chunkId,
             holder.Address,
             targetAddresses);
-        YVERIFY(JobMap.Insert(jobId, job));
+        JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobListForUpdate(chunkId);
         list.AddJob(jobId);
@@ -478,7 +478,7 @@ private:
 
         UnregisterReplicationSinks(job);
 
-        YVERIFY(JobMap.Remove(job.JobId));
+        JobMap.Remove(job.JobId);
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -496,7 +496,7 @@ private:
 
         UnregisterReplicationSinks(job);
 
-        YVERIFY(JobMap.Remove(job.JobId));
+        JobMap.Remove(job.JobId);
 
         LOG_INFO_IF(!IsRecovery(), "Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -563,7 +563,7 @@ private:
         if (list != NULL)
             return *list;
 
-        YVERIFY(JobListMap.Insert(id, new TJobList(id)));
+        JobListMap.Insert(id, new TJobList(id));
         return GetJobListForUpdate(id);
     }
 

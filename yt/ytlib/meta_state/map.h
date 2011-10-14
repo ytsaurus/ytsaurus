@@ -1,10 +1,14 @@
 #pragma once
 
 #include "common.h"
+
 #include "../misc/enum.h"
 #include "../misc/assert.h"
 #include "../misc/foreach.h"
 #include "../misc/serialize.h"
+#include "../misc/thread_affinity.h"
+
+#include <util/ysaveload.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -87,11 +91,10 @@ public:
 
     //! Inserts a key-value pair.
     /*!
-     * \returns True iff the key is new.
-     * 
-     * \note Does nothing if the key is already in map.
+     * \note Value is owned by map after insertion.
+     * 'note Fails if the key is already in map.
      */
-    bool Insert(const TKey& key, TValue* value)
+    void Insert(const TKey& key, TValue* value)
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -99,23 +102,20 @@ public:
             case EState::SavingSnapshot:
                 if (DeletionSet.erase(key) > 0) {
                     YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
-                    return true;
+                } else {
+                    YASSERT(MainMap.find(key) == MainMap.end());
+                    YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
                 }
+                break;
 
-                if (MainMap.find(key) != MainMap.end()) {
-                    return false;
-                }
-
-                return UpdateMap.insert(MakePair(key, value)).Second();
-            
             case EState::HasPendingChanges:
             case EState::Normal:
                 MergeTempTablesIfNeeded();
-                return MainMap.insert(MakePair(key, value)).Second();
+                YVERIFY(MainMap.insert(MakePair(key, value)).Second());
+                break;
 
             default:
                 YUNREACHABLE();
-
         }
     }
 
@@ -228,11 +228,8 @@ public:
         return *value;
     }
 
-    //! Removes the key from the map.
-    /*!
-     *  \returns True iff the key was in the map.
-     */
-    bool Remove(const TKey& key)
+    //! Removes the key from the map and deletes the corresponding value.
+    void Remove(const TKey& key)
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -242,21 +239,19 @@ public:
                 MergeTempTablesIfNeeded();
 
                 auto it = MainMap.find(key);
-                if (it == MainMap.end()) {
-                    return false;
-                }
-
+                YASSERT(it != MainMap.end());
                 delete it->Second();
                 MainMap.erase(it);
-                return true;
+                break;
             }
             case EState::SavingSnapshot:
-                if (MainMap.find(key) != MainMap.end()) {
+                if (MainMap.find(key) == MainMap.end()) {
+                    YVERIFY(UpdateMap.erase(key) > 0);
+                } else {
                     UpdateMap.erase(key);
-                    return DeletionSet.insert(key).Second();
+                    YVERIFY(DeletionSet.insert(key).Second());
                 }
-
-                return UpdateMap.erase(key) > 0;
+                break;
 
             default:
                 YUNREACHABLE();
@@ -426,7 +421,7 @@ private:
         std::sort(items.begin(), items.end(), ItemComparer);
 
         FOREACH(const auto& item, items) {
-            Write(*output, item.First());
+            ::Save(output, item.First());
             item.Second()->Save(output);
         }
         
@@ -444,7 +439,7 @@ private:
 
         for (i32 index = 0; index < size; ++index) {
             TKey key;
-            Read(*input, &key);
+            ::Load(input, key);
             TValue* value = TValue::Load(input).Release();
             MainMap.insert(MakePair(key, value));
         }

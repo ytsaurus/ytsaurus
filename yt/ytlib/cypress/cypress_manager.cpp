@@ -85,7 +85,7 @@ TLock* TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
 {
     auto id = LockIdGenerator.Next();
     auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
-    YVERIFY(LockMap.Insert(id, lock));
+    LockMap.Insert(id, lock);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.LockIds().push_back(lock->GetId());
     return lock;
@@ -100,7 +100,7 @@ ICypressNode& TCypressManager::BranchNode(const ICypressNode& node, const TTrans
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.BranchedNodeIds().push_back(nodeId);
     auto* branchedNodePtr = branchedNode.Release();
-    YASSERT(NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr));
+    NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr);
     return *branchedNodePtr;
 }
 
@@ -186,7 +186,7 @@ void TCypressManager::Clear()
     TBranchedNodeId id(RootNodeId, NullTransactionId);
     auto* root = new TMapNode(id);
     root->SetState(ENodeState::Committed);
-    YVERIFY(NodeMap.Insert(id, root));
+    NodeMap.Insert(id, root);
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
@@ -216,7 +216,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
             YVERIFY(node.LockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();
         }
-        YVERIFY(LockMap.Remove(lockId));
+        LockMap.Remove(lockId);
     }
 }
 
@@ -237,7 +237,7 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        YVERIFY(NodeMap.Remove(TBranchedNodeId(nodeId, transactionId)));
+        NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
     }
 }
 
@@ -252,7 +252,7 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
 void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
 {
     FOREACH (const auto& nodeId, transaction.CreatedNodeIds()) {
-        YVERIFY(NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId)));
+        NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
     }
 }
 

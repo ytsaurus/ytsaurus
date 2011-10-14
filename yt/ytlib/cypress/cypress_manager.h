@@ -109,7 +109,7 @@ private:
         auto nodeId = NodeIdGenerator.Next();
         TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
         auto* nodeImpl = new TImpl(branchedNodeId);
-        YVERIFY(NodeMap.Insert(branchedNodeId, nodeImpl));
+        NodeMap.Insert(branchedNodeId, nodeImpl);
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.CreatedNodeIds().push_back(nodeId);
         return ~New<TProxy>(this, transactionId, nodeId);

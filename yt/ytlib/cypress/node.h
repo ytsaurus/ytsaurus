@@ -67,18 +67,19 @@ DECLARE_ENUM(ENodeState,
     (Uncommitted)
 );
 
+// TODO: type vs const type& in properties
 struct ICypressNode
 {
     virtual ~ICypressNode()
     { }
 
-    virtual const TBranchedNodeId& GetId() const = 0;
+    virtual TBranchedNodeId GetId() const = 0;
 
     virtual ENodeState GetState() const = 0;
     virtual void SetState(ENodeState value) = 0;
 
-    virtual const TNodeId& GetParentId() const = 0;
-    virtual void SetParentId(const TNodeId& value) = 0;
+    virtual TNodeId GetParentId() const = 0;
+    virtual void SetParentId(TNodeId value) = 0;
 
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     virtual yhash_set<TLockId>& LockIds() = 0;
@@ -101,44 +102,24 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_RW_PROPERTY(LockIds, yhash_set<TLockId>)
+    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
+    DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
+    DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
 
 public:
     TCypressNodeBase(const TBranchedNodeId& id)
-        : ParentId(NullNodeId)
+        : ParentId_(NullNodeId)
+        , State_(ENodeState::Uncommitted)
         , Id(id)
-        , State(ENodeState::Uncommitted)
     { }
 
-    virtual const TBranchedNodeId& GetId() const
+    virtual TBranchedNodeId GetId() const
     {
         return Id;
     }
 
-    virtual const TNodeId& GetParentId() const
-    {
-        return ParentId;
-    }
-
-    virtual void SetParentId(const TNodeId& value)
-    {
-        ParentId = value;
-    }
-
-    virtual ENodeState GetState() const
-    {
-        return State;
-    }
-
-    virtual void SetState(ENodeState value)
-    {
-        State = value;
-    }
-
 protected:
     TBranchedNodeId Id;
-    TNodeId ParentId;
-    ENodeState State;
 
 };
 
@@ -148,7 +129,7 @@ template<class TValue>
 class TScalarNode
     : public TCypressNodeBase
 {
-    DECLARE_RW_PROPERTY(Value, TValue)
+    DECLARE_BYREF_RW_PROPERTY(Value, TValue)
 
 private:
     typedef TScalarNode<TValue> TThis;
@@ -200,8 +181,8 @@ class TMapNode
     typedef yhash_map<Stroka, TNodeId> TNameToChild;
     typedef yhash_map<TNodeId, Stroka> TChildToName;
 
-    DECLARE_RW_PROPERTY(NameToChild, TNameToChild)
-    DECLARE_RW_PROPERTY(ChildToName, TChildToName)
+    DECLARE_BYREF_RW_PROPERTY(NameToChild, TNameToChild);
+    DECLARE_BYREF_RW_PROPERTY(ChildToName, TChildToName);
 
 private:
     typedef TMapNode TThis;

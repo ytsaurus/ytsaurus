@@ -25,8 +25,8 @@ void TYsonReader::Read(TInputStream* stream)
         ParseAny();
         int ch = ReadChar();
         if (ch != Eos) {
-            ythrow yexception() << Sprintf("Unexpected symbol %s in YSON",
-                ~Stroka(static_cast<char>(ch)).Quote());
+            ythrow yexception() << Sprintf("Unexpected symbol %s in YSON, %s",
+                ~Stroka(static_cast<char>(ch)).Quote(), ~GetPositionInfo());
         }
     } catch (...) {
         Reset();
@@ -34,13 +34,21 @@ void TYsonReader::Read(TInputStream* stream)
     }
 }
 
+Stroka TYsonReader::GetPositionInfo()
+{
+    return Sprintf("(Line: %d, Position: %d, OffsetL %d)", LineIndex, Position, Offset);
+}
+
 void TYsonReader::Reset()
 {
     Stream = NULL;
     Lookahead = NoLookahead;
+    LineIndex = 1;
+    Position = 1;
+    Offset = 0;
 }
 
-int TYsonReader::ReadChar()
+int TYsonReader::ReadChar(bool binaryInput)
 {
     if (Lookahead == NoLookahead) {
         PeekChar();
@@ -48,20 +56,32 @@ int TYsonReader::ReadChar()
 
     int result = Lookahead;
     Lookahead = NoLookahead;
+
+    ++Offset;
+    if (!binaryInput && result == '\n') {
+        ++LineIndex;
+        Position = 1;
+    } else {
+        ++Position;
+    }
+
     return result;
 }
 
-void TYsonReader::ReadChars(int charCount, char* buffer)
+Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
 {
+    Stroka result;
+    result.reserve(charCount);
     for (int i = 0; i < charCount; ++i) {
-        int ch = ReadChar();
+        int ch = ReadChar(binaryInput);
         if (ch == Eos) {
             // TODO:
-            ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d",
-                i + 1, charCount);
+            ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d, %s",
+                i + 1, charCount, ~GetPositionInfo());
         }
-        buffer[i] = ch;
+        result.push_back(ch);
     }
+    return result;
 }
 
 
@@ -70,14 +90,15 @@ void TYsonReader::ExpectChar(char expectedCh)
     int readCh = ReadChar();
     if (readCh == Eos) {
         // TODO:
-        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON",
-            ~Stroka(expectedCh).Quote());
+        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON, %s",
+            ~Stroka(expectedCh).Quote(), ~GetPositionInfo());
     }
     if (static_cast<char>(readCh) != expectedCh) {
         // TODO:
-        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON",
+        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON, %s",
             ~Stroka(static_cast<char>(readCh)).Quote(),
-            ~Stroka(expectedCh).Quote());
+            ~Stroka(expectedCh).Quote(),
+            ~GetPositionInfo());
     }
 }
 
@@ -122,7 +143,8 @@ Stroka TYsonReader::ReadString()
             int ch = ReadChar();
             if (ch == Eos) {
                 // TODO:
-                ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"String\" literal in YSON");
+                ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"String\" literal in YSON, %s",
+                    ~GetPositionInfo());
             }
             if (ch == '"')
                 break;
@@ -159,7 +181,8 @@ Stroka TYsonReader::ReadNumeric()
     }
     if (result.Empty()) {
         // TODO:
-        ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"Numeric\" literal in YSON");
+        ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"Numeric\" literal in YSON, %s",
+            ~GetPositionInfo());
     }
     return result;
 }
@@ -215,8 +238,9 @@ void TYsonReader::ParseAny()
                 ParseAttributes();
             } else {
                 // TODO:
-                ythrow yexception() << Sprintf("Unexpected %s in YSON",
-                    ~Stroka(static_cast<char>(ch)).Quote());
+                ythrow yexception() << Sprintf("Unexpected %s in YSON, %s",
+                    ~Stroka(static_cast<char>(ch)).Quote(),
+                    ~GetPositionInfo());
             }
             break;
     }
@@ -228,7 +252,8 @@ void TYsonReader::ParseAttributesItem()
     Stroka name = ReadString();
     if (name.Empty()) {
         // TODO:
-        ythrow yexception() << Sprintf("Empty attribute name in YSON");
+        ythrow yexception() << Sprintf("Empty attribute name in YSON, %s",
+            ~GetPositionInfo());
     }
     SkipWhitespaces();
     ExpectChar(MapItemSeparator);
@@ -285,7 +310,8 @@ void TYsonReader::ParseMapItem()
     Stroka name = ReadString();
     if (name.Empty()) {
         // TODO:
-        ythrow yexception() << Sprintf("Empty map item name in YSON");
+        ythrow yexception() << Sprintf("Empty map item name in YSON, %s",
+            ~GetPositionInfo());
     }
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
@@ -340,8 +366,9 @@ void TYsonReader::ParseNumeric()
             Events->OnInt64Scalar(value);
         } catch (...) {
             // TODO:
-            ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON",
-                ~str.Quote());
+            ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON, %s",
+                ~str.Quote(),
+                ~GetPositionInfo());
         }
     } else {
         try {
@@ -349,8 +376,9 @@ void TYsonReader::ParseNumeric()
             Events->OnDoubleScalar(value);
         } catch (...) {
             // TODO:
-            ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON",
-                ~str.Quote());
+            ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON, %s",
+                ~str.Quote(),
+                ~GetPositionInfo());
         }
     }
 }
@@ -358,25 +386,42 @@ void TYsonReader::ParseNumeric()
 void TYsonReader::ParseBinaryString()
 {
     ExpectChar(StringMarker);
-    i32 length = ReadVarInt32(Stream);
-    Stroka result;
-    result.resize(length);
-    Stream->Read(&result, length);
+    YASSERT(Lookahead == NoLookahead);
+
+    i32 length;
+    int bytesRead = ReadVarInt32(&length, Stream);
+    Position += bytesRead;
+    Offset += bytesRead;
+
+    Stroka result = ReadChars(length, true);
+
     Events->OnStringScalar(result);
 }
 
 void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
-    i64 value = ReadVarInt64(Stream);
+    YASSERT(Lookahead == NoLookahead);
+
+    i64 value;
+    int bytesRead = ReadVarInt64(&value, Stream);
+    Position += bytesRead;
+    Offset += bytesRead;
+
     Events->OnInt64Scalar(value);
 }
 
 void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
+    YASSERT(Lookahead == NoLookahead);
+
     double value;
-    Stream->Read(&value, sizeof(double));
+    int bytesToRead = static_cast<int>(sizeof(double));
+    Stream->Read(&value, bytesToRead);
+    Position += bytesToRead;
+    Offset += bytesToRead;
+
     Events->OnDoubleScalar(value);
 }
 
@@ -395,4 +440,3 @@ void TYsonReader::GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream
 
 } // namespace NYTree
 } // namespace NYT
-

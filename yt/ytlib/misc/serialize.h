@@ -126,9 +126,10 @@ void WriteVarInt(ui64 value, TOutputStream* output);
 void WriteVarInt32(i32 value, TOutputStream* output);
 void WriteVarInt64(i64 value, TOutputStream* output);
 
-ui64 ReadVarInt(TInputStream* input);
-i32 ReadVarInt32(TInputStream* input);
-i64 ReadVarInt64(TInputStream* input);
+// These  function return number of bytes read
+int ReadVarInt(ui64* value, TInputStream* input);
+int ReadVarInt32(i32* value, TInputStream* input);
+int ReadVarInt64(i64* value, TInputStream* input);
 
 ////////////////////////////////////////////////////////////////////////////////
 
