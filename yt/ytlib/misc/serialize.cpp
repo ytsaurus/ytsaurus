@@ -68,20 +68,17 @@ ui64 ReadVarInt(TInputStream* input)
     size_t count = 0;
     ui64 result = 0;
 
-    bool stop = false;
-    while (!stop) {
-        ui8 byte;
-        if (count > 9 * sizeof(ui64) / 8) {
+    ui8 byte = 0;
+    do {
+        if (7 * count > 8 * sizeof(ui64) ) {
             // TODO: exception message
             throw yexception();
         }
         input->Read(&byte, 1);
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
         ++count;
-        if ((byte & 0x80) == 0) {
-            stop = true;
-        }
-    }
+    } while (byte & 0x80);
+
     return result;
 }
 

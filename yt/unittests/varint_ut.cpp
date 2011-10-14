@@ -43,6 +43,13 @@ TEST_P(TReadVarIntTest, Serialization)
     EXPECT_EQ(rightAnswer, value);
 }
 
+TEST(TReadVarIntTest, Overflow)
+{
+    Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
+    TStringInput inputStream(input);
+    EXPECT_THROW(ReadVarInt(&inputStream), yexception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 auto ValuesForVarIntTests = Values(
