@@ -32,6 +32,23 @@ public:
         return new TTransaction(*this);
     }
 
+    void Save(TOutputStream* output) const
+    {
+        YUNIMPLEMENTED();
+        // output >> Id >> AddedChunkIds_ >> LockIds_ >> BranchedNodeIds_; // is it correct?
+    }
+
+    static TAutoPtr<TTransaction> Load(TInputStream* input)
+    {
+        YUNIMPLEMENTED();
+        //TTransactionId id;
+        //yvector<TChunkId> addedChunkIds;
+        //yvector<TLockId> lockIds;
+        //yvector<TNodeId> branchedNodeIds;
+        //*input >> id >> addedChunkIds >> lockIds >> branchedNodeIds;
+        //return new TTransaction(id); // and what about vectors?
+    }
+
     TTransactionId GetId() const
     {
         return Id;

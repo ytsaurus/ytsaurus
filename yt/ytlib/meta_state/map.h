@@ -4,6 +4,7 @@
 #include "../misc/enum.h"
 #include "../misc/assert.h"
 #include "../misc/foreach.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -67,8 +68,7 @@ public:
         {
             case EState::LoadingSnapshot:
             case EState::SavingSnapshot:
-                YASSERT(false);
-                break;
+                YUNREACHABLE();
 
             case EState::Normal:
             case EState::HasPendingChanges:
@@ -114,8 +114,7 @@ public:
                 return MainMap.insert(MakePair(key, value)).Second();
 
             default:
-                YASSERT(false);
-                return false;
+                YUNREACHABLE();
 
         }
     }
@@ -150,8 +149,7 @@ public:
                 break;
 
             default:
-                YASSERT(false);
-                return NULL;
+                YUNREACHABLE();
         }
 
         auto it = MainMap.find(key);
@@ -196,9 +194,7 @@ public:
                 return insertionPair.First()->Second();
             }
             default:
-                YASSERT(false);
-                return false;
-
+                YUNREACHABLE();
         }
     }
 
@@ -263,8 +259,7 @@ public:
                 return UpdateMap.erase(key) > 0;
 
             default:
-                YASSERT(false);
-                return false;
+                YUNREACHABLE();
         }
     }
 
@@ -310,7 +305,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         return MainMap.begin();
     }
 
@@ -322,7 +317,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         return MainMap.end();
     }
     
@@ -334,7 +329,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         return MainMap.begin();
     }
 
@@ -346,7 +341,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         return MainMap.end();
     }
 
@@ -431,7 +426,7 @@ private:
         std::sort(items.begin(), items.end(), ItemComparer);
 
         FOREACH(const auto& item, items) {
-            *output << item.First();
+            Write(*output, item.First());
             item.Second()->Save(output);
         }
         
@@ -443,13 +438,13 @@ private:
     TVoid DoLoad(TInputStream* input)
     {
         i32 size;
-        *stream >> size;
+        *input >> size;
 
         YASSERT(size >= 0);
 
         for (i32 index = 0; index < size; ++index) {
             TKey key;
-            *stream >> key;
+            Read(*input, &key);
             TValue* value = TValue::Load(input).Release();
             MainMap.insert(MakePair(key, value));
         }
