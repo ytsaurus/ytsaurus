@@ -65,7 +65,7 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
     map.Remove("a"); // remove
     EXPECT_EQ(map.Find("a") == NULL, true);
 
-    ASSERT_DEATH(map.Remove("a"), ".*"); // remove non exisiting
+    ASSERT_DEATH(map.Remove("a"), ".*"); // remove non existing
 
     map.Insert("a", new TValue(10));
     TValue* ptr = map.FindForUpdate("a");
