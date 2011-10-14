@@ -155,7 +155,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
             if (result) {
                 map.Insert(key, new TValue(value));
             } else {
-                ASSERT_DEATH(map.Insert(key, new TValue(value)), ".*");
+                EXPECT_EQ(map.Get(key).Value, checkMap[key]);
             }
         }
         TBufferedFileOutput output(file);
@@ -203,7 +203,7 @@ TEST_F(TMetaStateMapTest, StressSave)
         if (result) {
             map.Insert(key, new TValue(value));
         } else {
-            ASSERT_DEATH(map.Insert(key, new TValue(value)), ".*");
+            EXPECT_EQ(map.Get(key).Value, checkMap[key]);
         }
     }
     TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
@@ -221,7 +221,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             if (result) {
                 map.Insert(key, new TValue(value));
             } else {
-                ASSERT_DEATH(map.Insert(key, new TValue(value)), ".*");
+                EXPECT_EQ(map.Get(key).Value, checkMap[key]);
             }
         }
         if (action == 1) {
@@ -229,7 +229,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             TValue* ptr = map.FindForUpdate(key);
             auto it = checkMap.find(key);
             if (it == checkMap.end()) {
-                EXPECT_EQ(ptr == NULL, true);
+                EXPECT_IS_TRUE(ptr == NULL);
             } else {
                 EXPECT_EQ(ptr->Value, it->second);
             }
@@ -242,7 +242,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             if (result) {
                 map.Remove(key);
             } else {
-                ASSERT_DEATH(map.Remove(key), ".*");
+                EXPECT_IS_TRUE(map.Find(key) == NULL);
             }
         }
     }
