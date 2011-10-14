@@ -70,18 +70,18 @@ void TJsonAdapter::OnEndMap()
 
 void TJsonAdapter::OnBeginAttributes()
 {
-    YASSERT(false);
+    YUNIMPLEMENTED();
 }
 
 void TJsonAdapter::OnAttributesItem(const Stroka& name)
 {
     UNUSED(name);
-    YASSERT(false);
+    YUNIMPLEMENTED();
 }
 
 void TJsonAdapter::OnEndAttributes()
 {
-    YASSERT(false);
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

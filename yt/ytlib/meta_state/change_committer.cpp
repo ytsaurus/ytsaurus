@@ -277,8 +277,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
         }
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
 
     }
     LOG_DEBUG("Change %s is committed locally", ~version.ToString());

@@ -247,7 +247,7 @@ protected:
 
     ICypressNodeProxy::TPtr Branch()
     {
-
+        return NULL;
     }
 };
 
@@ -318,7 +318,8 @@ public: \
         { } \
     }; \
     \
-    inline ICypressNodeProxy::TPtr T ## name ## Node::GetProxy( \
+    template <> \
+    inline ICypressNodeProxy::TPtr TScalarNode<type>::GetProxy( \
         TIntrusivePtr<TCypressManager> cypressManager, \
         const TTransactionId& transactionId) const \
     { \

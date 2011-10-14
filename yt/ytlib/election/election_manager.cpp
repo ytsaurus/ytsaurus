@@ -616,8 +616,7 @@ void TElectionManager::DoStop()
             StopFollowing();
             break;
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 

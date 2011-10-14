@@ -131,6 +131,8 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
+    Location->IncSessionCount();
+
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
 
     for (int index = 0; index < windowSize; ++index) {
@@ -138,6 +140,11 @@ TSession::TSession(
     }
 
     OpenFile();
+}
+
+TSession::~TSession()
+{
+    Location->DecSessionCount();
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)

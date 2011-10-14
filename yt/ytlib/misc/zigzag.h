@@ -7,6 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Functions that provide coding of integers with property: 0 <= f(x) <= 2 * |x|
+//! Actually taken 'as is' from protobuf/wire_format_lite.h
 
 inline ui32 ZigZagEncode32(i32 n)
 {

@@ -1,5 +1,6 @@
 #include "pattern.h"
 
+#include "../misc/assert.h"
 #include "../misc/foreach.h"
 
 namespace NYT {
@@ -32,7 +33,7 @@ static Stroka FormatLevel(ELogLevel level)
         case ELogLevel::Warning: return "W";
         case ELogLevel::Error:   return "E";
         case ELogLevel::Fatal:   return "F";
-        default: YASSERT(false); return "?";
+        default: YUNREACHABLE(); return "?";
     }
 }
 

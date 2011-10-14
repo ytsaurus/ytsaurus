@@ -86,8 +86,7 @@ void TJob::Start()
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -186,8 +185,7 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -212,8 +210,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
