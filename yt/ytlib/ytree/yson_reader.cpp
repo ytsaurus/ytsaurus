@@ -38,9 +38,12 @@ void TYsonReader::Reset()
 {
     Stream = NULL;
     Lookahead = NoLookahead;
+    LineIndex = 1;
+    Position = 1;
+    Offset = 0;
 }
 
-int TYsonReader::ReadChar(bool binaryData)
+int TYsonReader::ReadChar(bool binaryInput)
 {
     if (Lookahead == NoLookahead) {
         PeekChar();
@@ -48,20 +51,32 @@ int TYsonReader::ReadChar(bool binaryData)
 
     int result = Lookahead;
     Lookahead = NoLookahead;
+
+    ++Offset;
+    if (!binaryInput && result == '\n') {
+        ++LineIndex;
+        Position = 1;
+    } else {
+        ++Position;
+    }
+
     return result;
 }
 
-void TYsonReader::ReadChars(int charCount, ui8* buffer)
+Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
 {
+    Stroka result;
+    result.reserve(charCount);
     for (int i = 0; i < charCount; ++i) {
-        int ch = ReadChar();
+        int ch = ReadChar(binaryInput);
         if (ch == Eos) {
             // TODO:
             ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d",
                 i + 1, charCount);
         }
-        buffer[i] = ch;
+        result.push_back(ch);
     }
+    return result;
 }
 
 
@@ -359,10 +374,14 @@ void TYsonReader::ParseBinaryString()
 {
     ExpectChar(StringMarker);
     YASSERT(Lookahead == NoLookahead);
+
     i32 length;
-    ReadVarInt32(&length, Stream);
-    Stroka result;
-    result.resize(length);
+    int bytesRead = ReadVarInt32(&length, Stream);
+    Position += bytesRead;
+    Offset += bytesRead;
+
+    Stroka result = ReadChars(length, true);
+
     Events->OnStringScalar(result);
 }
 
@@ -370,8 +389,12 @@ void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
     YASSERT(Lookahead == NoLookahead);
+
     i64 value;
-    ReadVarInt64(&value, Stream);
+    int bytesRead = ReadVarInt64(&value, Stream);
+    Position += bytesRead;
+    Offset += bytesRead;
+
     Events->OnInt64Scalar(value);
 }
 
@@ -379,8 +402,13 @@ void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
     YASSERT(Lookahead == NoLookahead);
+
     double value;
-    Stream->Read(&value, sizeof(double));
+    int bytesToRead = static_cast<int>(sizeof(double));
+    Stream->Read(&value, bytesToRead);
+    Position += bytesToRead;
+    Offset += bytesToRead;
+
     Events->OnDoubleScalar(value);
 }
 

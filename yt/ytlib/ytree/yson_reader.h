@@ -29,13 +29,14 @@ private:
 
     int LineIndex;
     int Position;
+    int Offset;
 
     static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
     void Reset();
 
-    int ReadChar(bool binary = false);
-    void ReadChars(int charCount, ui8* buffer);
+    int ReadChar(bool binaryInput = false);
+    Stroka ReadChars(int charCount, bool binaryInput = false);
 
     void ExpectChar(char expectedCh);
 
