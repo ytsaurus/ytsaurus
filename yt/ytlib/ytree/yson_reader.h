@@ -27,14 +27,15 @@ private:
     TInputStream* Stream;
     int Lookahead;
 
+    int LineIndex;
+    int Position;
+
     static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
     void Reset();
 
-    int ReadChar();
-    void ReadChars(int charCount, char* buffer);
-
-    Stroka ReadChars(int charsCount);
+    int ReadChar(bool binary = false);
+    void ReadChars(int charCount, ui8* buffer);
 
     void ExpectChar(char expectedCh);
 

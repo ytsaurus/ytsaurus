@@ -40,7 +40,7 @@ void TYsonReader::Reset()
     Lookahead = NoLookahead;
 }
 
-int TYsonReader::ReadChar()
+int TYsonReader::ReadChar(bool binaryData)
 {
     if (Lookahead == NoLookahead) {
         PeekChar();
@@ -51,7 +51,7 @@ int TYsonReader::ReadChar()
     return result;
 }
 
-void TYsonReader::ReadChars(int charCount, char* buffer)
+void TYsonReader::ReadChars(int charCount, ui8* buffer)
 {
     for (int i = 0; i < charCount; ++i) {
         int ch = ReadChar();
@@ -358,23 +358,27 @@ void TYsonReader::ParseNumeric()
 void TYsonReader::ParseBinaryString()
 {
     ExpectChar(StringMarker);
-    i32 length = ReadVarInt32(Stream);
+    YASSERT(Lookahead == NoLookahead);
+    i32 length;
+    ReadVarInt32(&length, Stream);
     Stroka result;
     result.resize(length);
-    Stream->Read(&result, length);
     Events->OnStringScalar(result);
 }
 
 void TYsonReader::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
-    i64 value = ReadVarInt64(Stream);
+    YASSERT(Lookahead == NoLookahead);
+    i64 value;
+    ReadVarInt64(&value, Stream);
     Events->OnInt64Scalar(value);
 }
 
 void TYsonReader::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
+    YASSERT(Lookahead == NoLookahead);
     double value;
     Stream->Read(&value, sizeof(double));
     Events->OnDoubleScalar(value);
