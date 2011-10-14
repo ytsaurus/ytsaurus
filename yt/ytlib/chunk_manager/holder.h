@@ -46,6 +46,16 @@ struct THolder
         return new THolder(*this);
     }
 
+    void Save(TOutputStream* output) const
+    {
+        YUNIMPLEMENTED();
+    }
+
+    static TAutoPtr<THolder> Load(TInputStream* input)
+    {
+        YUNIMPLEMENTED();
+    }
+
     void AddJob(const TJobId& id)
     {
         Jobs.push_back(id);

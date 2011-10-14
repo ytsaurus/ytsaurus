@@ -33,6 +33,23 @@ struct TChunk
         return new TChunk(*this);
     }
 
+    void Save(TOutputStream* output) const
+    {
+        YUNIMPLEMENTED();
+        // *output << Id << Size << TransactionId << Locations; // is it correct?
+    }
+
+    static TAutoPtr<TChunk> Load(TInputStream* input)
+    {
+        YUNIMPLEMENTED();
+        //TChunkId id;
+        //i64 size;
+        //NTransaction::TTransactionId transactionId;
+        //TLocations locations;
+        //*input >> id >> size >> transactionId >> locations;
+        //return new TChunk(id, transactionId); // and what about size and locations?
+    }
+
     bool IsVisible(const NTransaction::TTransactionId& transactionId) const
     {
         return
