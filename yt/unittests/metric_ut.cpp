@@ -14,8 +14,8 @@ TEST_F(TMetricTest, ZeroValues)
 {
     TMetric metric(50, 100, 10);
 
-    EXPECT_EQ(metric.GetMean(), 0);
-    EXPECT_EQ(metric.GetStd(), 0);
+    EXPECT_EQ(0, metric.GetMean());
+    EXPECT_EQ(0, metric.GetStd());
 }
 
 
@@ -24,8 +24,8 @@ TEST_F(TMetricTest, OneValue)
     TMetric metric(50, 100, 10);
     metric.AddValue(75.);
 
-    EXPECT_DOUBLE_EQ(metric.GetMean(), 75);
-    EXPECT_DOUBLE_EQ(metric.GetStd(), 0);
+    EXPECT_DOUBLE_EQ(75, metric.GetMean());
+    EXPECT_DOUBLE_EQ(0, metric.GetStd());
 }
 
 TEST_F(TMetricTest, ManyValues)

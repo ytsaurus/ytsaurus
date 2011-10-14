@@ -43,8 +43,7 @@ struct IYPathService
                     break;
 
                 default:
-                    YASSERT(false);
-                    break;
+                    YUNREACHABLE();
             }
         }
 

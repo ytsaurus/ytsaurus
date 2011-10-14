@@ -34,15 +34,6 @@ private:
     int ReadChar();
     void ReadChars(int charCount, char* buffer);
 
-    template<class T>
-    T ReadRaw()
-    {
-        const int charCount = sizeof(T);
-        char buffer[charCount];
-        ReadChars(charCount, buffer);
-        return *reinterpret_cast<T*>(buffer);
-    }
-
     Stroka ReadChars(int charsCount);
 
     void ExpectChar(char expectedCh);

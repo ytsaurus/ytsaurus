@@ -3,6 +3,8 @@
 #include "yson_writer.h"
 #include "yson_format.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -21,6 +23,30 @@ void TYsonWriter::WriteIndent()
     for (int i = 0; i < IndentSize * Indent; ++i) {
         Stream->Write(' ');
     }
+}
+
+void TYsonWriter::WriteStringScalar(const Stroka& value)
+{
+    if (IsBinary) {
+        Stream->Write(StringMarker);
+        WriteVarInt32(static_cast<i32>(value.length()), Stream);
+        Stream->Write(&value, value.length());
+    } else {
+        // TODO: escaping
+        Stream->Write('"');
+        Stream->Write(value);
+        Stream->Write('"');
+    }
+}
+
+void TYsonWriter::WriteMapItem(const Stroka& name)
+{
+    CollectionItem(MapItemSeparator);
+    WriteStringScalar(name);
+    Stream->Write(' ');
+    Stream->Write(KeyValueSeparator);
+    Stream->Write(' ');
+    IsFirstItem = false;
 }
 
 void TYsonWriter::SetEmptyEntity()
@@ -80,23 +106,14 @@ void TYsonWriter::EndCollection(char closeBracket)
 
 void TYsonWriter::OnStringScalar(const Stroka& value)
 {
-    if (IsBinary) {
-        Stream->Write(StringMarker);
-        Stream->Write(static_cast<i32>(value.size()));
-        Stream->Write(value);
-    } else {
-        // TODO: escaping
-        Stream->Write('"');
-        Stream->Write(value);
-        Stream->Write('"');
-    }
+    WriteStringScalar(value);
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value)
 {
     if (IsBinary) {
         Stream->Write(Int64Marker);
-        Stream->Write(value);
+        WriteVarInt64(value, Stream);
     } else {
         Stream->Write(ToString(value));
     }
@@ -106,7 +123,7 @@ void TYsonWriter::OnDoubleScalar(double value)
 {
     if (IsBinary) {
         Stream->Write(DoubleMarker);
-        Stream->Write(value);
+        Stream->Write(&value, sizeof(double));
     } else {
         Stream->Write(ToString(value));
     }
@@ -140,19 +157,13 @@ void TYsonWriter::OnBeginMap()
 
 void TYsonWriter::OnMapItem(const Stroka& name)
 {
-    CollectionItem(MapItemSeparator);
-    // TODO: escaping
-    Stream->Write(name);
-    Stream->Write(' ');
-    Stream->Write(KeyValueSeparator);
-    Stream->Write(' ');
+    WriteMapItem(name);
 }
 
 void TYsonWriter::OnEndMap()
 {
     EndCollection('}');
 }
-
 
 void TYsonWriter::OnBeginAttributes()
 {
@@ -166,13 +177,7 @@ void TYsonWriter::OnBeginAttributes()
 
 void TYsonWriter::OnAttributesItem(const Stroka& name)
 {
-    CollectionItem(MapItemSeparator);
-    // TODO: escaping
-    Stream->Write(name);
-    Stream->Write(' ');
-    Stream->Write(KeyValueSeparator);
-    Stream->Write(' ');
-    IsFirstItem = false;
+    WriteMapItem(name);
 }
 
 void TYsonWriter::OnEndAttributes()

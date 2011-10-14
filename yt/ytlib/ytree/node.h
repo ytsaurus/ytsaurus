@@ -19,13 +19,13 @@ public:
 #define IMPLEMENT_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
-        YASSERT(false); \
+        YUNREACHABLE(); \
         return NULL; \
     } \
     \
     virtual TIntrusiveConstPtr<I##name##Node> As##name() const \
     { \
-        YASSERT(false); \
+        YUNREACHABLE(); \
         return NULL; \
     }
 

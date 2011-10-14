@@ -26,6 +26,8 @@ private:
     static const int IndentSize = 4;
 
     void WriteIndent();
+    void WriteStringScalar(const Stroka& value);
+    void WriteMapItem(const Stroka& name);
 
     void SetEmptyEntity();
     void ResetEmptyEntity();

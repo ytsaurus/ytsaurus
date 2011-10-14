@@ -168,7 +168,7 @@ Stroka TCypressManager::GetPartName() const
 
 TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
 {
-    YASSERT(false);
+    YUNIMPLEMENTED();
     *stream << NodeIdGenerator
             << LockIdGenerator;
     return NULL;
@@ -176,7 +176,7 @@ TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* stream, IInvoker::TPtr
 
 TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
 {
-    YASSERT(false);
+    YUNIMPLEMENTED();
     *stream >> NodeIdGenerator
             >> LockIdGenerator;
     return NULL;

@@ -210,8 +210,7 @@ ECommitResult TMetaStateManager::OnChangeCommit(
             return ECommitResult::MaybeCommitted;
 
         default:
-            YASSERT(false);
-            return ECommitResult::NotCommitted;
+            YUNREACHABLE();
     }
 }
 
@@ -500,8 +499,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, ApplyChanges)
         }
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -531,7 +529,7 @@ void TMetaStateManager::OnLocalCommit(
             break;
 
         default:
-            YASSERT(false);
+            YUNREACHABLE();
     }
 }
 
@@ -587,8 +585,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager, AdvanceSegment)
         }
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -609,8 +606,7 @@ void TMetaStateManager::OnCreateLocalSnapshot(
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             break;
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 

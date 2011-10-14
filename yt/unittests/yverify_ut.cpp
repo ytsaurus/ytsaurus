@@ -62,7 +62,7 @@ TEST(TVerifyDeathTest, CrushForException)
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(true, "Cheshire Cat")); },
-        "Assertion.*Exception during verification"
+        "Assertion.*Exception was thrown while evaluating YVERIFY"
     );
 }
 

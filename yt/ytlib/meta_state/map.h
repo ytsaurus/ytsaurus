@@ -4,21 +4,36 @@
 #include "../misc/enum.h"
 #include "../misc/assert.h"
 #include "../misc/foreach.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: Create inl-file and move implementation there
+
 // TODO: DECLARE_ENUM cannot be used in a template class.
 class TMetaStateMapBase
     : private TNonCopyable
 {
 protected:
+    /* Transitions
+     *   Normal -> LoadingSnapshot,
+     *   Normal -> SavingSnapshot,
+     *   HasPendingChanges -> Normal
+     * are performed from user thread.
+     *
+     * Transitions
+     *   LoadingSnapshot -> Normal,
+     *   SavingSnapshot -> HasPendingChanges
+     * are performed from the invoker.
+     */
     DECLARE_ENUM(EState,
         (Normal)
+        (LoadingSnapshot)
         (SavingSnapshot)
-        (SavedSnapshot)
+        (HasPendingChanges)
     );
 
     EState State;
@@ -29,6 +44,8 @@ protected:
  * \tparam TKey Key type.
  * \tparam TValue Value type.
  * \tparam THash Hash function for keys.
+ * 
+ * \note All the public methods must be called from one thread
  */
 template <
     class TKey,
@@ -36,9 +53,10 @@ template <
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
-    : public TMetaStateMapBase
+    : protected TMetaStateMapBase
 {
 public:
+    typedef TMetaStateMap<TKey, TValue, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef yhash_set<TKey, THash> TKeySet;
     typedef typename TMap::iterator TIterator;
@@ -46,39 +64,59 @@ public:
 
     ~TMetaStateMap()
     {
-        FOREACH (const auto& pair, Map) {
-            delete pair.Second();
-        }
-        Map.clear();
+        switch (State)
+        {
+            case EState::LoadingSnapshot:
+            case EState::SavingSnapshot:
+                YUNREACHABLE();
 
-        FOREACH (const auto& pair, InsertionMap) {
-            delete pair.Second();
+            case EState::Normal:
+            case EState::HasPendingChanges:
+                FOREACH (const auto& pair, MainMap) {
+                    delete pair.Second();
+                }
+                MainMap.clear();
+                FOREACH (const auto& pair, UpdateMap) {
+                    delete pair.Second();
+                }
+                UpdateMap.clear();
+                DeletionSet.clear();
+                break;
         }
-        InsertionMap.clear();
     }
 
     //! Inserts a key-value pair.
     /*!
-     *  Does nothing if the key is already in map.
-     *  \returns True iff the key is new.
+     * \returns True iff the key is new.
+     * 
+     * \note Does nothing if the key is already in map.
      */
     bool Insert(const TKey& key, TValue* value)
     {
-        if (State == EState::SavedSnapshot) {
-            MergeTempTables();
-        }
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-        if (State == EState::Normal) {
-            return Map.insert(MakePair(key, value)).Second();
-        }
+        switch (State) {
+            case EState::SavingSnapshot:
+                if (DeletionSet.erase(key) > 0) {
+                    YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
+                    return true;
+                }
 
-        bool isAlreadyDeleted = DeletionSet.erase(key) == 1;
-        if (isAlreadyDeleted || Map.find(key) == Map.end()) {
-            return InsertionMap.insert(MakePair(key, value)).Second();
-        } else {
-            return false;
-        }
+                if (MainMap.find(key) != MainMap.end()) {
+                    return false;
+                }
 
+                return UpdateMap.insert(MakePair(key, value)).Second();
+            
+            case EState::HasPendingChanges:
+            case EState::Normal:
+                MergeTempTablesIfNeeded();
+                return MainMap.insert(MakePair(key, value)).Second();
+
+            default:
+                YUNREACHABLE();
+
+        }
     }
 
     //! Tries to find a value by its key. The returned value is read-only.
@@ -88,21 +126,34 @@ public:
      */
     const TValue* Find(const TKey& key) const
     {
-        if (State != EState::Normal) {
-            const auto insertionIt = InsertionMap.find(key);
-            if (insertionIt != InsertionMap.end()) {
-                YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                return insertionIt->Second();
-            }
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-            const auto deletionIt = DeletionSet.find(key);
-            if (deletionIt != DeletionSet.end()) {
-                return NULL;
+        switch (State) {
+            case EState::SavingSnapshot: {
+                auto insertionIt = UpdateMap.find(key);
+                if (insertionIt != UpdateMap.end()) {
+                    YASSERT(DeletionSet.find(key) == DeletionSet.end());
+                    return insertionIt->Second();
+                }
+
+                auto deletionIt = DeletionSet.find(key);
+                if (deletionIt != DeletionSet.end()) {
+                    return NULL;
+                }
+
+                break;
             }
+            case EState::HasPendingChanges:
+            case EState::Normal: // for consistency
+                const_cast<TThis*>(this)->MergeTempTablesIfNeeded();
+                break;
+
+            default:
+                YUNREACHABLE();
         }
 
-        const auto it = Map.find(key);
-        return it == Map.end() ? NULL : it->Second();
+        auto it = MainMap.find(key);
+        return it == MainMap.end() ? NULL : it->Second();
     }
 
     //! Tries to find a value by its key. May return a modifiable copy if snapshot creation is in progress.
@@ -112,33 +163,39 @@ public:
      */
     TValue* FindForUpdate(const TKey& key)
     {
-        if (State != EState::Normal) {
-            auto insertionIt = InsertionMap.find(key);
-            if (insertionIt != InsertionMap.end()) {
-                YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                return insertionIt->Second();
+        VERIFY_THREAD_AFFINITY(UserThread);
+
+        switch (State) {
+            case EState::HasPendingChanges:
+            case EState::Normal: {
+                MergeTempTablesIfNeeded();
+                auto mapIt = MainMap.find(key);
+                return mapIt == MainMap.end() ? NULL : mapIt->Second();
             }
+            case EState::SavingSnapshot: {
+                auto insertionIt = UpdateMap.find(key);
+                if (insertionIt != UpdateMap.end()) {
+                    YASSERT(DeletionSet.find(key) == DeletionSet.end());
+                    return insertionIt->Second();
+                }
 
-            auto deletionIt = DeletionSet.find(key);
-            if (deletionIt != DeletionSet.end()) {
-                return NULL;
+                if (DeletionSet.find(key) != DeletionSet.end()) {
+                    return NULL;
+                }              
+
+                auto mapIt = MainMap.find(key);
+                if (mapIt == MainMap.end()) {
+                    return NULL;
+                }
+
+                TAutoPtr<TValue> clonedValue = mapIt->Second()->Clone();
+                auto insertionPair = UpdateMap.insert(MakePair(key, clonedValue.Release()));
+                YASSERT(insertionPair.Second());
+                return insertionPair.First()->Second();
             }
+            default:
+                YUNREACHABLE();
         }
-
-        auto mapIt = Map.find(key);
-        if (mapIt == Map.end()) {
-            return NULL;
-        }
-
-        TValue* value = mapIt->Second();
-        if (State != EState::SavingSnapshot) {
-            return value;
-        }
-
-        TAutoPtr<TValue> clonedValue = value->Clone();
-        auto insertionPair = InsertionMap.insert(MakePair(key, clonedValue.Release()));
-        YASSERT(insertionPair.Second());
-        return insertionPair.First()->Second();
     }
 
     //! Returns a read-only value corresponding to the key.
@@ -149,6 +206,8 @@ public:
      */
     const TValue& Get(const TKey& key) const
     {
+        VERIFY_THREAD_AFFINITY(UserThread);
+
         auto value = Find(key);
         YASSERT(value != NULL);
         return *value;
@@ -162,6 +221,8 @@ public:
      */
     TValue& GetForUpdate(const TKey& key)
     {
+        VERIFY_THREAD_AFFINITY(UserThread);
+
         auto value = FindForUpdate(key);
         YASSERT(value != NULL);
         return *value;
@@ -173,26 +234,32 @@ public:
      */
     bool Remove(const TKey& key)
     {
-        if (State == EState::SavedSnapshot) {
-            MergeTempTables();
-        }
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-        if (State == EState::Normal) {
-            auto it = Map.find(key);
-            if (it == Map.end()) {
-                return false;
+         switch (State) {
+            case EState::HasPendingChanges:
+            case EState::Normal: {
+                MergeTempTablesIfNeeded();
+
+                auto it = MainMap.find(key);
+                if (it == MainMap.end()) {
+                    return false;
+                }
+
+                delete it->Second();
+                MainMap.erase(it);
+                return true;
             }
-            delete it->Second();
-            Map.erase(it);
-            return true;
-        } else {
-            bool wasInInsertion = InsertionMap.erase(key) == 1;
-            if (Map.find(key) != Map.end()) {
-                bool wasInDeletion = !DeletionSet.insert(key).Second();
-                YASSERT(!wasInInsertion || !wasInDeletion);
-                return !wasInDeletion;
-            }
-            return wasInInsertion;
+            case EState::SavingSnapshot:
+                if (MainMap.find(key) != MainMap.end()) {
+                    UpdateMap.erase(key);
+                    return DeletionSet.insert(key).Second();
+                }
+
+                return UpdateMap.erase(key) > 0;
+
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -203,24 +270,28 @@ public:
      */
     bool Contains(const TKey& key) const
     {
+        VERIFY_THREAD_AFFINITY(UserThread);
+
         return Find(key) != NULL;
     }
 
     //! Clears the map.
     void Clear()
     {
-        if (State == EState::Normal) {
-            FOREACH(const auto& pair, Map) {
-                delete pair.Second();
-            }
-            Map.clear();
-        } else {
-            FOREACH (const auto& pair, InsertionMap) {
-                delete pair.Second();
-            }
-            InsertionMap.clear();
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-            FOREACH(const auto& pair, Map) {
+        if (State == EState::Normal) {
+            FOREACH(const auto& pair, MainMap) {
+                delete pair.Second();
+            }
+            MainMap.clear();
+        } else {
+            FOREACH (const auto& pair, UpdateMap) {
+                delete pair.Second();
+            }
+            UpdateMap.clear();
+
+            FOREACH(const auto& pair, MainMap) {
                 DeletionSet.insert(pair.first);
             }
         }
@@ -232,8 +303,10 @@ public:
      */
     TIterator Begin()
     {
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        return Map.begin();
+        VERIFY_THREAD_AFFINITY(UserThread);
+
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        return MainMap.begin();
     }
 
     //! (Unordered) end()-iterator.
@@ -242,8 +315,10 @@ public:
      */
     TIterator End()
     {
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        return Map.end();
+        VERIFY_THREAD_AFFINITY(UserThread);
+
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        return MainMap.end();
     }
     
     //! (Unordered) const begin()-iterator.
@@ -252,8 +327,10 @@ public:
      */
     TConstIterator Begin() const
     {
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        return Map.begin();
+        VERIFY_THREAD_AFFINITY(UserThread);
+
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        return MainMap.begin();
     }
 
     //! (Unordered) const end()-iterator.
@@ -262,8 +339,10 @@ public:
      */
     TConstIterator End() const
     {
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        return Map.end();
+        VERIFY_THREAD_AFFINITY(UserThread);
+
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        return MainMap.end();
     }
 
     //! Asynchronously saves the map to the stream.
@@ -276,17 +355,19 @@ public:
      */
     TFuture<TVoid>::TPtr Save(
         IInvoker::TPtr invoker,
-        TOutputStream* stream)
+        TOutputStream* output)
     {
-        YASSERT(~invoker != NULL);
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        MaybeMergeTempTables();
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(InsertionMap.empty());
+        MergeTempTablesIfNeeded();
+        YASSERT(State == EState::Normal);
+
+        YASSERT(UpdateMap.empty());
         YASSERT(DeletionSet.empty());
         State = EState::SavingSnapshot;
+       
         return
-            FromMethod(&TMetaStateMap::DoSave, this, stream)
+            FromMethod(&TMetaStateMap::DoSave, this, output)
             ->AsyncVia(invoker)
             ->Do();
     }
@@ -301,103 +382,102 @@ public:
      */
     TFuture<TVoid>::TPtr Load(
         IInvoker::TPtr invoker,
-        TInputStream* stream)
+        TInputStream* input)
     {
-        YASSERT(~invoker != NULL);
-        YASSERT(State == EState::Normal || State == EState::SavedSnapshot);
-        MaybeMergeTempTables();
+        VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(InsertionMap.empty());
-        YASSERT(DeletionSet.empty());
-        Map.clear();
+        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        
+        MainMap.clear();
+        UpdateMap.clear();
+        DeletionSet.clear();
+        State = EState::LoadingSnapshot;
+
         return
-            FromMethod(&TMetaStateMap::DoLoad, this, stream)
+            FromMethod(&TMetaStateMap::DoLoad, this, input)
             ->AsyncVia(invoker)
             ->Do();
     }
     
 private:
-    TMap Map;
+    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
+    
+    bool IsSavingSnapshot;
 
-    // Each key couldn't be both in InsertionMap and DeletionSet
-    TMap InsertionMap;
+    TMap MainMap;
+
+    // Each key couldn't be both in UpdateMap and DeletionSet
+    TMap UpdateMap;
     TKeySet DeletionSet;
-
-    typedef TPair<TKey, TValue> TItem;
-    static bool ItemComparer(const TItem& i1, const TItem& i2)
+    
+    typedef TPair<TKey, TValue*> TItem;
+    
+    // Default comparer requires TValue to be comparable, we don't need it.
+    static bool ItemComparer(const TItem& i1, const TItem& i2) 
     {
         return i1.first < i2.first;
     }
 
-    TVoid DoSave(TOutputStream* stream)
+    TVoid DoSave(TOutputStream* output)
     {
-        UNUSED(stream);
-        YASSERT(false);
-        // TODO: implement
-        /*
-        *stream << static_cast<i64>(Map.size());
+        *output << static_cast<i32>(MainMap.size());
 
-        yvector<TItem> items(Map.begin(), Map.end());
+        yvector<TItem> items(MainMap.begin(), MainMap.end());
         std::sort(items.begin(), items.end(), ItemComparer);
 
         FOREACH(const auto& item, items) {
-            *stream << it->first << it->second;
+            Write(*output, item.First());
+            item.Second()->Save(output);
         }
-        */
-        State = EState::SavedSnapshot;
+        
+        State = EState::HasPendingChanges;
+
         return TVoid();
     }
 
-    TVoid DoLoad(TInputStream* stream)
+    TVoid DoLoad(TInputStream* input)
     {
-        UNUSED(stream);
-        YASSERT(false);
-        // TODO: implement
-        /*
-        i64 size;
-        *stream >> size;
+        i32 size;
+        *input >> size;
 
         YASSERT(size >= 0);
 
-        for (i64 index = 0; index < size; ++index) {
+        for (i32 index = 0; index < size; ++index) {
             TKey key;
-            TValue value;
-            *stream >> key >> value;
-            Map.insert(MakePair(key, value));
+            Read(*input, &key);
+            TValue* value = TValue::Load(input).Release();
+            MainMap.insert(MakePair(key, value));
         }
-        */
+
+        State = EState::Normal;
+
         return TVoid();
     }
 
-    void MaybeMergeTempTables()
+    void MergeTempTablesIfNeeded()
     {
-        if (State == EState::SavedSnapshot) {
-            MergeTempTables();
-        }
-    }
+        if (State != EState::HasPendingChanges) return;
 
-    void MergeTempTables()
-    {
-        YASSERT(State == EState::SavedSnapshot);
-
-        FOREACH(const auto& pair, InsertionMap) {
+        FOREACH(const auto& pair, UpdateMap) {
             YASSERT(DeletionSet.find(pair.first) == DeletionSet.end());
-            auto it = Map.find(pair.First());
-            if (it != Map.end()) {
+            auto it = MainMap.find(pair.First());
+            if (it != MainMap.end()) {
                 delete it->Second();
+                it->Second() = pair.Second();
+            } else {
+                MainMap.insert(pair);
             }
-            Map[pair.first] = pair.second;
         }
 
         FOREACH(const auto& key, DeletionSet) {
-            YASSERT(InsertionMap.find(key) == InsertionMap.end());
-            auto it = Map.find(key);
-            YASSERT(it != Map.end());
+            YASSERT(UpdateMap.find(key) == UpdateMap.end());
+            auto it = MainMap.find(key);
+            YASSERT(it != MainMap.end());
             delete it->Second();
-            Map.erase(it);
+            MainMap.erase(it);
         }
 
-        InsertionMap.clear();
+        UpdateMap.clear();
         DeletionSet.clear();
 
         State = EState::Normal;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/assert.h"
 #include "../misc/enum.h"
 #include "../misc/ptr.h"
 #include "../actions/future.h"
@@ -68,8 +69,7 @@ struct IChunkWriter
                     break;
 
                 default:
-                    YASSERT(false);
-                    break;
+                    YUNREACHABLE();
             }
         }
     }

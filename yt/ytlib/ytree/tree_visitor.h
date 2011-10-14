@@ -44,8 +44,7 @@ private:
                 break;
 
             default:
-                YASSERT(false);
-                break;
+                YUNREACHABLE();
         }
 
         auto attributes = node->GetAttributes();
@@ -74,8 +73,7 @@ private:
                 break;
 
             default:
-                YASSERT(false);
-                break;
+                YUNREACHABLE();
         }
     }
 

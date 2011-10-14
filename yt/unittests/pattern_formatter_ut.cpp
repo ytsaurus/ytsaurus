@@ -14,7 +14,7 @@ protected:
 };
 
 #define EXPECT_FORMAT(pattern, expected) \
-    EXPECT_EQ(Formatter.Format(pattern), (expected))
+    EXPECT_EQ((expected), Formatter.Format(pattern))
 
 TEST_F(TPatternFormatterTest, EmptyPattern)
 {

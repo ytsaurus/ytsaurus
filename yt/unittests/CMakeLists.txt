@@ -19,6 +19,7 @@ SRCS(
     yson_reader_ut.cpp
     yson_writer_ut.cpp
     zigzag_ut.cpp
+    varint_ut.cpp
 )
 
 PEERDIR(
