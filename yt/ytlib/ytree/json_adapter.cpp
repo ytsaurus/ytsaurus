@@ -15,6 +15,7 @@ TJsonAdapter::TJsonAdapter(TOutputStream* output)
 
 TJsonAdapter::~TJsonAdapter()
 {
+    JsonWriter->Flush();
 }
 
 void TJsonAdapter::OnStringScalar(const Stroka& value)

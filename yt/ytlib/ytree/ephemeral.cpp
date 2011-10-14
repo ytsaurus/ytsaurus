@@ -66,7 +66,6 @@ yvector< TPair<Stroka, INode::TPtr> > TMapNode::GetChildren() const
     return yvector< TPair<Stroka, INode::TPtr> >(NameToChild.begin(), NameToChild.end());
 }
 
-
 INode::TPtr TMapNode::FindChild(const Stroka& name) const
 {
     auto it = NameToChild.find(name);

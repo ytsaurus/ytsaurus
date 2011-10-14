@@ -5,6 +5,7 @@
 
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
+#include "../ytree/ypath_detail.h"
 
 namespace NYT {
 namespace NCypress {
@@ -21,7 +22,9 @@ struct ICypressNodeProxy
     virtual TNodeId GetNodeId() const = 0;
 
     virtual const ICypressNode& GetImpl() const = 0;
-    virtual ICypressNode& GetMutableImpl() = 0;
+    virtual ICypressNode& GetImplForUpdate() = 0;
+
+    virtual bool IsLocked() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,48 +34,46 @@ class TNodeFactory
 {
 public:
     TNodeFactory(
-        TCypressManager::TPtr state,
+        TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId)
-        : State(state)
+        : CypressManager(cypressManager)
         , TransactionId(transactionId)
     {
-        YASSERT(~state != NULL);
+        YASSERT(~cypressManager != NULL);
     }
 
     virtual IStringNode::TPtr CreateString()
     {
-        return State->CreateStringNode(TransactionId);
+        return CypressManager->CreateStringNode(TransactionId);
     }
 
     virtual IInt64Node::TPtr CreateInt64()
     {
-        return State->CreateInt64Node(TransactionId);
+        return CypressManager->CreateInt64Node(TransactionId);
     }
 
     virtual IDoubleNode::TPtr CreateDouble()
     {
-        return State->CreateDoubleNode(TransactionId);
+        return CypressManager->CreateDoubleNode(TransactionId);
     }
 
     virtual IMapNode::TPtr CreateMap()
     {
-        return State->CreateMapNode(TransactionId);
+        return CypressManager->CreateMapNode(TransactionId);
     }
 
     virtual IListNode::TPtr CreateList()
     {
-        YASSERT(false);
-        return NULL;
+        YUNIMPLEMENTED();
     }
 
     virtual IEntityNode::TPtr CreateEntity()
     {
-        YASSERT(false);
-        return NULL;
+        YUNIMPLEMENTED();
     }
 
 private:
-    TCypressManager::TPtr State;
+    TCypressManager::TPtr CypressManager;
     TTransactionId TransactionId;
 
 };
@@ -115,26 +116,29 @@ public:
         return NodeId;
     }
 
+
     virtual const ICypressNode& GetImpl() const
     {
         return this->GetTypedImpl();
     }
 
-    virtual ICypressNode& GetMutableImpl()
+    virtual ICypressNode& GetImplForUpdate()
     {
         return this->GetTypedImplForUpdate();
     }
 
+
     virtual ICompositeNode::TPtr GetParent() const
     {
-        return GetProxy<ICompositeNode>(GetImpl().ParentId());
+        return GetProxy<ICompositeNode>(GetImpl().GetParentId());
     }
 
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
         auto parentProxy = ToProxy(INode::TPtr(~parent));
-        GetMutableImpl().ParentId() = parentProxy->GetNodeId();
+        GetImplForUpdate().SetParentId(parentProxy->GetNodeId());
     }
+
 
     virtual IMapNode::TPtr GetAttributes() const
     {
@@ -147,6 +151,7 @@ public:
         YASSERT(false);
     }
 
+
     virtual TLockResult Lock(TYPath path)
     {
         if (!path.empty()) {
@@ -154,6 +159,30 @@ public:
         }
 
         return LockSelf();
+    }
+
+    virtual bool IsLocked() const
+    {
+        // Check if this node is created by a transaction.
+        const auto* impl = CypressManager->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
+        if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
+            return true;
+        }
+
+        // Walk up to the root.
+        auto currentNodeId = NodeId;
+        while (currentNodeId != NullNodeId) {
+            const auto& currentImpl = CypressManager->GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
+            // Check the locks assigned to the current node.
+            FOREACH (const auto& lockId, currentImpl.LockIds()) {
+                const auto& lock = CypressManager->GetLock(lockId);
+                if (lock.GetTransactionId() == TransactionId) {
+                    return true;
+                }
+            }
+            currentNodeId = currentImpl.GetParentId();
+        }
+        return false;
     }
 
 protected:
@@ -165,21 +194,42 @@ protected:
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
     {
-        auto impl = CypressManager->FindNode(TBranchedNodeId(nodeId, TransactionId));
-        if (impl == NULL) {
-            impl = CypressManager->FindNode(TBranchedNodeId(nodeId, NullTransactionId));
+        // First try to fetch a branched copy.
+        auto* impl = CypressManager->FindNode(TBranchedNodeId(nodeId, TransactionId));
+        if (impl != NULL) {
+            return *impl;
         }
+
+        // If failed, then try the unbranched one.
+        impl = CypressManager->FindNode(TBranchedNodeId(nodeId, NullTransactionId));
+        if (impl != NULL) {
+            return *impl;
+        }
+
+        YASSERT(false);
         return *impl;
     }
 
     ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
     {
-        auto impl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, TransactionId));
-        if (impl == NULL) {
-            impl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        // First fetch an unbranched copy and check if it is uncommitted.
+        auto* nonbranchedImpl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        if (nonbranchedImpl != NULL && nonbranchedImpl->GetState() == ENodeState::Uncommitted) {
+            return *nonbranchedImpl;
         }
-        YASSERT(impl != NULL);
-        return *impl;
+
+        // Then try to fetch a branched copy.
+        auto* branchedImpl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, TransactionId));
+        if (branchedImpl != NULL) {
+            return *branchedImpl;
+        }
+
+        // Now a non-branched copy must exist and be committed.
+        YASSERT(nonbranchedImpl != NULL);
+        YASSERT(nonbranchedImpl->GetState() == ENodeState::Committed);
+
+        // Branch it!
+        return CypressManager->BranchNode(*nonbranchedImpl, TransactionId);
     }
 
 
@@ -214,7 +264,7 @@ protected:
         auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
 
         // Make sure that the node is not locked by another transaction.
-        FOREACH (const auto& lockId, impl.Locks()) {
+        FOREACH (const auto& lockId, impl.LockIds()) {
             const auto& lock = CypressManager->GetLock(lockId);
             if (lock.GetTransactionId() != TransactionId) {
                 return TLockResult::CreateError(Sprintf("Node is already locked by another transaction (TransactionId: %s)",
@@ -222,32 +272,18 @@ protected:
             }
         }
 
-        // Create a lock.
+        // Create a lock and register it within the transaction.
         auto* lock = CypressManager->CreateLock(NodeId, TransactionId);
-
-        // Register the lock in the transaction.
-        auto& transaction = CypressManager->TransactionManager->GetTransactionForUpdate(TransactionId);
-        transaction.LockIds().push_back(lock->GetId());
 
         // Walk up to the root and apply locks.
         auto currentNodeId = NodeId;
         while (currentNodeId != NullNodeId) {
             auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-            impl.Locks().insert(lock->GetId());
-            currentNodeId = impl.ParentId();
+            impl.LockIds().insert(lock->GetId());
+            currentNodeId = impl.GetParentId();
         }
 
         return TLockResult::CreateDone();
-    }
-
-    bool IsBranched() const
-    {
-        return CypressManager->FindNode(TBranchedNodeId(NullNodeId, TransactionId)) != NULL;
-    }
-
-    ICypressNodeProxy::TPtr Branch()
-    {
-        return NULL;
     }
 };
 
@@ -296,6 +332,14 @@ public: \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() \
     { \
         return this; \
+    } \
+    \
+    virtual void DoSetSelf(TYsonProducer::TPtr producer) \
+    { \
+        if (!IsLocked()) { \
+            throw TYPathException() << "Cannot modify a node that is not locked"; \
+        } \
+        SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

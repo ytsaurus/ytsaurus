@@ -22,9 +22,6 @@ using NTransaction::TTransactionManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class IBase, class TImpl>
-class TCypressNodeProxyBase;
-
 class TCypressManager
     : public NMetaState::TMetaStatePart
 {
@@ -56,6 +53,8 @@ public:
 
     TLock* CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 
+    ICypressNode& BranchNode(const ICypressNode& node, const TTransactionId& transactionId);
+
     void GetYPath(
         const TTransactionId& transactionId,
         TYPath path,
@@ -82,9 +81,6 @@ public:
 
 
 private:
-    template <class IBase, class TImpl>
-    friend class TCypressNodeProxyBase;
-
     TTransactionManager::TPtr TransactionManager;
     TIdGenerator<TNodeId> NodeIdGenerator;
     TIdGenerator<TLockId> LockIdGenerator;
@@ -104,14 +100,19 @@ private:
     void ReleaseLocks(TTransaction& transaction);
     void MergeBranchedNodes(TTransaction& transaction);
     void RemoveBranchedNodes(TTransaction& transaction);
+    void CommitCreatedNodes(TTransaction& transaction);
+    void RemoveCreatedNodes(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
     {
-        TBranchedNodeId id(NodeIdGenerator.Next(), transactionId);
-        auto* nodeImpl = new TImpl(id);
-        NodeMap.Insert(id, nodeImpl);
-        return ~New<TProxy>(this, transactionId, id.NodeId);
+        auto nodeId = NodeIdGenerator.Next();
+        TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
+        auto* nodeImpl = new TImpl(branchedNodeId);
+        NodeMap.Insert(branchedNodeId, nodeImpl);
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        transaction.CreatedNodeIds().push_back(nodeId);
+        return ~New<TProxy>(this, transactionId, nodeId);
     }
 
 };
