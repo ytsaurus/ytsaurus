@@ -3,6 +3,8 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NChunkManager {
 
@@ -48,12 +50,28 @@ struct THolder
 
     void Save(TOutputStream* output) const
     {
-        YUNIMPLEMENTED();
+        ::Save(output, Id);
+        ::Save(output, Address);
+        ::Save(output, (i32) State); // temp. For some reason could not DECLARE_PODTYPE(EHolderState)
+        ::Save(output, Statistics);
+        SaveSorted(output, Chunks);
+        ::Save(output, Jobs);
     }
 
     static TAutoPtr<THolder> Load(TInputStream* input)
     {
-        YUNIMPLEMENTED();
+        THolderId id;
+        Stroka address;
+        i32 state; // temp. For some reason could not DECLARE_PODTYPE(EHolderState)
+        THolderStatistics statistics;
+        ::Load(input, id);
+        ::Load(input, address);
+        ::Load(input, state);
+        ::Load(input, statistics);
+        auto* holder = new THolder(id, address, EHolderState(state), statistics);
+        ::Load(input, holder->Chunks);
+        ::Load(input, holder->Jobs);
+        return holder;
     }
 
     void AddJob(const TJobId& id)

@@ -35,6 +35,30 @@ struct TJob
         return new TJob(*this);
     }
 
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, (i32) Type); // temp. For some reason could not DECLARE_PODTYPE(EJobType)
+        ::Save(output, JobId);
+        ::Save(output, ChunkId);
+        ::Save(output, RunnerAddress);
+        ::Save(output, TargetAddresses);
+    }
+
+    static TAutoPtr<TJob> Load(TInputStream* input)
+    {
+        i32 type; // temp. For some reason could not DECLARE_PODTYPE(EJobType)
+        TJobId jobId;
+        TChunkId chunkId;
+        Stroka runnerAddress;
+        yvector<Stroka> targetAddresses;
+        ::Load(input, type);
+        ::Load(input, jobId);
+        ::Load(input, chunkId);
+        ::Load(input, runnerAddress);
+        ::Load(input, targetAddresses);
+        return new TJob(EJobType(type), jobId, chunkId, runnerAddress, targetAddresses);
+    }
+
     EJobType Type;
     TJobId JobId;
     TChunkId ChunkId;
@@ -59,6 +83,21 @@ struct TJobList
     TAutoPtr<TJobList> Clone() const
     {
         return new TJobList(*this);
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, ChunkId);
+        ::Save(output, Jobs);
+    }
+
+    static TAutoPtr<TJobList> Load(TInputStream* input)
+    {
+        TChunkId chunkId;
+        ::Load(input, chunkId);
+        auto* jobList = new TJobList(chunkId);
+        ::Load(input, jobList->Jobs);
+        return jobList;
     }
 
     void AddJob(const TJobId& id)

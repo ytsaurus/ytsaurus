@@ -120,6 +120,8 @@ struct THolderStatistics
     }
 };
 
+DECLARE_PODTYPE(THolderStatistics);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger ChunkHolderLogger;

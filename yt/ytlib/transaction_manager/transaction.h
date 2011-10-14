@@ -5,6 +5,8 @@
 #include "../chunk_holder/common.h"
 #include "../cypress/common.h"
 
+#include <util/ysaveload.h>
+
 namespace NYT {
 namespace NTransaction {
 
@@ -12,6 +14,7 @@ using NCypress::TNodeId;
 using NCypress::TLockId;
 
 ////////////////////////////////////////////////////////////////////////////////
+// TODO: move implementation to cpp
 
 class TTransaction
 {
@@ -34,19 +37,21 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        YUNIMPLEMENTED();
-        // output >> Id >> AddedChunkIds_ >> LockIds_ >> BranchedNodeIds_; // is it correct?
+        ::Save(output, Id);
+        ::Save(output, AddedChunkIds_);
+        ::Save(output, LockIds_);
+        ::Save(output, BranchedNodeIds_);
     }
 
     static TAutoPtr<TTransaction> Load(TInputStream* input)
     {
-        YUNIMPLEMENTED();
-        //TTransactionId id;
-        //yvector<TChunkId> addedChunkIds;
-        //yvector<TLockId> lockIds;
-        //yvector<TNodeId> branchedNodeIds;
-        //*input >> id >> addedChunkIds >> lockIds >> branchedNodeIds;
-        //return new TTransaction(id); // and what about vectors?
+        TTransactionId id;
+        ::Load(input, id);
+        auto* transaction = new TTransaction(id);
+        ::Load(input, transaction->AddedChunkIds_);
+        ::Load(input, transaction->LockIds_);
+        ::Load(input, transaction->BranchedNodeIds_);
+        return transaction;
     }
 
     TTransactionId GetId() const

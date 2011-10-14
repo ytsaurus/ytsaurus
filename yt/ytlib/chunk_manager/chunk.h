@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include <util/ysaveload.h>
 
 namespace NYT {
 namespace NChunkManager {
@@ -17,8 +18,8 @@ struct TChunk
         const TChunkId& id,
         const TTransactionId& transactionId)
         : Id(id)
-        , Size(UnknownSize)
         , TransactionId(transactionId)
+        , Size(UnknownSize)
     { }
 
     TChunk(const TChunk& other)
@@ -35,19 +36,22 @@ struct TChunk
 
     void Save(TOutputStream* output) const
     {
-        YUNIMPLEMENTED();
-        // *output << Id << Size << TransactionId << Locations; // is it correct?
+        ::Save(output, Id);
+        ::Save(output, TransactionId);
+        ::Save(output, Size);
+        ::Save(output, Locations);
     }
 
     static TAutoPtr<TChunk> Load(TInputStream* input)
     {
-        YUNIMPLEMENTED();
-        //TChunkId id;
-        //i64 size;
-        //NTransaction::TTransactionId transactionId;
-        //TLocations locations;
-        //*input >> id >> size >> transactionId >> locations;
-        //return new TChunk(id, transactionId); // and what about size and locations?
+        TChunkId id;
+        NTransaction::TTransactionId transactionId;
+        ::Load(input, id);
+        ::Load(input, transactionId);
+        auto* chunk = new TChunk(id, transactionId);
+        ::Load(input, chunk->Size);
+        ::Load(input, chunk->Locations);
+        return chunk;
     }
 
     bool IsVisible(const NTransaction::TTransactionId& transactionId) const
@@ -74,8 +78,8 @@ struct TChunk
     }
 
     TChunkId Id;
-    i64 Size;
     NTransaction::TTransactionId TransactionId;
+    i64 Size;
     TLocations Locations;
 
 };
