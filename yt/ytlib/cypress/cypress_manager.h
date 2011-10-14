@@ -110,7 +110,7 @@ private:
     {
         TBranchedNodeId id(NodeIdGenerator.Next(), transactionId);
         auto* nodeImpl = new TImpl(id);
-        YVERIFY(NodeMap.Insert(id, nodeImpl));
+        NodeMap.Insert(id, nodeImpl);
         return ~New<TProxy>(this, transactionId, id.NodeId);
     }
 

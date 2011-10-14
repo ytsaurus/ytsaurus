@@ -85,7 +85,7 @@ TLock* TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
 {
     auto id = LockIdGenerator.Next();
     auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
-    YVERIFY(LockMap.Insert(id, lock));
+    LockMap.Insert(id, lock);
     return lock;
 }
 
@@ -172,7 +172,7 @@ void TCypressManager::Clear()
 {
     TBranchedNodeId id(RootNodeId, NullTransactionId);
     auto* root = new TMapNode(id);
-    YVERIFY(NodeMap.Insert(id, root));
+    NodeMap.Insert(id, root);
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
@@ -201,7 +201,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
             YVERIFY(node.Locks().erase(lockId) == 1);
             currentNodeId = node.ParentId();
         }
-        YVERIFY(LockMap.Remove(lockId));
+        LockMap.Remove(lockId);
     }
 }
 
@@ -217,7 +217,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
 {
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        YVERIFY(NodeMap.Remove(TBranchedNodeId(nodeId, transaction.GetId())));
+        NodeMap.Remove(TBranchedNodeId(nodeId, transaction.GetId()));
     }
 }
 
