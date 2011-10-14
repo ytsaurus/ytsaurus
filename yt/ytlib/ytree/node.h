@@ -20,13 +20,11 @@ public:
     virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
         YUNREACHABLE(); \
-        return NULL; \
     } \
     \
     virtual TIntrusiveConstPtr<I##name##Node> As##name() const \
     { \
         YUNREACHABLE(); \
-        return NULL; \
     }
 
     IMPLEMENT_AS_METHODS(Entity)

@@ -7,9 +7,7 @@ namespace NYTree {
 
 TNodeSetterBase::TNodeSetterBase()
     : FwdConsumer(NULL)
-{ }
-
-TNodeSetterBase::~TNodeSetterBase()
+    , FwdDepth(0)
 { }
 
 void TNodeSetterBase::InvalidType()
@@ -19,12 +17,22 @@ void TNodeSetterBase::InvalidType()
 
 void TNodeSetterBase::SetFwdConsumer(IYsonConsumer* consumer)
 {
+    YASSERT(FwdConsumer == NULL);
     FwdConsumer = consumer;
+    FwdDepth = 0;
 }
 
-void TNodeSetterBase::ResetFwdConsumer()
+void TNodeSetterBase::OnFwdConsumerFinished()
+{ }
+
+void TNodeSetterBase::UpdateFwdDepth(int depthDelta)
 {
-    FwdConsumer = NULL;
+    FwdDepth += depthDelta;
+    YASSERT(FwdDepth >= 0);
+    if (FwdDepth == 0) {
+        FwdConsumer = NULL;
+        OnFwdConsumerFinished();
+    }
 }
 
 void TNodeSetterBase::OnStringScalar(const Stroka& value)
@@ -33,6 +41,7 @@ void TNodeSetterBase::OnStringScalar(const Stroka& value)
         InvalidType();
     } else {
         FwdConsumer->OnStringScalar(value);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -42,6 +51,7 @@ void TNodeSetterBase::OnInt64Scalar(i64 value)
         InvalidType();
     } else {
         FwdConsumer->OnInt64Scalar(value);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -51,6 +61,7 @@ void TNodeSetterBase::OnDoubleScalar(double value)
         InvalidType();
     } else {
         FwdConsumer->OnDoubleScalar(value);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -60,6 +71,7 @@ void TNodeSetterBase::OnEntityScalar()
         InvalidType();
     } else {
         FwdConsumer->OnEntityScalar();
+        UpdateFwdDepth(0);
     }
 }
 
@@ -69,6 +81,7 @@ void TNodeSetterBase::OnBeginList()
         InvalidType();
     } else {
         FwdConsumer->OnBeginList();
+        UpdateFwdDepth(+1);
     }
 }
 
@@ -78,6 +91,7 @@ void TNodeSetterBase::OnListItem(int index)
         InvalidType();
     } else {
         FwdConsumer->OnListItem(index);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -87,6 +101,7 @@ void TNodeSetterBase::OnEndList()
         InvalidType();
     } else {
         FwdConsumer->OnEndList();
+        UpdateFwdDepth(-1);
     }
 }
 
@@ -96,6 +111,7 @@ void TNodeSetterBase::OnBeginMap()
         InvalidType();
     } else {
         FwdConsumer->OnBeginMap();
+        UpdateFwdDepth(+1);
     }
 }
 
@@ -105,6 +121,7 @@ void TNodeSetterBase::OnMapItem(const Stroka& name)
         InvalidType();
     } else {
         FwdConsumer->OnMapItem(name);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -114,6 +131,7 @@ void TNodeSetterBase::OnEndMap()
         InvalidType();
     } else {
         FwdConsumer->OnEndMap();
+        UpdateFwdDepth(-1);
     }
 }
 
@@ -123,6 +141,7 @@ void TNodeSetterBase::OnBeginAttributes()
         InvalidType();
     } else {
         FwdConsumer->OnBeginAttributes();
+        UpdateFwdDepth(+1);
     }
 }
 
@@ -132,6 +151,7 @@ void TNodeSetterBase::OnAttributesItem(const Stroka& name)
         InvalidType();
     } else {
         FwdConsumer->OnAttributesItem(name);
+        UpdateFwdDepth(0);
     }
 }
 
@@ -141,6 +161,7 @@ void TNodeSetterBase::OnEndAttributes()
         InvalidType();
     } else {
         FwdConsumer->OnEndAttributes();
+        UpdateFwdDepth(-1);
     }
 }
 

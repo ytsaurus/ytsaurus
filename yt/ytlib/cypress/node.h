@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include "../misc/property.h"
 #include "../ytree/node.h"
 #include "../transaction_manager/common.h"
 
@@ -9,6 +10,7 @@ namespace NYT {
 namespace NCypress {
 
 using NTransaction::TTransactionId;
+using NTransaction::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +31,7 @@ struct TBranchedNodeId
 
     bool IsBranched() const
     {
-        return TransactionId != TTransactionId();
+        return TransactionId != NullTransactionId;
     }
 
     //! Formats the id into the string (for debugging and logging purposes mainly).
@@ -59,6 +61,12 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 struct ICypressNodeProxy;
 class TCypressManager;
 
+DECLARE_ENUM(ENodeState,
+    (Committed)
+    (Branched)
+    (Uncommitted)
+);
+
 struct ICypressNode
 {
     virtual ~ICypressNode()
@@ -66,8 +74,11 @@ struct ICypressNode
 
     virtual const TBranchedNodeId& GetId() const = 0;
 
-    virtual const TNodeId& ParentId() const = 0;
-    virtual TNodeId& ParentId() = 0;
+    virtual ENodeState GetState() const = 0;
+    virtual void SetState(ENodeState value) = 0;
+
+    virtual const TNodeId& GetParentId() const = 0;
+    virtual void SetParentId(const TNodeId& value) = 0;
 
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     virtual yhash_set<TLockId>& LockIds() = 0;
@@ -80,26 +91,9 @@ struct ICypressNode
 
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const = 0;
     
-    // #branchedNode is non-cost for performance reasons (i.e. to swap the data instead of copying).
+    // #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
     virtual void Merge(ICypressNode& branchedNode) = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: move
-#define DECLARE_PROPERTY(name, type) \
-private: \
-    type name ## _; \
-public: \
-    FORCED_INLINE type& name() \
-    { \
-        return name ## _; \
-    } \
-    \
-    FORCED_INLINE const type& name() const \
-    { \
-        return name ## _; \
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,13 +101,13 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_PROPERTY(LockIds, yhash_set<TLockId>)  
-    DECLARE_PROPERTY(ParentId, TNodeId)
+    DECLARE_RW_PROPERTY(LockIds, yhash_set<TLockId>)
 
 public:
     TCypressNodeBase(const TBranchedNodeId& id)
-        : ParentId_(NullNodeId)
+        : ParentId(NullNodeId)
         , Id(id)
+        , State(ENodeState::Uncommitted)
     { }
 
     virtual const TBranchedNodeId& GetId() const
@@ -121,8 +115,30 @@ public:
         return Id;
     }
 
+    virtual const TNodeId& GetParentId() const
+    {
+        return ParentId;
+    }
+
+    virtual void SetParentId(const TNodeId& value)
+    {
+        ParentId = value;
+    }
+
+    virtual ENodeState GetState() const
+    {
+        return State;
+    }
+
+    virtual void SetState(ENodeState value)
+    {
+        State = value;
+    }
+
 protected:
     TBranchedNodeId Id;
+    TNodeId ParentId;
+    ENodeState State;
 
 };
 
@@ -132,7 +148,7 @@ template<class TValue>
 class TScalarNode
     : public TCypressNodeBase
 {
-    DECLARE_PROPERTY(Value, TValue)
+    DECLARE_RW_PROPERTY(Value, TValue)
 
 private:
     typedef TScalarNode<TValue> TThis;
@@ -184,8 +200,8 @@ class TMapNode
     typedef yhash_map<Stroka, TNodeId> TNameToChild;
     typedef yhash_map<TNodeId, Stroka> TChildToName;
 
-    DECLARE_PROPERTY(NameToChild, TNameToChild)
-    DECLARE_PROPERTY(ChildToName, TChildToName)
+    DECLARE_RW_PROPERTY(NameToChild, TNameToChild)
+    DECLARE_RW_PROPERTY(ChildToName, TChildToName)
 
 private:
     typedef TMapNode TThis;
@@ -195,7 +211,7 @@ public:
         : TCypressNodeBase(id)
     { }
 
-    TMapNode(const TBranchedNodeId& id, const TThis& other)
+    TMapNode(const TBranchedNodeId& id, const TMapNode& other)
         : TCypressNodeBase(id)
     {
         NameToChild() = other.NameToChild();
@@ -229,10 +245,6 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-// TODO: drop
-#undef DECLARE_PROPERTY
-
-//////////////////////////////////////////////////////////////////////////////// 
 
 } // namespace NCypress
 } // namespace NYT

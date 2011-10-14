@@ -61,7 +61,7 @@ struct INode
     }
 
     template<class T>
-    void SetValue(const T& value)
+    void SetValue(typename TScalarTypeTraits<T>::TParamType value)
     {
         TScalarTypeTraits<T>::SetValue(this, value);
     }
@@ -148,7 +148,7 @@ struct IEntityNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SCALAR_TYPE(name, type) \
+#define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
         : IScalarNode<type> \
     { \
@@ -159,21 +159,22 @@ struct IEntityNode
     struct TScalarTypeTraits<type> \
     { \
         typedef I##name##Node TNode; \
+        typedef paramType TParamType; \
         \
         static type GetValue(const INode* node) \
         { \
             return node->As##name()->GetValue(); \
         } \
         \
-        static void SetValue(INode* node, const type& value) \
+        static void SetValue(INode* node, TParamType value) \
         { \
             node->As##name()->SetValue(value); \
         } \
     };
 
-DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
-DECLARE_SCALAR_TYPE(Double, double)
+DECLARE_SCALAR_TYPE(String, Stroka, const Stroka&)
+DECLARE_SCALAR_TYPE(Int64, i64, i64)
+DECLARE_SCALAR_TYPE(Double, double, double)
 
 #undef DECLARE_SCALAR_TYPE
 

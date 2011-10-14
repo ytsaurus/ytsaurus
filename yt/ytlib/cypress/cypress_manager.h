@@ -100,14 +100,19 @@ private:
     void ReleaseLocks(TTransaction& transaction);
     void MergeBranchedNodes(TTransaction& transaction);
     void RemoveBranchedNodes(TTransaction& transaction);
+    void CommitCreatedNodes(TTransaction& transaction);
+    void RemoveCreatedNodes(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
     {
-        TBranchedNodeId id(NodeIdGenerator.Next(), transactionId);
-        auto* nodeImpl = new TImpl(id);
-        YVERIFY(NodeMap.Insert(id, nodeImpl));
-        return ~New<TProxy>(this, transactionId, id.NodeId);
+        auto nodeId = NodeIdGenerator.Next();
+        TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
+        auto* nodeImpl = new TImpl(branchedNodeId);
+        YVERIFY(NodeMap.Insert(branchedNodeId, nodeImpl));
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        transaction.CreatedNodeIds().push_back(nodeId);
+        return ~New<TProxy>(this, transactionId, nodeId);
     }
 
 };

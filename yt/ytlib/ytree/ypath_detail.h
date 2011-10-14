@@ -14,16 +14,15 @@ class TNodeSetterBase
     : public IYsonConsumer
 {
 protected:
+    IYsonConsumer* FwdConsumer;
+    int FwdDepth;
+
     TNodeSetterBase();
-    virtual ~TNodeSetterBase();
 
     void InvalidType();
 
     void SetFwdConsumer(IYsonConsumer* consumer);
-    void ResetFwdConsumer();
-
-private:
-    IYsonConsumer* FwdConsumer;
+    virtual void OnFwdConsumerFinished();
 
     virtual void OnStringScalar(const Stroka& value);
     virtual void OnInt64Scalar(i64 value);
@@ -44,6 +43,9 @@ private:
     virtual void OnBeginAttributes();
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
+
+    void UpdateFwdDepth(int depthDelta);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +67,7 @@ class TNodeSetter
     private: \
         I##name##Node::TPtr Node; \
         \
-        virtual void On ## name ## Scalar(type value) \
+        virtual void On ## name ## Scalar(TScalarTypeTraits<type>::TParamType value) \
         { \
             Node->SetValue(value); \
         } \
@@ -94,38 +96,42 @@ private:
     Stroka ItemName;
     TAutoPtr<TTreeBuilder> ItemBuilder;
 
-    void BeginItem(const Stroka& name)
-    {
-        YASSERT(~ItemBuilder == NULL);
-        ItemName = name;
-        ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
-        SetFwdConsumer(~ItemBuilder);
-    }
-
-    void EndItemIfNeeded()
-    {
-        if (~ItemBuilder != NULL) {
-            Map->AddChild(ItemBuilder->GetRoot(), ItemName);
-            ItemBuilder.Destroy();
-            ItemName.clear();
-        }
-    }
-
     virtual void OnBeginMap()
     {
-        Map->Clear();
+        if (FwdConsumer == NULL) {
+            Map->Clear();
+        } else {
+            TNodeSetterBase::OnBeginMap();
+        }
     }
 
     virtual void OnMapItem(const Stroka& name)
     {
-        EndItemIfNeeded();
-        BeginItem(name);
+        if (FwdConsumer == NULL) {
+            YASSERT(~ItemBuilder == NULL);
+            ItemName = name;
+            ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
+            SetFwdConsumer(~ItemBuilder);
+        } else {
+            TNodeSetterBase::OnMapItem(name);
+        }
+    }
+
+    virtual void OnFwdConsumerFinished()
+    {
+        YASSERT(~ItemBuilder != NULL);
+        Map->AddChild(ItemBuilder->GetRoot(), ItemName);
+        ItemBuilder.Destroy();
+        ItemName.clear();
     }
 
     virtual void OnEndMap()
     {
-        EndItemIfNeeded();
-        ResetFwdConsumer();
+        if (FwdConsumer == NULL) {
+            // Just do nothing.
+        } else {
+            TNodeSetterBase::OnEndMap();
+        }
     }
 };
 
@@ -145,37 +151,40 @@ private:
 
     TAutoPtr<TTreeBuilder> ItemBuilder;
 
-    void BeginItem()
+    virtual void OnBeginList()
     {
-        YASSERT(~ItemBuilder == NULL);
-        ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
-        SetFwdConsumer(~ItemBuilder);
-    }
-
-    void EndItemIfNeeded()
-    {
-        if (~ItemBuilder != NULL) {
-            List->AddChild(ItemBuilder->GetRoot());
-            ItemBuilder.Destroy();
+        if (FwdConsumer == NULL) {
+            List->Clear();
+        } else {
+            TNodeSetterBase::OnEndMap();
         }
     }
 
-    virtual void OnListMap()
+    virtual void OnListItem(int index)
     {
-        List->Clear();
+        if (FwdConsumer == NULL) {
+            YASSERT(~ItemBuilder == NULL);
+            ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
+            SetFwdConsumer(~ItemBuilder);
+        } else {
+            TNodeSetterBase::OnListItem(index);
+        }
     }
 
-    virtual void OnList(int index)
+    virtual void OnFwdConsumerFinished()
     {
-        UNUSED(index);
-        EndItemIfNeeded();
-        BeginItem();
+        YASSERT(~ItemBuilder != NULL);
+        List->AddChild(ItemBuilder->GetRoot());
+        ItemBuilder.Destroy();
     }
 
     virtual void OnEndList()
     {
-        EndItemIfNeeded();
-        ResetFwdConsumer();
+        if (FwdConsumer == NULL) {
+            // Just do nothing.
+        } else {
+            TNodeSetterBase::OnEndMap();
+        }
     }
 };
 

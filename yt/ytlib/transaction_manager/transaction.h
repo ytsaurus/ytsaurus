@@ -69,11 +69,17 @@ public:
         return BranchedNodeIds_;
     }
 
+    yvector<TNodeId>& CreatedNodeIds()
+    {
+        return CreatedNodeIds_;
+    }
+
 private:
     TTransactionId Id;
     yvector<TChunkId> AddedChunkIds_;
     yvector<TLockId> LockIds_;
     yvector<TNodeId> BranchedNodeIds_;
+    yvector<TNodeId> CreatedNodeIds_;
 
 };
 

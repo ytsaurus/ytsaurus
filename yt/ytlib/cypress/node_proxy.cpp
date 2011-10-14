@@ -58,7 +58,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
     if (impl.NameToChild().insert(MakePair(name, childId)).Second()) {
         YVERIFY(impl.ChildToName().insert(MakePair(childId, name)).Second());
-        childProxy->GetImplForUpdate().ParentId() = NodeId;
+        childProxy->GetImplForUpdate().SetParentId(NodeId);
         return true;
     } else {
         return false;
@@ -78,7 +78,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
     const auto& childId = it->Second();
     auto childProxy = GetProxy<ICypressNodeProxy>(childId);
     auto& childImpl = childProxy->GetImplForUpdate();
-    childImpl.ParentId() = NullNodeId;
+    childImpl.SetParentId(NullNodeId);
     impl.NameToChild().erase(it);
     YVERIFY(impl.ChildToName().erase(childId) == 1);
     return true;
@@ -91,7 +91,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
     auto& impl = GetTypedImplForUpdate();
     
     auto childProxy = ToProxy(child);
-    childProxy->GetImplForUpdate().ParentId() = NullNodeId;
+    childProxy->GetImplForUpdate().SetParentId(NullNodeId);
 
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
@@ -118,15 +118,15 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     Stroka name = it->Second();
 
-    oldChildProxy->GetImplForUpdate().ParentId() = NullNodeId;
+    oldChildProxy->GetImplForUpdate().SetParentId(NullNodeId);
     impl.ChildToName().erase(it);
 
     impl.NameToChild()[name] = newChildProxy->GetNodeId();
-    newChildProxy->GetImplForUpdate().ParentId() = NodeId;
+    newChildProxy->GetImplForUpdate().SetParentId(NodeId);
     YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).Second());
 }
 
-// TODO: extract base 
+// TODO: maybe extract base?
 IYPathService::TNavigateResult TMapNodeProxy::Navigate(TYPath path)
 {
     if (path.empty()) {
@@ -150,8 +150,17 @@ IYPathService::TSetResult TMapNodeProxy::Set(
     TYPath path,
     TYsonProducer::TPtr producer)
 {
+    if (!IsLocked()) {
+        return TSetResult::CreateError("Cannot modify a node that is not locked");
+    }
+
     if (path.empty()) {
-        return SetSelf(producer);
+        try {
+            SetNodeFromProducer(IMapNode::TPtr(this), producer);
+        } catch (const TYPathException& ex) {
+            return TSetResult::CreateError(ex.what());
+        }
+        return TSetResult::CreateDone();
     }
 
     Stroka prefix;
