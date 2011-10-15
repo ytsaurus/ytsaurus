@@ -322,10 +322,10 @@ private:
     {
         FOREACH(const auto& chunkId, transaction.AddedChunkIds()) {
             auto& chunk = GetChunkForUpdate(chunkId);
-            chunk.TransactionId = TTransactionId();
+            chunk.SetTransactionId(NullTransactionId);
 
             LOG_DEBUG_IF(!IsRecovery(), "Chunk committed (ChunkId: %s)",
-                ~chunk.Id.ToString());
+                ~chunk.GetId().ToString());
         }
 
         // TODO: handle removed chunks
@@ -384,7 +384,7 @@ private:
 
     void DoRemoveChunk(const TChunk& chunk)
     {
-        auto chunkId = chunk.Id;
+        auto chunkId = chunk.GetId();
         ChunkMap.Remove(chunkId);
 
         LOG_INFO_IF(!IsRecovery(), "Chunk removed (ChunkId: %s)",
@@ -393,14 +393,14 @@ private:
 
     void DoAddChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks.insert(chunk.Id).Second());
+        YVERIFY(holder.Chunks.insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.Id);
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
-            ~chunk.Id.ToString(),
+            ~chunk.GetId().ToString(),
             ~holder.Address,
             holder.Id,
-            chunk.Size);
+            chunk.GetSize());
 
         if (IsLeader()) {
             ChunkReplication->AddReplica(holder, chunk);
@@ -409,11 +409,11 @@ private:
 
     void DoRemoveChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks.erase(chunk.Id) == 1);
+        YVERIFY(holder.Chunks.erase(chunk.GetId()) == 1);
         chunk.RemoveLocation(holder.Id);
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
-             ~chunk.Id.ToString(),
+             ~chunk.GetId().ToString(),
              ~holder.Address,
              holder.Id);
 
@@ -427,7 +427,7 @@ private:
         chunk.RemoveLocation(holder.Id);
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
-             ~chunk.Id.ToString(),
+             ~chunk.GetId().ToString(),
              ~holder.Address,
              holder.Id);
 
@@ -931,7 +931,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
     auto& chunk = GetChunkForUpdate(chunkId);
 
     // TODO: sort w.r.t. proximity
-    FOREACH(auto holderId, chunk.Locations) {
+    FOREACH(auto holderId, chunk.Locations()) {
         const THolder& holder = GetHolder(holderId);
         response->AddHolderAddresses(holder.Address);
     }
