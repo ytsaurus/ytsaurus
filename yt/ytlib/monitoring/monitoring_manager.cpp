@@ -1,10 +1,11 @@
 #include "monitoring_manager.h"
 
-#include "../logging/log.h"
 #include "../ytree/ephemeral.h"
+#include "../ytree/tree_visitor.h"
+#include "../ytree/ypath.h"
+#include "../logging/log.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
-#include "../ytree/tree_visitor.h"
 
 namespace NYT {
 namespace NMonitoring {
@@ -76,7 +77,7 @@ void TMonitoringManager::Update()
             Root = ~newRoot;
         }
     } catch (...) {
-        LOG_ERROR("Error collecting monitoring data: %s",
+        LOG_FATAL("Error collecting monitoring data: %s",
             ~CurrentExceptionMessage());
     }
 }

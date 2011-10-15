@@ -9,7 +9,7 @@ SET(YT_SOURCE_FILES
     tree_builder.h
     tree_visitor.h
     ypath.cpp
-    node.cpp
+    node_detail.cpp
     ephemeral.cpp
     fluent.h
     json_adapter.cpp

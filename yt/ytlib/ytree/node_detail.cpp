@@ -1,4 +1,4 @@
-#include "node.h"
+#include "node_detail.h"
 #include "ypath.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"

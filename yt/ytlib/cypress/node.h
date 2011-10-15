@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../ytree/node.h"
+#include "../ytree/node_detail.h"
 #include "../transaction_manager/common.h"
 
 namespace NYT {
@@ -69,10 +69,10 @@ struct ICypressNode
     virtual TBranchedNodeId GetId() const = 0;
 
     virtual ENodeState GetState() const = 0;
-    virtual void SetState(ENodeState value) = 0;
+    virtual void SetState(const ENodeState& value) = 0;
 
     virtual TNodeId GetParentId() const = 0;
-    virtual void SetParentId(TNodeId value) = 0;
+    virtual void SetParentId(const TNodeId& value) = 0;
 
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     virtual yhash_set<TLockId>& LockIds() = 0;

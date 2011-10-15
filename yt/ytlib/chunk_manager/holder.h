@@ -21,6 +21,7 @@ DECLARE_ENUM(EHolderState,
     (Active)
 );
 
+// TODO: propertify
 struct THolder
 {
     THolder(

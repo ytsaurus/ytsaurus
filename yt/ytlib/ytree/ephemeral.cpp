@@ -1,6 +1,8 @@
 #include "ephemeral.h"
-#include "ypath.h"
+#include "node_detail.h"
+#include "ypath_detail.h"
 
+#include "../misc/hash.h"
 #include "../misc/assert.h"
 
 #include <util/generic/algorithm.h>

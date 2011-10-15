@@ -1,10 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "node.h"
-#include "ypath_detail.h"
-
-#include "../misc/hash.h"
+#include "ytree.h"
 
 namespace NYT {
 namespace NYTree {

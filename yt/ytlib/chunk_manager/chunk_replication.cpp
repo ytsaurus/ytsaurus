@@ -70,7 +70,7 @@ void TChunkReplication::AddReplica(const THolder& holder, const TChunk& chunk)
     UNUSED(holder);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ScheduleRefresh(chunk.Id);
+    ScheduleRefresh(chunk.GetId());
 }
 
 void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk)
@@ -78,7 +78,7 @@ void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk
     UNUSED(holder);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ScheduleRefresh(chunk.Id);
+    ScheduleRefresh(chunk.GetId());
 }
 
 void TChunkReplication::ProcessExistingJobs(
@@ -386,7 +386,7 @@ void TChunkReplication::GetReplicaStatistics(
     int* minusCount)
 {
     *desiredCount = GetDesiredReplicaCount(chunk);
-    *realCount = chunk.Locations.ysize();
+    *realCount = chunk.Locations().ysize();
     *plusCount = 0;
     *minusCount = 0;
 
@@ -394,10 +394,10 @@ void TChunkReplication::GetReplicaStatistics(
         return;
     }
 
-    const auto* jobList = ChunkManager->FindJobList(chunk.Id);
+    const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
     if (jobList != NULL) {
         yhash_set<Stroka> realAddresses(*realCount);
-        FOREACH(auto holderId, chunk.Locations) {
+        FOREACH(auto holderId, chunk.Locations()) {
             const auto& holder = ChunkManager->GetHolder(holderId);
             realAddresses.insert(holder.Address);
         }
@@ -447,17 +447,17 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         &plusCount,
         &minusCount);
 
-    FOREACH(auto holderId, chunk.Locations) {
+    FOREACH(auto holderId, chunk.Locations()) {
         auto* holderInfo = FindHolderInfo(holderId);
         if (holderInfo != NULL) {
-            holderInfo->ChunksToReplicate.erase(chunk.Id);
-            holderInfo->ChunksToRemove.erase(chunk.Id);
+            holderInfo->ChunksToReplicate.erase(chunk.GetId());
+            holderInfo->ChunksToRemove.erase(chunk.GetId());
         }
     }
 
     if (realCount == 0) {
         LOG_INFO("Chunk is lost (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-            ~chunk.Id.ToString(),
+            ~chunk.GetId().ToString(),
             realCount,
             plusCount,
             minusCount,
@@ -466,7 +466,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         // NB: never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
             LOG_INFO("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-                ~chunk.Id.ToString(),
+                ~chunk.GetId().ToString(),
                 realCount,
                 plusCount,
                 minusCount,
@@ -477,7 +477,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         auto holderIds = ChunkPlacement->GetRemovalTargets(chunk, realCount - minusCount - desiredCount);
         FOREACH(auto holderId, holderIds) {
             auto& holderInfo = GetHolderInfo(holderId);
-            holderInfo.ChunksToRemove.insert(chunk.Id);
+            holderInfo.ChunksToRemove.insert(chunk.GetId());
         }
 
         yvector<Stroka> holderAddresses;
@@ -488,7 +488,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
         LOG_INFO("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
             ~JoinToString(holderAddresses),
-            ~chunk.Id.ToString(),
+            ~chunk.GetId().ToString(),
             realCount,
             plusCount,
             minusCount,
@@ -497,7 +497,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         // NB: never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
             LOG_INFO("Chunk is under-replicated, waiting for pending removals to complete (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-                ~chunk.Id.ToString(),
+                ~chunk.GetId().ToString(),
                 realCount,
                 plusCount,
                 minusCount,
@@ -509,18 +509,18 @@ void TChunkReplication::Refresh(const TChunk& chunk)
         auto& holderInfo = GetHolderInfo(holderId);
         const auto& holder = ChunkManager->GetHolder(holderId);
 
-        holderInfo.ChunksToReplicate.insert(chunk.Id);
+        holderInfo.ChunksToReplicate.insert(chunk.GetId());
 
         LOG_INFO("Chunk is under-replicated, replication is scheduled at %s (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
             ~holder.Address,
-            ~chunk.Id.ToString(),
+            ~chunk.GetId().ToString(),
             realCount,
             plusCount,
             minusCount,
             desiredCount);
     } else {
         LOG_INFO("Chunk is OK (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
-            ~chunk.Id.ToString(),
+            ~chunk.GetId().ToString(),
             realCount,
             plusCount,
             minusCount,

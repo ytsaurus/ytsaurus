@@ -113,16 +113,16 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 {
     yhash_set<Stroka> forbiddenAddresses;
 
-    FOREACH(auto holderId, chunk.Locations) {
+    FOREACH(auto holderId, chunk.Locations()) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.Address);
     }
 
-    const auto* jobList = ChunkManager->FindJobList(chunk.Id);
+    const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
     if (jobList != NULL) {
         FOREACH(const auto& jobId, jobList->Jobs) {
             const auto& job = ChunkManager->GetJob(jobId);
-            if (job.Type == EJobType::Replicate && job.ChunkId == chunk.Id) {
+            if (job.Type == EJobType::Replicate && job.ChunkId == chunk.GetId()) {
                 forbiddenAddresses.insert(job.TargetAddresses.begin(), job.TargetAddresses.end());
             }
         }
@@ -134,8 +134,8 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 THolderId TChunkPlacement::GetReplicationSource(const TChunk& chunk)
 {
     // TODO: do something smart
-    YASSERT(!chunk.Locations.empty());
-    return chunk.Locations[0];
+    YASSERT(!chunk.Locations().empty());
+    return chunk.Locations()[0];
 }
 
 yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)
@@ -143,8 +143,8 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     // Construct a list of (holderId, loadFactor) pairs.
     typedef TPair<THolderId, double> TCandidatePair;
     yvector<TCandidatePair> candidates;
-    candidates.reserve(chunk.Locations.ysize());
-    FOREACH(auto holderId, chunk.Locations) {
+    candidates.reserve(chunk.Locations().ysize());
+    FOREACH(auto holderId, chunk.Locations()) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         double loadFactor = GetLoadFactor(holder);
         candidates.push_back(MakePair(holderId, loadFactor));
@@ -205,14 +205,14 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
         return false;
     }
 
-    if (targetHolder.Chunks.find(chunk.Id) != targetHolder.Chunks.end())  {
+    if (targetHolder.Chunks.find(chunk.GetId()) != targetHolder.Chunks.end())  {
         // Do not balance to a holder already having the chunk.
         return false;
     }
 
     FOREACH (const auto& jobId, targetHolder.Jobs) {
         const auto& job = ChunkManager->GetJob(jobId);
-        if (job.ChunkId == chunk.Id) {
+        if (job.ChunkId == chunk.GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
         }
@@ -227,7 +227,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
         FOREACH (const auto& jobId, sink->JobIds) {
             const auto& job = ChunkManager->GetJob(jobId);
-            if (job.ChunkId == chunk.Id) {
+            if (job.ChunkId == chunk.GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
                 return false;
             }
