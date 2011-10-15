@@ -33,7 +33,7 @@ static Stroka FormatLevel(ELogLevel level)
         case ELogLevel::Warning: return "W";
         case ELogLevel::Error:   return "E";
         case ELogLevel::Fatal:   return "F";
-        default: YUNREACHABLE(); return "?";
+        default: YUNREACHABLE();
     }
 }
 
