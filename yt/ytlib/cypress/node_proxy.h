@@ -62,7 +62,7 @@ public:
 
     virtual IListNode::TPtr CreateList()
     {
-        YUNIMPLEMENTED();
+        return CypressManager->CreateListNode(TransactionId);
     }
 
     virtual IEntityNode::TPtr CreateEntity()
@@ -455,9 +455,7 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
     virtual TNavigateResult Navigate(TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,9 +481,12 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
     virtual TNavigateResult Navigate(TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
+
+private:
+    TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
+    TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath, TYsonProducer::TPtr producer);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

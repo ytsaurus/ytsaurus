@@ -56,6 +56,12 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
     , Id(id)
 { }
 
+TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
+    : ParentId_(other.ParentId_)
+    , State_(other.State_)
+    , Id(id)
+{ }
+
 NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
@@ -68,7 +74,7 @@ TMapNode::TMapNode(const TBranchedNodeId& id)
 { }
 
 TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
-    : TCypressNodeBase(id)
+    : TCypressNodeBase(id, other)
 {
     NameToChild_ = other.NameToChild_;
     ChildToName_ = other.ChildToName_;
@@ -108,7 +114,7 @@ TListNode::TListNode(const TBranchedNodeId& id)
 { }
 
 TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
-    : TCypressNodeBase(id)
+    : TCypressNodeBase(id, other)
 {
     IndexToChild_ = other.IndexToChild_;
     ChildToIndex_ = other.ChildToIndex_;

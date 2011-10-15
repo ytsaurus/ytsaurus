@@ -454,8 +454,9 @@ IYPathService::TSetResult TListNode::Set(
         return CreateYPathChild(0, tailPath);
     }
     
+    char lastPrefixCh = prefix[prefix.length() - 1];
     TStringBuf indexString =
-        prefix[0] == '+' || prefix[0] == '-'
+        lastPrefixCh == '+' || lastPrefixCh == '-'
         ? TStringBuf(prefix.begin() + 1, prefix.end())
         : prefix;
 
@@ -467,10 +468,10 @@ IYPathService::TSetResult TListNode::Set(
             ~Stroka(indexString).Quote());
     }
 
-    if (prefix[0] == '+') {
+    if (lastPrefixCh == '+') {
         return CreateYPathChild(index + 1, tailPath);
-    } else if (prefix[0] == '-') {
-        return CreateYPathChild(index + 1, tailPath);
+    } else if (lastPrefixCh == '-') {
+        return CreateYPathChild(index, tailPath);
     } else {
         auto navigateResult = GetYPathChild(index, tailPath);
         YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);

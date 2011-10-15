@@ -104,6 +104,8 @@ public:
     virtual TBranchedNodeId GetId() const;
 
 protected:
+    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
+
     TBranchedNodeId Id;
 
 };
@@ -121,7 +123,7 @@ private:
     typedef TScalarNode<TValue> TThis;
 
     TScalarNode(const TBranchedNodeId& id, const TThis& other)
-        : TCypressNodeBase(id)
+        : TCypressNodeBase(id, other)
         , Value_(other.Value_)
     { }
 
