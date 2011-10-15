@@ -7,7 +7,6 @@
 
 namespace NYT {
 namespace NYTree {
-namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,7 +194,7 @@ TEphemeralNodeBase::TEphemeralNodeBase()
 
 INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
-    return TNodeFactory::Get();
+    return TEphemeralNodeFactory::Get();
 }
 
 ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
@@ -507,44 +506,43 @@ IYPathService::TNavigateResult TListNode::GetYPathChild(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeFactory* TNodeFactory::Get()
+INodeFactory* TEphemeralNodeFactory::Get()
 {
-    return Singleton<TNodeFactory>();
+    return Singleton<TEphemeralNodeFactory>();
 }
 
-IStringNode::TPtr TNodeFactory::CreateString()
+IStringNode::TPtr TEphemeralNodeFactory::CreateString()
 {
     return ~New<TStringNode>();
 }
 
-IInt64Node::TPtr TNodeFactory::CreateInt64()
+IInt64Node::TPtr TEphemeralNodeFactory::CreateInt64()
 {
     return ~New<TInt64Node>();
 }
 
-IDoubleNode::TPtr TNodeFactory::CreateDouble()
+IDoubleNode::TPtr TEphemeralNodeFactory::CreateDouble()
 {
     return ~New<TDoubleNode>();
 }
 
-IMapNode::TPtr TNodeFactory::CreateMap()
+IMapNode::TPtr TEphemeralNodeFactory::CreateMap()
 {
     return ~New<TMapNode>();
 }
 
-IListNode::TPtr TNodeFactory::CreateList()
+IListNode::TPtr TEphemeralNodeFactory::CreateList()
 {
     return ~New<TListNode>();
 }
 
-IEntityNode::TPtr TNodeFactory::CreateEntity()
+IEntityNode::TPtr TEphemeralNodeFactory::CreateEntity()
 {
     return ~New<TEntityNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEphemeral
 } // namespace NYTree
 } // namespace NYT
 

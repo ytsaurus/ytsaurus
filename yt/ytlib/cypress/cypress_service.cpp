@@ -58,7 +58,9 @@ void TCypressService::ExecuteRecoverable(
     NRpc::TServiceContext::TPtr context,
     IAction::TPtr action)
 {
-    ValidateTransactionId(transactionId);
+    if (transactionId != NullTransactionId) {
+        ValidateTransactionId(transactionId);
+    }
 
     try {
         action->Do();

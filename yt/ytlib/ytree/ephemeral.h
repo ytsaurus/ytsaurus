@@ -8,11 +8,10 @@
 
 namespace NYT {
 namespace NYTree {
-namespace NEphemeral {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeFactory
+class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
@@ -29,7 +28,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NEphemeral
 } // namespace NYTree
 } // namespace NYT
 
