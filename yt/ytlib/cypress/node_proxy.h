@@ -165,7 +165,7 @@ protected:
     TTransactionId TransactionId;
     TNodeId NodeId;
     mutable TNodeFactory NodeFactory;
-    //! Keeps a cached flag that gets raised when the node is found locked.
+    //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
 
 
@@ -322,11 +322,11 @@ class TScalarNodeProxy
 {
 public:
     TScalarNodeProxy(
-        TCypressManager::TPtr state,
+        TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
-            state,
+            cypressManager,
             transactionId,
             nodeId)
     { }
@@ -411,11 +411,11 @@ class TCompositeNodeProxyBase
 {
 protected:
     TCompositeNodeProxyBase(
-        TCypressManager::TPtr state,
+        TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
-            state,
+            cypressManager,
             transactionId,
             nodeId)
     { }
@@ -441,7 +441,7 @@ class TMapNodeProxy
 
 public:
     TMapNodeProxy(
-        TCypressManager::TPtr state,
+        TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
@@ -451,6 +451,34 @@ public:
     virtual INode::TPtr FindChild(const Stroka& name) const;
     virtual bool AddChild(INode::TPtr child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
+    virtual void RemoveChild(INode::TPtr child);
+
+    virtual TNavigateResult Navigate(TYPath path);
+    virtual TSetResult Set(
+        TYPath path,
+        TYsonProducer::TPtr producer);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListNodeProxy
+    : public TCompositeNodeProxyBase<IListNode, TListNode>
+{
+    DECLARE_TYPE_OVERRIDES(List)
+
+public:
+    TListNodeProxy(
+        TCypressManager::TPtr cypressManager,
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId);
+
+    virtual void Clear();
+    virtual int GetChildCount() const;
+    virtual yvector<INode::TPtr> GetChildren() const;
+    virtual INode::TPtr FindChild(int index) const;
+    virtual void AddChild(INode::TPtr child, int beforeIndex = -1);
+    virtual bool RemoveChild(int index);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 

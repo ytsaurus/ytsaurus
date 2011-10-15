@@ -60,7 +60,6 @@ DECLARE_ENUM(ENodeState,
     (Uncommitted)
 );
 
-// TODO: type vs const type& in properties
 struct ICypressNode
 {
     virtual ~ICypressNode()
@@ -121,14 +120,14 @@ class TScalarNode
 private:
     typedef TScalarNode<TValue> TThis;
 
-public:
-    TScalarNode(const TBranchedNodeId& id)
-        : TCypressNodeBase(id)
-    { }
-
     TScalarNode(const TBranchedNodeId& id, const TThis& other)
         : TCypressNodeBase(id)
         , Value_(other.Value_)
+    { }
+
+public:
+    TScalarNode(const TBranchedNodeId& id)
+        : TCypressNodeBase(id)
     { }
 
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const
@@ -173,9 +172,39 @@ class TMapNode
 private:
     typedef TMapNode TThis;
 
+    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
+
 public:
     TMapNode(const TBranchedNodeId& id);
-    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
+
+    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
+    virtual void Merge(ICypressNode& branchedNode);
+
+    virtual TAutoPtr<ICypressNode> Clone() const;
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        TIntrusivePtr<TCypressManager> state,
+        const TTransactionId& transactionId) const;
+};
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+class TListNode
+    : public TCypressNodeBase
+{
+    typedef yvector<TNodeId> TIndexToChild;
+    typedef yhash_map<TNodeId, int> TChildToIndex;
+
+    DECLARE_BYREF_RW_PROPERTY(IndexToChild, TIndexToChild);
+    DECLARE_BYREF_RW_PROPERTY(ChildToIndex, TChildToIndex);
+
+private:
+    typedef TListNode TThis;
+
+    TListNode(const TBranchedNodeId& id, const TListNode& other);
+
+public:
+    TListNode(const TBranchedNodeId& id);
 
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
     virtual void Merge(ICypressNode& branchedNode);

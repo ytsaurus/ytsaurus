@@ -48,6 +48,7 @@ public:
     IInt64Node::TPtr  CreateInt64Node(const TTransactionId& transactionId);
     IDoubleNode::TPtr CreateDoubleNode(const TTransactionId& transactionId);
     IMapNode::TPtr    CreateMapNode(const TTransactionId& transactionId);
+    IListNode::TPtr   CreateListNode(const TTransactionId& transactionId);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 

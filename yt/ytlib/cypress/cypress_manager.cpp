@@ -81,6 +81,11 @@ IMapNode::TPtr TCypressManager::CreateMapNode(const TTransactionId& transactionI
     return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId);
 }
 
+IListNode::TPtr TCypressManager::CreateListNode(const TTransactionId& transactionId)
+{
+    return ~CreateNode<TListNode, TListNodeProxy>(transactionId);
+}
+
 TLock* TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto id = LockIdGenerator.Next();

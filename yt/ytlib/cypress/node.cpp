@@ -70,8 +70,8 @@ TMapNode::TMapNode(const TBranchedNodeId& id)
 TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id)
 {
-        NameToChild() = other.NameToChild();
-        ChildToName() = other.ChildToName();
+    NameToChild_ = other.NameToChild_;
+    ChildToName_ = other.ChildToName_;
 }
 
 ICypressNodeProxy::TPtr TMapNode::GetProxy(
@@ -92,11 +92,51 @@ TAutoPtr<ICypressNode> TMapNode::Branch(const TTransactionId& transactionId) con
 void TMapNode::Merge(ICypressNode& branchedNode)
 {
     auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-    NameToChild().swap(typedBranchedNode.NameToChild());
-    ChildToName().swap(typedBranchedNode.ChildToName());
+    NameToChild_.swap(typedBranchedNode.NameToChild_);
+    ChildToName_.swap(typedBranchedNode.ChildToName_);
 }
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
+{
+    return new TThis(Id, *this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TListNode::TListNode(const TBranchedNodeId& id)
+    : TCypressNodeBase(id)
+{ }
+
+TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
+    : TCypressNodeBase(id)
+{
+    IndexToChild_ = other.IndexToChild_;
+    ChildToIndex_ = other.ChildToIndex_;
+}
+
+ICypressNodeProxy::TPtr TListNode::GetProxy(
+    TIntrusivePtr<TCypressManager> state,
+    const TTransactionId& transactionId) const
+{
+    return ~New<TListNodeProxy>(state, transactionId, Id.NodeId);
+}
+
+TAutoPtr<ICypressNode> TListNode::Branch(const TTransactionId& transactionId) const
+{
+    YASSERT(!Id.IsBranched());
+    return new TThis(
+        TBranchedNodeId(Id.NodeId, transactionId),
+        *this);
+}
+
+void TListNode::Merge(ICypressNode& branchedNode)
+{
+    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
+    IndexToChild_.swap(typedBranchedNode.IndexToChild_);
+    ChildToIndex_.swap(typedBranchedNode.ChildToIndex_);
+}
+
+TAutoPtr<ICypressNode> TListNode::Clone() const
 {
     return new TThis(Id, *this);
 }
