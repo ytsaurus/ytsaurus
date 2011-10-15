@@ -23,38 +23,31 @@ struct TBranchedNodeId
     //! Id of the transaction that had branched the node.
     TTransactionId TransactionId;
 
-    TBranchedNodeId(
-        const TNodeId& nodeId, const TTransactionId& transactionId)
-        : NodeId(nodeId)
-        , TransactionId(transactionId)
-    { }
+    //! Initializes a instance by given node and transaction ids.
+    TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId);
 
-    bool IsBranched() const
-    {
-        return TransactionId != NullTransactionId;
-    }
+    //! Checks that the id is branched, i.e. #TransactionId it not #NullTransactionId.
+    bool IsBranched() const;
 
-    //! Formats the id into the string (for debugging and logging purposes mainly).
-    Stroka ToString() const
-    {
-        return Sprintf("%s:%s",
-            ~NodeId.ToString(),
-            ~TransactionId.ToString());
-    }
+    //! Formats the id to string (for debugging and logging purposes mainly).
+    Stroka ToString() const;
 };
 
-//! Compares TBranchedNodeId s for equality.
-inline bool operator==(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
-{
-    return lhs.NodeId == rhs.NodeId &&
-           lhs.TransactionId == rhs.TransactionId;
-}
+bool operator==(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
 
-//! Compares TBranchedNodeId s for inequality.
-inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
+} // namespace NCypress
+} // namespace NYT
+
+//! A hasher for TBranchedNodeId.
+template <>
+struct hash<NYT::NCypress::TBranchedNodeId>
 {
-    return !(lhs == rhs);
-}
+    i32 operator()(const NYT::NCypress::TBranchedNodeId& id) const;
+};
+
+namespace NYT {
+namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,16 +100,9 @@ class TCypressNodeBase
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
 
 public:
-    TCypressNodeBase(const TBranchedNodeId& id)
-        : ParentId_(NullNodeId)
-        , State_(ENodeState::Uncommitted)
-        , Id(id)
-    { }
+    TCypressNodeBase(const TBranchedNodeId& id);
 
-    virtual TBranchedNodeId GetId() const
-    {
-        return Id;
-    }
+    virtual TBranchedNodeId GetId() const;
 
 protected:
     TBranchedNodeId Id;
@@ -125,7 +111,8 @@ protected:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-template<class TValue>
+// TODO: move impl to inl
+template <class TValue>
 class TScalarNode
     : public TCypressNodeBase
 {
@@ -174,7 +161,6 @@ typedef TScalarNode<double> TDoubleNode;
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-// TODO: move impl to cpp
 class TMapNode
     : public TCypressNodeBase
 {
@@ -188,36 +174,13 @@ private:
     typedef TMapNode TThis;
 
 public:
-    TMapNode(const TBranchedNodeId& id)
-        : TCypressNodeBase(id)
-    { }
+    TMapNode(const TBranchedNodeId& id);
+    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
 
-    TMapNode(const TBranchedNodeId& id, const TMapNode& other)
-        : TCypressNodeBase(id)
-    {
-        NameToChild() = other.NameToChild();
-        ChildToName() = other.ChildToName();
-    }
+    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
+    virtual void Merge(ICypressNode& branchedNode);
 
-    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const
-    {
-        YASSERT(!Id.IsBranched());
-        return new TThis(
-            TBranchedNodeId(Id.NodeId, transactionId),
-            *this);
-    }
-
-    virtual void Merge(ICypressNode& branchedNode)
-    {
-        auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-        NameToChild().swap(typedBranchedNode.NameToChild());
-        ChildToName().swap(typedBranchedNode.ChildToName());
-    }
-
-    virtual TAutoPtr<ICypressNode> Clone() const
-    {
-        return new TThis(Id, *this);
-    }
+    virtual TAutoPtr<ICypressNode> Clone() const;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
@@ -226,17 +189,5 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-
 } // namespace NCypress
 } // namespace NYT
-
-//! A hasher for TBranchedNodeId.
-template<>
-struct hash<NYT::NCypress::TBranchedNodeId>
-{
-    i32 operator()(const NYT::NCypress::TBranchedNodeId& id) const
-    {
-        return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
-               static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
-    }
-};

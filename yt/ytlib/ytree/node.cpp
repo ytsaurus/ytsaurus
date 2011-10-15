@@ -21,13 +21,7 @@ IYPathService::TGetResult TNodeBase::Get(
         }
 
         case IYPathService::ECode::Recurse:
-            return TGetResult::CreateRecurse(
-                navigateResult.RecurseService,
-                navigateResult.RecursePath);
-
-        case IYPathService::ECode::Error:
-            return TGetResult::CreateError(
-                navigateResult.ErrorMessage);
+            return navigateResult;
 
         default:
             YUNREACHABLE();
@@ -38,7 +32,7 @@ IYPathService::TNavigateResult TNodeBase::Navigate(
     TYPath path)
 {
     if (!path.empty()) {
-        return TNavigateResult::CreateError("Cannot navigate from the node");
+        throw TYPathException() << "Cannot navigate from the node";
     }
 
     return TNavigateResult::CreateDone(this);
@@ -68,20 +62,10 @@ IYPathService::TRemoveResult TNodeBase::Remove(
 IYPathService::TLockResult TNodeBase::Lock(TYPath path)
 {
     UNUSED(path);
-    return TLockResult::CreateError("Locking is not supported");
+    throw TYPathException() << "Locking is not supported";
 }
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
-{
-    try {
-        DoRemoveSelf();
-    } catch (const TYPathException& ex) {
-        return TRemoveResult::CreateError(ex.what());
-    }
-    return TRemoveResult::CreateDone();
-}
-
-void TNodeBase::DoRemoveSelf()
 {
     auto parent = GetParent();
 
@@ -90,19 +74,10 @@ void TNodeBase::DoRemoveSelf()
     }
 
     parent->AsComposite()->RemoveChild(this);
+    return TRemoveResult::CreateDone();
 }
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
-{
-    try {
-        DoSetSelf(producer);
-    } catch (const TYPathException& ex) {
-        return TRemoveResult::CreateError(ex.what());
-    }
-    return TSetResult::CreateDone();
-}
-
-void TNodeBase::DoSetSelf(TYsonProducer::TPtr producer)
 {
     throw TYPathException() << "Cannot modify the node";
 }

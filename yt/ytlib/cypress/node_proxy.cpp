@@ -139,27 +139,20 @@ IYPathService::TNavigateResult TMapNodeProxy::Navigate(TYPath path)
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        return TNavigateResult::CreateError(Sprintf("Child %s it not found",
-            ~prefix.Quote()));
-    } else {
-        return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+        throw TYPathException() << Sprintf("Child %s it not found",
+            ~prefix.Quote());
     }
+
+    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
 }
 
 IYPathService::TSetResult TMapNodeProxy::Set(
     TYPath path,
     TYsonProducer::TPtr producer)
 {
-    if (!IsLocked()) {
-        return TSetResult::CreateError("Cannot modify a node that is not locked");
-    }
-
     if (path.empty()) {
-        try {
-            SetNodeFromProducer(IMapNode::TPtr(this), producer);
-        } catch (const TYPathException& ex) {
-            return TSetResult::CreateError(ex.what());
-        }
+        EnsureModifiable();
+        SetNodeFromProducer(IMapNode::TPtr(this), producer);
         return TSetResult::CreateDone();
     }
 
@@ -172,10 +165,19 @@ IYPathService::TSetResult TMapNodeProxy::Set(
         return TSetResult::CreateRecurse(AsYPath(child), tailPath);
     }
 
-    INode::TPtr newChild = ~GetFactory()->CreateMap();
-    AddChild(~newChild, prefix);
+    EnsureModifiable();
 
-    return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
+    if (tailPath.empty()) {
+        TTreeBuilder builder(GetFactory());
+        producer->Do(&builder);
+        INode::TPtr newChild = builder.GetRoot();
+        AddChild(newChild, prefix);
+        return TSetResult::CreateDone();
+    } else {
+        INode::TPtr newChild = ~GetFactory()->CreateMap();
+        AddChild(newChild, prefix);
+        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

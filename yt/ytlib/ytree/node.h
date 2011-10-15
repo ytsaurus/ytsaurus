@@ -54,11 +54,8 @@ public:
     virtual TLockResult Lock(TYPath path);
 
 protected:
-    TRemoveResult RemoveSelf();
-    virtual void DoRemoveSelf();
-
-    TSetResult SetSelf(TYsonProducer::TPtr producer);
-    virtual void DoSetSelf(TYsonProducer::TPtr producer);
+    virtual TRemoveResult RemoveSelf();
+    virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
 
 };
 

@@ -23,8 +23,6 @@ struct ICypressNodeProxy
 
     virtual const ICypressNode& GetImpl() const = 0;
     virtual ICypressNode& GetImplForUpdate() = 0;
-
-    virtual bool IsLocked() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,30 +159,6 @@ public:
         return LockSelf();
     }
 
-    virtual bool IsLocked() const
-    {
-        // Check if this node is created by a transaction.
-        const auto* impl = CypressManager->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
-        if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
-            return true;
-        }
-
-        // Walk up to the root.
-        auto currentNodeId = NodeId;
-        while (currentNodeId != NullNodeId) {
-            const auto& currentImpl = CypressManager->GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
-            // Check the locks assigned to the current node.
-            FOREACH (const auto& lockId, currentImpl.LockIds()) {
-                const auto& lock = CypressManager->GetLock(lockId);
-                if (lock.GetTransactionId() == TransactionId) {
-                    return true;
-                }
-            }
-            currentNodeId = currentImpl.GetParentId();
-        }
-        return false;
-    }
-
 protected:
     TCypressManager::TPtr CypressManager;
     TTransactionId TransactionId;
@@ -258,17 +232,53 @@ protected:
         return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
+    bool IsLockNeeded() const
+    {
+        // Check if this node is created by the current transaction and is still uncommitted.
+        const auto* impl = CypressManager->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
+        if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
+            return false;
+        }
+
+        // Walk up to the root.
+        auto currentNodeId = NodeId;
+        while (currentNodeId != NullNodeId) {
+            const auto& currentImpl = CypressManager->GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
+            // Check the locks assigned to the current node.
+            FOREACH (const auto& lockId, currentImpl.LockIds()) {
+                const auto& lock = CypressManager->GetLock(lockId);
+                if (lock.GetTransactionId() == TransactionId) {
+                    return false;
+                }
+            }
+            currentNodeId = currentImpl.GetParentId();
+        }
+
+        return true;
+    }
+
+    void EnsureModifiable()
+    {
+        if (IsLockNeeded()) {
+            LockSelf();
+        }
+    }
 
     TLockResult LockSelf()
     {
         auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
 
+        // Make sure that the node is committed.
+        if (impl.GetState() != ENodeState::Committed) {
+            throw TYPathException() << "Cannot lock an uncommitted node";
+        }
+
         // Make sure that the node is not locked by another transaction.
         FOREACH (const auto& lockId, impl.LockIds()) {
             const auto& lock = CypressManager->GetLock(lockId);
             if (lock.GetTransactionId() != TransactionId) {
-                return TLockResult::CreateError(Sprintf("Node is already locked by another transaction (TransactionId: %s)",
-                    ~lock.GetTransactionId().ToString()));
+                throw TYPathException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
+                    ~lock.GetTransactionId().ToString());
             }
         }
 
@@ -334,12 +344,11 @@ public: \
         return this; \
     } \
     \
-    virtual void DoSetSelf(TYsonProducer::TPtr producer) \
+    virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
     { \
-        if (!IsLocked()) { \
-            throw TYPathException() << "Cannot modify a node that is not locked"; \
-        } \
+        EnsureModifiable(); \
         SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
+        return TSetResult::CreateDone(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

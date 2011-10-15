@@ -18,7 +18,6 @@ struct IYPathService
         (Undefined)
         (Done)
         (Recurse)
-        (Error)
     );
 
     template <class T>
@@ -31,20 +30,9 @@ struct IYPathService
         template <class TOther>
         TResult(const TResult<TOther>& other)
         {
-            Code = other.Code;
-            switch (other.Code) {
-                case ECode::Recurse:
-                    RecurseService = other.RecurseService;
-                    RecursePath = other.RecursePath;
-                    break;
-
-                case ECode::Error:
-                    ErrorMessage = other.ErrorMessage;
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            }
+            YASSERT(other.Code == ECode::Recurse);
+            RecurseService = other.RecurseService;
+            RecursePath = other.RecursePath;
         }
 
         ECode Code;
@@ -56,9 +44,6 @@ struct IYPathService
         IYPathService::TPtr RecurseService;
         TYPath RecursePath;
         
-        // Error
-        Stroka ErrorMessage;
-
         static TResult CreateDone(const T& value = T())
         {
             TResult result;
@@ -75,14 +60,6 @@ struct IYPathService
             result.Code = ECode::Recurse;
             result.RecurseService = recurseService;
             result.RecursePath = recursePath;
-            return result;
-        }
-
-        static TResult CreateError(Stroka errorMessage)
-        {
-            TResult result;
-            result.Code = ECode::Error;
-            result.ErrorMessage = errorMessage;
             return result;
         }
     };

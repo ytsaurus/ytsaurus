@@ -79,18 +79,28 @@ struct TYPathOperationState
 };
 
 template <class T>
-T ExecuteYPathOperation(
+T ExecuteYPathVerb(
     IYPathService::TPtr rootService,
     TYPath path,
-    typename IParamFunc<TYPathOperationState, IYPathService::TResult<T> >::TPtr action,
-    Stroka operationName)
+    typename IParamFunc<TYPathOperationState, IYPathService::TResult<T> >::TPtr verb,
+    Stroka verbName)
 {
     TYPathOperationState state;
     state.CurrentService = rootService;
     state.CurrentPath = ParseYPathRoot(path);
 
     while (true) {
-        auto result = action->Do(state);
+        IYPathService::TResult<T> result;
+        try {
+            result = verb->Do(state);
+        } catch (const TYPathException& ex) {
+            // TODO: ypath escaping and normalization
+            ythrow TYPathException() << Sprintf("Failed to execute YPath operation (Verb: %s, Path: %s, ResolvedPath: %s, ErrorMessage: %s)",
+                ~verbName,
+                ~Stroka(path),
+                ~Stroka(GetResolvedYPathPrefix(path, state.CurrentPath)),
+                ex.what());
+        }
         switch (result.Code) {
             case IYPathService::ECode::Done:
                 return result.Value;
@@ -100,13 +110,6 @@ T ExecuteYPathOperation(
                 state.CurrentPath = result.RecursePath;
                 break;
 
-            case IYPathService::ECode::Error:
-                ythrow yexception() << Sprintf("Failed to %s YPath %s at %s: %s",
-                    ~operationName,
-                    ~Stroka(path).Quote(),
-                    ~Stroka(GetResolvedYPathPrefix(path, state.CurrentPath)).Quote(),
-                    ~result.ErrorMessage);
-
             default:
                 YUNREACHABLE();
         }
@@ -115,7 +118,7 @@ T ExecuteYPathOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TNavigateResult NavigateYPathAction(
+IYPathService::TNavigateResult NavigateYPathVerb(
     TYPathOperationState state)
 {
     return state.CurrentService->Navigate(state.CurrentPath);
@@ -125,16 +128,16 @@ INode::TPtr NavigateYPath(
     IYPathService::TPtr rootService,
     TYPath path)
 {
-    return ExecuteYPathOperation<INode::TPtr>(
+    return ExecuteYPathVerb<INode::TPtr>(
         rootService,
         path,
-        FromMethod(&NavigateYPathAction),
+        FromMethod(&NavigateYPathVerb),
         "navigate");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TGetResult GetYPathAction(
+IYPathService::TGetResult GetYPathVerb(
     TYPathOperationState state,
     IYsonConsumer* events)
 {
@@ -146,16 +149,16 @@ void GetYPath(
     TYPath path,
     IYsonConsumer* consumer)
 {
-    ExecuteYPathOperation<TVoid>(
+    ExecuteYPathVerb<TVoid>(
         rootService,
         path,
-        FromMethod(&GetYPathAction, consumer),
+        FromMethod(&GetYPathVerb, consumer),
         "get");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TSetResult SetYPathAction(
+IYPathService::TSetResult SetYPathVerb(
     TYPathOperationState state,
     TYsonProducer::TPtr producer)
 {
@@ -167,16 +170,16 @@ void SetYPath(
     TYPath path,
     TYsonProducer::TPtr producer)
 {
-    ExecuteYPathOperation<TVoid>(
+    ExecuteYPathVerb<TVoid>(
         rootService,
         path,
-        FromMethod(&SetYPathAction, producer),
+        FromMethod(&SetYPathVerb, producer),
         "set");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TRemoveResult RemoveYPathAction(
+IYPathService::TRemoveResult RemoveYPathVerb(
     TYPathOperationState state)
 {
     return state.CurrentService->Remove(state.CurrentPath);
@@ -186,16 +189,16 @@ void RemoveYPath(
     IYPathService::TPtr rootService,
     TYPath path)
 {
-    ExecuteYPathOperation<TVoid>(
+    ExecuteYPathVerb<TVoid>(
         rootService,
         path,
-        FromMethod(&RemoveYPathAction),
+        FromMethod(&RemoveYPathVerb),
         "remove");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TLockResult LockYPathAction(
+IYPathService::TLockResult LockYPathVerb(
     TYPathOperationState state)
 {
     return state.CurrentService->Lock(state.CurrentPath);
@@ -205,10 +208,10 @@ void LockYPath(
     IYPathService::TPtr rootService,
     TYPath path)
 {
-    ExecuteYPathOperation<TVoid>(
+    ExecuteYPathVerb<TVoid>(
         rootService,
         path,
-        FromMethod(&LockYPathAction),
+        FromMethod(&LockYPathVerb),
         "lock");
 }
 
