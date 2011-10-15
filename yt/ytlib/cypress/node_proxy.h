@@ -95,6 +95,7 @@ public:
         , TransactionId(transactionId)
         , NodeId(nodeId)
         , NodeFactory(cypressManager, transactionId)
+        , Locked(false)
     {
         YASSERT(~cypressManager != NULL);
     }
@@ -164,6 +165,8 @@ protected:
     TTransactionId TransactionId;
     TNodeId NodeId;
     mutable TNodeFactory NodeFactory;
+    //! Keeps a cached flag that gets raised when the node is found locked.
+    bool Locked;
 
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
@@ -232,8 +235,28 @@ protected:
         return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
+    void ValidateInTransaction()
+    {
+        if (TransactionId == NullTransactionId) {
+            throw TYPathException() << "Cannot modify the node outside of a transaction";
+        }
+    }
+
+    void ValidateModifiable()
+    {
+        ValidateInTransaction();
+        if (IsLockNeeded()) {
+            LockSelf();
+        }
+    }
+
     bool IsLockNeeded() const
     {
+        // A shortcut.
+        if (Locked) {
+            return false;
+        }
+
         // Check if this node is created by the current transaction and is still uncommitted.
         const auto* impl = CypressManager->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
         if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
@@ -255,13 +278,6 @@ protected:
         }
 
         return true;
-    }
-
-    void EnsureModifiable()
-    {
-        if (IsLockNeeded()) {
-            LockSelf();
-        }
     }
 
     TLockResult LockSelf()
@@ -293,6 +309,7 @@ protected:
             currentNodeId = impl.GetParentId();
         }
 
+        Locked = true;
         return TLockResult::CreateDone();
     }
 };
@@ -321,6 +338,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
+        this->ValidateModifiable();
         this->GetTypedImplForUpdate().Value() = value;
     }
 };
@@ -346,7 +364,6 @@ public: \
     \
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
     { \
-        EnsureModifiable(); \
         SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
         return TSetResult::CreateDone(); \
     }

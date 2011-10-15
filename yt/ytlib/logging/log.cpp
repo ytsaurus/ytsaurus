@@ -262,7 +262,7 @@ void TLogManager::Write(const TLogEvent& event)
         // TODO: use system-wide exit function
         if (event.GetLevel() == ELogLevel::Fatal) {
             Shutdown();
-            exit(1);
+            ::std::terminate();
         }
     }
 }

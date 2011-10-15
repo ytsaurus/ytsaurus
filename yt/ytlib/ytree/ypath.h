@@ -31,6 +31,7 @@ struct IYPathService
         TResult(const TResult<TOther>& other)
         {
             YASSERT(other.Code == ECode::Recurse);
+            Code = ECode::Recurse;
             RecurseService = other.RecurseService;
             RecursePath = other.RecursePath;
         }

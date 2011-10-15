@@ -106,6 +106,10 @@ private:
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
     {
+        if (transactionId == NullTransactionId) {
+            throw TYPathException() << "Cannot create a node outside of a transaction";
+        }
+
         auto nodeId = NodeIdGenerator.Next();
         TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
         auto* nodeImpl = new TImpl(branchedNodeId);

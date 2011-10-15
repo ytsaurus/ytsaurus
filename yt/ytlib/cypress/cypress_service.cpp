@@ -76,7 +76,9 @@ void TCypressService::ExecuteUnrecoverable(
     NRpc::TServiceContext::TPtr context,
     IAction::TPtr action)
 {
-    ValidateTransactionId(transactionId);
+    if (transactionId != NullTransactionId) {
+        ValidateTransactionId(transactionId);
+    }
 
     try {
         action->Do();
@@ -85,11 +87,13 @@ void TCypressService::ExecuteUnrecoverable(
     } catch (...) {
         context->Reply(EErrorCode::UnrecoverableError);
 
-        TMsgAbortTransaction message;
-        message.SetTransactionId(transactionId.ToProto());
-        CommitChange(
-            TransactionManager, message,
-            &TTransactionManager::AbortTransaction);
+        if (transactionId != NullTransactionId) {
+            TMsgAbortTransaction message;
+            message.SetTransactionId(transactionId.ToProto());
+            CommitChange(
+                TransactionManager, message,
+                &TTransactionManager::AbortTransaction);
+        }
     }
 }
 

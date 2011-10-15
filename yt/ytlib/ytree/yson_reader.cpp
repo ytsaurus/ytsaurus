@@ -36,7 +36,7 @@ void TYsonReader::Read(TInputStream* stream)
 
 Stroka TYsonReader::GetPositionInfo()
 {
-    return Sprintf("(Line: %d, Position: %d, OffsetL %d)", LineIndex, Position, Offset);
+    return Sprintf("(Line: %d, Position: %d, Offset: %d)", LineIndex, Position, Offset);
 }
 
 void TYsonReader::Reset()
@@ -361,25 +361,27 @@ void TYsonReader::ParseNumeric()
 {
     Stroka str = ReadNumeric();
     if (SeemsInteger(str)) {
+        i64 value;
         try {
-            i64 value = FromString<i64>(str);
-            Events->OnInt64Scalar(value);
+            value = FromString<i64>(str);
         } catch (...) {
             // TODO:
             ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON, %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
+        Events->OnInt64Scalar(value);
     } else {
+        double value;
         try {
-            double value = FromString<double>(str);
-            Events->OnDoubleScalar(value);
+            value = FromString<double>(str);
         } catch (...) {
             // TODO:
             ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON, %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
+        Events->OnDoubleScalar(value);
     }
 }
 

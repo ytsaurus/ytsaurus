@@ -17,6 +17,8 @@ TMapNodeProxy::TMapNodeProxy(
 
 void TMapNodeProxy::Clear()
 {
+    ValidateModifiable();
+
     // TODO: refcount
     auto& impl = GetTypedImplForUpdate();
     impl.NameToChild().clear();
@@ -50,6 +52,8 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 
 bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
+    ValidateModifiable();
+
     // TODO: refcount
     auto& impl = GetTypedImplForUpdate();
 
@@ -67,8 +71,9 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& name)
 {
-    // TODO: refcount
+    ValidateModifiable();
 
+    // TODO: refcount
     auto& impl = GetTypedImplForUpdate();
 
     auto it = impl.NameToChild().find(name);
@@ -86,6 +91,8 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
 
 void TMapNodeProxy::RemoveChild(INode::TPtr child)
 {
+    ValidateModifiable();
+
     // TODO: refcount
 
     auto& impl = GetTypedImplForUpdate();
@@ -103,6 +110,8 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
 
 void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
+    ValidateModifiable();
+
     // TODO: refcount
 
     auto& impl = GetTypedImplForUpdate();
@@ -151,7 +160,7 @@ IYPathService::TSetResult TMapNodeProxy::Set(
     TYsonProducer::TPtr producer)
 {
     if (path.empty()) {
-        EnsureModifiable();
+        ValidateModifiable();
         SetNodeFromProducer(IMapNode::TPtr(this), producer);
         return TSetResult::CreateDone();
     }
@@ -164,8 +173,6 @@ IYPathService::TSetResult TMapNodeProxy::Set(
     if (~child != NULL) {
         return TSetResult::CreateRecurse(AsYPath(child), tailPath);
     }
-
-    EnsureModifiable();
 
     if (tailPath.empty()) {
         TTreeBuilder builder(GetFactory());
