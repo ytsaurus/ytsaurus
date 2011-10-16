@@ -9,6 +9,7 @@ SET(YT_SOURCE_FILES
     file_chunk_reader.cpp
     chunk.proto
     holder_channel_cache.cpp
+    sequential_chunk_reader.cpp
 )
 
 

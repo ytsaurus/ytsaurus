@@ -29,6 +29,7 @@ struct IChunkWriter
         (Failed)
     );
 
+    //ToDO: consider renaming to TryWriteBlock
     //! Called when the client wants to upload a new block.
     /*!
      *  This call returns OK if the block is added to the queue. Otherwise it returns TryLater
