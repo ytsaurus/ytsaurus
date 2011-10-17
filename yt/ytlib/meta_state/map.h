@@ -50,6 +50,10 @@ protected:
  * \tparam THash Hash function for keys.
  * 
  * \note All the public methods must be called from one thread
+ * \note TValue must have the following methods:
+ *          TAutoPtr<TValue> Clone();
+ *          void Save(TOutputStream* output);
+ *          static TAutoPtr<TValue> Load(TInputStream* input);
  */
 template <
     class TKey,
@@ -62,8 +66,14 @@ class TMetaStateMap
 public:
     typedef TMetaStateMap<TKey, TValue, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
+
+    /*!
+     * \note If TPatch::Second() == true then the value is to be updated,
+     *       if TPatch::Second() == false then the value is to be removed.
+     */
     typedef TPair<TValue*, bool> TPatch;
-    typedef yhash_map<TKey, TPatch> TPatchMap;
+    typedef yhash_map<TKey, TPatch, THash> TPatchMap;
+
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 
@@ -316,6 +326,7 @@ public:
         VERIFY_THREAD_AFFINITY(UserThread);
 
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        MergeTempTablesIfNeeded();
         return MainMap.begin();
     }
 
@@ -328,6 +339,7 @@ public:
         VERIFY_THREAD_AFFINITY(UserThread);
 
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        MergeTempTablesIfNeeded();
         return MainMap.end();
     }
     
@@ -340,6 +352,7 @@ public:
         VERIFY_THREAD_AFFINITY(UserThread);
 
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        MergeTempTablesIfNeeded();
         return MainMap.begin();
     }
 
@@ -352,6 +365,7 @@ public:
         VERIFY_THREAD_AFFINITY(UserThread);
 
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+        MergeTempTablesIfNeeded();
         return MainMap.end();
     }
 
@@ -413,17 +427,9 @@ private:
     bool IsSavingSnapshot;
 
     TMap MainMap;
-
-    // Each key couldn't be both in UpdateMap and DeletionSet
     TPatchMap PatchMap;
     
     typedef TPair<TKey, TValue*> TItem;
-    
-    //// Default comparer requires TValue to be comparable, we don't need it.
-    //static bool ItemComparer(const TItem& i1, const TItem& i2) 
-    //{
-    //    return i1.first < i2.first;
-    //}
 
     TVoid DoSave(TOutputStream* output)
     {
