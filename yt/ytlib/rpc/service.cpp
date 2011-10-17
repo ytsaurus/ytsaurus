@@ -133,18 +133,18 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
 {
     try {
         action->Do();
-    } catch (const TServiceException& e) {
-        DoReply(e.GetErrorCode());
+    } catch (const TServiceException& ex) {
+        DoReply(ex.GetErrorCode());
         LogException(
             NLog::ELogLevel::Debug,
-            e.GetErrorCode(),
-            e.what());
-    } catch (const NStl::exception& e) {
+            ex.GetErrorCode(),
+            ex.what());
+    } catch (...) {
         DoReply(EErrorCode::ServiceError);
         LogException(
             NLog::ELogLevel::Fatal,
             EErrorCode::ServiceError,
-            e.what());
+            CurrentExceptionMessage());
     }
 }
 
