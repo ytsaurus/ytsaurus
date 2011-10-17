@@ -25,8 +25,10 @@ public:
     TColumn End() const;
 
     NProto::TRange ToProto() const;
+    static TRange FromProto(const NProto::TRange& protoRange);
 
     bool Contains(const TColumn& value) const;
+    bool Contains(const TRange& range) const;
     bool Overlaps(const TRange& range) const;
 
     bool IsInfinite() const;
@@ -49,9 +51,17 @@ public:
     void AddRange(const TColumn& begin, const TColumn& end);
 
     bool Contains(const TColumn& column) const;
+    bool Contains(const TChannel& channel) const;
+    bool Contains(const TRange& range) const;
     bool ContainsInRanges(const TColumn& column) const;
 
+    bool Overlaps(const TChannel& channel) const;
+    bool Overlaps(const TRange& range) const;
+
+    bool IsEmpty() const;
+
     NProto::TChannel ToProto() const;
+    static TChannel FromProto(NProto::TChannel& protoChannel);
 
     const yvector<TColumn>& GetColumns();
 

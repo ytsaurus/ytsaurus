@@ -68,6 +68,8 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+//! Given a sequence of the block indexes can output blocks
+//! one-by-one via async interface with prefetching.
 class TSequentialChunkReader
     : public TRefCountedBase
 {
@@ -77,7 +79,7 @@ public:
     struct TResult
     {
         bool IsOK;
-        TSharedRef Data;
+        TSharedRef Block;
     };
 
     struct TConfig
@@ -91,7 +93,15 @@ public:
         const yvector<int>& blockIndexes,
         IChunkReader::TPtr chunkReader);
 
+    /*!
+     *  Client is not allowed to ask for the next block, 
+     *  until previous one is set. If TResult.IsOK is false,
+     *  then the whole session failed and following calls to
+     *  #AsyncGetNextBlock are forbidden.
+     */
     TFuture<TResult>::TPtr AsyncGetNextBlock();
+
+    static IInvoker::TPtr GetInvoker();
 
 private:
     struct TWindowSlot
@@ -128,11 +138,13 @@ private:
     //! Number of free slots in window
     int FreeSlots;
 
+    //! Block, that has been already requested by client,
+    //! but not delivered from holder yet
     TFuture<TResult>::TPtr PendingResult;
 
     bool HasFailed;
 
-    //! Index in #BlockIndexSequence of next block outputted from TSequentialChunkReader
+    //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader
     int NextSequenceIndex;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);

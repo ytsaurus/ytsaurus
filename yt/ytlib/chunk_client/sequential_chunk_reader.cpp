@@ -69,7 +69,7 @@ void TSequentialChunkReader::OnGotBlocks(
         FOREACH(auto& block, readResult.Blocks) {
             TWindowSlot& slot = GetEmptySlot(sequenceIndex);
             slot.Result.IsOK = true;
-            slot.Result.Data = block;
+            slot.Result.Block = block;
             slot.IsEmpty = false;
         }
     } else {
@@ -182,6 +182,12 @@ TSequentialChunkReader::TWindowSlot& TSequentialChunkReader::GetEmptySlot(int se
     TWindowSlot& slot = Window.GetSlot(sequenceIndex);
     YASSERT(slot.IsEmpty);
     return slot;
+}
+
+// ToDo: consider removing?
+IInvoker::TPtr TSequentialChunkReader::GetInvoker()
+{
+    return ReaderThread->GetInvoker();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
