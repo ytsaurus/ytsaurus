@@ -55,7 +55,7 @@ void SaveSorted(TOutputStream* output, const TSet& set)
             return *lhs < *rhs;
         });
     ::Save(output, vec.size());
-    FOREACH(auto* ptr, vec) {
+    FOREACH(const auto* ptr, vec) {
         ::Save(output, *ptr);
     }
 }
