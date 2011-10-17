@@ -3,7 +3,6 @@
 #include "../ytlib/misc/serialize.h"
 
 #include <util/random/random.h>
-#include <util/system/tempfile.h>
 
 #include <contrib/testing/framework.h>
 
@@ -14,6 +13,8 @@ namespace NUnitTest {
 
 struct TMyInt
 {
+    static THolder<Event> SaveEvent;
+
     int Value;
 
     TMyInt()
@@ -34,6 +35,7 @@ struct TMyInt
 
     void Save(TOutputStream* output) const
     {
+        SaveEvent->Wait();
         Write(*output, Value);
     }
 
@@ -44,6 +46,8 @@ struct TMyInt
         return new TMyInt(value);
     }
 };
+
+THolder<Event> TMyInt::SaveEvent;
 
 class TMetaStateMapTest: public ::testing::Test
 { };
@@ -79,41 +83,50 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 
 TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
 {
-    TTempFileHandle file(GenerateRandomFileName("MetaStateMap"));
-    TBufferedFileOutput output(file);
-    TOutputStream* stream = &output;
+    Stroka snapshotData;
+    TStringOutput output(snapshotData);
 
     NMetaState::TMetaStateMap<TKey, TValue> map;
     TActionQueue::TPtr actionQueue = New<TActionQueue>();
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
+    TMyInt::SaveEvent.Reset(new Event());
+    auto& saveEvent = *TMyInt::SaveEvent;
 
     TFuture<TVoid>::TPtr asyncResult;
 
-    asyncResult = map.Save(invoker, stream);
+    asyncResult = map.Save(invoker, &output);
     map.Insert("b", new TValue(42)); // add to temp table
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in temp tables
 
+    saveEvent.Signal();
     asyncResult->Get();
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in main table
 
-    asyncResult = map.Save(invoker, stream);
+    saveEvent.Reset();
+    asyncResult = map.Save(invoker, &output);
     ASSERT_DEATH(map.Insert("b", new TValue(21)), ".*"); // add existing
+    saveEvent.Signal();
     asyncResult->Get();
     EXPECT_EQ(map.Find("b")->Value, 42); // check find in main table
 
-    asyncResult = map.Save(invoker, stream);
+    saveEvent.Reset();
+    asyncResult = map.Save(invoker, &output);
     map.Remove("b"); // remove
     EXPECT_EQ(map.Find("b") == NULL, true); // check find in temp table
 
+    saveEvent.Signal();
     asyncResult->Get();
     EXPECT_EQ(map.Find("b") == NULL, true); // check find in main table
 
-    asyncResult = map.Save(invoker, stream);
+    saveEvent.Reset();
+    asyncResult = map.Save(invoker, &output);
     ASSERT_DEATH(map.Remove("b"), ".*"); // remove non existing
+    saveEvent.Signal();
     asyncResult->Get();
 
     // update in temp table
-    asyncResult = map.Save(invoker, stream);
+    saveEvent.Reset();
+    asyncResult = map.Save(invoker, &output);
     map.Insert("b", new TValue(999));
 
     TValue* ptr;
@@ -122,16 +135,19 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     ptr->Value = 9000; // update value
     EXPECT_EQ(map.Find("b")->Value, 9000);
 
+    saveEvent.Signal();
     asyncResult->Get();
     EXPECT_EQ(map.Find("b")->Value, 9000);
 
     // update in main table
-    asyncResult = map.Save(invoker, stream);
+    saveEvent.Reset();
+    asyncResult = map.Save(invoker, &output);
     ptr = map.FindForUpdate("b");
     EXPECT_EQ(ptr->Value, 9000);
     ptr->Value = -1; // update value
     EXPECT_EQ(map.Find("b")->Value, -1);
 
+    saveEvent.Signal();
     asyncResult->Get();
     EXPECT_EQ(map.Find("b")->Value, -1);
 }
@@ -142,14 +158,16 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     yhash_map<TKey, int> checkMap;
     TActionQueue::TPtr actionQueue = New<TActionQueue>();
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
+    TMyInt::SaveEvent.Reset(new Event());
+    TMyInt::SaveEvent->Signal();
     Stroka snapshotData;
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
 
-        int numValues = 10000;
-        int range = 1000;
-        for (int i = 0; i < numValues; ++i) {
-            TKey key = ToString(rand() % range);
+        int valueCount = 10000;
+        int valueRange = 1000;
+        for (int i = 0; i < valueCount; ++i) {
+            TKey key = ToString(rand() % valueRange);
             int value = rand();
             bool result = checkMap.insert(MakePair(key, value)).second;
             if (result) {
@@ -158,13 +176,13 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
                 EXPECT_EQ(map.Get(key).Value, checkMap[key]);
             }
         }
-        TStringOutput stream(snapshotData);
-        map.Save(invoker, &stream)->Get();
+        TStringOutput output(snapshotData);
+        map.Save(invoker, &output)->Get();
     }
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
-        TStringInput stream(snapshotData);
-        map.Load(invoker, &stream)->Get();
+        TStringInput input(snapshotData);
+        map.Load(invoker, &input)->Get();
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {
@@ -181,20 +199,19 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
 TEST_F(TMetaStateMapTest, StressSave)
 {
     srand(42); // set seed
-    TTempFileHandle file(GenerateRandomFileName("MetaStateMap"));
-    TBufferedFileOutput output(file);
-    TOutputStream* stream = &output;
+    Stroka snapshotData;
+    TStringOutput output(snapshotData);
 
     yhash_map<TKey, int> checkMap;
     TActionQueue::TPtr actionQueue = New<TActionQueue>();
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
     NMetaState::TMetaStateMap<TKey, TValue> map;
 
-    int numValues = 100000;
-    int range = 100000;
+    int valueCount = 100000;
+    int valueRange = 100000;
 
-    for (int i = 0; i < numValues; ++i) {
-        TKey key = ToString(rand() % range);
+    for (int i = 0; i < valueCount; ++i) {
+        TKey key = ToString(rand() % valueRange);
         int value = rand();
         bool result = checkMap.insert(MakePair(key, value)).second;
         if (result) {
@@ -203,17 +220,19 @@ TEST_F(TMetaStateMapTest, StressSave)
             EXPECT_EQ(map.Get(key).Value, checkMap[key]);
         }
     }
-    TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, stream);
+    TMyInt::SaveEvent.Reset(new Event());
+    TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, &output);
 
-    int numActions = 100000;
-    range = 200000;
-    for (int i = 0; i < numActions; ++i) {
-        TKey key = ToString(rand() % range);
+    int actionCount = 100000;
+    valueRange = 200000;
+    for (int i = 0; i < actionCount; ++i) {
+        TKey key = ToString(rand() % valueRange);
         int value = rand();
 
         int action = rand() % 3;
         if (action == 0) {
-            // insert
+            SCOPED_TRACE("Performing Insert");
+
             bool result = checkMap.insert(MakePair(key, value)).second;
             if (result) {
                 map.Insert(key, new TValue(value));
@@ -222,7 +241,8 @@ TEST_F(TMetaStateMapTest, StressSave)
             }
         }
         if (action == 1) {
-            // update
+            SCOPED_TRACE("Performing Update");
+
             TValue* ptr = map.FindForUpdate(key);
             auto it = checkMap.find(key);
             if (it == checkMap.end()) {
@@ -234,7 +254,8 @@ TEST_F(TMetaStateMapTest, StressSave)
             }
         }
         if (action == 2) {
-            // remove
+            SCOPED_TRACE("Performing Remove");
+
             bool result = checkMap.erase(key) == 1;
             if (result) {
                 map.Remove(key);
@@ -243,6 +264,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             }
         }
     }
+    TMyInt::SaveEvent->Signal();
     asyncResult->Get();
 }
 
