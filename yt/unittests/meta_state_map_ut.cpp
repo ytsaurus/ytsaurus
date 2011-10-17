@@ -139,10 +139,10 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
 TEST_F(TMetaStateMapTest, SaveAndLoad)
 {
     srand(42); // set seed
-    TTempFileHandle file(GenerateRandomFileName("MetaStateMap"));
     yhash_map<TKey, int> checkMap;
     TActionQueue::TPtr actionQueue = New<TActionQueue>();
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
+    Stroka snapshotData;
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
 
@@ -158,16 +158,13 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
                 EXPECT_EQ(map.Get(key).Value, checkMap[key]);
             }
         }
-        TBufferedFileOutput output(file);
-        TOutputStream* stream = &output;
-        map.Save(invoker, stream)->Get();
+        TStringOutput stream(snapshotData);
+        map.Save(invoker, &stream)->Get();
     }
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
-        TBufferedFileInput input(file);
-        TInputStream* stream = &input;
-
-        map.Load(invoker, stream)->Get();
+        TStringInput stream(snapshotData);
+        map.Load(invoker, &stream)->Get();
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {
@@ -232,9 +229,9 @@ TEST_F(TMetaStateMapTest, StressSave)
                 EXPECT_IS_TRUE(ptr == NULL);
             } else {
                 EXPECT_EQ(ptr->Value, it->second);
+                it->second = value;
+                ptr->Value = value;
             }
-            it->second = value;
-            ptr->Value = value;
         }
         if (action == 2) {
             // remove

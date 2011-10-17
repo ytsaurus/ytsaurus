@@ -415,7 +415,7 @@ private:
 
     TVoid DoSave(TOutputStream* output)
     {
-        *output << static_cast<i32>(MainMap.size());
+        ::Save(output, static_cast<i32>(MainMap.size()));
 
         yvector<TItem> items(MainMap.begin(), MainMap.end());
         std::sort(items.begin(), items.end(), ItemComparer);
@@ -433,8 +433,7 @@ private:
     TVoid DoLoad(TInputStream* input)
     {
         i32 size;
-        *input >> size;
-
+        ::Load(input, size);
         YASSERT(size >= 0);
 
         for (i32 index = 0; index < size; ++index) {
