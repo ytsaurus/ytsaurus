@@ -94,12 +94,12 @@ void TYsonReader::ExpectChar(char expectedCh)
 {
     int readCh = ReadChar();
     if (readCh == Eos) {
-        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON, %s",
+        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON %s",
             ~Stroka(expectedCh).Quote(),
             ~GetPositionInfo());
     }
     if (static_cast<char>(readCh) != expectedCh) {
-        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON, %s",
+        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON %s",
             ~Stroka(static_cast<char>(readCh)).Quote(),
             ~Stroka(expectedCh).Quote(),
             ~GetPositionInfo());
