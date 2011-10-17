@@ -26,7 +26,7 @@ protected:
      *   Normal -> LoadingSnapshot,
      *   Normal -> SavingSnapshot,
      *   HasPendingChanges -> Normal
-     * are performed from user thread.
+     * are performed from the user thread.
      *
      * Transitions
      *   LoadingSnapshot -> Normal,
@@ -62,7 +62,8 @@ class TMetaStateMap
 public:
     typedef TMetaStateMap<TKey, TValue, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
-    typedef yhash_set<TKey, THash> TKeySet;
+    typedef TPair<TValue*, bool> TPatch;
+    typedef yhash_map<TKey, TPatch> TPatchMap;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 
@@ -80,11 +81,14 @@ public:
                     delete pair.Second();
                 }
                 MainMap.clear();
-                FOREACH (const auto& pair, UpdateMap) {
-                    delete pair.Second();
+                FOREACH (const auto& pair, PatchMap) {
+                    if (pair.Second().Second()) {
+                        delete pair.Second().First();
+                    } else {
+                        YASSERT(pair.Second().First() == NULL);
+                    }
                 }
-                UpdateMap.clear();
-                DeletionSet.clear();
+                PatchMap.clear();
                 break;
         }
     }
@@ -99,15 +103,17 @@ public:
         VERIFY_THREAD_AFFINITY(UserThread);
 
         switch (State) {
-            case EState::SavingSnapshot:
-                if (DeletionSet.erase(key) > 0) {
-                    YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
-                } else {
+            case EState::SavingSnapshot: {
+                auto patchIt = PatchMap.find(key);
+                if (patchIt == PatchMap.end()) {
                     YASSERT(MainMap.find(key) == MainMap.end());
-                    YVERIFY(UpdateMap.insert(MakePair(key, value)).Second());
+                    YVERIFY(PatchMap.insert(MakePair(key, MakePair(value, true))).Second());
+                } else {
+                    YASSERT(!patchIt->Second().Second());
+                    patchIt->Second() = MakePair(value, true);
                 }
                 break;
-
+            }
             case EState::HasPendingChanges:
             case EState::Normal:
                 MergeTempTablesIfNeeded();
@@ -130,17 +136,10 @@ public:
 
         switch (State) {
             case EState::SavingSnapshot: {
-                auto insertionIt = UpdateMap.find(key);
-                if (insertionIt != UpdateMap.end()) {
-                    YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                    return insertionIt->Second();
+                auto patchIt = PatchMap.find(key);
+                if (patchIt != PatchMap.end()) {
+                    return patchIt->Second().First();
                 }
-
-                auto deletionIt = DeletionSet.find(key);
-                if (deletionIt != DeletionSet.end()) {
-                    return NULL;
-                }
-
                 break;
             }
             case EState::HasPendingChanges:
@@ -173,15 +172,10 @@ public:
                 return mapIt == MainMap.end() ? NULL : mapIt->Second();
             }
             case EState::SavingSnapshot: {
-                auto insertionIt = UpdateMap.find(key);
-                if (insertionIt != UpdateMap.end()) {
-                    YASSERT(DeletionSet.find(key) == DeletionSet.end());
-                    return insertionIt->Second();
-                }
-
-                if (DeletionSet.find(key) != DeletionSet.end()) {
-                    return NULL;
-                }              
+                auto patchIt = PatchMap.find(key);
+                if (patchIt != PatchMap.end()) {
+                    return patchIt->Second().First();
+                }         
 
                 auto mapIt = MainMap.find(key);
                 if (mapIt == MainMap.end()) {
@@ -189,9 +183,9 @@ public:
                 }
 
                 TAutoPtr<TValue> clonedValue = mapIt->Second()->Clone();
-                auto insertionPair = UpdateMap.insert(MakePair(key, clonedValue.Release()));
-                YASSERT(insertionPair.Second());
-                return insertionPair.First()->Second();
+                auto patchPair = PatchMap.insert(
+                    MakePair(key, MakePair(clonedValue.Release(), true)));
+                return patchPair.First()->Second().First();
             }
             default:
                 YUNREACHABLE();
@@ -244,15 +238,23 @@ public:
                 MainMap.erase(it);
                 break;
             }
-            case EState::SavingSnapshot:
-                if (MainMap.find(key) == MainMap.end()) {
-                    YVERIFY(UpdateMap.erase(key) > 0);
+            case EState::SavingSnapshot: {
+                auto patchIt = PatchMap.find(key);
+                auto mainIt = MainMap.find(key);
+                if (patchIt == PatchMap.end()) {
+                    YASSERT(mainIt != MainMap.end());
+                    YVERIFY(PatchMap.insert(MakePair(key, TPatch(NULL, false))).Second());
                 } else {
-                    UpdateMap.erase(key);
-                    YVERIFY(DeletionSet.insert(key).Second());
+                    YASSERT(patchIt->Second().Second());
+                    delete patchIt->Second().First();
+                    if (mainIt == MainMap.end()) {
+                        PatchMap.erase(patchIt);
+                    } else {
+                        patchIt->Second() = TPatch(NULL, false);
+                    }
                 }
                 break;
-
+            }
             default:
                 YUNREACHABLE();
         }
@@ -275,20 +277,33 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        if (State == EState::Normal) {
-            FOREACH(const auto& pair, MainMap) {
-                delete pair.Second();
+         switch (State) {
+            case EState::HasPendingChanges:
+            case EState::Normal: {
+                MergeTempTablesIfNeeded();
+                FOREACH(const auto& pair, MainMap) {
+                    delete pair.Second();
+                }
+                MainMap.clear();
+                break;
             }
-            MainMap.clear();
-        } else {
-            FOREACH (const auto& pair, UpdateMap) {
-                delete pair.Second();
-            }
-            UpdateMap.clear();
+            case EState::SavingSnapshot: {
+                FOREACH (const auto& pair, PatchMap) {
+                    if (pair.Second().Second()) {
+                        delete pair.Second().First();
+                    } else {
+                        YASSERT(pair.Second().First() == NULL);
+                    }
+                }
+                PatchMap.clear();
 
-            FOREACH(const auto& pair, MainMap) {
-                DeletionSet.insert(pair.first);
+                FOREACH (const auto& pair, MainMap) {
+                    PatchMap.insert(MakePair(pair.First(), TPatch(NULL, false)));
+                }
+                break;
             }
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -357,8 +372,7 @@ public:
         MergeTempTablesIfNeeded();
         YASSERT(State == EState::Normal);
 
-        YASSERT(UpdateMap.empty());
-        YASSERT(DeletionSet.empty());
+        YASSERT(PatchMap.empty());
         State = EState::SavingSnapshot;
        
         return
@@ -384,8 +398,7 @@ public:
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         
         MainMap.clear();
-        UpdateMap.clear();
-        DeletionSet.clear();
+        PatchMap.clear();
         State = EState::LoadingSnapshot;
 
         return
@@ -402,23 +415,22 @@ private:
     TMap MainMap;
 
     // Each key couldn't be both in UpdateMap and DeletionSet
-    TMap UpdateMap;
-    TKeySet DeletionSet;
+    TPatchMap PatchMap;
     
     typedef TPair<TKey, TValue*> TItem;
     
-    // Default comparer requires TValue to be comparable, we don't need it.
-    static bool ItemComparer(const TItem& i1, const TItem& i2) 
-    {
-        return i1.first < i2.first;
-    }
+    //// Default comparer requires TValue to be comparable, we don't need it.
+    //static bool ItemComparer(const TItem& i1, const TItem& i2) 
+    //{
+    //    return i1.first < i2.first;
+    //}
 
     TVoid DoSave(TOutputStream* output)
     {
         ::Save(output, static_cast<i32>(MainMap.size()));
 
         yvector<TItem> items(MainMap.begin(), MainMap.end());
-        std::sort(items.begin(), items.end(), ItemComparer);
+        Sort(items.begin(), items.end());
 
         FOREACH(const auto& item, items) {
             ::Save(output, item.First());
@@ -452,27 +464,23 @@ private:
     {
         if (State != EState::HasPendingChanges) return;
 
-        FOREACH(const auto& pair, UpdateMap) {
-            YASSERT(DeletionSet.find(pair.first) == DeletionSet.end());
-            auto it = MainMap.find(pair.First());
-            if (it != MainMap.end()) {
-                delete it->Second();
-                it->Second() = pair.Second();
+        FOREACH(const auto& pair, PatchMap) {
+            auto& patch = pair.Second();
+            auto mainIt = MainMap.find(pair.First());
+            if (patch.Second()) {
+                if (mainIt == MainMap.end()) {
+                    YVERIFY(MainMap.insert(MakePair(pair.First(), patch.First())).Second());
+                } else {
+                    delete mainIt->Second();
+                    mainIt->Second() = patch.First();
+                }
             } else {
-                MainMap.insert(pair);
+                YASSERT(mainIt != MainMap.end());
+                delete mainIt->Second();
+                MainMap.erase(mainIt);
             }
         }
-
-        FOREACH(const auto& key, DeletionSet) {
-            YASSERT(UpdateMap.find(key) == UpdateMap.end());
-            auto it = MainMap.find(key);
-            YASSERT(it != MainMap.end());
-            delete it->Second();
-            MainMap.erase(it);
-        }
-
-        UpdateMap.clear();
-        DeletionSet.clear();
+        PatchMap.clear();
 
         State = EState::Normal;
     }
