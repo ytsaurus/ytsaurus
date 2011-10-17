@@ -84,7 +84,7 @@ Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
                 charCount,
                 ~GetPositionInfo());
         }
-        result.push_back(ch);
+        result.push_back(static_cast<char>(ch));
     }
     return result;
 }
