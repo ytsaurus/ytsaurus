@@ -83,7 +83,12 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s", ~path);
+    LOG_INFO("Cleaning temp files in %s",
+        ~path.Quote());
+
+    if (!isexist(~path))
+        return;
+
     TFileList fileList;
     fileList.Fill(path);
     const char* fileName;
