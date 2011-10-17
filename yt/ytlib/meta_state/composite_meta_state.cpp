@@ -16,10 +16,10 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
 
-    metaStateManager->OnStartLeading2().Subscribe(FromMethod(
+    metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
-    metaStateManager->OnStopLeading2().Subscribe(FromMethod(
+    metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));
 }

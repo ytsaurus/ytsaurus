@@ -4,6 +4,7 @@
 #include "transaction.h"
 #include "transaction_manager.pb.h"
 
+#include "../misc/lease_manager.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"
