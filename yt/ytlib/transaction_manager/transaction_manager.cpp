@@ -43,7 +43,7 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgCreateTransaction
 
     OnTransactionStarted_.Fire(*transaction);
 
-    LOG_INFO("Transaction started (TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s)",
         ~id.ToString());
 
     return id;
@@ -65,7 +65,7 @@ NYT::TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& m
 
     TransactionMap.Remove(id);
 
-    LOG_INFO("Transaction committed (TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)",
         ~id.ToString());
 
     return TVoid();
@@ -87,7 +87,7 @@ NYT::TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& mes
 
     TransactionMap.Remove(id);
 
-    LOG_INFO("Transaction aborted (TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)",
         ~id.ToString());
 
     return TVoid();
