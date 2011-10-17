@@ -106,7 +106,7 @@ public:
     //! Inserts a key-value pair.
     /*!
      * \note Value is owned by map after insertion.
-     * 'note Fails if the key is already in map.
+     * \note Fails if the key is already in map.
      */
     void Insert(const TKey& key, TValue* value)
     {
@@ -168,7 +168,7 @@ public:
     //! Tries to find a value by its key. May return a modifiable copy if snapshot creation is in progress.
     /*!
      * \param key A key.
-     * \return Pointer to the value if found,  otherwise.
+     * \return Pointer to the value if found, NULL otherwise.
      */
     TValue* FindForUpdate(const TKey& key)
     {
