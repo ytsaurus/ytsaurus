@@ -76,6 +76,10 @@ struct ICypressNode
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     virtual yhash_set<TLockId>& LockIds() = 0;
 
+    virtual void Ref() = 0;
+    virtual void Unref() = 0;
+    virtual int GetRefCounter() const = 0;
+
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
@@ -103,10 +107,15 @@ public:
 
     virtual TBranchedNodeId GetId() const;
 
+    virtual void Ref();
+    virtual void Unref();
+    virtual int GetRefCounter() const;
+
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
     TBranchedNodeId Id;
+    int RefCounter;
 
 };
 

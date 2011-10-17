@@ -101,6 +101,8 @@ ICypressNode& TCypressManager::BranchNode(const ICypressNode& node, const TTrans
     YASSERT(!node.GetId().IsBranched());
     auto nodeId = node.GetId().NodeId;
     auto branchedNode = node.Branch(transactionId);
+    YASSERT(branchedNode->GetRefCounter() == 0);
+    branchedNode->Ref();
     branchedNode->SetState(ENodeState::Branched);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.BranchedNodeIds().push_back(nodeId);
@@ -188,10 +190,16 @@ TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* stream, IInvoker::TPtr 
 
 void TCypressManager::Clear()
 {
-    TBranchedNodeId id(RootNodeId, NullTransactionId);
-    auto* root = new TMapNode(id);
+    CreateWorld();
+}
+
+void TCypressManager::CreateWorld()
+{
+    // / (the root)
+    auto* root = new TMapNode(TBranchedNodeId(RootNodeId, NullTransactionId));
     root->SetState(ENodeState::Committed);
-    NodeMap.Insert(id, root);
+    root->Ref();
+    NodeMap.Insert(root->GetId(), root);
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)

@@ -18,9 +18,14 @@ TMapNodeProxy::TMapNodeProxy(
 void TMapNodeProxy::Clear()
 {
     ValidateModifiable();
-
-    // TODO: refcount
+    
     auto& impl = GetTypedImplForUpdate();
+
+    FOREACH(auto& pair, impl.NameToChild()) {
+        auto& childImpl = GetImplForUpdate(pair.Second());
+        childImpl.Unref();
+    }
+
     impl.NameToChild().clear();
     impl.ChildToName().clear();
 }
@@ -54,13 +59,14 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
     ValidateModifiable();
 
-    // TODO: refcount
     auto& impl = GetTypedImplForUpdate();
 
     auto childProxy = ToProxy(child);
     auto childId = childProxy->GetNodeId();
+    auto& childImpl = childProxy->GetImplForUpdate();
 
     if (impl.NameToChild().insert(MakePair(name, childId)).Second()) {
+        childImpl.Ref();
         YVERIFY(impl.ChildToName().insert(MakePair(childId, name)).Second());
         childProxy->GetImplForUpdate().SetParentId(NodeId);
         return true;
@@ -73,7 +79,6 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
 {
     ValidateModifiable();
 
-    // TODO: refcount
     auto& impl = GetTypedImplForUpdate();
 
     auto it = impl.NameToChild().find(name);
@@ -83,9 +88,13 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
     const auto& childId = it->Second();
     auto childProxy = GetProxy<ICypressNodeProxy>(childId);
     auto& childImpl = childProxy->GetImplForUpdate();
+    
+    childImpl.Unref();
     childImpl.SetParentId(NullNodeId);
+
     impl.NameToChild().erase(it);
     YVERIFY(impl.ChildToName().erase(childId) == 1);
+    
     return true;
 }
 
@@ -93,12 +102,13 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
 {
     ValidateModifiable();
 
-    // TODO: refcount
-
     auto& impl = GetTypedImplForUpdate();
     
     auto childProxy = ToProxy(child);
-    childProxy->GetImplForUpdate().SetParentId(NullNodeId);
+    auto& childImpl = childProxy->GetImplForUpdate();
+
+    childImpl.Unref();
+    childImpl.SetParentId(NullNodeId);
 
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
@@ -115,23 +125,25 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     ValidateModifiable();
 
-    // TODO: refcount
-
     auto& impl = GetTypedImplForUpdate();
 
     auto oldChildProxy = ToProxy(oldChild);
+    auto& oldChildImpl = oldChildProxy->GetImplForUpdate();
     auto newChildProxy = ToProxy(newChild);
+    auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl.ChildToName().find(oldChildProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
 
     Stroka name = it->Second();
 
-    oldChildProxy->GetImplForUpdate().SetParentId(NullNodeId);
+    oldChildImpl.Unref();
+    oldChildImpl.SetParentId(NullNodeId);
     impl.ChildToName().erase(it);
 
     impl.NameToChild()[name] = newChildProxy->GetNodeId();
-    newChildProxy->GetImplForUpdate().SetParentId(NodeId);
+    newChildImpl.Ref();
+    newChildImpl.SetParentId(NodeId);
     YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).Second());
 }
 

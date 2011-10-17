@@ -95,6 +95,8 @@ private:
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
+    void CreateWorld();
+
     void OnTransactionCommitted(TTransaction& transaction);
     void OnTransactionAborted(TTransaction& transaction);
 

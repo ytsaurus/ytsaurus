@@ -53,18 +53,35 @@ namespace NCypress {
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
     : ParentId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
+    , RefCounter(0)
     , Id(id)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , State_(other.State_)
+    , RefCounter(0)
     , Id(id)
 { }
 
 NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
+}
+
+void TCypressNodeBase::Ref()
+{
+    ++RefCounter;
+}
+
+void TCypressNodeBase::Unref()
+{
+    --RefCounter;
+}
+
+int TCypressNodeBase::GetRefCounter() const
+{
+    return RefCounter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
