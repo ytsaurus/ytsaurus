@@ -1,4 +1,6 @@
-﻿#include "schema.h"
+#include "schema.h"
+
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NTableClient {

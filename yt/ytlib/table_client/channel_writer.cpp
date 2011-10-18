@@ -1,4 +1,4 @@
-﻿#include "channel_writer.h"
+#include "channel_writer.h"
 
 #include "../misc/serialize.h"
 
@@ -11,6 +11,9 @@ TBlobOutput::TBlobOutput(size_t size = 0)
 {
     Blob.reserve(size);
 }
+
+TBlobOutput::~TBlobOutput() throw()
+{ }
 
 void TBlobOutput::DoWrite(const void* buf, size_t len)
 {

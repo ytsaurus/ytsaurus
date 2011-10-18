@@ -1,6 +1,7 @@
 #include "composite_meta_state.h"
 
 #include "../misc/foreach.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NMetaState {

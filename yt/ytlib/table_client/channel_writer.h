@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "common.h"
 #include "value.h"
@@ -18,6 +18,7 @@ public:
      * \param size - size of blob reserved in ctor
      */
     TBlobOutput(size_t size);
+    ~TBlobOutput() throw();
 
     void DoWrite(const void* buf, size_t len);
 

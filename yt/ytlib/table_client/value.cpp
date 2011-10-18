@@ -1,6 +1,7 @@
-﻿#include "value.h"
+#include "value.h"
 
 #include "../misc/serialize.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NTableClient {
