@@ -74,13 +74,13 @@ double TLocation::GetLoadFactor() const
 void TLocation::IncSessionCount()
 {
     ++SessionCount;
-    LOG_DEBUG("Location %s has %i sessions", ~Path, SessionCount);
+    LOG_DEBUG("Location %s has %d sessions", ~Path, SessionCount);
 }
 
 void TLocation::DecSessionCount()
 {
     --SessionCount;
-    LOG_DEBUG("Location %s has %i sessions", ~Path, SessionCount);
+    LOG_DEBUG("Location %s has %d sessions", ~Path, SessionCount);
 }
     
 int TLocation::GetSessionCount() const
