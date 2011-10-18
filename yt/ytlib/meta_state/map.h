@@ -66,14 +66,6 @@ class TMetaStateMap
 public:
     typedef TMetaStateMap<TKey, TValue, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
-
-    /*!
-     * \note If TPatch::Second() == true then the value is to be updated,
-     *       if TPatch::Second() == false then the value is to be removed.
-     */
-    typedef TPair<TValue*, bool> TPatch;
-    typedef yhash_map<TKey, TPatch, THash> TPatchMap;
-
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 
@@ -92,10 +84,8 @@ public:
                 }
                 MainMap.clear();
                 FOREACH (const auto& pair, PatchMap) {
-                    if (pair.Second().Second()) {
-                        delete pair.Second().First();
-                    } else {
-                        YASSERT(pair.Second().First() == NULL);
+                    if (pair.Second() != NULL) {
+                        delete pair.Second();
                     }
                 }
                 PatchMap.clear();
@@ -111,16 +101,17 @@ public:
     void Insert(const TKey& key, TValue* value)
     {
         VERIFY_THREAD_AFFINITY(UserThread);
+        YASSERT(value != NULL);
 
         switch (State) {
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
                 if (patchIt == PatchMap.end()) {
                     YASSERT(MainMap.find(key) == MainMap.end());
-                    YVERIFY(PatchMap.insert(MakePair(key, MakePair(value, true))).Second());
+                    YVERIFY(PatchMap.insert(MakePair(key, value)).Second());
                 } else {
-                    YASSERT(!patchIt->Second().Second());
-                    patchIt->Second() = MakePair(value, true);
+                    YASSERT(patchIt->Second() == NULL);
+                    patchIt->Second() = value;
                 }
                 break;
             }
@@ -148,7 +139,7 @@ public:
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
                 if (patchIt != PatchMap.end()) {
-                    return patchIt->Second().First();
+                    return patchIt->Second();
                 }
                 break;
             }
@@ -184,7 +175,7 @@ public:
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
                 if (patchIt != PatchMap.end()) {
-                    return patchIt->Second().First();
+                    return patchIt->Second();
                 }         
 
                 auto mapIt = MainMap.find(key);
@@ -192,10 +183,9 @@ public:
                     return NULL;
                 }
 
-                TAutoPtr<TValue> clonedValue = mapIt->Second()->Clone();
-                auto patchPair = PatchMap.insert(
-                    MakePair(key, MakePair(clonedValue.Release(), true)));
-                return patchPair.First()->Second().First();
+                TValue* clonedValue = mapIt->Second()->Clone().Release();
+                YVERIFY(PatchMap.insert(MakePair(key, clonedValue)).Second());
+                return clonedValue;
             }
             default:
                 YUNREACHABLE();
@@ -212,7 +202,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        auto value = Find(key);
+        auto* value = Find(key);
         YASSERT(value != NULL);
         return *value;
     }
@@ -227,7 +217,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        auto value = FindForUpdate(key);
+        auto* value = FindForUpdate(key);
         YASSERT(value != NULL);
         return *value;
     }
@@ -253,14 +243,14 @@ public:
                 auto mainIt = MainMap.find(key);
                 if (patchIt == PatchMap.end()) {
                     YASSERT(mainIt != MainMap.end());
-                    YVERIFY(PatchMap.insert(MakePair(key, TPatch(NULL, false))).Second());
+                    YVERIFY(PatchMap.insert(TItem(key, NULL)).Second());
                 } else {
-                    YASSERT(patchIt->Second().Second());
-                    delete patchIt->Second().First();
+                    YASSERT(patchIt->Second() != NULL);
+                    delete patchIt->Second();
                     if (mainIt == MainMap.end()) {
                         PatchMap.erase(patchIt);
                     } else {
-                        patchIt->Second() = TPatch(NULL, false);
+                        patchIt->Second() = NULL;
                     }
                 }
                 break;
@@ -299,16 +289,14 @@ public:
             }
             case EState::SavingSnapshot: {
                 FOREACH (const auto& pair, PatchMap) {
-                    if (pair.Second().Second()) {
-                        delete pair.Second().First();
-                    } else {
-                        YASSERT(pair.Second().First() == NULL);
+                    if (pair.Second() != NULL) {
+                        delete pair.Second();
                     }
                 }
                 PatchMap.clear();
 
                 FOREACH (const auto& pair, MainMap) {
-                    PatchMap.insert(MakePair(pair.First(), TPatch(NULL, false)));
+                    PatchMap.insert(TItem(pair.First(), NULL));
                 }
                 break;
             }
@@ -427,7 +415,7 @@ private:
     bool IsSavingSnapshot;
 
     TMap MainMap;
-    TPatchMap PatchMap;
+    TMap PatchMap; // A pair (key, NULL) in PatchMap means that the key should be deleted
     
     typedef TPair<TKey, TValue*> TItem;
 
@@ -470,15 +458,15 @@ private:
     {
         if (State != EState::HasPendingChanges) return;
 
-        FOREACH(const auto& pair, PatchMap) {
-            auto& patch = pair.Second();
+        FOREACH (const auto& pair, PatchMap) {
+            auto* value = pair.Second();
             auto mainIt = MainMap.find(pair.First());
-            if (patch.Second()) {
+            if (value != NULL) {
                 if (mainIt == MainMap.end()) {
-                    YVERIFY(MainMap.insert(MakePair(pair.First(), patch.First())).Second());
+                    YVERIFY(MainMap.insert(MakePair(pair.First(), value)).Second());
                 } else {
                     delete mainIt->Second();
-                    mainIt->Second() = patch.First();
+                    mainIt->Second() = value;
                 }
             } else {
                 YASSERT(mainIt != MainMap.end());
