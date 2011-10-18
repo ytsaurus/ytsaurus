@@ -1,7 +1,66 @@
 #include "node_proxy.h"
 
+#include "../ytree/fluent.h"
+
 namespace NYT {
 namespace NCypress {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAttributeProviderBase::GetAttributeNames(
+    TCypressManager::TPtr cypressManager,
+    const ICypressNode& node,
+    yvector<Stroka>& names)
+{
+    UNUSED(cypressManager);
+    UNUSED(node);
+    FOREACH (const auto& name, Names) {
+        names.push_back(name);
+    }
+}
+
+bool TAttributeProviderBase::GetAttribute(
+    TCypressManager::TPtr cypressManager,
+    const ICypressNode& node,
+    const Stroka& name,
+    IYsonConsumer* consumer)
+{
+    auto it = Getters.find(name);
+    if (it == Getters.end())
+        return false;
+
+    TGetRequest request;
+    request.CypressManager = cypressManager;
+    request.Node = &node;
+    request.Consumer = consumer;
+
+    it->Second()->Do(request);
+    return true;
+}
+
+void TAttributeProviderBase::RegisterGetter(const Stroka& name, TGetter::TPtr getter)
+{
+    Names.insert(name);
+    YVERIFY(Getters.insert(MakePair(name, getter)).Second());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAttributeProvider* TCypressNodeAttributeProvider::Get()
+{
+    return Singleton<TCypressNodeAttributeProvider>();
+}
+
+TCypressNodeAttributeProvider::TCypressNodeAttributeProvider()
+{
+    RegisterGetter("id", FromMethod(&TThis::GetId));
+}
+
+void TCypressNodeAttributeProvider::GetId(const TGetRequest& request)
+{
+    TFluentYsonBuilder::Create(request.Consumer)
+        .Scalar(request.Node->GetId().NodeId.ToString());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,19 +202,15 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 }
 
 // TODO: maybe extract base?
-IYPathService::TNavigateResult TMapNodeProxy::Navigate(TYPath path)
+IYPathService::TNavigateResult TMapNodeProxy::DoNavigate(TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
     Stroka prefix;
     TYPath tailPath;
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        throw TYPathException() << Sprintf("Child %s it not found",
+        throw TYTreeException() << Sprintf("Child %s it not found",
             ~prefix.Quote());
     }
 
@@ -329,13 +384,9 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 }
 
 // TODO: maybe extract base?
-IYPathService::TNavigateResult TListNodeProxy::Navigate(
+IYPathService::TNavigateResult TListNodeProxy::DoNavigate(
     TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
     Stroka prefix;
     TYPath tailPath;
     ChopYPathPrefix(path, &prefix, &tailPath);
@@ -344,7 +395,7 @@ IYPathService::TNavigateResult TListNodeProxy::Navigate(
     try {
         index = FromString<int>(prefix);
     } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
+        throw TYTreeException() << Sprintf("Failed to parse child index %s",
             ~prefix.Quote());
     }
 
@@ -364,7 +415,7 @@ IYPathService::TSetResult TListNodeProxy::Set(
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     if (prefix.empty()) {
-        throw TYPathException() << "Empty child index";
+        throw TYTreeException() << "Empty child index";
     }
 
     if (prefix == "+") {
@@ -383,7 +434,7 @@ IYPathService::TSetResult TListNodeProxy::Set(
     try {
         index = FromString<int>(indexString);
     } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
+        throw TYTreeException() << Sprintf("Failed to parse child index %s",
             ~Stroka(indexString).Quote());
     }
 
@@ -422,11 +473,11 @@ IYPathService::TNavigateResult TListNodeProxy::GetYPathChild(
 {
     int count = GetChildCount();
     if (count == 0) {
-        throw TYPathException() << "List is empty";
+        throw TYTreeException() << "List is empty";
     }
 
     if (index < 0 || index >= count) {
-        throw TYPathException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
+        throw TYTreeException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
             index,
             count - 1);
     }

@@ -27,6 +27,75 @@ struct ICypressNodeProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IAttributeProvider
+{
+    virtual ~IAttributeProvider()
+    { }
+
+    virtual void GetAttributeNames(
+        TCypressManager::TPtr cypressManager,
+        const ICypressNode& node,
+        yvector<Stroka>& names) = 0;
+
+    virtual bool GetAttribute(
+        TCypressManager::TPtr cypressManager,
+        const ICypressNode& node,
+        const Stroka& name,
+        IYsonConsumer* consumer) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAttributeProviderBase
+    : public IAttributeProvider
+{
+public:
+    virtual void GetAttributeNames(
+        TCypressManager::TPtr cypressManager,
+        const ICypressNode& node,
+        yvector<Stroka>& names);
+
+    virtual bool GetAttribute(
+        TCypressManager::TPtr cypressManager,
+        const ICypressNode& node,
+        const Stroka& name,
+        IYsonConsumer* consumer);
+
+protected:
+    struct TGetRequest
+    {
+        TCypressManager::TPtr CypressManager;
+        const ICypressNode* Node;
+        IYsonConsumer* Consumer;
+    };
+
+    typedef IParamAction<const TGetRequest&> TGetter;
+
+    yhash_set<Stroka> Names;
+    yhash_map<Stroka, TGetter::TPtr> Getters;
+
+    void RegisterGetter(const Stroka& name, TGetter::TPtr getter);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressNodeAttributeProvider
+    : public TAttributeProviderBase
+    , private TNonCopyable
+{
+public:
+    static IAttributeProvider* Get();
+
+    TCypressNodeAttributeProvider();
+
+private:
+    typedef TCypressNodeAttributeProvider TThis;
+
+    static void GetId(const TGetRequest& request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeFactory
     : public INodeFactory
 {
@@ -126,6 +195,7 @@ public:
         return this->GetTypedImplForUpdate();
     }
 
+
     virtual ICompositeNode::TPtr GetParent() const
     {
         return GetProxy<ICompositeNode>(GetImpl().GetParentId());
@@ -133,20 +203,20 @@ public:
 
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
-        auto parentProxy = ToProxy(INode::TPtr(~parent));
-        GetImplForUpdate().SetParentId(parentProxy->GetNodeId());
+        auto proxy = ToProxy(INode::TPtr(~parent));
+        GetImplForUpdate().SetParentId(~proxy == NULL ? NullNodeId : proxy->GetNodeId());
     }
 
 
     virtual IMapNode::TPtr GetAttributes() const
     {
-        return NULL;
+        return GetProxy<IMapNode>(GetImpl().GetAttributesId());
     }
 
     virtual void SetAttributes(IMapNode::TPtr attributes)
     {
-        UNUSED(attributes);
-        YASSERT(false);
+        auto proxy = ToProxy(INode::TPtr(~attributes));
+        GetImplForUpdate().SetAttributesId(~proxy == NULL ? NullNodeId : proxy->GetNodeId());
     }
 
 
@@ -223,6 +293,9 @@ protected:
     template <class T>
     TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
     {
+        if (nodeId == NullNodeId)
+            return NULL;
+
         auto node = CypressManager->FindNode(nodeId, TransactionId);
         YASSERT(~node != NULL);
         return dynamic_cast<T*>(~node);
@@ -230,7 +303,6 @@ protected:
 
     static typename ICypressNodeProxy::TPtr ToProxy(INode::TPtr node)
     {
-        YASSERT(~node != NULL);
         return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
@@ -238,7 +310,7 @@ protected:
     void EnsureInTransaction()
     {
         if (TransactionId == NullTransactionId) {
-            throw TYPathException() << "Cannot modify the node outside of a transaction";
+            throw TYTreeException() << "Cannot modify the node outside of a transaction";
         }
     }
 
@@ -286,14 +358,14 @@ protected:
 
         // Make sure that the node is committed.
         if (impl.GetState() != ENodeState::Committed) {
-            throw TYPathException() << "Cannot lock an uncommitted node";
+            throw TYTreeException() << "Cannot lock an uncommitted node";
         }
 
         // Make sure that the node is not locked by another transaction.
         FOREACH (const auto& lockId, impl.LockIds()) {
             const auto& lock = CypressManager->GetLock(lockId);
             if (lock.GetTransactionId() != TransactionId) {
-                throw TYPathException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
+                throw TYTreeException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
                     ~lock.GetTransactionId().ToString());
             }
         }
@@ -327,6 +399,24 @@ protected:
         if (child.GetState() == ENodeState::Uncommitted) {
             CypressManager->UnrefNode(child);
         }
+    }
+
+
+    virtual IAttributeProvider* GetAttributeProvider()
+    {
+        return TCypressNodeAttributeProvider::Get();
+    }
+
+    virtual yvector<Stroka> GetVirtualAttributeNames()
+    {
+        yvector<Stroka> names;
+        GetAttributeProvider()->GetAttributeNames(CypressManager, GetImpl(), names);
+        return names;
+    }
+
+    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
+    {
+        return GetAttributeProvider()->GetAttribute(CypressManager, GetImpl(), name, consumer);
     }
 };
 
@@ -470,8 +560,11 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(TYPath path);
     virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
+
+private:
+    virtual TNavigateResult DoNavigate(TYPath path);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,10 +589,10 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(TYPath path);
     virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 
 private:
+    virtual TNavigateResult DoNavigate(TYPath path);
     TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
     TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath, TYsonProducer::TPtr producer);
 

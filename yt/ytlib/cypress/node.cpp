@@ -52,6 +52,7 @@ namespace NCypress {
 
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
     : ParentId_(NullNodeId)
+    , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
     , RefCounter(0)
     , Id(id)
@@ -59,6 +60,7 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
 
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
+    , AttributesId_(other.AttributesId_)
     , State_(other.State_)
     , RefCounter(0)
     , Id(id)
@@ -89,6 +91,27 @@ void TCypressNodeBase::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
     YASSERT(Id.NodeId != RootNodeId);
     YASSERT(!Id.IsBranched());
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
+}
+
+void TCypressNodeBase::Merge(
+    TIntrusivePtr<TCypressManager> cypressManager,
+    ICypressNode& branchedNode)
+{
+   if (GetAttributesId() != NullNodeId) {
+        auto& impl = cypressManager->GetNodeForUpdate(TBranchedNodeId(AttributesId_, NullTransactionId));
+        if (impl.GetState() == ENodeState::Committed) {
+            cypressManager->RefNode(impl);
+        }
+    }
+
+    if (branchedNode.GetAttributesId() != NullNodeId) {
+        auto& impl = cypressManager->GetNodeForUpdate(TBranchedNodeId(branchedNode.GetAttributesId(), NullTransactionId));
+        if (impl.GetState() == ENodeState::Committed) {
+            cypressManager->UnrefNode(impl);
+        }
+    }
+
+    SetAttributesId(branchedNode.GetAttributesId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +146,8 @@ void TMapNode::Merge(
     TIntrusivePtr<TCypressManager> cypressManager,
     ICypressNode& branchedNode)
 {
+    TCypressNodeBase::Merge(cypressManager, branchedNode);
+
     auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
 
     FOREACH (const auto& pair, typedBranchedNode.NameToChild_) {
@@ -190,6 +215,8 @@ void TListNode::Merge(
     TIntrusivePtr<TCypressManager> cypressManager,
     ICypressNode& branchedNode)
 {
+    TCypressNodeBase::Merge(cypressManager, branchedNode);
+
     auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
     
     FOREACH (const auto& nodeId, typedBranchedNode.IndexToChild_) {

@@ -78,10 +78,15 @@ struct ICypressNode
     //! Sets node state.
     virtual void SetState(const ENodeState& value) = 0;
 
-    //! Gets node parent id.
+    //! Gets parent node id.
     virtual TNodeId GetParentId() const = 0;
-    //! Sets node parent id.
+    //! Sets parent node id.
     virtual void SetParentId(const TNodeId& value) = 0;
+
+    //! Gets attributes node id.
+    virtual TNodeId GetAttributesId() const = 0;
+    //! Sets attributes node id.
+    virtual void SetAttributesId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.
     virtual const yhash_set<TLockId>& LockIds() const = 0;
@@ -150,6 +155,7 @@ class TCypressNodeBase
     // This also overrides appropriate methods from ICypressNode.
     DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
     DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
+    DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
 
 public:
@@ -164,6 +170,10 @@ public:
 
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
+
+    virtual void Merge(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode);
 
     TBranchedNodeId Id;
     int RefCounter;
@@ -204,7 +214,8 @@ public:
         TIntrusivePtr<TCypressManager> cypressManager,
         ICypressNode& branchedNode)
     {
-        UNUSED(cypressManager);
+        TCypressNodeBase::Merge(cypressManager, branchedNode);
+
         const auto& typedBranchedNode = dynamic_cast<const TThis&>(branchedNode);
         Value() = typedBranchedNode.Value();
     }

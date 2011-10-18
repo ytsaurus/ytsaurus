@@ -10,59 +10,137 @@ namespace NYTree {
 
 IYPathService::TGetResult TNodeBase::Get(
     TYPath path,
-    IYsonConsumer* events)
+    IYsonConsumer* consumer)
 {
-    auto navigateResult = Navigate(path);
-    switch (navigateResult.Code) {
-        case IYPathService::ECode::Done: {
-            TTreeVisitor visitor(events);
-            visitor.Visit(navigateResult.Value);
+    if (path.empty()) {
+        return GetSelf(consumer);
+    }
+
+    if (path[0] == '@') {
+        auto attributes = GetAttributes();
+
+        if (path == "@") {
+            consumer->OnBeginMap();
+            auto names = GetVirtualAttributeNames();
+            FOREACH (const auto& name, names) {
+                consumer->OnMapItem(name);
+                YVERIFY(GetVirtualAttribute(name, consumer));
+            }
+            
+            if (~attributes != NULL) {
+                auto children = attributes->GetChildren();
+                FOREACH (const auto& pair, children) {
+                    consumer->OnMapItem(pair.First());
+                    TTreeVisitor visitor(consumer);
+                    visitor.Visit(pair.Second());
+                }
+            }
+
+            consumer->OnEndMap();
+
+            return TGetResult::CreateDone();
+        } else {
+            Stroka prefix;
+            TYPath tailPath;
+            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &tailPath);
+
+            if (GetVirtualAttribute(prefix, consumer))
+                return TGetResult::CreateDone();
+
+            if (~attributes == NULL) {
+                throw TYTreeException() << "Node has no custom attributes";
+            }
+
+            auto child = attributes->FindChild(prefix);
+            if (~child == NULL) {
+                throw TYTreeException() << Sprintf("Attribute %s it not found",
+                    ~prefix.Quote());
+            }
+
+            TTreeVisitor visitor(consumer);
+            visitor.Visit(child);
             return TGetResult::CreateDone();
         }
-
-        case IYPathService::ECode::Recurse:
-            return navigateResult;
-
-        default:
-            YUNREACHABLE();
+    } else {
+        return Navigate(path);
     }
 }
 
-IYPathService::TNavigateResult TNodeBase::Navigate(
-    TYPath path)
+IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path)
 {
-    if (!path.empty()) {
-        throw TYPathException() << "Cannot navigate from the node";
+    if (path.empty()) {
+        return TNavigateResult::CreateDone(this);
     }
 
-    return TNavigateResult::CreateDone(this);
+    if (path[0] == '@') {
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            throw TYTreeException() << "Node has no custom attributes";
+        }
+
+        return TNavigateResult::CreateRecurse(
+            AsYPath(~attributes),
+            TYPath(path.begin() + 1, path.end()));
+    }
+
+    return DoNavigate(path);
+}
+
+IYPathService::TNavigateResult TNodeBase::DoNavigate(TYPath path)
+{
+    UNUSED(path);
+    throw TYTreeException() << "Navigation is not supported";
 }
 
 IYPathService::TSetResult TNodeBase::Set(
     TYPath path, 
     TYsonProducer::TPtr producer)
 {
-    if (!path.empty()) {
-        return Navigate(path);
+    if (path.empty()) {
+        return SetSelf(producer);
     }
 
-    return SetSelf(producer);
+    if (path[0] == '@') {
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            attributes = ~GetFactory()->CreateMap();
+            SetAttributes(attributes);
+        }
+
+        // TODO: should not be able to override a virtual attribute
+
+        return IYPathService::TSetResult::CreateRecurse(
+            AsYPath(~attributes),
+            TYPath(path.begin() + 1, path.end()));
+    } else {
+        return Navigate(path);
+    }
 }
 
-IYPathService::TRemoveResult TNodeBase::Remove(
-    TYPath path)
+IYPathService::TRemoveResult TNodeBase::Remove(TYPath path)
 {
-    if (!path.empty()) {
-        return Navigate(path);
+    if (path.empty()) {
+        return RemoveSelf();
     }
 
-    return RemoveSelf();
+    if (path[0] == '@') {
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            throw TYTreeException() << "Node has no custom attributes";
+        }
+
+        return IYPathService::TRemoveResult::CreateRecurse(
+            AsYPath(~attributes),
+            TYPath(path.begin() + 1, path.end()));
+    } else {
+        return Navigate(path);
+    }
 }
 
 IYPathService::TLockResult TNodeBase::Lock(TYPath path)
 {
     UNUSED(path);
-    throw TYPathException() << "Locking is not supported";
+    throw TYTreeException() << "Locking is not supported";
 }
 
 IYPathService::TRemoveResult TNodeBase::RemoveSelf()
@@ -70,16 +148,35 @@ IYPathService::TRemoveResult TNodeBase::RemoveSelf()
     auto parent = GetParent();
 
     if (~parent == NULL) {
-        ythrow TYPathException() << "Cannot remove the root";
+        throw TYTreeException() << "Cannot remove the root";
     }
 
     parent->AsComposite()->RemoveChild(this);
     return TRemoveResult::CreateDone();
 }
 
+IYPathService::TGetResult TNodeBase::GetSelf(IYsonConsumer* consumer)
+{
+    TTreeVisitor visitor(consumer, false);
+    visitor.Visit(this);
+    return TGetResult::CreateDone();
+}
+
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
-    throw TYPathException() << "Cannot modify the node";
+    throw TYTreeException() << "Cannot modify the node";
+}
+
+yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
+{
+    return yvector<Stroka>();
+}
+
+bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
+{
+    UNUSED(name);
+    UNUSED(consumer);
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

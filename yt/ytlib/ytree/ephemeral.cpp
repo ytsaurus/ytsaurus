@@ -134,16 +134,13 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 
 private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
+    virtual TNavigateResult DoNavigate(TYPath path);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,15 +160,12 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 
 private:
     yvector<INode::TPtr> List;
 
+    virtual TNavigateResult DoNavigate(TYPath path);
     TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
     TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath);
 
@@ -306,20 +300,15 @@ void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
-IYPathService::TNavigateResult TMapNode::Navigate(
-    TYPath path)
+IYPathService::TNavigateResult TMapNode::DoNavigate(TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
     Stroka prefix;
     TYPath tailPath;
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        throw TYPathException() << Sprintf("Child %s it not found",
+        throw TYTreeException() << Sprintf("Child %s it not found",
             ~prefix.Quote());
     }
 
@@ -410,13 +399,8 @@ void TListNode::RemoveChild(INode::TPtr child)
     List.erase(it);
 }
 
-IYPathService::TNavigateResult TListNode::Navigate(
-    TYPath path)
+IYPathService::TNavigateResult TListNode::DoNavigate(TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
     Stroka prefix;
     TYPath tailPath;
     ChopYPathPrefix(path, &prefix, &tailPath);
@@ -425,7 +409,7 @@ IYPathService::TNavigateResult TListNode::Navigate(
     try {
         index = FromString<int>(prefix);
     } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
+        throw TYTreeException() << Sprintf("Failed to parse child index %s",
             ~prefix.Quote());
     }
 
@@ -445,7 +429,7 @@ IYPathService::TSetResult TListNode::Set(
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     if (prefix.empty()) {
-        throw TYPathException() << "Empty child index";
+        throw TYTreeException() << "Empty child index";
     }
 
     if (prefix == "+") {
@@ -464,7 +448,7 @@ IYPathService::TSetResult TListNode::Set(
     try {
         index = FromString<int>(indexString);
     } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
+        throw TYTreeException() << Sprintf("Failed to parse child index %s",
             ~Stroka(indexString).Quote());
     }
 
@@ -494,11 +478,11 @@ IYPathService::TNavigateResult TListNode::GetYPathChild(
 {
     int count = GetChildCount();
     if (count == 0) {
-        throw TYPathException() << "List is empty";
+        throw TYTreeException() << "List is empty";
     }
 
     if (index < 0 || index >= count) {
-        throw TYPathException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
+        throw TYTreeException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
             index,
             count - 1);
     }

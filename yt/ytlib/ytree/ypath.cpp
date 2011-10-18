@@ -93,9 +93,9 @@ T ExecuteYPathVerb(
         IYPathService::TResult<T> result;
         try {
             result = verb->Do(state);
-        } catch (const TYPathException& ex) {
+        } catch (const TYTreeException& ex) {
             // TODO: ypath escaping and normalization
-            ythrow TYPathException() << Sprintf("Failed to execute YPath operation (Verb: %s, Path: %s, ResolvedPath: %s, ErrorMessage: %s)",
+            ythrow TYTreeException() << Sprintf("Failed to execute YPath operation (Verb: %s, Path: %s, ErrorPath: %s, ErrorMessage: %s)",
                 ~verbName,
                 ~Stroka(path),
                 ~Stroka(GetResolvedYPathPrefix(path, state.CurrentPath)),

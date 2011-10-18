@@ -256,7 +256,7 @@ void TYsonReader::ParseAttributesItem()
             ~GetPositionInfo());
     }
     SkipWhitespaces();
-    ExpectChar(MapItemSeparator);
+    ExpectChar(KeyValueSeparator);
     Events->OnAttributesItem(name);
     ParseAny();
 }

@@ -38,24 +38,25 @@ public:
 
 #undef IMPLEMENT_AS_METHODS
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
+    virtual TNavigateResult Navigate(TYPath path);
 
-    virtual TGetResult Get(
-        TYPath path,
-        IYsonConsumer* events);
+    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer);
 
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 
     virtual TRemoveResult Remove(TYPath path);
 
     virtual TLockResult Lock(TYPath path);
 
 protected:
+    virtual TNavigateResult DoNavigate(TYPath path);
+
     virtual TRemoveResult RemoveSelf();
+    virtual TGetResult GetSelf(IYsonConsumer* consumer);
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
+    
+    virtual yvector<Stroka> GetVirtualAttributeNames();
+    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer);
 
 };
 

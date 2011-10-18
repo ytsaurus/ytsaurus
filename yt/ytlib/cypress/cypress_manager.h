@@ -115,7 +115,7 @@ private:
         NLog::TLogger& Logger = CypressLogger;
 
         if (transactionId == NullTransactionId) {
-            throw TYPathException() << "Cannot create a node outside of a transaction";
+            throw TYTreeException() << "Cannot create a node outside of a transaction";
         }
 
         auto nodeId = NodeIdGenerator.Next();
