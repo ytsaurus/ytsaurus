@@ -6,7 +6,7 @@ machine=$(hostname -f)
 case ${machine} in
     "build01-01g.yt.yandex.net")
         CELLAR=/home/sandello/Cellar/stage
-        SOURCE=/home/sandello/source
+        SOURCE=/home/sandello/source-clean
         TARGET=/home/sandello/doxygen
         ;;
     "CoreMoonlight.local")

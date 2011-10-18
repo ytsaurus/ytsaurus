@@ -7,7 +7,7 @@ mkdir -p ${TARGET}/pending
 
 set +e
 
-${SOURCE}/doxygen/make_doxygen.sh \
+${SOURCE}/scripts/doxygen/make_doxygen.sh \
      > ${TARGET}/pending/run_stdout.txt \
     2> ${TARGET}/pending/run_stderr.txt
 
