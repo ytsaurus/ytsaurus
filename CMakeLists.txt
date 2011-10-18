@@ -1,99 +1,77 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6 FATAL_ERROR)
-CMAKE_POLICY(VERSION 2.6.0)
+cmake_minimum_required(VERSION 2.6 FATAL_ERROR)
+project(Yt)
 
-# This variable defines a current root. PEERDIR, TOOLDIR, SUBDIR will use it
-# as a root for their relative-path arguments.
-SET(ARCADIA_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-SET(SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+################################################################################
+# Include various CMake modules.
 
-INCLUDE_DIRECTORIES(${ARCADIA_ROOT}/include)
+set(CMAKE_MODULE_PATH
+    "${CMAKE_SOURCE_DIR}/cmake"
+)
 
-INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/include/global.cmake NO_POLICY_SCOPE)
+include(CMakeDependentOption)
+include(CheckCXXCompilerFlag)
+include(DumpCMakeVariables)
 
-ADD_SUBDIRECTORY( ${CMAKE_CURRENT_SOURCE_DIR}/extern/STLport/build/cmake ${CMAKE_CURRENT_BINARY_DIR}/extern/STLport/build/cmake )
-ADD_DIRS(util)
-ADD_DIRS(library/json)
-ADD_DIRS(yt)
+################################################################################
+# Handy variables.
 
-INCLUDE(${CMAKE_SOURCE_DIR}/cmake/include/dtmk.cmake)
+set(YT_ROOT ${YT_SOURCE_DIR})
+set(YT_WORK ${YT_BINARY_DIR})
 
-#LEAVE_PROJECT()
+################################################################################
+# Enforce developer to specify build type.
 
-IF (NOT WIN32)
-    ADD_CUSTOM_TARGET(paths
-        COMMAND echo "OS_NAME =" ${OS_NAME}
-        COMMAND echo "OS_RELEASE =" ${OS_RELEASE}
-        COMMAND echo "HARDWARE_TYPE =" ${HARDWARE_TYPE}
-        COMMAND echo "ARCADIA_ROOT =" ${ARCADIA_ROOT}
-        COMMAND echo "ARCADIA_BUILD_ROOT =" ${ARCADIA_BUILD_ROOT}
-        COMMAND echo "CMAKE_BUILD_TYPE =" ${CMAKE_BUILD_TYPE}
-        COMMAND echo "MAKE_ONLY =" ${MAKE_ONLY}
+if (CMAKE_BUILD_TYPE STREQUAL "")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
 
-#       COMMAND echo "INSTALL =" ${INSTALL}
-        COMMAND echo "INSTALLBASE =" ${INSTALLBASE}
-        COMMAND echo "INSTALLFLAGS =" ${INSTALLFLAGS}
-        COMMAND echo
-        COMMAND echo "ALLOCATOR =" ${ALLOCATOR}
-        COMMAND echo "USE_THREADS =" ${USE_THREADS}
-        COMMAND echo "THREADLIB =" ${THREADLIB}
-        COMMAND echo "PERLLIB =" ${PERLLIB}
-        COMMAND echo "EXTUT =" ${EXTUT}
-        COMMAND echo "PYTHON_VERSION =" ${PYTHON_VERSION}
-        COMMAND echo "USE_ICONV =" ${USE_ICONV}
-        COMMAND echo "CCVERS =" ${CCVERS}
-        COMMAND echo "PKG_CREATE =" ${PKG_CREATE}
-        COMMAND echo "ALLGCOV="${ALLGCOV}
+# Configure compiler options for msvc.
+if (MSVC)
+    message(STATUS "Looks like we're using msvc...")
+
+    if (MSVC_VERSION LESS 1600)
+        message(FATAL_ERROR "msvc >= 10.0 is mandatory due to C++11 usage")
+    endif()
+endif()
+
+# Configure compiler options for g++.
+if (CMAKE_COMPILER_IS_GNUCXX)
+    message(STATUS "Looks like we're using gcc...")
+
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
+        OUTPUT_VARIABLE GCC_VERSION
     )
 
-    ADD_CUSTOM_TARGET(versions
-        COMMAND -echo "TOUCH: " ${TOUCH}
-        COMMAND -echo "ECHO: " ${ECHO}
-        COMMAND echo
-        COMMAND -echo "AWK: " ${AWK}    && echo "" | ${AWK} --version | head -n 1
-        COMMAND echo
-        COMMAND -echo "BYACC: " ${BYACC} && ${BYACC} -V | head -n 1
-        COMMAND echo
-        COMMAND -echo "PERL: " ${PERL} && ${PERL} --version | sed -n '2,2p'
-        COMMAND echo
-        COMMAND -echo "PYTHON: " ${PYTHON} && ${PYTHON} --version
-        COMMAND echo
-        COMMAND -echo "CMAKE_C_COMPILER: " ${CMAKE_C_COMPILER} && ${CMAKE_C_COMPILER} -v
-        COMMAND echo
-        COMMAND -echo "CMAKE_CXX_COMPILER: " ${CMAKE_CXX_COMPILER}  && ${CMAKE_CXX_COMPILER} -v
-        COMMAND echo
-#       COMMAND -echo "LD_SO: " ${LD_SO} && ${LD_SO} -v
-#       COMMAND echo
-        COMMAND -echo "RAGEL: " ${RAGEL} && ${RAGEL}  -v
-        COMMAND echo
-        COMMAND -echo "RLGEN: " ${RLGEN} && ${RLGEN} -v
-        COMMAND echo
-        COMMAND -echo "RAGEL3: " ${RAGEL3} && ${RAGEL3} -v
-        COMMAND echo
-        COMMAND echo "OS: " ${OS_NAME}
-    )
+    if (GCC_VERSION VERSION_LESS 4.5)
+        message(FATAL_ERROR "g++ >= 4.5.0 is mandatory due to C++11 usage")
+    endif()
 
-    ADD_CUSTOM_TARGET(gccversion
-        COMMAND -echo "CMAKE_C_COMPILER: " ${CMAKE_C_COMPILER}  && ${CMAKE_C_COMPILER} -v
-    )
+    check_cxx_compiler_flag(-std=c++0x GCC_CXX0X)
+    if (NOT GCC_CXX0X)
+        message(FATAL_ERROR "g++ lacks support of -std=c++0x")
+    endif()
 
-    ADD_CUSTOM_TARGET(tags
-        COMMAND find . -name "*.cpp" -o -name "*.h" -o -name "*.hh" -o -name "*.c" -o -name "*.cc" -o -name "*.l" -o -name "*.y" | ${CTAGS_PRG} --extra=+qf --fields=+aiS --c++-kinds=+p -L -
-        WORKING_DIRECTORY ${ARCADIA_ROOT}
-        )
+    check_cxx_compiler_flag(-fvisibility=hidden GCC_VISIBILITY)
+    if (NOT GCC_VISIBILITY)
+        message(FATAL_ERROR "g++ lacks support of -fvisibility=hidden")
+    endif()
 
-ENDIF (NOT WIN32)
+    add_definitions(-std=c++0x)
+    add_definitions(-fvisibility=hidden)
+    add_definitions(-fvisibility-inlines-hidden)
 
-# we have the old CMake in extlib!
-IF (NOT ROBOT_BUILD)
+    set(XCODE_ATTRIBUTE_GCC_SYMBOLS_PRIVATE_EXTERN "YES")
+    set(XCODE_ATTRIBUTE_GCC_INLINES_ARE_PRIVATE_EXTERN "YES")
+endif()
 
-### This strings must locate only at the end of this file!!!
-FILE(READ ${TEST_DART_TMP_FILENAME} test_dart_content)
-FILE(WRITE ${TEST_DART_FILENAME} ${test_dart_content})
-FILE(REMOVE ${TEST_DART_TMP_FILENAME})
-###
+################################################################################
+# Configure build.
 
-ENDIF (NOT ROBOT_BUILD)
+option(YT_BUILD_EXPERIMENTS "Build experiments" TRUE)
+option(YT_BUILD_TESTS "Build tests" TRUE)
 
-IF (COMMAND ON_CMAKE_FINISH_HOOK)
-    ON_CMAKE_FINISH_HOOK()
-ENDIF (COMMAND ON_CMAKE_FINISH_HOOK)
+################################################################################
+# Setup targets.
+
+add_subdirectory(yt)

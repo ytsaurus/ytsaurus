@@ -1,8 +1,14 @@
-SET(DOTDIR yt)
+if (YT_BUILD_EXPERIMENTS)
+    #add_subdirectory(experiments)
+else()
+    message(STATUS "Omitting experiments from build")
+endif()
 
-RECURSE(
-    ${DOTDIR}/experiments
-    ${DOTDIR}/unittests
-    ${DOTDIR}/ytlib
-    ${DOTDIR}/server
-)
+if (YT_BUILD_TESTS)
+    #add_subdirectory(unittests)
+else()
+    message(STATUS "Omitting unittests from build")
+endif()
+
+add_subdirectory(ytlib)
+add_subdirectory(server)
