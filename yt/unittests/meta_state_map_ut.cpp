@@ -164,8 +164,8 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
 
-        int valueCount = 10000;
-        int valueRange = 1000;
+        const int valueCount = 10000;
+        const int valueRange = 1000;
         for (int i = 0; i < valueCount; ++i) {
             TKey key = ToString(rand() % valueRange);
             int value = rand();
@@ -207,7 +207,7 @@ TEST_F(TMetaStateMapTest, StressSave)
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
     NMetaState::TMetaStateMap<TKey, TValue> map;
 
-    int valueCount = 100000;
+    const int valueCount = 100000;
     int valueRange = 100000;
 
     for (int i = 0; i < valueCount; ++i) {
@@ -223,44 +223,48 @@ TEST_F(TMetaStateMapTest, StressSave)
     TMyInt::SaveEvent.Reset(new Event());
     TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, &output);
 
-    int actionCount = 100000;
+    const int actionCount = 100000;
     valueRange = 200000;
+    const int actionRange = 3;
+
     for (int i = 0; i < actionCount; ++i) {
         TKey key = ToString(rand() % valueRange);
         int value = rand();
 
-        int action = rand() % 3;
-        if (action == 0) {
-            SCOPED_TRACE("Performing Insert");
+        int action = rand() % actionRange;
+        switch (action) {
+            case 0: {
+                SCOPED_TRACE("Performing Insert");
 
-            bool result = checkMap.insert(MakePair(key, value)).second;
-            if (result) {
-                map.Insert(key, new TValue(value));
-            } else {
-                EXPECT_EQ(map.Get(key).Value, checkMap[key]);
+                bool result = checkMap.insert(MakePair(key, value)).second;
+                if (result) {
+                    map.Insert(key, new TValue(value));
+                } else {
+                    EXPECT_EQ(map.Get(key).Value, checkMap[key]);
+                }
             }
-        }
-        if (action == 1) {
-            SCOPED_TRACE("Performing Update");
+            case 1: {
+                SCOPED_TRACE("Performing Update");
 
-            TValue* ptr = map.FindForUpdate(key);
-            auto it = checkMap.find(key);
-            if (it == checkMap.end()) {
-                EXPECT_IS_TRUE(ptr == NULL);
-            } else {
-                EXPECT_EQ(ptr->Value, it->second);
-                it->second = value;
-                ptr->Value = value;
+                TValue* ptr = map.FindForUpdate(key);
+                auto it = checkMap.find(key);
+                if (it == checkMap.end()) {
+                    EXPECT_IS_TRUE(ptr == NULL);
+                } else {
+                    EXPECT_EQ(ptr->Value, it->second);
+                    it->second = value;
+                    ptr->Value = value;
+                }
             }
-        }
-        if (action == 2) {
-            SCOPED_TRACE("Performing Remove");
+            case 2: {
+                SCOPED_TRACE("Performing Remove");
 
-            bool result = checkMap.erase(key) == 1;
-            if (result) {
-                map.Remove(key);
-            } else {
-                EXPECT_IS_TRUE(map.Find(key) == NULL);
+                bool result = checkMap.erase(key) == 1;
+                if (result) {
+                    map.Remove(key);
+                } else {
+                    EXPECT_IS_TRUE(map.Find(key) == NULL);
+                }
             }
         }
     }
