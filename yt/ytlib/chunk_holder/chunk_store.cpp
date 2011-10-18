@@ -6,6 +6,7 @@
 #include <util/folder/filelist.h>
 #include <util/random/random.h>
 #include <utility>
+#include <limits>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -249,13 +250,11 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
     vector<TLocations::const_iterator> tmp;
     tmp.reserve(Locations.size());
 
-    TLocations::const_iterator it = Locations.begin();
-    int minSessionCount = (*it)->GetSessionCount();
+    int minSessionCount = numeric_limits<int>::max();
+    int c;
 
-    tmp.push_back(it++);
-
-    for (; it != Locations.end(); ++it) {
-        int c = (*it)->GetSessionCount();
+    for (TLocations::const_iterator it = Locations.begin(); it != Locations.end(); ++it) {
+        c = (*it)->GetSessionCount();
         if (c > minSessionCount) {
             continue;
         }
@@ -266,12 +265,10 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
         tmp.push_back(it);
     }
 
-    // If we have sevaral locations with the same opened sessions amount,
-    // let's shuffle it.
+    // If we have several locations with the same number of opened sessions,
+    // select session randomly.
 
-    random_shuffle(tmp.begin(), tmp.end());
-
-    return *tmp.front();
+    return *tmp[RandomNumber(tmp.size())];
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
