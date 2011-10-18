@@ -42,27 +42,27 @@ public:
 
     virtual IStringNode::TPtr CreateString()
     {
-        return CypressManager->CreateStringNode(TransactionId);
+        return CypressManager->CreateStringNodeProxy(TransactionId);
     }
 
     virtual IInt64Node::TPtr CreateInt64()
     {
-        return CypressManager->CreateInt64Node(TransactionId);
+        return CypressManager->CreateInt64NodeProxy(TransactionId);
     }
 
     virtual IDoubleNode::TPtr CreateDouble()
     {
-        return CypressManager->CreateDoubleNode(TransactionId);
+        return CypressManager->CreateDoubleNodeProxy(TransactionId);
     }
 
     virtual IMapNode::TPtr CreateMap()
     {
-        return CypressManager->CreateMapNode(TransactionId);
+        return CypressManager->CreateMapNodeProxy(TransactionId);
     }
 
     virtual IListNode::TPtr CreateList()
     {
-        return CypressManager->CreateListNode(TransactionId);
+        return CypressManager->CreateListNodeProxy(TransactionId);
     }
 
     virtual IEntityNode::TPtr CreateEntity()
@@ -125,7 +125,6 @@ public:
     {
         return this->GetTypedImplForUpdate();
     }
-
 
     virtual ICompositeNode::TPtr GetParent() const
     {
@@ -235,16 +234,17 @@ protected:
         return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
-    void ValidateInTransaction()
+
+    void EnsureInTransaction()
     {
         if (TransactionId == NullTransactionId) {
             throw TYPathException() << "Cannot modify the node outside of a transaction";
         }
     }
 
-    void ValidateModifiable()
+    void EnsureModifiable()
     {
-        ValidateInTransaction();
+        EnsureInTransaction();
         if (IsLockNeeded()) {
             LockSelf();
         }
@@ -312,6 +312,22 @@ protected:
         Locked = true;
         return TLockResult::CreateDone();
     }
+
+
+    void AttachChild(ICypressNode& child)
+    {
+        YASSERT(child.GetState() == ENodeState::Uncommitted);
+        child.SetParentId(NodeId);
+        CypressManager->RefNode(child);
+    }
+
+    void DetachChild(ICypressNode& child)
+    {
+        child.SetParentId(NullNodeId);
+        if (child.GetState() == ENodeState::Uncommitted) {
+            CypressManager->UnrefNode(child);
+        }
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -338,7 +354,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->ValidateModifiable();
+        this->EnsureModifiable();
         this->GetTypedImplForUpdate().Value() = value;
     }
 };

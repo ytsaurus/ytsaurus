@@ -54,42 +54,92 @@ namespace NCypress {
 struct ICypressNodeProxy;
 class TCypressManager;
 
+//! Describes the state of the persisted node.
 DECLARE_ENUM(ENodeState,
+    // The node is present in the HEAD version.
     (Committed)
+    // The node is a branched copy of another committed node.
     (Branched)
+    // The node is created by the transaction and is thus new.
     (Uncommitted)
 );
 
+//! Provides a common interface for all persistent nodes.
 struct ICypressNode
 {
     virtual ~ICypressNode()
     { }
 
+    //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TBranchedNodeId GetId() const = 0;
 
+    //! Gets node state.
     virtual ENodeState GetState() const = 0;
+    //! Sets node state.
     virtual void SetState(const ENodeState& value) = 0;
 
+    //! Gets node parent id.
     virtual TNodeId GetParentId() const = 0;
+    //! Sets node parent id.
     virtual void SetParentId(const TNodeId& value) = 0;
 
+    //! Gets an immutable reference to the node's locks.
     virtual const yhash_set<TLockId>& LockIds() const = 0;
+    //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLockId>& LockIds() = 0;
 
-    virtual void Ref() = 0;
-    virtual void Unref() = 0;
-    virtual int GetRefCounter() const = 0;
+    //! Increments the reference counter, returns the incremented value.
+    virtual int Ref() = 0;
+    //! Decrements the reference counter, returns the decremented value.
+    virtual int Unref() = 0;
 
+    // TODO: this shouldn't be a part of public interface
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 
+    //! Constructs a proxy.
+    /*!
+     *  \param cypressManager A cypress manager.
+     *  \param transactionId The id of the transaction for which the proxy
+     *  is being created, may be #NullTransactionId.
+     *  \return The constructed proxy.
+     */
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        TIntrusivePtr<TCypressManager> state,
+        TIntrusivePtr<TCypressManager> cypressManager,
         const TTransactionId& transactionId) const = 0;
 
+    //! Branches a committed node into a given transaction.
+    /*!
+     *  \param transactionId The id of the transaction that is about to
+     *  modify the node.
+     *  \return A branched node.
+     */
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const = 0;
     
-    // #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
-    virtual void Merge(ICypressNode& branchedNode) = 0;
+    //! Merges the changes made in the branched node back into the committed one.
+    /*!
+     *  \param cypressManager A cypress manager.
+     *  \param branchedNode A branched node.
+     *
+     *  \note 
+     *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
+     */
+    virtual void Merge(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode) = 0;
+
+
+    //! Performs cleanup on node destruction.
+    /*!
+     *  This is called prior to the actual removal of the node from the meta-map.
+     *  A typical implementation will release the resources held by the node,
+     *  decrement the ref-counters of the children etc.
+     *  
+     *  \param cypressManager A cypress manager.
+     *  
+     *  \note This method is only called for committed and uncommitted nodes.
+     *  It is not called for branched ones.
+     */
+    virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +157,10 @@ public:
 
     virtual TBranchedNodeId GetId() const;
 
-    virtual void Ref();
-    virtual void Unref();
-    virtual int GetRefCounter() const;
+    virtual int Ref();
+    virtual int Unref();
+
+    virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
 
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
@@ -149,8 +200,11 @@ public:
             *this);
     }
 
-    virtual void Merge(ICypressNode& branchedNode)
+    virtual void Merge(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode)
     {
+        UNUSED(cypressManager);
         const auto& typedBranchedNode = dynamic_cast<const TThis&>(branchedNode);
         Value() = typedBranchedNode.Value();
     }
@@ -189,13 +243,18 @@ public:
     TMapNode(const TBranchedNodeId& id);
 
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
-    virtual void Merge(ICypressNode& branchedNode);
+    virtual void Merge(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
+
+    virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -218,13 +277,18 @@ public:
     TListNode(const TBranchedNodeId& id);
 
     virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
-    virtual void Merge(ICypressNode& branchedNode);
+    virtual void Merge(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
+
+    virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 

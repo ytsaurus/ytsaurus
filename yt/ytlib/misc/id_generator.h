@@ -47,6 +47,11 @@ public:
         return static_cast<T>(AtomicIncrement(Current));
     }
 
+    void Reset()
+    {
+        Current = 0;
+    }
+
 private:
     TAtomic Current;
 
@@ -66,14 +71,15 @@ template <>
 class TIdGenerator<TGuid>
 {
 public:
-    TIdGenerator()
-        : Current(0)
+    TIdGenerator(ui64 seed)
+        : Seed(seed)
+        , Current(0)
     { }
 
     TGuid Next()
     {
         ui64 counter = static_cast<ui64>(AtomicIncrement(Current));
-        ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter));
+        ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter), Seed);
         return TGuid(
             counter & 0xffffffff,
             counter >> 32,
@@ -81,7 +87,13 @@ public:
             hash >> 32);
     }
 
+    void Reset()
+    {
+        Current = 0;
+    }
+
 private:
+    ui64 Seed;
     TAtomic Current;
 
     friend TOutputStream& operator << <> (TOutputStream& stream, const TIdGenerator<TGuid>& generator);
