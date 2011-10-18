@@ -1,163 +1,15 @@
+#include "cell_master_server.h"
+#include "chunk_holder_server.h"
+
 #include <util/config/last_getopt.h>
 #include <util/datetime/base.h>
 
-#include <yt/ytlib/actions/action_queue.h>
-
 #include <yt/ytlib/rpc/server.h>
-
-#include <yt/ytlib/chunk_holder/chunk_holder.h>
-#include <yt/ytlib/chunk_manager/chunk_manager.h>
-
-#include <yt/ytlib/transaction_manager/transaction_manager.h>
-#include <yt/ytlib/transaction_manager/transaction_service.h>
-
-#include <yt/ytlib/cypress/cypress_manager.h>
-#include <yt/ytlib/cypress/cypress_service.h>
-
-#include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
 
 using namespace NYT;
 
 using NElection::TPeerId;
 using NElection::InvalidPeerId;
-
-using NChunkHolder::TChunkHolderConfig;
-using NChunkHolder::TChunkHolder;
-
-using NTransaction::TTransactionManager;
-using NTransaction::TTransactionService;
-
-using NChunkManager::TChunkManagerConfig;
-using NChunkManager::TChunkManager;
-
-using NMetaState::TMetaStateManager;
-using NMetaState::TCompositeMetaState;
-
-using NCypress::TCypressManager;
-using NCypress::TCypressService;
-
-using NMonitoring::TMonitoringManager;
-using NMonitoring::THttpTreeServer;
-
-NLog::TLogger Logger("Server");
-
-void RunChunkHolder(const TChunkHolderConfig& config)
-{
-    LOG_INFO("Starting chunk holder on port %d",
-        config.Port);
-
-    auto controlQueue = New<TActionQueue>();
-
-    auto server = New<NRpc::TServer>(config.Port);
-
-    auto chunkHolder = New<TChunkHolder>(
-        config,
-        controlQueue->GetInvoker(),
-        server);
-
-    server->Start();
-}
-
-// TODO: move to a proper place
-//! Describes a configuration of TCellMaster.
-struct TCellMasterConfig
-{
-    //! Meta state configuration.
-    TMetaStateManager::TConfig MetaState;
-
-    int MonitoringPort;
-
-    TCellMasterConfig()
-        : MonitoringPort(10000)
-    { }
-
-    //! Reads configuration from JSON.
-    void Read(TJsonObject* json)
-    {
-        TJsonObject* cellJson = GetSubTree(json, "Cell");
-        if (cellJson != NULL) {
-            MetaState.Cell.Read(cellJson);
-        }
-
-        TJsonObject* metaStateJson = GetSubTree(json, "MetaState");
-        if (metaStateJson != NULL) {
-            MetaState.Read(metaStateJson);
-        }
-    }
-};
-
-THttpTreeServer* MonitoringServer; // TODO: encapsulate this
-
-void RunCellMaster(const TCellMasterConfig& config)
-{
-    // TODO: extract method
-    Stroka address = config.MetaState.Cell.Addresses.at(config.MetaState.Cell.Id);
-    size_t index = address.find_last_of(":");
-    int port = FromString<int>(address.substr(index + 1));
-
-    LOG_INFO("Starting cell master on port %d", port);
-
-    auto metaState = New<TCompositeMetaState>();
-
-    auto controlQueue = New<TActionQueue>();
-
-    auto server = New<NRpc::TServer>(port);
-
-    auto metaStateManager = New<TMetaStateManager>(
-        config.MetaState,
-        controlQueue->GetInvoker(),
-        ~metaState,
-        server);
-
-    auto transactionManager = New<TTransactionManager>(
-        TTransactionManager::TConfig(),
-        metaStateManager,
-        metaState);
-
-    auto transactionService = New<TTransactionService>(
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
-
-    auto chunkManager = New<TChunkManager>(
-        TChunkManagerConfig(),
-        metaStateManager,
-        metaState,
-        server,
-        transactionManager);
-
-    auto cypressManager = New<TCypressManager>(
-        metaStateManager,
-        metaState,
-        transactionManager);
-
-    auto cypressService = New<TCypressService>(
-        cypressManager,
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
-
-    auto monitoringManager = New<TMonitoringManager>();
-    monitoringManager->Register(
-        "/refcounted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo));
-    monitoringManager->Register(
-        "/meta_state",
-        FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
-
-    // TODO: register more monitoring infos
-
-    monitoringManager->Start();
-
-    MonitoringServer = new THttpTreeServer(
-        monitoringManager->GetProducer(),
-        config.MonitoringPort);
-    
-    MonitoringServer->Start();
-    metaStateManager->Start();
-    server->Start();
-}
 
 int main(int argc, const char *argv[])
 {
@@ -218,16 +70,17 @@ int main(int argc, const char *argv[])
         TJsonObject* configRoot = configReader.ReadAll();
 
         if (isChunkHolder) {
-            NChunkHolder::TChunkHolderConfig config;
+            TChunkHolderServer::TConfig config;
             config.Read(configRoot);
             if (port >= 0) {
                 config.Port = port;
             }
-            RunChunkHolder(config);
+            TChunkHolderServer chunkHolderServer(config);
+            chunkHolderServer.Run();
         }
 
         if (isCellMaster) {
-            TCellMasterConfig config;
+            TCellMasterServer::TConfig config;
             config.Read(configRoot);
 
             if (peerId >= 0) {
@@ -236,10 +89,9 @@ int main(int argc, const char *argv[])
             }
 
             // TODO: check that config.Cell.Id is initialized
-            RunCellMaster(config);
+            TCellMasterServer cellMasterServer(config);
+            cellMasterServer.Run();
         }
-
-        Sleep(TDuration::Max());
 
         return 0;
     }
