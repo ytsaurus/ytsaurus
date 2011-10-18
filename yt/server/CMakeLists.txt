@@ -2,6 +2,8 @@ PROGRAM(server)
 
 SRCS(
     main.cpp
+    cell_master_server.cpp
+    chunk_holder_server.cpp
 )
 
 PEERDIR(
