@@ -27,6 +27,7 @@ public:
         Output() <<
             "HTTP/1.0 200 OK\r\n"
             "Content-Type: text/plain\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
             "\r\n";
 
         TJsonAdapter adapter(&Output());

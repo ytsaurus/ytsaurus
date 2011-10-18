@@ -17,18 +17,13 @@ struct IChunkReader
 {
     typedef TIntrusivePtr<IChunkReader> TPtr;
 
-    DECLARE_ENUM(EResult, 
-        (OK)
-        (Failed)
-    );
-
+    //ToDo: pretty heavy obj. May be RefCounted?
     //! Describes a result of #ReadBlocks.
     struct TReadResult
     {
         //! Blocks data.
         yvector<TSharedRef> Blocks;
-
-        EResult Result;
+        bool IsOK;
     };
 
     //! Reads (asynchronously) a given set of blocks.

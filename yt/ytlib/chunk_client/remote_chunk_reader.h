@@ -5,6 +5,7 @@
 
 #include "../chunk_holder/chunk_holder_rpc.h"
 #include "../misc/metric.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT
 {
@@ -35,15 +36,16 @@ private:
 
     bool ChangeCurrentHolder();
 
-    TChunkId ChunkId;
-    TDuration Timeout;
+    const TChunkId ChunkId;
+    const TDuration Timeout;
 
-    yvector<Stroka> HolderAddresses;
+    const yvector<Stroka> HolderAddresses;
 
     int CurrentHolder;
 
     TMetric ExecutionTime;
 
+    DECLARE_THREAD_AFFINITY_SLOT(Response);
 };
 ///////////////////////////////////////////////////////////////////////////////
 

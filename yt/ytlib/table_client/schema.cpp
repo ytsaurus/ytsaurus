@@ -37,7 +37,7 @@ TRange::TRange(const TColumn& begin, const TColumn& end)
 }
 
 TRange::TRange(const TColumn& begin)
-    : IsInfinite_(false)
+    : IsInfinite_(true)
     , Begin_(begin)
     , End_("")
 { }
@@ -60,6 +60,17 @@ NProto::TRange TRange::ToProto() const
     return protoRange;
 }
 
+TRange TRange::FromProto(const NProto::TRange& protoRange)
+{
+    if (protoRange.GetIsInfinite()) {
+        return TRange(protoRange.GetBegin());
+    } else {
+        return TRange(protoRange.GetBegin(), protoRange.GetEnd());
+    }
+
+    YUNREACHABLE();
+}
+
 bool TRange::Contains(const TColumn& value) const
 {
     if (value < Begin_)
@@ -69,6 +80,16 @@ bool TRange::Contains(const TColumn& value) const
         return false;
 
     return true;
+}
+
+bool TRange::Contains(const TRange& range) const
+{
+    if (range.IsInfinite()) {
+        return Contains(range.Begin()) && IsInfinite();
+    } else {
+        return Contains(range.Begin()) && Contains(range.End());
+    }
+    YUNREACHABLE();
 }
 
 bool TRange::Overlaps(const TRange& range) const
@@ -124,6 +145,19 @@ NProto::TChannel TChannel::ToProto() const
     return protoChannel;
 }
 
+NYT::NTableClient::TChannel TChannel::FromProto( const NProto::TChannel& protoChannel )
+{
+    TChannel result;
+    for (int i = 0; i < protoChannel.ColumnsSize(); ++i) {
+        result.AddColumn(protoChannel.GetColumns(i));
+    }
+
+    for (int i = 0; i < protoChannel.RangesSize(); ++i) {
+        result.AddRange(TRange::FromProto(protoChannel.GetRanges(i)));
+    }
+    return result;
+}
+
 bool TChannel::Contains(const TColumn& column) const
 {
     FOREACH(auto& oldColumn, Columns) {
@@ -132,6 +166,33 @@ bool TChannel::Contains(const TColumn& column) const
         }
     }
     return ContainsInRanges(column);
+}
+
+bool TChannel::Contains(const TRange& range) const
+{
+    FOREACH(auto& currentRange, Ranges) {
+        if (!currentRange.Contains(range)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TChannel::Contains(const TChannel& channel) const
+{
+    FOREACH(auto& column, channel.Columns) {
+        if (!Contains(column)) {
+            return false;
+        }
+    }
+
+    FOREACH(auto& range, channel.Ranges) {
+        if (!Contains(range)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool TChannel::ContainsInRanges(const TColumn& column) const
@@ -144,10 +205,50 @@ bool TChannel::ContainsInRanges(const TColumn& column) const
     return false;
 }
 
-const yvector<TColumn>& TChannel::GetColumns()
+bool TChannel::Overlaps(const TRange& range) const
+{
+    FOREACH(auto& column, Columns) {
+        if (range.Contains(column)) {
+            return true;
+        }
+    }
+
+    FOREACH(auto& currentRange, Ranges) {
+        if (currentRange.Overlaps(range)){
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool TChannel::Overlaps(const TChannel& channel) const
+{
+    FOREACH(auto& column, channel.Columns) {
+        if (Contains(column)) {
+            return true;
+        }
+    }
+
+    FOREACH(auto& range, channel.Ranges) {
+        if (!Overlaps(range)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const yvector<TColumn>& TChannel::GetColumns() const
 {
     return Columns;
 }
+
+bool TChannel::IsEmpty() const
+{
+    return Columns.empty() && Ranges.empty();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

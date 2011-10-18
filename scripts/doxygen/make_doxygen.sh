@@ -8,7 +8,7 @@ GENERATED_AT=$(date +"%F %T %z (%a, %d %b %Y)")
 
 (cd ${SOURCE} && git pull --ff-only -q)
 
-cat ${SOURCE}/doxygen/yt.cfg.template \
+cat ${SOURCE}/scripts/doxygen/yt.cfg.template \
     | sed "s!%%CURRENT_BRANCH%%!${CURRENT_BRANCH}!" \
     | sed "s!%%CURRENT_COMMIT%%!${CURRENT_COMMIT}!" \
     | sed "s!%%GENERATED_AT%%!${GENERATED_AT}!" \

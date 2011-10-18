@@ -1,5 +1,7 @@
 ﻿#include "value.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NTableClient {
 
@@ -55,6 +57,31 @@ Stroka TValue::ToString() const
 TBlob TValue::ToBlob() const
 {
     return Data.ToBlob();
+}
+
+void TValue::Save(TOutputStream* out)
+{
+    if (IsNull()) {
+        WriteVarInt(0, out);
+    } else {
+        WriteVarInt(GetSize() + 1, out);
+        out->Write(GetData(), GetSize());
+    }
+}
+
+TValue TValue::Load(TMemoryInput* input)
+{
+    ui64 size;
+    ReadVarInt(&size, input);
+    if (size == 0) {
+        return TValue();
+    } else {
+        --size;
+        auto ref = TRef(const_cast<char*>(input->Buf()), size);
+        input->Skip(size);
+        return TValue(ref);
+    }
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

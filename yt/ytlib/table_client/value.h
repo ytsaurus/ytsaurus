@@ -3,6 +3,8 @@
 #include "../misc/common.h"
 #include "../misc/ptr.h"
 
+#include <util/stream/mem.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -25,12 +27,15 @@ public:
     bool IsEmpty() const;
     bool IsNull() const;
 
+    void Save(TOutputStream* out);
+    static TValue Load(TMemoryInput* in);
+
     // ToDo: do we really need it?
     Stroka ToString() const;
     TBlob ToBlob() const;
 
 private:
-    const TRef Data;
+    TRef Data;
 };
 
 bool operator==(const TValue& lhs, const TValue& rhs);

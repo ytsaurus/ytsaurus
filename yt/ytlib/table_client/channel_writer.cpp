@@ -1,7 +1,44 @@
 ﻿#include "channel_writer.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NTableClient {
+
+///////////////////////////////////////////////////////////////////////////////
+
+TBlobOutput::TBlobOutput(size_t size = 0)
+{
+    Blob.reserve(size);
+}
+
+void TBlobOutput::DoWrite(const void* buf, size_t len)
+{
+    Blob.insert(
+        Blob.end(), 
+        static_cast<const char*>(buf), 
+        static_cast<const char*>(buf) + len);
+}
+
+const char* TBlobOutput::Begin() const
+{
+    return Blob.begin();
+}
+
+i32 TBlobOutput::GetSize() const
+{
+    return static_cast<i32>(Blob.size());
+}
+
+void TBlobOutput::Clear()
+{
+    Blob.clear();
+}
+
+TSharedRef TBlobOutput::Flush()
+{
+    return TSharedRef(Blob);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +63,12 @@ void TChannelWriter::Write(const TColumn& column, TValue value)
 
     auto it = ColumnIndexes.find(column);
     if (it == ColumnIndexes.end()) {
-        AppendValue(TValue(column), &RangeColumns);
-        AppendValue(value, &RangeColumns);
+        TValue(column).Save(&RangeColumns);
+        value.Save(&RangeColumns);
     } else {
         int columnIndex = it->Second();
-        TBlob& columnData = FixedColumns[columnIndex];
-        AppendValue(value, &columnData);
+        auto& columnOutput = FixedColumns[columnIndex];
+        value.Save(&columnOutput);
         IsColumnUsed[columnIndex] = true;
     }
 }
@@ -43,28 +80,14 @@ void TChannelWriter::EndRow()
             // Clean flags
             IsColumnUsed[columnIdx] = false;
         } else {
-            TBlob& columnData = FixedColumns[columnIdx];
-            AppendValue(TValue(), &columnData);
+            auto& columnData = FixedColumns[columnIdx];
+            TValue().Save(&columnData);
         }
     }
 
     // End of the row
-    AppendValue(TValue(), &RangeColumns);
+    TValue().Save(&RangeColumns);
     ++ CurrentRowCount;
-}
-
-void TChannelWriter::AppendSize(i32 value, TBlob* data) {
-    data->insert(data->end(), 
-        reinterpret_cast<ui8*>(&value), 
-        reinterpret_cast<ui8*>(&value + 1));
-    CurrentSize += sizeof(value);
-}
-
-void TChannelWriter::AppendValue(TValue value, TBlob* data)
-{
-    AppendSize(value.GetSize(), data);
-    data->insert(data->end(), value.Begin(), value.End());
-    CurrentSize += value.GetSize();
 }
 
 size_t TChannelWriter::GetCurrentSize() const
@@ -84,28 +107,24 @@ bool TChannelWriter::HasUnflushedData() const
 
 TSharedRef TChannelWriter::FlushBlock()
 {
-    TBlob block(CurrentSize);
-    auto curPos = block.begin();
+    TBlobOutput blockStream(CurrentSize);
 
     FOREACH(const auto& column, FixedColumns) {
-        i32 size = column.size();
-        *reinterpret_cast<i32*>(curPos) = size;
-        curPos += sizeof(size);
+        WriteVarInt(column.GetSize(), &blockStream);
     }
 
     FOREACH(auto& column, FixedColumns) {
-        memcpy(curPos, column.begin(), column.size());
-        curPos += column.size();
-        column.clear();
+        blockStream.Write(column.Begin(), column.GetSize());
+        column.Clear();
     }
 
-    memcpy(curPos, RangeColumns.begin(), RangeColumns.size());
-    RangeColumns.clear();
+    blockStream.Write(RangeColumns.Begin(), RangeColumns.GetSize());
+    RangeColumns.Clear();
 
     CurrentSize = GetEmptySize();
     CurrentRowCount = 0;
 
-    return TSharedRef(block);
+    return blockStream.Flush();
 }
 
 int TChannelWriter::GetCurrentRowCount() const
