@@ -110,7 +110,7 @@ private:
         TResult Result;
     };
 
-    void TSequentialChunkReader::OnGotBlocks(
+    void OnGotBlocks(
         IChunkReader::TReadResult readResult, 
         int firstSequenceIndex);
 
