@@ -1,7 +1,9 @@
 ﻿#pragma once
 
+#include "common.h"
 #include "value.h"
 #include "schema.h"
+#include "channel_reader.h"
 
 #include "../chunk_client/sequential_chunk_reader.h"
 #include "../misc/thread_affinity.h"

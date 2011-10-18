@@ -6,6 +6,7 @@ SET(YT_SOURCE_FILES
     table_writer.cpp
     common.h
     table_reader.cpp
+    channel_reader.cpp
 )
 
 

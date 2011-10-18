@@ -145,7 +145,7 @@ NProto::TChannel TChannel::ToProto() const
     return protoChannel;
 }
 
-TChannel TChannel::FromProto(NProto::TChannel& protoChannel)
+NYT::NTableClient::TChannel TChannel::FromProto( const NProto::TChannel& protoChannel )
 {
     TChannel result;
     for (int i = 0; i < protoChannel.ColumnsSize(); ++i) {
@@ -239,7 +239,7 @@ bool TChannel::Overlaps(const TChannel& channel) const
     return false;
 }
 
-const yvector<TColumn>& TChannel::GetColumns()
+const yvector<TColumn>& TChannel::GetColumns() const
 {
     return Columns;
 }

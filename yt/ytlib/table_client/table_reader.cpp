@@ -3,6 +3,7 @@
 #include "chunk_meta.pb.h"
 
 #include "../misc/foreach.h"
+#include "../actions/action_util.h"
 
 #include <algorithm>
 
@@ -77,7 +78,9 @@ void TTableReader::OnGotMeta(
     yvector<TChannel> channels;
     channels.reserve(protoMeta.ChannelsSize());
     for(int i = 0; i < protoMeta.ChannelsSize(); ++i) {
-        channels.push_back(TChannel::FromProto(protoMeta.GetChannels(i)));
+        channels.push_back(
+            TChannel::FromProto(protoMeta.GetChannels(i))
+        );
     }
 
     yvector<int> selectedChannels;
@@ -98,7 +101,7 @@ void TTableReader::OnGotMeta(
 
     ChannelReaders.reserve(selectedChannels.size());
     FOREACH(int i, selectedChannels) {
-        ChannelReaders.push_back(New<TChannelReader>(channels[i]));
+        ChannelReaders.push_back(TChannelReader(channels[i]));
     }
 
     InitSuccess->Set(true);
@@ -191,7 +194,7 @@ TValue TTableReader::GetValue() const
     YASSERT(IsRowValid);
     YASSERT(IsColumnValid);
 
-    return ChannelReaders[CurrentChannel]->GetValue();
+    return ChannelReaders[CurrentChannel].GetValue();
 }
 
 yvector<int> TTableReader::SelectChannels(const yvector<TChannel>& channels)

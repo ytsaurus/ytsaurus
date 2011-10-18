@@ -61,9 +61,9 @@ public:
     bool IsEmpty() const;
 
     NProto::TChannel ToProto() const;
-    static TChannel FromProto(NProto::TChannel& protoChannel);
+    static TChannel FromProto(const NProto::TChannel& protoChannel);
 
-    const yvector<TColumn>& GetColumns();
+    const yvector<TColumn>& GetColumns() const;
 
     friend void operator-= (TChannel& lhs, const TChannel& rhs);
 

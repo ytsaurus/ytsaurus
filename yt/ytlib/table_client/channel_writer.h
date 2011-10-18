@@ -9,6 +9,30 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// ToDo: move to misc
+class TBlobOutput
+    : public TOutputStream
+{
+public:
+    /*!
+     * \param size - size of blob reserved in ctor
+     */
+    TBlobOutput(size_t size);
+
+    void DoWrite(const void* buf, size_t len);
+
+    const char* Begin() const;
+    i32 GetSize() const;
+
+    void Clear();
+    TSharedRef Flush();
+
+private:
+    TBlob Blob;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TChannelWriter
     : public TRefCountedBase
 {
@@ -28,16 +52,14 @@ public:
 private:
     //! Size reserved for column offsets
     size_t GetEmptySize() const;
-    void AppendSize(i32 size, TBlob* data);
-    void AppendValue(TValue value, TBlob* data);
 
     TChannel Channel;
 
     //! Current buffers for fixed columns.
-    yvector<TBlob> FixedColumns;
+    yvector<TBlobOutput> FixedColumns;
 
     //! Current buffer for range columns.
-    TBlob RangeColumns;
+    TBlobOutput RangeColumns;
 
     //! Mapping from fixed column names of the #Channel to their indexes in #FixedColumns.
     yhash_map<TColumn, int> ColumnIndexes;
