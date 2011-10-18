@@ -201,51 +201,14 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-// TODO: maybe extract base?
-IYPathService::TNavigateResult TMapNodeProxy::DoNavigate(TYPath path)
+IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child == NULL) {
-        throw TYTreeException() << Sprintf("Child %s it not found",
-            ~prefix.Quote());
-    }
-
-    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return TMapNodeMixin::NavigateRecursive(path);
 }
 
-IYPathService::TSetResult TMapNodeProxy::Set(
-    TYPath path,
-    TYsonProducer::TPtr producer)
+IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-    if (path.empty()) {
-        SetNodeFromProducer(IMapNode::TPtr(this), producer);
-        return TSetResult::CreateDone();
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child != NULL) {
-        return TSetResult::CreateRecurse(AsYPath(child), tailPath);
-    }
-
-    if (tailPath.empty()) {
-        TTreeBuilder builder(GetFactory());
-        producer->Do(&builder);
-        INode::TPtr newChild = builder.GetRoot();
-        AddChild(newChild, prefix);
-        return TSetResult::CreateDone();
-    } else {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
-        AddChild(newChild, prefix);
-        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
-    }
+    return TMapNodeMixin::SetRecursive(path, producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,107 +346,14 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-// TODO: maybe extract base?
-IYPathService::TNavigateResult TListNodeProxy::DoNavigate(
-    TYPath path)
+IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    int index;
-    try {
-        index = FromString<int>(prefix);
-    } catch (...) {
-        throw TYTreeException() << Sprintf("Failed to parse child index %s",
-            ~prefix.Quote());
-    }
-
-    return GetYPathChild(index, tailPath);
+    return TListNodeMixin::NavigateRecursive(path);
 }
 
-IYPathService::TSetResult TListNodeProxy::Set(
-    TYPath path,
-    TYsonProducer::TPtr producer)
+IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-     if (path.empty()) {
-        return SetSelf(producer);
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    if (prefix.empty()) {
-        throw TYTreeException() << "Empty child index";
-    }
-
-    if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), tailPath, producer);
-    } else if (prefix == "-") {
-        return CreateYPathChild(0, tailPath, producer);
-    }
-    
-    char lastPrefixCh = prefix[prefix.length() - 1];
-    TStringBuf indexString =
-        lastPrefixCh == '+' || lastPrefixCh == '-'
-        ? TStringBuf(prefix.begin(), prefix.end() - 1)
-        : prefix;
-
-    int index;
-    try {
-        index = FromString<int>(indexString);
-    } catch (...) {
-        throw TYTreeException() << Sprintf("Failed to parse child index %s",
-            ~Stroka(indexString).Quote());
-    }
-
-    if (lastPrefixCh == '+') {
-        return CreateYPathChild(index + 1, tailPath, producer);
-    } else if (lastPrefixCh == '-') {
-        return CreateYPathChild(index, tailPath, producer);
-    } else {
-        auto navigateResult = GetYPathChild(index, tailPath);
-        YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
-        return TSetResult::CreateRecurse(navigateResult.RecurseService, navigateResult.RecursePath);
-    }
-}
-
-IYPathService::TSetResult TListNodeProxy::CreateYPathChild(
-    int beforeIndex,
-    TYPath tailPath,
-    TYsonProducer::TPtr producer)
-{
-    if (tailPath.empty()) {
-        TTreeBuilder builder(GetFactory());
-        producer->Do(&builder);
-        INode::TPtr newChild = builder.GetRoot();
-        AddChild(newChild, beforeIndex);
-        return TSetResult::CreateDone();
-    } else {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
-        AddChild(newChild, beforeIndex);
-        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
-    }
-}
-
-IYPathService::TNavigateResult TListNodeProxy::GetYPathChild(
-    int index,
-    TYPath tailPath) const
-{
-    int count = GetChildCount();
-    if (count == 0) {
-        throw TYTreeException() << "List is empty";
-    }
-
-    if (index < 0 || index >= count) {
-        throw TYTreeException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
-            index,
-            count - 1);
-    }
-
-    auto child = FindChild(index);
-    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return TListNodeMixin::SetRecursive(path, producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
