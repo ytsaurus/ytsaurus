@@ -91,7 +91,6 @@ struct ICompositeNode
     virtual int GetChildCount() const = 0;
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild) = 0;
     virtual void RemoveChild(INode::TPtr child) = 0;
-    // TODO: iterators?
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -189,7 +189,6 @@ public:
     {
         return this->GetTypedImpl();
     }
-
     virtual ICypressNode& GetImplForUpdate()
     {
         return this->GetTypedImplForUpdate();
@@ -200,7 +199,6 @@ public:
     {
         return GetProxy<ICompositeNode>(GetImpl().GetParentId());
     }
-
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
         auto proxy = ToProxy(INode::TPtr(~parent));
@@ -212,22 +210,12 @@ public:
     {
         return GetProxy<IMapNode>(GetImpl().GetAttributesId());
     }
-
     virtual void SetAttributes(IMapNode::TPtr attributes)
     {
         auto proxy = ToProxy(INode::TPtr(~attributes));
         GetImplForUpdate().SetAttributesId(~proxy == NULL ? NullNodeId : proxy->GetNodeId());
     }
 
-
-    virtual TLockResult Lock(TYPath path)
-    {
-        if (!path.empty()) {
-            return Navigate(path);
-        }
-
-        return LockSelf();
-    }
 
 protected:
     TCypressManager::TPtr CypressManager;
@@ -542,6 +530,7 @@ public:
 
 class TMapNodeProxy
     : public TCompositeNodeProxyBase<IMapNode, TMapNode>
+    , public TMapNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(Map)
 
@@ -560,10 +549,9 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
-
 private:
-    virtual TNavigateResult DoNavigate(TYPath path);
+    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
+    virtual TNavigateResult NavigateRecursive(TYPath path);
 
 };
 
@@ -571,6 +559,7 @@ private:
 
 class TListNodeProxy
     : public TCompositeNodeProxyBase<IListNode, TListNode>
+    , public TListNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(List)
 
@@ -589,12 +578,9 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
-
 private:
-    virtual TNavigateResult DoNavigate(TYPath path);
-    TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
-    TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath, TYsonProducer::TPtr producer);
+    virtual TNavigateResult NavigateRecursive(TYPath path);
+    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 
 };
 
