@@ -41,8 +41,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Part of schema descriptions
-// Set of fixed columns and column ranges
+//! Part of schema descriptions. Set of fixed columns and column ranges.
 class TChannel
 {
 public:

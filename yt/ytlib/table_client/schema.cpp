@@ -88,8 +88,10 @@ bool TRange::Contains(const TRange& range) const
 {
     if (range.IsInfinite()) {
         return Contains(range.Begin()) && IsInfinite();
+    } else if (IsInfinite()) {
+        return Contains(range.Begin());
     } else {
-        return Contains(range.Begin()) && Contains(range.End());
+        return Contains(range.Begin()) && range.End() <= End_;
     }
     YUNREACHABLE();
 }
@@ -173,11 +175,11 @@ bool TChannel::Contains(const TColumn& column) const
 bool TChannel::Contains(const TRange& range) const
 {
     FOREACH(auto& currentRange, Ranges) {
-        if (!currentRange.Contains(range)) {
-            return false;
+        if (currentRange.Contains(range)) {
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 bool TChannel::Contains(const TChannel& channel) const
@@ -233,7 +235,7 @@ bool TChannel::Overlaps(const TChannel& channel) const
     }
 
     FOREACH(auto& range, channel.Ranges) {
-        if (!Overlaps(range)) {
+        if (Overlaps(range)) {
             return true;
         }
     }
