@@ -34,6 +34,7 @@ public:
     DECLARE_ENUM(EResultCode,
         (OK)
         (InvalidVersion)
+        (AlreadyInProgress)
     );
 
     struct TLocalResult
@@ -60,10 +61,22 @@ public:
         TEpoch epoch,
         IInvoker::TPtr serviceInvoker);
 
-    void CreateDistributed(TMetaVersion version);
+    /*!
+     * \returns OK if distributed session is started,
+     *          AlreadyInProgress if the previous session is not completed yet.
+     *
+     * \note Thread affinity: StateThread
+     */
+    EResultCode CreateDistributed();
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
     TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
     class TSession;
 
     typedef TMetaStateManagerProxy TProxy;
@@ -77,9 +90,12 @@ private:
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
 
-    TAsyncLocalResult::TPtr DoCreateLocal(TMetaVersion version);
+    /*!
+     * \note Becomes true in StateThread, becomes false in SnapshotThread
+     */
+    volatile bool Creating;
 
-    static TLocalResult OnSave(
+    TLocalResult OnSave(
         TVoid /* fake */,
         i32 segmentId,
         TSnapshotWriter::TPtr writer);

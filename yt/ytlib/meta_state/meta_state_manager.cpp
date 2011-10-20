@@ -741,10 +741,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
         case EPeerStatus::Following:
             LOG_DEBUG("CreateSnapshot: creating snapshot");
 
-            SnapshotCreator->CreateLocal(version)->Subscribe(FromMethod(
-                &TThis::OnCreateLocalSnapshot,
-                TPtr(this),
-                context));
+            FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
+                ->AsyncVia(GetStateInvoker())
+                ->Do()
+                ->Subscribe(FromMethod(
+                    &TThis::OnCreateLocalSnapshot,
+                    TPtr(this),
+                    context));
             break;
             
         case EPeerStatus::FollowerRecovery: {
@@ -780,6 +783,9 @@ void TMetaStateManager::TImpl::OnCreateLocalSnapshot(
             break;
         case TSnapshotCreator::EResultCode::InvalidVersion:
             context->Reply(TProxy::EErrorCode::InvalidVersion);
+            break;
+        case TSnapshotCreator::EResultCode::AlreadyInProgress:
+            context->Reply(TProxy::EErrorCode::Busy);
             break;
         default:
             YUNREACHABLE();
@@ -1012,14 +1018,13 @@ void TMetaStateManager::TImpl::DoStopLeading()
 void TMetaStateManager::TImpl::OnApplyChange()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(ControlStatus == EPeerStatus::Leading);
+    YASSERT(StateStatus == EPeerStatus::Leading);
 
-    auto version = MetaState->GetVersion();
-    if (Config.MaxChangesBetweenSnapshots >= 0 &&
-        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
+    if (Config.MaxChangesBetweenSnapshots > 0 &&
+        MetaState->GetVersion().RecordCount % (Config.MaxChangesBetweenSnapshots + 1) == 0)
     {
         LeaderCommitter->Flush();
-        SnapshotCreator->CreateDistributed(version);
+        SnapshotCreator->CreateDistributed();
     }
 }
 

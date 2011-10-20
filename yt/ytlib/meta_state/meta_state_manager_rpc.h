@@ -23,6 +23,7 @@ public:
         ((InvalidVersion)(3))
         ((InvalidStatus)(4))
         ((IOError)(5))
+        ((Busy)(6))
     );
 
     TMetaStateManagerProxy(NRpc::IChannel::TPtr channel)
