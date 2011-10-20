@@ -59,6 +59,7 @@ NProto::TRange TRange::ToProto() const
     NProto::TRange protoRange;
     protoRange.SetBegin(Begin_);
     protoRange.SetEnd(End_);
+    protoRange.SetIsInfinite(IsInfinite_);
     return protoRange;
 }
 
