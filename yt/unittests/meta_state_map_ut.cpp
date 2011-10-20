@@ -208,10 +208,10 @@ TEST_F(TMetaStateMapTest, StressSave)
     NMetaState::TMetaStateMap<TKey, TValue> map;
 
     const int valueCount = 100000;
-    int valueRange = 100000;
+    const int insertRange = 100000;
 
     for (int i = 0; i < valueCount; ++i) {
-        TKey key = ToString(rand() % valueRange);
+        TKey key = ToString(rand() % insertRange);
         int value = rand();
         bool result = checkMap.insert(MakePair(key, value)).second;
         if (result) {
@@ -224,14 +224,13 @@ TEST_F(TMetaStateMapTest, StressSave)
     TFuture<TVoid>::TPtr asyncResult = map.Save(invoker, &output);
 
     const int actionCount = 100000;
-    valueRange = 200000;
-    const int actionRange = 3;
-
+    const int selectRange = 200000;
+    
     for (int i = 0; i < actionCount; ++i) {
-        TKey key = ToString(rand() % valueRange);
+        TKey key = ToString(rand() % selectRange);
         int value = rand();
 
-        int action = rand() % actionRange;
+        int action = rand() % 3;
         switch (action) {
             case 0: {
                 SCOPED_TRACE("Performing Insert");
