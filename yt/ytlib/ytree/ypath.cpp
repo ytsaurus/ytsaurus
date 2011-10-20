@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "ypath.h"
 
 #include "../actions/action_util.h"

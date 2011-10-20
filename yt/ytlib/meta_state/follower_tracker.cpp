@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "follower_tracker.h"
 
 namespace NYT {

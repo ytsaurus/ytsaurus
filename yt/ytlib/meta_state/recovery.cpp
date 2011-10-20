@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "recovery.h"
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"

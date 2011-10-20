@@ -68,8 +68,8 @@ TEST_F(TMetricTest, ManyValues)
     double std = sqrt(sumDeltaSq / x.size());
 
     double eps = 1e-10;
-    EXPECT_IS_TRUE( fabs(metric.GetMean()- mean) < eps);
-    EXPECT_IS_TRUE( fabs(metric.GetStd() - std) < eps);
+    EXPECT_IS_TRUE(fabs(metric.GetMean()- mean) < eps);
+    EXPECT_IS_TRUE(fabs(metric.GetStd() - std) < eps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

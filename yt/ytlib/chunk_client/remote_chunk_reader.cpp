@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "remote_chunk_reader.h"
 #include "holder_channel_cache.h"
 

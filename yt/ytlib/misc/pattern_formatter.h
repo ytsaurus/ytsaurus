@@ -7,10 +7,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPatternFormatter
+    : private TNonCopyable
 {
 public:
-    TPatternFormatter() { }
-
     void AddProperty(Stroka name, Stroka value);
     Stroka Format(Stroka pattern);
 

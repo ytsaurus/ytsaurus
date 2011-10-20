@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "chunk_manager.h"
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"

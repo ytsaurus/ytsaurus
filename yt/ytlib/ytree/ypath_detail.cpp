@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "ypath_detail.h"
 
 namespace NYT {

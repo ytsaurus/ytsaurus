@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "composite_meta_state.h"
 
 #include "../misc/foreach.h"

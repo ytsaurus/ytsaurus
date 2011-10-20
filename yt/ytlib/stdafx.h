@@ -1,7 +1,5 @@
 #pragma once
 
-// TODO: consider dropping some of these
-
 #include <algorithm>
 
 #include <string>
@@ -62,27 +60,30 @@ using std::string; // hack for guid.h to work
 #include <util/ysaveload.h>
 #include <util/str_stl.h>
 
-#include "intrusive_ptr.h"
-#include "ptr.h"
+#include <quality/NetLiba/UdpHttp.h>
+#include <quality/NetLiba/UdpAddress.h>
 
-// This define enables tracking of reference-counted objects to provide
-// various insightful information on memory usage and object creation patterns.
-#define ENABLE_REF_COUNTED_TRACKING
+// TODO: drop this
+#include <dict/json/json.h>
 
-// This define enables thread affinity check -- a user-defined verification ensuring
-// that some functions are called from particular threads.
-#define ENABLE_THREAD_AFFINITY_CHECK
+#include <library/json/json_writer.h>
+
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <contrib/libs/protobuf/io/coded_stream.h>
+
+#include <contrib/libs/protobuf/stubs/once.h>
+
+// TODO: conflict between ::hash and NStl::hash
+//#include <contrib/libs/protobuf/wire_format_lite_inl.h>
+//#include <contrib/libs/protobuf/wire_format.h>
+ 
+#include <contrib/libs/protobuf/descriptor.h>
+#include <contrib/libs/protobuf/reflection_ops.h>
+#include <contrib/libs/protobuf/repeated_field.h>
 
 #ifdef _MSC_VER
-    // C4505: unreferenced local function has been removed
-    #pragma warning (disable : 4505)
-    // C4121: alignment of a member was sensitive to packing
-    #pragma warning (disable : 4121)
-    // C4503: decorated name length exceeded, name was truncated
-    #pragma warning (disable : 4503)
-    // C4714: function marked as __forceinline not inlined
-    #pragma warning (disable: 4714)
-    // C4250: inherits via dominance
-    #pragma warning (disable: 4250)
+    // For protobuf-generated files:
+    // C4125: decimal digit terminates octal escape sequence
+    #pragma warning (disable : 4125)
 #endif
 

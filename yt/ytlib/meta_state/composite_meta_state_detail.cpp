@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "composite_meta_state_detail.h"
 
 #include "../misc/assert.h"

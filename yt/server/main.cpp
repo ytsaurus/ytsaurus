@@ -1,8 +1,6 @@
+#include "stdafx.h"
 #include "cell_master_server.h"
 #include "chunk_holder_server.h"
-
-#include <util/config/last_getopt.h>
-#include <util/datetime/base.h>
 
 #include <yt/ytlib/rpc/server.h>
 

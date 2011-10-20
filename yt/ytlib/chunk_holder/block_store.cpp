@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "block_store.h"
 #include "chunk_store.h"
 

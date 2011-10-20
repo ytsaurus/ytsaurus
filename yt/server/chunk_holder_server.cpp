@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "chunk_holder_server.h"
 
 namespace NYT {

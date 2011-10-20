@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "channel.h"
 #include "client.h"
 #include "message.h"

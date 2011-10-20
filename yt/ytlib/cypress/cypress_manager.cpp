@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "cypress_manager.h"
 #include "node_proxy.h"
 

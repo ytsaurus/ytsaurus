@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "message_rearranger.h"
 
 #include "../misc/assert.h"

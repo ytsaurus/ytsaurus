@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "change_committer.h"
 
 #include "../misc/serialize.h"

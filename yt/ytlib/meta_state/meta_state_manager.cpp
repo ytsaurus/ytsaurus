@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "meta_state_manager.h"
 #include "change_log.h"
 #include "change_log_cache.h"

@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "table_reader.h"
 
 #include "chunk_meta.pb.h"

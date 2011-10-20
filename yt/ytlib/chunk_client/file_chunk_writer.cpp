@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "file_chunk_writer.h"
 
 namespace NYT

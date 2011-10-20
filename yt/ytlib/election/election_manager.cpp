@@ -1,4 +1,4 @@
-#include "../misc/stdafx.h"
+#include "stdafx.h"
 #include "election_manager.h"
 
 #include "../misc/serialize.h"

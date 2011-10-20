@@ -50,6 +50,8 @@ struct TGuid
     static TGuid FromProto(const Stroka& protoGuid);
 };
 
+DECLARE_PODTYPE(NYT::TGuid)
+
 bool operator==(const TGuid &a, const TGuid &b);
 bool operator!=(const TGuid &a, const TGuid &b);
 bool operator<(const TGuid &a, const TGuid &b);
@@ -61,7 +63,7 @@ bool operator<(const TGuid &a, const TGuid &b);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A hasher for TGuid.
-template<>
+template <>
 struct hash<NYT::TGuid>
 {
     inline size_t operator()(const NYT::TGuid &a) const
@@ -78,5 +80,4 @@ inline Stroka ToString(const NYT::TGuid& guid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PODTYPE(NYT::TGuid)
 
