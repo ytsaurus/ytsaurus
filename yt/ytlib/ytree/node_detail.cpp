@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "node_detail.h"
 #include "ypath_detail.h"
 #include "ypath.h"

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "log.h"
 
 #include "../misc/pattern_formatter.h"

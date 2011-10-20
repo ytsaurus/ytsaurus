@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "ephemeral.h"
 #include "node_detail.h"
 #include "ypath_detail.h"

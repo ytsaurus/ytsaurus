@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "snapshot_creator.h"
 #include "meta_state_manager_rpc.h"
 

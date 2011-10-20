@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "action.h"
 
 #include "invoker.h"

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "writer.h"
 #include "log.h"
 

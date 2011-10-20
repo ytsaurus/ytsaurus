@@ -1,4 +1,5 @@
-﻿#include "channel_reader.h"
+#include "../misc/stdafx.h"
+#include "channel_reader.h"
 
 #include <util/ysaveload.h>
 

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "value.h"
 
 #include "../misc/serialize.h"

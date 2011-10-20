@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "foreach.h"
 #include "demangle.h"
 #include "ref_counted_tracker.h"

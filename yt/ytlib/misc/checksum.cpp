@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "checksum.h"
 
 #include <util/digest/crc.h>

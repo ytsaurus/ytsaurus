@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "io_channels.h"
 
 namespace NYT {

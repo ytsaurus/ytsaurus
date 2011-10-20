@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "snapshot.h"
 
 #include "../misc/ptr.h"

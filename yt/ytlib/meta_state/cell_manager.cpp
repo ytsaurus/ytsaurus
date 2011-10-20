@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "cell_manager.h"
 
 namespace NYT {
