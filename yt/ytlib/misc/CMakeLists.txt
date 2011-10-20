@@ -28,6 +28,7 @@ SET(YT_SOURCE_FILES
     periodic_invoker.cpp
     zigzag.h
     property.h
+    ref_counted_base.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h
