@@ -29,6 +29,7 @@ SET(YT_SOURCE_FILES
     zigzag.h
     property.h
     stdafx.cpp
+    ref_counted_base.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h
