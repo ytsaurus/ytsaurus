@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 

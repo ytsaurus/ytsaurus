@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "service.h"
 
 #include "../logging/log.h"

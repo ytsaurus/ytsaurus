@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "sequential_chunk_reader.h"
 
 #include "../actions/action_util.h"

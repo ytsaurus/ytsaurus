@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "transaction_manager.h"
 
 namespace NYT {

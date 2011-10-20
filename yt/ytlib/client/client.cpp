@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "client.h"
 #include "io.h"
 #include "processor.h"

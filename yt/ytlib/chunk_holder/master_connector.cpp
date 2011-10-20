@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "master_connector.h"
 
 #include <util/system/hostname.h>

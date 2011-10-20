@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 
 #include "../logging/log.h"
 #include "../misc/ptr.h"

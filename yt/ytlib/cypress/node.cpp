@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "node.h"
 #include "node_proxy.h"
 

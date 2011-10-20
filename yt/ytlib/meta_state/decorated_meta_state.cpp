@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "decorated_meta_state.h"
 #include "change_log_cache.h"
 #include "snapshot_store.h"

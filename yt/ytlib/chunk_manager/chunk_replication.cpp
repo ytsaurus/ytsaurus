@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "chunk_replication.h"
 
 #include "../misc/foreach.h"

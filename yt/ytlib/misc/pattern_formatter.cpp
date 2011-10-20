@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "pattern_formatter.h"
 
 #include <util/stream/str.h>

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "cypress_service.h"
 
 #include "../ytree/yson_writer.h"

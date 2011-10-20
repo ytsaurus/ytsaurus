@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "json_adapter.h"
 
 #include <library/json/json_writer.h>

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "schema.h"
 
 #include "../misc/assert.h"
