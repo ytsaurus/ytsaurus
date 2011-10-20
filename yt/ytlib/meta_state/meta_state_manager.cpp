@@ -72,6 +72,13 @@ public:
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 
+    void SetReadOnly(bool readOnly)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ReadOnly = readOnly;
+    }
+
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
 
     // TODO: get rid of this stupid name clash with IElectionCallbacks
@@ -98,6 +105,7 @@ private:
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
+    bool ReadOnly;
 
     // Per epoch, service thread
     TEpoch Epoch;
@@ -301,8 +309,12 @@ TMetaStateManager::TImpl::CommitChangeSync(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (ControlStatus != EPeerStatus::Leading) {
+    if (GetStateStatus() != EPeerStatus::Leading) {
         return New<TCommitResult>(ECommitResult::InvalidStatus);
+    }
+
+    if (ReadOnly) {
+        return New<TCommitResult>(ECommitResult::ReadOnly);
     }
 
     if (!FollowerTracker->HasActiveQuorum()) {
@@ -412,10 +424,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, Sync)
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
     
-    if (ControlStatus != EPeerStatus::Leading && ControlStatus != EPeerStatus::LeaderRecovery) {
+    if (GetControlStatus() != EPeerStatus::Leading && GetControlStatus() != EPeerStatus::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
             Sprintf("Invalid status (Status: %s)",
-                ~ControlStatus.ToString());
+                ~GetControlStatus().ToString());
     }
 
     GetStateInvoker()->Invoke(FromMethod(
@@ -618,9 +630,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
         ~epoch.ToString(),
         ~version.ToString());
 
-    if (ControlStatus != EPeerStatus::Following && ControlStatus != EPeerStatus::FollowerRecovery) {
+    if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid state %s", ~ControlStatus.ToString());
+            Sprintf("Invalid state %s", ~GetControlStatus().ToString());
     }
 
     if (epoch != Epoch) {
@@ -632,13 +644,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
     }
     
     int changeCount = request->Attachments().size();
-    switch (ControlStatus) {
+    switch (GetControlStatus()) {
         case EPeerStatus::Following: {
             LOG_DEBUG("ApplyChange: applying %d changes", changeCount);
 
             YASSERT(~FollowerCommitter != NULL);
             for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(ControlStatus == EPeerStatus::Following);
+                YASSERT(GetControlStatus() == EPeerStatus::Following);
                 TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
                 auto asyncResult = FollowerCommitter->CommitFollower(commitVersion, changeData);
@@ -659,7 +671,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
 
             YASSERT(~FollowerRecovery != NULL);
             for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(ControlStatus == EPeerStatus::FollowerRecovery);
+                YASSERT(GetControlStatus() == EPeerStatus::FollowerRecovery);
                 TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
                 const TSharedRef& changeData = request->Attachments().at(changeIndex);
                 auto result = FollowerRecovery->PostponeChange(commitVersion, changeData);
@@ -724,9 +736,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
         ~epoch.ToString(),
         ~version.ToString());
 
-    if (ControlStatus != EPeerStatus::Following && ControlStatus != EPeerStatus::FollowerRecovery) {
+    if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid state %s", ~ControlStatus.ToString());
+            Sprintf("Invalid state %s", ~GetControlStatus().ToString());
     }
 
     if (epoch != Epoch) {
@@ -737,14 +749,17 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 ~epoch.ToString());
     }
 
-    switch (ControlStatus) {
+    switch (GetControlStatus()) {
         case EPeerStatus::Following:
             LOG_DEBUG("CreateSnapshot: creating snapshot");
 
-            SnapshotCreator->CreateLocal(version)->Subscribe(FromMethod(
-                &TThis::OnCreateLocalSnapshot,
-                TPtr(this),
-                context));
+            FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
+                ->AsyncVia(GetStateInvoker())
+                ->Do()
+                ->Subscribe(FromMethod(
+                    &TThis::OnCreateLocalSnapshot,
+                    TPtr(this),
+                    context));
             break;
             
         case EPeerStatus::FollowerRecovery: {
@@ -781,6 +796,9 @@ void TMetaStateManager::TImpl::OnCreateLocalSnapshot(
         case TSnapshotCreator::EResultCode::InvalidVersion:
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             break;
+        case TSnapshotCreator::EResultCode::AlreadyInProgress:
+            context->Reply(TProxy::EErrorCode::Busy);
+            break;
         default:
             YUNREACHABLE();
     }
@@ -800,9 +818,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, PingLeader)
         ~followerEpoch.ToString(),
         ~followerStatus.ToString());
 
-    if (ControlStatus != EPeerStatus::Leading) {
+    if (GetControlStatus() != EPeerStatus::Leading) {
         LOG_DEBUG("PingLeader: invalid status (Status: %s)",
-            ~ControlStatus.ToString());
+            ~GetControlStatus().ToString());
     } else if (followerEpoch != Epoch ) {
         LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
             ~Epoch.ToString());
@@ -862,7 +880,7 @@ void TMetaStateManager::TImpl::OnStartLeading(const TEpoch& epoch)
 
     LOG_INFO("Starting leader recovery");
 
-    ControlStatus = EPeerStatus::LeaderRecovery;
+    GetControlStatus() = EPeerStatus::LeaderRecovery;
     LeaderId = CellManager->GetSelfId();    
 
     StartControlEpoch(epoch);
@@ -1012,14 +1030,13 @@ void TMetaStateManager::TImpl::DoStopLeading()
 void TMetaStateManager::TImpl::OnApplyChange()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(ControlStatus == EPeerStatus::Leading);
+    YASSERT(StateStatus == EPeerStatus::Leading);
 
-    auto version = MetaState->GetVersion();
-    if (Config.MaxChangesBetweenSnapshots >= 0 &&
-        version.RecordCount >= Config.MaxChangesBetweenSnapshots)
+    if (Config.MaxChangesBetweenSnapshots > 0 &&
+        MetaState->GetVersion().RecordCount % (Config.MaxChangesBetweenSnapshots + 1) == 0)
     {
         LeaderCommitter->Flush();
-        SnapshotCreator->CreateDistributed(version);
+        SnapshotCreator->CreateDistributed();
     }
 }
 
@@ -1261,6 +1278,11 @@ TMetaStateManager::CommitChangeAsync(
     const TSharedRef& changeData)
 {
     return Impl->CommitChangeAsync(changeAction, changeData);
+}
+
+void TMetaStateManager::SetReadOnly(bool readOnly)
+{
+    Impl->SetReadOnly(readOnly);
 }
 
 void TMetaStateManager::Start()

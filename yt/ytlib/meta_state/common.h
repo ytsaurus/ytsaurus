@@ -58,6 +58,7 @@ DECLARE_ENUM(ECommitResult,
     (MaybeCommitted)
     (NotCommitted)
     (InvalidStatus)
+    (ReadOnly)
 );
 
 DECLARE_ENUM(ECommitMode,

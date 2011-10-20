@@ -28,7 +28,7 @@ struct ICodec
 
 //! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
 //! Single-threaded
-class TTableWriter
+class  TTableWriter
     : public TNonCopyable
 {
 public:

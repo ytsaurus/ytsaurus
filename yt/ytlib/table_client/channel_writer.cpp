@@ -66,12 +66,12 @@ void TChannelWriter::Write(const TColumn& column, TValue value)
 
     auto it = ColumnIndexes.find(column);
     if (it == ColumnIndexes.end()) {
-        TValue(column).Save(&RangeColumns);
-        value.Save(&RangeColumns);
+        CurrentSize += TValue(column).Save(&RangeColumns);
+        CurrentSize += value.Save(&RangeColumns);
     } else {
         int columnIndex = it->Second();
         auto& columnOutput = FixedColumns[columnIndex];
-        value.Save(&columnOutput);
+        CurrentSize += value.Save(&columnOutput);
         IsColumnUsed[columnIndex] = true;
     }
 }
@@ -84,12 +84,12 @@ void TChannelWriter::EndRow()
             IsColumnUsed[columnIdx] = false;
         } else {
             auto& columnData = FixedColumns[columnIdx];
-            TValue().Save(&columnData);
+            CurrentSize += TValue().Save(&columnData);
         }
     }
 
     // End of the row
-    TValue().Save(&RangeColumns);
+    CurrentSize += TValue().Save(&RangeColumns);
     ++ CurrentRowCount;
 }
 
