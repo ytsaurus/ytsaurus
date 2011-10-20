@@ -1,7 +1,11 @@
 #pragma once
 
+
 #include <util/system/yassert.h>
 #include <util/system/defaults.h>
+
+#include <util/generic/ptr.h>
+
 
 //! Implemntation was forked from util/generic/ptr.h
 
@@ -31,12 +35,11 @@ class TDefaultIntrusivePtrOps {
         }
 };
 
-template <
-            class T,
-            class Ops = TDefaultIntrusivePtrOps<T>
-         >
-class TIntrusivePtr: public TPointerBase<TIntrusivePtr<T, Ops>, T> {
+template <class T>
+class TIntrusivePtr: public TPointerBase<TIntrusivePtr<T>, T> {
     public:
+        typedef TDefaultIntrusivePtrOps<T> Ops;
+
         inline TIntrusivePtr(T* t = 0) throw ()
             : T_(t)
         {
@@ -101,12 +104,11 @@ class TIntrusivePtr: public TPointerBase<TIntrusivePtr<T, Ops>, T> {
 };
 
 // Behaves like TIntrusivePtr but returns const T* to prevent user from accidentally modifying the referenced object.
-template <
-            class T,
-            class Ops = TDefaultIntrusivePtrOps<T>
-         >
+template <class T>
 class TIntrusiveConstPtr {
     public:
+        typedef TDefaultIntrusivePtrOps<T> Ops;
+
         inline TIntrusiveConstPtr(T* t = NULL) throw ()  // we need a non-const pointer to Ref(), UnRef() and eventually delete it.
             : T_(t)
         {
@@ -124,7 +126,7 @@ class TIntrusiveConstPtr {
             Ref();
         }
 
-        inline TIntrusiveConstPtr(const TIntrusivePtr<T, Ops>& p) throw ()
+        inline TIntrusiveConstPtr(const TIntrusivePtr<T>& p) throw ()
             : T_(p.Get())
         {
             Ref();

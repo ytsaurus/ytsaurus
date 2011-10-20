@@ -30,6 +30,7 @@ SET(YT_SOURCE_FILES
     property.h
     stdafx.cpp
     ref_counted_base.h
+    intrusive_ptr.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h
