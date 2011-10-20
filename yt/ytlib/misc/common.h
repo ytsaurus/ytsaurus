@@ -16,9 +16,10 @@
 #include <util/string/printf.h>
 
 #include <string>
-
 // TODO: try to get rid of this
 using std::string; // hack for guid.h to work
+
+#include "intrusive_ptr.h" // TODO: internal files shouldn't be included from common
 
 #ifdef _MSC_VER
     // C4505: unreferenced local function has been removed

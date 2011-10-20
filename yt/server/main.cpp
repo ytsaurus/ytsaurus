@@ -6,14 +6,18 @@
 
 #include <yt/ytlib/rpc/server.h>
 
-using namespace NYT;
+//using namespace NYT;
+namespace NYT {
 
-using NElection::TPeerId;
-using NElection::InvalidPeerId;
+using NYT::NElection::TPeerId;
+using NYT::NElection::InvalidPeerId;
+
+} // namespace NYT
 
 int main(int argc, const char *argv[])
 {
     try {
+        using namespace NYT;
         using namespace NLastGetopt;
         TOpts opts;
 
@@ -101,4 +105,3 @@ int main(int argc, const char *argv[])
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////

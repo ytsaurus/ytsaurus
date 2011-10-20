@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ptr.h"
+#include "intrusive_ptr.h"
 
 #include <util/str_stl.h>
 
@@ -8,9 +8,9 @@
 
 //! A hasher for TIntrusivePtr.
 template <class T>
-struct hash< TIntrusivePtr<T> >
+struct hash< NYT::TIntrusivePtr<T> >
 {
-    size_t operator () (const TIntrusivePtr<T>& ptr) const
+    size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
     {
         return THash<T*>()(~ptr);
     }
@@ -18,9 +18,9 @@ struct hash< TIntrusivePtr<T> >
 
 //! A hasher for TIntrusiveConstPtr.
 template <class T>
-struct hash< TIntrusiveConstPtr<T> >
+struct hash< NYT::TIntrusiveConstPtr<T> >
 {
-    size_t operator () (const TIntrusiveConstPtr<T>& ptr) const
+    size_t operator () (const NYT::TIntrusiveConstPtr<T>& ptr) const
     {
         return THash<T*>()(~ptr);
     }
