@@ -39,6 +39,7 @@ void WritePadding(TFile& output, i64 recordSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// There are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
 void WriteVarInt(ui64 value, TOutputStream* output)
 {
     bool stop = false;
