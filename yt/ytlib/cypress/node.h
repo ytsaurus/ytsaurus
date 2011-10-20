@@ -118,7 +118,9 @@ struct ICypressNode
      *  modify the node.
      *  \return A branched node.
      */
-    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const = 0;
+    virtual TAutoPtr<ICypressNode> Branch(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        const TTransactionId& transactionId) const = 0;
     
     //! Merges the changes made in the branched node back into the committed one.
     /*!
@@ -171,6 +173,10 @@ public:
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
+    void DoBranch(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        ICypressNode& branchedNode,
+        const TTransactionId& transactionId) const;
     virtual void Merge(
         TIntrusivePtr<TCypressManager> cypressManager,
         ICypressNode& branchedNode);
@@ -202,12 +208,17 @@ public:
         : TCypressNodeBase(id)
     { }
 
-    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const
+    virtual TAutoPtr<ICypressNode> Branch(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        const TTransactionId& transactionId) const
     {
-        YASSERT(!Id.IsBranched());
-        return new TThis(
+        TAutoPtr<ICypressNode> branchedNode = new TThis(
             TBranchedNodeId(Id.NodeId, transactionId),
             *this);
+
+        TCypressNodeBase::DoBranch(cypressManager, *branchedNode, transactionId);
+
+        return branchedNode;
     }
 
     virtual void Merge(
@@ -253,7 +264,9 @@ private:
 public:
     TMapNode(const TBranchedNodeId& id);
 
-    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
+    virtual TAutoPtr<ICypressNode> Branch(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        const TTransactionId& transactionId) const;
     virtual void Merge(
         TIntrusivePtr<TCypressManager> cypressManager,
         ICypressNode& branchedNode);
@@ -287,7 +300,9 @@ private:
 public:
     TListNode(const TBranchedNodeId& id);
 
-    virtual TAutoPtr<ICypressNode> Branch(const TTransactionId& transactionId) const;
+    virtual TAutoPtr<ICypressNode> Branch(
+        TIntrusivePtr<TCypressManager> cypressManager,
+        const TTransactionId& transactionId) const;
     virtual void Merge(
         TIntrusivePtr<TCypressManager> cypressManager,
         ICypressNode& branchedNode);

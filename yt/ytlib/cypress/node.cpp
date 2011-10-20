@@ -73,14 +73,12 @@ NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
 
 int TCypressNodeBase::Ref()
 {
-    YASSERT(!Id.IsBranched());
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return ++RefCounter;
 }
 
 int TCypressNodeBase::Unref()
 {
-    YASSERT(!Id.IsBranched());
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return --RefCounter;
 }
@@ -89,29 +87,39 @@ void TCypressNodeBase::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
 {
     UNUSED(cypressManager);
     YASSERT(Id.NodeId != RootNodeId);
-    YASSERT(!Id.IsBranched());
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
+}
+
+void TCypressNodeBase::DoBranch(
+    TIntrusivePtr<TCypressManager> cypressManager,
+    ICypressNode& branchedNode,
+    const TTransactionId& transactionId) const
+{
+    UNUSED(branchedNode);
+    UNUSED(transactionId);
+    YASSERT(State_ == ENodeState::Committed);
+
+    // Add a reference to the attributes, if any.
+    if (AttributesId_ != NullNodeId) {
+        auto& attrImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(AttributesId_, NullTransactionId));
+        cypressManager->RefNode(attrImpl);
+    }
 }
 
 void TCypressNodeBase::Merge(
     TIntrusivePtr<TCypressManager> cypressManager,
     ICypressNode& branchedNode)
 {
-   if (GetAttributesId() != NullNodeId) {
-        auto& impl = cypressManager->GetNodeForUpdate(TBranchedNodeId(AttributesId_, NullTransactionId));
-        if (impl.GetState() == ENodeState::Committed) {
-            cypressManager->RefNode(impl);
-        }
+   YASSERT(State_ == ENodeState::Committed);
+
+    // Drop the reference to attributes, if any.
+    if (AttributesId_ != NullNodeId) {
+        auto& attrImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(AttributesId_, NullTransactionId));
+        cypressManager->UnrefNode(attrImpl);
     }
 
-    if (branchedNode.GetAttributesId() != NullNodeId) {
-        auto& impl = cypressManager->GetNodeForUpdate(TBranchedNodeId(branchedNode.GetAttributesId(), NullTransactionId));
-        if (impl.GetState() == ENodeState::Committed) {
-            cypressManager->UnrefNode(impl);
-        }
-    }
-
-    SetAttributesId(branchedNode.GetAttributesId());
+    // Replace the attributes with the branched copy.
+    AttributesId_ = branchedNode.GetAttributesId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,12 +142,23 @@ ICypressNodeProxy::TPtr TMapNode::GetProxy(
     return ~New<TMapNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
-TAutoPtr<ICypressNode> TMapNode::Branch(const TTransactionId& transactionId) const
+TAutoPtr<ICypressNode> TMapNode::Branch(
+    TIntrusivePtr<TCypressManager> cypressManager,
+    const TTransactionId& transactionId) const
 {
-    YASSERT(!Id.IsBranched());
-    return new TThis(
+    TAutoPtr<ICypressNode> branchedNode = new TThis(
         TBranchedNodeId(Id.NodeId, transactionId),
         *this);
+
+    TCypressNodeBase::DoBranch(cypressManager, *branchedNode, transactionId);
+
+    // Reference all children.
+    FOREACH (const auto& pair, NameToChild_) {
+        auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(pair.Second(), NullTransactionId));
+        cypressManager->RefNode(childImpl);
+    }
+
+    return branchedNode;
 }
 
 void TMapNode::Merge(
@@ -148,22 +167,14 @@ void TMapNode::Merge(
 {
     TCypressNodeBase::Merge(cypressManager, branchedNode);
 
-    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-
-    FOREACH (const auto& pair, typedBranchedNode.NameToChild_) {
-        auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(pair.Second(), NullTransactionId));
-        if (childImpl.GetState() == ENodeState::Committed) {
-            cypressManager->RefNode(childImpl);
-        }
-    }
-
+    // Drop all references held by the originator.
     FOREACH (const auto& pair, NameToChild_) {
         auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(pair.Second(), NullTransactionId));
-        if (childImpl.GetState() == ENodeState::Committed) {
-            cypressManager->UnrefNode(childImpl);
-        }
+        cypressManager->UnrefNode(childImpl);
     }
 
+    // Replace the child list with the branched copy.
+    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
     NameToChild_.swap(typedBranchedNode.NameToChild_);
     ChildToName_.swap(typedBranchedNode.ChildToName_);
 }
@@ -177,6 +188,7 @@ void TMapNode::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
 {
     TCypressNodeBase::Destroy(cypressManager);
 
+    // Drop references to the children.
     FOREACH (const auto& pair, NameToChild_) {
         auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(pair.Second(), NullTransactionId));
         cypressManager->UnrefNode(childImpl);
@@ -203,12 +215,23 @@ ICypressNodeProxy::TPtr TListNode::GetProxy(
     return ~New<TListNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
-TAutoPtr<ICypressNode> TListNode::Branch(const TTransactionId& transactionId) const
+TAutoPtr<ICypressNode> TListNode::Branch(
+    TIntrusivePtr<TCypressManager> cypressManager,
+    const TTransactionId& transactionId) const
 {
-    YASSERT(!Id.IsBranched());
-    return new TThis(
+    TAutoPtr<ICypressNode> branchedNode = new TThis(
         TBranchedNodeId(Id.NodeId, transactionId),
         *this);
+
+    TCypressNodeBase::DoBranch(cypressManager, *branchedNode, transactionId);
+
+    // Reference all children.
+    FOREACH (const auto& nodeId, IndexToChild_) {
+        auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        cypressManager->RefNode(childImpl);
+    }
+
+    return branchedNode;
 }
 
 void TListNode::Merge(
@@ -217,22 +240,14 @@ void TListNode::Merge(
 {
     TCypressNodeBase::Merge(cypressManager, branchedNode);
 
-    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-    
-    FOREACH (const auto& nodeId, typedBranchedNode.IndexToChild_) {
-        auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        if (childImpl.GetState() == ENodeState::Committed) {
-            cypressManager->RefNode(childImpl);
-        }
-    }
-
+    // Drop all references held by the originator.
     FOREACH (const auto& nodeId, IndexToChild_) {
         auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        if (childImpl.GetState() == ENodeState::Committed) {
-            cypressManager->UnrefNode(childImpl);
-        }
+        cypressManager->UnrefNode(childImpl);
     }
 
+    // Replace the child list with the branched copy.
+    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
     IndexToChild_.swap(typedBranchedNode.IndexToChild_);
     ChildToIndex_.swap(typedBranchedNode.ChildToIndex_);
 }
@@ -246,6 +261,7 @@ void TListNode::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
 {
     TCypressNodeBase::Destroy(cypressManager);
 
+    // Drop references to the children.
     FOREACH (auto& nodeId, IndexToChild_) {
         auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
         cypressManager->UnrefNode(childImpl);

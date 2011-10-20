@@ -210,10 +210,22 @@ public:
     {
         return GetProxy<IMapNode>(GetImpl().GetAttributesId());
     }
+
     virtual void SetAttributes(IMapNode::TPtr attributes)
     {
-        auto proxy = ToProxy(INode::TPtr(~attributes));
-        GetImplForUpdate().SetAttributesId(~proxy == NULL ? NullNodeId : proxy->GetNodeId());
+        auto& impl = GetImplForUpdate();
+        if (impl.GetAttributesId() != NullNodeId) {
+            auto& attrImpl = GetImplForUpdate(impl.GetAttributesId());
+            DetachChild(attrImpl);
+            impl.SetAttributesId(NullNodeId);
+        }
+
+        if (~attributes != NULL) {
+            auto attrProxy = ToProxy(INode::TPtr(~attributes));
+            auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
+            AttachChild(attrImpl);
+            impl.SetAttributesId(attrProxy->GetNodeId());
+        }
     }
 
 
@@ -384,9 +396,7 @@ protected:
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullNodeId);
-        if (child.GetState() == ENodeState::Uncommitted) {
-            CypressManager->UnrefNode(child);
-        }
+        CypressManager->UnrefNode(child);
     }
 
 

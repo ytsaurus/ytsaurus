@@ -57,7 +57,7 @@ public:
 
     TLock* CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 
-    ICypressNode& BranchNode(const ICypressNode& node, const TTransactionId& transactionId);
+    ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
     void GetYPath(
         const TTransactionId& transactionId,
