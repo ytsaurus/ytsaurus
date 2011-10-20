@@ -47,6 +47,8 @@ TTableReader::TTableReader(
     , InitSuccess(New< TFuture<bool> >())
     , IsColumnValid(false)
     , IsRowValid(false)
+    , RowCount(0)
+    , CurrentRow(-1)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -65,6 +67,11 @@ void TTableReader::OnGotMeta(
     const TSequentialChunkReader::TConfig& config,
     IChunkReader::TPtr chunkReader)
 {
+    // ToDo: now we work in the rpc reply thread.
+    // As the algorithm here is pretty heavy here,
+    // it may make sense to make a dedicated thread for it or reuse 
+    // ReaderThread from TSequentialChunkReader
+
     VERIFY_THREAD_AFFINITY_ANY();
     if (!readResult.IsOK) {
         InitSuccess->Set(false);

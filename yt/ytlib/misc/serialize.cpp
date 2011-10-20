@@ -40,10 +40,12 @@ void WritePadding(TFile& output, i64 recordSize)
 ////////////////////////////////////////////////////////////////////////////////
 
 // There are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
-void WriteVarInt(ui64 value, TOutputStream* output)
+int WriteVarInt(ui64 value, TOutputStream* output)
 {
     bool stop = false;
+    int bytesWritten = 0;
     while (!stop) {
+        ++bytesWritten;
         ui8 byte = static_cast<ui8> (value | 0x80);
         value >>= 7;
         if (value == 0) {
@@ -52,16 +54,17 @@ void WriteVarInt(ui64 value, TOutputStream* output)
         }
         output->Write(byte);
     }
+    return bytesWritten;
 }
 
-void WriteVarInt32(i32 value, TOutputStream* output)
+int WriteVarInt32(i32 value, TOutputStream* output)
 {
-    WriteVarInt(static_cast<ui64>(ZigZagEncode32(value)), output);
+    return WriteVarInt(static_cast<ui64>(ZigZagEncode32(value)), output);
 }
 
-void WriteVarInt64(i64 value, TOutputStream* output)
+int WriteVarInt64(i64 value, TOutputStream* output)
 {
-    WriteVarInt(static_cast<ui64>(ZigZagEncode64(value)), output);
+    return WriteVarInt(static_cast<ui64>(ZigZagEncode64(value)), output);
 }
 
 int ReadVarInt(ui64* value, TInputStream* input)

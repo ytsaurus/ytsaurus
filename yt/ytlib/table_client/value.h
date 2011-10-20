@@ -27,7 +27,7 @@ public:
     bool IsEmpty() const;
     bool IsNull() const;
 
-    void Save(TOutputStream* out);
+    int Save(TOutputStream* out);
     static TValue Load(TMemoryInput* in);
 
     // ToDo: do we really need it?

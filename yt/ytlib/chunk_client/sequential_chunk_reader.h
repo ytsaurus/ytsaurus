@@ -14,6 +14,7 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// ToDo: move to misc
 //! Thread safe cyclic buffer
 template <class T>
 class TCyclicBuffer
@@ -21,55 +22,61 @@ class TCyclicBuffer
 public:
     TCyclicBuffer(int size)
         : Window(size)
+        , CyclicStart(0)
+        , WindowStart(0)
     { }
 
-    T& GetSlot(int index)
+    T& operator[](int index)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(StartIndex <= index);
-        YASSERT(index < StartIndex + Window.size());
+        YASSERT(WindowStart <= index);
+        YASSERT(index < WindowStart + Window.size());
 
-        return Window[Start + (index - StartIndex)];
+        return Window[(CyclicStart + (index - WindowStart)) % Window.size()];
     }
 
-    const T& GetSlot(int index) const
+    const T& operator[](int index) const
     {
         TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(StartIndex <= index);
-        YASSERT(index < StartIndex + Window.size());
+        YASSERT(WindowStart <= index);
+        YASSERT(index < WindowStart + Window.size());
 
-        return Window[Start + (index - StartIndex)];
+        return Window[CyclicStart + (index - WindowStart)];
     }
 
-    T& GetFirstSlot()
+    T& First()
     {
-        return GetSlot(StartIndex);
+        return Window[CyclicStart];
     }
 
-    const T& GetFirstSlot() const
+    const T& First() const
     {
-        return GetSlot(StartIndex);
+        return Window[CyclicStart];
     }
 
     void Shift()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        Start = (++Start) % Window.size();
-        ++StartIndex;
+        CyclicStart = (++CyclicStart) % Window.size();
+        ++WindowStart;
     }
 
 private:
     autoarray<T> Window;
-    int Start;
-    int StartIndex;
+
+    //! Current index of the first slot in #Window
+    int CyclicStart;
+
+    int WindowStart;
 
     TSpinLock SpinLock;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Given a sequence of the block indexes can output blocks
-//! one-by-one via async interface with prefetching.
+//! Given a sequence of block indexes outputs blocks
+//! one-by-one via async interface. Prefetches and stores 
+//! limited number of blocks in the internal cyclic buffer.
 class TSequentialChunkReader
     : public TRefCountedBase
 {
@@ -78,14 +85,24 @@ public:
 
     struct TResult
     {
+        //ToDo: proper error code
         bool IsOK;
         TSharedRef Block;
     };
 
     struct TConfig
     {
+        //! Size of prefetching buffer in blocks
         int WindowSize;
+
+        //! Maximum number of blocks for one rpc request
         int GroupSize;
+
+        // ToDo: read from config
+        TConfig()
+            : WindowSize(40)
+            , GroupSize(8)
+        { }
     };
 
     TSequentialChunkReader(
@@ -101,13 +118,15 @@ public:
      */
     TFuture<TResult>::TPtr AsyncGetNextBlock();
 
-    static IInvoker::TPtr GetInvoker();
-
 private:
     struct TWindowSlot
     {
         bool IsEmpty;
         TResult Result;
+
+        TWindowSlot()
+            : IsEmpty(true)
+        { }
     };
 
     void OnGotBlocks(
@@ -135,20 +154,20 @@ private:
 
     TCyclicBuffer<TWindowSlot> Window;
 
-    //! Number of free slots in window
+    //! Number of free slots in window.
     int FreeSlots;
 
     //! Block, that has been already requested by client,
-    //! but not delivered from holder yet
+    //! but not delivered from holder yet.
     TFuture<TResult>::TPtr PendingResult;
 
     bool HasFailed;
 
-    //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader
+    //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
     int NextSequenceIndex;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
-    DECLARE_THREAD_AFFINITY_SLOT(Reader);
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 
     static TLazyPtr<TActionQueue> ReaderThread;
 };
