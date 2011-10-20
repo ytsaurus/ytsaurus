@@ -69,10 +69,10 @@ public:
         ui64 counter = static_cast<ui64>(AtomicIncrement(Current));
         ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter), Seed);
         return TGuid(
-            counter & 0xffffffff,
-            counter >> 32,
+            hash >> 32,
             hash & 0xffffffff,
-            hash >> 32);
+            counter >> 32,
+            counter & 0xffffffff);
     }
 
     void Reset()
