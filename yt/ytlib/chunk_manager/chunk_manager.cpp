@@ -237,16 +237,16 @@ private:
 
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker)
     {
-        invoker->Invoke(FromMethod(&TState::DoSave, TPtr(this), stream));
+        invoker->Invoke(
+            FromMethod(&TState::DoSave, TPtr(this), stream, HolderIdGenerator));
         HolderMap.Save(invoker, stream);
         return ChunkMap.Save(invoker, stream);
     }
 
     //! Saves the local state (not including the maps).
-    void DoSave(TOutputStream* stream)
+    void DoSave(TOutputStream* stream, TIdGenerator<THolderId> holderIdGenerator)
     {
-        UNUSED(stream);
-        //*stream << HolderIdGenerator;
+        ::Save(stream, holderIdGenerator);
     }
 
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker)
@@ -261,8 +261,7 @@ private:
     //! Loads the local state (not including the maps).
     void DoLoad(TInputStream* stream)
     {
-        UNUSED(stream);
-        //*stream >> HolderIdGenerator;
+        ::Load(stream, HolderIdGenerator);
     }
 
     TVoid OnLoaded(TVoid)
@@ -280,8 +279,6 @@ private:
             RegisterReplicationSinks(*pair.Second());
         }
 
-        // TODO: Reconstruct JobListMap
-
         return TVoid();
     }
 
@@ -292,6 +289,8 @@ private:
         ChunkMap.Clear();
         JobListMap.Clear();
         JobMap.Clear();
+        ReplicationSinkMap.clear();
+        HolderIdGenerator.Reset();
     }
 
     virtual void OnStartLeading()

@@ -3,7 +3,7 @@
 #include "guid.h"
 
 #include <util/digest/murmur.h>
-
+#include <util/ysaveload.h>
 // TODO: move to impl
 
 namespace NYT {
@@ -27,6 +27,8 @@ template <class T>
 class TIdGenerator
 {
 public:
+    typedef TIdGenerator<T> TThis;
+
     TIdGenerator()
         : Current(0)
     { }
@@ -44,8 +46,10 @@ public:
 private:
     TAtomic Current;
 
-    friend void Save(TOutputStream* output, const TIdGenerator<T>& generator);
-    friend void Load(TInputStream* input, TIdGenerator<T>& generator);
+    template <class U>
+    friend void ::Save(TOutputStream* output, const U& generator);
+    template <class U>
+    friend void ::Load(TInputStream* input, U& generator);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +63,8 @@ template <>
 class TIdGenerator<TGuid>
 {
 public:
+    typedef TIdGenerator<TGuid> TThis;
+
     TIdGenerator(ui64 seed)
         : Seed(seed)
         , Current(0)
@@ -84,8 +90,10 @@ private:
     ui64 Seed;
     TAtomic Current;
 
-    friend void Save(TOutputStream* output, const TIdGenerator<TGuid>& generator);
-    friend void Load(TInputStream* input, TIdGenerator<TGuid>& generator);
+    template <class U>
+    friend void ::Save(TOutputStream* output, const U& generator);
+    template <class U>
+    friend void ::Load(TInputStream* input, U& generator);
 };
 
 } // namespace NYT
@@ -105,7 +113,7 @@ template <class T>
 void Load(TInputStream* input, NYT::TIdGenerator<T>& generator)
 {
     ui64 current;
-    Load(input, generator);
+    Load(input, current);
     generator.Current = static_cast<intptr_t>(current);
 }
 
