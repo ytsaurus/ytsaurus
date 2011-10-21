@@ -60,8 +60,8 @@ public:
 private:
     TAtomic Current;
 
-    friend void ::Save<>(TOutputStream* output, const TIdGenerator<T>& generator);
-    friend void ::Load<>(TInputStream* input, TIdGenerator<T>& generator);
+    friend void ::Save<>(TOutputStream* output, const TThis& generator);
+    friend void ::Load<>(TInputStream* input, TThis& generator);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,8 +102,8 @@ private:
     ui64 Seed;
     TAtomic Current;
 
-    friend void ::Save<>(TOutputStream* output, const TIdGenerator<TGuid>& generator);
-    friend void ::Load<>(TInputStream* input, TIdGenerator<TGuid>& generator);
+    friend void ::Save<>(TOutputStream* output, const TThis& generator);
+    friend void ::Load<>(TInputStream* input, TThis& generator);
 };
 
 } // namespace NYT
