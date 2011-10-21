@@ -34,12 +34,12 @@ struct IAttributeProvider
 
     virtual void GetAttributeNames(
         TCypressManager::TPtr cypressManager,
-        const ICypressNode& node,
+        ICypressNodeProxy::TPtr proxy,
         yvector<Stroka>& names) = 0;
 
     virtual bool GetAttribute(
         TCypressManager::TPtr cypressManager,
-        const ICypressNode& node,
+        ICypressNodeProxy::TPtr proxy,
         const Stroka& name,
         IYsonConsumer* consumer) = 0;
 };
@@ -52,12 +52,12 @@ class TAttributeProviderBase
 public:
     virtual void GetAttributeNames(
         TCypressManager::TPtr cypressManager,
-        const ICypressNode& node,
+        ICypressNodeProxy::TPtr proxy,
         yvector<Stroka>& names);
 
     virtual bool GetAttribute(
         TCypressManager::TPtr cypressManager,
-        const ICypressNode& node,
+        ICypressNodeProxy::TPtr proxy,
         const Stroka& name,
         IYsonConsumer* consumer);
 
@@ -65,13 +65,12 @@ protected:
     struct TGetRequest
     {
         TCypressManager::TPtr CypressManager;
-        const ICypressNode* Node;
+        ICypressNodeProxy::TPtr Proxy;
         IYsonConsumer* Consumer;
     };
 
     typedef IParamAction<const TGetRequest&> TGetter;
 
-    yhash_set<Stroka> Names;
     yhash_map<Stroka, TGetter::TPtr> Getters;
 
     void RegisterGetter(const Stroka& name, TGetter::TPtr getter);
@@ -81,7 +80,6 @@ protected:
 
 class TCypressNodeAttributeProvider
     : public TAttributeProviderBase
-    , private TNonCopyable
 {
 public:
     static IAttributeProvider* Get();
@@ -92,6 +90,24 @@ private:
     typedef TCypressNodeAttributeProvider TThis;
 
     static void GetId(const TGetRequest& request);
+    static void GetType(const TGetRequest& request);
+    static Stroka FormatType(ENodeType type);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompositeNodeAttributeProvider
+    : public TCypressNodeAttributeProvider
+{
+public:
+    static IAttributeProvider* Get();
+
+    TCompositeNodeAttributeProvider();
+
+private:
+    typedef TCompositeNodeAttributeProvider TThis;
+
+    static void GetSize(const TGetRequest& request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +205,7 @@ public:
     {
         return this->GetTypedImpl();
     }
+
     virtual ICypressNode& GetImplForUpdate()
     {
         return this->GetTypedImplForUpdate();
@@ -199,6 +216,7 @@ public:
     {
         return GetProxy<ICompositeNode>(GetImpl().GetParentId());
     }
+
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
         auto proxy = ToProxy(INode::TPtr(~parent));
@@ -210,6 +228,7 @@ public:
     {
         return GetProxy<IMapNode>(GetImpl().GetAttributesId());
     }
+
     virtual void SetAttributes(IMapNode::TPtr attributes)
     {
         auto proxy = ToProxy(INode::TPtr(~attributes));
@@ -398,13 +417,13 @@ protected:
     virtual yvector<Stroka> GetVirtualAttributeNames()
     {
         yvector<Stroka> names;
-        GetAttributeProvider()->GetAttributeNames(CypressManager, GetImpl(), names);
+        GetAttributeProvider()->GetAttributeNames(CypressManager, this, names);
         return names;
     }
 
     virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
-        return GetAttributeProvider()->GetAttribute(CypressManager, GetImpl(), name, consumer);
+        return GetAttributeProvider()->GetAttribute(CypressManager, this, name, consumer);
     }
 };
 
@@ -550,6 +569,8 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
 private:
+    virtual IAttributeProvider* GetAttributeProvider();
+
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
     virtual TNavigateResult NavigateRecursive(TYPath path);
 
@@ -579,6 +600,8 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
 private:
+    virtual IAttributeProvider* GetAttributeProvider();
+
     virtual TNavigateResult NavigateRecursive(TYPath path);
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 
