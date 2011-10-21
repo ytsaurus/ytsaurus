@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "bus_server.h"
 #include "message.h"
 #include "message_rearranger.h"

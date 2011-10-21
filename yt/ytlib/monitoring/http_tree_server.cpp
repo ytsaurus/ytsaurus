@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "http_tree_server.h"
 
 #include "../ytree/json_adapter.h"

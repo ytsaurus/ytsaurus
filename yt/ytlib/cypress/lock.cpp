@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "lock.h"
 
 namespace NYT {

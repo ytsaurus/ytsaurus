@@ -1,4 +1,5 @@
-﻿#include "table_writer.h"
+#include "stdafx.h"
+#include "table_writer.h"
 
 namespace NYT {
 namespace NTableClient {

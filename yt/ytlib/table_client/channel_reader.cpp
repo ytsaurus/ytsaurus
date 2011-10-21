@@ -1,4 +1,5 @@
-﻿#include "channel_reader.h"
+#include "stdafx.h"
+#include "channel_reader.h"
 
 #include "../misc/serialize.h"
 

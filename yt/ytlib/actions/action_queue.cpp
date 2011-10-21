@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "action_queue.h"
 
 #include "../logging/log.h"

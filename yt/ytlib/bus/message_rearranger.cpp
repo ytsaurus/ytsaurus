@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "message_rearranger.h"
 
 #include "../misc/assert.h"

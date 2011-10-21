@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "periodic_invoker.h"
 
 #include "../actions/action_util.h"

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "node_proxy.h"
 
 #include "../ytree/fluent.h"

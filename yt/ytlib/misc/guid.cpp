@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "guid.h"
 
 #include <util/datetime/cputimer.h>

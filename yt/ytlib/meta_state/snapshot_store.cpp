@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "common.h"
 #include "snapshot_store.h"
 

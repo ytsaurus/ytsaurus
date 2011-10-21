@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+
 #include "bus.h"
 #include "message.h"
 

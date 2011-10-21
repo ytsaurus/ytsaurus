@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "../misc/assert.h"
 #include "cell_channel.h"
 

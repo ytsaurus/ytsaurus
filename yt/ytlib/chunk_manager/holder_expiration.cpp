@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "holder_expiration.h"
 
 #include "../misc/assert.h"

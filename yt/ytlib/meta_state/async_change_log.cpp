@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "async_change_log.h"
 
 #include "../misc/foreach.h"

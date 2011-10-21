@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "chunk_holder.h"
 
 #include "../misc/serialize.h"

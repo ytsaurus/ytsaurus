@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "user_indexes.h"
 
 namespace NYT

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "channel_writer.h"
 
 #include "../misc/serialize.h"

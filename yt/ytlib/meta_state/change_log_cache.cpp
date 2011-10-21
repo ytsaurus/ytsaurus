@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "change_log_cache.h"
 #include "meta_state_manager.h"
 

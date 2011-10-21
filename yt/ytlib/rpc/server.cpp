@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "server.h"
 
 #include "../misc/serialize.h"

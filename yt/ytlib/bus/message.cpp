@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "message.h"
 #include "rpc.pb.h"
 

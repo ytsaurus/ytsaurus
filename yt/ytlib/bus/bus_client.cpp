@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "bus_client.h"
 #include "rpc.pb.h"
 #include "message_rearranger.h"

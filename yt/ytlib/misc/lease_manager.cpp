@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "lease_manager.h"
 
 #include "../misc/delayed_invoker.h"

@@ -1,4 +1,5 @@
-﻿#include "semaphore.h"
+#include "stdafx.h"
+#include "semaphore.h"
 
 #include <util/system/yield.h>
 

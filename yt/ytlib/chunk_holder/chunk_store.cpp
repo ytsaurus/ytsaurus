@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "chunk_store.h"
 
 #include "../misc/foreach.h"

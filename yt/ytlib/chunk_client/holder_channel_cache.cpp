@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "holder_channel_cache.h"
 
 namespace NYT {

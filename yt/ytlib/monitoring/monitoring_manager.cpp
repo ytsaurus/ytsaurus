@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "monitoring_manager.h"
 
 #include "../ytree/ephemeral.h"

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "cell_master_server.h"
 
 #include <yt/ytlib/chunk_manager/chunk_manager.h>

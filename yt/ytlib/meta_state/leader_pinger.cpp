@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "leader_pinger.h"
 
 #include "../misc/serialize.h"

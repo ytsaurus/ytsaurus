@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "replicator.h"
 
 #include "../misc/assert.h"

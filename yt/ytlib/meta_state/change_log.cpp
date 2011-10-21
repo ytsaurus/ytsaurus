@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "change_log.h"
 
 #include "../misc/serialize.h"

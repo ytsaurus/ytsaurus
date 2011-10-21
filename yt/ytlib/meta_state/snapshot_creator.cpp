@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "snapshot_creator.h"
 #include "meta_state_manager_rpc.h"
 
@@ -53,7 +54,7 @@ public:
                 peerId));
         }
 
-        auto asyncResult = Creator->DoCreateLocal(Version);
+        auto asyncResult = Creator->CreateLocal(Version);
 
         Awaiter->Await(
             asyncResult,
@@ -87,6 +88,7 @@ private:
 
     void OnLocal(TLocalResult result)
     {
+        YASSERT(result.ResultCode == EResultCode::OK);
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
@@ -131,6 +133,7 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
+    , Creating(false)
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
@@ -141,28 +144,34 @@ TSnapshotCreator::TSnapshotCreator(
     StateInvoker = metaState->GetStateInvoker();
 }
 
-void TSnapshotCreator::CreateDistributed(TMetaVersion version)
+TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
 {
-    New<TSession>(this, version)->Run();
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (Creating) {
+        return EResultCode::AlreadyInProgress;
+    }
+
+    auto version = MetaState->GetVersion();
+    New<TSession>(TPtr(this), version)->Run();
+    return EResultCode::OK;
 }
 
 TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
     TMetaVersion version)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (Creating) {
+        LOG_ERROR("Could not create local snapshot for version %s, snapshot creation is already in progress",
+            ~version.ToString());
+        return New<TAsyncLocalResult>(TLocalResult(EResultCode::AlreadyInProgress));
+    }
+    Creating = true;
+
     LOG_INFO("Creating a local snapshot for state (%d, %d)",
                version.SegmentId, version.RecordCount);
-    return 
-        FromMethod(
-            &TSnapshotCreator::DoCreateLocal,
-            TPtr(this),
-            version)
-        ->AsyncVia(StateInvoker)
-        ->Do();
-}
 
-TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
-    TMetaVersion version)
-{
     // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, found %s",
@@ -187,6 +196,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(
         &TSnapshotCreator::OnSave,
+        TPtr(this),
         snapshotId,
         writer));
 }
@@ -201,6 +211,9 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
     LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
         segmentId,
         writer->GetChecksum());
+
+    YASSERT(Creating);
+    Creating = false;
 
     return TLocalResult(EResultCode::OK, writer->GetChecksum());
 }

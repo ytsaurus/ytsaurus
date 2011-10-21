@@ -95,6 +95,11 @@ public:
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 
+    /*!
+     * \note Thread affinity: any
+     */
+    void SetReadOnly(bool readOnly);
+
     //! Returns monitoring info.
     /*!
      * \note Thread affinity: any
