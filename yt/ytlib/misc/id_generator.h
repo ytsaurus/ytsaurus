@@ -3,8 +3,22 @@
 #include "guid.h"
 
 #include <util/digest/murmur.h>
-#include <util/ysaveload.h>
 // TODO: move to impl
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT {
+    template <class T>
+    class TIdGenerator;
+}
+
+template<class T>
+void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator);
+
+template<class T>
+void Load(TInputStream* input, NYT::TIdGenerator<T>& generator);
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 
@@ -14,8 +28,8 @@ namespace NYT {
 /*! 
  *  When a fresh instance is created, it gets initialized with zero.
  *  Calling #Next produces just the next numeric value.
- *  The generator's state can be serialized by calling overloaded <tt> operator &lt;&lt; </tt>
- *  and <tt> operator &gt;&gt; </tt>.
+ *  The generator's state can be serialized by calling overloaded #Save
+ *  and #Load.
  *  
  *  Internally, the generator uses an <tt>intptr_t</tt> type to keep the current id value.
  *  Hence the period is equal to the size of <tt>intptr_t</tt>'s domain and may vary
@@ -46,10 +60,8 @@ public:
 private:
     TAtomic Current;
 
-    template <class U>
-    friend void ::Save(TOutputStream* output, const U& generator);
-    template <class U>
-    friend void ::Load(TInputStream* input, U& generator);
+    friend void ::Save<>(TOutputStream* output, const TIdGenerator<T>& generator);
+    friend void ::Load<>(TInputStream* input, TIdGenerator<T>& generator);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,10 +102,8 @@ private:
     ui64 Seed;
     TAtomic Current;
 
-    template <class U>
-    friend void ::Save(TOutputStream* output, const U& generator);
-    template <class U>
-    friend void ::Load(TInputStream* input, U& generator);
+    friend void ::Save<>(TOutputStream* output, const TIdGenerator<TGuid>& generator);
+    friend void ::Load<>(TInputStream* input, TIdGenerator<TGuid>& generator);
 };
 
 } // namespace NYT
