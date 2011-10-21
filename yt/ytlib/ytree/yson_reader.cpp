@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "common.h"
 
 #include "yson_reader.h"
@@ -25,8 +26,9 @@ void TYsonReader::Read(TInputStream* stream)
         ParseAny();
         int ch = ReadChar();
         if (ch != Eos) {
-            ythrow yexception() << Sprintf("Unexpected symbol %s in YSON, %s",
-                ~Stroka(static_cast<char>(ch)).Quote(), ~GetPositionInfo());
+            ythrow yexception() << Sprintf("Unexpected symbol %s in YSON %s",
+                ~Stroka(static_cast<char>(ch)).Quote(),
+                ~GetPositionInfo());
         }
     } catch (...) {
         Reset();
@@ -36,7 +38,10 @@ void TYsonReader::Read(TInputStream* stream)
 
 Stroka TYsonReader::GetPositionInfo()
 {
-    return Sprintf("(Line: %d, Position: %d, Offset: %d)", LineIndex, Position, Offset);
+    return Sprintf("(Line: %d, Position: %d, Offset: %d)",
+        LineIndex,
+        Position,
+        Offset);
 }
 
 void TYsonReader::Reset()
@@ -75,11 +80,12 @@ Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
     for (int i = 0; i < charCount; ++i) {
         int ch = ReadChar(binaryInput);
         if (ch == Eos) {
-            // TODO:
-            ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d, %s",
-                i + 1, charCount, ~GetPositionInfo());
+            ythrow yexception() << Sprintf("Premature end-of-stream while reading byte %d out of %d %s",
+                i + 1,
+                charCount,
+                ~GetPositionInfo());
         }
-        result.push_back(ch);
+        result.push_back(static_cast<char>(ch));
     }
     return result;
 }
@@ -89,13 +95,12 @@ void TYsonReader::ExpectChar(char expectedCh)
 {
     int readCh = ReadChar();
     if (readCh == Eos) {
-        // TODO:
-        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON, %s",
-            ~Stroka(expectedCh).Quote(), ~GetPositionInfo());
+        ythrow yexception() << Sprintf("Premature end-of-stream expecting %s in YSON %s",
+            ~Stroka(expectedCh).Quote(),
+            ~GetPositionInfo());
     }
     if (static_cast<char>(readCh) != expectedCh) {
-        // TODO:
-        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON, %s",
+        ythrow yexception() << Sprintf("Found %s while expecting %s in YSON %s",
             ~Stroka(static_cast<char>(readCh)).Quote(),
             ~Stroka(expectedCh).Quote(),
             ~GetPositionInfo());
@@ -142,8 +147,7 @@ Stroka TYsonReader::ReadString()
         while (true) {
             int ch = ReadChar();
             if (ch == Eos) {
-                // TODO:
-                ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"String\" literal in YSON, %s",
+                ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
                     ~GetPositionInfo());
             }
             if (ch == '"')
@@ -180,8 +184,7 @@ Stroka TYsonReader::ReadNumeric()
         result.append(static_cast<char>(ch));
     }
     if (result.Empty()) {
-        // TODO:
-        ythrow yexception() << Sprintf("Premature end-of-stream while parsing \"Numeric\" literal in YSON, %s",
+        ythrow yexception() << Sprintf("Premature end-of-stream while parsing numeric literal in YSON %s",
             ~GetPositionInfo());
     }
     return result;
@@ -237,8 +240,7 @@ void TYsonReader::ParseAny()
                 ParseString();
                 ParseAttributes();
             } else {
-                // TODO:
-                ythrow yexception() << Sprintf("Unexpected %s in YSON, %s",
+                ythrow yexception() << Sprintf("Unexpected character %s in YSON %s",
                     ~Stroka(static_cast<char>(ch)).Quote(),
                     ~GetPositionInfo());
             }
@@ -251,12 +253,11 @@ void TYsonReader::ParseAttributesItem()
     SkipWhitespaces();
     Stroka name = ReadString();
     if (name.Empty()) {
-        // TODO:
-        ythrow yexception() << Sprintf("Empty attribute name in YSON, %s",
+        ythrow yexception() << Sprintf("Empty attribute name in YSON %s",
             ~GetPositionInfo());
     }
     SkipWhitespaces();
-    ExpectChar(MapItemSeparator);
+    ExpectChar(KeyValueSeparator);
     Events->OnAttributesItem(name);
     ParseAny();
 }
@@ -309,8 +310,7 @@ void TYsonReader::ParseMapItem()
     SkipWhitespaces();
     Stroka name = ReadString();
     if (name.Empty()) {
-        // TODO:
-        ythrow yexception() << Sprintf("Empty map item name in YSON, %s",
+        ythrow yexception() << Sprintf("Empty map item name in YSON %s",
             ~GetPositionInfo());
     }
     SkipWhitespaces();
@@ -365,8 +365,7 @@ void TYsonReader::ParseNumeric()
         try {
             value = FromString<i64>(str);
         } catch (...) {
-            // TODO:
-            ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON, %s",
+            ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
@@ -376,8 +375,7 @@ void TYsonReader::ParseNumeric()
         try {
             value = FromString<double>(str);
         } catch (...) {
-            // TODO:
-            ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON, %s",
+            ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
         }

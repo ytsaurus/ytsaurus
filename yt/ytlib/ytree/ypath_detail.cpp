@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "ypath_detail.h"
 
 namespace NYT {
@@ -12,7 +13,7 @@ TNodeSetterBase::TNodeSetterBase()
 
 void TNodeSetterBase::InvalidType()
 {
-    throw TYPathException() << "Cannot change node type";
+    throw TYTreeException() << "Cannot change node type";
 }
 
 void TNodeSetterBase::SetFwdConsumer(IYsonConsumer* consumer)

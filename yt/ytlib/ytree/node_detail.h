@@ -38,24 +38,69 @@ public:
 
 #undef IMPLEMENT_AS_METHODS
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
+    virtual TNavigateResult Navigate(TYPath path);
 
-    virtual TGetResult Get(
-        TYPath path,
-        IYsonConsumer* events);
+    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer);
 
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer);
 
     virtual TRemoveResult Remove(TYPath path);
 
     virtual TLockResult Lock(TYPath path);
 
 protected:
+    virtual TNavigateResult NavigateRecursive(TYPath path);
+
     virtual TRemoveResult RemoveSelf();
+    virtual TRemoveResult RemoveRecursive(TYPath path);
+
+    virtual TGetResult GetSelf(IYsonConsumer* consumer);
+    virtual TGetResult GetRecursive(TYPath path, IYsonConsumer* consumer);
+
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer);
+    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
+
+    virtual TLockResult LockSelf();
+    virtual TLockResult LockRecursive(TYPath path);
+    
+    virtual yvector<Stroka> GetVirtualAttributeNames();
+    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapNodeMixin
+    : public virtual IMapNode
+{
+protected:
+    IYPathService::TNavigateResult NavigateRecursive(TYPath path);
+
+    IYPathService::TSetResult SetRecursive(
+        TYPath path,
+        TYsonProducer::TPtr producer);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListNodeMixin
+    : public virtual IListNode
+{
+protected:
+    IYPathService::TNavigateResult NavigateRecursive(TYPath path);
+
+    IYPathService::TSetResult SetRecursive(
+        TYPath path,
+        TYsonProducer::TPtr producer);
+
+    IYPathService::TNavigateResult GetYPathChild(
+        int index,
+        TYPath tailPath) const;
+
+    IYPathService::TSetResult CreateYPathChild(
+        int beforeIndex,
+        TYPath tailPath,
+        TYsonProducer::TPtr producer);
 
 };
 

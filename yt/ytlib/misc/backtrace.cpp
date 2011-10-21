@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "backtrace.h"
 
 #if defined(__GNUC__)

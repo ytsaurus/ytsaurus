@@ -1,6 +1,8 @@
+#include "../misc/stdafx.h"
 #include "composite_meta_state.h"
 
 #include "../misc/foreach.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -16,10 +18,10 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
 
-    metaStateManager->OnStartLeading2().Subscribe(FromMethod(
+    metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
-    metaStateManager->OnStopLeading2().Subscribe(FromMethod(
+    metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));
 }

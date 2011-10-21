@@ -96,17 +96,17 @@ public:
         const TMetaVersion& version,
         const TSharedRef& changeData);
     
-    //! Updates the version so as to switch to a new segment.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void AdvanceSegment();
-
     //! Finalizes the current changelog, advances the segment, and creates a new changelog.
     /*!
      * \note Thread affinity: StateThread
      */
     void RotateChangeLog();
+
+    //! Updates the version so as to switch to a new segment.
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    void AdvanceSegment();
 
 private:
     void IncrementRecordCount();
@@ -129,7 +129,6 @@ private:
     TMetaVersion ReachableVersion;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

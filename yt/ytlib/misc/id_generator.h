@@ -10,17 +10,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-class TIdGenerator;
-
-template <class T>
-TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator);
-
-template <class T>
-TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Generates a consequent deterministic ids of a given numeric type.
 /*! 
  *  When a fresh instance is created, it gets initialized with zero.
@@ -47,12 +36,16 @@ public:
         return static_cast<T>(AtomicIncrement(Current));
     }
 
+    void Reset()
+    {
+        Current = 0;
+    }
+
 private:
     TAtomic Current;
 
-    friend TOutputStream& operator << <> (TOutputStream& stream, const TIdGenerator<T>& generator);
-    friend TInputStream&  operator >> <> (TInputStream& stream, TIdGenerator<T>& generator);
-
+    friend void Save(TOutputStream* output, const TIdGenerator<T>& generator);
+    friend void Load(TInputStream* input, TIdGenerator<T>& generator);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,14 +59,15 @@ template <>
 class TIdGenerator<TGuid>
 {
 public:
-    TIdGenerator()
-        : Current(0)
+    TIdGenerator(ui64 seed)
+        : Seed(seed)
+        , Current(0)
     { }
 
     TGuid Next()
     {
         ui64 counter = static_cast<ui64>(AtomicIncrement(Current));
-        ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter));
+        ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter), Seed);
         return TGuid(
             counter & 0xffffffff,
             counter >> 32,
@@ -81,38 +75,42 @@ public:
             hash >> 32);
     }
 
+    void Reset()
+    {
+        Current = 0;
+    }
+
 private:
+    ui64 Seed;
     TAtomic Current;
 
-    friend TOutputStream& operator << <> (TOutputStream& stream, const TIdGenerator<TGuid>& generator);
-    friend TInputStream&  operator >> <> (TInputStream& stream, TIdGenerator<TGuid>& generator);
-
+    friend void Save(TOutputStream* output, const TIdGenerator<TGuid>& generator);
+    friend void Load(TInputStream* input, TIdGenerator<TGuid>& generator);
 };
+
+} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Always use a fixed-width type for serialization.
 
 template <class T>
-TOutputStream& operator << (TOutputStream& stream, const NYT::TIdGenerator<T>& generator)
+void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator)
 {
     ui64 current = static_cast<ui64>(generator.Current);
-    stream << current;
-    return stream;
+    Save(output, current);
 }
 
 template <class T>
-TInputStream& operator >> (TInputStream& stream, NYT::TIdGenerator<T>& generator)
+void Load(TInputStream* input, NYT::TIdGenerator<T>& generator)
 {
     ui64 current;
-    stream >> current;
+    Load(input, generator);
     generator.Current = static_cast<intptr_t>(current);
-    return stream;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 
 
 

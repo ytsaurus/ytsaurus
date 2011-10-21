@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "packet.h"
 
 namespace NYT {

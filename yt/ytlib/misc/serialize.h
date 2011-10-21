@@ -145,9 +145,10 @@ inline yvector<TArrayItem> FromProto(
 
 //! Functions to read and write varints from stream
 
-void WriteVarInt(ui64 value, TOutputStream* output);
-void WriteVarInt32(i32 value, TOutputStream* output);
-void WriteVarInt64(i64 value, TOutputStream* output);
+//! Returns number of bytes written
+int WriteVarInt(ui64 value, TOutputStream* output);
+int WriteVarInt32(i32 value, TOutputStream* output);
+int WriteVarInt64(i64 value, TOutputStream* output);
 
 // These  function return number of bytes read
 int ReadVarInt(ui64* value, TInputStream* input);

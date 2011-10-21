@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "common.h"
 
 namespace NYT {

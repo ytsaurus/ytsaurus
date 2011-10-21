@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "ephemeral.h"
 #include "node_detail.h"
 #include "ypath_detail.h"
@@ -13,7 +14,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralNodeBase
-    : public ::NYT::NYTree::TNodeBase
+    : public virtual ::NYT::NYTree::TNodeBase
 {
 public:
     TEphemeralNodeBase();
@@ -121,6 +122,7 @@ public:
 
 class TMapNode
     : public TCompositeNodeBase<IMapNode>
+    , public TMapNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(Map)
 
@@ -134,15 +136,12 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
-
 private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
     yhash_map<INode::TPtr, Stroka> ChildToName;
+
+    virtual TNavigateResult NavigateRecursive(TYPath path);
+    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 
 };
 
@@ -150,6 +149,7 @@ private:
 
 class TListNode
     : public TCompositeNodeBase<IListNode>
+    , public TListNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(List)
 
@@ -163,17 +163,11 @@ public:
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
 
-    virtual TNavigateResult Navigate(
-        TYPath path);
-    virtual TSetResult Set(
-        TYPath path,
-        TYsonProducer::TPtr producer);
-
 private:
     yvector<INode::TPtr> List;
 
-    TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
-    TSetResult CreateYPathChild(int beforeIndex, TYPath tailPath);
+    virtual TNavigateResult NavigateRecursive(TYPath path);
+    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 
 };
 
@@ -306,46 +300,14 @@ void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
-IYPathService::TNavigateResult TMapNode::Navigate(
-    TYPath path)
+IYPathService::TNavigateResult TMapNode::NavigateRecursive(TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child == NULL) {
-        throw TYPathException() << Sprintf("Child %s it not found",
-            ~prefix.Quote());
-    }
-
-    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return TMapNodeMixin::NavigateRecursive(path);
 }
 
-IYPathService::TSetResult TMapNode::Set(
-    TYPath path,
-    TYsonProducer::TPtr producer)
+IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-    if (path.empty()) {
-        return SetSelf(producer);
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child == NULL) {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
-        AddChild(~newChild, prefix);
-        return TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
-    } else {
-        return TSetResult::CreateRecurse(AsYPath(child), tailPath);
-    }
+    return TMapNodeMixin::SetRecursive(path, producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,101 +372,14 @@ void TListNode::RemoveChild(INode::TPtr child)
     List.erase(it);
 }
 
-IYPathService::TNavigateResult TListNode::Navigate(
-    TYPath path)
+IYPathService::TNavigateResult TListNode::NavigateRecursive(TYPath path)
 {
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    int index;
-    try {
-        index = FromString<int>(prefix);
-    } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
-            ~prefix.Quote());
-    }
-
-    return GetYPathChild(index, tailPath);
+    return TListNodeMixin::NavigateRecursive(path);
 }
 
-IYPathService::TSetResult TListNode::Set(
-    TYPath path,
-    TYsonProducer::TPtr producer)
+IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-    if (path.empty()) {
-        return SetSelf(producer);
-    }
-
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    if (prefix.empty()) {
-        throw TYPathException() << "Empty child index";
-    }
-
-    if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), tailPath);
-    } else if (prefix == "-") {
-        return CreateYPathChild(0, tailPath);
-    }
-    
-    char lastPrefixCh = prefix[prefix.length() - 1];
-    TStringBuf indexString =
-        lastPrefixCh == '+' || lastPrefixCh == '-'
-        ? TStringBuf(prefix.begin() + 1, prefix.end())
-        : prefix;
-
-    int index;
-    try {
-        index = FromString<int>(indexString);
-    } catch (...) {
-        throw TYPathException() << Sprintf("Failed to parse child index %s",
-            ~Stroka(indexString).Quote());
-    }
-
-    if (lastPrefixCh == '+') {
-        return CreateYPathChild(index + 1, tailPath);
-    } else if (lastPrefixCh == '-') {
-        return CreateYPathChild(index, tailPath);
-    } else {
-        auto navigateResult = GetYPathChild(index, tailPath);
-        YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
-        return TSetResult::CreateRecurse(navigateResult.RecurseService, navigateResult.RecursePath);
-    }
-}
-
-IYPathService::TSetResult TListNode::CreateYPathChild(
-    int beforeIndex,
-    TYPath tailPath)
-{
-    auto newChild = GetFactory()->CreateMap();
-    AddChild(~newChild, beforeIndex);
-    return TSetResult::CreateRecurse(AsYPath(~newChild), tailPath);
-}
-
-IYPathService::TNavigateResult TListNode::GetYPathChild(
-    int index,
-    TYPath tailPath) const
-{
-    int count = GetChildCount();
-    if (count == 0) {
-        throw TYPathException() << "List is empty";
-    }
-
-    if (index < 0 || index >= count) {
-        throw TYPathException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
-            index,
-            count - 1);
-    }
-
-    auto child = FindChild(index);
-    return TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return TListNodeMixin::SetRecursive(path, producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

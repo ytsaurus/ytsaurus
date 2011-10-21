@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "remote_chunk_writer.h"
 #include "holder_channel_cache.h"
 #include "chunk_holder.pb.h"

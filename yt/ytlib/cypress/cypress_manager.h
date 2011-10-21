@@ -44,11 +44,14 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    IStringNode::TPtr CreateStringNode(const TTransactionId& transactionId);
-    IInt64Node::TPtr  CreateInt64Node(const TTransactionId& transactionId);
-    IDoubleNode::TPtr CreateDoubleNode(const TTransactionId& transactionId);
-    IMapNode::TPtr    CreateMapNode(const TTransactionId& transactionId);
-    IListNode::TPtr   CreateListNode(const TTransactionId& transactionId);
+    void RefNode(ICypressNode& node);
+    void UnrefNode(ICypressNode & node);
+
+    IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
+    IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
+    IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
+    IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
+    IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -95,6 +98,8 @@ private:
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
+    void CreateWorld();
+
     void OnTransactionCommitted(TTransaction& transaction);
     void OnTransactionAborted(TTransaction& transaction);
 
@@ -107,8 +112,10 @@ private:
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
     {
+        NLog::TLogger& Logger = CypressLogger;
+
         if (transactionId == NullTransactionId) {
-            throw TYPathException() << "Cannot create a node outside of a transaction";
+            throw TYTreeException() << "Cannot create a node outside of a transaction";
         }
 
         auto nodeId = NodeIdGenerator.Next();
@@ -117,7 +124,14 @@ private:
         NodeMap.Insert(branchedNodeId, nodeImpl);
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.CreatedNodeIds().push_back(nodeId);
-        return ~New<TProxy>(this, transactionId, nodeId);
+        auto proxy = New<TProxy>(this, transactionId, nodeId);
+
+        LOG_INFO("Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
+            ~nodeId.ToString(),
+            ~proxy->GetType().ToString(),
+            ~transactionId.ToString());
+
+        return proxy;
     }
 
 };

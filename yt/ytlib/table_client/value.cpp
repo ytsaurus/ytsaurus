@@ -1,6 +1,8 @@
-﻿#include "value.h"
+#include "../misc/stdafx.h"
+#include "value.h"
 
 #include "../misc/serialize.h"
+#include "../misc/assert.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -59,13 +61,15 @@ TBlob TValue::ToBlob() const
     return Data.ToBlob();
 }
 
-void TValue::Save(TOutputStream* out)
+int TValue::Save(TOutputStream* out)
 {
     if (IsNull()) {
-        WriteVarInt(0, out);
+        return WriteVarInt(0, out);
     } else {
-        WriteVarInt(GetSize() + 1, out);
+        int bytesWritten = WriteVarInt(GetSize() + 1, out);
+        bytesWritten += GetSize();
         out->Write(GetData(), GetSize());
+        return bytesWritten;
     }
 }
 

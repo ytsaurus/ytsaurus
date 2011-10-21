@@ -1,6 +1,7 @@
-﻿#include "channel_reader.h"
+#include "../misc/stdafx.h"
+#include "channel_reader.h"
 
-#include <util/ysaveload.h>
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -15,19 +16,23 @@ TChannelReader::TChannelReader(const TChannel& channel)
 
 void TChannelReader::SetBlock(const TSharedRef& block)
 {
-    YASSERT(CurrentColumnIndex = -1);
+    YASSERT(CurrentColumnIndex == -1);
 
     CurrentBlock = block;
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
-    yvector<i32> columnSizes(Channel.GetColumns().size());
-    for (int i = 0; i < columnSizes.ysize(); ++i) {
-        Load(&input, columnSizes[i]);
+    yvector<ui64> columnSizes;
+    columnSizes.reserve(Channel.GetColumns().size());
+    for (int i = 0; i < Channel.GetColumns().size(); ++i) {
+        ui64 size;
+        ReadVarInt(&size, &input);
+        YASSERT(size > 0);
+        columnSizes.push_back(size);
     }
 
     const char* currentPos = input.Buf();
     for (int i = 0; i < columnSizes.ysize(); ++i) {
-        i32& size = columnSizes[i];
+        ui64& size = columnSizes[i];
         ColumnBuffers[i].Reset(currentPos, size);
         currentPos += size;
     }
@@ -40,8 +45,10 @@ bool TChannelReader::NextRow()
         return false;
     }
 
-    while (NextColumn())
-    { }
+    if (CurrentColumnIndex >= 0) {
+        while (NextColumn())
+        { }
+    }
 
     CurrentColumn = TValue();
     CurrentValue = TValue();
@@ -57,7 +64,8 @@ bool TChannelReader::NextRow()
 bool TChannelReader::NextColumn()
 {
     while (true) {
-        YASSERT(CurrentColumnIndex <= ColumnBuffers.size());
+        YASSERT(CurrentColumnIndex <= 
+            static_cast<int>(ColumnBuffers.size()));
 
         if (CurrentColumnIndex == ColumnBuffers.size()) {
             return false;

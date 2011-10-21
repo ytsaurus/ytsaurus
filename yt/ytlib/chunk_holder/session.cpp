@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "session.h"
 
 #include "../misc/fs.h"

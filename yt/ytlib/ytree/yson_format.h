@@ -11,9 +11,9 @@ const char ListItemSeparator = ';';
 const char MapItemSeparator = ';';
 const char KeyValueSeparator = '=';
 
-const char StringMarker = char(1);
-const char Int64Marker = char(2);
-const char DoubleMarker = char(3);
+const char Int64Marker = char(1);
+const char DoubleMarker = char(2);
+const char StringMarker = char(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 

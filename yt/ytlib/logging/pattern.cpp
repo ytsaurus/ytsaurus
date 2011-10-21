@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "pattern.h"
 
 #include "../misc/assert.h"

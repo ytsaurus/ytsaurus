@@ -13,8 +13,11 @@ class TTreeVisitor
     : private TNonCopyable
 {
 public:
-    TTreeVisitor(IYsonConsumer* events)
-        : Events(events)
+    TTreeVisitor(
+        IYsonConsumer* consumer,
+        bool visitAttributes = true)
+        : Consumer(consumer)
+        , VisitAttributes_(visitAttributes)
     { }
 
     void Visit(INode::TPtr root)
@@ -23,7 +26,8 @@ public:
     }
 
 private:
-    IYsonConsumer* Events;
+    IYsonConsumer* Consumer;
+    bool VisitAttributes_;
 
     void VisitAny(INode::TPtr node)
     {
@@ -48,7 +52,7 @@ private:
         }
 
         auto attributes = node->GetAttributes();
-        if (~attributes != NULL) {
+        if (~attributes != NULL && VisitAttributes_) {
             VisitAttributes(attributes);
         }
     }
@@ -57,19 +61,19 @@ private:
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Events->OnStringScalar(node->GetValue<Stroka>());
+                Consumer->OnStringScalar(node->GetValue<Stroka>());
                 break;
 
             case ENodeType::Int64:
-                Events->OnInt64Scalar(node->GetValue<i64>());
+                Consumer->OnInt64Scalar(node->GetValue<i64>());
                 break;
 
             case ENodeType::Double:
-                Events->OnDoubleScalar(node->GetValue<double>());
+                Consumer->OnDoubleScalar(node->GetValue<double>());
                 break;
 
             case ENodeType::Entity:
-                Events->OnEntityScalar();
+                Consumer->OnEntityScalar();
                 break;
 
             default:
@@ -79,33 +83,33 @@ private:
 
     void VisitList(IListNode::TPtr node)
     {
-        Events->OnBeginList();
+        Consumer->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
-            Events->OnListItem(i);
+            Consumer->OnListItem(i);
             VisitAny(child);
         }
-        Events->OnEndList();
+        Consumer->OnEndList();
     }
 
     void VisitMap(IMapNode::TPtr node)
     {
-        Events->OnBeginMap();
+        Consumer->OnBeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
-            Events->OnMapItem(pair.First());
+            Consumer->OnMapItem(pair.First());
             VisitAny(pair.Second());
         }
-        Events->OnEndMap();
+        Consumer->OnEndMap();
     }
 
     void VisitAttributes(IMapNode::TPtr node)
     {
-        Events->OnBeginAttributes();
+        Consumer->OnBeginAttributes();
         FOREACH(const auto& pair, node->GetChildren()) {
-            Events->OnAttributesItem(pair.First());
+            Consumer->OnAttributesItem(pair.First());
             VisitAny(pair.Second());
         }
-        Events->OnEndAttributes();
+        Consumer->OnEndAttributes();
     }
 
 };
