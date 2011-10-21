@@ -10,19 +10,19 @@ namespace NCypress {
 
 void TAttributeProviderBase::GetAttributeNames(
     TCypressManager::TPtr cypressManager,
-    const ICypressNode& node,
+    ICypressNodeProxy::TPtr proxy,
     yvector<Stroka>& names)
 {
     UNUSED(cypressManager);
-    UNUSED(node);
-    FOREACH (const auto& name, Names) {
-        names.push_back(name);
+    UNUSED(proxy);
+    FOREACH (const auto& pair, Getters) {
+        names.push_back(pair.First());
     }
 }
 
 bool TAttributeProviderBase::GetAttribute(
     TCypressManager::TPtr cypressManager,
-    const ICypressNode& node,
+    ICypressNodeProxy::TPtr proxy,
     const Stroka& name,
     IYsonConsumer* consumer)
 {
@@ -32,7 +32,7 @@ bool TAttributeProviderBase::GetAttribute(
 
     TGetRequest request;
     request.CypressManager = cypressManager;
-    request.Node = &node;
+    request.Proxy = proxy;
     request.Consumer = consumer;
 
     it->Second()->Do(request);
@@ -41,7 +41,6 @@ bool TAttributeProviderBase::GetAttribute(
 
 void TAttributeProviderBase::RegisterGetter(const Stroka& name, TGetter::TPtr getter)
 {
-    Names.insert(name);
     YVERIFY(Getters.insert(MakePair(name, getter)).Second());
 }
 
@@ -55,12 +54,51 @@ IAttributeProvider* TCypressNodeAttributeProvider::Get()
 TCypressNodeAttributeProvider::TCypressNodeAttributeProvider()
 {
     RegisterGetter("id", FromMethod(&TThis::GetId));
+    RegisterGetter("type", FromMethod(&TThis::GetType));
 }
 
 void TCypressNodeAttributeProvider::GetId(const TGetRequest& request)
 {
     TFluentYsonBuilder::Create(request.Consumer)
-        .Scalar(request.Node->GetId().NodeId.ToString());
+        .Scalar(request.Proxy->GetNodeId().ToString());
+}
+
+Stroka TCypressNodeAttributeProvider::FormatType(ENodeType type)
+{
+    switch (type) {
+        case ENodeType::String: return "string";
+        case ENodeType::Int64:  return "int64";
+        case ENodeType::Double: return "double";
+        case ENodeType::Map:    return "map";
+        case ENodeType::List:   return "list";
+        default: YUNREACHABLE();
+    }
+}
+
+void TCypressNodeAttributeProvider::GetType(const TGetRequest& request)
+{
+    TFluentYsonBuilder::Create(request.Consumer)
+        .Scalar(FormatType(request.Proxy->GetType()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAttributeProvider* TCompositeNodeAttributeProvider::Get()
+{
+    return Singleton<TCompositeNodeAttributeProvider>();
+}
+
+TCompositeNodeAttributeProvider::TCompositeNodeAttributeProvider()
+{
+    RegisterGetter("size", FromMethod(&TThis::GetSize));
+}
+
+void TCompositeNodeAttributeProvider::GetSize(const TGetRequest& request)
+{
+    auto* typedProxy = dynamic_cast<ICompositeNode*>(~request.Proxy);
+    YASSERT(typedProxy != NULL);
+    TFluentYsonBuilder::Create(request.Consumer)
+        .Scalar(typedProxy->GetChildCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,6 +250,11 @@ IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer
     return TMapNodeMixin::SetRecursive(path, producer);
 }
 
+IAttributeProvider* TMapNodeProxy::GetAttributeProvider()
+{
+    return TCompositeNodeAttributeProvider::Get();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeProxy::TListNodeProxy(
@@ -355,6 +398,11 @@ IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path)
 IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
     return TListNodeMixin::SetRecursive(path, producer);
+}
+
+IAttributeProvider* TListNodeProxy::GetAttributeProvider()
+{
+    return TCompositeNodeAttributeProvider::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -102,11 +102,12 @@ private:
     TPeerId LeaderId;
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
+    bool ReadOnly;
+
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
-    bool ReadOnly;
 
     // Per epoch, service thread
     TEpoch Epoch;
@@ -195,6 +196,7 @@ TMetaStateManager::TImpl::TImpl(
     , Config(config)
     , LeaderId(NElection::InvalidPeerId)
     , ControlInvoker(controlInvoker)
+    , ReadOnly(false)
 {
     YASSERT(~controlInvoker != NULL);
     YASSERT(~metaState != NULL);
