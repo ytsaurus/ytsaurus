@@ -28,7 +28,7 @@ struct ICodec
 
 //! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
 //! Single-threaded
-class  TTableWriter
+class  TTableChunkWriter
     : public TNonCopyable
 {
 public:
@@ -42,12 +42,12 @@ public:
         { }
     };
 
-    TTableWriter(
+    TTableChunkWriter(
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
         const TSchema& schema,
         ICodec* codec);
-    ~TTableWriter();
+    ~TTableChunkWriter();
 
     void Write(const TColumn& column, TValue value);
     void EndRow();

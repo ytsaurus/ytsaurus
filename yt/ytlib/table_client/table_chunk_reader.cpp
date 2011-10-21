@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "table_reader.h"
+#include "table_chunk_reader.h"
 
 #include "chunk_meta.pb.h"
 
@@ -39,7 +39,7 @@ struct TBlockInfo {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReader::TTableReader(
+TTableChunkReader::TTableChunkReader(
     const TSequentialChunkReader::TConfig& config,
     const TChannel& channel,
     IChunkReader::TPtr chunkReader)
@@ -57,13 +57,13 @@ TTableReader::TTableReader(
     yvector<int> metaIndex(1, -1);
     chunkReader->AsyncReadBlocks(metaIndex)
         ->Subscribe(FromMethod(
-            &TTableReader::OnGotMeta, 
+            &TTableChunkReader::OnGotMeta, 
             TPtr(this),
             config,
             chunkReader));
 }
 
-void TTableReader::OnGotMeta(
+void TTableChunkReader::OnGotMeta(
     IChunkReader::TReadResult readResult, 
     const TSequentialChunkReader::TConfig& config,
     IChunkReader::TPtr chunkReader)
@@ -115,7 +115,7 @@ void TTableReader::OnGotMeta(
     InitSuccess->Set(true);
 }
 
-bool TTableReader::NextRow()
+bool TTableChunkReader::NextRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     if (!InitSuccess->Get()) {
@@ -151,7 +151,7 @@ bool TTableReader::NextRow()
     return true;
 }
 
-bool TTableReader::NextColumn()
+bool TTableChunkReader::NextColumn()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -183,7 +183,7 @@ bool TTableReader::NextColumn()
     YUNREACHABLE();
 }
 
-const TColumn& TTableReader::GetColumn() const
+const TColumn& TTableChunkReader::GetColumn() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -194,7 +194,7 @@ const TColumn& TTableReader::GetColumn() const
     return CurrentColumn;
 }
 
-TValue TTableReader::GetValue() const
+TValue TTableChunkReader::GetValue() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -205,7 +205,7 @@ TValue TTableReader::GetValue() const
     return ChannelReaders[CurrentChannel].GetValue();
 }
 
-yvector<int> TTableReader::SelectChannels(const yvector<TChannel>& channels)
+yvector<int> TTableChunkReader::SelectChannels(const yvector<TChannel>& channels)
 {
     yvector<int> result;
 
@@ -224,7 +224,7 @@ yvector<int> TTableReader::SelectChannels(const yvector<TChannel>& channels)
     return result;
 }
 
-int TTableReader::SelectSingleChannel(
+int TTableChunkReader::SelectSingleChannel(
     const yvector<TChannel>& channels, 
     const NProto::TChunkMeta& protoMeta)
 {
@@ -244,7 +244,7 @@ int TTableReader::SelectSingleChannel(
 }
 
 // Note: sets RowCount as side effect
-yvector<int> TTableReader::GetBlockReadingOrder(
+yvector<int> TTableChunkReader::GetBlockReadingOrder(
     const yvector<int>& selectedChannels, 
     const NProto::TChunkMeta& protoMeta)
 {

@@ -13,13 +13,13 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableReader
+class TTableChunkReader
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TTableReader> TPtr;
+    typedef TIntrusivePtr<TTableChunkReader> TPtr;
 
-    TTableReader(
+    TTableChunkReader(
         const TSequentialChunkReader::TConfig& config,
         const TChannel& channel,
         IChunkReader::TPtr chunkReader);

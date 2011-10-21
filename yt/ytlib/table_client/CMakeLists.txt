@@ -3,9 +3,9 @@ SET(YT_SOURCE_FILES
     value.cpp
     schema.cpp
     channel_writer.cpp
-    table_writer.cpp
+    table_chunk_writer.cpp
     common.h
-    table_reader.cpp
+    table_chunk_reader.cpp
     channel_reader.cpp
 )
 
