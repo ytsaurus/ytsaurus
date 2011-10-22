@@ -26,7 +26,6 @@ TSequentialChunkReader::TSequentialChunkReader(
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
-
     YASSERT(blockIndexes.ysize() > 0);
     YASSERT(Config.GroupSize <= Config.WindowSize);
 
@@ -42,7 +41,6 @@ TFuture<TSequentialChunkReader::TResult>::TPtr
 TSequentialChunkReader::AsyncGetNextBlock()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-
     YASSERT(~PendingResult == NULL);
     YASSERT(!HasFailed);
 
@@ -71,14 +69,14 @@ void TSequentialChunkReader::OnGotBlocks(
     if (readResult.IsOK) {
         int sequenceIndex = firstSequenceIndex;
         FOREACH(auto& block, readResult.Blocks) {
-            TWindowSlot& slot = GetEmptySlot(sequenceIndex);
+            auto& slot = GetEmptySlot(sequenceIndex);
             slot.Result.IsOK = true;
             slot.Result.Block = block;
             slot.IsEmpty = false; // Now slot can be used from client thread
             ++sequenceIndex;
         }
     } else {
-        TWindowSlot& slot = GetEmptySlot(firstSequenceIndex);
+        auto& slot = GetEmptySlot(firstSequenceIndex);
         slot.Result.IsOK = false;
         slot.IsEmpty = false; // Now slot can be used from client thread
     }
@@ -89,6 +87,7 @@ void TSequentialChunkReader::OnGotBlocks(
 void TSequentialChunkReader::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     ReaderThread->GetInvoker()->Invoke(FromMethod(
         &TSequentialChunkReader::DoShiftWindow, 
         TPtr(this)));
@@ -98,7 +97,7 @@ void TSequentialChunkReader::DoShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    TWindowSlot& slot = Window.First();
+    auto& slot = Window.First();
     YASSERT(!slot.IsEmpty);
 
     slot.IsEmpty = true;
@@ -109,7 +108,7 @@ void TSequentialChunkReader::DoShiftWindow()
     
     if (FreeSlots >= Config.GroupSize || 
         // Fetch the last group as soon as we can.
-        BlockIndexSequence.size() - FirstUnfetchedIndex <= FreeSlots) 
+        BlockIndexSequence.ysize() - FirstUnfetchedIndex <= FreeSlots) 
     {
         FetchNextGroup();
     }
@@ -118,12 +117,11 @@ void TSequentialChunkReader::DoShiftWindow()
 void TSequentialChunkReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
-
     YASSERT(FreeSlots > Config.GroupSize);
 
-    yvector<int>::const_iterator groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
-    yvector<int>::const_iterator groupEnd = BlockIndexSequence.end();
-    if (BlockIndexSequence.size() - FirstUnfetchedIndex > Config.GroupSize) {
+    auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
+    auto groupEnd = BlockIndexSequence.end();
+    if (BlockIndexSequence.ysize() - FirstUnfetchedIndex > Config.GroupSize) {
         groupEnd = groupBegin + Config.GroupSize;
     }
 
@@ -146,8 +144,8 @@ bool TSequentialChunkReader::IsNextSlotEmpty()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YASSERT(NextSequenceIndex < BlockIndexSequence.size());
-    TWindowSlot& slot = Window[NextSequenceIndex];
+    YASSERT(NextSequenceIndex < BlockIndexSequence.ysize());
+    auto& slot = Window[NextSequenceIndex];
     return slot.IsEmpty;
 }
 
@@ -155,8 +153,8 @@ TSequentialChunkReader::TResult& TSequentialChunkReader::GetNextSlotResult()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YASSERT(NextSequenceIndex < BlockIndexSequence.size());
-    TWindowSlot& slot = Window[NextSequenceIndex];
+    YASSERT(NextSequenceIndex < BlockIndexSequence.ysize());
+    auto& slot = Window[NextSequenceIndex];
     ++NextSequenceIndex;
     YASSERT(!slot.IsEmpty);
 
@@ -170,6 +168,7 @@ TSequentialChunkReader::TResult& TSequentialChunkReader::GetNextSlotResult()
 void TSequentialChunkReader::ProcessPendingResult()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    
     ReaderThread->GetInvoker()->Invoke(FromMethod(
         &TSequentialChunkReader::DoProcessPendingResult, 
         TPtr(this)));
@@ -178,6 +177,7 @@ void TSequentialChunkReader::ProcessPendingResult()
 void TSequentialChunkReader::DoProcessPendingResult()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
+    
     if (~PendingResult == NULL) {
         return;
     }
@@ -192,7 +192,8 @@ void TSequentialChunkReader::DoProcessPendingResult()
 TSequentialChunkReader::TWindowSlot& TSequentialChunkReader::GetEmptySlot(int sequenceIndex)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
-    TWindowSlot& slot = Window[sequenceIndex];
+
+    auto& slot = Window[sequenceIndex];
     YASSERT(slot.IsEmpty);
     return slot;
 }

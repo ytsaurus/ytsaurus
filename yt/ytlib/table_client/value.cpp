@@ -64,9 +64,9 @@ TBlob TValue::ToBlob() const
 int TValue::Save(TOutputStream* out)
 {
     if (IsNull()) {
-        return WriteVarInt(0, out);
+        return WriteVarUInt64(0, out);
     } else {
-        int bytesWritten = WriteVarInt(GetSize() + 1, out);
+        int bytesWritten = WriteVarUInt64(GetSize() + 1, out);
         bytesWritten += GetSize();
         out->Write(GetData(), GetSize());
         return bytesWritten;
@@ -76,21 +76,20 @@ int TValue::Save(TOutputStream* out)
 TValue TValue::Load(TMemoryInput* input)
 {
     ui64 size;
-    ReadVarInt(&size, input);
+    ReadVarUInt64(&size, input);
     if (size == 0) {
         return TValue();
-    } else {
-        --size;
-        auto ref = TRef(const_cast<char*>(input->Buf()), size);
-        input->Skip(size);
-        return TValue(ref);
     }
-    YUNREACHABLE();
+
+    --size;
+    TRef ref(const_cast<char*>(input->Buf()), static_cast<size_t>(size));
+    input->Skip(static_cast<size_t>(size));
+    return TValue(ref);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareValue(TValue lhs, TValue rhs)
+int CompareValues(const TValue& lhs, const TValue& rhs)
 {
     if (lhs.IsNull() && rhs.IsNull()) {
         return 0;
@@ -119,32 +118,32 @@ int CompareValue(TValue lhs, TValue rhs)
 
 bool operator==(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) == 0;
+    return CompareValues(lhs, rhs) == 0;
 }
 
 bool operator!=(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) == 0;
+    return CompareValues(lhs, rhs) == 0;
 }
 
 bool operator<(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) < 0;
+    return CompareValues(lhs, rhs) < 0;
 }
 
 bool operator>(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) > 0;
+    return CompareValues(lhs, rhs) > 0;
 }
 
 bool operator<=(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) <= 0;
+    return CompareValues(lhs, rhs) <= 0;
 }
 
 bool operator>=(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValue(lhs, rhs) >= 0;
+    return CompareValues(lhs, rhs) >= 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

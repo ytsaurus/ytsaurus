@@ -15,6 +15,7 @@ namespace NYT {
 ///////////////////////////////////////////////////////////////////////////////
 
 // ToDo: move to misc
+// TODO: write doc
 //! Thread safe cyclic buffer
 template <class T>
 class TCyclicBuffer
@@ -30,16 +31,16 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
         YASSERT(WindowStart <= index);
-        YASSERT(index < WindowStart + Window.size());
+        YASSERT(index < WindowStart + static_cast<int>(Window.size()));
 
-        return Window[(CyclicStart + (index - WindowStart)) % Window.size()];
+        return Window[(CyclicStart + (index - WindowStart)) % static_cast<int>(Window.size())];
     }
 
     const T& operator[](int index) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         YASSERT(WindowStart <= index);
-        YASSERT(index < WindowStart + Window.size());
+        YASSERT(index < WindowStart + Window.ysize());
 
         return Window[CyclicStart + (index - WindowStart)];
     }
@@ -74,9 +75,8 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Given a sequence of block indexes outputs blocks
-//! one-by-one via async interface. Prefetches and stores 
-//! limited number of blocks in the internal cyclic buffer.
+//! For a sequence of block indexes fetches and outputs these blocks in the given order.
+//! Prefetches and stores a configured number of blocks in its internal cyclic buffer.
 class TSequentialChunkReader
     : public TRefCountedBase
 {
@@ -92,10 +92,10 @@ public:
 
     struct TConfig
     {
-        //! Size of prefetching buffer in blocks
+        //! Prefetch window size (in blocks).
         int WindowSize;
 
-        //! Maximum number of blocks for one rpc request
+        //! Maximum number of blocks to be transfered via a single RPC request.
         int GroupSize;
 
         // ToDo: read from config
@@ -105,16 +105,17 @@ public:
         { }
     };
 
+    //! Configures an instance.
     TSequentialChunkReader(
         const TConfig& config,
         const yvector<int>& blockIndexes,
         IChunkReader::TPtr chunkReader);
 
+    //! Asynchronously fetches the next block.
     /*!
-     *  Client is not allowed to ask for the next block, 
-     *  until previous one is set. If TResult.IsOK is false,
-     *  then the whole session failed and following calls to
-     *  #AsyncGetNextBlock are forbidden.
+     *  It is not allowed to ask for the next block until the previous one is retrieved.
+     *  If an error occurs during fetching (which is indicated by TResult::IsOK set to false)
+     *  then the whole session is failed and no further calls to #AsyncGetNextBlock are allowed.
      */
     TFuture<TResult>::TPtr AsyncGetNextBlock();
 

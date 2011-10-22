@@ -21,21 +21,22 @@ void TChannelReader::SetBlock(const TSharedRef& block)
     CurrentBlock = block;
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
-    yvector<ui64> columnSizes;
-    columnSizes.reserve(Channel.GetColumns().size());
-    for (int i = 0; i < Channel.GetColumns().size(); ++i) {
+    yvector<size_t> columnSizes;
+    columnSizes.reserve(Channel.GetColumns().ysize());
+    for (int columnIndex = 0; columnIndex < Channel.GetColumns().ysize(); ++columnIndex) {
         ui64 size;
-        ReadVarInt(&size, &input);
-        YASSERT(size > 0);
-        columnSizes.push_back(size);
+        ReadVarUInt64(&size, &input);
+        YASSERT(size <= static_cast<ui64>(Max<size_t>()));
+        columnSizes.push_back(static_cast<size_t>(size));
     }
 
     const char* currentPos = input.Buf();
-    for (int i = 0; i < columnSizes.ysize(); ++i) {
-        ui64& size = columnSizes[i];
-        ColumnBuffers[i].Reset(currentPos, size);
+    for (int columnIndex = 0; columnIndex < columnSizes.ysize(); ++columnIndex) {
+        size_t size = columnSizes[columnIndex];
+        ColumnBuffers[columnIndex].Reset(currentPos, size);
         currentPos += size;
     }
+
     ColumnBuffers.back().Reset(currentPos, CurrentBlock.End() - currentPos);
 }
 
@@ -64,14 +65,13 @@ bool TChannelReader::NextRow()
 bool TChannelReader::NextColumn()
 {
     while (true) {
-        YASSERT(CurrentColumnIndex <= 
-            static_cast<int>(ColumnBuffers.size()));
+        YASSERT(CurrentColumnIndex <= ColumnBuffers.ysize());
 
-        if (CurrentColumnIndex == ColumnBuffers.size()) {
+        if (CurrentColumnIndex == ColumnBuffers.ysize()) {
             return false;
-        } else if (CurrentColumnIndex == ColumnBuffers.size() - 1) {
+        } else if (CurrentColumnIndex == ColumnBuffers.ysize() - 1) {
             YASSERT(ColumnBuffers.back().Avail() > 0);
-            // Processing range column
+            // Processing range column.
             auto& RangeBuffer = ColumnBuffers[CurrentColumnIndex];
             CurrentColumn = TValue::Load(&RangeBuffer);
             if (CurrentColumn.IsNull()) {
@@ -85,8 +85,8 @@ bool TChannelReader::NextColumn()
         YASSERT(ColumnBuffers.back().Avail() > 0);
         ++CurrentColumnIndex;
 
-        if (CurrentColumnIndex < ColumnBuffers.size() - 1) {
-            // Processing fixed column
+        if (CurrentColumnIndex < ColumnBuffers.ysize() - 1) {
+            // Processing fixed column.
             CurrentValue = TValue::Load(&ColumnBuffers[CurrentColumnIndex]);
             if (!CurrentValue.IsNull()) {
                 return true;
@@ -98,9 +98,9 @@ bool TChannelReader::NextColumn()
 TColumn TChannelReader::GetColumn() const
 {
     YASSERT(CurrentColumnIndex >= 0);
-    YASSERT(CurrentColumnIndex < ColumnBuffers.size());
+    YASSERT(CurrentColumnIndex < ColumnBuffers.ysize());
 
-    if (CurrentColumnIndex < ColumnBuffers.size() - 1) {
+    if (CurrentColumnIndex < ColumnBuffers.ysize() - 1) {
         return Channel.GetColumns()[CurrentColumnIndex];
     } else {
         return CurrentColumn.ToString();
@@ -110,7 +110,7 @@ TColumn TChannelReader::GetColumn() const
 TValue TChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
-    YASSERT(CurrentColumnIndex <= ColumnBuffers.size());
+    YASSERT(CurrentColumnIndex <= ColumnBuffers.ysize());
 
     return CurrentValue;
 }

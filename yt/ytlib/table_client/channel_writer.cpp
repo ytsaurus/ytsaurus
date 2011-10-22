@@ -52,9 +52,9 @@ TChannelWriter::TChannelWriter(const TChannel& channel)
     , IsColumnUsed(Channel.GetColumns().size())
     , CurrentRowCount(0)
 {
-    for (int index = 0; index < Channel.GetColumns().size(); ++index) {
-        auto& column = Channel.GetColumns()[index];
-        ColumnIndexes[column] = index;
+    for (int columnIndex = 0; columnIndex < Channel.GetColumns().ysize(); ++columnIndex) {
+        auto& column = Channel.GetColumns()[columnIndex];
+        ColumnIndexes[column] = columnIndex;
     }
     CurrentSize = GetEmptySize();
 }
@@ -114,7 +114,7 @@ TSharedRef TChannelWriter::FlushBlock()
     TBlobOutput blockStream(CurrentSize);
 
     FOREACH(const auto& column, FixedColumns) {
-        WriteVarInt(column.GetSize(), &blockStream);
+        WriteVarUInt64(column.GetSize(), &blockStream);
     }
 
     FOREACH(auto& column, FixedColumns) {

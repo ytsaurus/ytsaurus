@@ -50,9 +50,9 @@ struct TGuid
     static TGuid FromProto(const Stroka& protoGuid);
 };
 
-bool operator==(const TGuid &a, const TGuid &b);
-bool operator!=(const TGuid &a, const TGuid &b);
-bool operator<(const TGuid &a, const TGuid &b);
+bool operator == (const TGuid &a, const TGuid &b);
+bool operator != (const TGuid &a, const TGuid &b);
+bool operator <  (const TGuid &a, const TGuid &b);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,7 +24,7 @@ TEST_P(TWriteVarIntTest, Serialization)
     Stroka rightAnswer = get<1>(GetParam());
 
     TStringStream outputStream;
-    WriteVarInt(value, &outputStream);
+    WriteVarUInt64(value, &outputStream);
     EXPECT_EQ(rightAnswer, outputStream.Str());
 }
 
@@ -40,7 +40,7 @@ TEST_P(TReadVarIntTest, Serialization)
 
     TStringInput inputStream(input);
     ui64 value;
-    ReadVarInt(&value, &inputStream);
+    ReadVarUInt64(&value, &inputStream);
     EXPECT_EQ(rightAnswer, value);
 }
 
@@ -49,20 +49,20 @@ TEST(TReadVarIntTest, Overflow)
     Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
     TStringInput inputStream(input);
     ui64 value;
-    EXPECT_THROW(ReadVarInt(&value, &inputStream), yexception);
+    EXPECT_THROW(ReadVarUInt64(&value, &inputStream), yexception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 auto ValuesForVarIntTests = Values(
-    // Simple cases
+    // Simple cases.
     make_tuple(0x0ull,                Stroka("\x00", 1)),
     make_tuple(0x1ull,                Stroka("\x01", 1)),
     make_tuple(0x2ull,                Stroka("\x02", 1)),
     make_tuple(0x3ull,                Stroka("\x03", 1)),
     make_tuple(0x4ull,                Stroka("\x04", 1)),
 
-    // Following "magic numbers" are critical points for varint encoding
+    // The following "magic numbers" are critical points for varint encoding.
     make_tuple((1ull << 7) - 1,       Stroka("\x7f", 1)),
     make_tuple((1ull << 7),           Stroka("\x80\x01", 2)),
     make_tuple((1ull << 14) - 1,      Stroka("\xff\x7f", 2)),
@@ -82,7 +82,7 @@ auto ValuesForVarIntTests = Values(
     make_tuple((1ull << 63) - 1,      Stroka("\xff\xff\xff\xff\xff\xff\xff\xff\x7f", 9)),
     make_tuple((1ull << 63),          Stroka("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 10)),
 
-    // Boundary case
+    // Boundary case.
     make_tuple(static_cast<ui64>(-1), Stroka("\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01", 10))
 );
 
