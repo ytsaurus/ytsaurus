@@ -13,9 +13,9 @@ using NTransaction::TTransactionId;
 using NTransaction::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
+// TODO: move implementation to cpp
 
 class TChunk
-    : private TNonCopyable
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TChunkId);
     DECLARE_BYVAL_RW_PROPERTY(TransactionId, TTransactionId);
