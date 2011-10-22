@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common.h"
 #include "ref_counted_tracker.h"
 
 namespace NYT {

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 #include "../ytree/ytree_fwd.h"
 
 namespace NYT {
