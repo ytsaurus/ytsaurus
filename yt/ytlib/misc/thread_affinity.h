@@ -79,7 +79,7 @@ STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
 #else
 
 // Expand macros to null but take care of trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct TNullThreadAffinitySlot__ ## _LINE_ { }
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct TNullThreadAffinitySlot__ ## __LINE__ { }
 #define VERIFY_THREAD_AFFINITY(slot)           do { } while(0)
 #define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while(0)
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while(0)
