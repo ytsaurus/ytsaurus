@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include "../misc/property.h"
 #include "../transaction_manager/common.h"
 
 namespace NYT {
@@ -11,25 +12,24 @@ using NTransaction::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move impl to cpp
 class TLock
 {
+    DECLARE_BYVAL_RO_PROPERTY(Id, TLockId);
+    DECLARE_BYVAL_RO_PROPERTY(NodeId, TNodeId);
+    DECLARE_BYVAL_RO_PROPERTY(TransactionId, TTransactionId);
+    DECLARE_BYVAL_RO_PROPERTY(Mode, ELockMode);
+
 public:
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode mode)
-        : Id(id)
-        , NodeId(nodeId)
-        , TransactionId(transactionId)
-        , Mode(mode)
-    { }
-
-    TLock(const TLock& other)
-        : Id(other.Id)
-        , NodeId(other.NodeId)
-        , TransactionId(other.TransactionId)
-        , Mode(other.Mode)
+        : Id_(id)
+        , NodeId_(nodeId)
+        , TransactionId_(transactionId)
+        , Mode_(mode)
     { }
 
     TAutoPtr<TLock> Clone() const
@@ -37,31 +37,13 @@ public:
         return new TLock(*this);
     }
 
-    TLockId GetId() const
-    {
-        return Id;
-    }
-
-    TNodeId GetNodeId() const
-    {
-        return NodeId;
-    }
-
-    TTransactionId GetTransactionId() const
-    {
-        return TransactionId;
-    }
-
-    ELockMode GetMode() const
-    {
-        return Mode;
-    }
-
 private:
-    TLockId Id;
-    TNodeId NodeId;
-    TTransactionId TransactionId;
-    ELockMode Mode;
+    TLock(const TLock& other)
+        : Id_(other.Id_)
+        , NodeId_(other.NodeId_)
+        , TransactionId_(other.TransactionId_)
+        , Mode_(other.Mode_)
+    { }
 
 };
 
