@@ -105,13 +105,15 @@ void TYsonWriter::EndCollection(char closeBracket)
 }
 
 
-void TYsonWriter::OnStringScalar(const Stroka& value)
+void TYsonWriter::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     WriteStringScalar(value);
 }
 
-void TYsonWriter::OnInt64Scalar(i64 value)
+void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     if (IsBinary) {
         Stream->Write(Int64Marker);
         WriteVarInt64(value, Stream);
@@ -120,8 +122,9 @@ void TYsonWriter::OnInt64Scalar(i64 value)
     }
 }
 
-void TYsonWriter::OnDoubleScalar(double value)
+void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     if (IsBinary) {
         Stream->Write(DoubleMarker);
         Stream->Write(&value, sizeof(double));
@@ -130,8 +133,9 @@ void TYsonWriter::OnDoubleScalar(double value)
     }
 }
 
-void TYsonWriter::OnEntityScalar()
+void TYsonWriter::OnEntity(bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     SetEmptyEntity();
 }
 
@@ -140,14 +144,14 @@ void TYsonWriter::OnBeginList()
     BeginCollection('[');
 }
 
-void TYsonWriter::OnListItem(int index)
+void TYsonWriter::OnListItem()
 {
-    UNUSED(index);
     CollectionItem(ListItemSeparator);
 }
 
-void TYsonWriter::OnEndList()
+void TYsonWriter::OnEndList(bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     EndCollection(']');
 }
 
@@ -161,8 +165,9 @@ void TYsonWriter::OnMapItem(const Stroka& name)
     WriteMapItem(name);
 }
 
-void TYsonWriter::OnEndMap()
+void TYsonWriter::OnEndMap(bool hasAttributes)
 {
+    UNUSED(hasAttributes);
     EndCollection('}');
 }
 

@@ -37,18 +37,18 @@ private:
     void CollectionItem(char separator);
     void EndCollection(char closeBracket);
 
-    virtual void OnStringScalar(const Stroka& value);
-    virtual void OnInt64Scalar(i64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnEntityScalar();
+    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnDoubleScalar(double value, bool hasAttributes);
+    virtual void OnEntity(bool hasAttributes);
 
     virtual void OnBeginList();
-    virtual void OnListItem(int index);
-    virtual void OnEndList();
+    virtual void OnListItem();
+    virtual void OnEndList(bool hasAttributes);
 
     virtual void OnBeginMap();
     virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap();
+    virtual void OnEndMap(bool hasAttributes);
 
     virtual void OnBeginAttributes();
     virtual void OnAttributesItem(const Stroka& name);

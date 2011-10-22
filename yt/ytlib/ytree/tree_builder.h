@@ -9,6 +9,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move impl to cpp
+
 class TTreeBuilder
     : public IYsonConsumer
 {
@@ -27,29 +29,33 @@ private:
     INodeFactory* Factory;
     yvector<INode::TPtr> Stack;
 
-    virtual void OnStringScalar(const Stroka& value)
+    virtual void OnStringScalar(const Stroka& value, bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         auto node = Factory->CreateString();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void OnInt64Scalar(i64 value)
+    virtual void OnInt64Scalar(i64 value, bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         auto node = Factory->CreateInt64();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void OnDoubleScalar(double value)
+    virtual void OnDoubleScalar(double value, bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         auto node = Factory->CreateDouble();
         node->SetValue(value);
         Push(~node);
     }
 
-    virtual void OnEntityScalar()
+    virtual void OnEntity(bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         Push(~Factory->CreateEntity());
     }
 
@@ -60,14 +66,14 @@ private:
         Push(NULL);
     }
 
-    virtual void OnListItem(int index)
+    virtual void OnListItem()
     {
-        UNUSED(index);
         AddToList();
     }
 
-    virtual void OnEndList()
+    virtual void OnEndList(bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         AddToList();
     }
 
@@ -96,8 +102,9 @@ private:
         Push(~node);
     }
 
-    virtual void OnEndMap()
+    virtual void OnEndMap(bool hasAttributes)
     {
+        UNUSED(hasAttributes);
         AddToMap();
     }
 
@@ -124,7 +131,7 @@ private:
 
     virtual void OnEndAttributes()
     {
-        OnEndMap();
+        OnEndMap(false);
         auto attributes = Pop()->AsMap();
         auto node = Peek();
         node->SetAttributes(attributes);

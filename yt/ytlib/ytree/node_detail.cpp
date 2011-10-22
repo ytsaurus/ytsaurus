@@ -38,7 +38,7 @@ IYPathService::TGetResult TNodeBase::Get(
                 }
             }
 
-            consumer->OnEndMap();
+            consumer->OnEndMap(false);
 
             return TGetResult::CreateDone();
         } else {

@@ -23,7 +23,7 @@ private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 
-    IYsonConsumer* Events;
+    IYsonConsumer* Consumer;
     TInputStream* Stream;
     int Lookahead;
 
@@ -51,10 +51,11 @@ private:
 
     void ParseAny();
 
+    bool HasAttributes();
     void ParseAttributesItem();
     void ParseAttributes();
 
-    void ParseListItem(int index);
+    void ParseListItem();
     void ParseList();
 
     void ParseMapItem();

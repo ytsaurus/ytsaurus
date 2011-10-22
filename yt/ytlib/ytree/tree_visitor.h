@@ -9,6 +9,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move impl to cpp
 class TTreeVisitor
     : private TNonCopyable
 {
@@ -31,49 +32,50 @@ private:
 
     void VisitAny(INode::TPtr node)
     {
+        auto attributes = node->GetAttributes();
+        bool hasAttributes = ~attributes != NULL && VisitAttributes_;
+
         switch (node->GetType()) {
             case ENodeType::String:
             case ENodeType::Int64:
             case ENodeType::Double:
+                VisitScalar(node, hasAttributes);
+                break;
+
             case ENodeType::Entity:
-                VisitScalar(node);
+                VisitEntity(node, hasAttributes);
                 break;
 
             case ENodeType::List:
-                VisitList(node->AsList());
+                VisitList(node->AsList(), hasAttributes);
                 break;
 
             case ENodeType::Map:
-                VisitMap(node->AsMap());
+                VisitMap(node->AsMap(), hasAttributes);
                 break;
 
             default:
                 YUNREACHABLE();
         }
 
-        auto attributes = node->GetAttributes();
-        if (~attributes != NULL && VisitAttributes_) {
-            VisitAttributes(attributes);
+        if (hasAttributes) {
+            VisitAttributes(node->GetAttributes());
         }
     }
 
-    void VisitScalar(INode::TPtr node)
+    void VisitScalar(INode::TPtr node, bool hasAttributes)
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Consumer->OnStringScalar(node->GetValue<Stroka>());
+                Consumer->OnStringScalar(node->GetValue<Stroka>(), hasAttributes);
                 break;
 
             case ENodeType::Int64:
-                Consumer->OnInt64Scalar(node->GetValue<i64>());
+                Consumer->OnInt64Scalar(node->GetValue<i64>(), hasAttributes);
                 break;
 
             case ENodeType::Double:
-                Consumer->OnDoubleScalar(node->GetValue<double>());
-                break;
-
-            case ENodeType::Entity:
-                Consumer->OnEntityScalar();
+                Consumer->OnDoubleScalar(node->GetValue<double>(), hasAttributes);
                 break;
 
             default:
@@ -81,25 +83,31 @@ private:
         }
     }
 
-    void VisitList(IListNode::TPtr node)
+    void VisitEntity(INode::TPtr node, bool hasAttributes)
+    {
+        UNUSED(node);
+        Consumer->OnEntity(hasAttributes);
+    }
+
+    void VisitList(IListNode::TPtr node, bool hasAttributes)
     {
         Consumer->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             auto child = node->GetChild(i);
-            Consumer->OnListItem(i);
+            Consumer->OnListItem();
             VisitAny(child);
         }
-        Consumer->OnEndList();
+        Consumer->OnEndList(hasAttributes);
     }
 
-    void VisitMap(IMapNode::TPtr node)
+    void VisitMap(IMapNode::TPtr node, bool hasAttributes)
     {
         Consumer->OnBeginMap();
         FOREACH(const auto& pair, node->GetChildren()) {
             Consumer->OnMapItem(pair.First());
             VisitAny(pair.Second());
         }
-        Consumer->OnEndMap();
+        Consumer->OnEndMap(hasAttributes);
     }
 
     void VisitAttributes(IMapNode::TPtr node)

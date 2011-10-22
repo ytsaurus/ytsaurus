@@ -13,8 +13,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonReader::TYsonReader(IYsonConsumer* events)
-    : Events(events)
+TYsonReader::TYsonReader(IYsonConsumer* consumer)
+    : Consumer(consumer)
 {
     Reset();
 }
@@ -89,7 +89,6 @@ Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
     }
     return result;
 }
-
 
 void TYsonReader::ExpectChar(char expectedCh)
 {
@@ -197,32 +196,26 @@ void TYsonReader::ParseAny()
     switch (ch) {
         case '[':
             ParseList();
-            ParseAttributes();
             break;
 
         case '{':
             ParseMap();
-            ParseAttributes();
             break;
 
         case '<':
             ParseEntity();
-            ParseAttributes();
             break;
 
         case StringMarker:
             ParseBinaryString();
-            ParseAttributes();
             break;
 
         case Int64Marker:
             ParseBinaryInt64();
-            ParseAttributes();
             break;
 
         case DoubleMarker:
             ParseBinaryDouble();
-            ParseAttributes();
             break;
 
         default:
@@ -231,14 +224,12 @@ void TYsonReader::ParseAny()
                 ch == '-')
             {
                 ParseNumeric();
-                ParseAttributes();
             } else if (ch >= 'a' && ch <= 'z' ||
                        ch >= 'A' && ch <= 'Z' ||
                        ch == '_' ||
                        ch == '"')
             {
                 ParseString();
-                ParseAttributes();
             } else {
                 ythrow yexception() << Sprintf("Unexpected character %s in YSON %s",
                     ~Stroka(static_cast<char>(ch)).Quote(),
@@ -246,6 +237,12 @@ void TYsonReader::ParseAny()
             }
             break;
     }
+}
+
+bool TYsonReader::HasAttributes()
+{
+    SkipWhitespaces();
+    return PeekChar() == '<';
 }
 
 void TYsonReader::ParseAttributesItem()
@@ -258,7 +255,7 @@ void TYsonReader::ParseAttributesItem()
     }
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
-    Events->OnAttributesItem(name);
+    Consumer->OnAttributesItem(name);
     ParseAny();
 }
 
@@ -268,7 +265,7 @@ void TYsonReader::ParseAttributes()
     if (PeekChar() != '<')
         return;
     YVERIFY(ReadChar() == '<');
-    Events->OnBeginAttributes();
+    Consumer->OnBeginAttributes();
     while (true) {
         SkipWhitespaces();
         if (PeekChar() == '>')
@@ -279,30 +276,36 @@ void TYsonReader::ParseAttributes()
         ExpectChar(MapItemSeparator);
     }
     YVERIFY(ReadChar() == '>');
-    Events->OnEndAttributes();
+    Consumer->OnEndAttributes();
 }
 
-void TYsonReader::ParseListItem(int index)
+void TYsonReader::ParseListItem()
 {
-    Events->OnListItem(index);
+    Consumer->OnListItem();
     ParseAny();
 }
 
 void TYsonReader::ParseList()
 {
     YVERIFY(ReadChar() == '[');
-    Events->OnBeginList();
-    for (int index = 0; true; ++index) {
+    Consumer->OnBeginList();
+    while (true) {
         SkipWhitespaces();
         if (PeekChar() == ']')
             break;
-        ParseListItem(index);
+        ParseListItem();
         if (PeekChar() == ']')
             break;
         ExpectChar(ListItemSeparator);
     }
     YVERIFY(ReadChar() == ']');
-    Events->OnEndList();
+
+    if (HasAttributes()) {
+        Consumer->OnEndList(true);
+        ParseAttributes();
+    } else {
+        Consumer->OnEndList(false);
+    }
 }
 
 void TYsonReader::ParseMapItem()
@@ -315,14 +318,14 @@ void TYsonReader::ParseMapItem()
     }
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
-    Events->OnMapItem(name);
+    Consumer->OnMapItem(name);
     ParseAny();
 }
 
 void TYsonReader::ParseMap()
 {
     YVERIFY(ReadChar() == '{');
-    Events->OnBeginMap();
+    Consumer->OnBeginMap();
     while (true) {
         SkipWhitespaces();
         if (PeekChar() == '}')
@@ -333,18 +336,30 @@ void TYsonReader::ParseMap()
         ExpectChar(MapItemSeparator);
     }
     YVERIFY(ReadChar() == '}');
-    Events->OnEndMap();
+
+    if (HasAttributes()) {
+        Consumer->OnEndMap(true);
+        ParseAttributes();
+    } else {
+        Consumer->OnEndMap(false);
+    }
 }
 
 void TYsonReader::ParseEntity()
 {
-    Events->OnEntityScalar();
+    Consumer->OnEntity(true);
+    ParseAttributes();
 }
 
 void TYsonReader::ParseString()
 {
     Stroka value = ReadString();
-    Events->OnStringScalar(value);
+    if (HasAttributes()) {
+        Consumer->OnStringScalar(value, true);
+        ParseAttributes();
+    } else {
+        Consumer->OnStringScalar(value, false);
+    }
 }
 
 bool TYsonReader::SeemsInteger(const Stroka& str)
@@ -369,7 +384,13 @@ void TYsonReader::ParseNumeric()
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
-        Events->OnInt64Scalar(value);
+
+        if (HasAttributes()) {
+            Consumer->OnInt64Scalar(value, true);
+            ParseAttributes();
+        } else {
+            Consumer->OnInt64Scalar(value, false);
+        }
     } else {
         double value;
         try {
@@ -379,7 +400,13 @@ void TYsonReader::ParseNumeric()
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
-        Events->OnDoubleScalar(value);
+
+        if (HasAttributes()) {
+            Consumer->OnDoubleScalar(value, true);
+            ParseAttributes();
+        } else {
+            Consumer->OnDoubleScalar(value, false);
+        }
     }
 }
 
@@ -393,9 +420,14 @@ void TYsonReader::ParseBinaryString()
     Position += bytesRead;
     Offset += bytesRead;
 
-    Stroka result = ReadChars(length, true);
+    Stroka value = ReadChars(length, true);
 
-    Events->OnStringScalar(result);
+    if (HasAttributes()) {
+        Consumer->OnStringScalar(value, true);
+        ParseAttributes();
+    } else {
+        Consumer->OnStringScalar(value, false);
+    }
 }
 
 void TYsonReader::ParseBinaryInt64()
@@ -408,7 +440,12 @@ void TYsonReader::ParseBinaryInt64()
     Position += bytesRead;
     Offset += bytesRead;
 
-    Events->OnInt64Scalar(value);
+    if (HasAttributes()) {
+        Consumer->OnInt64Scalar(value, true);
+        ParseAttributes();
+    } else {
+        Consumer->OnInt64Scalar(value, false);
+    }
 }
 
 void TYsonReader::ParseBinaryDouble()
@@ -422,7 +459,12 @@ void TYsonReader::ParseBinaryDouble()
     Position += bytesToRead;
     Offset += bytesToRead;
 
-    Events->OnDoubleScalar(value);
+    if (HasAttributes()) {
+        Consumer->OnDoubleScalar(value, true);
+        ParseAttributes();
+    } else {
+        Consumer->OnDoubleScalar(value, false);
+    }
 }
 
 TYsonProducer::TPtr TYsonReader::GetProducer(TInputStream* stream)

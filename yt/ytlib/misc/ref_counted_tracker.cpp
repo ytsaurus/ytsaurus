@@ -110,7 +110,7 @@ void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     i64 totalAlive = 0;
     i64 totalCreated = 0;
 
-    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
+    auto current = BuildYsonFluently(consumer)
         .BeginMap()
             .Item("statistics").BeginList();
 

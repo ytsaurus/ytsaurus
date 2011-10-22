@@ -19,25 +19,28 @@ TJsonAdapter::~TJsonAdapter()
     JsonWriter->Flush();
 }
 
-void TJsonAdapter::OnStringScalar(const Stroka& value)
+void TJsonAdapter::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
+    YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnInt64Scalar(i64 value)
+void TJsonAdapter::OnInt64Scalar(i64 value, bool hasAttributes)
 {
+    YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnDoubleScalar(double value)
+void TJsonAdapter::OnDoubleScalar(double value, bool hasAttributes)
 {
+    YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnEntityScalar()
+void TJsonAdapter::OnEntity(bool hasAttributes)
 {
-    OnBeginMap();
-    OnEndMap();
+    UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TJsonAdapter::OnBeginList()
@@ -45,13 +48,12 @@ void TJsonAdapter::OnBeginList()
     JsonWriter->OpenArray();
 }
 
-void TJsonAdapter::OnListItem(int index)
-{
-    UNUSED(index);
-}
+void TJsonAdapter::OnListItem()
+{ }
 
-void TJsonAdapter::OnEndList()
+void TJsonAdapter::OnEndList(bool hasAttributes)
 {
+    YASSERT(!hasAttributes);
     JsonWriter->CloseArray();
 }
 
@@ -65,8 +67,9 @@ void TJsonAdapter::OnMapItem(const Stroka& name)
     JsonWriter->Write(name);
 }
 
-void TJsonAdapter::OnEndMap()
+void TJsonAdapter::OnEndMap(bool hasAttributes)
 {
+    YASSERT(!hasAttributes);
     JsonWriter->CloseMap();
 }
 

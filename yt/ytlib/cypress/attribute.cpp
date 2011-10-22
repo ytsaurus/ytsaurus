@@ -61,7 +61,7 @@ TCypressNodeAttributeProvider::TCypressNodeAttributeProvider()
 
 void TCypressNodeAttributeProvider::GetId(const TGetRequest& request)
 {
-    TFluentYsonBuilder::Create(request.Consumer)
+    BuildYsonFluently(request.Consumer)
         .Scalar(request.Proxy->GetNodeId().ToString());
 }
 
@@ -79,7 +79,7 @@ Stroka TCypressNodeAttributeProvider::FormatType(ENodeType type)
 
 void TCypressNodeAttributeProvider::GetType(const TGetRequest& request)
 {
-    TFluentYsonBuilder::Create(request.Consumer)
+    BuildYsonFluently(request.Consumer)
         .Scalar(FormatType(request.Proxy->GetType()));
 }
 
@@ -99,7 +99,7 @@ void TCompositeNodeAttributeProvider::GetSize(const TGetRequest& request)
 {
     auto* typedProxy = dynamic_cast<ICompositeNode*>(~request.Proxy);
     YASSERT(typedProxy != NULL);
-    TFluentYsonBuilder::Create(request.Consumer)
+    BuildYsonFluently(request.Consumer)
         .Scalar(typedProxy->GetChildCount());
 }
 

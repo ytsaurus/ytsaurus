@@ -5,40 +5,57 @@
 #include "yson_events.h"
 #include "tree_builder.h"
 
+#include "../actions/action_util.h"
+
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeSetterBase
+// TODO: move to forwarding_yson_events.h/cpp
+
+class TForwardingYsonConsumer
     : public IYsonConsumer
 {
 protected:
-    IYsonConsumer* FwdConsumer;
-    int FwdDepth;
+    TForwardingYsonConsumer();
 
-    TNodeSetterBase();
+    void StartForwarding(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
 
-    void InvalidType();
+    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes) = 0;
+    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes) = 0;
+    virtual void OnMyDoubleScalar(double value, bool hasAttributes) = 0;
+    virtual void OnMyEntity(bool hasAttributes) = 0;
 
-    void SetFwdConsumer(IYsonConsumer* consumer);
-    virtual void OnFwdConsumerFinished();
+    virtual void OnMyBeginList() = 0;
+    virtual void OnMyListItem() = 0;
+    virtual void OnMyEndList(bool hasAttributes) = 0;
 
-    virtual void OnStringScalar(const Stroka& value);
-    virtual void OnInt64Scalar(i64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnEntityScalar();
+    virtual void OnMyBeginMap() = 0;
+    virtual void OnMyMapItem(const Stroka& name) = 0;
+    virtual void OnMyEndMap(bool hasAttributes) = 0;
 
+    virtual void OnMyBeginAttributes() = 0;
+    virtual void OnMyAttributesItem(const Stroka& name) = 0;
+    virtual void OnMyEndAttributes() = 0;
+
+private:
+    IYsonConsumer* ForwardingConsumer;
+    int ForwardingDepth;
+    IAction::TPtr OnForwardingFinished;
+
+    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnDoubleScalar(double value, bool hasAttributes);
+    virtual void OnEntity(bool hasAttributes);
 
     virtual void OnBeginList();
-    virtual void OnListItem(int index);
-    virtual void OnEndList();
-
+    virtual void OnListItem();
+    virtual void OnEndList(bool hasAttributes);
 
     virtual void OnBeginMap();
     virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap();
-
+    virtual void OnEndMap(bool hasAttributes);
 
     virtual void OnBeginAttributes();
     virtual void OnAttributesItem(const Stroka& name);
@@ -50,31 +67,78 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeSetterBase
+    : public TForwardingYsonConsumer
+{
+protected:
+    TNodeSetterBase(INode::TPtr node);
+
+    void ThrowInvalidType(ENodeType actualType);
+    virtual ENodeType GetExpectedType() = 0;
+
+    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
+    virtual void OnMyEntity(bool hasAttributes);
+
+    virtual void OnMyBeginList();
+    virtual void OnMyListItem();
+    virtual void OnMyEndList(bool hasAttributes);
+
+
+    virtual void OnMyBeginMap();
+    virtual void OnMyMapItem(const Stroka& name);
+    virtual void OnMyEndMap(bool hasAttributes);
+
+    virtual void OnMyBeginAttributes();
+    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyEndAttributes();
+
+private:
+    typedef TNodeSetterBase TThis;
+
+    INode::TPtr Node;
+    Stroka AttributeName;
+    TAutoPtr<TTreeBuilder> AttributeBuilder;
+
+    void OnForwardingFinished();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TValue>
 class TNodeSetter
 { };
 
 #define DECLARE_SCALAR_TYPE(name, type) \
     template <> \
-    class TNodeSetter<I##name##Node> : \
-        public TNodeSetterBase \
+    class TNodeSetter<I##name##Node> \
+        : public TNodeSetterBase \
     { \
     public: \
         TNodeSetter(I##name##Node::TPtr node) \
-            : Node(node) \
+            : TNodeSetterBase(~node) \
+            , Node(node) \
         { } \
     \
     private: \
         I##name##Node::TPtr Node; \
         \
-        virtual void On ## name ## Scalar(TScalarTypeTraits<type>::TParamType value) \
+        virtual ENodeType GetExpectedType() \
         { \
+            return ENodeType::name; \
+        } \
+        \
+        virtual void On ## name ## Scalar(TScalarTypeTraits<type>::TParamType value, bool hasAttributes) \
+        { \
+            UNUSED(hasAttributes); \
             Node->SetValue(value); \
         } \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64, i64);
+DECLARE_SCALAR_TYPE(Int64,  i64);
 DECLARE_SCALAR_TYPE(Double, double);
 
 #undef DECLARE_SCALAR_TYPE
@@ -87,37 +151,36 @@ class TNodeSetter<IMapNode>
 {
 public:
     TNodeSetter(IMapNode::TPtr map)
-        : Map(map)
+        : TNodeSetterBase(~map)
+        , Map(map)
     { }
 
 private:
+    typedef TNodeSetter<IMapNode> TThis;
+
     IMapNode::TPtr Map;
-    
     Stroka ItemName;
     TAutoPtr<TTreeBuilder> ItemBuilder;
 
-    virtual void OnBeginMap()
+    virtual ENodeType GetExpectedType()
     {
-        if (FwdConsumer == NULL) {
-            Map->Clear();
-        } else {
-            TNodeSetterBase::OnBeginMap();
-        }
+        return ENodeType::Map;
     }
 
-    virtual void OnMapItem(const Stroka& name)
+    virtual void OnMyBeginMap()
     {
-        if (FwdConsumer == NULL) {
-            YASSERT(~ItemBuilder == NULL);
-            ItemName = name;
-            ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
-            SetFwdConsumer(~ItemBuilder);
-        } else {
-            TNodeSetterBase::OnMapItem(name);
-        }
+        Map->Clear();
     }
 
-    virtual void OnFwdConsumerFinished()
+    virtual void OnMyMapItem(const Stroka& name)
+    {
+        YASSERT(~ItemBuilder == NULL);
+        ItemName = name;
+        ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
+        StartForwarding(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+    }
+
+    void OnForwardingFinished()
     {
         YASSERT(~ItemBuilder != NULL);
         Map->AddChild(ItemBuilder->GetRoot(), ItemName);
@@ -125,13 +188,10 @@ private:
         ItemName.clear();
     }
 
-    virtual void OnEndMap()
+    virtual void OnMyEndMap(bool hasAttributes)
     {
-        if (FwdConsumer == NULL) {
-            // Just do nothing.
-        } else {
-            TNodeSetterBase::OnEndMap();
-        }
+        UNUSED(hasAttributes);
+        // Just do nothing.
     }
 };
 
@@ -143,48 +203,44 @@ class TNodeSetter<IListNode>
 {
 public:
     TNodeSetter(IListNode::TPtr list)
-        : List(list)
+        : TNodeSetterBase(~list)
+        , List(list)
     { }
 
 private:
-    IListNode::TPtr List;
+    typedef TNodeSetter<IListNode> TThis;
 
+    IListNode::TPtr List;
     TAutoPtr<TTreeBuilder> ItemBuilder;
 
-    virtual void OnBeginList()
+    virtual ENodeType GetExpectedType()
     {
-        if (FwdConsumer == NULL) {
-            List->Clear();
-        } else {
-            TNodeSetterBase::OnEndMap();
-        }
+        return ENodeType::List;
     }
 
-    virtual void OnListItem(int index)
+    virtual void OnMyBeginList()
     {
-        if (FwdConsumer == NULL) {
-            YASSERT(~ItemBuilder == NULL);
-            ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
-            SetFwdConsumer(~ItemBuilder);
-        } else {
-            TNodeSetterBase::OnListItem(index);
-        }
+        List->Clear();
     }
 
-    virtual void OnFwdConsumerFinished()
+    virtual void OnMyListItem()
+    {
+        YASSERT(~ItemBuilder == NULL);
+        ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
+        StartForwarding(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+    }
+
+    void OnForwardingFinished()
     {
         YASSERT(~ItemBuilder != NULL);
         List->AddChild(ItemBuilder->GetRoot());
         ItemBuilder.Destroy();
     }
 
-    virtual void OnEndList()
+    virtual void OnMyEndList(bool hasAttributes)
     {
-        if (FwdConsumer == NULL) {
-            // Just do nothing.
-        } else {
-            TNodeSetterBase::OnEndMap();
-        }
+        UNUSED(hasAttributes);
+        // Just do nothing.
     }
 };
 
@@ -195,12 +251,21 @@ class TNodeSetter<IEntityNode>
     : public TNodeSetterBase
 {
 public:
-    TNodeSetter(IEntityNode::TPtr)
+    TNodeSetter(IEntityNode::TPtr entity)
+        : TNodeSetterBase(~entity)
     { }
 
 private:
-    void OnEntityScalar()
-    { }
+    virtual ENodeType GetExpectedType()
+    {
+        return ENodeType::Entity;
+    }
+
+    virtual void OnMyEntity(bool hasAttributes)
+    {
+        UNUSED(hasAttributes);
+        // Just do nothing.
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -395,7 +395,7 @@ void TMetaStateManager::TImpl::Start()
 
 void TMetaStateManager::TImpl::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
-    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
+    auto current = BuildYsonFluently(consumer)
         .BeginMap()
         .Item("state").Scalar(ControlStatus.ToString())
         // TODO: fixme, thread affinity

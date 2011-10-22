@@ -26,12 +26,12 @@ public:
     class TFluentBase
     {
     protected:
-        TFluentBase(IYsonConsumer* events, const TParent& parent)
-            : Events(events)
+        TFluentBase(IYsonConsumer* consumer, const TParent& parent)
+            : Consumer(consumer)
             , Parent(parent)
         { }
 
-        IYsonConsumer* Events;
+        IYsonConsumer* Consumer;
         TParent Parent;
 
     };
@@ -43,21 +43,21 @@ public:
     public:
         typedef TAny<TParent> TThis;
 
-        TAny(IYsonConsumer* events, const TParent& parent)
-            : TFluentBase<TParent>(events, parent)
+        TAny(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+            : TFluentBase<TParent>(consumer, parent)
+            , HasAttributes(hasAttributes)
         { }
 
         TParent Scalar(const Stroka& value)
         {
-            this->Events->OnStringScalar(value);
+            this->Consumer->OnStringScalar(value, HasAttributes);
             return this->Parent;
         }
 
         // A stupid language with a stupid type system.
         TParent Scalar(const char* value)
         {
-            this->Events->OnStringScalar(Stroka(value));
-            return this->Parent;
+            return Scalar(Stroka(value));
         }
 
         TParent Scalar(i32 value)
@@ -72,7 +72,7 @@ public:
 
         TParent Scalar(i64 value)
         {
-            this->Events->OnInt64Scalar(value);
+            this->Consumer->OnInt64Scalar(value, HasAttributes);
             return this->Parent;
         }
 
@@ -83,7 +83,7 @@ public:
 
         TParent Scalar(double value)
         {
-            this->Events->OnDoubleScalar(value);
+            this->Consumer->OnDoubleScalar(value, HasAttributes);
             return this->Parent;
         }
 
@@ -94,39 +94,46 @@ public:
 
         TParent EntityScalar()
         {
-            this->Events->OnEntityScalar();
+            this->Consumer->OnEntity(HasAttributes);
             return this->Parent;
         }
 
         TList<TParent> BeginList()
         {
-            this->Events->OnBeginList();
-            return TList<TParent>(this->Events, this->Parent);
+            this->Consumer->OnBeginList();
+            return TList<TParent>(this->Consumer, this->Parent, HasAttributes);
         }
 
         TMap<TParent> BeginMap()
         {
-            this->Events->OnBeginMap();
-            return TMap<TParent>(this->Events, this->Parent);
+            this->Consumer->OnBeginMap();
+            return TMap<TParent>(this->Consumer, this->Parent, HasAttributes);
         }
 
         TAny< TToAttributes<TParent> > WithAttributes()
         {
-            return TAny< TToAttributes<TParent> >(this->Events, TToAttributes<TParent>(this->Events, this->Parent));
+            return TAny< TToAttributes<TParent> >(
+                this->Consumer,
+                TToAttributes<TParent>(this->Consumer, this->Parent),
+                true);
         }
 
         TParent Do(TYsonProducer::TPtr producer)
         {
-            producer->Do(this->Events);
+            producer->Do(this->Consumer);
             return this->Parent;
         }
 
         template<class T>
         TParent Do(const T& func)
         {
-            func(this->Events);
+            func(this->Consumer);
             return this->Parent;
         }
+
+    private:
+        bool HasAttributes;
+
     };
 
     template<class TParent>
@@ -134,14 +141,14 @@ public:
         : public TFluentBase<TParent>
     {
     public:
-        TToAttributes(IYsonConsumer* events, const TParent& parent)
-            : TFluentBase<TParent>(events, parent)
+        TToAttributes(IYsonConsumer* consumer, const TParent& parent)
+            : TFluentBase<TParent>(consumer, parent)
         { }
 
         TAttributes<TParent> BeginAttributes()
         {
-            this->Events->OnBeginAttributes();
-            return TAttributes<TParent>(this->Events, this->Parent);
+            this->Consumer->OnBeginAttributes();
+            return TAttributes<TParent>(this->Consumer, this->Parent);
         }
     };
 
@@ -152,19 +159,19 @@ public:
     public:
         typedef TAttributes<TParent> TThis;
 
-        TAttributes(IYsonConsumer* events, const TParent& parent)
-            : TFluentBase<TParent>(events, parent)
+        TAttributes(IYsonConsumer* consumer, const TParent& parent)
+            : TFluentBase<TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& name)
         {
-            this->Events->OnAttributesItem(name);
-            return TAny<TThis>(this->Events, *this);
+            this->Consumer->OnAttributesItem(name);
+            return TAny<TThis>(this->Consumer, *this, false);
         }
 
         TParent EndAttributes()
         {
-            this->Events->OnEndAttributes();
+            this->Consumer->OnEndAttributes();
             return this->Parent;
         }
     };
@@ -176,25 +183,25 @@ public:
     public:
         typedef TList<TParent> TThis;
 
-        TList(IYsonConsumer* events, const TParent& parent)
-            : TFluentBase<TParent>(events, parent)
-            , Index(0)
+        TList(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+            : TFluentBase<TParent>(consumer, parent)
+            , HasAttributes(hasAttributes)
         { }
 
         TAny<TThis> Item()
         {
-            this->Events->OnListItem(Index++);
-            return TAny<TThis>(this->Events, *this);
+            this->Consumer->OnListItem();
+            return TAny<TThis>(this->Consumer, *this, false);
         }
 
         TParent EndList()
         {
-            this->Events->OnEndList();
+            this->Consumer->OnEndList(HasAttributes);
             return this->Parent;
         }
 
     private:
-        int Index;
+        bool HasAttributes;
 
     };
 
@@ -205,28 +212,34 @@ public:
     public:
         typedef TMap<TParent> TThis;
 
-        TMap(IYsonConsumer* events, const TParent& parent)
-            : TFluentBase<TParent>(events, parent)
+        TMap(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+            : TFluentBase<TParent>(consumer, parent)
+            , HasAttributes(hasAttributes)
         { }
 
         TAny<TThis> Item(const Stroka& name)
         {
-            this->Events->OnMapItem(name);
-            return TAny<TThis>(this->Events, *this);
+            this->Consumer->OnMapItem(name);
+            return TAny<TThis>(this->Consumer, *this, false);
         }
 
         TParent EndMap()
         {
-            this->Events->OnEndMap();
+            this->Consumer->OnEndMap(HasAttributes);
             return this->Parent;
         }
+    
+    private:
+        bool HasAttributes;
+
     };
 
-    static TAny<TVoid> Create(IYsonConsumer* events)
-    {
-        return TAny<TVoid>(events, TVoid());
-    }
 };
+
+inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer)
+{
+    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

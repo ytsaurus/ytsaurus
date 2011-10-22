@@ -763,7 +763,7 @@ void TElectionManager::StopEpoch()
 
 void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
-    auto current = NYTree::TFluentYsonBuilder::Create(consumer)
+    auto current = BuildYsonFluently(consumer)
         .BeginMap()
             .Item("state").Scalar(State.ToString())
             .Item("peers").BeginList();
