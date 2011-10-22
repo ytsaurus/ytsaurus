@@ -3,6 +3,7 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
+#include "../misc/property.h"
 #include "../misc/serialize.h"
 
 namespace NYT {
@@ -21,27 +22,36 @@ DECLARE_ENUM(EHolderState,
     (Active)
 );
 
-// TODO: propertify
-struct THolder
+// TODO: move impl to cpp
+
+class THolder
 {
+    DECLARE_BYVAL_RO_PROPERTY(Id, THolderId);
+    DECLARE_BYVAL_RO_PROPERTY(Address, Stroka);
+    DECLARE_BYVAL_RW_PROPERTY(State, EHolderState);
+    DECLARE_BYREF_RW_PROPERTY(Statistics, THolderStatistics);
+    DECLARE_BYREF_RW_PROPERTY(Chunks, yhash_set<TChunkId>);
+    DECLARE_BYREF_RO_PROPERTY(Jobs, yvector<TJobId>);
+
+public:
     THolder(
         THolderId id,
-        Stroka address,
+        const Stroka& address,
         EHolderState state,
         const THolderStatistics& statistics)
-        : Id(id)
-        , Address(address)
-        , State(state)
-        , Statistics(statistics)
+        : Id_(id)
+        , Address_(address)
+        , State_(state)
+        , Statistics_(statistics)
     { }
 
     THolder(const THolder& other)
-        : Id(other.Id)
-        , Address(other.Address)
-        , State(other.State)
-        , Statistics(other.Statistics)
-        , Chunks(other.Chunks)
-        , Jobs(other.Jobs)
+        : Id_(other.Id_)
+        , Address_(other.Address_)
+        , State_(other.State_)
+        , Statistics_(other.Statistics_)
+        , Chunks_(other.Chunks_)
+        , Jobs_(other.Jobs_)
     { }
 
     TAutoPtr<THolder> Clone() const
@@ -51,51 +61,42 @@ struct THolder
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Id);
-        ::Save(output, Address);
-        ::Save(output, (i32) State); // temp. For some reason could not DECLARE_PODTYPE(EHolderState)
-        ::Save(output, Statistics);
-        SaveSorted(output, Chunks);
-        ::Save(output, Jobs);
+        ::Save(output, Id_);
+        ::Save(output, Address_);
+        ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
+        ::Save(output, Statistics_);
+        SaveSorted(output, Chunks_);
+        ::Save(output, Jobs_);
     }
 
     static TAutoPtr<THolder> Load(TInputStream* input)
     {
         THolderId id;
         Stroka address;
-        i32 state; // temp. For some reason could not DECLARE_PODTYPE(EHolderState)
+        i32 state; // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         THolderStatistics statistics;
         ::Load(input, id);
         ::Load(input, address);
         ::Load(input, state);
         ::Load(input, statistics);
         auto* holder = new THolder(id, address, EHolderState(state), statistics);
-        ::Load(input, holder->Chunks);
-        ::Load(input, holder->Jobs);
+        ::Load(input, holder->Chunks_);
+        ::Load(input, holder->Jobs_);
         return holder;
     }
 
     void AddJob(const TJobId& id)
     {
-        Jobs.push_back(id);
+        Jobs_.push_back(id);
     }
 
     void RemoveJob(const TJobId& id)
     {
-        auto it = Find(Jobs.begin(), Jobs.end(), id);
-        if (it != Jobs.end()) {
-            Jobs.erase(it);
+        auto it = Find(Jobs_.begin(), Jobs_.end(), id);
+        if (it != Jobs_.end()) {
+            Jobs_.erase(it);
         }
     }
-
-
-    THolderId Id;
-    Stroka Address;
-    EHolderState State;
-    THolderStatistics Statistics;
-    yhash_set<TChunkId> Chunks;
-    yvector<TJobId> Jobs;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@ void THolderExpiration::Stop()
 void THolderExpiration::AddHolder(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
-    auto pair = HolderInfoMap.insert(MakePair(holder.Id, THolderInfo()));
+    auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
     YASSERT(pair.Second());
     auto& holderInfo = pair.First()->Second();
     holderInfo.Lease = TLeaseManager::Get()->CreateLease(
@@ -46,21 +46,21 @@ void THolderExpiration::AddHolder(const THolder& holder)
         FromMethod(
             &THolderExpiration::OnExpired,
             TPtr(this),
-            holder.Id)
+            holder.GetId())
         ->Via(Invoker));
 }
 
 void THolderExpiration::RemoveHolder(const THolder& holder)
 {
-    auto& holderInfo = GetHolderInfo(holder.Id);
+    auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::Get()->CloseLease(holderInfo.Lease);
-    YASSERT(HolderInfoMap.erase(holder.Id) == 1);
+    YASSERT(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
 void THolderExpiration::RenewHolder(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
-    auto& holderInfo = GetHolderInfo(holder.Id);
+    auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::Get()->RenewLease(holderInfo.Lease);
 }
 

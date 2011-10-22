@@ -19,21 +19,15 @@ using NCypress::TLockId;
 
 class TTransaction
 {
+    DECLARE_BYVAL_RO_PROPERTY(Id, TTransactionId);
     DECLARE_BYREF_RW_PROPERTY(AddedChunkIds, yvector<TChunkId>);
     DECLARE_BYREF_RW_PROPERTY(LockIds, yvector<TLockId>);
     DECLARE_BYREF_RW_PROPERTY(BranchedNodeIds, yvector<TNodeId>);
     DECLARE_BYREF_RW_PROPERTY(CreatedNodeIds, yvector<TNodeId>);
 
 public:
-    TTransaction(const TTransaction& other)
-        : Id(other.Id)
-        , AddedChunkIds_(other.AddedChunkIds_)
-        , LockIds_(other.LockIds_)
-        , BranchedNodeIds_(other.BranchedNodeIds_)
-    { }
-
     TTransaction(const TTransactionId& id)
-        : Id(id)
+        : Id_(id)
     { }
 
     TAutoPtr<TTransaction> Clone() const
@@ -43,7 +37,7 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Id);
+        ::Save(output, Id_);
         ::Save(output, AddedChunkIds_);
         ::Save(output, LockIds_);
         ::Save(output, BranchedNodeIds_);
@@ -60,13 +54,13 @@ public:
         return transaction;
     }
 
-    TTransactionId GetId() const
-    {
-        return Id;
-    }
-
 private:
-    TTransactionId Id;
+    TTransaction(const TTransaction& other)
+        : Id_(other.Id_)
+        , AddedChunkIds_(other.AddedChunkIds_)
+        , LockIds_(other.LockIds_)
+        , BranchedNodeIds_(other.BranchedNodeIds_)
+    { }
 
 };
 

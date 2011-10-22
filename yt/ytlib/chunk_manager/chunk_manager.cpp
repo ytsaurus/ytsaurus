@@ -117,7 +117,7 @@ public:
         if (existingHolder != NULL) {
             LOG_INFO_IF(!IsRecovery(), "Holder kicked off due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
-                existingHolder->Id);
+                existingHolder->GetId());
             DoUnregisterHolder(*existingHolder);
         }
 
@@ -159,7 +159,7 @@ public:
         auto statistics = THolderStatistics::FromProto(message.GetStatistics());
 
         auto& holder = GetHolderForUpdate(holderId);
-        holder.Statistics = statistics;
+        holder.Statistics() = statistics;
 
         if (IsLeader()) {
             HolderExpiration->RenewHolder(holder);
@@ -174,13 +174,13 @@ public:
             ProcessRemovedChunk(holder, TChunkId::FromProto(protoChunkId));
         }
 
-        bool isFirstHeartbeat = holder.State == EHolderState::Registered;
+        bool isFirstHeartbeat = holder.GetState() == EHolderState::Registered;
         if (isFirstHeartbeat) {
-            holder.State = EHolderState::Active;
+            holder.SetState(EHolderState::Active);
         }
         
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
-            ~holder.Address,
+            ~holder.GetAddress(),
             holderId,
             ~ToString(isFirstHeartbeat),
             ~statistics.ToString(),
@@ -205,7 +205,7 @@ public:
         }
 
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
-            ~holder.Address,
+            ~holder.GetAddress(),
             holderId,
             static_cast<int>(message.StartedJobsSize()),
             static_cast<int>(message.StoppedJobsSize()));
@@ -270,7 +270,7 @@ private:
         HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
             auto* holder = pair.Second();
-            YVERIFY(HolderAddressMap.insert(MakePair(holder->Address, holder->Id)).Second());
+            YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -358,27 +358,27 @@ private:
 
     void DoUnregisterHolder(const THolder& holder)
     { 
-        THolderId holderId = holder.Id;
+        THolderId holderId = holder.GetId();
 
         if (IsLeader()) {
             StopHolderTracking(holder);
         }
 
-        FOREACH(const auto& chunkId, holder.Chunks) {
+        FOREACH(const auto& chunkId, holder.Chunks()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             DoRemovedChunkReplicaAtDeadHolder(holder, chunk);
         }
 
-        FOREACH(const auto& jobId, holder.Jobs) {
+        FOREACH(const auto& jobId, holder.Jobs()) {
             const auto& job = GetJob(jobId);
             DoRemoveJobAtDeadHolder(holder, job);
         }
 
         LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
-            ~holder.Address,
+            ~holder.GetAddress(),
             holderId);
 
-        YVERIFY(HolderAddressMap.erase(holder.Address) == 1);
+        YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
         HolderMap.Remove(holderId);
     }
 
@@ -393,13 +393,13 @@ private:
 
     void DoAddChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks.insert(chunk.GetId()).Second());
-        chunk.AddLocation(holder.Id);
+        YVERIFY(holder.Chunks().insert(chunk.GetId()).Second());
+        chunk.AddLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
             ~chunk.GetId().ToString(),
-            ~holder.Address,
-            holder.Id,
+            ~holder.GetAddress(),
+            holder.GetId(),
             chunk.GetSize());
 
         if (IsLeader()) {
@@ -409,13 +409,13 @@ private:
 
     void DoRemoveChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks.erase(chunk.GetId()) == 1);
-        chunk.RemoveLocation(holder.Id);
+        YVERIFY(holder.Chunks().erase(chunk.GetId()) == 1);
+        chunk.RemoveLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
-             ~holder.Address,
-             holder.Id);
+             ~holder.GetAddress(),
+             holder.GetId());
 
         if (IsLeader()) {
             ChunkReplication->RemoveReplica(holder, chunk);
@@ -424,12 +424,12 @@ private:
 
     void DoRemovedChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk)
     {
-        chunk.RemoveLocation(holder.Id);
+        chunk.RemoveLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
-             ~holder.Address,
-             holder.Id);
+             ~holder.GetAddress(),
+             holder.GetId());
 
         if (IsLeader()) {
             ChunkReplication->RemoveReplica(holder, chunk);
@@ -447,7 +447,7 @@ private:
             jobType,
             jobId,
             chunkId,
-            holder.Address,
+            holder.GetAddress(),
             targetAddresses);
         JobMap.Insert(jobId, job);
 
@@ -460,8 +460,8 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
-            ~holder.Address,
-            holder.Id,
+            ~holder.GetAddress(),
+            holder.GetId(),
             ~jobType.ToString(),
             ~chunkId.ToString());
     }
@@ -482,8 +482,8 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
-            ~holder.Address,
-            holder.Id);
+            ~holder.GetAddress(),
+            holder.GetId());
     }
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
@@ -500,8 +500,8 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
-            ~holder.Address,
-            holder.Id);
+            ~holder.GetAddress(),
+            holder.GetId());
     }
 
 
@@ -509,14 +509,14 @@ private:
         THolder& holder,
         const NProto::TChunkInfo& chunkInfo)
     {
-        auto holderId = holder.Id;
+        auto holderId = holder.GetId();
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
         TChunk* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
             LOG_ERROR_IF(!IsRecovery(), "Unknown chunk added at holder (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
-                ~holder.Address,
+                ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
                 size);
@@ -542,13 +542,13 @@ private:
         THolder& holder,
         const TChunkId& chunkId)
     {
-        auto holderId = holder.Id;
+        auto holderId = holder.GetId();
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
             LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
-                 ~holder.Address,
+                 ~holder.GetAddress(),
                  holderId);
             return;
         }
@@ -782,7 +782,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
     const auto& holder = GetHolder(holderId);
 
     context->SetRequestInfo("Address: %s, HolderId: %d",
-        ~holder.Address,
+        ~holder.GetAddress(),
         holderId);
 
     NProto::TMsgHeartbeatRequest requestMessage;
@@ -791,25 +791,25 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
 
     FOREACH(const auto& chunkInfo, request->GetAddedChunks()) {
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
-        if (holder.Chunks.find(chunkId) == holder.Chunks.end()) {
+        if (holder.Chunks().find(chunkId) == holder.Chunks().end()) {
             *requestMessage.AddAddedChunks() = chunkInfo;
         } else {
             LOG_WARNING("Chunk replica is already added (ChunkId: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~holder.Address,
-                holder.Id);
+                ~holder.GetAddress(),
+                holder.GetId());
         }
     }
 
     FOREACH(const auto& protoChunkId, request->GetRemovedChunks()) {
         auto chunkId = TChunkId::FromProto(protoChunkId);
-        if (holder.Chunks.find(chunkId) != holder.Chunks.end()) {
+        if (holder.Chunks().find(chunkId) != holder.Chunks().end()) {
             requestMessage.AddRemovedChunks(chunkId.ToProto());
         } else {
             LOG_WARNING("Chunk replica does not exist or already removed (ChunkId: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~holder.Address,
-                holder.Id);
+                ~holder.GetAddress(),
+                holder.GetId());
         }
     }
 
@@ -825,8 +825,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, HolderHeartbeat)
         if (job == NULL) {
             LOG_INFO("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
-                ~holder.Address,
-                holder.Id);
+                ~holder.GetAddress(),
+                holder.GetId());
             response->AddJobsToStop(jobId.ToProto());
         } else {
             runningJobs.push_back(jobInfo);
@@ -886,7 +886,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, AddChunk)
     auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = GetHolder(holderId);
-        response->AddHolderAddresses(holder.Address);
+        response->AddHolderAddresses(holder.GetAddress());
         ChunkPlacement->AddHolderSessionHint(holder);
     }
 
@@ -933,7 +933,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkManager, FindChunk)
     // TODO: sort w.r.t. proximity
     FOREACH(auto holderId, chunk.Locations()) {
         const THolder& holder = GetHolder(holderId);
-        response->AddHolderAddresses(holder.Address);
+        response->AddHolderAddresses(holder.GetAddress());
     }
 
     context->SetResponseInfo("HolderCount: %d",
