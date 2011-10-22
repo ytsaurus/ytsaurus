@@ -3,6 +3,7 @@
 #include "common.h"
 #include "node.h"
 #include "lock.h"
+#include "node_type.h"
 #include "cypress_manager.pb.h"
 
 #include "../transaction_manager/transaction.h"
@@ -34,6 +35,8 @@ public:
         NMetaState::TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager);
 
+    void RegisterDynamicType(IDynamicTypeHandler::TPtr handler);
+
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
     INode::TPtr FindNode(
@@ -53,9 +56,14 @@ public:
     IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
     IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
+    TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
+    INode::TPtr CreateDynamicNode(
+        const TTransactionId& transactionId,
+        IMapNode::TPtr description);
+
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
-    TLock* CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
+    TLock& CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 
     ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
@@ -86,11 +94,15 @@ public:
 
 private:
     TTransactionManager::TPtr TransactionManager;
+
     TIdGenerator<TNodeId> NodeIdGenerator;
-    TIdGenerator<TLockId> LockIdGenerator;
-    
-    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
     NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode> NodeMap;
+
+    TIdGenerator<TLockId> LockIdGenerator; 
+    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
+
+    yhash_map<ERuntimeNodeType, IDynamicTypeHandler::TPtr> RuntimeTypeToHandler;
+    yhash_map<Stroka, IDynamicTypeHandler::TPtr> TypeNameToHandler;
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;
@@ -110,29 +122,13 @@ private:
     void RemoveCreatedNodes(TTransaction& transaction);
 
     template <class TImpl, class TProxy>
-    TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId)
-    {
-        NLog::TLogger& Logger = CypressLogger;
+    TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId);
 
-        if (transactionId == NullTransactionId) {
-            throw TYTreeException() << "Cannot create a node outside of a transaction";
-        }
-
-        auto nodeId = NodeIdGenerator.Next();
-        TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-        auto* nodeImpl = new TImpl(branchedNodeId);
-        NodeMap.Insert(branchedNodeId, nodeImpl);
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.CreatedNodeIds().push_back(nodeId);
-        auto proxy = New<TProxy>(this, transactionId, nodeId);
-
-        LOG_INFO("Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~proxy->GetType().ToString(),
-            ~transactionId.ToString());
-
-        return proxy;
-    }
+    class TYsonDeserializationConsumer;
+    friend class TYsonDeserializationConsumer;
+    INode::TPtr YsonDeserializerThunk(
+        TYsonProducer::TPtr producer,
+        const TTransactionId& transactionId);
 
 };
 

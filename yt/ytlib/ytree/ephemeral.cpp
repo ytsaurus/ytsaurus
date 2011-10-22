@@ -307,7 +307,10 @@ IYPathService::TNavigateResult TMapNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-    return TMapNodeMixin::SetRecursive(path, producer);
+    return TMapNodeMixin::SetRecursive(
+        path,
+        producer,
+        TTreeBuilder::CreateYsonBuilder(GetFactory()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,7 +382,10 @@ IYPathService::TNavigateResult TListNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
-    return TListNodeMixin::SetRecursive(path, producer);
+    return TListNodeMixin::SetRecursive(
+        path,
+        producer,
+        TTreeBuilder::CreateYsonBuilder(GetFactory()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

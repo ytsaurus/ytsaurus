@@ -58,6 +58,7 @@ YT_SUBDIRECTORY(bus)
 YT_SUBDIRECTORY(ytree)
 YT_SUBDIRECTORY(cypress)
 YT_SUBDIRECTORY(table_client)
+YT_SUBDIRECTORY(file_server)
 YT_SUBDIRECTORY(monitoring)
 
 # Removes header files from build in VS

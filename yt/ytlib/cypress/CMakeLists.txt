@@ -6,7 +6,7 @@ SET(YT_SOURCE_FILES
     lock.cpp
     attribute.cpp
 
-    special_node.h
+    node_type.h
 
     cypress_manager.cpp
     cypress_manager.proto

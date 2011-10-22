@@ -11,19 +11,34 @@ TForwardingYsonConsumer::TForwardingYsonConsumer()
     , ForwardingDepth(0)
 { }
 
-void TForwardingYsonConsumer::StartForwarding(
+void TForwardingYsonConsumer::ForwardNode(
     IYsonConsumer* consumer,
     IAction::TPtr onForwardingFinished)
+{
+    DoForward(consumer, onForwardingFinished, 0);
+}
+
+void TForwardingYsonConsumer::ForwardAttributes(
+    IYsonConsumer* consumer,
+    IAction::TPtr onForwardingFinished)
+{
+    DoForward(consumer, onForwardingFinished, 1);
+}
+
+void TForwardingYsonConsumer::DoForward(
+    IYsonConsumer* consumer,
+    IAction::TPtr onForwardingFinished,
+    int depth)
 {
     YASSERT(ForwardingConsumer == NULL);
     YASSERT(consumer != NULL);
 
     ForwardingConsumer = consumer;
-    ForwardingDepth = 0;
+    ForwardingDepth = depth;
     OnForwardingFinished = onForwardingFinished;
 }
 
-void TForwardingYsonConsumer::UpdateFwdDepth(int depthDelta)
+void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
 {
     ForwardingDepth += depthDelta;
     YASSERT(ForwardingDepth >= 0);
@@ -78,7 +93,7 @@ void TForwardingYsonConsumer::OnBeginList()
         OnMyBeginList();
     } else {
         ForwardingConsumer->OnBeginList();
-        UpdateFwdDepth(+1);
+        UpdateDepth(+1);
     }
 }
 
@@ -88,7 +103,7 @@ void TForwardingYsonConsumer::OnListItem()
         OnMyListItem();
     } else {
         ForwardingConsumer->OnListItem();
-        UpdateFwdDepth(0);
+        UpdateDepth(0);
     }
 }
 
@@ -99,7 +114,7 @@ void TForwardingYsonConsumer::OnEndList(bool hasAttributes)
     } else {
         ForwardingConsumer->OnEndList(hasAttributes);
         if (!hasAttributes) {
-            UpdateFwdDepth(-1);
+            UpdateDepth(-1);
         }
     }
 }
@@ -110,17 +125,17 @@ void TForwardingYsonConsumer::OnBeginMap()
         OnMyBeginMap();
     } else {
         ForwardingConsumer->OnBeginMap();
-        UpdateFwdDepth(+1);
+        UpdateDepth(+1);
     }
 }
 
 void TForwardingYsonConsumer::OnMapItem(const Stroka& name)
 {
     if (ForwardingConsumer == NULL) {
-        OnMapItem(name);
+        OnMyMapItem(name);
     } else {
         ForwardingConsumer->OnMapItem(name);
-        UpdateFwdDepth(0);
+        UpdateDepth(0);
     }
 }
 
@@ -131,7 +146,7 @@ void TForwardingYsonConsumer::OnEndMap(bool hasAttributes)
     } else {
         ForwardingConsumer->OnEndMap(hasAttributes);
         if (!hasAttributes) {
-            UpdateFwdDepth(-1);
+            UpdateDepth(-1);
         }
     }
 }
@@ -151,7 +166,7 @@ void TForwardingYsonConsumer::OnAttributesItem(const Stroka& name)
         OnMyAttributesItem(name);
     } else {
         ForwardingConsumer->OnAttributesItem(name);
-        UpdateFwdDepth(0);
+        UpdateDepth(0);
     }
 }
 
@@ -161,7 +176,7 @@ void TForwardingYsonConsumer::OnEndAttributes()
         OnMyEndAttributes();
     } else {
         ForwardingConsumer->OnEndAttributes();
-        UpdateFwdDepth(-1);
+        UpdateDepth(-1);
     }
 }
 
@@ -253,7 +268,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
     YASSERT(~AttributeBuilder == NULL);
     AttributeName = name;
     AttributeBuilder.Reset(new TTreeBuilder(Node->GetFactory()));
-    StartForwarding(~AttributeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(~AttributeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()

@@ -71,8 +71,6 @@ TRange TRange::FromProto(const NProto::TRange& protoRange)
     } else {
         return TRange(protoRange.GetBegin(), protoRange.GetEnd());
     }
-
-    YUNREACHABLE();
 }
 
 bool TRange::Contains(const TColumn& value) const
@@ -95,7 +93,6 @@ bool TRange::Contains(const TRange& range) const
     } else {
         return Contains(range.Begin()) && range.End() <= End_;
     }
-    YUNREACHABLE();
 }
 
 bool TRange::Overlaps(const TRange& range) const

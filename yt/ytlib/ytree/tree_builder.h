@@ -4,6 +4,9 @@
 #include "ytree.h"
 #include "yson_events.h"
 
+// TODO: move to cpp
+#include "../actions/action_util.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -25,9 +28,10 @@ public:
         return Stack[0];
     }
 
-private:
-    INodeFactory* Factory;
-    yvector<INode::TPtr> Stack;
+    static TYsonBuilder::TPtr CreateYsonBuilder(INodeFactory* factory)
+    {
+        return FromMethod(&TTreeBuilder::YsonBuilderThunk, factory);
+    }
 
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes)
     {
@@ -76,16 +80,7 @@ private:
         UNUSED(hasAttributes);
         AddToList();
     }
-
-    void AddToList()
-    {
-        auto child = Pop();
-        auto list = Peek()->AsList();
-        if (~child != NULL) {
-            list->AddChild(child);
-        }
-    }
-
+    
 
     virtual void OnBeginMap()
     {
@@ -108,17 +103,7 @@ private:
         AddToMap();
     }
 
-    void AddToMap()
-    {
-        auto child = Pop();
-        auto name = Pop();
-        auto map = Peek()->AsMap();
-        if (~child != NULL) {
-            map->AddChild(child, name->GetValue<Stroka>());
-        }
-    }
 
-    
     virtual void OnBeginAttributes()
     {
         OnBeginMap();
@@ -135,6 +120,39 @@ private:
         auto attributes = Pop()->AsMap();
         auto node = Peek();
         node->SetAttributes(attributes);
+    }
+
+private:
+    INodeFactory* Factory;
+    yvector<INode::TPtr> Stack;
+
+    static INode::TPtr YsonBuilderThunk(
+        TYsonProducer::TPtr producer,
+        INodeFactory* factory)
+    {
+        TTreeBuilder builder(factory);
+        producer->Do(&builder);
+        return builder.GetRoot();
+    }
+
+
+    void AddToList()
+    {
+        auto child = Pop();
+        auto list = Peek()->AsList();
+        if (~child != NULL) {
+            list->AddChild(child);
+        }
+    }
+
+    void AddToMap()
+    {
+        auto child = Pop();
+        auto name = Pop();
+        auto map = Peek()->AsMap();
+        if (~child != NULL) {
+            map->AddChild(child, name->GetValue<Stroka>());
+        }
     }
 
 

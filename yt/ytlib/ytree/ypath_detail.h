@@ -20,7 +20,8 @@ class TForwardingYsonConsumer
 protected:
     TForwardingYsonConsumer();
 
-    void StartForwarding(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
+    void ForwardNode(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
+    void ForwardAttributes(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
 
     virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes) = 0;
     virtual void OnMyInt64Scalar(i64 value, bool hasAttributes) = 0;
@@ -61,7 +62,8 @@ private:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
-    void UpdateFwdDepth(int depthDelta);
+    void DoForward(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished, int depth);
+    void UpdateDepth(int depthDelta);
 
 };
 
@@ -177,7 +179,7 @@ private:
         YASSERT(~ItemBuilder == NULL);
         ItemName = name;
         ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
-        StartForwarding(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -227,7 +229,7 @@ private:
     {
         YASSERT(~ItemBuilder == NULL);
         ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
-        StartForwarding(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()

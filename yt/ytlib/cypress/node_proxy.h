@@ -247,7 +247,7 @@ protected:
         while (currentNodeId != NullNodeId) {
             const auto& currentImpl = CypressManager->GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
             // Check the locks assigned to the current node.
-            FOREACH (const auto& lockId, currentImpl.LockIds()) {
+            FOREACH (const auto& lockId, currentImpl.Locks()) {
                 const auto& lock = CypressManager->GetLock(lockId);
                 if (lock.GetTransactionId() == TransactionId) {
                     return false;
@@ -269,7 +269,7 @@ protected:
         }
 
         // Make sure that the node is not locked by another transaction.
-        FOREACH (const auto& lockId, impl.LockIds()) {
+        FOREACH (const auto& lockId, impl.Locks()) {
             const auto& lock = CypressManager->GetLock(lockId);
             if (lock.GetTransactionId() != TransactionId) {
                 throw TYTreeException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
@@ -278,13 +278,13 @@ protected:
         }
 
         // Create a lock and register it within the transaction.
-        auto* lock = CypressManager->CreateLock(NodeId, TransactionId);
+        auto& lock = CypressManager->CreateLock(NodeId, TransactionId);
 
         // Walk up to the root and apply locks.
         auto currentNodeId = NodeId;
         while (currentNodeId != NullNodeId) {
             auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-            impl.LockIds().insert(lock->GetId());
+            impl.Locks().insert(lock.GetId());
             currentNodeId = impl.GetParentId();
         }
 

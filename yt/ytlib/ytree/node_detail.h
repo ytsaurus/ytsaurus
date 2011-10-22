@@ -78,7 +78,8 @@ protected:
 
     IYPathService::TSetResult SetRecursive(
         TYPath path,
-        TYsonProducer::TPtr producer);
+        TYsonProducer::TPtr producer,
+        TYsonBuilder::TPtr builder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +92,8 @@ protected:
 
     IYPathService::TSetResult SetRecursive(
         TYPath path,
-        TYsonProducer::TPtr producer);
+        TYsonProducer::TPtr producer,
+        TYsonBuilder::TPtr builder);
 
     IYPathService::TNavigateResult GetYPathChild(
         int index,
@@ -100,7 +102,8 @@ protected:
     IYPathService::TSetResult CreateYPathChild(
         int beforeIndex,
         TYPath tailPath,
-        TYsonProducer::TPtr producer);
+        TYsonProducer::TPtr producer,
+        TYsonBuilder::TPtr builder);
 
 };
 

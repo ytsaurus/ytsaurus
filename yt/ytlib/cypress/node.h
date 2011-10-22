@@ -89,9 +89,9 @@ struct ICypressNode
     virtual void SetAttributesId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.
-    virtual const yhash_set<TLockId>& LockIds() const = 0;
+    virtual const yhash_set<TLockId>& Locks() const = 0;
     //! Gets an mutable reference to the node's locks.
-    virtual yhash_set<TLockId>& LockIds() = 0;
+    virtual yhash_set<TLockId>& Locks() = 0;
 
     //! Increments the reference counter, returns the incremented value.
     virtual int Ref() = 0;
@@ -155,7 +155,7 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
+    DECLARE_BYREF_RW_PROPERTY(Locks, yhash_set<TLockId>);
     DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);

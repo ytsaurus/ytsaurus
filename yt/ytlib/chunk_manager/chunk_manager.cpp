@@ -67,7 +67,7 @@ public:
         auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
         
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.AddedChunkIds().push_back(chunkId);
+        transaction.AddedChunks().push_back(chunkId);
 
         auto* chunk = new TChunk(chunkId, transactionId);
 
@@ -320,7 +320,7 @@ private:
 
     virtual void OnTransactionCommitted(TTransaction& transaction)
     {
-        FOREACH(const auto& chunkId, transaction.AddedChunkIds()) {
+        FOREACH(const auto& chunkId, transaction.AddedChunks()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             chunk.SetTransactionId(NullTransactionId);
 
@@ -333,7 +333,7 @@ private:
 
     virtual void OnTransactionAborted(TTransaction& transaction)
     {
-        FOREACH(const TChunkId& chunkId, transaction.AddedChunkIds()) {
+        FOREACH(const TChunkId& chunkId, transaction.AddedChunks()) {
             const TChunk& chunk = GetChunk(chunkId);
             DoRemoveChunk(chunk);
         }

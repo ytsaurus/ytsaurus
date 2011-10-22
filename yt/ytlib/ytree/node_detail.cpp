@@ -234,7 +234,8 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TMapNodeMixin::SetRecursive(
     TYPath path,
-    TYsonProducer::TPtr producer)
+    TYsonProducer::TPtr producer,
+    TYsonBuilder::TPtr builder)
 {
     if (path.empty()) {
         SetNodeFromProducer(IMapNode::TPtr(this), producer);
@@ -251,9 +252,7 @@ IYPathService::TSetResult TMapNodeMixin::SetRecursive(
     }
 
     if (tailPath.empty()) {
-        TTreeBuilder builder(GetFactory());
-        producer->Do(&builder);
-        INode::TPtr newChild = builder.GetRoot();
+        INode::TPtr newChild = builder->Do(producer);
         AddChild(newChild, prefix);
         return IYPathService::TSetResult::CreateDone();
     } else {
@@ -284,7 +283,8 @@ IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNodeMixin::SetRecursive(
     TYPath path,
-    TYsonProducer::TPtr producer)
+    TYsonProducer::TPtr producer,
+    TYsonBuilder::TPtr builder)
 {
     Stroka prefix;
     TYPath tailPath;
@@ -295,9 +295,9 @@ IYPathService::TSetResult TListNodeMixin::SetRecursive(
     }
 
     if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), tailPath, producer);
+        return CreateYPathChild(GetChildCount(), tailPath, producer, builder);
     } else if (prefix == "-") {
-        return CreateYPathChild(0, tailPath, producer);
+        return CreateYPathChild(0, tailPath, producer, builder);
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
@@ -315,9 +315,9 @@ IYPathService::TSetResult TListNodeMixin::SetRecursive(
     }
 
     if (lastPrefixCh == '+') {
-        return CreateYPathChild(index + 1, tailPath, producer);
+        return CreateYPathChild(index + 1, tailPath, producer, builder);
     } else if (lastPrefixCh == '-') {
-        return CreateYPathChild(index, tailPath, producer);
+        return CreateYPathChild(index, tailPath, producer, builder);
     } else {
         auto navigateResult = GetYPathChild(index, tailPath);
         YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
@@ -328,12 +328,11 @@ IYPathService::TSetResult TListNodeMixin::SetRecursive(
 IYPathService::TSetResult TListNodeMixin::CreateYPathChild(
     int beforeIndex,
     TYPath tailPath,
-    TYsonProducer::TPtr producer)
+    TYsonProducer::TPtr producer,
+    TYsonBuilder::TPtr builder)
 {
     if (tailPath.empty()) {
-        TTreeBuilder builder(GetFactory());
-        producer->Do(&builder);
-        INode::TPtr newChild = builder.GetRoot();
+        INode::TPtr newChild = builder->Do(producer);
         AddChild(newChild, beforeIndex);
         return IYPathService::TSetResult::CreateDone();
     } else {

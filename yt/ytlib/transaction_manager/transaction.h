@@ -20,10 +20,10 @@ using NCypress::TLockId;
 class TTransaction
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TTransactionId);
-    DECLARE_BYREF_RW_PROPERTY(AddedChunkIds, yvector<TChunkId>);
-    DECLARE_BYREF_RW_PROPERTY(LockIds, yvector<TLockId>);
-    DECLARE_BYREF_RW_PROPERTY(BranchedNodeIds, yvector<TNodeId>);
-    DECLARE_BYREF_RW_PROPERTY(CreatedNodeIds, yvector<TNodeId>);
+    DECLARE_BYREF_RW_PROPERTY(AddedChunks, yvector<TChunkId>);
+    DECLARE_BYREF_RW_PROPERTY(Locks, yvector<TLockId>);
+    DECLARE_BYREF_RW_PROPERTY(BranchedNodes, yvector<TNodeId>);
+    DECLARE_BYREF_RW_PROPERTY(CreatedNodes, yvector<TNodeId>);
 
 public:
     TTransaction(const TTransactionId& id)
@@ -38,9 +38,9 @@ public:
     void Save(TOutputStream* output) const
     {
         ::Save(output, Id_);
-        ::Save(output, AddedChunkIds_);
-        ::Save(output, LockIds_);
-        ::Save(output, BranchedNodeIds_);
+        ::Save(output, AddedChunks_);
+        ::Save(output, Locks_);
+        ::Save(output, BranchedNodes_);
     }
 
     static TAutoPtr<TTransaction> Load(TInputStream* input)
@@ -48,18 +48,18 @@ public:
         TTransactionId id;
         ::Load(input, id);
         auto* transaction = new TTransaction(id);
-        ::Load(input, transaction->AddedChunkIds_);
-        ::Load(input, transaction->LockIds_);
-        ::Load(input, transaction->BranchedNodeIds_);
+        ::Load(input, transaction->AddedChunks_);
+        ::Load(input, transaction->Locks_);
+        ::Load(input, transaction->BranchedNodes_);
         return transaction;
     }
 
 private:
     TTransaction(const TTransaction& other)
         : Id_(other.Id_)
-        , AddedChunkIds_(other.AddedChunkIds_)
-        , LockIds_(other.LockIds_)
-        , BranchedNodeIds_(other.BranchedNodeIds_)
+        , AddedChunks_(other.AddedChunks_)
+        , Locks_(other.Locks_)
+        , BranchedNodes_(other.BranchedNodes_)
     { }
 
 };

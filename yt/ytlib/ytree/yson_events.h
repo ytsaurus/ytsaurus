@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "ytree_fwd.h"
 
 #include "../actions/action.h"
 
@@ -33,7 +34,10 @@ struct IYsonConsumer
     virtual void OnEndAttributes() = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 typedef IParamAction<IYsonConsumer*> TYsonProducer;
+typedef IParamFunc<TYsonProducer::TPtr, TIntrusivePtr<INode> > TYsonBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 

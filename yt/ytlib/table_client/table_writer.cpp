@@ -18,7 +18,7 @@ TTableWriter::TTableWriter(
     , Schema(schema)
     , Codec(codec)
 {
-    // Fill protobuf chunk meta
+    // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
@@ -37,7 +37,7 @@ void TTableWriter::Write(const TColumn& column, TValue value)
 void TTableWriter::EndRow()
 {
     for (int channelIndex = 0; 
-        channelIndex < ChannelWriters.size(); 
+        channelIndex < ChannelWriters.ysize(); 
         ++channelIndex) 
     {
         auto channel = ChannelWriters[channelIndex];
