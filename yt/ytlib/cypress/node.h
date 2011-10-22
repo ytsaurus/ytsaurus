@@ -52,7 +52,7 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICypressNodeProxy;
-class TCypressManager;
+class  TCypressManager;
 
 //! Describes the state of the persisted node.
 DECLARE_ENUM(ENodeState,
@@ -161,7 +161,7 @@ class TCypressNodeBase
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
 
 public:
-    TCypressNodeBase(const TBranchedNodeId& id);
+    explicit TCypressNodeBase(const TBranchedNodeId& id);
 
     virtual TBranchedNodeId GetId() const;
 
@@ -195,16 +195,8 @@ class TScalarNode
 {
     DECLARE_BYREF_RW_PROPERTY(Value, TValue)
 
-private:
-    typedef TScalarNode<TValue> TThis;
-
-    TScalarNode(const TBranchedNodeId& id, const TThis& other)
-        : TCypressNodeBase(id, other)
-        , Value_(other.Value_)
-    { }
-
 public:
-    TScalarNode(const TBranchedNodeId& id)
+    explicit TScalarNode(const TBranchedNodeId& id)
         : TCypressNodeBase(id)
     { }
 
@@ -239,6 +231,15 @@ public:
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
+
+private:
+    typedef TScalarNode<TValue> TThis;
+
+    TScalarNode(const TBranchedNodeId& id, const TThis& other)
+        : TCypressNodeBase(id, other)
+        , Value_(other.Value_)
+    { }
+
 };
 
 typedef TScalarNode<Stroka> TStringNode;
@@ -256,13 +257,8 @@ class TMapNode
     DECLARE_BYREF_RW_PROPERTY(NameToChild, TNameToChild);
     DECLARE_BYREF_RW_PROPERTY(ChildToName, TChildToName);
 
-private:
-    typedef TMapNode TThis;
-
-    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
-
 public:
-    TMapNode(const TBranchedNodeId& id);
+    explicit TMapNode(const TBranchedNodeId& id);
 
     virtual TAutoPtr<ICypressNode> Branch(
         TIntrusivePtr<TCypressManager> cypressManager,
@@ -278,6 +274,11 @@ public:
         const TTransactionId& transactionId) const;
 
     virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
+
+private:
+    typedef TMapNode TThis;
+
+    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
 
 };
 
@@ -292,13 +293,8 @@ class TListNode
     DECLARE_BYREF_RW_PROPERTY(IndexToChild, TIndexToChild);
     DECLARE_BYREF_RW_PROPERTY(ChildToIndex, TChildToIndex);
 
-private:
-    typedef TListNode TThis;
-
-    TListNode(const TBranchedNodeId& id, const TListNode& other);
-
 public:
-    TListNode(const TBranchedNodeId& id);
+    explicit TListNode(const TBranchedNodeId& id);
 
     virtual TAutoPtr<ICypressNode> Branch(
         TIntrusivePtr<TCypressManager> cypressManager,
@@ -314,6 +310,11 @@ public:
         const TTransactionId& transactionId) const;
 
     virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
+
+private:
+    typedef TListNode TThis;
+
+    TListNode(const TBranchedNodeId& id, const TListNode& other);
 
 };
 

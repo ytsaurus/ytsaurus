@@ -11,6 +11,8 @@
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
 
+#include <yt/ytlib/file_server/file_type_handler.h>
+
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 namespace NYT {
@@ -27,6 +29,8 @@ using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
+
+using NFileServer::TFileTypeHandler;
 
 using NMonitoring::TMonitoringManager;
 
@@ -99,6 +103,9 @@ void TCellMasterServer::Run()
         transactionManager,
         metaStateManager->GetStateInvoker(),
         server);
+
+    auto fileTypeHandler = New<TFileTypeHandler>();
+    cypressManager->RegisterDynamicType(~fileTypeHandler);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(

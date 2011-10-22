@@ -31,6 +31,7 @@ public:
     };
 
     TCellMasterServer(const TConfig& config);
+
     void Run();
 
 private:

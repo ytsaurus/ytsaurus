@@ -16,6 +16,7 @@ DECLARE_ENUM(ERuntimeNodeType,
     (Map)
     (List)
     // Dynamic types
+    (File)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,9 +32,9 @@ struct IDynamicTypeHandler
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr description);
+        IMapNode::TPtr description) = 0;
 
-    virtual TAutoPtr<ICypressNode> Load(TInputStream* stream);
+    virtual TAutoPtr<ICypressNode> Load(TInputStream* stream) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

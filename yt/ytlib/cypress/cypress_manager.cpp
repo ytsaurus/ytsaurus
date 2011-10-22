@@ -226,7 +226,7 @@ private:
     {
         auto description = DynamicBuilder.GetRoot()->GetAttributes();
         YASSERT(~description != NULL);
-        CypressManager->CreateDynamicNode(TransactionId, description);
+        DynamicResult = CypressManager->CreateDynamicNode(TransactionId, description);
     }
 
 };
