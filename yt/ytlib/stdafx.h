@@ -63,23 +63,16 @@ using std::string; // hack for guid.h to work
 #include <quality/NetLiba/UdpHttp.h>
 #include <quality/NetLiba/UdpAddress.h>
 
-// TODO: drop this
-#include <dict/json/json.h>
-
 #include <library/json/json_writer.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/protobuf/io/coded_stream.h>
-
 #include <contrib/libs/protobuf/stubs/once.h>
-
-// TODO: conflict between ::hash and NStl::hash
-//#include <contrib/libs/protobuf/wire_format_lite_inl.h>
-//#include <contrib/libs/protobuf/wire_format.h>
- 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/reflection_ops.h>
 #include <contrib/libs/protobuf/repeated_field.h>
+#include <contrib/libs/protobuf/message.h>
+#include <contrib/libs/protobuf/message_lite.h>
 
 #ifdef _MSC_VER
     // For protobuf-generated files:
