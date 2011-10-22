@@ -61,6 +61,8 @@ namespace NYT {
  * #TRefCountedBase.
  */
 
+#include "common.h"
+
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
