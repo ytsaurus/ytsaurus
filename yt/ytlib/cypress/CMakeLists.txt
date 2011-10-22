@@ -4,6 +4,7 @@ SET(YT_SOURCE_FILES
     node.cpp
     node_proxy.cpp
     lock.cpp
+    attribute.cpp
 
     cypress_manager.cpp
     cypress_manager.proto

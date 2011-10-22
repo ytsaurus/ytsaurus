@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "cypress_manager.h"
+#include "attribute.h"
 
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
@@ -27,90 +28,6 @@ struct ICypressNodeProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAttributeProvider
-{
-    virtual ~IAttributeProvider()
-    { }
-
-    virtual void GetAttributeNames(
-        TCypressManager::TPtr cypressManager,
-        ICypressNodeProxy::TPtr proxy,
-        yvector<Stroka>& names) = 0;
-
-    virtual bool GetAttribute(
-        TCypressManager::TPtr cypressManager,
-        ICypressNodeProxy::TPtr proxy,
-        const Stroka& name,
-        IYsonConsumer* consumer) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAttributeProviderBase
-    : public IAttributeProvider
-{
-public:
-    virtual void GetAttributeNames(
-        TCypressManager::TPtr cypressManager,
-        ICypressNodeProxy::TPtr proxy,
-        yvector<Stroka>& names);
-
-    virtual bool GetAttribute(
-        TCypressManager::TPtr cypressManager,
-        ICypressNodeProxy::TPtr proxy,
-        const Stroka& name,
-        IYsonConsumer* consumer);
-
-protected:
-    struct TGetRequest
-    {
-        TCypressManager::TPtr CypressManager;
-        ICypressNodeProxy::TPtr Proxy;
-        IYsonConsumer* Consumer;
-    };
-
-    typedef IParamAction<const TGetRequest&> TGetter;
-
-    yhash_map<Stroka, TGetter::TPtr> Getters;
-
-    void RegisterGetter(const Stroka& name, TGetter::TPtr getter);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCypressNodeAttributeProvider
-    : public TAttributeProviderBase
-{
-public:
-    static IAttributeProvider* Get();
-
-    TCypressNodeAttributeProvider();
-
-private:
-    typedef TCypressNodeAttributeProvider TThis;
-
-    static void GetId(const TGetRequest& request);
-    static void GetType(const TGetRequest& request);
-    static Stroka FormatType(ENodeType type);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCompositeNodeAttributeProvider
-    : public TCypressNodeAttributeProvider
-{
-public:
-    static IAttributeProvider* Get();
-
-    TCompositeNodeAttributeProvider();
-
-private:
-    typedef TCompositeNodeAttributeProvider TThis;
-
-    static void GetSize(const TGetRequest& request);
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
     : public INodeFactory
@@ -118,42 +35,14 @@ class TNodeFactory
 public:
     TNodeFactory(
         TCypressManager::TPtr cypressManager,
-        const TTransactionId& transactionId)
-        : CypressManager(cypressManager)
-        , TransactionId(transactionId)
-    {
-        YASSERT(~cypressManager != NULL);
-    }
+        const TTransactionId& transactionId);
 
-    virtual IStringNode::TPtr CreateString()
-    {
-        return CypressManager->CreateStringNodeProxy(TransactionId);
-    }
-
-    virtual IInt64Node::TPtr CreateInt64()
-    {
-        return CypressManager->CreateInt64NodeProxy(TransactionId);
-    }
-
-    virtual IDoubleNode::TPtr CreateDouble()
-    {
-        return CypressManager->CreateDoubleNodeProxy(TransactionId);
-    }
-
-    virtual IMapNode::TPtr CreateMap()
-    {
-        return CypressManager->CreateMapNodeProxy(TransactionId);
-    }
-
-    virtual IListNode::TPtr CreateList()
-    {
-        return CypressManager->CreateListNodeProxy(TransactionId);
-    }
-
-    virtual IEntityNode::TPtr CreateEntity()
-    {
-        YUNIMPLEMENTED();
-    }
+    virtual IStringNode::TPtr CreateString();
+    virtual IInt64Node::TPtr CreateInt64();
+    virtual IDoubleNode::TPtr CreateDouble();
+    virtual IMapNode::TPtr CreateMap();
+    virtual IListNode::TPtr CreateList();
+    virtual IEntityNode::TPtr CreateEntity();
 
 private:
     TCypressManager::TPtr CypressManager;
