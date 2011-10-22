@@ -1,13 +1,11 @@
 #pragma once
 
-
 #include <util/system/yassert.h>
 #include <util/system/defaults.h>
 
 #include <util/generic/ptr.h>
 
-
-//! Implemntation was forked from util/generic/ptr.h
+// Implemntation was forked from util/generic/ptr.h
 
 namespace NYT {
 
@@ -191,6 +189,32 @@ class TIntrusiveConstPtr {
     private:
         T* T_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+T* operator ~ (const TIntrusivePtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
+const T* operator ~ (const TIntrusiveConstPtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
+T* operator ~ (const TAutoPtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
+T* operator ~ (const THolder<T>& ptr)
+{
+    return ptr.Get();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
