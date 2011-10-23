@@ -50,24 +50,6 @@ void TYsonWriter::WriteMapItem(const Stroka& name)
     IsFirstItem = false;
 }
 
-void TYsonWriter::SetEmptyEntity()
-{
-    IsEmptyEntity = true;
-}
-
-void TYsonWriter::ResetEmptyEntity()
-{
-    IsEmptyEntity = false;
-}
-
-void TYsonWriter::FlushEmptyEntity()
-{
-    if (IsEmptyEntity) {
-        Stream->Write("<>");
-        IsEmptyEntity = false;
-    }
-}
-
 void TYsonWriter::BeginCollection(char openBracket)
 {
     Stream->Write(openBracket);
@@ -80,7 +62,6 @@ void TYsonWriter::CollectionItem(char separator)
         Stream->Write('\n');
         ++Indent;
     } else {
-        FlushEmptyEntity();
         Stream->Write(separator);
         Stream->Write('\n');
     }
@@ -92,7 +73,6 @@ void TYsonWriter::CollectionItem(char separator)
 
 void TYsonWriter::EndCollection(char closeBracket)
 {
-    FlushEmptyEntity();
     if (!IsFirstItem) {
         Stream->Write('\n');
         --Indent;
@@ -107,8 +87,11 @@ void TYsonWriter::EndCollection(char closeBracket)
 
 void TYsonWriter::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
-    UNUSED(hasAttributes);
+    // TODO: binary?
     WriteStringScalar(value);
+    if (hasAttributes) {
+        Stream->Write(' ');
+    }
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
@@ -119,6 +102,9 @@ void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
         WriteVarInt64(value, Stream);
     } else {
         Stream->Write(ToString(value));
+    }
+    if (hasAttributes) {
+        Stream->Write(' ');
     }
 }
 
@@ -131,12 +117,16 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
+    if (hasAttributes) {
+        Stream->Write(' ');
+    }
 }
 
 void TYsonWriter::OnEntity(bool hasAttributes)
 {
-    UNUSED(hasAttributes);
-    SetEmptyEntity();
+    if (!hasAttributes) {
+        Stream->Write("<>");
+    }
 }
 
 void TYsonWriter::OnBeginList()
@@ -151,8 +141,10 @@ void TYsonWriter::OnListItem()
 
 void TYsonWriter::OnEndList(bool hasAttributes)
 {
-    UNUSED(hasAttributes);
     EndCollection(']');
+    if (hasAttributes) {
+        Stream->Write(' ');
+    }
 }
 
 void TYsonWriter::OnBeginMap()
@@ -167,17 +159,14 @@ void TYsonWriter::OnMapItem(const Stroka& name)
 
 void TYsonWriter::OnEndMap(bool hasAttributes)
 {
-    UNUSED(hasAttributes);
     EndCollection('}');
+    if (hasAttributes) {
+        Stream->Write(' ');
+    }
 }
 
 void TYsonWriter::OnBeginAttributes()
 {
-    if (IsEmptyEntity) {
-        ResetEmptyEntity();
-    } else {
-        Stream->Write(' ');
-    }
     BeginCollection('<');
 }
 

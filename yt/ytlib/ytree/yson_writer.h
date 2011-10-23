@@ -29,10 +29,6 @@ private:
     void WriteStringScalar(const Stroka& value);
     void WriteMapItem(const Stroka& name);
 
-    void SetEmptyEntity();
-    void ResetEmptyEntity();
-    void FlushEmptyEntity();
-
     void BeginCollection(char openBracket);
     void CollectionItem(char separator);
     void EndCollection(char closeBracket);
