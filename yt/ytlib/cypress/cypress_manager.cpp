@@ -90,7 +90,7 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(const TTransactionId& transact
     transaction.CreatedNodes().push_back(nodeId);
     auto proxy = New<TProxy>(this, transactionId, nodeId);
 
-    LOG_INFO("Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
         ~nodeId.ToString(),
         ~proxy->GetType().ToString(),
         ~transactionId.ToString());
@@ -281,7 +281,7 @@ INode::TPtr TCypressManager::CreateDynamicNode(
 
     auto proxy = nodePtr->GetProxy(this, transactionId);
 
-    LOG_INFO("Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
         ~nodeId.ToString(),
         ~typeName,
         ~transactionId.ToString());
@@ -297,7 +297,7 @@ TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.Locks().push_back(lock->GetId());
 
-    LOG_INFO("Lock created (LockId: %s, NodeId: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Lock created (LockId: %s, NodeId: %s, TransactionId: %s)",
         ~id.ToString(),
         ~nodeId.ToString(),
         ~transactionId.ToString());
@@ -323,7 +323,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     // The branched node holds an implicit reference to its originator.
     RefNode(node);
     
-    LOG_INFO("Node branched (NodeId: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s)",
         ~nodeId.ToString(),
         ~transactionId.ToString());
 
@@ -426,13 +426,13 @@ void TCypressManager::CreateWorld()
     RefNode(*root);
     NodeMap.Insert(root->GetId(), root);
 
-    LOG_INFO("World initialized");
+    LOG_INFO_IF(!IsRecovery(), "World initialized");
 }
 
 void TCypressManager::RefNode(ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    LOG_DEBUG("Node referenced (NodeId: %s)", ~nodeId.NodeId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node referenced (NodeId: %s)", ~nodeId.NodeId.ToString());
 
     if (nodeId.IsBranched()) {
         auto& nonbranchedNode = GetNodeForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
@@ -445,14 +445,14 @@ void TCypressManager::RefNode(ICypressNode& node)
 void TCypressManager::UnrefNode(ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    LOG_DEBUG("Node unreferenced (NodeId: %s)", ~nodeId.NodeId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node unreferenced (NodeId: %s)", ~nodeId.NodeId.ToString());
 
     if (nodeId.IsBranched()) {
         auto& nonbranchedNode = GetNodeForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
         YVERIFY(nonbranchedNode.Unref() > 0);
     } else {
         if (node.Unref() == 0) {
-            LOG_INFO("Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
+            LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
 
             node.Destroy(this);
             NodeMap.Remove(nodeId);
@@ -490,7 +490,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
 
         LockMap.Remove(lockId);
 
-        LOG_INFO("Lock removed (LockId: %s", ~lockId.ToString());
+        LOG_INFO_IF(!IsRecovery(), "Lock removed (LockId: %s", ~lockId.ToString());
     }
 }
 
@@ -510,7 +510,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
-        LOG_INFO("Node merged (NodeId: %s, TransactionId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
@@ -528,7 +528,7 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
-        LOG_INFO("Branched node removed (NodeId: %s, TransactionId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
@@ -541,7 +541,7 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
         auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
         node.SetState(ENodeState::Committed);
 
-        LOG_INFO("Node committed (NodeId: %s, TransactionId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Node committed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
@@ -553,7 +553,7 @@ void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
     FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
         NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
 
-        LOG_INFO("Uncommitted node removed (NodeId: %s, TransactionId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Uncommitted node removed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
