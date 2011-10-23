@@ -65,22 +65,10 @@ void TCypressNodeAttributeProvider::GetId(const TGetRequest& request)
         .Scalar(request.Proxy->GetNodeId().ToString());
 }
 
-Stroka TCypressNodeAttributeProvider::FormatType(ENodeType type)
-{
-    switch (type) {
-        case ENodeType::String: return "string";
-        case ENodeType::Int64:  return "int64";
-        case ENodeType::Double: return "double";
-        case ENodeType::Map:    return "map";
-        case ENodeType::List:   return "list";
-        default: YUNREACHABLE();
-    }
-}
-
 void TCypressNodeAttributeProvider::GetType(const TGetRequest& request)
 {
     BuildYsonFluently(request.Consumer)
-        .Scalar(FormatType(request.Proxy->GetType()));
+        .Scalar(request.Proxy->GetTypeName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

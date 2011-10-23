@@ -24,6 +24,8 @@ struct ICypressNodeProxy
 
     virtual const ICypressNode& GetImpl() const = 0;
     virtual ICypressNode& GetImplForUpdate() = 0;
+
+    virtual Stroka GetTypeName() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +134,18 @@ public:
             auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
             AttachChild(attrImpl);
             impl.SetAttributesId(attrProxy->GetNodeId());
+        }
+    }
+
+    virtual Stroka GetTypeName() const
+    {
+        switch (GetType()) {
+            case ENodeType::String: return "string";
+            case ENodeType::Int64:  return "int64";
+            case ENodeType::Double: return "double";
+            case ENodeType::Map:    return "map";
+            case ENodeType::List:   return "list";
+            default: YUNREACHABLE();
         }
     }
 

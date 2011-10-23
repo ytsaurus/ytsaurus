@@ -74,7 +74,6 @@ private:
 
     static void GetId(const TGetRequest& request);
     static void GetType(const TGetRequest& request);
-    static Stroka FormatType(ENodeType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

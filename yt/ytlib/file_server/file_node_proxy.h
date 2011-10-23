@@ -20,6 +20,7 @@ public:
         const TNodeId& nodeId);
 
     virtual ENodeType GetType() const;
+    virtual Stroka GetTypeName() const;
 
 };
 

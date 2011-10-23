@@ -14,7 +14,7 @@ ERuntimeNodeType TFileTypeHandler::GetRuntimeType()
 
 Stroka TFileTypeHandler::GetTypeName()
 {
-    return "file";
+    return FileTypeName;
 }
 
 TAutoPtr<ICypressNode> TFileTypeHandler::Create(
