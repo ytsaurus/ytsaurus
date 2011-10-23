@@ -98,7 +98,7 @@ public:
     TFollowerPinger(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
         , EpochInvoker(~electionManager->ControlEpochInvoker)
-        , Awaiter(New<TParallelAwaiter>(EpochInvoker)
+        , Awaiter(New<TParallelAwaiter>(EpochInvoker))
     { }
 
     void Start()
@@ -139,7 +139,7 @@ private:
         Awaiter->Await(
             request->Invoke(TConfig::RpcTimeout),
             FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id)
-            ->Via(~ElectionManager->ControlEpochInvoker));
+            ->Via(EpochInvoker));
     }
 
     void SchedulePing(TPeerId id)
@@ -148,7 +148,7 @@ private:
 
         TDelayedInvoker::Get()->Submit(
             FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
-            ->Via(~ElectionManager->ControlEpochInvoker),
+            ->Via(EpochInvoker),
             TConfig::FollowerPingInterval);
     }
 
