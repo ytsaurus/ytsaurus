@@ -97,7 +97,8 @@ public:
 
     TFollowerPinger(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(New<TParallelAwaiter>(~electionManager->ControlEpochInvoker))
+        , EpochInvoker(~electionManager->ControlEpochInvoker)
+        , Awaiter(New<TParallelAwaiter>(EpochInvoker)
     { }
 
     void Start()
@@ -119,6 +120,7 @@ public:
 
 private:
     TElectionManager::TPtr ElectionManager;
+    IInvoker::TPtr EpochInvoker;
     TParallelAwaiter::TPtr Awaiter;
 
     void SendPing(TPeerId id)
@@ -235,8 +237,8 @@ public:
 
     TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , Awaiter(New<TParallelAwaiter>(electionManager->ControlInvoker))
-        , EpochInvoker(electionManager->ControlEpochInvoker)
+        , EpochInvoker(~electionManager->ControlEpochInvoker)
+        , Awaiter(New<TParallelAwaiter>(EpochInvoker))
     { }
 
     void Run() 
@@ -300,8 +302,8 @@ private:
     typedef yhash_map<TPeerId, TStatus> TStatusTable;
 
     TElectionManager::TPtr ElectionManager;
+    IInvoker::TPtr EpochInvoker;
     TParallelAwaiter::TPtr Awaiter;
-    TCancelableInvoker::TPtr EpochInvoker;
     TStatusTable StatusTable;
 
     bool ProcessVote(TPeerId id, const TStatus& status)
