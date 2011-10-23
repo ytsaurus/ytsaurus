@@ -77,7 +77,7 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     holdersSample.reserve(count);
 
     auto beginGroupIt = holders.begin();
-    while (beginGroupIt != holders.end()) {
+    while (beginGroupIt != holders.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
         while (endGroupIt != holders.end() && GetSessionCount(*(*beginGroupIt)) == GetSessionCount(*(*endGroupIt))) {
             ++endGroupIt;
