@@ -7,7 +7,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMetric
-    : private TNonCopyable
 {
 public:
     TMetric(double minValue, double maxValue, int bucketCount);

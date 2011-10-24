@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "user_indexes.h"
 
 namespace NYT
@@ -16,7 +17,7 @@ TValue TUserIndexes::operator[](size_t idx) const
 
 size_t TUserIndexes::operator[](const TValue& value)
 {
-    yhash_map<THValue, size_t>::const_iterator i = Map.find(value);
+    auto i = Map.find(value);
     if (i == Map.end()) {
         size_t idx = GetSize();
         Map[value] = idx;

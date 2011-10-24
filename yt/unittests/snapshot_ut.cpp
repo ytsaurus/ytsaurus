@@ -3,9 +3,10 @@
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,5 +75,6 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 

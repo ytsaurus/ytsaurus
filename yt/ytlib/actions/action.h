@@ -3,7 +3,7 @@
 #include "invoker.h"
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
+#include "../misc/new.h"
 
 namespace NYT {
 
@@ -13,7 +13,7 @@ struct TVoid
 { };
 
 template<class T>
-class TAsyncResult;
+class TFuture;
 
 struct IAction;
 
@@ -46,13 +46,13 @@ struct IAction
 template <class TResult>
 struct TAsyncTraits
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 };
 
 template <class TResult>
-struct TAsyncTraits< TIntrusivePtr< TAsyncResult<TResult> > >
+struct TAsyncTraits< TIntrusivePtr< TFuture<TResult> > >
 {
-    typedef TIntrusivePtr< TAsyncResult<TResult> > TAsync;
+    typedef TIntrusivePtr< TFuture<TResult> > TAsync;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,71 +98,6 @@ struct IParamFunc
 
     TIntrusivePtr< IParamFunc<TParam, typename TAsyncTraits<TResult>::TAsync> >
         AsyncVia(TIntrusivePtr<IInvoker> invoker);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: move to signal.h
-template<class T>
-class TSignalBase
-{
-public:
-    void Subscribe(typename T::TPtr action)
-    {
-        Actions.push_back(action);
-    }
-
-    bool Unsubscribe(typename T::TPtr action)
-    {
-        auto it = Find(Actions, action);
-        if (it == Actions.end())
-            return false;
-        Actions.erase(it);
-        return true;
-    }
-
-protected:
-    typedef yvector<typename T::TPtr> TActions;
-    TActions Actions;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSignal
-    : public TSignalBase<IAction>
-{
-public:
-    void Fire()
-    {
-        yvector<IAction::TPtr> actions(this->Actions);
-        for (auto it = actions.begin();
-             it != actions.end();
-             ++it)
-        {
-            (*it)->Do();
-        }
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template<class TParam>
-class TParamSignal
-    : public TSignalBase< IParamAction<TParam> >
-{
-public:
-    void Fire(const TParam& arg)
-    {
-        typename TParamSignal::TActions actions(TParamSignal::Actions);
-        for (auto it = actions.begin();
-            it != actions.end();
-            ++it)
-        {
-            (*it)->Do(arg);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

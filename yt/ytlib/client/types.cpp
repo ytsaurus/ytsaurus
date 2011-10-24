@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "types.h"
 
 namespace NYT {

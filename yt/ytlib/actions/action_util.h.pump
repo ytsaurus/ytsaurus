@@ -7,7 +7,6 @@ $var n = 5 $$ The maximum arity.
 /*! \internal */
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
 
 namespace NYT {
 

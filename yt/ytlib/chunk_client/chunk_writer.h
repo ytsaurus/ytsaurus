@@ -1,9 +1,10 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/assert.h"
 #include "../misc/enum.h"
-#include "../misc/ptr.h"
-#include "../actions/async_result.h"
+#include "../misc/ref.h"
+#include "../actions/future.h"
 
 namespace NYT
 {
@@ -28,6 +29,7 @@ struct IChunkWriter
         (Failed)
     );
 
+    //ToDO: consider renaming to TryWriteBlock
     //! Called when the client wants to upload a new block.
     /*!
      *  This call returns OK if the block is added to the queue. Otherwise it returns TryLater
@@ -38,7 +40,7 @@ struct IChunkWriter
      */
     virtual EResult AsyncWriteBlock(
         const TSharedRef& data,
-        TAsyncResult<TVoid>::TPtr* ready) = 0;
+        TFuture<TVoid>::TPtr* ready) = 0;
 
     //! Called when the client has added all the blocks and is willing to
     //! finalize the upload.
@@ -50,13 +52,13 @@ struct IChunkWriter
      *  It is safe to call this method at any time and possibly multiple times.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
-    virtual TAsyncResult<EResult>::TPtr AsyncClose() = 0;
+    virtual TFuture<EResult>::TPtr AsyncClose() = 0;
 
     //! A synchronous version of #AsyncAddBlock, throws an exception if uploading fails.
     void WriteBlock(const TSharedRef& data)
     {
         while (true) {
-            TAsyncResult<TVoid>::TPtr ready;
+            TFuture<TVoid>::TPtr ready;
             EResult result = AsyncWriteBlock(data, &ready);
             CheckResult(result);
             switch (result) {
@@ -68,8 +70,7 @@ struct IChunkWriter
                     break;
 
                 default:
-                    YASSERT(false);
-                    break;
+                    YUNREACHABLE();
             }
         }
     }

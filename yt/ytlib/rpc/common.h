@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 #include "../misc/guid.h"
 #include "../misc/enum.h"
 
@@ -16,7 +16,7 @@ extern NLog::TLogger RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-BEGIN_DECLARE_ENUM(EErrorCode,
+BEGIN_DECLARE_POLY_ENUM(EErrorCode, EErrorCode,
     ((OK)(0))
     ((TransportError)(-1))
     ((ProtocolError)(-2))
@@ -29,25 +29,24 @@ BEGIN_DECLARE_ENUM(EErrorCode,
 public:
     // Allow implicit construction of error code from integer value.
     EErrorCode(int value)
-        : TEnumBase<EErrorCode>(value)
+        : TBase(value)
     { }
 
-    // TODO: get rid of casts, compare enums as is
     bool IsOK() const
     {
-        return ToValue() == OK;
+        return *this == OK;
     }
 
     bool IsRpcError() const
     {
-        return ToValue() < static_cast<int>(EErrorCode::OK);
+        return *this < OK;
     }
 
     bool IsServiceError() const
     {
-        return ToValue() > static_cast<int>(EErrorCode::OK);
+        return *this > OK;
     }
-END_DECLARE_ENUM();
+END_DECLARE_POLY_ENUM();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,17 +39,17 @@ class Base(AggrBase):
         path = opts.get_string('--name', 'control')
         
 class Server(Base):
-        bin_path = r'D:\Users\Max\Work\Yandex\YT.git\build\bin\Debug\server.exe'
+        bin_path = r'c:\Users\Max\Work\Yandex\YT\build\bin\Debug\server.exe'
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
         params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
         config = Template({
-                'Cell' : {
-                        'PeerAddresses' : MasterAddresses
-                },
                 'MetaState' : {
+                                'Cell' : {
+                                'Addresses' : MasterAddresses
+                        },
                         'SnapshotLocation' : r'%(work_dir)s\snapshots',
                         'LogLocation' : r'%(work_dir)s\logs',
                 },                      
@@ -76,6 +76,7 @@ class Holder(WinNode, Server):
         config = Template({ 
                 'Masters' : { 'Addresses' : MasterAddresses },
                 'Locations' : [r'%(work_dir)s\node'],
+                'MaxChunksSpace' : 100000000,
                 'Logging' : Logging
         })
         

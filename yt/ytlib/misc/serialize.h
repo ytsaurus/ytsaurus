@@ -1,17 +1,20 @@
 #pragma once
 
 #include "guid.h"
+#include "zigzag.h"
+#include "foreach.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/file.h>
+#include <util/ysaveload.h>
 
 #include <contrib/libs/protobuf/repeated_field.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
+// TODO: consider getting rid of these functions and using analogs from ysaveload.h
 template<class T>
 bool Read(TInputStream& input, T* data)
 {
@@ -34,6 +37,27 @@ template<class T>
 void Write(TFile& file, const T& data)
 {
     file.Write(&data, sizeof(T));
+}
+
+template<class TSet>
+void SaveSorted(TOutputStream* output, const TSet& set)
+{
+    typedef typename TSet::key_type TKey;
+    yvector<const TKey*> vec;
+    vec.reserve(set.size());
+    FOREACH(const auto& item, set) {
+        vec.push_back(&item);
+    }
+    std::sort(
+        vec.begin(),
+        vec.end(),
+        [] (const TKey* lhs, const TKey* rhs) {
+            return *lhs < *rhs;
+        });
+    ::Save(output, vec.size());
+    FOREACH(const auto* ptr, vec) {
+        ::Save(output, *ptr);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +140,23 @@ inline yvector<TArrayItem> FromProto(
     }
     return array;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: a comment per function please
+// TODO: first argument -- stream, second argument -- value
+
+//! Functions to read and write varints from stream.
+
+//! Returns number of bytes written.
+int WriteVarUInt64(TOutputStream* output, ui64 value);
+int WriteVarInt32(TOutputStream* output, i32 value);
+int WriteVarInt64(TOutputStream* output, i64 value);
+
+//! Returns number of bytes read.
+int ReadVarUInt64(TInputStream* input, ui64* value);
+int ReadVarInt32(TInputStream* input, i32* value);
+int ReadVarInt64(TInputStream* input, i64* value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

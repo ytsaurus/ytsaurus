@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "snapshot_creator.h"
 #include "meta_state_manager_rpc.h"
 
@@ -7,6 +8,7 @@
 #include <util/system/fs.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +42,12 @@ public:
             LOG_DEBUG("Requesting peer %d to create a snapshot",
                 peerId);
 
-            TAutoPtr<TProxy> proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
-            TProxy::TReqCreateSnapshot::TPtr request = proxy->CreateSnapshot();
+            auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
+            auto request = proxy->AdvanceSegment();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Creator->Epoch.ToProto());
+            request->SetCreateSnapshot(true);
 
             Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
                 &TSession::OnRemote,
@@ -52,7 +55,7 @@ public:
                 peerId));
         }
 
-        TAsyncLocalResult::TPtr asyncResult = Creator->DoCreateLocal(Version);
+        auto asyncResult = Creator->CreateLocal(Version);
 
         Awaiter->Await(
             asyncResult,
@@ -66,8 +69,8 @@ private:
     {
         for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
-                TPair<TChecksum, bool> checksum1 = Checksums[id1];
-                TPair<TChecksum, bool> checksum2 = Checksums[id2];
+                const auto& checksum1 = Checksums[id1];
+                const auto& checksum2 = Checksums[id2];
                 if (checksum1.Second() && checksum2.Second() && 
                     checksum1.First() != checksum2.First())
                 {
@@ -86,10 +89,11 @@ private:
 
     void OnLocal(TLocalResult result)
     {
+        YASSERT(result.ResultCode == EResultCode::OK);
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
-    void OnRemote(TProxy::TRspCreateSnapshot::TPtr response, TPeerId peerId)
+    void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId peerId)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error %s requesting peer %d to create a snapshot at state %s",
@@ -130,31 +134,45 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , StateInvoker(metaState->GetInvoker())
-{ }
-
-void TSnapshotCreator::CreateDistributed(TMetaVersion version)
+    , Creating(false)
 {
-    New<TSession>(this, version)->Run();
+    YASSERT(~cellManager != NULL);
+    YASSERT(~metaState != NULL);
+    YASSERT(~changeLogCache != NULL);
+    YASSERT(~snapshotStore != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
+    StateInvoker = metaState->GetStateInvoker();
+}
+
+TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (Creating) {
+        return EResultCode::AlreadyInProgress;
+    }
+
+    auto version = MetaState->GetVersion();
+    New<TSession>(TPtr(this), version)->Run();
+    return EResultCode::OK;
 }
 
 TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
     TMetaVersion version)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (Creating) {
+        LOG_ERROR("Could not create local snapshot for version %s, snapshot creation is already in progress",
+            ~version.ToString());
+        return New<TAsyncLocalResult>(TLocalResult(EResultCode::AlreadyInProgress));
+    }
+    Creating = true;
+
     LOG_INFO("Creating a local snapshot for state (%d, %d)",
                version.SegmentId, version.RecordCount);
-    return 
-        FromMethod(
-            &TSnapshotCreator::DoCreateLocal,
-            TPtr(this),
-            version)
-        ->AsyncVia(StateInvoker)
-        ->Do();
-}
 
-TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
-    TMetaVersion version)
-{
     // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, found %s",
@@ -171,7 +189,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     TOutputStream* stream = &writer->GetStream();
 
     // Start an async snapshot creation process.
-    TAsyncResult<TVoid>::TPtr saveResult = MetaState->Save(stream);
+    auto saveResult = MetaState->Save(stream);
 
     // Switch to a new changelog.
     MetaState->RotateChangeLog();
@@ -179,6 +197,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::DoCreateLocal(
     // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(
         &TSnapshotCreator::OnSave,
+        TPtr(this),
         snapshotId,
         writer));
 }
@@ -194,10 +213,14 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
         segmentId,
         writer->GetChecksum());
 
+    YASSERT(Creating);
+    Creating = false;
+
     return TLocalResult(EResultCode::OK, writer->GetChecksum());
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

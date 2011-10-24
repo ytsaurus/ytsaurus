@@ -1,6 +1,7 @@
+#include "stdafx.h"
 
 #include "../logging/log.h"
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 #include "../misc/delayed_invoker.h"
 
 #include <util/generic/set.h>

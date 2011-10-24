@@ -7,6 +7,7 @@
 #include "../misc/cache.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,9 +17,11 @@ class TCachedAsyncChangeLog
 {
 public:
     TCachedAsyncChangeLog(TChangeLog::TPtr changeLog)
-        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
+        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId()) // fail here if changeLog is null
         , TAsyncChangeLog(changeLog)
-    { }
+    {
+        YASSERT(~changeLog != NULL);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,4 +48,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "common.h"
 
 #include "../misc/config.h"
@@ -24,6 +25,11 @@ void TChunkHolderConfig::Read(TJsonObject* json)
     NYT::TryRead(json, L"MaxCachedFiles", &MaxCachedFiles);
     NYT::TryRead(json, L"MaxCachedBlocks", &MaxCachedBlocks);
     NYT::TryRead(json, L"Locations", &Locations);
+
+    int maxChunksSpace;
+    if (NYT::TryRead(json, L"MaxChunksSpace", &maxChunksSpace)) {
+        MaxChunksSpace = maxChunksSpace;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

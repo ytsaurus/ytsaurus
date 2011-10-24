@@ -1,9 +1,11 @@
+#include "stdafx.h"
 #include "leader_pinger.h"
 
 #include "../misc/serialize.h"
 #include "../bus/message.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,14 +19,18 @@ TLeaderPinger::TLeaderPinger(
     TCellManager::TPtr cellManager,
     TPeerId leaderId,
     TEpoch epoch,
-    IInvoker::TPtr serviceInvoker)
+    IInvoker::TPtr controlInvoker)
     : Config(config)
     , MetaStateManager(metaStateManager)
     , CellManager(cellManager)
     , LeaderId(leaderId)
     , Epoch(epoch)
-    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , CancelableInvoker(New<TCancelableInvoker>(controlInvoker))
 {
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~cellManager != NULL);
+    YASSERT(~controlInvoker != NULL);
+
     SchedulePing();
 }
 
@@ -47,12 +53,12 @@ void TLeaderPinger::SchedulePing()
 
 void TLeaderPinger::SendPing()
 {
-    TMetaStateManager::EState state = MetaStateManager->GetState();
-    TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-    TProxy::TReqPingLeader::TPtr request = proxy->PingLeader();
+    auto status = MetaStateManager->GetControlStatus();
+    auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
+    auto request = proxy->PingLeader();
     request->SetEpoch(Epoch.ToProto());
     request->SetFollowerId(CellManager->GetSelfId());
-    request->SetState(state);
+    request->SetStatus(status);
     request->Invoke(Config.RpcTimeout)->Subscribe(
         FromMethod(
         &TLeaderPinger::OnSendPing, TPtr(this))
@@ -60,7 +66,7 @@ void TLeaderPinger::SendPing()
 
     LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %s)",
         LeaderId,
-        ~state.ToString());
+        ~status.ToString());
 }
 
 void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
@@ -83,4 +89,5 @@ void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

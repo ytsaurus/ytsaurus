@@ -4,27 +4,59 @@
 #include "meta_state_manager_rpc.h"
 #include "decorated_meta_state.h"
 #include "change_log_cache.h"
+#include "follower_tracker.h"
 
 #include "../election/election_manager.h"
+#include "../misc/thread_affinity.h"
+#include "../actions/signal.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: split into TLeaderCommitter and TFollowerCommitter
-class TChangeCommitter
+//! A common base for TFollowerCommitter and TLeaderCommitter.
+class TCommitterBase
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TChangeCommitter> TPtr;
+    TCommitterBase(
+        TDecoratedMetaState::TPtr metaState,
+        IInvoker::TPtr controlInvoker);
 
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
         (InvalidVersion)
     );
+    typedef TFuture<EResult> TResult;
 
-    typedef TAsyncResult<EResult> TResult;
+    //! Releases all resources.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void Stop();
+
+protected:
+    static EResult OnAppend(TVoid);
+
+    // Corresponds to ControlThread.
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    // Corresponds to MetaState->GetInvoker().
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
+    TDecoratedMetaState::TPtr MetaState;
+    TCancelableInvoker::TPtr CancelableControlInvoker;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Manages commits carried out by a leader.
+class TLeaderCommitter
+    : public TCommitterBase
+{
+public:
+    typedef TIntrusivePtr<TLeaderCommitter> TPtr;
 
     struct TConfig
     {
@@ -39,58 +71,116 @@ public:
         int MaxBatchSize;
     };
 
-    TChangeCommitter(
+    //! Creates an instance.
+    TLeaderCommitter(
         const TConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
-        IInvoker::TPtr serviceInvoker,
+        TFollowerTracker::TPtr followerTracker,
+        IInvoker::TPtr controlInvoker,
         const TEpoch& epoch);
 
+    //! Releases all resources.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
     void Stop();
 
+    //! Initiates a new distributed commit.
+    /*!
+     *  \param changeAction An action that will be called in the context of
+     *  the state thread and will update the state.
+     *  \param changeData A serialized representation of the change that
+     *  will be sent down to follower.
+     *  \return An asynchronous flag indicating the outcome of the distributed commit.
+     *  
+     *  The current implementation regards a distributed commit as completed when the update is
+     *  received, applied, and flushed to the changelog by a quorum of replicas.
+     *  
+     *  \note Thread affinity: StateThread
+     */
     TResult::TPtr CommitLeader(
         IAction::TPtr changeAction,
-        TSharedRef changeData);
+        const TSharedRef& changeData,
+        ECommitMode mode);
 
-    TResult::TPtr CommitFollower(
-        TMetaVersion version,
-        TSharedRef changeData);
-
-    // TODO: use TSignal here
-    void SetOnApplyChange(IAction::TPtr onApplyChange);
-
-    //! Forcely send an rpc request with changes
+    //! Force to send all pending changes.
+    /*!
+     * \note Thread affinity: any
+     */
     void Flush();
 
+    //! A signal that gets raised in the state thread after each commit.
+    /*!
+     * \note Thread affinity: any
+     */
+    TSignal& OnApplyChange();
+
 private:
-    class TSession;
+    class TBatch;
     typedef TMetaStateManagerProxy TProxy;
 
-    TResult::TPtr DoCommitLeader(
-        IAction::TPtr changeAction,
-        TSharedRef changeData);
-    TResult::TPtr DoCommitFollower(
-        TMetaVersion version,
-        TSharedRef changeData);
-    static EResult OnAppend(TVoid);
-
-    void DelayedFlush(TIntrusivePtr<TSession> session);
-    void FlushCurrentSession();
+    void DelayedFlush(TIntrusivePtr<TBatch> batch);
+    TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
+    TResult::TPtr BatchChange(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
+    void FlushCurrentBatch();
 
     TConfig Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
-    TCancelableInvoker::TPtr CancelableServiceInvoker;
+    TFollowerTracker::TPtr FollowerTracker;
     TEpoch Epoch;
-    IAction::TPtr OnApplyChange;
 
-    TIntrusivePtr<TSession> CurrentSession;
-    TSpinLock SpinLock; // for work with session
-    TDelayedInvoker::TCookie TimeoutCookie; // for session
+    TSignal OnApplyChange_;
+
+    //! Protects #CurrentBatch and #TimeoutCookie.
+    TSpinLock BatchSpinLock;
+    TIntrusivePtr<TBatch> CurrentBatch;
+    TDelayedInvoker::TCookie BatchTimeoutCookie;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages commits carried out by a follower.
+class TFollowerCommitter
+    : public TCommitterBase
+{
+public:
+    typedef TIntrusivePtr<TFollowerCommitter> TPtr;
+
+    //! Creates an instance.
+    TFollowerCommitter(
+        TDecoratedMetaState::TPtr metaState,
+        IInvoker::TPtr controlInvoker);
+
+    //! Carries out a commit at a follower.
+    /*!
+     *  \param version A version that the state is currently expected to have.
+     *  \param changeData A serialized representation of the change that
+     *  the follower must apply.
+     *  \return An asynchronous flag indicating the outcome of the local commit.
+     *  
+     *  The current implementation regards a local commit as completed when the update is
+     *  flushed to the local changelog.
+     *  
+     *  \note Thread affinity: ControlThread
+     */
+    TResult::TPtr CommitFollower(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
+
+private:
+    TResult::TPtr DoCommitFollower(
+        const TMetaVersion& version,
+        const TSharedRef& changeData);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+} // namespace NMetaState
 } // namespace NYT

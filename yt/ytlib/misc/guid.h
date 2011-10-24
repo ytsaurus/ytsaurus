@@ -14,7 +14,10 @@ struct TGuid
     ui32 Parts[4];
 
     //! Empty constructor.
-    TGuid() { Zero(*this); }
+    TGuid();
+
+    //! Constructor from parts.
+    TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
 
     //! Copy constructor.
     TGuid(const TGuid& guid); // copy ctor
@@ -47,9 +50,9 @@ struct TGuid
     static TGuid FromProto(const Stroka& protoGuid);
 };
 
-bool operator==(const TGuid &a, const TGuid &b);
-bool operator!=(const TGuid &a, const TGuid &b);
-bool operator<(const TGuid &a, const TGuid &b);
+bool operator == (const TGuid &a, const TGuid &b);
+bool operator != (const TGuid &a, const TGuid &b);
+bool operator <  (const TGuid &a, const TGuid &b);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,8 +60,10 @@ bool operator<(const TGuid &a, const TGuid &b);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_PODTYPE(NYT::TGuid)
+
 //! A hasher for TGuid.
-template<>
+template <>
 struct hash<NYT::TGuid>
 {
     inline size_t operator()(const NYT::TGuid &a) const
@@ -67,7 +72,12 @@ struct hash<NYT::TGuid>
     }
 };
 
+// TODO: consider removing TGuid::ToString
+inline Stroka ToString(const NYT::TGuid& guid)
+{
+    return guid.ToString();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PODTYPE(NYT::TGuid)
 

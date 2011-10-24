@@ -1,7 +1,7 @@
 LIBRARY(ytlib)
 
 IF(CMAKE_COMPILER_IS_GNUXX)
-	SET(CMAKE_CXX_FLAGS "-std=c++0x")
+    SET(CMAKE_CXX_FLAGS "-std=c++0x")
 ENDIF(CMAKE_COMPILER_IS_GNUXX)
 
 SET(HEADERS "")
@@ -39,24 +39,27 @@ MACRO(YT_SUBDIRECTORY DIR)
     SOURCE_GROUP(${DIR} REGULAR_EXPRESSION ${DIR}/.*)
 ENDMACRO(YT_SUBDIRECTORY)
 
+SRCS(
+    stdafx.cpp
+)
+
 YT_SUBDIRECTORY(actions)
 #YT_SUBDIRECTORY(client)
 YT_SUBDIRECTORY(election)
 YT_SUBDIRECTORY(chunk_holder)
 YT_SUBDIRECTORY(chunk_client)
 YT_SUBDIRECTORY(chunk_manager)
+YT_SUBDIRECTORY(transaction_manager)
 YT_SUBDIRECTORY(logging)
 YT_SUBDIRECTORY(meta_state)
 YT_SUBDIRECTORY(misc)
 YT_SUBDIRECTORY(rpc)
 YT_SUBDIRECTORY(bus)
-YT_SUBDIRECTORY(transaction)
-
-# TODO: drop dependency to quality/util
-SET_APPEND(SRCS
-    ${ARCADIA_ROOT}/quality/util/prog_options.cpp
-    ${ARCADIA_ROOT}/quality/util/file_utils.cpp
-)
+YT_SUBDIRECTORY(ytree)
+YT_SUBDIRECTORY(cypress)
+YT_SUBDIRECTORY(table_client)
+YT_SUBDIRECTORY(file_server)
+YT_SUBDIRECTORY(monitoring)
 
 # Removes header files from build in VS
 SET_SOURCE_FILES_PROPERTIES(
@@ -69,6 +72,8 @@ PEERDIR(
     quality/Misc
     quality/NetLiba
     dict/json
+    library/json
+    util/server
 )
 
 SET(USE_LF_ALLOCATOR yes)

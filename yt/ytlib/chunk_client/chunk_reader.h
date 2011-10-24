@@ -1,8 +1,9 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
-#include "../actions/async_result.h"
+#include "../misc/ref.h"
+#include "../actions/future.h"
+#include "../misc/enum.h"
 
 namespace NYT
 {
@@ -16,11 +17,13 @@ struct IChunkReader
 {
     typedef TIntrusivePtr<IChunkReader> TPtr;
 
+    //ToDo: pretty heavy obj. May be RefCounted?
     //! Describes a result of #ReadBlocks.
     struct TReadResult
     {
         //! Blocks data.
         yvector<TSharedRef> Blocks;
+        bool IsOK;
     };
 
     //! Reads (asynchronously) a given set of blocks.
@@ -28,7 +31,7 @@ struct IChunkReader
      *  Negative indexes indicate that blocks are numbered from the end.
      *  I.e. -1 means the last block.
      */
-    virtual TAsyncResult<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
+    virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,9 @@
+#include "stdafx.h"
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +16,9 @@ TChangeLogDownloader::TChangeLogDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{ }
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     TMetaVersion version,
@@ -33,7 +37,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
     }
 
     TPeerId sourceId = GetChangeLogSource(version);
-    if (sourceId == InvalidPeerId) {
+    if (sourceId == NElection::InvalidPeerId) {
         return EResult::ChangeLogNotFound;
     }
 
@@ -42,15 +46,15 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    TAsyncResult<TPeerId>::TPtr asyncResult = New< TAsyncResult<TPeerId> >();
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto asyncResult = New< TFuture<TPeerId> >();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         LOG_INFO("Requesting changelog info from peer %d", i);
 
-        TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
-        TProxy::TReqGetChangeLogInfo::TPtr request = proxy->GetChangeLogInfo();
-        request->SetSegmentId(version.SegmentId);
+        auto proxy = CellManager->GetMasterProxy<TProxy>(i);
+        auto request = proxy->GetChangeLogInfo();
+        request->SetChangeLogId(version.SegmentId);
         awaiter->Await(request->Invoke(Config.LookupTimeout), FromMethod(
             &TChangeLogDownloader::OnResponse,
             awaiter,
@@ -78,10 +82,10 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         version.RecordCount - 1,
         sourceId);
 
-    TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
+    auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
     while (downloadedRecordCount < version.RecordCount) {
-        TProxy::TReqReadChangeLog::TPtr request = proxy->ReadChangeLog();
-        request->SetSegmentId(version.SegmentId);
+        auto request = proxy->ReadChangeLog();
+        request->SetChangeLogId(version.SegmentId);
         request->SetStartRecordId(downloadedRecordCount);
         i32 desiredChunkSize = Min(
             Config.RecordsPerRequest,
@@ -92,13 +96,13 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
-        TProxy::TRspReadChangeLog::TPtr response = request->Invoke(Config.ReadTimeout)->Get();
+        auto response = request->Invoke(Config.ReadTimeout)->Get();
 
         if (!response->IsOK()) {
-            TProxy::EErrorCode errorCode = response->GetErrorCode();
+            auto errorCode = response->GetErrorCode();
             if (response->IsServiceError()) {
                 // TODO: drop ToValue()
-                switch (errorCode.ToValue()) {
+                switch (errorCode) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING("Peer %d does not have changelog %d anymore",
                             sourceId,
@@ -125,7 +129,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             }
         }
 
-        yvector<TSharedRef>& attachments = response->Attachments();
+        auto& attachments = response->Attachments();
         if (attachments.ysize() == 0) {
             LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",
                 sourceId,
@@ -160,7 +164,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 void TChangeLogDownloader::OnResponse(
     TProxy::TRspGetChangeLogInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TPeerId>::TPtr asyncResult,
+    TFuture<TPeerId>::TPtr asyncResult,
     TPeerId peerId,
     TMetaVersion version)
 {
@@ -190,13 +194,14 @@ void TChangeLogDownloader::OnResponse(
 }
 
 void TChangeLogDownloader::OnComplete(
-    TAsyncResult<TPeerId>::TPtr asyncResult)
+    TFuture<TPeerId>::TPtr asyncResult)
 {
     LOG_INFO("Unable to find requested records at any master");
 
-    asyncResult->Set(InvalidPeerId);
+    asyncResult->Set(NElection::InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -1,9 +1,11 @@
 #define ENABLE_REF_COUNTED_TRACKING
 
-#include "../ytlib/misc/ptr.h"
+#include "../ytlib/misc/common.h"
 #include "../ytlib/misc/ref_counted_tracker.h"
+#include "../ytlib/misc/ref_counted_base.h"
+#include "../ytlib/misc/new.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 
@@ -18,16 +20,14 @@ class TSimpleObject
 public:
     typedef TIntrusivePtr<TSimpleObject> TPtr;
 
-    static int GetAliveCount()
+    static i64 GetAliveCount()
     {
-        return TRefCountedTracker::Get()->
-            GetAliveObjects(typeid(TSimpleObject));
+        return TRefCountedTracker::GetAliveObjects(&typeid(TSimpleObject));
     }
 
-    static int GetTotalCount()
+    static i64 GetTotalCount()
     {
-        return TRefCountedTracker::Get()->
-            GetTotalObjects(typeid(TSimpleObject));
+        return TRefCountedTracker::GetCreatedObjects(&typeid(TSimpleObject));
     }
 };
 
@@ -42,14 +42,14 @@ TEST(TRefCountedTrackerTest, Simple)
     EXPECT_EQ(   0, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
-        container.push_back(new TSimpleObject());
+        container.push_back(New<TSimpleObject>());
     }
 
     EXPECT_EQ(1000, TSimpleObject::GetAliveCount());
     EXPECT_EQ(1000, TSimpleObject::GetTotalCount());
 
     for (size_t i = 0; i < 1000; ++i) {
-        container.push_back(new TSimpleObject());
+        container.push_back(New<TSimpleObject>());
     }
 
     EXPECT_EQ(2000, TSimpleObject::GetAliveCount());

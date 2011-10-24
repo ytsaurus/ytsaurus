@@ -4,6 +4,7 @@
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,25 +20,32 @@ protected:
         IInvoker::TPtr serviceInvoker,
         Stroka serviceName,
         Stroka loggingCategory)
-    : NRpc::TServiceBase(
-        serviceInvoker,
-        serviceName,
-        loggingCategory)
-    { }
+        : NRpc::TServiceBase(
+            serviceInvoker,
+            serviceName,
+            loggingCategory)
+    {
+        YASSERT(~serviceInvoker != NULL);
+    }
 
     template <
         class TState,
         class TMessage,
         class TResult
     >
-    static typename TAsyncResult<TResult>::TPtr CommitChange(
-        TIntrusivePtr<TState> state,
+    static typename TFuture<TResult>::TPtr CommitChange(
+        typename TState::TPtr state,
         const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&))
+        TResult (TState::* changeMethod)(const TMessage&),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
+        YASSERT(~state != NULL);
+
         return state->CommitChange(
             message,
-            FromMethod(changeMethod, state));
+            FromMethod(changeMethod, state),
+            NULL,
+            mode);
     }
 
     template <
@@ -50,18 +58,22 @@ protected:
     static void CommitChange(
         TThis* this_,
         TContext context,
-        TIntrusivePtr<TState> state,
+        typename TState::TPtr state,
         const TMessage& message,
         TResult (TState::* changeMethod)(const TMessage&),
-        void (TThis::* handlerMethod)(TResult result, TContext context))
+        void (TThis::* handlerMethod)(TResult result, TContext context),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
+        YASSERT(~state != NULL);
+
         TIntrusivePtr<TThis> intrusiveThis(this_);
         NRpc::TServiceContext::TPtr untypedContext(context->GetUntypedContext());
         state
             ->CommitChange(
                 message,
                 FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext))
+                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext),
+                mode)
             ->Subscribe(
                 FromMethod(handlerMethod, intrusiveThis, context));
     }
@@ -76,17 +88,21 @@ protected:
     static void CommitChange(
         TThis* this_,
         TContext context,
-        TIntrusivePtr<TState> state,
+        typename TState::TPtr state,
         const TMessage& message,
-        TResult (TState::* changeMethod)(const TMessage&))
+        TResult (TState::* changeMethod)(const TMessage&),
+        ECommitMode mode = ECommitMode::NeverFails)
     {
+        YASSERT(~state != NULL);
+
         TIntrusivePtr<TThis> intrusiveThis(this_);
         NRpc::TServiceContext::TPtr untypedContext(context->GetUntypedContext());
         state
             ->CommitChange(
                 message,
                 FromMethod(changeMethod, state),
-                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext))
+                FromMethod(&TMetaStateServiceBase::OnCommitError, intrusiveThis, untypedContext),
+                mode)
             ->Subscribe(
                 FromMethod(&TMetaStateServiceBase::OnCommitSuccess<TResult>, intrusiveThis, untypedContext));
     }
@@ -106,4 +122,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

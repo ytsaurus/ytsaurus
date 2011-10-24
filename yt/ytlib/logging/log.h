@@ -5,7 +5,7 @@
 
 #include "../actions/action_queue.h"
 #include "../actions/action_util.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../misc/fs.h"
 
 #include <dict/json/json.h>
@@ -90,6 +90,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: not used, consider dropping
 class TPrefixLogger
     : private TNonCopyable
 {
@@ -106,6 +107,9 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define LOG_TRACE(...)                  LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Trace, __VA_ARGS__)
+#define LOG_TRACE_IF(condition, ...)    if (condition) LOG_TRACE(__VA_ARGS__)
 
 #define LOG_DEBUG(...)                  LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Debug, __VA_ARGS__)
 #define LOG_DEBUG_IF(condition, ...)    if (condition) LOG_DEBUG(__VA_ARGS__)

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "demangle.h"
 
 #if defined(__GNUC__)

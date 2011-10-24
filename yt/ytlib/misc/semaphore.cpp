@@ -1,4 +1,5 @@
-﻿#include "semaphore.h"
+#include "stdafx.h"
+#include "semaphore.h"
 
 #include <util/system/yield.h>
 
@@ -51,7 +52,7 @@ bool TSemaphore::TryAcquire()
     }
 }
 
-int TSemaphore::GetFreeSlotsCount() const
+int TSemaphore::GetFreeSlotCount() const
 {
     return FreeSlotCount;
 }

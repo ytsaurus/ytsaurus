@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "block_buffer.h"
 
 namespace NYT {

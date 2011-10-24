@@ -3,45 +3,38 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
-#include "../meta_state/cell_manager.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
+#include "../misc/config.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Performs parallel and asynchronous leader lookups.
+/*!
+ * \note Thread affinity: any.
+ */
 class TLeaderLookup
     : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TLeaderLookup> TPtr;
 
+    //! Describes a configuration.
     struct TConfig
     {
+        //! List of peer addresses.
         yvector<Stroka> Addresses;
-        TDuration Timeout;
+
+        //! Timeout for RPC requests.
+        TDuration RpcTimeout;
 
         TConfig()
-            : Timeout(TDuration::MilliSeconds(300))
+            : RpcTimeout(TDuration::MilliSeconds(300))
         { }
-
-        Stroka ToString()
-        {
-            Stroka result = "[";
-            for (yvector<Stroka>::iterator it = Addresses.begin();
-                it != Addresses.end();
-                ++it)
-            {
-                if (it != Addresses.begin()) {
-                    result.append(", ");
-                }
-                result.append(*it);
-            }
-            result.append("]");
-            return result;
-        }
 
         void Read(TJsonObject* json)
         {
@@ -50,33 +43,51 @@ public:
         }
     };
 
+    //! Describes a lookup result.
     struct TResult
     {
-        Stroka Address;
+        //! Leader id.
+        /*!
+         *  InvalidPeerId value indicates that no leader is found.
+         */
         TPeerId Id;
+
+        //! Leader address.
+        Stroka Address;
+
+        //! Leader epoch.
         TGuid Epoch;
     };
 
-    typedef TAsyncResult<TResult> TLookupResult;
-
+    //! Initializes a new instance.
     TLeaderLookup(const TConfig& config);
 
-    TLookupResult::TPtr GetLeader();
+    //! Performs an asynchronous lookup.
+    TFuture<TResult>::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
 
     TConfig Config;
-    NRpc::TChannelCache ChannelCache;
+    static NRpc::TChannelCache ChannelCache;
+
+    //! Protects from simultaneously reporting conflicting results.
+    /*! 
+     *  We shall reuse the same spinlock for all (possibly concurrent)
+     *  #GetLeader requests. This should not harm since the protected region
+     *  is quite tiny.
+     */
+    TSpinLock SpinLock;
     
-    static void OnResponse(
+    void OnResponse(
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
-        TLookupResult::TPtr asyncResult,
+        TFuture<TResult>::TPtr asyncResult,
         Stroka address);
-    static void OnComplete(TLookupResult::TPtr asyncResult);
+    void OnComplete(TFuture<TResult>::TPtr asyncResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

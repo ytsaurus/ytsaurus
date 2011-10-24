@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "common.h"
 #include "snapshot_store.h"
 
@@ -8,6 +9,7 @@
 #include <util/string/cast.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,4 +80,5 @@ i32 TSnapshotStore::GetMaxSnapshotId()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

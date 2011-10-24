@@ -4,6 +4,7 @@
 
 #include "../misc/cache.h"
 #include "../actions/action_queue.h"
+#include "../actions/signal.h"
 #include "../chunk_client/file_chunk_reader.h"
 
 namespace NYT {
@@ -42,6 +43,52 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunk;
+
+//! Describes a physical location of chunks at a chunk holder.
+class TLocation
+    : public TRefCountedBase
+{
+public:
+    typedef TIntrusivePtr<TLocation> TPtr;
+
+    TLocation(Stroka path);
+
+    //! Updates #UsedSpace and #AvailalbleSpace
+    void RegisterChunk(TIntrusivePtr<TChunk> chunk);
+
+    //! Updates #UsedSpace and #AvailalbleSpace
+    void UnregisterChunk(TIntrusivePtr<TChunk> chunk);
+
+    //! Updates #AvailalbleSpace with a system call and returns the result.
+    i64 GetAvailableSpace();
+
+    //! Returns the invoker that handles all IO requests to this location.
+    IInvoker::TPtr GetInvoker() const;
+
+    //! Returns the number of bytes used at the location.
+    i64 GetUsedSpace() const;
+
+    //! Returns the path of the location.
+    Stroka GetPath() const;
+
+    //! Returns the load factor.
+    double GetLoadFactor() const;
+
+    void IncSessionCount();
+    void DecSessionCount();
+    int GetSessionCount() const;
+
+private:
+    Stroka Path;
+    i64 AvailableSpace;
+    i64 UsedSpace;
+    TActionQueue::TPtr ActionQueue;
+    int SessionCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Describes chunk at a chunk holder.
 class TChunk
     : public TRefCountedBase
@@ -52,7 +99,7 @@ public:
     TChunk(
         const TChunkId& id,
         i64 size,
-        int location)
+        TLocation::TPtr location)
         : Id(id)
         , Size(size)
         , Location(location)
@@ -64,14 +111,14 @@ public:
         return Id;
     }
 
-    //! Returns chunk size.
+    //! Returns the size of the chunk.
     i64 GetSize() const
     {
         return Size;
     }
 
-    //! Returns chunk storage location.
-    int GetLocation() const
+    //! Returns the location of the chunk.
+    TLocation::TPtr GetLocation()
     {
         return Location;
     }
@@ -81,7 +128,7 @@ private:
 
     TChunkId Id;
     i64 Size;
-    int Location;
+    TLocation::TPtr Location;
     TChunkMeta::TPtr Meta;
 
 };
@@ -95,6 +142,7 @@ class TChunkStore
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;
     typedef yvector<TChunk::TPtr> TChunks;
+    typedef yvector<TLocation::TPtr> TLocations;
 
     //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
@@ -103,13 +151,13 @@ public:
     TChunk::TPtr RegisterChunk(
         const TChunkId& chunkId,
         i64 size,
-        int location);
+        TLocation::TPtr location);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunk::TPtr FindChunk(const TChunkId& chunkId);
 
     //! Fetches meta-information for a given chunk.
-    TAsyncResult<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
+    TFuture<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
 
     //! Returns a (cached) chunk reader.
     /*!
@@ -124,23 +172,23 @@ public:
      */
     void RemoveChunk(TChunk::TPtr chunk);
 
-    //! Returns invoker for a given storage location.
-    IInvoker::TPtr GetIOInvoker(int location);
-
     //! Calculates a storage location for a new chunk.
-    int GetNewChunkLocation(const TChunkId& chunkId);
+    TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const TChunkId& chunkId, int location);
+    Stroka GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location);
 
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(TChunk::TPtr chunk);
 
-    //! Returns current statistics.
-    THolderStatistics GetStatistics() const;
-
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
+
+    //! Returns the number of registered chunks.
+    int GetChunkCount();
+
+    //! Returns locations.
+    const TLocations GetLocations() const;
 
     //! Raised when a chunk is added.
     TParamSignal<TChunk::TPtr>& ChunkAdded();
@@ -153,9 +201,7 @@ private:
     class TReaderCache;
 
     TChunkHolderConfig Config;
-
-    //! Actions queues that handle IO requests to chunk storage locations.
-    yvector<IInvoker::TPtr> IOInvokers;
+    TLocations Locations;
 
     typedef yhash_map<TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
@@ -167,7 +213,7 @@ private:
     TParamSignal<TChunk::TPtr> ChunkRemoved_;
 
     void ScanChunks();
-    void InitIOQueues();
+    void InitLocations();
     TChunkMeta::TPtr DoGetChunkMeta(TChunk::TPtr chunk);
 
 };

@@ -2,7 +2,7 @@
 
 #include <util/generic/yexception.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 using ::testing::_;
 using ::testing::A;
@@ -34,7 +34,7 @@ public:
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
-TEST(TVerifyDeathTest, NoCrushForTruthExpression)
+TEST(TVerifyDeathTest, NoCrashForTruthExpression)
 {
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _))
@@ -44,17 +44,17 @@ TEST(TVerifyDeathTest, NoCrushForTruthExpression)
     SUCCEED();
 }
 
-TEST(TVerifyDeathTest, CrushForFalseExpression)
+TEST(TVerifyDeathTest, CrashForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(false, "Cheshire Cat")); },
-        "Assertion failed.*Cheshire Cat"
+        "Assertion.*Cheshire Cat"
     );
 }
 
-TEST(TVerifyDeathTest, CrushForException)
+TEST(TVerifyDeathTest, CrashForException)
 {
     NiceMock<TMockCallee> callee;
     ON_CALL(callee, F(A<bool>(), _))
@@ -62,7 +62,7 @@ TEST(TVerifyDeathTest, CrushForException)
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(true, "Cheshire Cat")); },
-        "Assertion failed.*Exception during verification"
+        "Assertion.*Exception was thrown while evaluating YVERIFY"
     );
 }
 

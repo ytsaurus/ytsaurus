@@ -1,8 +1,9 @@
 #pragma once
 
-#include "async_result.h"
+#include "future.h"
+#include "invoker_util.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 
 namespace NYT {
 
@@ -14,11 +15,11 @@ class TParallelAwaiter
 public:
     typedef TIntrusivePtr<TParallelAwaiter> TPtr;
 
-    TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
+    explicit TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
 
     template<class T>
     void Await(
-        TIntrusivePtr< TAsyncResult<T> > result,
+        TIntrusivePtr< TFuture<T> > result,
         TIntrusivePtr< IParamAction<T> > onResult = NULL);
 
     void Complete(IAction::TPtr onComplete = NULL);

@@ -7,24 +7,7 @@
 #include "../misc/config.h"
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCellConfig
-{
-    yvector<Stroka> PeerAddresses;
-    TPeerId Id;
-
-    TCellConfig()
-        : Id(InvalidPeerId)
-    { }
-
-    void Read(TJsonObject* json)
-    {
-        NYT::TryRead(json, L"Id", &Id);
-        NYT::TryRead(json, L"PeerAddresses", &PeerAddresses);
-    }
-};
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +30,13 @@ public:
 
 private:
     TConfig Config;
-    mutable NRpc::TChannelCache ChannelCache;
+    static NRpc::TChannelCache ChannelCache;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 
 #define CELL_MANAGER_INL_H_

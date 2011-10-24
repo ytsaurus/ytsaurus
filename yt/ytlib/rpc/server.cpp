@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "server.h"
 
 #include "../misc/serialize.h"
@@ -21,8 +22,7 @@ TServer::TServer(int port)
 { }
 
 TServer::~TServer()
-{
-}
+{ }
 
 void TServer::RegisterService(IService::TPtr service)
 {
@@ -39,6 +39,8 @@ void TServer::Start()
 
 void TServer::Stop()
 {
+    if (!Started)
+        return;
     Started = false;
     BusServer->Terminate();
     LOG_INFO("RPC server stopped");
@@ -46,7 +48,7 @@ void TServer::Stop()
 
 void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 {
-    const yvector<TSharedRef>& parts = message->GetParts();
+    const auto& parts = message->GetParts();
     if (parts.ysize() < 2) {
         LOG_WARNING("Too few message parts");
         return;
@@ -58,7 +60,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    TRequestId requestId = TGuid::FromProto(requestHeader.GetRequestId());
+    auto requestId = TRequestId::FromProto(requestHeader.GetRequestId());
     Stroka serviceName = requestHeader.GetServiceName();
     Stroka methodName = requestHeader.GetMethodName();
 
@@ -77,7 +79,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
-    IService::TPtr service = GetService(serviceName);
+    auto service = GetService(serviceName);
     if (~service == NULL) {
         IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
             requestId,
@@ -94,12 +96,13 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         methodName,
         message,
         replyBus);
+
     service->OnBeginRequest(context);
 }
 
 IService::TPtr TServer::GetService(Stroka serviceName)
 {
-    TServiceMap::iterator it = Services.find(serviceName);
+    auto it = Services.find(serviceName);
     if (it == Services.end()) {
         return NULL;
     }

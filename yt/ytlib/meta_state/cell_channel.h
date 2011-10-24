@@ -4,6 +4,9 @@
 #include "../rpc/channel.h"
 
 namespace NYT {
+namespace NMetaState {
+
+using NElection::TLeaderLookup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,10 +18,12 @@ public:
 
     TCellChannel(const TLeaderLookup::TConfig& config);
     
-    virtual TAsyncResult<TVoid>::TPtr Send(
-        TIntrusivePtr<NRpc::TClientRequest> request,
-        TIntrusivePtr<NRpc::TClientResponse> response,
+    virtual TFuture<NRpc::EErrorCode>::TPtr Send(
+        NRpc::TClientRequest::TPtr request,
+        NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
+
+    virtual void Terminate();
 
 private:
     DECLARE_ENUM(EState,
@@ -26,32 +31,32 @@ private:
         (Connecting)
         (Connected)
         (Failed)
+        (Terminated)
     );
 
-    TAsyncResult<TVoid>::TPtr OnGotChannel(
+    TFuture<NRpc::EErrorCode>::TPtr OnGotChannel(
         NRpc::IChannel::TPtr channel,
         NRpc::TClientRequest::TPtr request,
-        NRpc::TClientResponse::TPtr response,
+        NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
 
-    TVoid OnResponseReady(
-        TVoid,
-        NRpc::TClientResponse::TPtr response);
+    NRpc::EErrorCode OnResponseReady(NRpc::EErrorCode errorCode);
   
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr GetChannel();
+    TFuture<NRpc::IChannel::TPtr>::TPtr GetChannel();
 
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
-    TAsyncResult<NRpc::IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
+    TFuture<NRpc::IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
+    TFuture<NRpc::IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
 
 
     TSpinLock SpinLock;
     TLeaderLookup::TPtr LeaderLookup;
     EState State;
-    TLeaderLookup::TLookupResult::TPtr LookupResult;
+    TFuture<TLeaderLookup::TResult>::TPtr LookupResult;
     NRpc::TChannel::TPtr Channel;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

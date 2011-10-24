@@ -1,5 +1,6 @@
 SET(YT_SOURCE_FILES
     common.h
+    id_generator.h
     lease_manager.cpp
     metric.cpp
     config.h
@@ -20,10 +21,19 @@ SET(YT_SOURCE_FILES
     semaphore.cpp
     guid.cpp
     assert.h
-    ptr.h
+    ref.h
     string.h
     foreach.h
+    thread_affinity.h
+    periodic_invoker.cpp
+    zigzag.h
+    property.h
+    ref_counted_base.h
+    intrusive_ptr.h
+    singleton.h
+
     ${SRCDIR}/preprocessor-gen.h
+    ${SRCDIR}/new.h
 )
 
 ADD_CUSTOM_COMMAND(
@@ -31,4 +41,11 @@ ADD_CUSTOM_COMMAND(
     COMMAND ${PYTHON} ${SRCDIR}/preprocessor-gen.py > ${SRCDIR}/preprocessor-gen.h
     DEPENDS ${SRCDIR}/preprocessor-gen.py
     COMMENT "Regenerating preprocessor-gen.h..."
+)
+
+ADD_CUSTOM_COMMAND(
+    OUTPUT  ${SRCDIR}/new.h
+    COMMAND ${PYTHON} ${ARCADIA_ROOT}/scripts/pump.py ${SRCDIR}/new.h.pump > ${SRCDIR}/new.h
+    DEPENDS ${SRCDIR}/new.h.pump
+    COMMENT "Regenerating new.h..."
 )

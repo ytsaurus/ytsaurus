@@ -9,9 +9,6 @@ namespace NChunkManager {
 
 struct TJob
 {
-    TJob()
-    { }
-
     TJob(
         EJobType type,
         const TJobId& jobId,
@@ -33,12 +30,33 @@ struct TJob
         , TargetAddresses(other.TargetAddresses)
     { }
 
-    TJob& operator = (const TJob& other)
+    TAutoPtr<TJob> Clone()
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TJob(*this);
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, (i32) Type); // temp. For some reason could not DECLARE_PODTYPE(EJobType)
+        ::Save(output, JobId);
+        ::Save(output, ChunkId);
+        ::Save(output, RunnerAddress);
+        ::Save(output, TargetAddresses);
+    }
+
+    static TAutoPtr<TJob> Load(TInputStream* input)
+    {
+        i32 type; // temp. For some reason could not DECLARE_PODTYPE(EJobType)
+        TJobId jobId;
+        TChunkId chunkId;
+        Stroka runnerAddress;
+        yvector<Stroka> targetAddresses;
+        ::Load(input, type);
+        ::Load(input, jobId);
+        ::Load(input, chunkId);
+        ::Load(input, runnerAddress);
+        ::Load(input, targetAddresses);
+        return new TJob(EJobType(type), jobId, chunkId, runnerAddress, targetAddresses);
     }
 
     EJobType Type;
@@ -53,11 +71,6 @@ struct TJob
 
 struct TJobList
 {
-    typedef yvector<TJobId> TJobs;
-
-    TJobList()
-    { }
-
     TJobList(const TChunkId& chunkId)
         : ChunkId(chunkId)
     { }
@@ -67,12 +80,24 @@ struct TJobList
         , Jobs(other.Jobs)
     { }
 
-    TJobList& operator = (const TJobList& other)
+    TAutoPtr<TJobList> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TJobList(*this);
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, ChunkId);
+        ::Save(output, Jobs);
+    }
+
+    static TAutoPtr<TJobList> Load(TInputStream* input)
+    {
+        TChunkId chunkId;
+        ::Load(input, chunkId);
+        auto* jobList = new TJobList(chunkId);
+        ::Load(input, jobList->Jobs);
+        return jobList;
     }
 
     void AddJob(const TJobId& id)
@@ -82,14 +107,14 @@ struct TJobList
 
     void RemoveJob(const TJobId& id)
     {
-        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
+        auto it = std::find(Jobs.begin(), Jobs.end(), id);
         if (it != Jobs.end()) {
             Jobs.erase(it);
         }
     }
     
     TChunkId ChunkId;
-    TJobs Jobs;
+    yvector<TJobId> Jobs;
 
 };
 

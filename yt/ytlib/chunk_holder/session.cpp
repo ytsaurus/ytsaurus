@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "session.h"
 
 #include "../misc/fs.h"
@@ -23,16 +24,15 @@ TSessionManager::TSessionManager(
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)
     , ServiceInvoker(serviceInvoker)
-    , LeaseManager(New<TLeaseManager>())
 { }
 
 TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
 {
-    TSessionMap::iterator it = SessionMap.find(chunkId);
+    auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
         return NULL;
     
-    TSession::TPtr session = it->Second();
+    auto session = it->Second();
     session->RenewLease();
     return session;
 }
@@ -41,11 +41,11 @@ TSession::TPtr TSessionManager::StartSession(
     const TChunkId& chunkId,
     int windowSize)
 {
-    int location = ChunkStore->GetNewChunkLocation(chunkId);
+    auto location = ChunkStore->GetNewChunkLocation();
 
-    TSession::TPtr session = New<TSession>(this, chunkId, location, windowSize);
+    auto session = New<TSession>(this, chunkId, location, windowSize);
 
-    TLeaseManager::TLease lease = LeaseManager->CreateLease(
+    auto lease = TLeaseManager::Get()->CreateLease(
         Config.SessionTimeout,
         FromMethod(
             &TSessionManager::OnLeaseExpired,
@@ -56,9 +56,9 @@ TSession::TPtr TSessionManager::StartSession(
 
     YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
 
-    LOG_INFO("Session started (ChunkId: %s, Location: %d, WindowSize: %d)",
+    LOG_INFO("Session started (ChunkId: %s, Location: %s, WindowSize: %d)",
         ~chunkId.ToString(),
-        location,
+        ~location->GetPath(),
         windowSize);
 
     return session;
@@ -66,7 +66,7 @@ TSession::TPtr TSessionManager::StartSession(
 
 void TSessionManager::CancelSession(TSession::TPtr session)
 {
-    TChunkId chunkId = session->GetChunkId();
+    auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
@@ -76,9 +76,9 @@ void TSessionManager::CancelSession(TSession::TPtr session)
         ~chunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
+TFuture<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
 {
-    TChunkId chunkId = session->GetChunkId();
+    auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
@@ -113,12 +113,17 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
     }
 }
 
+int TSessionManager::GetSessionCount()
+{
+    return SessionMap.ysize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
     TSessionManager::TPtr sessionManager,
     const TChunkId& chunkId,
-    int location,
+    TLocation::TPtr location,
     int windowSize)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
@@ -127,6 +132,8 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
+    Location->IncSessionCount();
+
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
 
     for (int index = 0; index < windowSize; ++index) {
@@ -136,6 +143,11 @@ TSession::TSession(
     OpenFile();
 }
 
+TSession::~TSession()
+{
+    Location->DecSessionCount();
+}
+
 void TSession::SetLease(TLeaseManager::TLease lease)
 {
     Lease = lease;
@@ -143,17 +155,17 @@ void TSession::SetLease(TLeaseManager::TLease lease)
 
 void TSession::RenewLease()
 {
-    SessionManager->LeaseManager->RenewLease(Lease);
+    TLeaseManager::Get()->RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
-    SessionManager->LeaseManager->CloseLease(Lease);
+    TLeaseManager::Get()->CloseLease(Lease);
 }
 
 IInvoker::TPtr TSession::GetInvoker()
 {
-    return SessionManager->ChunkStore->GetIOInvoker(Location);
+    return Location->GetInvoker();
 }
 
 TChunkId TSession::GetChunkId() const
@@ -161,7 +173,7 @@ TChunkId TSession::GetChunkId() const
     return ChunkId;
 }
 
-int TSession::GetLocation() const
+TLocation::TPtr TSession::GetLocation() const
 {
     return Location;
 }
@@ -177,14 +189,14 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 
     RenewLease();
 
-    const TSlot& slot = GetSlot(blockIndex);
+    const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 
     LOG_DEBUG("Chunk block retrieved (ChunkId: %s, BlockIndex: %d)",
@@ -202,10 +214,16 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     RenewLease();
 
-    TSlot& slot = GetSlot(blockIndex);
+    auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("putting an already received block received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+        if (TRef::CompareContent(slot.Block->GetData(), data)) {
+            LOG_WARNING("Block has been already received (BlockId: %s)",
+                ~blockId.ToString());
+            return;
+        }
+
+        ythrow TServiceException(EErrorCode::UnmatchedBlockContent) <<
+            Sprintf("block with the same blockId but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
             ~blockId.ToString(),
             WindowStart,
             Window.ysize());
@@ -249,6 +267,10 @@ void TSession::EnqueueWrites()
 
 TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 {
+    LOG_DEBUG("Start writing chunk block (ChunkId: %s, BlockIndex: %d)",
+        ~ChunkId.ToString(),
+        blockIndex);
+
     try {
         Writer->WriteBlock(block->GetData());
     } catch (...) {
@@ -267,13 +289,13 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 
 void TSession::OnBlockWritten(TVoid, i32 blockIndex)
 {
-    TSlot& slot = GetSlot(blockIndex);
+    auto& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
     slot.IsWritten->Set(TVoid());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
+TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -283,12 +305,12 @@ TAsyncResult<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
-        ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
@@ -304,19 +326,19 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TAsyncResult<TVoid>::TPtr TSession::Finish()
+TFuture<TVoid>::TPtr TSession::Finish()
 {
     CloseLease();
 
     for (i32 blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            ythrow TServiceException(TErrorCode::WindowError)
-                << Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
-                WindowStart,
-                Window.ysize(),
-                blockIndex);
+            ythrow TServiceException(EErrorCode::WindowError) <<
+                Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                    ~ChunkId.ToString(),
+                    WindowStart,
+                    Window.ysize(),
+                    blockIndex);
         }
     }
 
@@ -364,7 +386,7 @@ void TSession::DoDeleteFile()
         ~ChunkId.ToString());
 }
 
-TAsyncResult<TVoid>::TPtr TSession::CloseFile()
+TFuture<TVoid>::TPtr TSession::CloseFile()
 {
     return
         FromMethod(
@@ -416,12 +438,12 @@ bool TSession::IsInWindow(i32 blockIndex)
 void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
-        ythrow TServiceException(TErrorCode::WindowError)
-            << Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
-            WindowStart,
-            Window.ysize(),
-            blockIndex);
+        ythrow TServiceException(EErrorCode::WindowError) <<
+            Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
     }
 }
 

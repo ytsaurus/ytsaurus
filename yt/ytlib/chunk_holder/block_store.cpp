@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "block_store.h"
 #include "chunk_store.h"
 
@@ -41,19 +42,27 @@ public:
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
-        while (true) {
-            TInsertCookie cookie(blockId);
-            if (!BeginInsert(&cookie)) {
-                // This is a cruel reality.
-                // Since we never evict blocks of removed chunks from the cache
-                // it is possible for a block to be put there more than once.
-                // We could reuse the cached copy but for sanity's sake let's
-                // replace the cached one.
-                TCacheBase::Remove(blockId);
-                continue;
+        TInsertCookie cookie(blockId);
+        if (BeginInsert(&cookie)) {
+            auto block = New<TCachedBlock>(blockId, data);
+            cookie.EndInsert(block);
+
+            LOG_DEBUG("Block is put into cache (BlockId: %s)",
+                ~blockId.ToString());
+            return block;
+        } else {
+            // This is a cruel reality.
+            // Since we never evict blocks of removed chunks from the cache
+            // it is possible for a block to be put there more than once.
+            // We shall reuse the cached copy but for sanity's sake let's
+            // check that the content is the same.
+            auto block = cookie.GetAsyncResult()->Get();
+            if (!TRef::CompareContent(data, block->GetData())) {
+                LOG_FATAL("Trying to cache a block for which a different cached copy already exists (BlockId: %s)",
+                    ~blockId.ToString());
             }
-            TCachedBlock::TPtr block = New<TCachedBlock>(blockId, data);
-            EndInsert(block, &cookie);
+            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)",
+                ~blockId.ToString());
             return block;
         }
     }
@@ -62,22 +71,22 @@ public:
     {
         TAutoPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Got cached block from store (BlockId: %s)",
+            LOG_DEBUG("Block is found in cache (BlockId: %s)",
                 ~blockId.ToString());
             return cookie->GetAsyncResult();
         }
 
-        TChunk::TPtr chunk = ChunkStore->FindChunk(blockId.ChunkId);
-        if (~chunk == NULL)
-            return NULL;
+        auto chunk = ChunkStore->FindChunk(blockId.ChunkId);
+        if (~chunk == NULL) {
+            return New<TCachedBlock::TAsync>(TCachedBlock::TPtr(NULL));
+        }
         
         LOG_DEBUG("Loading block into cache (BlockId: %s)",
             ~blockId.ToString());
 
-        TCachedBlock::TAsync::TPtr result = cookie->GetAsyncResult();
+        auto result = cookie->GetAsyncResult();
 
-        int location = chunk->GetLocation();
-        IInvoker::TPtr invoker = ChunkStore->GetIOInvoker(location);
+        auto invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
             &TBlockCache::ReadBlock,
             TPtr(this),
@@ -97,15 +106,17 @@ private:
         TAutoPtr<TInsertCookie> cookie)
     {
         try {
-            TFileChunkReader::TPtr reader = ChunkStore->GetChunkReader(chunk);
-            TSharedRef data = reader->ReadBlock(blockId.BlockIndex);
-            if (data != TSharedRef()) {
-                TCachedBlock::TPtr cachedBlock = New<TCachedBlock>(blockId, data);
-                EndInsert(cachedBlock, ~cookie);
+            auto reader = ChunkStore->GetChunkReader(chunk);
+            auto data = reader->ReadBlock(blockId.BlockIndex);
+            if (~data != NULL) {
+                auto block = New<TCachedBlock>(blockId, data);
+                cookie->EndInsert(block);
 
-                LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
+                LOG_DEBUG("Finished loading block into cache (BlockId: %s)",
+                    ~blockId.ToString());
             } else {
-                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)", ~blockId.ToString());
+                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)",
+                    ~blockId.ToString());
             }
         } catch (...) {
             LOG_FATAL("Error loading block into cache (BlockId: %s, What: %s)",
@@ -125,7 +136,8 @@ TBlockStore::TBlockStore(
 
 TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
 {
-    LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
+    LOG_DEBUG("Getting block from store (BlockId: %s)",
+        ~blockId.ToString());
 
     return BlockCache->Find(blockId);
 }

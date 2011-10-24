@@ -1,12 +1,14 @@
 #pragma once
 
+#include "common.h"
 #include "chunk_writer.h"
 
 #include "../misc/lazy_ptr.h"
 #include "../misc/config.h"
+#include "../misc/metric.h"
 #include "../misc/semaphore.h"
-#include "../rpc/client.h"
-#include "../chunk_client/common.h"
+#include "../misc/thread_affinity.h"
+
 #include "../chunk_holder/chunk_holder_rpc.h"
 #include "../actions/action_queue.h"
 
@@ -38,36 +40,55 @@ public:
          */
         TDuration RpcTimeout;
 
+        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder.
+        /*!
+         * If no activity occured during this period, PingSession call will be sent.
+         */
+        TDuration SessionTimeout;
+
         TConfig()
             : WindowSize(16)
             , GroupSize(1024 * 1024)
             , RpcTimeout(TDuration::Seconds(30))
+            , SessionTimeout(TDuration::Seconds(10))
         { }
 
-        // ToDo: move to implementation
-        void Read(TJsonObject* config)
-        {
-            TryRead(config, L"WindowSize", &WindowSize);
-            TryRead(config, L"GroupSize", &GroupSize);
-            //ToDo: make timeout configurable
-        }
+        void Read(TJsonObject* config);
     };
 
-    // Client thread
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+
+    /*!
+     * \note Thread affinity: ClientThread.
+     */
     TRemoteChunkWriter(
         const TConfig& config, 
         const TChunkId& chunkId,
         const yvector<Stroka>& addresses);
 
-    EResult AsyncWriteBlock(const TSharedRef& data, TAsyncResult<TVoid>::TPtr* ready);
+    /*!
+     * \note Thread affinity: ClientThread.
+     */
+    EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
 
-    TAsyncResult<EResult>::TPtr AsyncClose();
+    /*!
+     * \note Thread affinity: ClientThread.
+     */
+    TFuture<EResult>::TPtr AsyncClose();
 
+
+    /*!
+     * \note Thread affinity: any.
+     */
     void Cancel();
 
     ~TRemoteChunkWriter();
 
-    static Stroka GetDebugInfo();
+    /*!
+     * \note Thread affinity: any.
+     */
+    Stroka GetDebugInfo();
 
 private:
 
@@ -87,6 +108,7 @@ private:
     USE_RPC_PROXY_METHOD(TProxy, PutBlocks);
     USE_RPC_PROXY_METHOD(TProxy, SendBlocks);
     USE_RPC_PROXY_METHOD(TProxy, FlushBlock);
+    USE_RPC_PROXY_METHOD(TProxy, PingSession);
 
 private:
     //! Manages all internal upload functionality, 
@@ -96,7 +118,6 @@ private:
     TChunkId ChunkId;
     const TConfig Config;
 
-    // TOOD: why no Closed here?
     DECLARE_ENUM(EWriterState,
         (Initializing)
         (Writing)
@@ -111,8 +132,9 @@ private:
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
 
-    // TODO: write a comment here
-    TAsyncResult<EResult>::TPtr Result;
+    // Result of write session, set when session is completed.
+    // Is returned from #AsyncClose
+    TFuture<EResult>::TPtr Result;
 
     TWindow Window;
     TSemaphore WindowSlots;
@@ -129,50 +151,147 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    TAsyncResult<TVoid>::TPtr WindowReady;
-
-    static NRpc::TChannelCache ChannelCache;
-
-    /* ToDo: implement metrics
+    TFuture<TVoid>::TPtr WindowReady;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
     TMetric SendBlocksTiming;
     TMetric FlushBlockTiming;
-    TMetric FinishChunkTiming;*/
+    TMetric FinishChunkTiming;
 
 private:
-    //! Invoked from #Close via #WriterThread.
-    //! Sets #IsCloseRequested.
+    /*!
+     * Invoked from #Close.
+     * \note Thread affinity: WriterThread
+     * Sets #IsCloseRequested.
+     */
     void DoClose();
     
-    //! Invoked from #Cancel via #WriterThread.
+    /*!
+     * Invoked from #Cancel
+     * \note Thread affinity: WriterThread.
+     */
     void DoCancel();
 
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void AddGroup(TGroupPtr group);
-    void RegisterReadyEvent(TAsyncResult<TVoid>::TPtr windowReady);
 
+    /*!
+     * \note Thread affinity: WriterThread
+     */
+    void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnNodeDied(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void ReleaseSlots(int count);
 
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void ShiftWindow();
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnFlushedBlock(int node, int blockIndex);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnWindowShifted(int blockIndex);
 
+    /*!
+     * \note Thread affinity: ClientThread
+     */
     void InitializeNodes(const yvector<Stroka>& addresses);
+
+    /*!
+     * \note Thread affinity: ClientThread
+     */
     void StartSession();
+
+    /*!
+     * \note Thread affinity: ClientThread
+     */
     TInvStartChunk::TPtr StartChunk(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnStartedChunk(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnSessionStarted();
 
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void CloseSession();
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     TInvFinishChunk::TPtr FinishChunk(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnFinishedChunk(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     void OnFinishedSession();
 
+    /*!
+     * \note Thread affinity: WriterThread
+     */
+    void PingSession(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
+    void SchedulePing(int node);
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
+    void CancelPing(int node);
+
+     /*!
+     * \note Thread affinity: WriterThread
+     */
+    void Shutdown();
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
+    void CancelAllPings();
+
+    /*!
+     * \note Thread affinity: WriterThread
+     */
     template<class TResponse>
-    void CheckResponse(typename TResponse::TPtr rsp, int node, IAction::TPtr onSuccess);
+    void CheckResponse(
+        typename TResponse::TPtr rsp, 
+        int node, 
+        IAction::TPtr onSuccess,
+        TMetric* metric);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

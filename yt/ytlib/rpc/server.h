@@ -25,10 +25,8 @@ public:
     Stroka GetDebugInfo();
 
 private:
-    typedef yhash_map<Stroka, IService::TPtr> TServiceMap;
-
     NBus::TBusServer::TPtr BusServer;
-    TServiceMap Services;
+    yhash_map<Stroka, IService::TPtr> Services;
     volatile bool Started;
 
     IService::TPtr GetService(Stroka serviceName);

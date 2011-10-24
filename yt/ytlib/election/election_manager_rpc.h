@@ -1,12 +1,13 @@
 #pragma once
 
 #include "common.h"
-#include "election_manager.pb.h"
+#include "election_manager_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 
 namespace NYT {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,26 +24,22 @@ public:
         (Following)
     );
 
-    DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
+    RPC_DECLARE_PROXY(ElectionManager,
         ((InvalidState)(1))
         ((InvalidLeader)(2))
         ((InvalidEpoch)(3))
     );
 
-    static Stroka GetServiceName()
-    {
-        return "ElectionManager";
-    }
-
     TElectionManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NRpcElectionManager, PingFollower)
-    RPC_PROXY_METHOD(NRpcElectionManager, GetStatus)
+    RPC_PROXY_METHOD(NElection::NProto, PingFollower)
+    RPC_PROXY_METHOD(NElection::NProto, GetStatus)
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NElection
 } // namespace NYT

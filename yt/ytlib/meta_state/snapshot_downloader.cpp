@@ -1,13 +1,15 @@
+#include "stdafx.h"
 #include "snapshot_downloader.h"
 #include "snapshot.h"
 #include "meta_state_manager_rpc.h"
 
 #include "../actions/action_util.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 
 #include <util/system/fs.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,15 +22,19 @@ TSnapshotDownloader::TSnapshotDownloader(
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-{}
+{
+    YASSERT(~cellManager != NULL);
+}
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
+    YASSERT(~snapshotWriter != NULL);
+
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
-    if (sourceId == InvalidPeerId) {
+    if (sourceId == NElection::InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
     
@@ -42,14 +48,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult = New< TAsyncResult<TSnapshotInfo> >();
-    TParallelAwaiter::TPtr awaiter = New<TParallelAwaiter>();
+    auto asyncResult = New< TFuture<TSnapshotInfo> >();
+    auto awaiter = New<TParallelAwaiter>();
 
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
         LOG_INFO("Requesting snapshot info from peer %d", i);
 
-        TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(i);
-        TProxy::TReqGetSnapshotInfo::TPtr request = proxy->GetSnapshotInfo();
+        auto proxy = CellManager->GetMasterProxy<TProxy>(i);
+        auto request = proxy->GetSnapshotInfo();
         request->SetSnapshotId(snapshotId);
         awaiter->Await(request->Invoke(Config.LookupTimeout), FromMethod(
             &TSnapshotDownloader::OnResponse,
@@ -67,7 +73,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 void TSnapshotDownloader::OnResponse(
     TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult,
+    TFuture<TSnapshotInfo>::TPtr asyncResult,
     TPeerId peerId)
 {
     if (!response->IsOK()) {
@@ -93,17 +99,17 @@ void TSnapshotDownloader::OnResponse(
 
 void TSnapshotDownloader::OnComplete(
     i32 segmentId,
-    TAsyncResult<TSnapshotInfo>::TPtr asyncResult)
+    TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
     LOG_INFO("Could not get snapshot %d info from masters", segmentId);
 
-    asyncResult->Set(TSnapshotInfo(InvalidPeerId, -1, 0, 0));
+    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1, 0, 0));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TSnapshotInfo snapshotInfo,
-    TSnapshotWriter* snapshotWriter)
+    TSnapshotWriter::TPtr snapshotWriter)
 {
     YASSERT(snapshotInfo.Length >= 0);
     
@@ -150,21 +156,20 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             snapshotLength,
             sourceId);
 
-    TAutoPtr<TProxy> proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
+    auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
-        TProxy::TReqReadSnapshot::TPtr request = proxy->ReadSnapshot();
+        auto request = proxy->ReadSnapshot();
         request->SetSnapshotId(snapshotId);
         request->SetOffset(downloadedLength);
         i32 blockSize = Min(Config.BlockSize, (i32)(snapshotLength - downloadedLength));
         request->SetLength(blockSize);
-        TProxy::TRspReadSnapshot::TPtr response =
-            request->Invoke(Config.ReadTimeout)->Get();
+        auto response = request->Invoke(Config.ReadTimeout)->Get();
 
         if (!response->IsOK()) {
             TProxy::EErrorCode errorCode = response->GetErrorCode();
             if (response->IsServiceError()) {
-                switch (errorCode.ToValue()) {
+                switch (errorCode) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
                             "Peer %d does not have snapshot %d anymore",
@@ -226,4 +231,5 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "metric.h"
 
 namespace NYT {

@@ -1,3 +1,4 @@
+#include "../misc/stdafx.h"
 #include "chunk_reader.h"
 #include "chunk_holder.pb.h"
 

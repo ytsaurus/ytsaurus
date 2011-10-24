@@ -1,12 +1,14 @@
+#include "stdafx.h"
 #include "snapshot.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 #include "../misc/fs.h"
 #include "../misc/serialize.h"
 
 #include <util/folder/dirut.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,4 +194,5 @@ TChecksum TSnapshotWriter::GetChecksum() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
