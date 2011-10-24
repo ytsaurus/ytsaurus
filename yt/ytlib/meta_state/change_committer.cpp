@@ -55,7 +55,7 @@ public:
         , Awaiter(New<TParallelAwaiter>(~committer->CancelableControlInvoker))
         , Version(version)
         // Count the local commit.
-        , CommitCount(1)
+        , CommitCount(0)
         , IsSent(false)
     { }
 
@@ -71,6 +71,11 @@ public:
         return Result;
     }
 
+    void SetLastChangeLogResult(TFuture<TVoid>::TPtr result)
+    {
+        LogResult = result;
+    }
+
     void SendChanges()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -81,8 +86,13 @@ public:
             BatchedChanges.ysize(),
             ~Version.ToString());
 
-        auto cellManager = Committer->CellManager;
+        YASSERT(~LogResult != NULL);
+        Awaiter->Await(
+            LogResult,
+            FromMethod(&TBatch::OnLocalCommit, TPtr(this))
+            ->Via(~Committer->CancelableControlInvoker));
 
+        auto cellManager = Committer->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId() ||
                 !Committer->FollowerTracker->IsFollowerActive(id))
@@ -99,7 +109,7 @@ public:
 
             Awaiter->Await(
                 request->Invoke(Committer->Config.RpcTimeout),
-                FromMethod(&TBatch::OnCommitted, TPtr(this), id));
+                FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
 
             LOG_DEBUG("Change of %s is sent to peer %d",
                 ~Version.ToString(),
@@ -137,7 +147,7 @@ private:
     }
 
     // Service invoker
-    void OnCommitted(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
+    void OnRemoteCommit(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
@@ -162,6 +172,15 @@ private:
                 peerId);
         }
     }
+    
+    void OnLocalCommit(TVoid /* fake */)
+    {
+        VERIFY_THREAD_AFFINITY(Committer->ControlThread);
+
+        LOG_DEBUG("Change was locally commited (version: %s)", ~Version.ToString());
+        ++CommitCount;
+        CheckCommitQuorum();
+    }
 
     // Service invoker
     void OnCompleted()
@@ -179,6 +198,7 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
+    TFuture<TVoid>::TPtr LogResult;
     TLeaderCommitter::TPtr Committer;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
