@@ -41,7 +41,7 @@ void WritePadding(TFile& output, i64 recordSize)
 ////////////////////////////////////////////////////////////////////////////////
 
 // There are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
-int WriteVarUInt64(ui64 value, TOutputStream* output)
+int WriteVarUInt64(TOutputStream* output, ui64 value)
 {
     bool stop = false;
     int bytesWritten = 0;
@@ -58,17 +58,17 @@ int WriteVarUInt64(ui64 value, TOutputStream* output)
     return bytesWritten;
 }
 
-int WriteVarInt32(i32 value, TOutputStream* output)
+int WriteVarInt32(TOutputStream* output, i32 value)
 {
-    return WriteVarUInt64(static_cast<ui64>(ZigZagEncode32(value)), output);
+    return WriteVarUInt64(output, static_cast<ui64>(ZigZagEncode32(value)));
 }
 
-int WriteVarInt64(i64 value, TOutputStream* output)
+int WriteVarInt64(TOutputStream* output, i64 value)
 {
-    return WriteVarUInt64(static_cast<ui64>(ZigZagEncode64(value)), output);
+    return WriteVarUInt64(output, static_cast<ui64>(ZigZagEncode64(value)));
 }
 
-int ReadVarUInt64(ui64* value, TInputStream* input)
+int ReadVarUInt64(TInputStream* input, ui64* value)
 {
     size_t count = 0;
     ui64 result = 0;
@@ -88,10 +88,10 @@ int ReadVarUInt64(ui64* value, TInputStream* input)
     return count;
 }
 
-int ReadVarInt32(i32* value, TInputStream* input)
+int ReadVarInt32(TInputStream* input, i32* value)
 {
     ui64 varInt;
-    int bytesRead = ReadVarUInt64(&varInt, input);
+    int bytesRead = ReadVarUInt64(input, &varInt);
     if (varInt > Max<ui32>()) {
         // TODO: exception message
         throw yexception();
@@ -100,10 +100,10 @@ int ReadVarInt32(i32* value, TInputStream* input)
     return bytesRead;
 }
 
-int ReadVarInt64(i64* value, TInputStream* input)
+int ReadVarInt64(TInputStream* input, i64* value)
 {
     ui64 varInt;
-    int bytesRead = ReadVarUInt64(&varInt, input);
+    int bytesRead = ReadVarUInt64(input, &varInt);
     *value = ZigZagDecode64(varInt);
     return bytesRead;
 }

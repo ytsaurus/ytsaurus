@@ -30,7 +30,7 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
 {
     if (IsBinary) {
         Stream->Write(StringMarker);
-        WriteVarInt32(static_cast<i32>(value.length()), Stream);
+        WriteVarInt32(Stream, static_cast<i32>(value.length()));
         Stream->Write(&value, value.length());
     } else {
         // TODO: escaping
@@ -99,7 +99,7 @@ void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
     UNUSED(hasAttributes);
     if (IsBinary) {
         Stream->Write(Int64Marker);
-        WriteVarInt64(value, Stream);
+        WriteVarInt64(Stream, value);
     } else {
         Stream->Write(ToString(value));
     }

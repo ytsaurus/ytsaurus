@@ -114,7 +114,7 @@ TSharedRef TChannelWriter::FlushBlock()
     TBlobOutput blockStream(CurrentSize);
 
     FOREACH(const auto& column, FixedColumns) {
-        WriteVarUInt64(column.GetSize(), &blockStream);
+        WriteVarUInt64(&blockStream, column.GetSize());
     }
 
     FOREACH(auto& column, FixedColumns) {

@@ -25,7 +25,7 @@ void TChannelReader::SetBlock(const TSharedRef& block)
     columnSizes.reserve(Channel.GetColumns().ysize());
     for (int columnIndex = 0; columnIndex < Channel.GetColumns().ysize(); ++columnIndex) {
         ui64 size;
-        ReadVarUInt64(&size, &input);
+        ReadVarUInt64(&input, &size);
         YASSERT(size <= static_cast<ui64>(Max<size_t>()));
         columnSizes.push_back(static_cast<size_t>(size));
     }

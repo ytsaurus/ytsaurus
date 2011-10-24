@@ -419,7 +419,7 @@ void TYsonReader::ParseBinaryString()
     YASSERT(Lookahead == NoLookahead);
 
     i32 length;
-    int bytesRead = ReadVarInt32(&length, Stream);
+    int bytesRead = ReadVarInt32(Stream, &length);
     Position += bytesRead;
     Offset += bytesRead;
 
@@ -439,7 +439,7 @@ void TYsonReader::ParseBinaryInt64()
     YASSERT(Lookahead == NoLookahead);
 
     i64 value;
-    int bytesRead = ReadVarInt64(&value, Stream);
+    int bytesRead = ReadVarInt64(Stream, &value);
     Position += bytesRead;
     Offset += bytesRead;
 
