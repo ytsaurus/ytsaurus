@@ -31,7 +31,13 @@ public:
     //! Returns 'true' if the semaphore counter has decreased.
     bool TryAcquire();
 
-    int GetCount();
+    //! Returns the current number of free slots in the semaphore.
+    /*!
+     *  The returned value is only a snapshot of the counter kept by the semaphore.
+     *  The caller must make sure that no one calls #Acquire, #Release or #TryAcquire
+     *  simultaneously.
+     */
+    int GetFreeSlotCount() const;
 
 private:
     const int MaxFreeSlots;

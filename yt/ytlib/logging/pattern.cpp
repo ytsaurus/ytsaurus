@@ -1,4 +1,8 @@
+#include "stdafx.h"
 #include "pattern.h"
+
+#include "../misc/assert.h"
+#include "../misc/foreach.h"
 
 namespace NYT {
 namespace NLog {
@@ -24,12 +28,13 @@ static Stroka FormatLevel(ELogLevel level)
 {
     switch (level)
     {
+        case ELogLevel::Trace:   return "T";
         case ELogLevel::Debug:   return "D";
         case ELogLevel::Info:    return "I";
         case ELogLevel::Warning: return "W";
         case ELogLevel::Error:   return "E";
         case ELogLevel::Fatal:   return "F";
-        default: YASSERT(false); return "?";
+        default: YUNREACHABLE();
     }
 }
 
@@ -41,12 +46,8 @@ static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
     formatter.AddProperty("category", event.GetCategory());
     formatter.AddProperty("tab", "\t");
 
-    const TLogEvent::TProperties& properties = event.GetProperties();
-    for (TLogEvent::TProperties::const_iterator it = properties.begin();
-        it != properties.end();
-        ++it)
-    {
-        formatter.AddProperty(it->First(), it->Second());
+    FOREACH(const auto& pair, event.GetProperties()) {
+        formatter.AddProperty(pair.first, pair.second);
     }
 }
 

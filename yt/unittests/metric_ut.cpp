@@ -1,6 +1,6 @@
 #include "../ytlib/misc/metric.h"
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 namespace NUnitTest {
@@ -14,8 +14,8 @@ TEST_F(TMetricTest, ZeroValues)
 {
     TMetric metric(50, 100, 10);
 
-    EXPECT_EQ(metric.GetMean(), 0);
-    EXPECT_EQ(metric.GetStd(), 0);
+    EXPECT_EQ(0, metric.GetMean());
+    EXPECT_EQ(0, metric.GetStd());
 }
 
 
@@ -24,8 +24,8 @@ TEST_F(TMetricTest, OneValue)
     TMetric metric(50, 100, 10);
     metric.AddValue(75.);
 
-    EXPECT_DOUBLE_EQ(metric.GetMean(), 75);
-    EXPECT_DOUBLE_EQ(metric.GetStd(), 0);
+    EXPECT_DOUBLE_EQ(75, metric.GetMean());
+    EXPECT_DOUBLE_EQ(0, metric.GetStd());
 }
 
 TEST_F(TMetricTest, ManyValues)
@@ -68,8 +68,8 @@ TEST_F(TMetricTest, ManyValues)
     double std = sqrt(sumDeltaSq / x.size());
 
     double eps = 1e-10;
-    EXPECT_TRUE( fabs(metric.GetMean()- mean) < eps);
-    EXPECT_TRUE( fabs(metric.GetStd() - std) < eps);
+    EXPECT_IS_TRUE(fabs(metric.GetMean()- mean) < eps);
+    EXPECT_IS_TRUE(fabs(metric.GetStd() - std) < eps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

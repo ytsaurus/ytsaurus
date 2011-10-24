@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "file_chunk_reader.h"
 
 namespace NYT
@@ -45,7 +46,7 @@ i32 TFileChunkReader::GetBlockCount() const
     return Meta.BlocksSize();
 }
 
-TAsyncResult<IChunkReader::TReadResult>::TPtr
+TFuture<IChunkReader::TReadResult>::TPtr
 TFileChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     TReadResult result;
@@ -56,7 +57,7 @@ TFileChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
         result.Blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return New< TAsyncResult<TReadResult> >(result);
+    return New< TFuture<TReadResult> >(result);
 }
 
 NYT::TSharedRef TFileChunkReader::ReadBlock(int blockIndex)

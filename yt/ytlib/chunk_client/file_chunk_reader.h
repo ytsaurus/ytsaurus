@@ -25,9 +25,12 @@ public:
     i32 GetBlockCount() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncResult<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
     //! Synchronously reads a given block from the file.
+    /*!
+     *  Returns NULL is the block does not exist.
+     */
     TSharedRef ReadBlock(int blockIndex);
 
 private:

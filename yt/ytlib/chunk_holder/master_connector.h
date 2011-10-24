@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_store.h"
+#include "session.h"
 #include "replicator.h"
 
 #include "../chunk_manager/chunk_manager_rpc.h"
@@ -28,13 +29,14 @@ public:
     TMasterConnector(
         const TConfig& config,
         TChunkStore::TPtr chunkStore,
+        TSessionManager::TPtr sessionManager,
         TReplicator::TPtr replicator,
         IInvoker::TPtr serviceInvoker);
 
 private:
     typedef NChunkManager::TChunkManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef yhash_set<TChunk::TPtr, TIntrusivePtrHash<TChunk> > TChunks;
+    typedef yhash_set<TChunk::TPtr> TChunks;
 
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
@@ -42,6 +44,7 @@ private:
     TConfig Config;
     
     TChunkStore::TPtr ChunkStore;
+    TSessionManager::TPtr SessionManager;
     TReplicator::TPtr Replicator;
 
     //! All state modifications are carried out via this invoker.
@@ -91,6 +94,9 @@ private:
 
     //! Sends out a registration request.
     void SendRegister();
+
+    //! Computes the current holder statistics.
+    THolderStatistics ComputeStatistics();
 
     //! Handles registration response.
     void OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response);

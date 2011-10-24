@@ -3,11 +3,8 @@
 #include "common.h"
 #include "chunk_manager_rpc.h"
 
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-
-#include "../chunk_holder/common.h"
-#include "../misc/lease_manager.h"
+#include "../misc/property.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NChunkManager {
@@ -15,62 +12,103 @@ namespace NChunkManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int THolderId;
+const int InvalidHolderId = -1;
 
-struct THolder
+DECLARE_ENUM(EHolderState,
+    // The holder had just registered but have not reported any heartbeats yet.
+    (Registered)
+    // The holder is reporting heartbeats.
+    // We have a proper knowledge of its chunk set.
+    (Active)
+);
+
+// TODO: move impl to cpp
+
+class THolder
 {
-    typedef yhash_set<TChunkId> TChunkIds;
-    typedef yvector<TJobId> TJobs;
+    DECLARE_BYVAL_RO_PROPERTY(Id, THolderId);
+    DECLARE_BYVAL_RO_PROPERTY(Address, Stroka);
+    DECLARE_BYVAL_RW_PROPERTY(State, EHolderState);
+    DECLARE_BYREF_RW_PROPERTY(Statistics, THolderStatistics);
+    DECLARE_BYREF_RW_PROPERTY(Chunks, yhash_set<TChunkId>);
+    DECLARE_BYREF_RO_PROPERTY(Jobs, yvector<TJobId>);
 
-    THolder()
-    { }
-
+public:
     THolder(
         THolderId id,
-        Stroka address,
+        const Stroka& address,
+        EHolderState state,
         const THolderStatistics& statistics)
-        : Id(id)
-        , Address(address)
-        , Statistics(statistics)
+        : Id_(id)
+        , Address_(address)
+        , State_(state)
+        , Statistics_(statistics)
     { }
 
     THolder(const THolder& other)
-        : Id(other.Id)
-        , Address(other.Address)
-        , Lease(other.Lease)
-        , Statistics(other.Statistics)
-        , Chunks(other.Chunks)
-        , Jobs(other.Jobs)
+        : Id_(other.Id_)
+        , Address_(other.Address_)
+        , State_(other.State_)
+        , Statistics_(other.Statistics_)
+        , Chunks_(other.Chunks_)
+        , Jobs_(other.Jobs_)
     { }
 
-    THolder& operator = (const THolder& other)
+    TAutoPtr<THolder> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new THolder(*this);
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, Id_);
+        ::Save(output, Address_);
+        ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
+        ::Save(output, Statistics_);
+        SaveSorted(output, Chunks_);
+        ::Save(output, Jobs_);
+    }
+
+    static TAutoPtr<THolder> Load(TInputStream* input)
+    {
+        THolderId id;
+        Stroka address;
+        i32 state; // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
+        THolderStatistics statistics;
+        ::Load(input, id);
+        ::Load(input, address);
+        ::Load(input, state);
+        ::Load(input, statistics);
+        auto* holder = new THolder(id, address, EHolderState(state), statistics);
+        ::Load(input, holder->Chunks_);
+        ::Load(input, holder->Jobs_);
+        return holder;
     }
 
     void AddJob(const TJobId& id)
     {
-        Jobs.push_back(id);
+        Jobs_.push_back(id);
     }
 
     void RemoveJob(const TJobId& id)
     {
-        TJobs::iterator it = Find(Jobs.begin(), Jobs.end(), id);
-        if (it != Jobs.end()) {
-            Jobs.erase(it);
+        auto it = std::find(Jobs_.begin(), Jobs_.end(), id);
+        if (it != Jobs_.end()) {
+            Jobs_.erase(it);
         }
     }
+};
 
+////////////////////////////////////////////////////////////////////////////////
 
-    THolderId Id;
+struct TReplicationSink
+{
+    explicit TReplicationSink(const Stroka &address)
+        : Address(address)
+    { }
+
     Stroka Address;
-    mutable TLeaseManager::TLease Lease;
-    THolderStatistics Statistics;
-    TChunkIds Chunks;
-    TJobs Jobs;
-
+    yhash_set<TJobId> JobIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

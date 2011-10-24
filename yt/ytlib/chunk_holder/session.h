@@ -24,14 +24,16 @@ public:
     TSession(
         TIntrusivePtr<TSessionManager> sessionManager,
         const TChunkId& chunkId,
-        int location,
+        TLocation::TPtr location,
         int windowSize);
+
+    ~TSession();
 
     //! Returns TChunkId being uploaded.
     TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
-    int GetLocation() const;
+    TLocation::TPtr GetLocation() const;
 
     //! Returns the size of blocks received so far.
     i64 GetSize() const;
@@ -48,13 +50,16 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TAsyncResult<TVoid>::TPtr FlushBlock(i32 blockIndex);
+    TFuture<TVoid>::TPtr FlushBlock(i32 blockIndex);
+
+    void RenewLease();
 
 private:
     friend class TSessionManager;
 
-    typedef TChunkHolderProxy::EErrorCode TErrorCode;
-    typedef NRpc::TTypedServiceException<TErrorCode> TServiceException;
+    typedef TChunkHolderProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -67,19 +72,19 @@ private:
         TSlot()
             : State(ESlotState::Empty)
             , Block(NULL)
-            , IsWritten(New< TAsyncResult<TVoid> >())
+            , IsWritten(New< TFuture<TVoid> >())
         { }
 
         ESlotState State;
         TCachedBlock::TPtr Block;
-        TAsyncResult<TVoid>::TPtr IsWritten;
+        TFuture<TVoid>::TPtr IsWritten;
     };
 
     typedef yvector<TSlot> TWindow;
 
     TIntrusivePtr<TSessionManager> SessionManager;
     TChunkId ChunkId;
-    int Location;
+    TLocation::TPtr Location;
     
     TWindow Window;
     i32 WindowStart;
@@ -91,11 +96,10 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    TAsyncResult<TVoid>::TPtr Finish();
+    TFuture<TVoid>::TPtr Finish();
     void Cancel();
 
     void SetLease(TLeaseManager::TLease lease);
-    void RenewLease();
     void CloseLease();
 
     bool IsInWindow(i32 blockIndex);
@@ -111,7 +115,7 @@ private:
     void DeleteFile();
     void DoDeleteFile();
 
-    TAsyncResult<TVoid>::TPtr CloseFile();
+    TFuture<TVoid>::TPtr CloseFile();
     TVoid DoCloseFile();
 
     void EnqueueWrites();
@@ -147,7 +151,7 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TAsyncResult<TVoid>::TPtr FinishSession(TSession::TPtr session);
+    TFuture<TVoid>::TPtr FinishSession(TSession::TPtr session);
 
     //! Cancels an earlier opened upload session.
     /*!
@@ -158,6 +162,9 @@ public:
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const TChunkId& chunkId);
 
+    //! Returns the number of currently active session.
+    int GetSessionCount();
+
 private:
     friend class TSession;
 
@@ -165,8 +172,6 @@ private:
     TBlockStore::TPtr BlockStore;
     TChunkStore::TPtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
-
-    TLeaseManager::TPtr LeaseManager;
 
     typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
     TSessionMap SessionMap;

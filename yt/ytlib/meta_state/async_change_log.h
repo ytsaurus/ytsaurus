@@ -5,13 +5,14 @@
 #include "../misc/hash.h"
 #include "../misc/common.h"
 #include "../actions/action_queue.h"
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 
 #include <util/system/file.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
+namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Asynchronous wrapper around TChangeLog.
 /*!
@@ -29,7 +30,7 @@ public:
     TAsyncChangeLog(TChangeLog::TPtr changeLog);
     ~TAsyncChangeLog();
 
-    typedef TAsyncResult<TVoid> TAppendResult;
+    typedef TFuture<TVoid> TAppendResult;
 
     //! Finalizes the changelog.
     //! \see TChangeLog::Finalize
@@ -95,4 +96,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

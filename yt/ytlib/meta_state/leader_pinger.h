@@ -1,10 +1,14 @@
 #pragma once
 
 #include "common.h"
+#include "meta_state_manager.h"
+#include "meta_state_manager_rpc.h"
+#include "cell_manager.h"
 
-#include "../meta_state/meta_state_manager.h"
+#include "../actions/invoker_util.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,4 +56,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+} // namespace NMetaState
+} // namespace NYT

@@ -1,10 +1,13 @@
+#include "stdafx.h"
 #include "async_change_log.h"
 
+#include "../misc/foreach.h"
 #include "../actions/action_util.h"
 
 #include <util/system/thread.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +130,8 @@ public:
         //! Preserves the atomicity of the operations on the list.
         mutable TSpinLock SpinLock;
 
+
+
     private:
         //! Sweep operation performed during #Flush.
         static void SweepRecord(TRecord* record)
@@ -174,7 +179,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
+        auto it = ChangeLogQueues.find(changeLog);
         TChangeLogQueue::TPtr queue;
 
         if (it == ChangeLogQueues.end()) {
@@ -184,12 +189,12 @@ public:
             queue = it->second;
         }
 
-        Invoke(queue->Append(recordId, data, result));
+        GetInvoker()->Invoke(queue->Append(recordId, data, result));
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
     {
-        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        auto queue = FindQueue(changeLog);
         if (~queue != NULL) {
             queue->Flush();
         }
@@ -199,7 +204,7 @@ public:
 
     TVoid Flush(TChangeLog::TPtr changeLog)
     {
-        TChangeLogQueue::TPtr queue = FindQueue(changeLog);
+        auto queue = FindQueue(changeLog);
         if (~queue != NULL) {
             queue->Flush();
         }
@@ -210,7 +215,7 @@ public:
     TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueueMap::iterator it = ChangeLogQueues.find(changeLog);
+        auto it = ChangeLogQueues.find(changeLog);
         return it != ChangeLogQueues.end() ? it->second : NULL;
     }
 
@@ -228,20 +233,14 @@ public:
                 return;
             }
 
-            for (TChangeLogQueueMap::iterator it = ChangeLogQueues.begin();
-                 it != ChangeLogQueues.end();
-                 ++it)
-            {
-                queues.push_back(it->Second());
+            FOREACH(const auto& it, ChangeLogQueues) {
+                queues.push_back(it.second);
             }
         }
 
         // Flush the queues in the snapshot.
-        for (yvector<TChangeLogQueue::TPtr>::iterator it = queues.begin();
-             it != queues.end();
-             ++it)
-        {
-            (*it)->Flush();
+        FOREACH(auto& queue, queues) {
+            queue->Flush();
         }
 
         // Sweep the empty queues.
@@ -260,9 +259,7 @@ public:
     }
 
 private:
-    typedef yhash_map<TChangeLog::TPtr,
-        TChangeLogQueue::TPtr,
-        TIntrusivePtrHash<TChangeLog> > TChangeLogQueueMap;
+    typedef yhash_map<TChangeLog::TPtr, TChangeLogQueue::TPtr> TChangeLogQueueMap;
 
     TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;
@@ -273,7 +270,9 @@ private:
 TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
     : ChangeLog(changeLog)
     , Impl(RefCountedSingleton<TImpl>())
-{ }
+{
+    YASSERT(~changeLog != NULL);
+}
 
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
@@ -282,7 +281,7 @@ TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {
-    TAppendResult::TPtr result = New<TAppendResult>();
+    auto result = New<TAppendResult>();
     Impl->Append(ChangeLog, recordId, data, result);
     return result;
 }
@@ -290,7 +289,7 @@ TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
 void TAsyncChangeLog::Finalize()
 {
     FromMethod(&TImpl::Finalize, Impl, ChangeLog)
-        ->AsyncVia(~Impl)
+        ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
 
@@ -300,7 +299,7 @@ void TAsyncChangeLog::Finalize()
 void TAsyncChangeLog::Flush()
 {
     FromMethod(&TImpl::Flush, Impl, ChangeLog)
-        ->AsyncVia(~Impl)
+        ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
 
@@ -317,7 +316,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
         return;
     }
 
-    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
+    auto queue = Impl->FindQueue(ChangeLog);
 
     if (~queue == NULL) {
         ChangeLog->Read(firstRecordId, recordCount, result);
@@ -334,19 +333,16 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
     yvector<TSharedRef> unflushedRecords;
 
-    for (TImpl::TChangeLogQueue::TRecords::iterator it = queue->Records.Begin();
-        it != queue->Records.End();
-        ++it)
-    {
-        if (it->Id >= lastRecordId)
+    FOREACH(const auto& record, queue->Records) {
+        if (record.Id >= lastRecordId)
             break;
 
-        if (it->Id < firstRecordId)
+        if (record.Id < firstRecordId)
             continue;
 
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, it->Id);
+        firstUnflushedRecordId = Min(firstUnflushedRecordId, record.Id);
 
-        unflushedRecords.push_back(it->Data);
+        unflushedRecords.push_back(record.Data);
     }
 
     // At this moment we can release the lock.
@@ -377,7 +373,7 @@ i32 TAsyncChangeLog::GetId() const
 
 i32 TAsyncChangeLog::GetRecordCount() const
 {
-    TImpl::TChangeLogQueue::TPtr queue = Impl->FindQueue(ChangeLog);
+    auto queue = Impl->FindQueue(ChangeLog);
 
     if (~queue == NULL) {
         return ChangeLog->GetRecordCount();
@@ -387,7 +383,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
     if (queue->Records.Empty()) {
         return ChangeLog->GetRecordCount();
     } else {
-        TImpl::TChangeLogQueue::TRecords::const_iterator it = queue->Records.End();
+        auto it = queue->Records.End();
         --it;
         return it->Id + 1;
     }
@@ -414,5 +410,6 @@ void TAsyncChangeLog::Truncate(i32 atRecordId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT
 

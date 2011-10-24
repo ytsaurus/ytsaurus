@@ -2,70 +2,89 @@
 
 #include "common.h"
 
+#include "../misc/property.h"
+
+#include <util/ysaveload.h>
+
 namespace NYT {
 namespace NChunkManager {
 
+using NTransaction::TTransactionId;
+using NTransaction::NullTransactionId;
+
 ////////////////////////////////////////////////////////////////////////////////
+// TODO: move implementation to cpp
 
-struct TChunk
+class TChunk
 {
-    typedef yvector<THolderId> TLocations;
+    DECLARE_BYVAL_RO_PROPERTY(Id, TChunkId);
+    DECLARE_BYVAL_RW_PROPERTY(TransactionId, TTransactionId);
+    DECLARE_BYVAL_RW_PROPERTY(Size, i64);
+    DECLARE_BYREF_RO_PROPERTY(Locations, yvector<THolderId>);
 
+public:
     static const i64 UnknownSize = -1;
-
-    TChunk()
-    { }
 
     TChunk(
         const TChunkId& id,
         const TTransactionId& transactionId)
-        : Id(id)
-        , Size(UnknownSize)
-        , TransactionId(transactionId)
+        : Id_(id)
+        , TransactionId_(transactionId)
+        , Size_(UnknownSize)
     { }
 
-    TChunk(const TChunk& other)
-        : Id(other.Id)
-        , Size(other.Size)
-        , TransactionId(other.TransactionId)
-        , Locations(other.Locations)
-    { }
-
-    TChunk& operator = (const TChunk& other)
+    TAutoPtr<TChunk> Clone() const
     {
-        // TODO: implement
-        UNUSED(other);
-        YASSERT(false);
-        return *this;
+        return new TChunk(*this);
     }
 
-    bool IsVisible(const NTransaction::TTransactionId& transactionId) const
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, Id_);
+        ::Save(output, TransactionId_);
+        ::Save(output, Size_);
+        ::Save(output, Locations_);
+    }
+
+    static TAutoPtr<TChunk> Load(TInputStream* input)
+    {
+        TChunkId id;
+        NTransaction::TTransactionId transactionId;
+        ::Load(input, id);
+        ::Load(input, transactionId);
+        auto* chunk = new TChunk(id, transactionId);
+        ::Load(input, chunk->Size_);
+        ::Load(input, chunk->Locations_);
+        return chunk;
+    }
+
+    bool IsVisible(const TTransactionId& transactionId) const
     {
         return
-            TransactionId != NTransaction::TTransactionId() ||
-            TransactionId == transactionId;
+            TransactionId_ != NullTransactionId ||
+            TransactionId_ == transactionId;
     }
 
 
     void AddLocation(THolderId holderId)
     {
-        if (!IsIn(Locations, holderId)) {
-            Locations.push_back(holderId);
-        }
+        Locations_.push_back(holderId);
     }
 
     void RemoveLocation(THolderId holderId)
     {
-        TLocations::iterator it = Find(Locations.begin(), Locations.end(), holderId);
-        if (it != Locations.end()) {
-            Locations.erase(it);
-        }
+        auto it = std::find(Locations_.begin(), Locations_.end(), holderId);
+        YASSERT(it != Locations_.end());
+        Locations_.erase(it);
     }
 
-    TChunkId Id;
-    i64 Size;
-    NTransaction::TTransactionId TransactionId;
-    TLocations Locations;
+private:
+    TChunk(const TChunk& other)
+        : Id_(other.Id_)
+        , TransactionId_(other.TransactionId_)
+        , Size_(other.Size_)
+        , Locations_(other.Locations_)
+    { }
 
 };
 

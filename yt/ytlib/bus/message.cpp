@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "message.h"
 #include "rpc.pb.h"
 
@@ -24,11 +25,8 @@ TBlobMessage::TBlobMessage(TBlob* blob, const yvector<TRef>& parts)
 {
     TSharedRef::TBlobPtr sharedBlob = new TBlob();
     blob->swap(*sharedBlob);
-    for (yvector<TRef>::const_iterator it = parts.begin();
-         it != parts.end();
-         ++it)
-    {
-        Parts.push_back(TSharedRef(sharedBlob, *it));
+    FOREACH(const auto& it, parts) {
+        Parts.push_back(TSharedRef(sharedBlob, it));
     }
 }
 

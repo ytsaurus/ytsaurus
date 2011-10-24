@@ -173,6 +173,7 @@ class ConfigMeta(type):
         initmethods = ConfigMeta.initdict(props, bases, InitMethod, '__initmethods')
         propmethods = ConfigMeta.initdict(props, bases, PropMethod, '__propmethods')
         templates = ConfigMeta.initdict(props, bases, Template, '__templates')
+        subclasses = ConfigMeta.initdict(props, bases, Subclass, '__subclasses')
         
         # bind base propmethods to current class
         props.update(propmethods)
@@ -192,18 +193,22 @@ class ConfigMeta(type):
         setattr(cls, '__templates', templates)
         setattr(cls, '__initmethods', initmethods)
         setattr(cls, '__propmethods', propmethods)
+        setattr(cls, '__subclasses', subclasses)
         
         ConfigMeta.process_initmethods(cls, initmethods.keys())
         ConfigMeta.process_propmethods(cls, propmethods.keys())
         ConfigMeta.process_templates(cls, templates.items())
 
         #generate subclasses from enumerables
-        for k, v in props.iteritems():
-            if isinstance(v, Subclass):
+        for k, v in subclasses.iteritems():
+            try:
                 for i, value in enumerate(v):
                     subcls = ConfigMeta.__new__(mcls, str(i), (cls, ), {k : value})
                     # dirty hack! important! preserves reference on newly generated class, protects from garbage collector
                     mcls.generated_classes.append(subcls)
+                break
+            except:
+                print "Failed to subclass %s by field %s" % (name, k)
         
         return cls
 

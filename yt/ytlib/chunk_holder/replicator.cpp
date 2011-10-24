@@ -1,6 +1,8 @@
+#include "stdafx.h"
 #include "replicator.h"
 
 #include "../misc/assert.h"
+#include "../misc/string.h"
 #include "../chunk_client/remote_chunk_writer.h"
 
 namespace NYT {
@@ -74,7 +76,7 @@ void TJob::Start()
         case EJobType::Replicate:
             LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
                 ~JobId.ToString(),
-                ~JoinStroku(TargetAddresses, ", "),
+                ~JoinToString(TargetAddresses),
                 ~Chunk->GetId().ToString());
 
             ChunkStore->GetChunkMeta(Chunk)->Subscribe(
@@ -85,8 +87,7 @@ void TJob::Start()
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -110,7 +111,7 @@ void TJob::Stop()
     }
 }
 
-bool TJob::ReplicateBlock(int blockIndex)
+void TJob::ReplicateBlock(int blockIndex)
 {
     if (blockIndex >= Meta->GetBlockCount()) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
@@ -121,7 +122,7 @@ bool TJob::ReplicateBlock(int blockIndex)
                 &TJob::OnWriterClosed,
                 TPtr(this))
             ->Via(~CancelableInvoker));
-        return false;
+        return;
     }
 
     TBlockId blockId(Chunk->GetId(), blockIndex);
@@ -135,14 +136,22 @@ bool TJob::ReplicateBlock(int blockIndex)
             &TJob::OnBlockLoaded,
             TPtr(this),
             blockIndex)
-        ->Via(~CancelableInvoker));
-    return true;
+        ->Via(~CancelableInvoker));;
 }
 
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
 {
-    TAsyncResult<TVoid>::TPtr ready;
-    IChunkWriter::EResult result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
+    if (~cachedBlock == NULL) {
+        LOG_WARNING("Replication chunk is missing (JobId: %s, BlockIndex: %d)",
+            ~JobId.ToString(),
+            blockIndex);
+
+        State = EJobState::Failed;
+        return;
+    } 
+
+    TFuture<TVoid>::TPtr ready;
+    auto result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
     switch (result) {
         case IChunkWriter::EResult::OK:
             LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
@@ -177,8 +186,7 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -203,8 +211,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
             break;
 
         default:
-            YASSERT(false);
-            break;
+            YUNREACHABLE();
     }
 }
 
@@ -225,7 +232,7 @@ TJob::TPtr TReplicator::StartJob(
     TChunk::TPtr chunk,
     const yvector<Stroka>& targetAddresses)
 {
-    TJob::TPtr job = New<TJob>(
+    auto job = New<TJob>(
         ServiceInvoker,
         ChunkStore,
         BlockStore,
@@ -244,7 +251,7 @@ void TReplicator::StopJob(TJob::TPtr job)
     job->Stop();
     YVERIFY(Jobs.erase(job->GetJobId()) == 1);
     
-    LOG_INFO("Replication job stopped (JobId: %s, State: %s)",
+    LOG_INFO("Job stopped (JobId: %s, State: %s)",
         ~job->GetJobId().ToString(),
         ~job->GetState().ToString());
 }
@@ -258,26 +265,20 @@ TJob::TPtr TReplicator::FindJob(const TJobId& jobId)
 yvector<TJob::TPtr> TReplicator::GetAllJobs()
 {
     yvector<TJob::TPtr> result;
-    for (TJobMap::iterator it = Jobs.begin();
-         it != Jobs.end();
-         ++it)
-    {
-        result.push_back(it->Second());
+    FOREACH(const auto& pair, Jobs) {
+        result.push_back(pair.second);
     }
     return result;
 }
 
 void TReplicator::StopAllJobs()
 {
-    for (TJobMap::iterator it = Jobs.begin();
-        it != Jobs.end();
-        ++it)
-    {
-        it->Second()->Stop();
+    FOREACH(auto& pair, Jobs) {
+        pair.second->Stop();
     }
     Jobs.clear();
 
-    LOG_INFO("All replication jobs stopped");
+    LOG_INFO("All jobs stopped");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

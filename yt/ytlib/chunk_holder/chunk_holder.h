@@ -31,8 +31,10 @@ public:
     ~TChunkHolder();
 
 private:
+    typedef TChunkHolder TThis;
     typedef TChunkHolderProxy TProxy;
-    typedef NRpc::TTypedServiceException<TProxy::EErrorCode> TServiceException;
+    typedef TProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     //! Configuration.
     TConfig Config;
@@ -61,6 +63,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, SendBlocks);
     RPC_SERVICE_METHOD_DECL(NProto, FlushBlock);
     RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
+    RPC_SERVICE_METHOD_DECL(NProto, PingSession);
 
     //! Registers RPC methods.
     void RegisterMethods();

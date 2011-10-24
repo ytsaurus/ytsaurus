@@ -1,14 +1,15 @@
 #pragma once
 
 #include "meta_state_manager.h"
+#include "meta_state_manager.pb.h"
 
 #include "../rpc/server.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
+    
 class TCompositeMetaState;
 
 class TMetaStatePart
@@ -22,12 +23,16 @@ public:
         TIntrusivePtr<TCompositeMetaState> metaState);
 
     template<class TMessage, class TResult>
-    typename TAsyncResult<TResult>::TPtr CommitChange(
+    typename TFuture<TResult>::TPtr CommitChange(
         const TMessage& message,
         TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-        IAction::TPtr errorHandler = NULL);
+        IAction::TPtr errorHandler = NULL,
+        ECommitMode mode = ECommitMode::NeverFails);
 
 protected:
+    TMetaStateManager::TPtr MetaStateManager;
+    TIntrusivePtr<TCompositeMetaState> MetaState;
+
     template<class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
@@ -41,28 +46,19 @@ protected:
 
     bool IsLeader() const;
     bool IsFolllower() const;
-
-    IInvoker::TPtr GetSnapshotInvoker() const;
-    IInvoker::TPtr GetStateInvoker() const;
-    IInvoker::TPtr GetEpochStateInvoker() const;
+    bool IsRecovery() const;
 
     virtual Stroka GetPartName() const = 0;
-
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output) = 0;
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input) = 0;
-
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker) = 0;
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker) = 0;
     virtual void Clear() = 0;
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();
-    virtual void OnStartFollowing();
-    virtual void OnStopFollowing();
-
-    TMetaStateManager::TPtr MetaStateManager;
-    TIntrusivePtr<TCompositeMetaState> MetaState;
 
 private:
     friend class TCompositeMetaState;
+    typedef TMetaStatePart TThis;
 
     void CommitChange(Stroka changeType, TRef changeData);
 
@@ -84,18 +80,10 @@ class TCompositeMetaState
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
 
-    TCompositeMetaState();
-
-    virtual IInvoker::TPtr GetInvoker() const;
-
     void RegisterPart(TMetaStatePart::TPtr part);
 
 private:
     friend class TMetaStatePart;
-
-    IInvoker::TPtr StateInvoker;
-    IInvoker::TPtr SnapshotInvoker;
-    TCancelableInvoker::TPtr EpochStateInvoker;
 
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
@@ -103,51 +91,18 @@ private:
     typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
     TPartMap Parts;
 
-    virtual TAsyncResult<TVoid>::TPtr Save(TOutputStream* output);
-    virtual TAsyncResult<TVoid>::TPtr Load(TInputStream* input);
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
 
     virtual void ApplyChange(const TRef& changeData);
 
     virtual void Clear();
 
-    virtual void OnStartLeading();
-    virtual void OnStopLeading();
-    virtual void OnStartFollowing();
-    virtual void OnStopFollowing();
-
-    void StartEpoch();
-    void StopEpoch();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 4)
-
-struct TFixedChangeHeader
-{
-    i32 HeaderSize;
-    i32 MessageSize;
-};
-
-#pragma pack(pop)
-
-template <class TMessage>
-TBlob SerializeChange(
-    const NRpcMetaStateManager::TMsgChangeHeader& header,
-    const TMessage& message);
-
-void DeserializeChangeHeader(
-    TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header);
-
-void DeserializeChange(
-    TRef changeData,
-    NRpcMetaStateManager::TMsgChangeHeader* header,
-    TRef* messageData);
-
-////////////////////////////////////////////////////////////////////////////////
-
+} // namespace NMetaState
 } // namespace NYT
 
 #define COMPOSITE_META_STATE_INL_H_

@@ -1,6 +1,12 @@
+#include "stdafx.h"
 #include "cell_manager.h"
 
 namespace NYT {
+namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::TChannelCache TCellManager::ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +16,7 @@ TCellManager::TCellManager(const TConfig& config)
 
 i32 TCellManager::GetPeerCount() const
 {
-    return Config.PeerAddresses.ysize();
+    return Config.Addresses.ysize();
 }
 
 i32 TCellManager::GetQuorum() const
@@ -25,10 +31,11 @@ TPeerId TCellManager::GetSelfId() const
 
 Stroka TCellManager::GetPeerAddress(TPeerId id) const
 {
-    return Config.PeerAddresses[id];
+    return Config.Addresses[id];
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

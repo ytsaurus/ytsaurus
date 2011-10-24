@@ -1,28 +1,28 @@
-#include "../ytlib/actions/async_result.h"
+#include "../ytlib/actions/future.h"
 
 #include <util/system/thread.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncResultTest
+class TFutureTest
     : public ::testing::Test
 {
 protected:
-    TAsyncResult<int> Result;
+    TFuture<int> Result;
 };
 
-TEST_F(TAsyncResultTest, SimpleGet)
+TEST_F(TFutureTest, SimpleGet)
 {
     Result.Set(57);
 
     EXPECT_EQ(57, Result.Get());
 }
 
-TEST_F(TAsyncResultTest, SimpleTryGet)
+TEST_F(TFutureTest, SimpleTryGet)
 {
     int value = 17;
 
@@ -42,7 +42,7 @@ public:
     MOCK_METHOD1(Do, void(int value));
 };
 
-TEST_F(TAsyncResultTest, Subscribe)
+TEST_F(TFutureTest, Subscribe)
 {
     TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
     TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();
@@ -59,13 +59,13 @@ static void* AsynchronousSetter(void* param)
 {
     Sleep(TDuration::Seconds(0.125));
 
-    TAsyncResult<int>* result = reinterpret_cast<TAsyncResult<int>*>(param);
+    TFuture<int>* result = reinterpret_cast<TFuture<int>*>(param);
     result->Set(42);
 
     return NULL;
 }
 
-TEST_F(TAsyncResultTest, SubscribeWithAsynchronousSet)
+TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 {
     TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
     TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();

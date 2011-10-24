@@ -1,0 +1,143 @@
+$$ Please, use Pump to convert this source file to valid C++ header.
+$$ Note that lines in this file could be longer than 80 symbols.
+$var n = 10 $$ The maximum arity.
+// vim:set ft=cpp:
+#pragma once
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*!
+ * \defgroup yt_new New<T> safe smart pointer constructors
+ * \ingroup yt_new
+ *
+ * This is collection of safe smart pointer constructors.
+ *
+ * \{
+ *
+ * \page yt_new_rationale Rationale
+ * New<T> function family was designed to prevent the following problem.
+ * Consider the following piece of code.
+ *
+ * \code
+ *     class TFoo
+ *         : public virtual TRefCountedBase
+ *     {
+ *     public:
+ *         typedef TIntrusivePtr<TFoo> TPtr;
+ *         TFoo();
+ *     };
+ *
+ *     void RegisterObject(TFoo::TPtr fooInstance)
+ *     {
+ *         ...
+ *     }
+ *
+ *     TFoo::TFoo()
+ *     {
+ *         // ... do something before.
+ *         RegisterObject(TFoo::TPtr(this));
+ *         // ... do something after.
+ *     }
+ * \endcode
+ *
+ * What will happen on <tt>new TFoo()</tt> construction? After memory allocation
+ * the reference counter for newly created instance would be initialized to zero.
+ * Afterwards, the control goes to TFoo constructor. To invoke
+ * <tt>RegisterObject</tt> a new temporary smart pointer to the current instance
+ * have to be created effectively incrementing the reference counter (now one).
+ * After <tt>RegisterObject</tt> returns the control to the constructor
+ * the temporary pointer is destroyed effectively decrementing the reference
+ * counter to zero hence triggering object destruction during its initialization.
+ *
+ * To avoid this undefined behavior <tt>New<T></tt> was introduced.
+ * <tt>New<T></tt> holds a fake
+ * reference to the object during its construction effectively preventing
+ * premature destruction.
+ *
+ * \note An initialization like <tt>TIntrusivePtr&lt;T&gt; p = new T()</tt>
+ * would result in a dangling reference due to internals of #New<T> and
+ * #TRefCountedBase.
+ */
+
+#include "common.h"
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+#define REF_COUNTED_NEW_PROLOGUE() \
+    static TRefCountedTracker::TCookie cookie = NULL; \
+    do { \
+        if (EXPECT_FALSE(cookie == NULL)) { \
+            cookie = TRefCountedTracker::Lookup(&typeid(TResult)); \
+        } \
+    } while(0)
+
+#define REF_COUNTED_NEW_EPILOGUE() \
+    do { \
+        result->AfterConstruction(cookie); \
+        return result; \
+    } while(0)
+
+#else // !ENABLE_REF_COUNTED_TRACKING
+
+#define REF_COUNTED_NEW_PROLOGUE() \
+    do { \
+    } while(0)
+
+#define REF_COUNTED_NEW_EPILOGUE() \
+    do { \
+        result->AfterConstruction(); \
+        return result; \
+    } while(0)
+
+#endif // ENABLE_REF_COUNTED_TRACKING
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: fix this and use perfect forwarding
+// for more information about this see
+// http://blogs.msdn.com/b/vcblog/archive/2009/02/03/rvalue-references-c-0x-features-in-vc10-part-2.aspx
+// part "perfect forwarding: the pattern"
+
+//template <typename T> struct Identity
+//{
+//    typedef T type;
+//};
+
+//template <typename T> T&& Forward(typename Identity<T>::type&& t)
+//{
+//    return t;
+//}
+
+////////////////////////////////////////////////////////////////////////////////
+
+$range i 0..n
+$for i [[
+$range j 1..i
+
+$$ Handy shortcuts.
+$var tmpl_args = [[$for j [[, class TArg$j ]]]]
+$var ctor_args = [[$for j , [[ const TArg$j& arg$j ]]]]
+$var args_list = [[$for j , [[ arg$j ]]]]
+
+template<
+    class TResult$tmpl_args
+>
+inline TIntrusivePtr<TResult> New($ctor_args)
+{
+    REF_COUNTED_NEW_PROLOGUE();
+    TIntrusivePtr<TResult> result = new TResult($args_list);
+    REF_COUNTED_NEW_EPILOGUE();
+}
+
+]]
+
+#undef REF_COUNTED_NEW_PROLOGUE
+#undef REF_COUNTED_NEW_EPILOGUE
+
+/*! \} */
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

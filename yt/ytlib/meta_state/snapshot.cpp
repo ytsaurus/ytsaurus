@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "snapshot.h"
 
 #include "../misc/ptr.h"
@@ -7,6 +8,7 @@
 #include <util/folder/dirut.h>
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,4 +194,5 @@ TChecksum TSnapshotWriter::GetChecksum() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

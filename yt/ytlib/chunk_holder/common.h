@@ -38,7 +38,7 @@ struct TChunkHolderConfig
     /*!
      *  If no master addresses are given, the holder will operate in a standalone mode.
      */
-    TLeaderLookup::TConfig Masters; 
+    NElection::TLeaderLookup::TConfig Masters;
     
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
@@ -49,18 +49,23 @@ struct TChunkHolderConfig
     //! Port number to listen.
     int Port;
 
+    // TODO: consider making per/location limit
+    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
+    i64 MaxChunksSpace;
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
      *  a standalone mode, which only makes sense for testing purposes.
      */
     TChunkHolderConfig()
-        : MaxCachedBlocks(1024)
-        , MaxCachedFiles(256)
+        : MaxCachedBlocks(10)
+        , MaxCachedFiles(10)
         , SessionTimeout(TDuration::Seconds(15))
         , HeartbeatPeriod(TDuration::Seconds(5))
         , RpcTimeout(TDuration::Seconds(5))
         , Port(9000)
+        , MaxChunksSpace(-1)
     {
         Locations.push_back(".");
     }
@@ -83,6 +88,7 @@ struct THolderStatistics
     i64 AvailableSpace;
     i64 UsedSpace;
     i32 ChunkCount;
+    i32 SessionCount;
 
     static THolderStatistics FromProto(const NChunkManager::NProto::THolderStatistics& proto)
     {
@@ -90,6 +96,7 @@ struct THolderStatistics
         result.AvailableSpace = proto.GetAvailableSpace();
         result.UsedSpace = proto.GetUsedSpace();
         result.ChunkCount = proto.GetChunkCount();
+        result.SessionCount = proto.GetSessionCount();
         return result;
     }
 
@@ -99,15 +106,17 @@ struct THolderStatistics
         result.SetAvailableSpace(AvailableSpace);
         result.SetUsedSpace(UsedSpace);
         result.SetChunkCount(ChunkCount);
+        result.SetSessionCount(SessionCount);
         return result;
     }
 
     Stroka ToString() const
     {
-        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d",
+        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d, SessionCount: %d",
             AvailableSpace,
             UsedSpace,
-            ChunkCount);
+            ChunkCount,
+            SessionCount);
     }
 };
 
@@ -119,3 +128,5 @@ extern NLog::TLogger ChunkHolderLogger;
 
 } // namespace NChunkHolder
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NChunkHolder::THolderStatistics);

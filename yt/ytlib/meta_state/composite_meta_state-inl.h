@@ -2,13 +2,18 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state.h"
 #endif
 
+#include "composite_meta_state_detail.h"
+
+#include "../misc/assert.h"
+
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NRpcMetaStateManager::TMsgChangeHeader& header,
+    const NMetaState::NProto::TMsgChangeHeader& header,
     const TMessage& message)
 {
     TFixedChangeHeader fixedHeader;
@@ -33,26 +38,32 @@ TBlob SerializeChange(
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TMessage, class TResult>
-typename TAsyncResult<TResult>::TPtr TMetaStatePart::CommitChange(
+typename TFuture<TResult>::TPtr TMetaStatePart::CommitChange(
     const TMessage& message,
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-    IAction::TPtr errorHandler)
+    IAction::TPtr errorHandler,
+    ECommitMode mode)
 {
+    YASSERT(~changeMethod != NULL);
+
     return
         New< TUpdate<TMessage, TResult> >(
             MetaStateManager,
             GetPartName(),
             message,
             changeMethod,
-            errorHandler)
+            errorHandler,
+            mode)
         ->Run();
 }
 
 template<class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
+    YASSERT(~changeMethod != NULL);
+
     Stroka changeType = TMessage().GetTypeName();
-    IParamAction<const TRef&>::TPtr action = FromMethod(
+    auto action = FromMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         this,
         changeMethod);
@@ -64,6 +75,8 @@ void TMetaStatePart::MethodThunk(
     const TRef& changeData,
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
 {
+    YASSERT(~changeMethod != NULL);
+
     TMessage message;
     YVERIFY(message.ParseFromArray(changeData.Begin(), changeData.Size()));
 
@@ -82,27 +95,32 @@ public:
         Stroka partName,
         const TMessage& message,
         typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod,
-        IAction::TPtr errorHandler)
+        IAction::TPtr errorHandler,
+        ECommitMode mode)
         : StateManager(stateManager)
         , PartName(partName)
         , Message(message)
         , ChangeMethod(changeMethod)
         , ErrorHandler(errorHandler)
-        , AsyncResult(New< TAsyncResult<TResult> >())
-    { }
-
-    typename TAsyncResult<TResult>::TPtr Run()
+        , Mode(mode)
+        , AsyncResult(New< TFuture<TResult> >())
     {
-        // TODO: change ns
-        NRpcMetaStateManager::TMsgChangeHeader header;
+        YASSERT(~stateManager != NULL);
+        YASSERT(~changeMethod != NULL);
+    }
+
+    typename TFuture<TResult>::TPtr Run()
+    {
+        NProto::TMsgChangeHeader header;
         header.SetChangeType(Message.GetTypeName());
 
-        TBlob changeData = SerializeChange(header, Message);
+        auto changeData = SerializeChange(header, Message);
 
         StateManager
-            ->CommitChange(
+            ->CommitChangeSync(
                 FromMethod(&TUpdate::InvokeChangeMethod, TPtr(this)),
-                TSharedRef(changeData))
+                TSharedRef(changeData),
+                Mode)
             ->Subscribe(
                 FromMethod(&TUpdate::OnCommitted, TPtr(this)));
 
@@ -115,9 +133,9 @@ private:
         Result = ChangeMethod->Do(Message);
     }
 
-    void OnCommitted(TMetaStateManager::ECommitResult commitResult)
+    void OnCommitted(ECommitResult commitResult)
     {
-        if (commitResult == TMetaStateManager::ECommitResult::Committed) {
+        if (commitResult == ECommitResult::Committed) {
             AsyncResult->Set(Result);
         } else if (~ErrorHandler != NULL) {
             ErrorHandler->Do();
@@ -130,7 +148,8 @@ private:
     Stroka MethodName;
     typename IParamFunc<const TMessage&, TResult>::TPtr ChangeMethod;
     IAction::TPtr ErrorHandler;
-    typename TAsyncResult<TResult>::TPtr AsyncResult;
+    ECommitMode Mode;
+    typename TFuture<TResult>::TPtr AsyncResult;
     TResult Result;
 
 };
@@ -138,4 +157,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

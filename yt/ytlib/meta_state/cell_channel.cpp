@@ -1,6 +1,9 @@
+#include "stdafx.h"
+#include "../misc/assert.h"
 #include "cell_channel.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,56 +12,76 @@ TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
     , State(EState::NotConnected)
 { }
 
-TAsyncResult<TVoid>::TPtr TCellChannel::Send(
-    TIntrusivePtr<NRpc::TClientRequest> request,
-    TIntrusivePtr<NRpc::TClientResponse> response,
+TFuture<NRpc::EErrorCode>::TPtr TCellChannel::Send(
+    NRpc::TClientRequest::TPtr request,
+    NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
+    YASSERT(~request != NULL);
+    YASSERT(~responseHandler != NULL);
+    YASSERT(State != EState::Terminated);
+
     return GetChannel()->Apply(FromMethod(
         &TCellChannel::OnGotChannel,
         TPtr(this),
         request,
-        response,
+        responseHandler,
         timeout));
 }
 
-TAsyncResult<TVoid>::TPtr TCellChannel::OnGotChannel(
+void TCellChannel::Terminate()
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    
+    if (State == EState::Terminated)
+        return;
+
+    if (~Channel != NULL) {
+        Channel->Terminate();
+        Channel.Drop();
+    }
+
+    LookupResult.Drop();
+
+    State = EState::Terminated;
+}
+
+TFuture<NRpc::EErrorCode>::TPtr TCellChannel::OnGotChannel(
     NRpc::IChannel::TPtr channel,
     NRpc::TClientRequest::TPtr request,
-    NRpc::TClientResponse::TPtr response,
+    NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
     if (~channel == NULL) {
-        response->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return New< TAsyncResult<TVoid> >(TVoid());
+        responseHandler->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
+        return New< TFuture<NRpc::EErrorCode> >(NRpc::EErrorCode::Unavailable);
     }
 
     return
         channel
-        ->Send(request, response, timeout)
+        ->Send(request, responseHandler, timeout)
         ->Apply(FromMethod(
             &TCellChannel::OnResponseReady,
-            TPtr(this),
-            response));
+            TPtr(this)));
 }
 
-NYT::TVoid TCellChannel::OnResponseReady(
-    TVoid,
-    NRpc::TClientResponse::TPtr response)
+NRpc::EErrorCode TCellChannel::OnResponseReady(NRpc::EErrorCode errorCode)
 {
-    NRpc::EErrorCode errorCode = response->GetErrorCode();
     if (errorCode == NRpc::EErrorCode::TransportError ||
+        errorCode == NRpc::EErrorCode::Timeout ||
         errorCode == NRpc::EErrorCode::Unavailable)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Failed;
-        LookupResult = NULL;
-        Channel = NULL;
+            if (State != EState::Terminated) {
+            State = EState::Failed;
+            LookupResult.Drop();
+            Channel.Drop();
+        }
     }
-    return TVoid();
+    return errorCode;
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
 {
     TGuard<TSpinLock> guard(SpinLock);
     switch (State) {
@@ -67,7 +90,7 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel == NULL);
             State = EState::Connecting;
-            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult = LeaderLookup->GetLeader();
+            auto lookupResult = LookupResult = LeaderLookup->GetLeader();
             guard.Release();
 
             return lookupResult->Apply(FromMethod(
@@ -78,12 +101,12 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
         case EState::Connected:
             YASSERT(~LookupResult == NULL);
             YASSERT(~Channel != NULL);
-            return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
+            return New< TFuture<NRpc::IChannel::TPtr> >(~Channel);
 
         case EState::Connecting: {
             YASSERT(~LookupResult != NULL);
             YASSERT(~Channel == NULL);
-            TLeaderLookup::TLookupResult::TPtr lookupResult = LookupResult;
+            auto lookupResult = LookupResult;
             guard.Release();
 
             return lookupResult->Apply(FromMethod(
@@ -91,32 +114,36 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::GetChannel()
                 TPtr(this)));
         }
 
-        default:
-            YASSERT(false);
+        case EState::Terminated:
+            YASSERT(~LookupResult == NULL);
+            YASSERT(~Channel == NULL);
             return NULL;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
     TLeaderLookup::TResult result)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
     YASSERT(State == EState::Connecting);
 
-    if (result.Id == InvalidPeerId) {
+    if (result.Id == NElection::InvalidPeerId) {
         State = EState::Failed;
         LookupResult.Drop();
-        return New< TAsyncResult<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
+        return New< TFuture<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
     }
 
     State = EState::Connected;
     Channel = New<NRpc::TChannel>(result.Address);
     LookupResult.Drop();
-    return New< TAsyncResult<NRpc::IChannel::TPtr> >(~Channel);
+    return New< TFuture<NRpc::IChannel::TPtr> >(~Channel);
 }
 
-TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
+TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
     TLeaderLookup::TResult)
 {
     return GetChannel();
@@ -124,4 +151,5 @@ TAsyncResult<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NMetaState
 } // namespace NYT

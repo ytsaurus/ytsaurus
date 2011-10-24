@@ -1,3 +1,5 @@
+#include "stdafx.h"
+#include "../misc/assert.h"
 #include "client.h"
 #include "message.h"
 
@@ -44,11 +46,11 @@ IMessage::TPtr TClientRequest::Serialize()
         Attachments_);
 }
 
-TAsyncResult<TVoid>::TPtr TClientRequest::DoInvoke(
+TFuture<EErrorCode>::TPtr TClientRequest::DoInvoke(
     TClientResponse::TPtr response,
     TDuration timeout)
 {
-    return Channel->Send(this, response, timeout);
+    return Channel->Send(this, ~response, timeout);
 }
 
 yvector<TSharedRef>& TClientRequest::Attachments()
@@ -70,6 +72,7 @@ TClientResponse::TClientResponse(
     , Channel(channel)
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
+    , InvokeInstant(TInstant::Now())
 { }
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
@@ -103,8 +106,7 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
                 break;
 
             default:
-                YASSERT(false);
-                break;
+                YUNREACHABLE();
         }
     }
 }
@@ -125,7 +127,9 @@ void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
     LOG_DEBUG("Response received (RequestId: %s)",
         ~RequestId.ToString());
 
-    Deserialize(message);
+    if (errorCode.IsOK()) {
+        Deserialize(message);
+    }
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
@@ -166,6 +170,11 @@ yvector<TSharedRef>& TClientResponse::Attachments()
 EErrorCode TClientResponse::GetErrorCode() const
 {
     return ErrorCode;
+}
+
+TInstant TClientResponse::GetInvokeInstant() const
+{
+    return InvokeInstant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

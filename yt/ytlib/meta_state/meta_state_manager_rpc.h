@@ -1,12 +1,13 @@
 #pragma once
 
 #include "common.h"
-#include "meta_state_manager.pb.h"
+#include "meta_state_manager_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 
 namespace NYT {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,34 +17,30 @@ class TMetaStateManagerProxy
 public:
     typedef TIntrusivePtr<TMetaStateManagerProxy> TPtr;
 
-    DECLARE_DERIVED_ENUM(NRpc::EErrorCode, EErrorCode,
+    RPC_DECLARE_PROXY(MetaStateManager,
         ((InvalidSegmentId)(1))
         ((InvalidEpoch)(2))
         ((InvalidVersion)(3))
-        ((InvalidState)(4))
+        ((InvalidStatus)(4))
         ((IOError)(5))
+        ((Busy)(6))
     );
-
-    static Stroka GetServiceName() 
-    {
-        return "MetaStateManager";
-    }
 
     TMetaStateManagerProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NRpcMetaStateManager, ScheduleSync);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, Sync);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, ReadSnapshot);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, ReadChangeLog);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, GetSnapshotInfo);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, GetChangeLogInfo);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, ApplyChanges);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, CreateSnapshot);
-    RPC_PROXY_METHOD(NRpcMetaStateManager, PingLeader);
+    RPC_PROXY_METHOD(NMetaState::NProto, Sync);
+    RPC_PROXY_METHOD(NMetaState::NProto, ReadSnapshot);
+    RPC_PROXY_METHOD(NMetaState::NProto, ReadChangeLog);
+    RPC_PROXY_METHOD(NMetaState::NProto, GetSnapshotInfo);
+    RPC_PROXY_METHOD(NMetaState::NProto, GetChangeLogInfo);
+    RPC_PROXY_METHOD(NMetaState::NProto, ApplyChanges);
+    RPC_PROXY_METHOD(NMetaState::NProto, AdvanceSegment);
+    RPC_PROXY_METHOD(NMetaState::NProto, PingLeader);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NMetaState
+} // namespace NYT

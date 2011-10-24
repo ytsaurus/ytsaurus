@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "guid.h"
 
 #include <util/datetime/cputimer.h>
@@ -179,6 +180,17 @@ static void InitGuidSeed()
     strncpy(GuidSeed.HostName, hostName, sizeof(GuidSeed.HostName));
     GuidSeed.Hz = 0xc186a511;
     GuidSeed.StartMicroseconds = MicroSeconds();
+}
+
+TGuid::TGuid()
+{ }
+
+TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
+{
+    Parts[0] = part0;
+    Parts[1] = part1;
+    Parts[2] = part2;
+    Parts[3] = part3;
 }
 
 TGuid::TGuid(const TGUID& guid)

@@ -4,6 +4,7 @@
 #include "client.h"
 #include "message.h"
 
+#include "../misc/hash.h"
 #include "../misc/metric.h"
 #include "../logging/log.h"
 
@@ -14,57 +15,68 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents an error occured while serving an RPC request.
 class TServiceException 
     : public yexception
 {
 public:
-    TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
+    //! Initializes a new instance.
+    explicit TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
         : ErrorCode(errorCode)
-        , ErrorCodeString(errorCode.ToString())
     { }
 
-    TServiceException(EErrorCode errorCode, Stroka errorCodeString)
-        : ErrorCode(errorCode)
-        , ErrorCodeString(errorCodeString)
-    { }
-
+    //! Gets the error code.
     EErrorCode GetErrorCode() const
     {
         return ErrorCode;
     }
 
-    Stroka GetErrorCodeString() const
-    {
-        return ErrorCodeString;
-    }
-
-private:
+protected:
     EErrorCode ErrorCode;
-    Stroka ErrorCodeString;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TErrorCode>
+//! A typed version of TServiceException.
+/*!
+ *  The primary difference from the untyped TServiceException is that the
+ *  constructor accepts an error of a given TErrorCode type.
+ *  
+ *  This enables to capture the error message during exception construction
+ *  and write
+ *  \code
+ *  typedef TTypedServiceException<EMyCode> TMyException;
+ *  ythrow TMyException(EMyCode::SomethingWrong);
+ *  \endcode
+ *  instead of
+ *  \code
+ *  ythrow TServiceException(EMyCode(EMyCode::SomethingWrong));
+ *  \endcode
+ */
+template <class TErrorCode>
 class TTypedServiceException 
     : public TServiceException
 {
 public:
-    TTypedServiceException(TErrorCode errorCode = (TErrorCode) EErrorCode::ServiceError)
-        : TServiceException(errorCode, errorCode.ToString())
+    //! Initializes a new instance.
+    explicit TTypedServiceException(TErrorCode errorCode = EErrorCode::ServiceError)
+        : TServiceException(errorCode)
     { }
 
+    //! Gets the error code.
+    EErrorCode GetErrorCode() const
+    {
+        return EErrorCode(TServiceException::GetErrorCode());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContext;
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct IService
-    : public virtual TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IService> TPtr;
 
@@ -115,7 +127,6 @@ public:
     IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
-
     DECLARE_ENUM(EState,
         (Received)
         (Replied)
@@ -129,6 +140,7 @@ protected:
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
     NLog::TLogger ServiceLogger;
+    bool IsReplied;
 
     TBlob ResponseBody;
     yvector<TSharedRef> ResponseAttachments;
@@ -136,14 +148,11 @@ protected:
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    friend class TServiceBase;
-    TInstant StartTime;
-
 private:
     void DoReply(EErrorCode errorCode);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, Stroka errorCodeString, Stroka what);
+    void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
     void LogRequestInfo();
     void LogResponseInfo(EErrorCode errorCode);
 
@@ -207,9 +216,10 @@ public:
         , Context(context)
         , Request_(context->GetRequestAttachments())
     {
-        if (!DeserializeMessage(&Request_, context->GetRequestBody()))
+        if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
-                "Can't deserialize request body";
+                "Error deserializing request body";
+        }
     }
 
     TTypedRequest& Request()
@@ -224,12 +234,15 @@ public:
 
     void Reply(EErrorCode errorCode = EErrorCode::OK)
     {
-        TBlob responseData;
-        if (!SerializeMessage(&Response_, &responseData)) {
-            LOG_FATAL("Error serializing response");
+        if (errorCode.IsOK()) {
+            TBlob responseData;
+            if (!SerializeMessage(&Response_, &responseData)) {
+                ythrow TServiceException(EErrorCode::ProtocolError) <<
+                    "Error serializing response";
+            }
+            Context->SetResponseBody(&responseData);
+            Context->SetResponseAttachments(&Response_.Attachments());
         }
-        Context->SetResponseBody(&responseData);
-        Context->SetResponseAttachments(&Response_.Attachments());
         Context->Reply(errorCode);
     }
 
@@ -293,44 +306,95 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides a base for implementing IService.
 class TServiceBase
     : public IService
 {
 public:
+    //! Reports debug info of the running service instance.
     Stroka GetDebugInfo() const;
 
 protected:
+    //! Describes a handler for a service method.
     typedef IParamAction<TIntrusivePtr<TServiceContext> > THandler;
 
+    //! Information needed to a register a service method.
+    struct TMethodDescriptor
+    {
+        //! Initializes the instance.
+        TMethodDescriptor(Stroka methodName, THandler::TPtr handler)
+            : MethodName(methodName)
+            , Handler(handler)
+        {
+            YASSERT(~handler != NULL);
+        }
+
+        //! Service method name.
+        Stroka MethodName;
+        //! A handler that will serve the requests.
+        THandler::TPtr Handler;
+    };
+
+    //! Initializes the instance.
+    /*!
+     *  \param defaultServiceInvoker
+     *  An invoker that will be used for serving method invocations unless
+     *  configured otherwise (see #RegisterMethod).
+     *  
+     *  \param serviceName
+     *  A name of the service.
+     *  
+     *  \param loggingCategory
+     *  A category that will be used to log various debugging information
+     *  regarding service activity.
+     */
     TServiceBase(
-        IInvoker::TPtr serviceInvoker,
+        IInvoker::TPtr defaultServiceInvoker,
         Stroka serviceName,
         Stroka loggingCategory);
 
-    void RegisterHandler(Stroka methodName, THandler::TPtr handler);
+    //! Registers a method.
+    void RegisterMethod(const TMethodDescriptor& descriptor);
 
-    NLog::TLogger ServiceLogger;
-    IInvoker::TPtr ServiceInvoker;
+    //! Registers a method with a supplied custom invoker.
+    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker);
 
 private:
-    struct TMethodInfo
-        : public TRefCountedBase
+    struct TRuntimeMethodInfo
     {
-        typedef TIntrusivePtr<TMethodInfo> TPtr;
+        TMethodDescriptor Descriptor;
+        IInvoker::TPtr Invoker;
+        TMetric ExecutionTime;
 
-        THandler::TPtr Handler;
-        TMetric ExecutionTimeAnalyzer;
-
-        TMethodInfo(THandler::TPtr handler)
-            : Handler(handler)
-            , ExecutionTimeAnalyzer(0, 1000, 10) // TODO: think about initial values
+        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker::TPtr invoker)
+            : Descriptor(info)
+            , Invoker(invoker)
+            // TODO: configure properly
+            , ExecutionTime(0, 1000, 10)
         { }
     };
 
-    typedef yhash_map<Stroka, TMethodInfo::TPtr> TMethodInfoMap;
+    struct TActiveRequest
+    {
+        TActiveRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
+            : RuntimeInfo(runtimeInfo)
+            , StartTime(startTime)
+        {
+            YASSERT(runtimeInfo != NULL);
+        }
 
+        TRuntimeMethodInfo* RuntimeInfo;
+        TInstant StartTime;
+    };
+    
+    IInvoker::TPtr DefaultServiceInvoker;
     Stroka ServiceName;
-    TMethodInfoMap MethodInfos;
+    NLog::TLogger ServiceLogger;
+
+    //! Protects #RuntimeMethodInfos and #OutstandingRequests.
+    TSpinLock SpinLock;
+    yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
+    yhash_map<TServiceContext::TPtr, TActiveRequest> ActiveRequests;
 
     virtual void OnBeginRequest(TServiceContext::TPtr context);
     virtual void OnEndRequest(TServiceContext::TPtr context);
@@ -357,7 +421,7 @@ private:
 #define RPC_SERVICE_METHOD_IMPL(type, method) \
     void type::method##Thunk(::NYT::NRpc::TServiceContext::TPtr context) \
     { \
-        TCtx##method::TPtr typedContext = New<TCtx##method>(context); \
+        auto typedContext = New<TCtx##method>(context); \
         method( \
             &typedContext->Request(), \
             &typedContext->Response(), \
@@ -369,9 +433,10 @@ private:
         TCtx##method::TTypedResponse* response, \
         TCtx##method::TPtr context)
 
-#define RPC_REGISTER_METHOD(type, method) \
-    RegisterHandler(#method, FromMethod(&type::method##Thunk, this))
+#define RPC_SERVICE_METHOD_DESC(method) \
+    TMethodDescriptor(#method, FromMethod(&TThis::method##Thunk, this)) \
 
+// TODO: not used, consider dropping
 #define USE_RPC_SERVICE_METHOD_LOGGER() \
     ::NYT::NLog::TPrefixLogger Logger( \
         ServiceLogger, \

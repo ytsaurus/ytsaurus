@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../actions/async_result.h"
+#include "../actions/future.h"
 #include "../misc/assert.h"
 
 #include <util/system/yield.h>
@@ -49,7 +49,7 @@ public:
 protected:
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
-    typedef typename TAsyncResult<TValuePtr>::TPtr TAsyncResultPtr;
+    typedef typename TFuture<TValuePtr>::TPtr TFuturePtr;
 
     class TInsertCookie
     {
@@ -57,25 +57,26 @@ protected:
         TInsertCookie(const TKey& key);
         ~TInsertCookie();
 
-        TAsyncResultPtr GetAsyncResult() const;
+        TFuturePtr GetAsyncResult() const;
         TKey GetKey() const;
         bool IsActive() const;
+        void Cancel();
+        void EndInsert(TValuePtr value);
 
     private:
         friend class TCacheBase;
 
         TKey Key;
         TPtr Cache;
-        TAsyncResultPtr AsyncResult;
+        TFuturePtr AsyncResult;
         bool Active;
 
     };
 
     TCacheBase();
 
-    TAsyncResultPtr Lookup(const TKey& key);
+    TFuturePtr Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
-    void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
 
@@ -91,7 +92,15 @@ private:
     struct TItem
         : public TIntrusiveListItem<TItem>
     {
-        TAsyncResultPtr AsyncResult;
+        TItem()
+            : AsyncResult(New< TFuture<TValuePtr> >())
+        { }
+
+        explicit TItem(const TValuePtr& value)
+            : AsyncResult(New< TFuture<TValuePtr> >(value))
+        { }
+
+        TFuturePtr AsyncResult;
     };
 
     TSpinLock SpinLock;
@@ -105,6 +114,7 @@ private:
     TItemList LruList;
     i32 LruListSize;
 
+    void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key);
     void Touch(TItem* item); // thread-unsafe
     void Unregister(const TKey& key);

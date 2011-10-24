@@ -1,9 +1,6 @@
 #pragma once
 
-#include "common.h"
-
-#include <util/stream/str.h>
-#include <util/autoarray.h>
+#include "../ytree/ytree_fwd.h"
 
 namespace NYT {
 
@@ -21,125 +18,54 @@ namespace NYT {
 class TRefCountedTracker
     : private TNonCopyable
 {
-private:
+public:
     typedef const std::type_info* TKey;
+
+private:
     struct TItem
     {
         TKey Key;
         TAtomic AliveObjects;
-        TAtomic TotalObjects;
+        TAtomic CreatedObjects;
 
-        TItem()
-            : Key(NULL)
+        TItem(TKey key)
+            : Key(key)
             , AliveObjects(0)
-            , TotalObjects(0)
+            , CreatedObjects(0)
         { }
     };
 
-    static const int HashTableSize = 1009; // 1009 is a prime number
+public:
+    typedef TItem* TCookie;
 
-    typedef autoarray<TItem> TStatisticsMap;
+    static TCookie Lookup(TKey key);
 
-    // search for key in Table
-    // inserts under spinlock if not found
-    TItem* Lookup(TKey key)
+    static inline void Register(TCookie cookie)
     {
-        ui32 hash = THash<TKey>()(key) % HashTableSize;
-        TItem* begin = Table.begin();
-        TItem* current = begin + hash;
-        TItem* end = Table.end();
-
-        // iterate until find an appropriate cell
-        for (;;) {
-            if (current->Key == key) {
-                return current;
-            }
-            if (EXPECT_FALSE(current->Key == NULL)) {
-                current->Key = key;
-                return current;
-            }
-            ++current;
-            if (EXPECT_FALSE(current == end)) {
-                current = begin;
-            }
-        }
+        AtomicIncrement(cookie->AliveObjects);
+        AtomicIncrement(cookie->CreatedObjects);
     }
 
-    // Comparers
-    struct TByAliveObjects
+    static inline void Unregister(TCookie cookie)
     {
-        inline bool operator()(
-            const TItem& lhs,
-            const TItem& rhs) const
-        {
-            return lhs.AliveObjects > rhs.AliveObjects;
-        }
-    };
+        AtomicDecrement(cookie->AliveObjects);
+    }
 
-    struct TByTotalObjects
-    {
-        inline bool operator()(
-            const TItem& lhs,
-            const TItem& rhs) const
-        {
-            return lhs.TotalObjects > rhs.TotalObjects;
-        }
-    };
-
-    struct TByName
-    {
-        inline bool operator()(
-            const TItem& lhs,
-            const TItem& rhs) const
-        {
-            return TCharTraits<char>::Compare(lhs.Key->name(), rhs.Key->name()) < 0;
-        }
-    };
+    static Stroka GetDebugInfo(int sortByColumn = -1);
+    static void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+    static i64 GetAliveObjects(TKey key);
+    static i64 GetCreatedObjects(TKey key);
 
 private:
-    TSpinLock SpinLock;
-    TStatisticsMap Table;
+    static yvector<TItem> GetItems();
+    static void SortItems(yvector<TItem>& items, int sortByColumn);
 
-public:
-    TRefCountedTracker()
-        : Table(HashTableSize)
-    { }
-
-    static TRefCountedTracker* Get()
-    {
-        return Singleton<TRefCountedTracker>();
-    }
-
-    void Increment(TKey typeInfo)
-    {
-        TItem* it;
-        it = Lookup(typeInfo);
-
-        if (EXPECT_FALSE(it == NULL)) {
-            TGuard<TSpinLock> guard(SpinLock);
-            it = Lookup(typeInfo);
-        }
-
-        AtomicIncrement(it->AliveObjects);
-        AtomicIncrement(it->TotalObjects);
-    }
-
-    void Decrement(TKey typeInfo)
-    {
-        TItem* it = Lookup(typeInfo);
-        AtomicDecrement(it->AliveObjects);
-    }
-
-public:
-    unsigned int GetAliveObjects(const std::type_info& typeInfo);
-    unsigned int GetTotalObjects(const std::type_info& typeInfo);
-
-    yvector<TItem> GetItems();
-    Stroka GetDebugInfo(int sortByColumn = -1);
+    typedef yhash_map<TKey, TItem> TStatistics; 
+    static TSpinLock SpinLock;
+    static TStatistics Statistics;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "master_connector.h"
 
 #include <util/system/hostname.h>
@@ -6,6 +7,7 @@
 #include "../meta_state/cell_channel.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -21,17 +23,19 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(
     const TConfig& config,
     TChunkStore::TPtr chunkStore,
+    TSessionManager::TPtr sessionManager,
     TReplicator::TPtr replicator,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
+    , SessionManager(sessionManager)
     , Replicator(replicator)
     , ServiceInvoker(serviceInvoker)
     , Registered(false)
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    NRpc::IChannel::TPtr channel = ~New<TCellChannel>(Config.Masters);
+    NRpc::IChannel::TPtr channel = ~New<NMetaState::TCellChannel>(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);
@@ -43,9 +47,9 @@ TMasterConnector::TMasterConnector(
         &TMasterConnector::OnChunkRemoved,
         TPtr(this)));
 
-    LOG_INFO("Chunk holder address is %s, master addresses are %s",
+    LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~Address,
-        ~Config.Masters.ToString());
+        ~JoinToString(Config.Masters.Addresses));
 
     OnHeartbeat();
 }
@@ -70,7 +74,7 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
     
-    auto statistics = ChunkStore->GetStatistics();
+    auto statistics = ComputeStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     request->SetAddress(Address);
@@ -81,6 +85,25 @@ void TMasterConnector::SendRegister()
 
     LOG_INFO("Register request sent (%s)",
         ~statistics.ToString());
+}
+
+THolderStatistics TMasterConnector::ComputeStatistics()
+{
+    THolderStatistics result;
+
+    FOREACH(const auto& location, ChunkStore->GetLocations()) {
+        result.AvailableSpace += location->GetAvailableSpace();
+        result.UsedSpace += location->GetUsedSpace();
+    }
+
+    if (Config.MaxChunksSpace >= 0) {
+        result.AvailableSpace = Max((i64) 0, Config.MaxChunksSpace - result.UsedSpace);
+    }
+
+    result.ChunkCount = ChunkStore->GetChunkCount();
+    result.SessionCount = SessionManager->GetSessionCount();
+
+    return result;
 }
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
@@ -110,7 +133,7 @@ void TMasterConnector::SendHeartbeat()
     YASSERT(HolderId != InvalidHolderId);
     request->SetHolderId(HolderId);
 
-    auto statistics = ChunkStore->GetStatistics();
+    auto statistics = ComputeStatistics();
     *request->MutableStatistics() = statistics.ToProto();
 
     if (IncrementalHeartbeat) {
@@ -167,12 +190,14 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     ScheduleHeartbeat();
     
     EErrorCode errorCode = response->GetErrorCode();
-    if (errorCode != EErrorCode::OK) {
+    if (errorCode != NRpc::EErrorCode::OK) {
         LOG_WARNING("Error sending heartbeat to master (ErrorCode: %s)",
             ~response->GetErrorCode().ToString());
 
         // Don't panic upon getting TransportError or Unavailable.
-        if (errorCode != EErrorCode::TransportError && errorCode != EErrorCode::Unavailable) {
+        if (errorCode != NRpc::EErrorCode::TransportError && 
+            errorCode != NRpc::EErrorCode::Unavailable)
+        {
             OnDisconnected();
         }
 

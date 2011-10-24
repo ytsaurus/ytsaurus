@@ -2,7 +2,7 @@
 
 #include <util/generic/yexception.h>
 
-#include "framework/framework.h"
+#include <contrib/testing/framework.h>
 
 using ::testing::_;
 using ::testing::A;
@@ -50,7 +50,7 @@ TEST(TVerifyDeathTest, CrushForFalseExpression)
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(false, "Cheshire Cat")); },
-        "Assertion failed.*Cheshire Cat"
+        "Assertion.*Cheshire Cat"
     );
 }
 
@@ -62,7 +62,7 @@ TEST(TVerifyDeathTest, CrushForException)
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(true, "Cheshire Cat")); },
-        "Assertion failed.*Exception during verification"
+        "Assertion.*Exception was thrown while evaluating YVERIFY"
     );
 }
 

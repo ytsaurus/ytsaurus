@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "bus_client.h"
 #include "rpc.pb.h"
 #include "message_rearranger.h"
@@ -5,6 +6,7 @@
 
 #include "../actions/action_util.h"
 #include "../logging/log.h"
+#include "../misc/thread_affinity.h"
 
 #include <quality/NetLiba/UdpHttp.h>
 
@@ -20,7 +22,7 @@ namespace NBus {
 static NLog::TLogger& Logger = BusLogger;
 
 // TODO: make configurable
-static const int MaxRequestsPerCall = 100;
+static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
 static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
@@ -54,6 +56,8 @@ private:
     TRequestIdSet RequestIds;
     TRequestIdSet PingIds;
     THolder<TMessageRearranger> MessageRearranger;
+    //! Protects #Terminated.
+    TSpinLock SpinLock;
 
     void OnMessageDequeued(IMessage::TPtr message);
 
@@ -98,7 +102,7 @@ class TClientDispatcher
 
     static void* ThreadFunc(void* param)
     {
-        TClientDispatcher* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
+        auto* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
         dispatcher->ThreadMain();
         return NULL;
     }
@@ -106,12 +110,14 @@ class TClientDispatcher
     void ThreadMain()
     {
         while (!Terminated) {
-            if (!ProcessBusRegistrations() &&
-                !ProcessBusUnregistrations() &&
-                !ProcessRequests() &&
-                !ProcessNLRequests() &&
-                !ProcessNLResponses())
+            // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
+            if (!ProcessBusRegistrations() &
+                !ProcessBusUnregistrations() &
+                !ProcessOutcomingRequests() &
+                !ProcessIncomingNLRequests() &
+                !ProcessIncomingNLResponses())
             {
+                LOG_TRACE("Client is idle");
                 GetEvent().WaitT(ClientSleepQuantum);
             }
         }
@@ -119,6 +125,8 @@ class TClientDispatcher
 
     bool ProcessBusRegistrations()
     {
+        LOG_TRACE("Processing client bus registrations");
+
         bool result = false;
         TBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
@@ -130,6 +138,8 @@ class TClientDispatcher
 
     bool ProcessBusUnregistrations()
     {
+        LOG_TRACE("Processing client bus unregistrations");
+
         bool result = false;
         TBusClient::TBus::TPtr bus;
         while (BusUnregisterQueue.Dequeue(&bus)) {
@@ -151,11 +161,7 @@ class TClientDispatcher
     {
         BusMap.erase(bus->SessionId);
 
-        for (TBusClient::TBus::TRequestIdSet::iterator i = bus->RequestIds.begin();
-            i != bus->RequestIds.end();
-            ++i)
-        {
-            const TGuid& requestId = *i;
+        FOREACH(const auto& requestId, bus->RequestIds) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
@@ -164,11 +170,7 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
 
-        for (TBusClient::TBus::TRequestIdSet::iterator i = bus->PingIds.begin();
-            i != bus->PingIds.end();
-            ++i)
-        {
-            const TGuid& requestId = *i;
+        FOREACH(const TGuid& requestId, bus->PingIds) {
             Requester->SendResponse((TGUID) requestId, &ackData);
         }
         bus->PingIds.clear();
@@ -178,20 +180,23 @@ class TClientDispatcher
             ~bus);
     }
 
-    bool ProcessNLResponses()
+    bool ProcessIncomingNLResponses()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing incoming client NetLiba responses");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
             if (~nlResponse == NULL)
                 break;
-            result = true;
-            ProcessNLResponse(~nlResponse);
+            
+            ++callCount;
+            ProcessIncomingNLResponse(~nlResponse);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessNLResponse(TUdpHttpResponse* nlResponse)
+    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     {
         if (nlResponse->Ok != TUdpHttpResponse::OK)
         {
@@ -199,7 +204,7 @@ class TClientDispatcher
             return;
         }
 
-        TPacketHeader* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
+        auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
         if (header == NULL)
             return;
 
@@ -222,14 +227,14 @@ class TClientDispatcher
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
     {
         TGuid requestId = nlResponse->ReqId;
-        TRequestMap::iterator requestIt = RequestMap.find(requestId);
+        auto requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request failed (RequestId: %s)",
                 ~requestId.ToString());
             return;
         }
 
-        TRequest::TPtr request = requestIt->Second();
+        auto request = requestIt->Second();
 
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
             ~request->SessionId.ToString(),
@@ -239,22 +244,25 @@ class TClientDispatcher
         RequestMap.erase(requestIt);
     }
 
-    bool ProcessNLRequests()
+    bool ProcessIncomingNLRequests()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing incoming client NetLiba requests");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpRequest> nlRequest = Requester->GetRequest();
             if (~nlRequest == NULL)
                 break;
-            result = true;
-            ProcessNLRequest(~nlRequest);
+
+            ++callCount;
+            ProcessIncomingNLRequest(~nlRequest);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessNLRequest(TUdpHttpRequest* nlRequest)
+    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
     {
-        TPacketHeader* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
+        auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
         if (header == NULL)
             return;
 
@@ -278,7 +286,7 @@ class TClientDispatcher
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
         TGuid requestId = nlResponse->ReqId;
-        TRequestMap::iterator requestIt = RequestMap.find(requestId);
+        auto requestIt = RequestMap.find(requestId);
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("An obsolete request ack received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
@@ -309,7 +317,7 @@ class TClientDispatcher
     {
         int dataSize = data.ysize();
 
-        TBusMap::iterator busIt = BusMap.find(header->SessionId);
+        auto busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
                 ~header->SessionId.ToString(),
@@ -329,7 +337,7 @@ class TClientDispatcher
             ~requestId.ToString(),
             dataSize);
 
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
         bus->ProcessIncomingMessage(message, sequenceId);
 
         if (!isRequest) {
@@ -348,7 +356,7 @@ class TClientDispatcher
     void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest)
     {
         TGuid requestId = nlRequest->ReqId;
-        TBusMap::iterator busIt = BusMap.find(header->SessionId);
+        auto busIt = BusMap.find(header->SessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Ping for an obsolete session received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
@@ -366,26 +374,29 @@ class TClientDispatcher
             ~requestId.ToString());
 
         // Don't reply to a ping, just register it.
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
         bus->PingIds.insert(requestId);
     }
 
-    bool ProcessRequests()
+    bool ProcessOutcomingRequests()
     {
-        bool result = false;
-        for (int i = 0; i < MaxRequestsPerCall; ++i) {
+        LOG_TRACE("Processing outcoming client NetLiba requests");
+
+        int callCount = 0;
+        while (callCount < MaxNLCallsPerIteration) {
             TRequest::TPtr request;
             if (!RequestQueue.Dequeue(&request))
                 break;
-            result = true;
-            ProcessRequest(request);
+
+            ++callCount;
+            ProcessOutcomingRequest(request);
         }
-        return result;
+        return callCount > 0;
     }
 
-    void ProcessRequest(TRequest::TPtr request)
+    void ProcessOutcomingRequest(TRequest::TPtr request)
     {
-        TBusMap::iterator busIt = BusMap.find(request->SessionId);
+        auto busIt = BusMap.find(request->SessionId);
         if (busIt == BusMap.end()) {
             // Process all pending registrations and try once again.
             ProcessBusRegistrations();
@@ -399,7 +410,7 @@ class TClientDispatcher
             }
         }
 
-        TBusClient::TBus::TPtr bus = busIt->Second();
+        auto& bus = busIt->Second();
 
         TGuid requestId = Requester->SendRequest(bus->Client->ServerAddress, "", &request->Data);
 
@@ -423,8 +434,9 @@ public:
         , Terminated(false)
     {
         Requester = CreateHttpUdpRequester(0);
-        if (~Requester == NULL)
-            throw yexception() << "Failed to create a client dispatcher";
+        if (~Requester == NULL) {
+            throw yexception() << "Failed to create a client NetLiba requester";
+        }
 
         Thread.Start();
 
@@ -446,10 +458,10 @@ public:
         Terminated = true;
         Thread.Join();
 
-        // NB: This doesn't actually stop NetLiba threads
+        // NB: This doesn't actually stop NetLiba threads.
         Requester->StopNoWait();
 
-        // Consider moving somewhere else
+        // TODO: Consider moving somewhere else.
         StopAllNetLibaThreads();
 
         // NB: cannot use log here
@@ -457,14 +469,14 @@ public:
 
     IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage::TPtr message)
     {
-        TSequenceId sequenceId = bus->GenerateSequenceId();
+        auto sequenceId = bus->GenerateSequenceId();
 
         TBlob data;
         if (!EncodeMessagePacket(message, bus->SessionId, sequenceId, &data))
             throw yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
-        TRequest::TPtr request = New<TRequest>(bus->SessionId, &data);
+        auto request = New<TRequest>(bus->SessionId, &data);
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
@@ -498,7 +510,9 @@ public:
 
     Stroka GetDebugInfo()
     {
-        return "ClientDispatcher info:\n" + Requester->GetDebugInfo();
+        return
+            "ClientDispatcher info:\n" + Requester->GetDebugInfo() + "\n" +
+            "Pending data size: " + ToString(Requester->GetPendingDataSize());
     }
 };
 
@@ -508,6 +522,11 @@ public:
 void ShutdownClientDispatcher()
 {
     TClientDispatcher::Get()->Shutdown();
+}
+
+Stroka GetClientDispatcherDebugInfo()
+{
+    return TClientDispatcher::Get()->GetDebugInfo();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,17 +540,31 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
         FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     SessionId = TGuid::Create();
 }
 
 IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    // NB: We may actually need a barrier here but
+    // since Terminate is used for debugging purposes mainly, we omit it.
+    YASSERT(!Terminated);
+
     return TClientDispatcher::Get()->EnqueueRequest(this, message);
 }
 
 void TBusClient::TBus::Terminate()
 {
-    Terminated = true;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (Terminated)
+            return;
+
+        Terminated = true;
+    }
+
     MessageRearranger.Destroy();
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
 }
@@ -558,14 +591,21 @@ void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
 
 TBusClient::TBusClient(Stroka address)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     ServerAddress = CreateAddress(address, 0);
-    if (ServerAddress == TUdpAddress())
-        throw yexception() << "Failed to resolve the address " << address;
+    if (ServerAddress == TUdpAddress()) {
+        throw yexception() << Sprintf("Failed to resolve the address %s",
+            ~address.Quote());
+    }
 }
 
 IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
-    TBus::TPtr bus = New<TBus>(this, handler);
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~handler != NULL);
+
+    auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);
     return ~bus;
 }
