@@ -79,11 +79,12 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     auto beginGroupIt = holders.begin();
     while (beginGroupIt != holders.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
+        int groupSize = 0;
         while (endGroupIt != holders.end() && GetSessionCount(*(*beginGroupIt)) == GetSessionCount(*(*endGroupIt))) {
             ++endGroupIt;
+            ++groupSize;
         }
 
-        int groupSize = NStl::distance(beginGroupIt, endGroupIt);
         int sampleCount = Min(count, groupSize);
         NStl::random_sample_n(
             beginGroupIt,
