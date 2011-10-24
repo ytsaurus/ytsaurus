@@ -194,15 +194,15 @@ void TYsonReader::ParseAny()
     SkipWhitespaces();
     int ch = PeekChar();
     switch (ch) {
-        case '[':
+        case BeginListSymbol:
             ParseList();
             break;
 
-        case '{':
+        case BeginMapSymbol:
             ParseMap();
             break;
 
-        case '<':
+        case BeginAttributesSymbol:
             ParseEntity();
             break;
 
@@ -242,7 +242,7 @@ void TYsonReader::ParseAny()
 bool TYsonReader::HasAttributes()
 {
     SkipWhitespaces();
-    return PeekChar() == '<';
+    return PeekChar() == BeginAttributesSymbol;
 }
 
 void TYsonReader::ParseAttributesItem()
@@ -262,20 +262,21 @@ void TYsonReader::ParseAttributesItem()
 void TYsonReader::ParseAttributes()
 {
     SkipWhitespaces();
-    if (PeekChar() != '<')
+    if (PeekChar() != BeginAttributesSymbol)
         return;
-    YVERIFY(ReadChar() == '<');
+    YVERIFY(ReadChar() == BeginAttributesSymbol);
     Consumer->OnBeginAttributes();
     while (true) {
         SkipWhitespaces();
-        if (PeekChar() == '>')
+        if (PeekChar() == EndAttributesSymbol)
             break;
         ParseAttributesItem();
-        if (PeekChar() == '>')
+        SkipWhitespaces();
+        if (PeekChar() == EndAttributesSymbol)
             break;
         ExpectChar(MapItemSeparator);
     }
-    YVERIFY(ReadChar() == '>');
+    YVERIFY(ReadChar() == EndAttributesSymbol);
     Consumer->OnEndAttributes();
 }
 
@@ -287,18 +288,19 @@ void TYsonReader::ParseListItem()
 
 void TYsonReader::ParseList()
 {
-    YVERIFY(ReadChar() == '[');
+    YVERIFY(ReadChar() == BeginListSymbol);
     Consumer->OnBeginList();
     while (true) {
         SkipWhitespaces();
-        if (PeekChar() == ']')
+        if (PeekChar() == EndListSymbol)
             break;
         ParseListItem();
-        if (PeekChar() == ']')
+        SkipWhitespaces();
+        if (PeekChar() == EndListSymbol)
             break;
         ExpectChar(ListItemSeparator);
     }
-    YVERIFY(ReadChar() == ']');
+    YVERIFY(ReadChar() == EndListSymbol);
 
     if (HasAttributes()) {
         Consumer->OnEndList(true);
@@ -324,18 +326,19 @@ void TYsonReader::ParseMapItem()
 
 void TYsonReader::ParseMap()
 {
-    YVERIFY(ReadChar() == '{');
+    YVERIFY(ReadChar() == BeginMapSymbol);
     Consumer->OnBeginMap();
     while (true) {
         SkipWhitespaces();
-        if (PeekChar() == '}')
+        if (PeekChar() == EndMapSymbol)
             break;
         ParseMapItem();
-        if (PeekChar() == '}')
+        SkipWhitespaces();
+        if (PeekChar() == EndMapSymbol)
             break;
         ExpectChar(MapItemSeparator);
     }
-    YVERIFY(ReadChar() == '}');
+    YVERIFY(ReadChar() == EndMapSymbol);
 
     if (HasAttributes()) {
         Consumer->OnEndMap(true);

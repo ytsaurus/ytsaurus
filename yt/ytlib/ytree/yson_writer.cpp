@@ -125,13 +125,14 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
 void TYsonWriter::OnEntity(bool hasAttributes)
 {
     if (!hasAttributes) {
-        Stream->Write("<>");
+        Stream->Write(BeginAttributesSymbol);
+        Stream->Write(EndAttributesSymbol);
     }
 }
 
 void TYsonWriter::OnBeginList()
 {
-    BeginCollection('[');
+    BeginCollection(BeginListSymbol);
 }
 
 void TYsonWriter::OnListItem()
@@ -141,7 +142,7 @@ void TYsonWriter::OnListItem()
 
 void TYsonWriter::OnEndList(bool hasAttributes)
 {
-    EndCollection(']');
+    EndCollection(EndListSymbol);
     if (hasAttributes) {
         Stream->Write(' ');
     }
@@ -149,7 +150,7 @@ void TYsonWriter::OnEndList(bool hasAttributes)
 
 void TYsonWriter::OnBeginMap()
 {
-    BeginCollection('{');
+    BeginCollection(BeginMapSymbol);
 }
 
 void TYsonWriter::OnMapItem(const Stroka& name)
@@ -159,7 +160,7 @@ void TYsonWriter::OnMapItem(const Stroka& name)
 
 void TYsonWriter::OnEndMap(bool hasAttributes)
 {
-    EndCollection('}');
+    EndCollection(EndMapSymbol);
     if (hasAttributes) {
         Stream->Write(' ');
     }
@@ -167,7 +168,7 @@ void TYsonWriter::OnEndMap(bool hasAttributes)
 
 void TYsonWriter::OnBeginAttributes()
 {
-    BeginCollection('<');
+    BeginCollection(BeginAttributesSymbol);
 }
 
 void TYsonWriter::OnAttributesItem(const Stroka& name)
@@ -177,7 +178,7 @@ void TYsonWriter::OnAttributesItem(const Stroka& name)
 
 void TYsonWriter::OnEndAttributes()
 {
-    EndCollection('>');
+    EndCollection(EndAttributesSymbol);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
