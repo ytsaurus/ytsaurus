@@ -41,7 +41,7 @@ void TDelayedInvoker::ThreadMain()
                 Entries.erase(Entries.begin());
             }
 
-            LOG_DEBUG("Running task %p", ~entry);
+            LOG_TRACE("Running task %p", ~entry);
             entry->Action->Do();
         }
         Sleep(SleepQuantum);
@@ -80,7 +80,7 @@ TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TInstant 
 {
     TEntry::TPtr entry = New<TEntry>(action, deadline);
 
-    LOG_DEBUG("Submitted task %p with action %p for %s",
+    LOG_TRACE("Submitted task %p with action %p for %s",
         ~entry,
         ~action,
         ~entry->Deadline.ToString());
@@ -98,7 +98,7 @@ bool TDelayedInvoker::Cancel(TCookie cookie)
         TGuard<TSpinLock> guard(SpinLock);
         result = Entries.erase(cookie) != 0;
     }
-    LOG_DEBUG_IF(result, "Task %p is canceled", ~cookie);
+    LOG_TRACE_IF(result, "Task %p is canceled", ~cookie);
     return result;
 }
 
