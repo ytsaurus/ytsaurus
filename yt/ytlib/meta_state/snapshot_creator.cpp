@@ -47,6 +47,7 @@ public:
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
             request->SetEpoch(Creator->Epoch.ToProto());
+            request->SetCreateSnapshot(true);
 
             Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
                 &TSession::OnRemote,

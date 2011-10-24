@@ -106,6 +106,7 @@ message TReqAdvanceSegment
     required int32 SegmentId = 1;
     required int32 RecordCount = 2;
     required bytes Epoch = 3;
+    required bool CreateSnapshot = 4;
 }
 
 message TRspAdvanceSegment
