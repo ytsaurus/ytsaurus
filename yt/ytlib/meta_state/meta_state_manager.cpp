@@ -147,6 +147,7 @@ private:
 
         // Propagating AdvanceSegment
         auto version = MetaState->GetVersion();
+        MetaState->RotateChangeLog();
         if (version.RecordCount > 0) {
             for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
                 if (peerId == CellManager->GetSelfId()) continue;
