@@ -21,7 +21,7 @@ SET(YT_SOURCE_FILES
     semaphore.cpp
     guid.cpp
     assert.h
-    ptr.h
+    ref.h
     string.h
     foreach.h
     thread_affinity.h
@@ -30,6 +30,7 @@ SET(YT_SOURCE_FILES
     property.h
     ref_counted_base.h
     intrusive_ptr.h
+    singleton.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

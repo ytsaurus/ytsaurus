@@ -3,7 +3,9 @@
 #include "action.h"
 #include "invoker.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
+#include "../misc/new.h"
+#include "../misc/ref_counted_base.h"
 #include "../misc/foreach.h"
 
 namespace NYT {

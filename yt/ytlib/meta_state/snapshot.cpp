@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "snapshot.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 #include "../misc/fs.h"
 #include "../misc/serialize.h"
 

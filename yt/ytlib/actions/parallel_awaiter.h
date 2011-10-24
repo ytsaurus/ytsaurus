@@ -3,7 +3,7 @@
 #include "future.h"
 #include "invoker_util.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 
 namespace NYT {
 

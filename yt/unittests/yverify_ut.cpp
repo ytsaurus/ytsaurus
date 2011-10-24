@@ -34,7 +34,7 @@ public:
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
-TEST(TVerifyDeathTest, NoCrushForTruthExpression)
+TEST(TVerifyDeathTest, NoCrashForTruthExpression)
 {
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _))
@@ -44,7 +44,7 @@ TEST(TVerifyDeathTest, NoCrushForTruthExpression)
     SUCCEED();
 }
 
-TEST(TVerifyDeathTest, CrushForFalseExpression)
+TEST(TVerifyDeathTest, CrashForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
 
@@ -54,7 +54,7 @@ TEST(TVerifyDeathTest, CrushForFalseExpression)
     );
 }
 
-TEST(TVerifyDeathTest, CrushForException)
+TEST(TVerifyDeathTest, CrashForException)
 {
     NiceMock<TMockCallee> callee;
     ON_CALL(callee, F(A<bool>(), _))

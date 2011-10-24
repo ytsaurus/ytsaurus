@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../misc/ptr.h"
+#include "../misc/ref.h"
 
 namespace NYT {
 namespace NMetaState {

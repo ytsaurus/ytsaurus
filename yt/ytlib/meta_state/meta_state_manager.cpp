@@ -138,6 +138,69 @@ private:
     void OnLeaderRecoveryComplete(TRecovery::EResult result);
     void OnFollowerRecoveryComplete(TRecovery::EResult result);
 
+    void DoLeaderRecoveryComplete(const TEpoch& epoch)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
+        StateStatus = EPeerStatus::Leading;
+
+        // Propagating AdvanceSegment
+        auto version = MetaState->GetVersion();
+        if (version.RecordCount > 0) {
+            for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
+                if (peerId == CellManager->GetSelfId()) continue;
+                LOG_DEBUG("Requesting peer %d to advance segment",
+                    peerId);
+
+                auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+                auto request = proxy->AdvanceSegment();
+                request->SetSegmentId(version.SegmentId);
+                request->SetRecordCount(version.RecordCount);
+                request->SetEpoch(epoch.ToProto());
+                request->SetCreateSnapshot(false);
+                request->Invoke()->Subscribe(
+                    FromMethod(&TImpl::OnRemoteAdvanceSegment, TPtr(this), peerId, version));
+            }
+        }
+    
+        OnRecoveryComplete_.Fire();
+    }
+
+    void OnRemoteAdvanceSegment(
+        TProxy::TRspAdvanceSegment::TPtr response,
+        TPeerId peerId,
+        TMetaVersion version)
+    {
+        if (response->IsOK()) {
+            LOG_DEBUG("Follower advanced segment successfully (follower: %d, version: %s)",
+                peerId,
+                ~version.ToString());
+        } else {
+            LOG_WARNING("Error advancing segment on follower (follower: %d, version: %s, error: %s)",
+                peerId,
+                ~version.ToString(),
+                ~response->GetErrorCode().ToString());
+        }
+    }
+
+    void DoAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        if (MetaState->GetVersion() != version) {
+            Restart();
+            throw TServiceException(EErrorCode::InvalidVersion) <<
+                Sprintf("Invalid version, segment advancement canceled: expected %s, found %s",
+                    ~version.ToString(),
+                    ~MetaState->GetVersion().ToString());
+        }
+
+        MetaState->RotateChangeLog();
+
+        context->Reply();
+    }
+
     void OnLocalCommit(
         TLeaderCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
@@ -162,7 +225,6 @@ private:
 
 
     void DoStartLeading();
-    void DoLeaderRecoveryComplete();
     void DoStopLeading();
 
     void DoStartFollowing();
@@ -734,10 +796,12 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     i32 segmentId = request->GetSegmentId();
     i32 recordCount = request->GetRecordCount();
     TMetaVersion version(segmentId, recordCount);
+    bool createSnapshot = request->GetCreateSnapshot();
 
-    context->SetRequestInfo("Epoch: %s, Version: %s",
+    context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
         ~epoch.ToString(),
-        ~version.ToString());
+        ~version.ToString(),
+        createSnapshot ? "True" : "False");
 
     if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
@@ -754,15 +818,22 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
 
     switch (GetControlStatus()) {
         case EPeerStatus::Following:
-            LOG_DEBUG("CreateSnapshot: creating snapshot");
+            if (createSnapshot) {
+                LOG_DEBUG("CreateSnapshot: creating snapshot");
+    
+                FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
+                    ->AsyncVia(GetStateInvoker())
+                    ->Do()
+                    ->Subscribe(FromMethod(
+                        &TThis::OnCreateLocalSnapshot,
+                        TPtr(this),
+                        context));
+            } else {
+                LOG_DEBUG("Advancing segment");
 
-            FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
-                ->AsyncVia(GetStateInvoker())
-                ->Do()
-                ->Subscribe(FromMethod(
-                    &TThis::OnCreateLocalSnapshot,
-                    TPtr(this),
-                    context));
+                GetStateInvoker()->Invoke(
+                    FromMethod(&TImpl::DoAdvanceSegment, TPtr(this), context, version));
+            }
             break;
             
         case EPeerStatus::FollowerRecovery: {
@@ -774,7 +845,12 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 Restart();
             }
 
-            context->Reply(TProxy::EErrorCode::InvalidStatus);
+            if (createSnapshot) {
+                context->Reply(EErrorCode::InvalidStatus);
+            } else {
+                context->Reply();
+            }
+
             break;
         }
 
@@ -938,7 +1014,8 @@ void TMetaStateManager::TImpl::OnLeaderRecoveryComplete(TRecovery::EResult resul
 
     GetStateInvoker()->Invoke(FromMethod(
         &TThis::DoLeaderRecoveryComplete,
-        TPtr(this)));
+        TPtr(this),
+        Epoch));
 
     YASSERT(~FollowerTracker == NULL);
     FollowerTracker = New<TFollowerTracker>(
@@ -972,16 +1049,6 @@ void TMetaStateManager::TImpl::OnLeaderRecoveryComplete(TRecovery::EResult resul
     ControlStatus = EPeerStatus::Leading;
 
     LOG_INFO("Leader recovery complete");
-}
-
-void TMetaStateManager::TImpl::DoLeaderRecoveryComplete()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
-    StateStatus = EPeerStatus::Leading;
-
-    OnRecoveryComplete_.Fire();
 }
 
 void TMetaStateManager::TImpl::OnStopLeading()

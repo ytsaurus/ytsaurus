@@ -3,6 +3,8 @@
 #include "action.h"
 #include "action_util.h"
 
+#include "../misc/singleton.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,7 +57,7 @@ public:
             // We shall reuse the cached copy but for sanity's sake let's
             // check that the content is the same.
             auto block = cookie.GetAsyncResult()->Get();
-            if (!CompareMemory(data, block->GetData())) {
+            if (!TRef::CompareContent(data, block->GetData())) {
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists (BlockId: %s)",
                     ~blockId.ToString());
             }

@@ -2,7 +2,7 @@
 
 #include "meta_state_manager.pb.h"
 
-#include "../misc/ptr.h"
+#include "../misc/ref.h"
 
 namespace NYT {
 namespace NMetaState {

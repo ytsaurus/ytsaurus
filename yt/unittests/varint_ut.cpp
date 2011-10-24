@@ -24,7 +24,7 @@ TEST_P(TWriteVarIntTest, Serialization)
     Stroka rightAnswer = get<1>(GetParam());
 
     TStringStream outputStream;
-    WriteVarUInt64(value, &outputStream);
+    WriteVarUInt64(&outputStream, value);
     EXPECT_EQ(rightAnswer, outputStream.Str());
 }
 
@@ -40,7 +40,7 @@ TEST_P(TReadVarIntTest, Serialization)
 
     TStringInput inputStream(input);
     ui64 value;
-    ReadVarUInt64(&value, &inputStream);
+    ReadVarUInt64(&inputStream, &value);
     EXPECT_EQ(rightAnswer, value);
 }
 
@@ -49,7 +49,7 @@ TEST(TReadVarIntTest, Overflow)
     Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
     TStringInput inputStream(input);
     ui64 value;
-    EXPECT_THROW(ReadVarUInt64(&value, &inputStream), yexception);
+    EXPECT_THROW(ReadVarUInt64(&inputStream, &value), yexception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,9 +102,9 @@ TEST(TVarInt32Test, RandomValues)
     TStringStream stream;
     for (int i = 0; i < numberOfValues; ++i) {
         i32 expected = static_cast<i32>(RandomNumber<ui32>());
-        WriteVarInt32(expected, &stream);
+        WriteVarInt32(&stream, expected);
         i32 actual;
-        ReadVarInt32(&actual, &stream);
+        ReadVarInt32(&stream, &actual);
         EXPECT_EQ(expected, actual)
             << "Encoded Variant: " << EscapeC(stream.Str());
     }
@@ -120,9 +120,9 @@ TEST(TVarInt64Test, RandomValues)
     TStringStream stream;
     for (int i = 0; i < numberOfValues; ++i) {
         i64 expected = static_cast<i64>(RandomNumber<ui64>());
-        WriteVarInt64(expected, &stream);
+        WriteVarInt64(&stream, expected);
         i64 actual;
-        ReadVarInt64(&actual, &stream);
+        ReadVarInt64(&stream, &actual);
         EXPECT_EQ(expected, actual)
             << "Encoded Variant: " << EscapeC(stream.Str());
     }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ptr.h"
+#include "common.h"
 
 #include <util/generic/ptr.h>
 #include <util/system/spinlock.h>

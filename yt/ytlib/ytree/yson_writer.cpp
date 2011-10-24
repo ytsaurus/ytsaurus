@@ -30,7 +30,7 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
 {
     if (IsBinary) {
         Stream->Write(StringMarker);
-        WriteVarInt32(static_cast<i32>(value.length()), Stream);
+        WriteVarInt32(Stream, static_cast<i32>(value.length()));
         Stream->Write(&value, value.length());
     } else {
         // TODO: escaping
@@ -99,7 +99,7 @@ void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
     UNUSED(hasAttributes);
     if (IsBinary) {
         Stream->Write(Int64Marker);
-        WriteVarInt64(value, Stream);
+        WriteVarInt64(Stream, value);
     } else {
         Stream->Write(ToString(value));
     }
@@ -125,13 +125,14 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
 void TYsonWriter::OnEntity(bool hasAttributes)
 {
     if (!hasAttributes) {
-        Stream->Write("<>");
+        Stream->Write(BeginAttributesSymbol);
+        Stream->Write(EndAttributesSymbol);
     }
 }
 
 void TYsonWriter::OnBeginList()
 {
-    BeginCollection('[');
+    BeginCollection(BeginListSymbol);
 }
 
 void TYsonWriter::OnListItem()
@@ -141,7 +142,7 @@ void TYsonWriter::OnListItem()
 
 void TYsonWriter::OnEndList(bool hasAttributes)
 {
-    EndCollection(']');
+    EndCollection(EndListSymbol);
     if (hasAttributes) {
         Stream->Write(' ');
     }
@@ -149,7 +150,7 @@ void TYsonWriter::OnEndList(bool hasAttributes)
 
 void TYsonWriter::OnBeginMap()
 {
-    BeginCollection('{');
+    BeginCollection(BeginMapSymbol);
 }
 
 void TYsonWriter::OnMapItem(const Stroka& name)
@@ -159,7 +160,7 @@ void TYsonWriter::OnMapItem(const Stroka& name)
 
 void TYsonWriter::OnEndMap(bool hasAttributes)
 {
-    EndCollection('}');
+    EndCollection(EndMapSymbol);
     if (hasAttributes) {
         Stream->Write(' ');
     }
@@ -167,7 +168,7 @@ void TYsonWriter::OnEndMap(bool hasAttributes)
 
 void TYsonWriter::OnBeginAttributes()
 {
-    BeginCollection('<');
+    BeginCollection(BeginAttributesSymbol);
 }
 
 void TYsonWriter::OnAttributesItem(const Stroka& name)
@@ -177,7 +178,7 @@ void TYsonWriter::OnAttributesItem(const Stroka& name)
 
 void TYsonWriter::OnEndAttributes()
 {
-    EndCollection('>');
+    EndCollection(EndAttributesSymbol);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

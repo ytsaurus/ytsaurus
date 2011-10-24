@@ -3,6 +3,8 @@
 #include "common.h"
 #include "pattern.h"
 
+#include "../misc/ref_counted_base.h"
+
 #include <util/system/file.h>
 #include <util/stream/file.h>
 
