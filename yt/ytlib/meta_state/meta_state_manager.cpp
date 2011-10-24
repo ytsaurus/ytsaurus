@@ -147,19 +147,21 @@ private:
 
         // Propagating AdvanceSegment
         auto version = MetaState->GetVersion();
-        for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-            if (peerId == CellManager->GetSelfId()) continue;
-            LOG_DEBUG("Requesting peer %d to advance segment",
-                peerId);
+        if (version.RecordCount > 0) {
+            for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
+                if (peerId == CellManager->GetSelfId()) continue;
+                LOG_DEBUG("Requesting peer %d to advance segment",
+                    peerId);
 
-            auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-            auto request = proxy->AdvanceSegment();
-            request->SetSegmentId(version.SegmentId);
-            request->SetRecordCount(version.RecordCount);
-            request->SetEpoch(epoch.ToProto());
-            request->SetCreateSnapshot(false);
-            request->Invoke()->Subscribe(
-                FromMethod(&TImpl::OnRemoteAdvanceSegment, TPtr(this), peerId, version));
+                auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+                auto request = proxy->AdvanceSegment();
+                request->SetSegmentId(version.SegmentId);
+                request->SetRecordCount(version.RecordCount);
+                request->SetEpoch(epoch.ToProto());
+                request->SetCreateSnapshot(false);
+                request->Invoke()->Subscribe(
+                    FromMethod(&TImpl::OnRemoteAdvanceSegment, TPtr(this), peerId, version));
+            }
         }
     
         OnRecoveryComplete_.Fire();
