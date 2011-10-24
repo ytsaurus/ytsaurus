@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../actions/future.h"
+#include "../misc/ref.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

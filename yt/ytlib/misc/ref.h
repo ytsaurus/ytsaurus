@@ -1,53 +1,9 @@
 #pragma once
 
-#include "ref_counted_base.h"
-#include "new.h"
-
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template<class T>
-void RefCountedSingletonDestroyer(void* ctx)
-{
-    T** obj = reinterpret_cast<T**>(ctx);
-    (*obj)->UnRef();
-    *obj = reinterpret_cast<T*>(-1);
-}
-
-template<class T>
-TIntrusivePtr<T> RefCountedSingleton()
-{
-    static T* volatile instance;
-
-    YASSERT(instance != reinterpret_cast<T*>(-1));
-
-    if (EXPECT_TRUE(instance != NULL)) {
-        return instance;
-    }
-
-    static TSpinLock spinLock;
-    TGuard<TSpinLock> guard(spinLock);
-
-    if (instance != NULL) {
-        return instance;
-    }
-
-    T* obj = new T();
-    obj->Ref();
-
-    instance = obj;
-
-    AtExit(
-        RefCountedSingletonDestroyer<T>,
-        const_cast<T**>(&instance),
-        TSingletonTraits<T>::Priority);
-
-    return instance;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +76,15 @@ public:
     bool operator != (const TRef& other) const
     {
         return !(*this == other);
+    }
+
+    static inline bool CompareContent(const TRef& lhs, const TRef& rhs)
+    {
+        if (lhs.Size() != rhs.Size())
+            return false;
+        if (lhs.Size() == 0)
+            return true;
+        return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
     }
 
 private:
@@ -207,16 +172,6 @@ private:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-inline bool CompareMemory(const TRef& lhs, const TRef& rhs)
-{
-    if (lhs.Size() != rhs.Size())
-        return false;
-    if (lhs.Size() == 0)
-        return true;
-    return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

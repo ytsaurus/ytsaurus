@@ -1,7 +1,9 @@
 #define ENABLE_REF_COUNTED_TRACKING
 
-#include "../ytlib/misc/ptr.h"
+#include "../ytlib/misc/common.h"
 #include "../ytlib/misc/ref_counted_tracker.h"
+#include "../ytlib/misc/ref_counted_base.h"
+#include "../ytlib/misc/new.h"
 
 #include <contrib/testing/framework.h>
 

@@ -3,7 +3,7 @@
 #include "common.h"
 #include "chunk_reader.h"
 
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 #include "../misc/lazy_ptr.h"
 #include "../misc/enum.h"
 #include "../misc/thread_affinity.h"

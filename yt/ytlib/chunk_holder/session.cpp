@@ -216,7 +216,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        if (CompareMemory(slot.Block->GetData(), data)) {
+        if (TRef::CompareContent(slot.Block->GetData(), data)) {
             LOG_WARNING("Block has been already received (BlockId: %s)",
                 ~blockId.ToString());
             return;

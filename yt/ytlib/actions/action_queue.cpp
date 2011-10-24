@@ -2,7 +2,7 @@
 #include "action_queue.h"
 
 #include "../logging/log.h"
-#include "../misc/ptr.h"
+#include "../misc/common.h"
 
 namespace NYT {
 

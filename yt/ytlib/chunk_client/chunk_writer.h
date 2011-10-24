@@ -3,7 +3,7 @@
 #include "../misc/common.h"
 #include "../misc/assert.h"
 #include "../misc/enum.h"
-#include "../misc/ptr.h"
+#include "../misc/ref.h"
 #include "../actions/future.h"
 
 namespace NYT

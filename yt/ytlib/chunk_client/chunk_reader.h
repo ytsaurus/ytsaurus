@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/ptr.h"
+#include "../misc/ref.h"
 #include "../actions/future.h"
 #include "../misc/enum.h"
 
