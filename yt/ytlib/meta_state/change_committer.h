@@ -125,7 +125,8 @@ private:
     TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
     TResult::TPtr BatchChange(
         const TMetaVersion& version,
-        const TSharedRef& changeData);
+        const TSharedRef& changeData,
+        TFuture<TVoid>::TPtr changeLogResult);
     void FlushCurrentBatch();
 
     TConfig Config;

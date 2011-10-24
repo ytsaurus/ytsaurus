@@ -265,9 +265,8 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     TResult::TPtr result;
     switch (mode) {
         case ECommitMode::NeverFails: {
-            result = BatchChange(version, changeData);
-            // TODO: handle result
-            MetaState->LogChange(version, changeData);
+            auto logResult = MetaState->LogChange(version, changeData);
+            result = BatchChange(version, changeData, logResult);
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
@@ -290,9 +289,8 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
                     ~CurrentExceptionMessage());
                 throw;
             }
-            result = BatchChange(version, changeData);
-            // TODO: handle result
-            MetaState->LogChange(version, changeData);
+            auto logResult = MetaState->LogChange(version, changeData);
+            result = BatchChange(version, changeData, logResult);
             OnApplyChange_.Fire();
             break;
         }
@@ -309,11 +307,13 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
     const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const TSharedRef& changeData,
+    TFuture<TVoid>::TPtr changeLogResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock);
     auto batch = GetOrCreateBatch(version);
     auto result = batch->AddChange(changeData);
+    batch->SetLastChangeLogResult(changeLogResult);
     if (batch->GetChangeCount() >= Config.MaxBatchSize) {
         FlushCurrentBatch();
     }
