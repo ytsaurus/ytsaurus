@@ -108,8 +108,8 @@ public:
                 Awaiter->Await(
                     request->Invoke(Committer->Config.RpcTimeout),
                     FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
-
-            LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
+                LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
+            }
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
