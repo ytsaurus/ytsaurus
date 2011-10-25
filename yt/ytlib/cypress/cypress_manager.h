@@ -104,6 +104,7 @@ private:
 
     private:
         TCypressManager::TPtr CypressManager;
+
     };
     
     TTransactionManager::TPtr TransactionManager;

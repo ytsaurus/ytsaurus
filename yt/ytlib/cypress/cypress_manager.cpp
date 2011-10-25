@@ -635,7 +635,7 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input
         value = new TListNode(id);
         break;
     default:
-        value = CypressManager->CreateDynamicNode(type, id);
+        //value = CypressManager->CreateDynamicNode(type, id);
         break;
     }
     value->Load(input);

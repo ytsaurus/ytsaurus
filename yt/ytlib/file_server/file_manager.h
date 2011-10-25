@@ -40,7 +40,7 @@ private:
 
     TCypressManager::TPtr CypressManager;
 
-    virtual Stroka TFileManager::GetPartName() const;
+    virtual Stroka GetPartName() const;
 
     TVoid SetFileChunk(const NProto::TMsgSetFileChunk& message);
 
