@@ -57,19 +57,19 @@ public:
     IInvoker::TPtr GetEpochStateInvoker();
     IInvoker::TPtr GetSnapshotInvoker();
 
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         const TSharedRef& changeData);
 
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 
@@ -147,8 +147,9 @@ private:
 
         // Propagating AdvanceSegment
         auto version = MetaState->GetVersion();
-        MetaState->RotateChangeLog();
         if (version.RecordCount > 0) {
+            MetaState->RotateChangeLog();
+
             for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
                 if (peerId == CellManager->GetSelfId()) continue;
                 LOG_DEBUG("Requesting peer %d to advance segment",
@@ -160,8 +161,11 @@ private:
                 request->SetRecordCount(version.RecordCount);
                 request->SetEpoch(epoch.ToProto());
                 request->SetCreateSnapshot(false);
-                request->Invoke()->Subscribe(
-                    FromMethod(&TImpl::OnRemoteAdvanceSegment, TPtr(this), peerId, version));
+                request->Invoke()->Subscribe(FromMethod(
+                    &TImpl::OnRemoteAdvanceSegment,
+                    TPtr(this),
+                    peerId,
+                    version));
             }
         }
     
@@ -351,7 +355,7 @@ IInvoker::TPtr TMetaStateManager::TImpl::GetSnapshotInvoker()
     return MetaState->GetSnapshotInvoker();
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeSync(
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -367,7 +371,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
         mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeSync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
@@ -376,15 +380,15 @@ TMetaStateManager::TImpl::CommitChangeSync(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (GetStateStatus() != EPeerStatus::Leading) {
-        return New<TCommitResult>(ECommitResult::InvalidStatus);
+        return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
     }
 
     if (ReadOnly) {
-        return New<TCommitResult>(ECommitResult::ReadOnly);
+        return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
     }
 
     if (!FollowerTracker->HasActiveQuorum()) {
-        return New<TCommitResult>(ECommitResult::NotCommitted);
+        return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
     }
 
     return
@@ -393,7 +397,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -406,7 +410,7 @@ TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
         changeData);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeAsync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
@@ -1320,7 +1324,7 @@ IInvoker::TPtr TMetaStateManager::GetSnapshotInvoker()
     return Impl->GetSnapshotInvoker();
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
     TMetaStateManager::CommitChangeSync(
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -1328,7 +1332,7 @@ TMetaStateManager::TCommitResult::TPtr
     return Impl->CommitChangeSync(changeData, mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeSync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
@@ -1337,13 +1341,13 @@ TMetaStateManager::CommitChangeSync(
     return Impl->CommitChangeSync(changeAction, changeData, mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeAsync(const TSharedRef& changeData)
 {
     return Impl->CommitChangeAsync(changeData);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeAsync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)

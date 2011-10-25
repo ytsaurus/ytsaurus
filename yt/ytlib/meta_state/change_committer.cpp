@@ -89,31 +89,31 @@ public:
         YASSERT(~LogResult != NULL);
         Awaiter->Await(
             LogResult,
-            FromMethod(&TBatch::OnLocalCommit, TPtr(this))
-            ->Via(~Committer->CancelableControlInvoker));
+            FromMethod(&TBatch::OnLocalCommit, TPtr(this)));
 
         auto cellManager = Committer->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->GetSelfId() ||
-                !Committer->FollowerTracker->IsFollowerActive(id))
-                continue;
+            if (id != cellManager->GetSelfId() &&
+                Committer->FollowerTracker->IsFollowerActive(id))
+            {
 
-            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-            auto request = proxy->ApplyChanges();
-            request->SetSegmentId(Version.SegmentId);
-            request->SetRecordCount(Version.RecordCount);
-            request->SetEpoch(Committer->Epoch.ToProto());
-            FOREACH(const auto& change, BatchedChanges) {
-                request->Attachments().push_back(change);
+                auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+                auto request = proxy->ApplyChanges();
+                request->SetSegmentId(Version.SegmentId);
+                request->SetRecordCount(Version.RecordCount);
+                request->SetEpoch(Committer->Epoch.ToProto());
+                FOREACH(const auto& change, BatchedChanges) {
+                    request->Attachments().push_back(change);
+                }
+
+                Awaiter->Await(
+                    request->Invoke(Committer->Config.RpcTimeout),
+                    FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
+
+                LOG_DEBUG("Change of %s is sent to peer %d",
+                    ~Version.ToString(),
+                    id);
             }
-
-            Awaiter->Await(
-                request->Invoke(Committer->Config.RpcTimeout),
-                FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
-
-            LOG_DEBUG("Change of %s is sent to peer %d",
-                ~Version.ToString(),
-                id);
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
