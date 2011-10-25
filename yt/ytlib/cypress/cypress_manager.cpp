@@ -14,6 +14,7 @@ namespace NCypress {
 using namespace NMetaState;
 using namespace NProto;
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger& Logger = CypressLogger;
@@ -590,6 +591,56 @@ void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
 
 METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
 METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager::TPtr cypressManager)
+    : CypressManager(cypressManager)
+{ }
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* value) const
+{
+    return value->Clone();
+}
+
+void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
+{
+    ::Save(output, static_cast<i32>(value->GetRuntimeType()));
+    ::Save(output, value->GetId());
+    value->Save(output);
+}
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
+{
+    i32 intType;
+    TBranchedNodeId id;
+    ::Load(input, intType);
+    ::Load(input, id);
+    TAutoPtr<ICypressNode> value;
+    auto type = ERuntimeNodeType(intType);
+    switch (type) {
+    case ERuntimeNodeType::String:
+        value = new TStringNode(id);
+        break;
+    case ERuntimeNodeType::Int64:
+        value = new TInt64Node(id);
+        break;
+    case ERuntimeNodeType::Double:
+        value = new TDoubleNode(id);
+        break;
+    case ERuntimeNodeType::Map:
+        value = new TMapNode(id);
+        break;
+    case ERuntimeNodeType::List:
+        value = new TListNode(id);
+        break;
+    default:
+        value = CypressManager->CreateDynamicNode(type, id);
+        break;
+    }
+    value->Load(input);
+    return value;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

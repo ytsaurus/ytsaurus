@@ -181,23 +181,9 @@ public:
 
     virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
 
-    virtual void Save(TOutputStream* output) const
-    {
-        SaveSet(output, Locks_);
-        ::Save(output, ParentId_);
-        ::Save(output, AttributesId_);
-        ::Save(output, static_cast<i32>(State_));
-    }
+    virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input)
-    {
-        ::Load(input, Locks_);
-        ::Load(input, ParentId_);
-        ::Load(input, AttributesId_);
-        i32 state;
-        ::Load(input, state);
-        State_ = ENodeState(state);
-    }
+    virtual void Load(TInputStream* input);
 
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
@@ -339,25 +325,10 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return ERuntimeNodeType::Map;
-    }
+    virtual ERuntimeNodeType GetRuntimeType() const;
 
-    virtual void Save(TOutputStream* output) const
-    {
-        TCypressNodeBase::Save(output);
-        SaveMap(output, ChildToName());
-    }
-    
-    virtual void Load(TInputStream* input)
-    {
-        TCypressNodeBase::Load(input);
-        ::Load(input, ChildToName());
-        FOREACH(const auto& pair, ChildToName()) {
-            NameToChild().insert(MakePair(pair.Second(), pair.First()));
-        }
-    }
+    virtual void Save(TOutputStream* output) const;
+    virtual void Load(TInputStream* input);
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
@@ -395,25 +366,10 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return ERuntimeNodeType::List;
-    }
+    virtual ERuntimeNodeType GetRuntimeType() const;
 
-    virtual void Save(TOutputStream* output) const
-    {
-        TCypressNodeBase::Save(output);
-        ::Save(output, IndexToChild());
-    }
-    
-    virtual void Load(TInputStream* input)
-    {
-        TCypressNodeBase::Load(input);
-        ::Load(input, IndexToChild());
-        for (int i = 0; i < IndexToChild().ysize(); ++i) {
-            ChildToIndex()[IndexToChild()[i]] = i;
-        }
-    }
+    virtual void Save(TOutputStream* output) const;
+    virtual void Load(TInputStream* input);
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
