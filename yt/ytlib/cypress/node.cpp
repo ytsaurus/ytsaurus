@@ -55,16 +55,16 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
-    , RefCounter(0)
     , Id(id)
+    , RefCounter(0)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
-    , RefCounter(0)
     , Id(id)
+    , RefCounter(0)
 { }
 
 NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
