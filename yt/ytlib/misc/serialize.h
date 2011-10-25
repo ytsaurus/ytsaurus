@@ -40,23 +40,45 @@ void Write(TFile& file, const T& data)
 }
 
 template<class TSet>
-void SaveSorted(TOutputStream* output, const TSet& set)
+void SaveSet(TOutputStream* output, const TSet& set)
 {
     typedef typename TSet::key_type TKey;
-    yvector<const TKey*> vec;
-    vec.reserve(set.size());
+    yvector<const TKey*> keys;
+    keys.reserve(set.size());
     FOREACH(const auto& item, set) {
-        vec.push_back(&item);
+        keys.push_back(&item);
     }
     Sort(
-        vec.begin(),
-        vec.end(),
+        keys.begin(),
+        keys.end(),
         [] (const TKey* lhs, const TKey* rhs) {
             return *lhs < *rhs;
         });
-    ::Save(output, vec.size());
-    FOREACH(const auto* ptr, vec) {
+    ::Save(output, keys.size());
+    FOREACH(const auto* ptr, keys) {
         ::Save(output, *ptr);
+    }
+}
+
+template<class TMap>
+void SaveMap(TOutputStream* output, const TMap& map)
+{
+    typedef typename TMap::const_iterator TIterator;
+    yvector<TIterator> iterators;
+    iterators.reserve(map.size());
+    for (auto it = map.begin(); it != map.end(); ++it) {
+        iterators.push_back(it);
+    }
+    Sort(
+        iterators.begin(),
+        iterators.end(),
+        [] (TIterator lhs, TIterator rhs) {
+            return lhs->First() < rhs->First();
+        });
+    ::Save(output, iterators.size());
+    FOREACH(const auto& it, iterators) {
+        ::Save(output, it->First());
+        ::Save(output, it->Second());
     }
 }
 

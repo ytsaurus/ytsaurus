@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
+#include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../transaction_manager/common.h"
 
@@ -23,7 +24,9 @@ struct TBranchedNodeId
     //! Id of the transaction that had branched the node.
     TTransactionId TransactionId;
 
-    //! Initializes a instance by given node and transaction ids.
+    TBranchedNodeId();
+
+    //! Initializes an instance by given node and transaction ids.
     TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId);
 
     //! Checks that the id is branched, i.e. #TransactionId it not #NullTransactionId.
@@ -38,6 +41,8 @@ inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
 
 } // namespace NCypress
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NCypress::TBranchedNodeId);
 
 //! A hasher for TBranchedNodeId.
 template <>
@@ -100,6 +105,12 @@ struct ICypressNode
 
     // TODO: this shouldn't be a part of public interface
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
+
+    virtual ERuntimeNodeType GetRuntimeType() const = 0;
+
+    virtual void Save(TOutputStream* output) const = 0;
+    
+    virtual void Load(TInputStream* input) = 0;
 
     //! Constructs a proxy.
     /*!
@@ -170,6 +181,24 @@ public:
 
     virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
 
+    virtual void Save(TOutputStream* output) const
+    {
+        SaveSet(output, Locks_);
+        ::Save(output, ParentId_);
+        ::Save(output, AttributesId_);
+        ::Save(output, static_cast<i32>(State_));
+    }
+    
+    virtual void Load(TInputStream* input)
+    {
+        ::Load(input, Locks_);
+        ::Load(input, ParentId_);
+        ::Load(input, AttributesId_);
+        i32 state;
+        ::Load(input, state);
+        State_ = ENodeState(state);
+    }
+
 protected:
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
@@ -184,6 +213,30 @@ protected:
     TBranchedNodeId Id;
     int RefCounter;
 
+};
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+template <class TValue>
+struct TNodeTypeTraits
+{ };
+
+template <>
+struct TNodeTypeTraits<Stroka>
+{
+    static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::String;
+};
+
+template <>
+struct TNodeTypeTraits<i64>
+{
+    static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::Int64;
+};
+
+template <>
+struct TNodeTypeTraits<double>
+{
+    static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::Double;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -228,6 +281,23 @@ public:
         return new TThis(Id, *this);
     }
 
+    virtual ERuntimeNodeType GetRuntimeType() const
+    {
+        return TNodeTypeTraits<TValue>::RuntimeType;
+    }
+
+    virtual void Save(TOutputStream* output) const
+    {
+        TCypressNodeBase::Save(output);
+        ::Save(output, Value_);
+    }
+    
+    virtual void Load(TInputStream* input)
+    {
+        TCypressNodeBase::Load(input);
+        ::Load(input, Value_);
+    }
+
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
@@ -269,6 +339,26 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
+    virtual ERuntimeNodeType GetRuntimeType() const
+    {
+        return ERuntimeNodeType::Map;
+    }
+
+    virtual void Save(TOutputStream* output) const
+    {
+        TCypressNodeBase::Save(output);
+        SaveMap(output, ChildToName());
+    }
+    
+    virtual void Load(TInputStream* input)
+    {
+        TCypressNodeBase::Load(input);
+        ::Load(input, ChildToName());
+        FOREACH(const auto& pair, ChildToName()) {
+            NameToChild().insert(MakePair(pair.Second(), pair.First()));
+        }
+    }
+
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;
@@ -304,6 +394,26 @@ public:
         ICypressNode& branchedNode);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
+
+    virtual ERuntimeNodeType GetRuntimeType() const
+    {
+        return ERuntimeNodeType::List;
+    }
+
+    virtual void Save(TOutputStream* output) const
+    {
+        TCypressNodeBase::Save(output);
+        ::Save(output, IndexToChild());
+    }
+    
+    virtual void Load(TInputStream* input)
+    {
+        TCypressNodeBase::Load(input);
+        ::Load(input, IndexToChild());
+        for (int i = 0; i < IndexToChild().ysize(); ++i) {
+            ChildToIndex()[IndexToChild()[i]] = i;
+        }
+    }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,

@@ -61,7 +61,7 @@ public:
         ::Save(output, Address_);
         ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         ::Save(output, Statistics_);
-        SaveSorted(output, Chunks_);
+        SaveSet(output, Chunks_);
         ::Save(output, Jobs_);
     }
 

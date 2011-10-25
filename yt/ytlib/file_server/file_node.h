@@ -26,6 +26,11 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
+    virtual ERuntimeNodeType GetRuntimeType() const
+    {
+        return ERuntimeNodeType::File;
+    }
+
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,
         const TTransactionId& transactionId) const;

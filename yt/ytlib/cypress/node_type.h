@@ -8,19 +8,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ERuntimeNodeType,
-    // Static types
-    (String)
-    (Int64)
-    (Double)
-    (Map)
-    (List)
-    // Dynamic types
-    (File)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IDynamicTypeHandler
     : public virtual TRefCountedBase
 {

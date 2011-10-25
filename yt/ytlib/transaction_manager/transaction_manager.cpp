@@ -151,7 +151,12 @@ TFuture<TVoid>::TPtr TTransactionManager::Save(TOutputStream* stream, IInvoker::
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // TODO: save TransactionIdGenerator
+    auto transactionIdGenerator = TransactionIdGenerator;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Save(stream, transactionIdGenerator);
+        }));
+
     return TransactionMap.Save(invoker, stream);
 }
 
@@ -159,8 +164,13 @@ TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::T
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // TODO: load TransactionIdGenerator
-   return TransactionMap.Load(invoker, stream);
+    TPtr thisPtr = this;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Load(stream, thisPtr->TransactionIdGenerator);
+        }));
+
+    return TransactionMap.Load(invoker, stream);
 }
 
 void TTransactionManager::Clear()

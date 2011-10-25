@@ -7,6 +7,9 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBranchedNodeId::TBranchedNodeId()
+{ }
+
 TBranchedNodeId::TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId)
     : NodeId(nodeId)
     , TransactionId(transactionId)

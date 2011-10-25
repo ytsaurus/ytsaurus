@@ -28,6 +28,7 @@ TCypressManager::TCypressManager(
     , TransactionManager(transactionManager)
     // Some random number.
     , NodeIdGenerator(0x5f1b61936a3e1741)
+    , NodeMap(TNodeMapTraits(this))
     // Another random number.
     , LockIdGenerator(0x465901ab71fe2671)
 {

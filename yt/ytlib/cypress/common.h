@@ -20,6 +20,19 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ERuntimeNodeType,
+    // Static types
+    ((String)(1))
+    ((Int64)(2))
+    ((Double)(3))
+    ((Map)(4))
+    ((List)(5))
+    // Dynamic types
+    ((File)(6))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Identifies a node.
 typedef TGuid TNodeId;
 

@@ -333,32 +333,34 @@ private:
         auto holderIdGenerator = HolderIdGenerator;
         invoker->Invoke(FromFunctor([=] ()
             {
-                ::Save(stream, chunkIdGenerator);
                 ::Save(stream, holderIdGenerator);
+                ::Save(stream, chunkIdGenerator);
             }));
         
         HolderMap.Save(invoker, stream);
-
-        return ChunkMap.Save(invoker, stream);
+        ChunkMap.Save(invoker, stream);
+        JobMap.Save(invoker, stream);
+        return JobListMap.Save(invoker, stream);
     }
 
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker)
     {
-        TPtr this_ = this;
+        TPtr thisPtr = this;
         invoker->Invoke(FromFunctor([=] ()
             {
-                ::Load(stream, this_->ChunkIdGenerator);
-                ::Load(stream, this_->HolderIdGenerator);
+                ::Load(stream, thisPtr->HolderIdGenerator);
+                ::Load(stream, thisPtr->ChunkIdGenerator);
             }));
 
         HolderMap.Load(invoker, stream);
-
         ChunkMap.Load(invoker, stream);
+        JobMap.Load(invoker, stream);
+        JobListMap.Load(invoker, stream);
 
         return
             FromMethod(
                 &TThis::OnLoaded,
-                this_)
+                thisPtr)
             ->AsyncVia(invoker)
             ->Do();
     }
@@ -383,14 +385,15 @@ private:
 
     virtual void Clear()
     {
-        HolderMap.Clear();
-        HolderAddressMap.clear();
-        ChunkMap.Clear();
-        JobListMap.Clear();
-        JobMap.Clear();
-        ReplicationSinkMap.clear();
-        ChunkIdGenerator.Reset();
         HolderIdGenerator.Reset();
+        ChunkIdGenerator.Reset();
+        HolderMap.Clear();
+        ChunkMap.Clear();
+        JobMap.Clear();
+        JobListMap.Clear();
+
+        HolderAddressMap.clear();
+        ReplicationSinkMap.clear();
     }
 
     virtual void OnStartLeading()
