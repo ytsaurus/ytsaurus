@@ -45,6 +45,7 @@ TTransactionManager::InitiateStartTransaction()
 
 TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction& message)
 {
+    UNUSED(message);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto id = TransactionIdGenerator.Next();
@@ -139,21 +140,6 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     auto it = LeaseMap.find(id);
     YASSERT(it != LeaseMap.end());
     TLeaseManager::Get()->RenewLease(it->Second());
-}
-
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionStarted()
-{
-    return OnTransactionStarted_;
-}
-
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionCommitted()
-{
-    return OnTransactionCommitted_;
-}
-
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionAborted()
-{
-    return OnTransactionAborted_;
 }
 
 Stroka TTransactionManager::GetPartName() const

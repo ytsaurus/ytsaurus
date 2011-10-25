@@ -4,6 +4,7 @@
 #include "transaction.h"
 #include "transaction_manager.pb.h"
 
+#include "../misc/property.h"
 #include "../misc/id_generator.h"
 #include "../misc/lease_manager.h"
 #include "../meta_state/meta_state_manager.h"
@@ -22,6 +23,13 @@ using NMetaState::TMetaChange;
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
+    //! Called when a new transaction is started.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<TTransaction&>);
+    //! Called during transaction commit.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<TTransaction&>);
+    //! Called during transaction abort.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<TTransaction&>);
+
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
@@ -40,16 +48,6 @@ public:
         NMetaState::TMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState);
 
-    //! Called when a new transaction is started.
-    TParamSignal<TTransaction&>& OnTransactionStarted();
-    
-    //! Called during transaction commit.
-    TParamSignal<TTransaction&>& OnTransactionCommitted();
-    
-    //! Called during transaction abort.
-    TParamSignal<TTransaction&>& OnTransactionAborted();
-
-
     TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
     TMetaChange<TVoid>::TPtr          InitiateCommitTransaction(const TTransactionId& id);
     TMetaChange<TVoid>::TPtr          InitiateAbortTransaction(const TTransactionId& id);
@@ -66,10 +64,6 @@ private:
     TIdGenerator<TTransactionId> TransactionIdGenerator;
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
-
-    TParamSignal<TTransaction&> OnTransactionStarted_;
-    TParamSignal<TTransaction&> OnTransactionCommitted_;
-    TParamSignal<TTransaction&> OnTransactionAborted_;
 
     TTransactionId StartTransaction(const NProto::TMsgStartTransaction& message);
     TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
