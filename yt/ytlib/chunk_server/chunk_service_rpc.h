@@ -1,21 +1,21 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_manager_rpc.pb.h"
+#include "chunk_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManagerProxy
+class TChunkServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TChunkManagerProxy> TPtr;
+    typedef TIntrusivePtr<TChunkServiceProxy> TPtr;
 
     RPC_DECLARE_PROXY(ChunkManager,
         ((NoSuchTransaction)(1))
@@ -23,7 +23,7 @@ public:
         ((NoSuchChunk)(3))
     );
 
-    TChunkManagerProxy(NRpc::IChannel::TPtr channel)
+    TChunkServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -36,5 +36,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT

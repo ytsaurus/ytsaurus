@@ -7,7 +7,7 @@
 #include <util/ysaveload.h>
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 using NTransaction::TTransactionId;
 using NTransaction::NullTransactionId;
@@ -90,5 +90,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT

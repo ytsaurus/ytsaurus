@@ -89,11 +89,9 @@ void TCypressService::ExecuteUnrecoverable(
         context->Reply(EErrorCode::UnrecoverableError);
 
         if (transactionId != NullTransactionId) {
-            TMsgAbortTransaction message;
-            message.SetTransactionId(transactionId.ToProto());
-            CommitChange(
-                TransactionManager, message,
-                &TTransactionManager::AbortTransaction);
+            TransactionManager
+                ->InitiateAbortTransaction(transactionId)
+                ->Commit();
         }
     }
 }
@@ -114,29 +112,19 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoGet,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
-}
+        FromFunctor([=] ()
+            {
+                Stroka output;
+                TStringOutput outputStream(output);
+                TYsonWriter writer(&outputStream, false); // TODO: use binary
 
-void TCypressService::DoGet(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxGet::TPtr context)
-{
-    Stroka output;
-    TStringOutput outputStream(output);
-    TYsonWriter writer(&outputStream, false); // TODO: use binary
+                CypressManager->GetYPath(transactionId, path, &writer);
 
-    CypressManager->GetYPath(transactionId, path, &writer);
+                auto* response = &context->Response();
+                response->SetValue(output);
 
-    auto* response = &context->Response();
-    response->SetValue(output);
-
-    context->Reply();
+                context->Reply();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
@@ -154,30 +142,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
     ExecuteUnrecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoSet,
-            TPtr(this),
-            transactionId,
-            path,
-            value,
-            context));
-}
-
-void TCypressService::DoSet(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    const Stroka& value,
-    TCtxSet::TPtr context)
-{
-    NProto::TMsgSet message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
-    message.SetValue(value);
-
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::SetYPath,
-        ECommitMode::MayFail);
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateSetYPath(transactionId, path, value)
+                    ->OnSuccess(CreateSuccessHandler(context))
+                    ->OnError(CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
@@ -194,27 +166,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoRemove,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
-}
-
-void TCypressService::DoRemove(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxRemove::TPtr context)
-{
-    NProto::TMsgRemove message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
-
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::RemoveYPath,
-        ECommitMode::MayFail);
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateRemoveYPath(transactionId, path)
+                    ->OnSuccess(CreateSuccessHandler(context))
+                    ->OnError(CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
@@ -231,27 +190,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoLock,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
-}
-
-void TCypressService::DoLock(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxLock::TPtr context)
-{
-    NProto::TMsgLock message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
-
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::LockYPath,
-        ECommitMode::MayFail);
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateLockYPath(transactionId, path)
+                    ->OnSuccess(CreateSuccessHandler(context))
+                    ->OnError(CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,11 +6,11 @@
 #include <util/random/random.h>
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkManagerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,5 +289,5 @@ bool TChunkPlacement::IsFull(const THolder& holder) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT

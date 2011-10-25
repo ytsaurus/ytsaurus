@@ -34,7 +34,6 @@ private:
     TCypressManager::TPtr CypressManager;
     TTransactionManager::TPtr TransactionManager;
 
-    //! Registers RPC methods.
     void RegisterMethods();
 
     void ValidateTransactionId(const TTransactionId& transactionId);
@@ -49,29 +48,9 @@ private:
         IAction::TPtr action);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);
-    void DoGet(
-        const TTransactionId& transactionId,
-        const Stroka& path,
-        TCtxGet::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, Set);
-    void DoSet(
-        const TTransactionId& transactionId,
-        const Stroka& path,
-        const Stroka& value,
-        TCtxSet::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, Remove);
-    void DoRemove(
-        const TTransactionId& transactionId,
-        const Stroka& path,
-        TCtxRemove::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, Lock);
-    void DoLock(
-        const TTransactionId& transactionId,
-        const Stroka& path,
-        TCtxLock::TPtr context);
 
 };
 

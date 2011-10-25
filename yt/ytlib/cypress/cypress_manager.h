@@ -13,6 +13,7 @@
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"
+#include "../meta_state/meta_change.h"
 
 namespace NYT {
 namespace NCypress {
@@ -20,6 +21,7 @@ namespace NCypress {
 using NTransaction::TTransaction;
 using NTransaction::NullTransactionId;
 using NTransaction::TTransactionManager;
+using NMetaState::TMetaChange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,25 +74,18 @@ public:
         TYPath path,
         IYsonConsumer* consumer);
 
-    void SetYPath(
+    TMetaChange<TVoid>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
         TYPath path,
-        TYsonProducer::TPtr producer);
+        const Stroka& value);
 
-    TVoid SetYPath(const NProto::TMsgSet& message);
-
-    void RemoveYPath(
+    TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
         const TTransactionId& transactionId,
         TYPath path);
 
-    TVoid RemoveYPath(const NProto::TMsgRemove& message);
-
-    void LockYPath(
+    TMetaChange<TVoid>::TPtr InitiateLockYPath(
         const TTransactionId& transactionId,
         TYPath path);
-
-    TVoid LockYPath(const NProto::TMsgLock& message);
-
 
 private:
     TTransactionManager::TPtr TransactionManager;
@@ -103,6 +98,10 @@ private:
 
     yhash_map<ERuntimeNodeType, IDynamicTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, IDynamicTypeHandler::TPtr> TypeNameToHandler;
+
+    TVoid SetYPath(const NProto::TMsgSet& message);
+    TVoid RemoveYPath(const NProto::TMsgRemove& message);
+    TVoid LockYPath(const NProto::TMsgLock& message);
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "meta_state_manager.h"
-#include "meta_state_manager.pb.h"
 
-#include "../rpc/server.h"
+#include "../actions/action.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -22,13 +21,6 @@ public:
         TMetaStateManager::TPtr metaStateManager,
         TIntrusivePtr<TCompositeMetaState> metaState);
 
-    template<class TMessage, class TResult>
-    typename TFuture<TResult>::TPtr CommitChange(
-        const TMessage& message,
-        TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod,
-        IAction::TPtr errorHandler = NULL,
-        ECommitMode mode = ECommitMode::NeverFails);
-
 protected:
     TMetaStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
@@ -36,6 +28,7 @@ protected:
     template<class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
+    // TODO: move to inl
     template<class TThis, class TMessage, class TResult>
     void RegisterMethod(
         TThis* this_,
@@ -60,15 +53,10 @@ private:
     friend class TCompositeMetaState;
     typedef TMetaStatePart TThis;
 
-    void CommitChange(Stroka changeType, TRef changeData);
-
     template<class TMessage, class TResult>
     void MethodThunk(
         const TRef& changeData,
         typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod);
-
-    template<class TMessage, class TResult>
-    class TUpdate;
 
 };
 

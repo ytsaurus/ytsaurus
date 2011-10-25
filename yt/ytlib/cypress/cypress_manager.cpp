@@ -12,6 +12,7 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NMetaState;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,13 +340,21 @@ void TCypressManager::GetYPath(
     NYTree::GetYPath(AsYPath(root), path, consumer);
 }
 
-void TCypressManager::SetYPath(
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
     const TTransactionId& transactionId,
     TYPath path,
-    TYsonProducer::TPtr producer )
+    const Stroka& value)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::SetYPath(AsYPath(root), path, producer);
+    TMsgSet message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+    message.SetValue(value);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::SetYPath,
+        TPtr(this));
 }
 
 TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
@@ -354,37 +363,56 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     auto path = message.GetPath();
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
-    SetYPath(transactionId, path, producer);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::SetYPath(AsYPath(root), path, producer);
     return TVoid();
 }
 
-void TCypressManager::RemoveYPath(
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
     const TTransactionId& transactionId,
     TYPath path)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::RemoveYPath(AsYPath(root), path);
+    TMsgRemove message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::RemoveYPath,
+        TPtr(this));
 }
 
 TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    RemoveYPath(transactionId, path);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::RemoveYPath(AsYPath(root), path);
     return TVoid();
 }
 
-void TCypressManager::LockYPath(const TTransactionId& transactionId, TYPath path)
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateLockYPath(
+    const TTransactionId& transactionId,
+    TYPath path)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::LockYPath(AsYPath(root), path);
+    TMsgLock message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::LockYPath,
+        TPtr(this));
 }
 
 NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    LockYPath(transactionId, path);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::LockYPath(AsYPath(root), path);
     return TVoid();
 }
 

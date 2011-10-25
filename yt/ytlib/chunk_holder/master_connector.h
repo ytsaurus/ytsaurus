@@ -5,7 +5,7 @@
 #include "session.h"
 #include "replicator.h"
 
-#include "../chunk_manager/chunk_manager_rpc.h"
+#include "../chunk_server/chunk_service_rpc.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -34,7 +34,7 @@ public:
         IInvoker::TPtr serviceInvoker);
 
 private:
-    typedef NChunkManager::TChunkManagerProxy TProxy;
+    typedef NChunkServer::TChunkServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
     typedef yhash_set<TChunk::TPtr> TChunks;
 
@@ -111,7 +111,7 @@ private:
     void OnDisconnected();
 
     //! Constructs a protobuf chunk info for a given chunk.
-    static NChunkManager::NProto::TChunkInfo GetInfo(TChunk::TPtr chunk);
+    static NChunkServer::NProto::TChunkInfo GetInfo(TChunk::TPtr chunk);
 
     //! Handles registration of new chunks.
     /*!

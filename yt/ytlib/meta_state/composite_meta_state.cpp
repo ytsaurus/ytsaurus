@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "composite_meta_state.h"
+#include "composite_meta_state_detail.h"
 
 #include "../misc/foreach.h"
 #include "../misc/assert.h"
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +83,7 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input, IInvoker::TP
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
 {
-    NMetaState::NProto::TMsgChangeHeader header;
+    TMsgChangeHeader header;
     TRef messageData;
     DeserializeChange(
         changeData,

@@ -21,12 +21,12 @@ struct TFixedChangeHeader
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NMetaState::NProto::TMsgChangeHeader& header,
+    const NProto::TMsgChangeHeader& header,
     const TMessage& message);
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NMetaState::NProto::TMsgChangeHeader* header);
+    NProto::TMsgChangeHeader* header);
 
 void DeserializeChange(
     TRef changeData,
@@ -37,3 +37,7 @@ void DeserializeChange(
 
 } // namespace NMetaState
 } // namespace NYT
+
+#define COMPOSITE_META_STATE_DETAIL_INL_H_
+#include "composite_meta_state_detail-inl.h"
+#undef COMPOSITE_META_STATE_DETAIL_INL_H_

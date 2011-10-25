@@ -1,7 +1,7 @@
 #pragma once
 
 #include "chunk_holder.pb.h"
-#include "chunk_manager_rpc.pb.h"
+#include "chunk_service_rpc.pb.h"
 
 #include "../chunk_client/common.h"
 #include "../election/leader_lookup.h"
@@ -90,7 +90,7 @@ struct THolderStatistics
     i32 ChunkCount;
     i32 SessionCount;
 
-    static THolderStatistics FromProto(const NChunkManager::NProto::THolderStatistics& proto)
+    static THolderStatistics FromProto(const NChunkServer::NProto::THolderStatistics& proto)
     {
         THolderStatistics result;
         result.AvailableSpace = proto.GetAvailableSpace();
@@ -100,9 +100,9 @@ struct THolderStatistics
         return result;
     }
 
-    NChunkManager::NProto::THolderStatistics ToProto() const
+    NChunkServer::NProto::THolderStatistics ToProto() const
     {
-        NChunkManager::NProto::THolderStatistics result;
+        NChunkServer::NProto::THolderStatistics result;
         result.SetAvailableSpace(AvailableSpace);
         result.SetUsedSpace(UsedSpace);
         result.SetChunkCount(ChunkCount);

@@ -4,11 +4,11 @@
 #include "../misc/assert.h"
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkManagerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +73,9 @@ void THolderExpiration::OnExpired(THolderId holderId)
 
     LOG_INFO("Holder expired (HolderId: %d)", holderId);
 
-    ChunkManager->UnregisterHolder(holderId);
+    ChunkManager
+        ->InitiateUnregisterHolder(holderId)
+        ->Commit();
 }
 
 THolderExpiration::THolderInfo* THolderExpiration::FindHolderInfo(THolderId holderId)
@@ -91,5 +93,5 @@ THolderExpiration::THolderInfo& THolderExpiration::GetHolderInfo(THolderId holde
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT
