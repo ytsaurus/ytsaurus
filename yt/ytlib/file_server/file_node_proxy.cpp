@@ -26,6 +26,17 @@ Stroka TFileNodeProxy::GetTypeName() const
     return FileTypeName;
 }
 
+TChunkId TFileNodeProxy::GetChunkId() const
+{
+    return GetTypedImpl().GetChunkId();
+}
+
+void TFileNodeProxy::SetChunkId(const TChunkId& chunkId)
+{
+    EnsureModifiable();
+    GetTypedImplForUpdate().SetChunkId(chunkId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileServer

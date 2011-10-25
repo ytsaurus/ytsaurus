@@ -42,9 +42,9 @@ protected:
     bool IsRecovery() const;
 
     virtual Stroka GetPartName() const = 0;
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker) = 0;
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker) = 0;
-    virtual void Clear() = 0;
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
+    virtual void Clear();
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();

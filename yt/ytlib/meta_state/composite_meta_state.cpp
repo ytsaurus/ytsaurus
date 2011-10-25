@@ -29,6 +29,21 @@ TMetaStatePart::TMetaStatePart(
         TPtr(this)));
 }
 
+TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
+{
+    UNUSED(input);
+    return New< TFuture<TVoid> >(TVoid());
+}
+
+TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
+{
+    UNUSED(output);
+    return New< TFuture<TVoid> >(TVoid());
+}
+
+void TMetaStatePart::Clear()
+{ }
+
 bool TMetaStatePart::IsLeader() const
 {
     auto status = MetaStateManager->GetStateStatus();

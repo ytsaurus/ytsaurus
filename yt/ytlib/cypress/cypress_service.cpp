@@ -9,7 +9,6 @@ namespace NCypress {
 using namespace NRpc;
 using namespace NYTree;
 using namespace NMetaState;
-using namespace NTransaction::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

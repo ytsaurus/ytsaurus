@@ -23,6 +23,8 @@ using NTransaction::NullTransactionId;
 using NTransaction::TTransactionManager;
 using NMetaState::TMetaChange;
 
+struct ICypressNodeProxy;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager
@@ -41,11 +43,11 @@ public:
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
-    INode::TPtr FindNode(
+    TIntrusivePtr<ICypressNodeProxy> FindNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    INode::TPtr GetNode(
+    TIntrusivePtr<ICypressNodeProxy> GetNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 

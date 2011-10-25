@@ -15,7 +15,13 @@ TFileNode::TFileNode(const TBranchedNodeId& id)
 
 TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)
     : TCypressNodeBase(id, other)
+    , ChunkId_(other.ChunkId_)
 { }
+
+ERuntimeNodeType TFileNode::GetRuntimeType() const
+{
+    return ERuntimeNodeType::File;
+}
 
 ICypressNodeProxy::TPtr TFileNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
@@ -42,6 +48,9 @@ void TFileNode::Merge(
     ICypressNode& branchedNode)
 {
     TCypressNodeBase::Merge(cypressManager, branchedNode);
+
+    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
+    ChunkId_ = typedBranchedNode.ChunkId_;
 }
 
 TAutoPtr<ICypressNode> TFileNode::Clone() const

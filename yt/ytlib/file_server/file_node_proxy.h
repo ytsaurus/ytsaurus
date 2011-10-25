@@ -22,6 +22,9 @@ public:
     virtual ENodeType GetType() const;
     virtual Stroka GetTypeName() const;
 
+    TChunkId GetChunkId() const;
+    void SetChunkId(const TChunkId& chunkId);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

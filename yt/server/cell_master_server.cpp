@@ -13,12 +13,14 @@
 #include <yt/ytlib/cypress/cypress_service.h>
 
 #include <yt/ytlib/file_server/file_type_handler.h>
+#include <yt/ytlib/file_server/file_manager.h>
+#include <yt/ytlib/file_server/file_service.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 namespace NYT {
 
-static NLog::TLogger Logger("CellMasterSever");
+static NLog::TLogger Logger("Server");
 
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
@@ -33,6 +35,8 @@ using NCypress::TCypressManager;
 using NCypress::TCypressService;
 
 using NFileServer::TFileTypeHandler;
+using NFileServer::TFileManager;
+using NFileServer::TFileService;
 
 using NMonitoring::TMonitoringManager;
 
@@ -108,6 +112,19 @@ void TCellMasterServer::Run()
     auto cypressService = New<TCypressService>(
         cypressManager,
         transactionManager,
+        metaStateManager->GetStateInvoker(),
+        server);
+
+    auto fileManager = New<TFileManager>(
+        metaStateManager,
+        metaState,
+        cypressManager);
+
+    auto fileService = New<TFileService>(
+        cypressManager,
+        transactionManager,
+        chunkManager,
+        fileManager,
         metaStateManager->GetStateInvoker(),
         server);
 

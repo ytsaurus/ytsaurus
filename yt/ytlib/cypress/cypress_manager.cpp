@@ -54,7 +54,7 @@ void TCypressManager::RegisterDynamicType(IDynamicTypeHandler::TPtr handler)
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
 }
 
-INode::TPtr TCypressManager::FindNode(
+ICypressNodeProxy::TPtr TCypressManager::FindNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -68,7 +68,7 @@ INode::TPtr TCypressManager::FindNode(
     return ~impl->GetProxy(this, transactionId);
 }
 
-INode::TPtr TCypressManager::GetNode(
+ICypressNodeProxy::TPtr TCypressManager::GetNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -338,7 +338,7 @@ void TCypressManager::GetYPath(
     IYsonConsumer* consumer)
 {
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::GetYPath(AsYPath(root), path, consumer);
+    NYTree::GetYPath(AsYPath(~root), path, consumer);
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
@@ -365,7 +365,7 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::SetYPath(AsYPath(root), path, producer);
+    NYTree::SetYPath(AsYPath(~root), path, producer);
     return TVoid();
 }
 
@@ -389,7 +389,7 @@ TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::RemoveYPath(AsYPath(root), path);
+    NYTree::RemoveYPath(AsYPath(~root), path);
     return TVoid();
 }
 
@@ -413,7 +413,7 @@ NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::LockYPath(AsYPath(root), path);
+    NYTree::LockYPath(AsYPath(~root), path);
     return TVoid();
 }
 
