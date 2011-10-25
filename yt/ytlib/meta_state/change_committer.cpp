@@ -65,8 +65,7 @@ public:
         YASSERT(!IsSent);
 
         BatchedChanges.push_back(changeData);
-        LOG_DEBUG("Batched %d change(s) starting from version %s",
-            GetChangeCount(),
+        LOG_DEBUG("Change added to batch (Version: %s)",
             ~Version.ToString());
         return Result;
     }
@@ -82,9 +81,9 @@ public:
 
         IsSent = true;
 
-        LOG_DEBUG("Starting commit of %d changes of version %s",
-            BatchedChanges.ysize(),
-            ~Version.ToString());
+        LOG_DEBUG("Sending batched changes (Version: %s, ChangeCount: %d)",
+            ~Version.ToString(),
+            BatchedChanges.ysize());
 
         YASSERT(~LogResult != NULL);
         Awaiter->Await(
@@ -110,10 +109,7 @@ public:
                     request->Invoke(Committer->Config.RpcTimeout),
                     FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
 
-                LOG_DEBUG("Change of %s is sent to peer %d",
-                    ~Version.ToString(),
-                    id);
-            }
+            LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
@@ -129,7 +125,6 @@ public:
 
 
 private:
-    // Service invoker
     bool CheckCommitQuorum()
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
@@ -140,35 +135,38 @@ private:
         Result->Set(EResult::Committed);
         Awaiter->Cancel();
         
-        LOG_DEBUG("Change %s is committed by quorum",
-            ~Version.ToString());
+        LOG_DEBUG("Changes are committed by quorum (Version: %s, ChangeCount: %d)",
+            ~Version.ToString(),
+            BatchedChanges.ysize());
 
         return true;
     }
 
-    // Service invoker
     void OnRemoteCommit(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_WARNING("Error committing change %s at peer %d (ErrorCode: %s)",
+            LOG_WARNING("Error committing changes by follower (Version: %s, ChangeCount: %d, FollowerId: %d, Error: %s)",
                 ~Version.ToString(),
+                BatchedChanges.ysize(),
                 peerId,
                 ~response->GetErrorCode().ToString());
             return;
         }
 
         if (response->GetCommitted()) {
-            LOG_DEBUG("Change %s is committed by peer %d",
+            LOG_DEBUG("Changes are committed by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
                 ~Version.ToString(),
+                BatchedChanges.ysize(),
                 peerId);
 
             ++CommitCount;
             CheckCommitQuorum();
         } else {
-            LOG_DEBUG("Change %s is acknowledged but not committed by peer %d",
+            LOG_DEBUG("Changes are acknowledges by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
                 ~Version.ToString(),
+                BatchedChanges.ysize(),
                 peerId);
         }
     }
@@ -177,7 +175,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
-        LOG_DEBUG("Change was locally commited (version: %s)", ~Version.ToString());
+        LOG_DEBUG("Changes are committed locally (Version: %s, ChangeCount: %d)",
+            BatchedChanges.ysize(),
+            ~Version.ToString());
         ++CommitCount;
         CheckCommitQuorum();
     }
@@ -190,10 +190,10 @@ private:
         if (CheckCommitQuorum())
             return;
 
-        LOG_WARNING("Change %s is uncertain as it was committed by %d masters out of %d",
+        LOG_WARNING("Changes are uncertain (Version: %s, ChangeCount: %d, CommitCount: %d)",
             ~Version.ToString(),
-            CommitCount,
-            Committer->CellManager->GetPeerCount());
+            BatchedChanges.ysize(),
+            CommitCount);
 
         Result->Set(EResult::MaybeCommitted);
     }
@@ -260,17 +260,17 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
     YASSERT(~changeAction != NULL);
 
     auto version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit of change %s", ~version.ToString());
+    LOG_DEBUG("Starting commit (Version: %s)", ~version.ToString());
 
-    TResult::TPtr result;
+    TResult::TPtr batchResult;
     switch (mode) {
         case ECommitMode::NeverFails: {
             auto logResult = MetaState->LogChange(version, changeData);
-            result = BatchChange(version, changeData, logResult);
+            batchResult = BatchChange(version, changeData, logResult);
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s, What: %s)",
+                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());
@@ -283,14 +283,14 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s, What: %s)",
+                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());
                 throw;
             }
             auto logResult = MetaState->LogChange(version, changeData);
-            result = BatchChange(version, changeData, logResult);
+            batchResult = BatchChange(version, changeData, logResult);
             OnApplyChange_.Fire();
             break;
         }
@@ -299,9 +299,9 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             YUNREACHABLE();
 
     }
-    LOG_DEBUG("Change %s is committed locally", ~version.ToString());
+    LOG_DEBUG("Change is applied locally (Version: %s)", ~version.ToString());
 
-    return result;
+    return batchResult;
 }
 
 
