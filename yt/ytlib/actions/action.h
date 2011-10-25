@@ -102,6 +102,16 @@ struct IParamFunc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Constructs a delegate from functor.
+template <class TFunctor>
+auto FromFunctor(const TFunctor& functor) ->
+decltype (TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor))
+{
+    return TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define ACTION_INL_H_
