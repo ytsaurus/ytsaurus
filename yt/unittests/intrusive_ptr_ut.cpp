@@ -4,161 +4,257 @@
 
 #include <contrib/testing/framework.h>
 
+using ::testing::IsNull;
+using ::testing::NotNull;
+using ::testing::InSequence;
+using ::testing::MockFunction;
+using ::testing::StrictMock;
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-	//! This object represents simple reference-counted object.
-	class TSimpleObject
-		: public TRefCountedBase
-	{
-	public:
-		typedef TIntrusivePtr<TSimpleObject> TPtr;
-	};
+    //! This object tracks number of incremenets and decrements to the reference
+    //! counter.
+    class TIntricateObject
+    {
+    public:
+        typedef TIntrusivePtr<TIntricateObject> TPtr;
 
-	//! This object is derived from reference-counted one.
-	class TAnotherSimpleObject
-		: public TSimpleObject
-	{
-	public:
-		typedef TIntrusivePtr<TAnotherSimpleObject> TPtr;
-	};
+        int Increments;
+        int Decrements;
+        int Zeros;
 
-	//! This object prohibits copy and move constructors and keeps track
-	//! of number of ctor/dtor invokations.
-	class TIntricateObject
-		: public NYT::TRefCountedBase
-	{
-	public:
-		typedef TIntrusivePtr<TIntricateObject> TPtr;
+    public:
+        TIntricateObject()
+            : Increments(0)
+            , Decrements(0)
+            , Zeros(0)
+        { }
 
-		TIntricateObject()
-		{
-			TIntricateObject::OnCtor(TPtr(this));
-		}
+        void Increment()
+        {
+            ++Increments;
+        }
 
-		~TIntricateObject()
-		{
-			TIntricateObject::OnDtor();
-		}
+        void Decrement()
+        {
+            ++Decrements;
 
-	private:
-		TIntricateObject(const TIntricateObject&);
-		TIntricateObject(const TIntricateObject&&);
-		TIntricateObject& operator=(const TIntricateObject&);
-		TIntricateObject& operator=(const TIntricateObject&&);
+            if (Increments == Decrements) {
+                ++Zeros;
+            }
+        }
 
-	public:
-		static int CtorCalls;
-		static int DtorCalls;
+    private:
+        TIntricateObject(const TIntricateObject&);
+        TIntricateObject(const TIntricateObject&&);
+        TIntricateObject& operator=(const TIntricateObject&);
+        TIntricateObject& operator=(const TIntricateObject&&);
+    };
 
-		static void ResetGlobalState()
-		{
-			CtorCalls = 0;
-			DtorCalls = 0;
-		}
+    MATCHER_P3(HasReferenceCounters, increments, decrements, zeros,
+        "Reference counter " \
+        "was incremented " + ::testing::PrintToString(increments) + " times, " +
+        "was decremented " + ::testing::PrintToString(decrements) + " times, " +
+        "vanished to zero " + ::testing::PrintToString(zeros) + " times")
+    {
+        return
+            arg.Increments == increments &&
+            arg.Decrements == decrements &&
+            arg.Zeros == zeros;
+    }
 
-		static void OnCtor(TPtr)
-		{
-			++CtorCalls;
-		}
+    //! This is a simple typical reference-counted object.
+    class TSimpleObject : public TRefCountedBase
+    {};
 
-		static void OnDtor()
-		{
-			++DtorCalls;
-		}
-	};
+    //! This is a simple inherited reference-counted object.
+    class TAnotherObject : public TSimpleObject
+    {};
 
-	int TIntricateObject::CtorCalls = 0;
-	int TIntricateObject::DtorCalls = 0;
+    //! This is an object which creates intrusive pointers to the self
+    //! during its construction and also fires some events.
+    class TObjectWithEventsAndSelfPointers : public TRefCountedBase
+    {
+    public:
+        typedef StrictMock< MockFunction<void()> > TEvent;
+        typedef TIntrusivePtr<TObjectWithEventsAndSelfPointers> TPtr;
+
+    private:
+        TEvent* BeforeCreate;
+        TEvent* AfterCreate;
+        TEvent* OnDestroy;
+
+    public:
+        TObjectWithEventsAndSelfPointers(
+            TEvent* beforeCreate,
+            TEvent* afterCreate,
+            TEvent* onDestroy)
+            : BeforeCreate(beforeCreate)
+            , AfterCreate(afterCreate)
+            , OnDestroy(onDestroy)
+        {
+            BeforeCreate->Call();
+
+            for (int i = 0; i < 3; ++i) {
+                TPtr ptr(this);
+            }
+
+            AfterCreate->Call();
+        }
+
+        virtual ~TObjectWithEventsAndSelfPointers()
+        {
+            OnDestroy->Call();
+        }
+    };
 } // namespace <anonymous>
+
+template<>
+struct TIntrusivePtrTraits<TIntricateObject>
+{
+    static void Ref(TIntricateObject* object)
+    {
+        object->Increment();
+    }
+
+    static void UnRef(TIntricateObject* object)
+    {
+        object->Decrement();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TIntrusivePtrTest, SingleReference)
+TEST(TIntrusivePtrTest, Basic)
 {
-	TSimpleObject* null = NULL;
+    TIntricateObject object;
 
-	TSimpleObject::TPtr foo = New<TSimpleObject>();
-	TSimpleObject::TPtr bar;
+    EXPECT_THAT(object, HasReferenceCounters(0, 0, 0));
+    {
+        TIntricateObject::TPtr foo(&object);
 
-	EXPECT_NE(null, foo.Get());
-	EXPECT_EQ(null, bar.Get());
-
-	EXPECT_EQ(1, foo->GetReferenceCount());
+        EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+        EXPECT_EQ(&object, foo.Get());
+    }
+    EXPECT_THAT(object, HasReferenceCounters(1, 1, 1));
 }
 
-TEST(TIntrusivePtrTest, DoubleReference)
+TEST(TIntrusivePtrTest, Reset)
 {
-	TSimpleObject* null = NULL;
+    TIntricateObject object;
 
-	TSimpleObject::TPtr foo = New<TSimpleObject>();
-	TSimpleObject::TPtr bar;
+    TIntricateObject::TPtr ptr(&object);
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+    ptr.Reset();
+    EXPECT_THAT(object, HasReferenceCounters(1, 1, 1));
+    ptr.Reset(&object);
+    EXPECT_THAT(object, HasReferenceCounters(2, 1, 1));
+}
 
-	EXPECT_EQ(null, bar.Get());
+TEST(TIntrusivePtrTest, CopySemantics)
+{
+    TIntricateObject object;
 
-	bar = foo;
-	EXPECT_NE(null, bar.Get());
+    TIntricateObject::TPtr foo(&object);
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
 
-	EXPECT_EQ(2, foo->GetReferenceCount());
-	EXPECT_EQ(2, bar->GetReferenceCount());
+    {
+        TIntricateObject::TPtr bar(foo);
+        EXPECT_THAT(object, HasReferenceCounters(2, 0, 0));
+        EXPECT_EQ(foo.Get(), bar.Get());
+    }
 
-	bar.Reset();
-	EXPECT_EQ(null, bar.Get());
-	EXPECT_EQ(1, foo->GetReferenceCount());
+    EXPECT_THAT(object, HasReferenceCounters(2, 1, 0));
+
+    {
+        TIntricateObject::TPtr bar;
+        bar = foo;
+
+        EXPECT_THAT(object, HasReferenceCounters(3, 1, 0));
+        EXPECT_EQ(foo.Get(), bar.Get());
+    }
+
+    EXPECT_THAT(object, HasReferenceCounters(3, 2, 0));
+}
+
+TEST(TIntrusivePtrTest, MoveSemantics)
+{
+    TIntricateObject object;
+
+    TIntricateObject::TPtr foo(&object);
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+
+    {
+        TIntricateObject::TPtr bar(MoveRV(foo));
+        EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+        EXPECT_THAT(foo.Get(), IsNull());
+        EXPECT_EQ(&object, bar.Get());
+    }
+
+    EXPECT_THAT(object, HasReferenceCounters(1, 1, 1));
+    foo.Reset(&object);
+    EXPECT_THAT(object, HasReferenceCounters(2, 1, 1));
+
+    {
+        TIntricateObject::TPtr bar;
+        bar = MoveRV(foo);
+        EXPECT_THAT(object, HasReferenceCounters(2, 1, 1));
+        EXPECT_THAT(foo.Get(), IsNull());
+        EXPECT_EQ(&object, bar.Get());
+    }
 }
 
 TEST(TIntrusivePtrTest, Swap)
 {
-	TSimpleObject* null = NULL;
+    TIntricateObject object;
 
-	TSimpleObject::TPtr foo = New<TSimpleObject>();
-	TSimpleObject::TPtr bar;
+    TIntricateObject::TPtr foo(&object);
+    TIntricateObject::TPtr bar;
 
-	EXPECT_NE(null, foo.Get());
-	EXPECT_EQ(null, bar.Get());
-	EXPECT_EQ(1, foo->GetReferenceCount());
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+    EXPECT_THAT(foo.Get(), NotNull());
+    EXPECT_THAT(bar.Get(), IsNull());
 
-	foo.Swap(bar);
+    foo.Swap(bar);
 
-	EXPECT_EQ(null, foo.Get());
-	EXPECT_NE(null, bar.Get());
-	EXPECT_EQ(1, bar->GetReferenceCount());
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+    EXPECT_THAT(foo.Get(), IsNull());
+    EXPECT_THAT(bar.Get(), NotNull());
 
-	foo.Swap(bar);
+    foo.Swap(bar);
 
-	EXPECT_NE(null, foo.Get());
-	EXPECT_EQ(null, bar.Get());
-	EXPECT_EQ(1, foo->GetReferenceCount());
+    EXPECT_THAT(object, HasReferenceCounters(1, 0, 0));
+    EXPECT_THAT(foo.Get(), NotNull());
+    EXPECT_THAT(bar.Get(), IsNull());
 }
 
 TEST(TIntrusivePtrTest, Cast)
 {
-	TSimpleObject::TPtr foo = New<TSimpleObject>();
-	TSimpleObject::TPtr bar = New<TAnotherSimpleObject>();
+    TIntrusivePtr<TSimpleObject> foo = New<TSimpleObject>();
+    TIntrusivePtr<TSimpleObject> bar = New<TAnotherObject>();
 
-	EXPECT_EQ(1, foo->GetReferenceCount());
-	EXPECT_EQ(1, bar->GetReferenceCount());
+    SUCCEED();
 }
 
-TEST(TIntrusivePtrTest, Intricate)
+TEST(TIntrusivePtrTest, ObjectIsNotDestroyedPrematurely)
 {
-	TIntricateObject::ResetGlobalState();
+    TObjectWithEventsAndSelfPointers::TEvent beforeCreate;
+    TObjectWithEventsAndSelfPointers::TEvent afterCreate;
+    TObjectWithEventsAndSelfPointers::TEvent destroy;
 
-	TIntricateObject::TPtr object;
-	EXPECT_EQ(0, TIntricateObject::CtorCalls);
-	EXPECT_EQ(0, TIntricateObject::DtorCalls);
+    InSequence dummy;
+    EXPECT_CALL(beforeCreate, Call());
+    EXPECT_CALL(afterCreate, Call());
+    EXPECT_CALL(destroy, Call());
 
-	object = New<TIntricateObject>();
-
-	EXPECT_EQ(1, TIntricateObject::CtorCalls);
-	EXPECT_EQ(0, TIntricateObject::DtorCalls);
-
-	object.Reset();
-
-	EXPECT_EQ(1, TIntricateObject::CtorCalls);
-	EXPECT_EQ(1, TIntricateObject::DtorCalls);
+    {
+        TObjectWithEventsAndSelfPointers::TPtr ptr =
+            New<TObjectWithEventsAndSelfPointers>(
+            &beforeCreate, &afterCreate, &destroy);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

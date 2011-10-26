@@ -17,7 +17,7 @@ class TRefCountedBase
 public:
     //! Constructs an instance.
     TRefCountedBase()
-        // Counter is initially set to 1, see #AfterConstruction.
+        // Counter is initially set to 1.
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
@@ -29,7 +29,7 @@ public:
     { }
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    //! Called from #New functions to initialize the #Cookie.
+    //! Called from #New functions to initialize the tracking cookie.
     inline void BindToCookie(TRefCountedTracker::TCookie cookie)
     {
         YASSERT(Cookie == NULL);
@@ -39,11 +39,6 @@ public:
         YASSERT(RefCounter >= 1);
     }
 #endif
-
-    TAtomicBase GetReferenceCount() throw()
-    {
-        return RefCounter;
-    }
 
     //! Increments the reference counter.
     inline void Ref() throw()
