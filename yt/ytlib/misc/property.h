@@ -49,7 +49,7 @@ public: \
     \
     FORCED_INLINE void Set##name(type&& value) \
     { \
-        name##_ = static_cast<type&&>(value); \
+        name##_ = MoveRV(value); \
     }
 
 //! Defines a trivial public read-only property that is passed by value.
