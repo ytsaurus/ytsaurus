@@ -52,7 +52,7 @@ bool DecodeMessagePacket(
         ptr += partSize;
     }
 
-    *message = ~New<TBlobMessage>(&data, parts);
+    *message = New<TBlobMessage>(&data, parts);
     *sequenceId = header->SequenceId;
 
     return true;

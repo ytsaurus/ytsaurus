@@ -161,7 +161,7 @@ ICypressNodeProxy::TPtr TMapNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
     const TTransactionId& transactionId) const
 {
-    return ~New<TMapNodeProxy>(cypressManager, transactionId, Id.NodeId);
+    return New<TMapNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
 TAutoPtr<ICypressNode> TMapNode::Branch(
@@ -254,7 +254,7 @@ ICypressNodeProxy::TPtr TListNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
     const TTransactionId& transactionId) const
 {
-    return ~New<TListNodeProxy>(cypressManager, transactionId, Id.NodeId);
+    return New<TListNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
 TAutoPtr<ICypressNode> TListNode::Branch(

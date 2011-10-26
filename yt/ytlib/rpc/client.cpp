@@ -38,7 +38,7 @@ IMessage::TPtr TClientRequest::Serialize()
         LOG_FATAL("Error serializing request body");
     }
 
-    return ~New<TRpcRequestMessage>(
+    return New<TRpcRequestMessage>(
         RequestId,
         ServiceName,
         MethodName,

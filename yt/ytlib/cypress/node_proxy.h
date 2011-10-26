@@ -418,7 +418,7 @@ public: \
         TIntrusivePtr<TCypressManager> cypressManager, \
         const TTransactionId& transactionId) const \
     { \
-        return ~New<T ## name ## NodeProxy>(cypressManager, transactionId, Id.NodeId); \
+        return New<T ## name ## NodeProxy>(cypressManager, transactionId, Id.NodeId); \
     }
 
 

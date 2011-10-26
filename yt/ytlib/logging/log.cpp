@@ -122,11 +122,11 @@ void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
                 ythrow yexception() <<
                     Sprintf("Couldn't read property FileName at writer %s", ~name);
             }
-            Writers[name] = ~New<TFileLogWriter>(fileName, pattern);
+            Writers[name] = New<TFileLogWriter>(fileName, pattern);
         } else if (type == "StdErr") {
-            Writers[name] = ~New<TStdErrLogWriter>(pattern);
+            Writers[name] = New<TStdErrLogWriter>(pattern);
         } else if (type == "StdOut") {
-            Writers[name] = ~New<TStdOutLogWriter>(pattern);
+            Writers[name] = New<TStdOutLogWriter>(pattern);
         } else {
             ythrow yexception() <<
                 Sprintf("%s is unknown type of writer", ~type);
@@ -181,7 +181,7 @@ TLogManager::TConfig::TConfig()
 {
     Writers.insert(MakePair(
         DefaultStdErrWriterName,
-        ~New<TStdErrLogWriter>(SystemPattern)));
+        New<TStdErrLogWriter>(SystemPattern)));
 
     TRule stdErrRule;
     stdErrRule.AllCategories = true;
@@ -191,7 +191,7 @@ TLogManager::TConfig::TConfig()
 
     Writers.insert(MakePair(
         DefaultFileWriterName,
-        ~New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
+        New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
 
     TRule fileRule;
     fileRule.AllCategories = true;
@@ -367,7 +367,7 @@ void TLogManager::Configure(Stroka fileName, Stroka rootPath)
 
 void TLogManager::ConfigureSystem()
 {
-    SystemWriters.push_back(~New<TStdErrLogWriter>(SystemPattern));
+    SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
 }
 
 void TLogManager::ConfigureDefault()

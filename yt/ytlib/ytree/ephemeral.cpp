@@ -397,32 +397,32 @@ INodeFactory* TEphemeralNodeFactory::Get()
 
 IStringNode::TPtr TEphemeralNodeFactory::CreateString()
 {
-    return ~New<TStringNode>();
+    return New<TStringNode>();
 }
 
 IInt64Node::TPtr TEphemeralNodeFactory::CreateInt64()
 {
-    return ~New<TInt64Node>();
+    return New<TInt64Node>();
 }
 
 IDoubleNode::TPtr TEphemeralNodeFactory::CreateDouble()
 {
-    return ~New<TDoubleNode>();
+    return New<TDoubleNode>();
 }
 
 IMapNode::TPtr TEphemeralNodeFactory::CreateMap()
 {
-    return ~New<TMapNode>();
+    return New<TMapNode>();
 }
 
 IListNode::TPtr TEphemeralNodeFactory::CreateList()
 {
-    return ~New<TListNode>();
+    return New<TListNode>();
 }
 
 IEntityNode::TPtr TEphemeralNodeFactory::CreateEntity()
 {
-    return ~New<TEntityNode>();
+    return New<TEntityNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

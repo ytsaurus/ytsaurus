@@ -142,7 +142,7 @@ TEST(TIntrusivePtrTest, Cast)
 	EXPECT_EQ(1, bar->GetReferenceCount());
 }
 
-TEST(TIntrusivePtr, Intricate)
+TEST(TIntrusivePtrTest, Intricate)
 {
 	TIntricateObject::ResetGlobalState();
 
