@@ -29,18 +29,23 @@ TServiceContext::TServiceContext(
     , RequestBody(message->GetParts().at(1))
     , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
     , ServiceLogger(service->GetLoggingCategory())
-    , IsReplied(false)
+    , Replied(false)
 { }
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
     // Failure here means that #Reply is called twice.
-    YASSERT(!IsReplied);
+    YASSERT(!Replied);
 
-    IsReplied = true;
+    Replied = true;
     LogResponseInfo(errorCode);
     Service->OnEndRequest(this);
     DoReply(errorCode);
+}
+
+bool TServiceContext::IsReplied() const
+{
+    return Replied;
 }
 
 void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
@@ -251,9 +256,9 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName,
             ~methodName);
-        auto errorMessage = ~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage(~New<TRpcErrorResponseMessage>(
             context->GetRequestId(),
-            EErrorCode::NoMethod);
+            EErrorCode::NoMethod));
         context->GetReplyBus()->Send(errorMessage);
         return;
     }

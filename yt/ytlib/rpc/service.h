@@ -105,6 +105,7 @@ public:
         NBus::IBus::TPtr replyBus);
     
     void Reply(EErrorCode errorCode = EErrorCode::OK);
+    bool IsReplied() const;
 
     TSharedRef GetRequestBody() const;
     void SetResponseBody(TBlob* responseBody);
@@ -140,7 +141,7 @@ protected:
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
     NLog::TLogger ServiceLogger;
-    bool IsReplied;
+    bool Replied;
 
     TBlob ResponseBody;
     yvector<TSharedRef> ResponseAttachments;
@@ -244,6 +245,11 @@ public:
             Context->SetResponseAttachments(&Response_.Attachments());
         }
         Context->Reply(errorCode);
+    }
+
+    bool IsReplied() const
+    {
+        return Context->IsReplied();
     }
 
     IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
