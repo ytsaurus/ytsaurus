@@ -50,6 +50,7 @@ private:
     void ValidateChunkId(const TChunkId& chunkId);
 
     RPC_SERVICE_METHOD_DECL(NProto, SetFileChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, GetFileChunk);
 
 };
 

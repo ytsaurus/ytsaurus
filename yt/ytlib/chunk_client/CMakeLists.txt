@@ -1,5 +1,5 @@
 SET(YT_SOURCE_FILES
-    common.h
+    common.cpp
     format.h
     chunk_writer.h
     remote_chunk_writer.cpp

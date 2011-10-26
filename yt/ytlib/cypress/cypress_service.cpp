@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cypress_service.h"
+#include "node_proxy.h"
 
 #include "../ytree/yson_writer.h"
 
@@ -43,6 +44,7 @@ void TCypressService::RegisterMethods()
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
 }
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
@@ -145,7 +147,6 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
             {
                 CypressManager
                     ->InitiateSetYPath(transactionId, path, value)
-                    // TODO: remove this-> once gcc bug is fixed
                     ->OnSuccess(this->CreateSuccessHandler(context))
                     ->OnError(this->CreateErrorHandler(context))
                     ->Commit();
@@ -197,6 +198,34 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
                     ->OnSuccess(this->CreateSuccessHandler(context))
                     ->OnError(this->CreateErrorHandler(context))
                     ->Commit();
+            }));
+}
+
+RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
+{
+    UNUSED(response);
+
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
+        ~transactionId.ToString(),
+        ~path);
+
+    ExecuteRecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromFunctor([=] ()
+            {
+                auto node = CypressManager->NavigateYPath(transactionId, path);
+                
+                ICypressNodeProxy::TPtr cypressNode(dynamic_cast<ICypressNodeProxy*>(~node));
+                if (~cypressNode == NULL) {
+                    throw yexception() << "Node has no id";
+                }
+
+                response->SetNodeId(cypressNode->GetNodeId().ToProto());
+                context->Reply();
             }));
 }
 

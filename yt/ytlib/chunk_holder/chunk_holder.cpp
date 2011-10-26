@@ -239,31 +239,23 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         TBlockId blockId(chunkId, blockIndex);
         awaiter->Await(
             BlockStore->FindBlock(blockId),
-            FromMethod(
-                &TChunkHolder::OnGotBlock,
-                TPtr(this),
-                index,
-                context));
+            FromFunctor([=] (TCachedBlock::TPtr block)
+                {
+                    if (~block == NULL) {
+                        awaiter->Cancel();
+                        context->Reply(TChunkHolderProxy::EErrorCode::NoSuchBlock);
+                    } else {
+                        context->Response().Attachments()[index] = block->GetData();
+                    }
+                }));
     }
 
-    awaiter->Complete(FromMethod(
-        &TChunkHolder::OnGotAllBlocks,
-        TPtr(this),
-        context));
-}
-
-void TChunkHolder::OnGotBlock(
-    TCachedBlock::TPtr block,
-    int blockIndex,
-    TCtxGetBlocks::TPtr context)
-{
-    YASSERT(~block != NULL);
-    context->Response().Attachments().at(blockIndex) = block->GetData();
-}
-
-void TChunkHolder::OnGotAllBlocks(TCtxGetBlocks::TPtr context)
-{
-    context->Reply();
+    awaiter->Complete(FromFunctor([=] ()
+        {
+            if (!context->IsReplied()) {
+                context->Reply();
+            }
+        }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
@@ -300,7 +292,6 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
 
     context->Reply();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,6 +11,7 @@ namespace NFileServer {
 
 TFileNode::TFileNode(const TBranchedNodeId& id)
     : TCypressNodeBase(id)
+    , ChunkId_(NullChunkId)
 { }
 
 TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)

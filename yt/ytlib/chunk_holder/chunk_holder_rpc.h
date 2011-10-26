@@ -23,6 +23,7 @@ public:
         ((ChunkAlreadyExists)(4))
         ((WindowError)(5))
         ((UnmatchedBlockContent)(6))
+        ((NoSuchBlock)(7))
     );
 
     TChunkHolderProxy(NRpc::IChannel::TPtr channel)

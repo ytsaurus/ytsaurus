@@ -164,7 +164,7 @@ private:
             ++CommitCount;
             CheckCommitQuorum();
         } else {
-            LOG_DEBUG("Changes are acknowledges by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
+            LOG_DEBUG("Changes are acknowledged by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
                 ~Version.ToString(),
                 BatchedChanges.ysize(),
                 peerId);
@@ -176,8 +176,8 @@ private:
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         LOG_DEBUG("Changes are committed locally (Version: %s, ChangeCount: %d)",
-            BatchedChanges.ysize(),
-            ~Version.ToString());
+            ~Version.ToString(),
+            BatchedChanges.ysize());
         ++CommitCount;
         CheckCommitQuorum();
     }

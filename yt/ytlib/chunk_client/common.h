@@ -12,6 +12,9 @@ typedef i64 TBlockOffset;
 //! Identifies a chunk.
 typedef TGuid TChunkId;
 
+//! Means "no chunk".
+extern TChunkId NullChunkId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Identifies a block.

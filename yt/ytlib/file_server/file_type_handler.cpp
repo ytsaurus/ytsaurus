@@ -27,10 +27,11 @@ TAutoPtr<ICypressNode> TFileTypeHandler::Create(
     return new TFileNode(TBranchedNodeId(nodeId, NullTransactionId));
 }
 
-TAutoPtr<ICypressNode> TFileTypeHandler::Load(TInputStream* stream)
+TAutoPtr<ICypressNode> TFileTypeHandler::Create(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId)
 {
-    UNUSED(stream);
-    YUNIMPLEMENTED();
+    return new TFileNode(TBranchedNodeId(nodeId, transactionId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,6 +51,7 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, Set);
     RPC_SERVICE_METHOD_DECL(NProto, Remove);
     RPC_SERVICE_METHOD_DECL(NProto, Lock);
+    RPC_SERVICE_METHOD_DECL(NProto, GetNodeId);
 
 };
 

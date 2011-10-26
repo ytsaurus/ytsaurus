@@ -79,6 +79,10 @@ public:
         TYPath path,
         IYsonConsumer* consumer);
 
+    INode::TPtr NavigateYPath(
+        const TTransactionId& transactionId,
+        TYPath path);
+
     TMetaChange<TVoid>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
         TYPath path,

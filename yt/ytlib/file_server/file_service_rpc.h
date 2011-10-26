@@ -31,6 +31,7 @@ public:
     { }
 
     RPC_PROXY_METHOD(NProto, SetFileChunk);
+    RPC_PROXY_METHOD(NProto, GetFileChunk);
 
 };
 

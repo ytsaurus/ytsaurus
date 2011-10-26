@@ -6,6 +6,8 @@
 namespace NYT {
 namespace NCypress {
 
+// TODO: rename to dynamic_type.h
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IDynamicTypeHandler
@@ -21,7 +23,9 @@ struct IDynamicTypeHandler
         const TTransactionId& transactionId,
         IMapNode::TPtr description) = 0;
 
-    virtual TAutoPtr<ICypressNode> Load(TInputStream* stream) = 0;
+    virtual TAutoPtr<ICypressNode> Create(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

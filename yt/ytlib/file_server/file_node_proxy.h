@@ -14,6 +14,8 @@ class TFileNodeProxy
     : public TCypressNodeProxyBase<IEntityNode, TFileNode>
 {
 public:
+    typedef TIntrusivePtr<TFileNodeProxy> TPtr;
+
     TFileNodeProxy(
         TCypressManager::TPtr cypressManager,
         const TTransactionId& transactionId,
@@ -24,6 +26,9 @@ public:
 
     TChunkId GetChunkId() const;
     void SetChunkId(const TChunkId& chunkId);
+
+protected:
+    virtual IAttributeProvider* GetAttributeProvider();
 
 };
 

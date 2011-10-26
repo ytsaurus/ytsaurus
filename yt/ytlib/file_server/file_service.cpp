@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "file_service.h"
 
+#include "../misc/string.h"
+
 namespace NYT {
 namespace NFileServer {
 
@@ -41,11 +43,14 @@ TFileService::TFileService(
 void TFileService::RegisterMethods()
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SetFileChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileChunk));
 }
 
 void TFileService::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    if (TransactionManager->FindTransaction(transactionId) == NULL) {
+    if (transactionId != NullTransactionId &&
+        TransactionManager->FindTransaction(transactionId) == NULL)
+    {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
     }
@@ -103,6 +108,42 @@ RPC_SERVICE_METHOD_IMPL(TFileService, SetFileChunk)
         ->OnSuccess(CreateSuccessHandler(context))
         ->OnError(CreateErrorHandler(context))
         ->Commit();
+}
+
+RPC_SERVICE_METHOD_IMPL(TFileService, GetFileChunk)
+{
+    UNUSED(response);
+
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto nodeId = TTransactionId::FromProto(request->GetNodeId());
+
+    context->SetRequestInfo("TransactionId: %s, NodeId: %s",
+        ~transactionId.ToString(),
+        ~nodeId.ToString());
+
+    ValidateTransactionId(transactionId);
+    ValidateNodeId(nodeId, transactionId);
+
+    auto node = CypressManager->GetNode(nodeId, transactionId);
+    YASSERT(~node != NULL);
+
+    TFileNodeProxy::TPtr typedNode(dynamic_cast<TFileNodeProxy*>(~node));
+    YASSERT(~typedNode != NULL);
+
+    auto chunkId = typedNode->GetChunkId();
+    response->SetChunkId(chunkId.ToProto());
+
+    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    FOREACH (auto holderId, chunk.Locations()) {
+        const auto& holder = ChunkManager->GetHolder(holderId);
+        response->AddAddresses(holder.GetAddress());
+    }
+
+    context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
+        ~chunkId.ToString(),
+        ~JoinToString(response->GetAddresses()));
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

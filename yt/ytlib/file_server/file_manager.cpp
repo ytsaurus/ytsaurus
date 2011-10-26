@@ -23,6 +23,8 @@ TFileManager::TFileManager(
 {
     YASSERT(~cypressManager != NULL);
 
+    RegisterMethod(this, &TThis::SetFileChunk);
+
     metaState->RegisterPart(this);
 }
 

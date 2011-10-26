@@ -292,6 +292,17 @@ INode::TPtr TCypressManager::CreateDynamicNode(
     return ~proxy;
 }
 
+TAutoPtr<ICypressNode> TCypressManager::CreateDynamicNode(
+    ERuntimeNodeType type,
+    const TBranchedNodeId& id)
+{
+    auto it = RuntimeTypeToHandler.find(type);
+    YASSERT(it != RuntimeTypeToHandler.end());
+
+    auto handler = it->Second();
+    return handler->Create(id.NodeId, id.TransactionId);
+}
+
 TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto id = LockIdGenerator.Next();
@@ -340,6 +351,15 @@ void TCypressManager::GetYPath(
 {
     auto root = GetNode(RootNodeId, transactionId);
     NYTree::GetYPath(AsYPath(~root), path, consumer);
+}
+
+
+INode::TPtr TCypressManager::NavigateYPath(
+    const TTransactionId& transactionId,
+    TYPath path )
+{
+    auto root = GetNode(RootNodeId, transactionId);
+    return NYTree::NavigateYPath(AsYPath(~root), path);
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
@@ -635,7 +655,7 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input
         value = new TListNode(id);
         break;
     default:
-        //value = CypressManager->CreateDynamicNode(type, id);
+        value = CypressManager->CreateDynamicNode(type, id);
         break;
     }
     value->Load(input);
