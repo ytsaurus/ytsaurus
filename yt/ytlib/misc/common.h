@@ -54,3 +54,4 @@ using std::string; // hack for guid.h to work
 #endif
 
 #include "intrusive_ptr.h"
+#include "rvalue.h"

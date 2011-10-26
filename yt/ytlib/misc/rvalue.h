@@ -11,27 +11,34 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Implements #std::identity behaviour from C++11.
-template<class T>
-struct TIdentityTraits
-{
-    typedef T TType;
-};
-
 //! Implements #std::move<T> behaviour from C++11.
-template<class T>
-typename TTypeTraits<T>::TReferenceTo&&
-MoveRV(T&& x)
+template<typename T>
+FORCED_INLINE typename TTypeTraits<T>::TReferenceTo&& MoveRV(T&& x)
 {
-    return static_cast<typename TTypeTraits<T>::TReferenceTo&&>(x);
+    return static_cast<typename TTypeTraits<T>::TReferenceTo<T>::TType&&>(x);
 }
 
 //! Implements #std::forward<T> behaviour from C++11.
-template<class T>
-T&& ForwardRV(typename TIdentityTraits<T>::TType&& x)
+template<typename T>
+FORCED_INLINE T&& ForwardRV(typename TTypeTraits<T>::TReferenceTo<T>::TType& x)
+{
+    return static_cast<T&&>(x);
+}
+
+//! Fix instantination errors (mainly due to reference collapsing).
+//! \{
+template<typename T>
+FORCED_INLINE T& ForwardRV(T& x)
 {
     return x;
 }
+
+template<typename T>
+FORCED_INLINE const T*&& ForwardRV(const T*& x)
+{
+    return x;
+}
+//! \}
 
 ////////////////////////////////////////////////////////////////////////////////
 

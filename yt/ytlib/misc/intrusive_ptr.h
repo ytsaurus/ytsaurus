@@ -11,8 +11,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail
-{
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,12 +64,12 @@ template<class T>
 class TIntrusivePtr
 {
 public:
-    TIntrusivePtr()
+    TIntrusivePtr() throw()
         : T_(0)
     {
     }
 
-    TIntrusivePtr(T* p, bool addReference = true)
+    TIntrusivePtr(T* p, bool addReference = true) throw()
         : T_(p)
     {
         if (T_ != 0 && addReference) {
@@ -78,7 +77,7 @@ public:
         }
     }
 
-    TIntrusivePtr(const TIntrusivePtr& other)
+    TIntrusivePtr(const TIntrusivePtr& other) throw()
         : T_(other.T_)
     {
         if (T_ != 0) {
@@ -90,6 +89,7 @@ public:
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
         typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        throw()
         : T_(other.Get())
     {
         if (T_ != 0) {
@@ -97,10 +97,22 @@ public:
         }
     }
 
-    TIntrusivePtr(TIntrusivePtr&& other)
+    TIntrusivePtr(TIntrusivePtr&& other) throw()
         : T_(other.T_)
     {
         other.T_ = 0;
+    }
+
+    template<class U>
+    TIntrusivePtr(
+        TIntrusivePtr<U>&& other,
+        typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        throw()
+        : T_(other.Get())
+    {
+        if (T_ != 0) {
+            T_->Ref();
+        }
     }
 
     ~TIntrusivePtr()
@@ -110,45 +122,45 @@ public:
         }
     }
 
-    TIntrusivePtr& operator=(const TIntrusivePtr& other)
+    TIntrusivePtr& operator=(const TIntrusivePtr& other) throw()
     {
         TIntrusivePtr(other).Swap(*this);
         return *this;
     }
 
-    TIntrusivePtr& operator=(TIntrusivePtr&& other)
+    TIntrusivePtr& operator=(TIntrusivePtr&& other) throw()
     {
-        TIntrusivePtr(static_cast<TIntrusivePtr&&>(other)).Swap(*this);
+        TIntrusivePtr(MoveRV(other)).Swap(*this);
         return *this;
     }
 
-    void Reset()
+    void Reset() throw()
     {
         TIntrusivePtr().Swap(*this);
     }
 
-    void Reset(T* p)
+    void Reset(T* p) throw()
     {
         TIntrusivePtr(p).Swap(*this);
     }
 
-    T* Get() const {
+    T* Get() const throw() {
         return T_;
     }
 
-    T& operator*() const
+    T& operator*() const throw()
     {
         YASSERT(T_ != 0);
         return *T_;
     }
 
-    T* operator->() const
+    T* operator->() const throw()
     {
         YASSERT(T_ != 0);
         return  T_;
     }
 
-    void Swap(TIntrusivePtr& r) {
+    void Swap(TIntrusivePtr& r) throw() {
         DoSwap(T_, r.T_);
     }
 
@@ -157,92 +169,110 @@ private:
 };
 
 // Behaves like TIntrusivePtr but returns const T* to prevent user from accidentally modifying the referenced object.
-template <class T>
-class TIntrusiveConstPtr {
-    public:
-        typedef TDefaultIntrusivePtrOps<T> Ops;
+template<class T>
+class TIntrusiveConstPtr
+{
+public:
+    TIntrusiveConstPtr()
+        : T_(0)
+    {
+    }
 
-        inline TIntrusiveConstPtr(T* t = NULL) throw ()  // we need a non-const pointer to Ref(), UnRef() and eventually delete it.
-            : T_(t)
-        {
-            Ops();
-            Ref();
+    TIntrusiveConstPtr(T* p, bool addReference = true)
+        : T_(p)
+    {
+        if (T_ != 0 && addReference) {
+            T_->Ref();
         }
+    }
 
-        inline ~TIntrusiveConstPtr() throw () {
-            UnRef();
+    TIntrusiveConstPtr(const TIntrusiveConstPtr& other)
+        : T_(other.T_)
+    {
+        if (T_ != 0) {
+            T_->Ref();
         }
+    }
 
-        inline TIntrusiveConstPtr(const TIntrusiveConstPtr& p) throw ()
-            : T_(p.T_)
-        {
-            Ref();
+    template<class U>
+    TIntrusiveConstPtr(
+        const TIntrusiveConstPtr<U>& other,
+        typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        : T_(other.Get())
+    {
+        if (T_ != 0) {
+            T_->Ref();
         }
+    }
 
-        inline TIntrusiveConstPtr(const TIntrusivePtr<T>& p) throw ()
-            : T_(p.Get())
-        {
-            Ref();
+    TIntrusiveConstPtr(TIntrusiveConstPtr&& other)
+        : T_(other.T_)
+    {
+        other.T_ = 0;
+    }
+
+    template<class U>
+    TIntrusiveConstPtr(
+        TIntrusiveConstPtr<U>&& other,
+        typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        : T_(other.Get())
+    {
+        if (T_ != 0) {
+            T_->Ref();
         }
+    }
 
-        inline TIntrusiveConstPtr& operator= (TIntrusiveConstPtr p) throw () {
-            if (&p != this) {
-                p.Swap(*this);
-            }
-
-            return *this;
+    ~TIntrusiveConstPtr()
+    {
+        if (T_ != 0) {
+            T_->UnRef();
         }
+    }
 
-        inline const T* Get() const throw () {
-            return T_;
-        }
+    TIntrusiveConstPtr& operator=(const TIntrusiveConstPtr& other)
+    {
+        TIntrusiveConstPtr(other).Swap(*this);
+        return *this;
+    }
 
-        inline void Swap(TIntrusiveConstPtr& r) throw () {
-            DoSwap(T_, r.T_);
-        }
+    TIntrusiveConstPtr& operator=(TIntrusiveConstPtr&& other)
+    {
+        TIntrusiveConstPtr(MoveRV(other)).Swap(*this);
+        return *this;
+    }
 
-        inline void Drop() throw () {
-            TIntrusiveConstPtr(0).Swap(*this);
-        }
+    void Reset()
+    {
+        TIntrusiveConstPtr().Swap(*this);
+    }
 
-        inline const T* operator-> () const throw () {
-            return Get();
-        }
+    void Reset(T* p)
+    {
+        TIntrusiveConstPtr(p).Swap(*this);
+    }
 
-        template <class C>
-        inline bool operator== (const C& p) const throw () {
-            return Get() == p;
-        }
+    const T* Get() const {
+        return T_;
+    }
 
-        template <class C>
-        inline bool operator!= (const C& p) const throw () {
-            return Get() != p;
-        }
+    const T& operator*() const
+    {
+        YASSERT(T_ != 0);
+        return *T_;
+    }
 
-        inline bool operator! () const throw () {
-            return Get() == NULL;
-        }
+    const T* operator->() const
+    {
+        YASSERT(T_ != 0);
+        return  T_;
+    }
 
-        inline const T& operator* () const throw () {
-            YASSERT(Get() != NULL);
-            return *Get();
-        }
+    void Swap(TIntrusiveConstPtr& r) {
+        DoSwap(T_, r.T_);
+    }
 
-    private:
-        inline void Ref() throw () {
-            if (T_ != NULL) {
-                Ops::Ref(T_);
-            }
-        }
-
-        inline void UnRef() throw () {
-            if (T_ != NULL) {
-                Ops::UnRef(T_);
-            }
-        }
-
-    private:
-        T* T_;
+private:
+    T* T_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
