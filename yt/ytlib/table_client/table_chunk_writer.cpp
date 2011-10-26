@@ -1,12 +1,12 @@
 #include "stdafx.h"
-#include "table_writer.h"
+#include "table_chunk_writer.h"
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableWriter::TTableWriter(
+TTableChunkWriter::TTableChunkWriter(
     const TConfig& config, 
     IChunkWriter::TPtr chunkWriter,
     const TSchema& schema,
@@ -25,7 +25,7 @@ TTableWriter::TTableWriter(
     }
 }
 
-void TTableWriter::Write(const TColumn& column, TValue value)
+void TTableChunkWriter::Write(const TColumn& column, TValue value)
 {
     YASSERT(!UsedColumns.has(column));
     UsedColumns.insert(column);
@@ -34,7 +34,7 @@ void TTableWriter::Write(const TColumn& column, TValue value)
     }
 }
 
-void TTableWriter::EndRow()
+void TTableChunkWriter::EndRow()
 {
     for (int channelIndex = 0; 
         channelIndex < ChannelWriters.ysize(); 
@@ -54,7 +54,7 @@ void TTableWriter::EndRow()
 }
 
 // thread may block here, if chunkwriter window is overfilled
-void TTableWriter::AddBlock(int channelIndex)
+void TTableChunkWriter::AddBlock(int channelIndex)
 {
     auto channel = ChannelWriters[channelIndex];
 
@@ -67,7 +67,7 @@ void TTableWriter::AddBlock(int channelIndex)
     ++CurrentBlockIndex;
 }
 
-void TTableWriter::Close()
+void TTableChunkWriter::Close()
 {
     if (IsClosed) {
         return;
@@ -92,7 +92,7 @@ void TTableWriter::Close()
     IsClosed = true;
 }
 
-TTableWriter::~TTableWriter()
+TTableChunkWriter::~TTableChunkWriter()
 {
     Close();
 }

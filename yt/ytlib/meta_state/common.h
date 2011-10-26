@@ -120,7 +120,7 @@ struct TMetaStateManagerConfig
     TMetaStateManagerConfig()
         : LogLocation(".")
         , SnapshotLocation(".")
-        , MaxChangesBetweenSnapshots(-1)
+        , MaxChangesBetweenSnapshots(1000)
         , SyncTimeout(TDuration::MilliSeconds(5000))
         , RpcTimeout(TDuration::MilliSeconds(3000))
     { }
