@@ -40,7 +40,7 @@ public:
     }
 #endif
 
-    inline TAtomic GetReferenceCount() throw()
+    TAtomicBase GetReferenceCount() throw()
     {
         return RefCounter;
     }
