@@ -23,7 +23,7 @@ TTransactionService::TTransactionService(
     , TransactionManager(transactionManager)
 {
     YASSERT(~transactionManager != NULL);
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~server != NULL);
 
     RegisterMethods();
 
@@ -42,7 +42,7 @@ void TTransactionService::ValidateTransactionId(const TTransactionId& id)
 {
     if (TransactionManager->FindTransaction(id) == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
-            Sprintf("Unknown or expired transaction (TransactionId: %s)",
+            Sprintf("Unknown or expired transaction id (TransactionId: %s)",
                 ~id.ToString());
     }
 }
@@ -52,33 +52,22 @@ void TTransactionService::ValidateTransactionId(const TTransactionId& id)
 RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 {
     UNUSED(request);
-    UNUSED(response);
 
     context->SetRequestInfo("");
 
-    auto id = TTransactionId::Create();
+    TransactionManager
+        ->InitiateStartTransaction()
+        ->OnSuccess(FromFunctor([=] (TTransactionId id)
+            {
+                response->SetTransactionId(id.ToProto());
 
-    TMsgCreateTransaction message;
-    message.SetTransactionId(id.ToProto());
+                context->SetResponseInfo("TransactionId: %s",
+                    ~id.ToString());
 
-    CommitChange(
-        this, context, TransactionManager, message,
-        &TTransactionManager::StartTransaction,
-        &TThis::OnTransactionStarted);
-}
-
-void TTransactionService::OnTransactionStarted(
-    TTransactionId id,
-    TCtxStartTransaction::TPtr context)
-{
-    auto* response = &context->Response();
-
-    response->SetTransactionId(id.ToProto());
-
-    context->SetResponseInfo("TransactionId: %s",
-        ~id.ToString());
-
-    context->Reply();
+                context->Reply();
+            }))
+        ->OnError(CreateErrorHandler(context))
+        ->Commit();
 }
 
 RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
@@ -92,12 +81,11 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
     
     ValidateTransactionId(id);
 
-    TMsgCommitTransaction message;
-    message.SetTransactionId(id.ToProto());
-
-    CommitChange(
-        this, context, TransactionManager, message,
-        &TTransactionManager::CommitTransaction);
+    TransactionManager
+        ->InitiateCommitTransaction(id)
+        ->OnSuccess(CreateSuccessHandler(context))
+        ->OnError(CreateErrorHandler(context))
+        ->Commit();
 }
 
 RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
@@ -111,12 +99,11 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
     
     ValidateTransactionId(id);
 
-    TMsgAbortTransaction message;
-    message.SetTransactionId(id.ToProto());
-
-    CommitChange(
-        this, context, TransactionManager, message,
-        &TTransactionManager::AbortTransaction);
+    TransactionManager
+        ->InitiateAbortTransaction(id)
+        ->OnSuccess(CreateSuccessHandler(context))
+        ->OnError(CreateErrorHandler(context))
+        ->Commit();
 }
 
 RPC_SERVICE_METHOD_IMPL(TTransactionService, RenewTransactionLease)

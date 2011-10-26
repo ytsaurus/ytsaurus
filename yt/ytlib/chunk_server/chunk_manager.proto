@@ -1,8 +1,14 @@
-package NYT.NChunkManager.NProto;
+package NYT.NChunkServer.NProto;
 
-import "chunk_manager_rpc.proto";
+import "chunk_service_rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMsgRegisterHolder
+{
+    required bytes Address = 1;
+    required THolderStatistics Statistics = 2;
+}
 
 message TMsgUnregisterHolder
 {
@@ -11,8 +17,7 @@ message TMsgUnregisterHolder
 
 message TMsgAddChunk
 {
-    required bytes ChunkId = 1;
-    required bytes TransactionId = 2;
+    required bytes TransactionId = 1;
 }
 
 message TMsgRemoveChunk

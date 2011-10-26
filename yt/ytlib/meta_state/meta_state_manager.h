@@ -18,7 +18,7 @@ public:
     typedef TIntrusivePtr<TMetaStateManager> TPtr;
     typedef TMetaStateManagerConfig TConfig;
 
-    typedef TFuture<ECommitResult> TCommitResult;
+    typedef TFuture<ECommitResult> TAsyncCommitResult;
 
     TMetaStateManager(
         const TConfig& config,
@@ -70,14 +70,14 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
     /*!
      * \note Thread affinity: StateThread
      */
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
@@ -85,13 +85,13 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         const TSharedRef& changeData);
 
     /*!
      * \note Thread affinity: any
      */
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 

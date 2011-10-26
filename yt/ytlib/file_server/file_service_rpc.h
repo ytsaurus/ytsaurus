@@ -1,40 +1,42 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_manager_rpc.pb.h"
+
+#include "common.h"
+#include "file_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 
 namespace NYT {
-namespace NChunkManager {
+namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManagerProxy
+class TFileServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TChunkManagerProxy> TPtr;
+    typedef TIntrusivePtr<TFileServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(ChunkManager,
+    RPC_DECLARE_PROXY(FileService,
         ((NoSuchTransaction)(1))
-        ((NoSuchHolder)(2))
+        ((NoSuchNode)(2))
         ((NoSuchChunk)(3))
+        ((InvalidNodeType)(4))
     );
 
-    TChunkManagerProxy(NRpc::IChannel::TPtr channel)
+    TFileServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, RegisterHolder);
-    RPC_PROXY_METHOD(NProto, HolderHeartbeat);
-    RPC_PROXY_METHOD(NProto, AddChunk);
-    RPC_PROXY_METHOD(NProto, FindChunk);
+    RPC_PROXY_METHOD(NProto, SetFileChunk);
+    RPC_PROXY_METHOD(NProto, GetFileChunk);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NFileServer
 } // namespace NYT
+

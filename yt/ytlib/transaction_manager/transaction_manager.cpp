@@ -19,6 +19,8 @@ TTransactionManager::TTransactionManager(
     TCompositeMetaState::TPtr metaState)
     : TMetaStatePart(metaStateManager, metaState)
     , Config(config)
+    // Some random number.
+    , TransactionIdGenerator(0x5fab718461fda630)
 {
     RegisterMethod(this, &TThis::StartTransaction);
     RegisterMethod(this, &TThis::CommitTransaction);
@@ -29,11 +31,24 @@ TTransactionManager::TTransactionManager(
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }
 
-TTransactionId TTransactionManager::StartTransaction(const TMsgCreateTransaction& message)
+TMetaChange<TTransactionId>::TPtr
+TTransactionManager::InitiateStartTransaction()
 {
+    TMsgStartTransaction message;
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::StartTransaction,
+        TPtr(this));
+}
+
+TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction& message)
+{
+    UNUSED(message);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = TTransactionId::FromProto(message.GetTransactionId());
+    auto id = TransactionIdGenerator.Next();
 
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
@@ -50,7 +65,19 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgCreateTransaction
     return id;
 }
 
-NYT::TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& message)
+NMetaState::TMetaChange<TVoid>::TPtr
+TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
+{
+    TMsgCommitTransaction message;
+    message.SetTransactionId(id.ToProto());
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::CommitTransaction,
+        TPtr(this));
+}
+
+TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -72,7 +99,19 @@ NYT::TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& m
     return TVoid();
 }
 
-NYT::TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
+NMetaState::TMetaChange<TVoid>::TPtr
+TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
+{
+    TMsgAbortTransaction message;
+    message.SetTransactionId(id.ToProto());
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::AbortTransaction,
+        TPtr(this));
+}
+
+TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -103,21 +142,6 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::Get()->RenewLease(it->Second());
 }
 
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionStarted()
-{
-    return OnTransactionStarted_;
-}
-
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionCommitted()
-{
-    return OnTransactionCommitted_;
-}
-
-TParamSignal<TTransaction&>& TTransactionManager::OnTransactionAborted()
-{
-    return OnTransactionAborted_;
-}
-
 Stroka TTransactionManager::GetPartName() const
 {
     return "TransactionManager";
@@ -127,12 +151,24 @@ TFuture<TVoid>::TPtr TTransactionManager::Save(TOutputStream* stream, IInvoker::
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto transactionIdGenerator = TransactionIdGenerator;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Save(stream, transactionIdGenerator);
+        }));
+
     return TransactionMap.Save(invoker, stream);
 }
 
 TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    TPtr thisPtr = this;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Load(stream, thisPtr->TransactionIdGenerator);
+        }));
 
     return TransactionMap.Load(invoker, stream);
 }
@@ -141,6 +177,7 @@ void TTransactionManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    TransactionIdGenerator.Reset();
     TransactionMap.Clear();
 }
 
@@ -165,7 +202,7 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease( const TTransaction& transaction )
+void TTransactionManager::CreateLease(const TTransaction& transaction)
 {
     auto lease = TLeaseManager::Get()->CreateLease(
         Config.TransactionTimeout,
@@ -174,7 +211,7 @@ void TTransactionManager::CreateLease( const TTransaction& transaction )
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).Second());
 }
 
-void TTransactionManager::CloseLease( const TTransaction& transaction )
+void TTransactionManager::CloseLease(const TTransaction& transaction)
 {
     auto it = LeaseMap.find(transaction.GetId());
     YASSERT(it != LeaseMap.end());
@@ -189,12 +226,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (FindTransaction(id) == NULL)
         return;
 
-    NProto::TMsgAbortTransaction message;
-    message.SetTransactionId(id.ToProto());
-
-    CommitChange(
-        message,
-        FromMethod(&TThis::AbortTransaction, this));
+    InitiateAbortTransaction(id)->Commit();
 }
 
 METAMAP_ACCESSORS_IMPL(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

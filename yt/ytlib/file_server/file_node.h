@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include "../misc/property.h"
 #include "../cypress/node.h"
 
 namespace NYT {
@@ -14,6 +15,8 @@ using namespace NCypress;
 class TFileNode
     : public TCypressNodeBase
 {
+    DECLARE_BYVAL_RW_PROPERTY(ChunkId, TChunkId);
+
 public:
     explicit TFileNode(const TBranchedNodeId& id);
 
@@ -25,6 +28,8 @@ public:
         ICypressNode& branchedNode);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
+
+    virtual ERuntimeNodeType GetRuntimeType() const;
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         TIntrusivePtr<TCypressManager> state,

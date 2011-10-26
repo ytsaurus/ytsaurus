@@ -16,7 +16,10 @@ class TRemoteChunkReader
     : public IChunkReader
 {
 public:
-    TRemoteChunkReader(const TChunkId& chunkId, const yvector<Stroka>& holderAddresses);
+    TRemoteChunkReader(
+        const TChunkId& chunkId,
+        const yvector<Stroka>& holderAddresses);
+
     TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
 private:

@@ -1,18 +1,14 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_manager_rpc.h"
 
 #include "../misc/property.h"
 #include "../misc/serialize.h"
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef int THolderId;
-const int InvalidHolderId = -1;
 
 DECLARE_ENUM(EHolderState,
     // The holder had just registered but have not reported any heartbeats yet.
@@ -65,7 +61,7 @@ public:
         ::Save(output, Address_);
         ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         ::Save(output, Statistics_);
-        SaveSorted(output, Chunks_);
+        SaveSet(output, Chunks_);
         ::Save(output, Jobs_);
     }
 
@@ -113,5 +109,5 @@ struct TReplicationSink
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT

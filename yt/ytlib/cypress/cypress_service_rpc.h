@@ -31,6 +31,7 @@ public:
     RPC_PROXY_METHOD(NProto, Set);
     RPC_PROXY_METHOD(NProto, Remove);
     RPC_PROXY_METHOD(NProto, Lock);
+    RPC_PROXY_METHOD(NProto, GetNodeId);
 
 };
 

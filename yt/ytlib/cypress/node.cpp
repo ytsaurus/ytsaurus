@@ -7,6 +7,9 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBranchedNodeId::TBranchedNodeId()
+{ }
+
 TBranchedNodeId::TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId)
     : NodeId(nodeId)
     , TransactionId(transactionId)
@@ -55,16 +58,16 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
-    , RefCounter(0)
     , Id(id)
+    , RefCounter(0)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
-    , RefCounter(0)
     , Id(id)
+    , RefCounter(0)
 { }
 
 NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
@@ -121,6 +124,24 @@ void TCypressNodeBase::Merge(
 
     // Replace the attributes with the branched copy.
     AttributesId_ = branchedNode.GetAttributesId();
+}
+
+void TCypressNodeBase::Save(TOutputStream* output) const
+{
+    SaveSet(output, Locks_);
+    ::Save(output, ParentId_);
+    ::Save(output, AttributesId_);
+    ::Save(output, static_cast<i32>(State_));
+}
+
+void TCypressNodeBase::Load(TInputStream* input)
+{
+    ::Load(input, Locks_);
+    ::Load(input, ParentId_);
+    ::Load(input, AttributesId_);
+    i32 state;
+    ::Load(input, state);
+    State_ = ENodeState(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +217,26 @@ void TMapNode::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
     }
 }
 
+ERuntimeNodeType TMapNode::GetRuntimeType() const
+{
+    return ERuntimeNodeType::Map;
+}
+
+void TMapNode::Save(TOutputStream* output) const
+{
+    TCypressNodeBase::Save(output);
+    SaveMap(output, ChildToName());
+}
+
+void TMapNode::Load(TInputStream* input)
+{
+    TCypressNodeBase::Load(input);
+    ::Load(input, ChildToName());
+    FOREACH(const auto& pair, ChildToName()) {
+        NameToChild().insert(MakePair(pair.Second(), pair.First()));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNode::TListNode(const TBranchedNodeId& id)
@@ -266,6 +307,26 @@ void TListNode::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
     FOREACH (auto& nodeId, IndexToChild_) {
         auto& childImpl = cypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
         cypressManager->UnrefNode(childImpl);
+    }
+}
+
+ERuntimeNodeType TListNode::GetRuntimeType() const
+{
+    return ERuntimeNodeType::List;
+}
+
+void TListNode::Save(TOutputStream* output) const
+{
+    TCypressNodeBase::Save(output);
+    ::Save(output, IndexToChild());
+}
+
+void TListNode::Load(TInputStream* input)
+{
+    TCypressNodeBase::Load(input);
+    ::Load(input, IndexToChild());
+    for (int i = 0; i < IndexToChild().ysize(); ++i) {
+        ChildToIndex()[IndexToChild()[i]] = i;
     }
 }
 

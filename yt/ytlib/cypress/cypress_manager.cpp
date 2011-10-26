@@ -12,6 +12,8 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NMetaState;
+using namespace NProto;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +29,7 @@ TCypressManager::TCypressManager(
     , TransactionManager(transactionManager)
     // Some random number.
     , NodeIdGenerator(0x5f1b61936a3e1741)
+    , NodeMap(TNodeMapTraits(this))
     // Another random number.
     , LockIdGenerator(0x465901ab71fe2671)
 {
@@ -52,7 +55,7 @@ void TCypressManager::RegisterDynamicType(IDynamicTypeHandler::TPtr handler)
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
 }
 
-INode::TPtr TCypressManager::FindNode(
+ICypressNodeProxy::TPtr TCypressManager::FindNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -66,7 +69,7 @@ INode::TPtr TCypressManager::FindNode(
     return ~impl->GetProxy(this, transactionId);
 }
 
-INode::TPtr TCypressManager::GetNode(
+ICypressNodeProxy::TPtr TCypressManager::GetNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -289,6 +292,17 @@ INode::TPtr TCypressManager::CreateDynamicNode(
     return ~proxy;
 }
 
+TAutoPtr<ICypressNode> TCypressManager::CreateDynamicNode(
+    ERuntimeNodeType type,
+    const TBranchedNodeId& id)
+{
+    auto it = RuntimeTypeToHandler.find(type);
+    YASSERT(it != RuntimeTypeToHandler.end());
+
+    auto handler = it->Second();
+    return handler->Create(id.NodeId, id.TransactionId);
+}
+
 TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto id = LockIdGenerator.Next();
@@ -336,16 +350,33 @@ void TCypressManager::GetYPath(
     IYsonConsumer* consumer)
 {
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::GetYPath(AsYPath(root), path, consumer);
+    NYTree::GetYPath(AsYPath(~root), path, consumer);
 }
 
-void TCypressManager::SetYPath(
+
+INode::TPtr TCypressManager::NavigateYPath(
     const TTransactionId& transactionId,
-    TYPath path,
-    TYsonProducer::TPtr producer )
+    TYPath path )
 {
     auto root = GetNode(RootNodeId, transactionId);
-    NYTree::SetYPath(AsYPath(root), path, producer);
+    return NYTree::NavigateYPath(AsYPath(~root), path);
+}
+
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
+    const TTransactionId& transactionId,
+    TYPath path,
+    const Stroka& value)
+{
+    TMsgSet message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+    message.SetValue(value);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::SetYPath,
+        TPtr(this));
 }
 
 TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
@@ -354,37 +385,56 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     auto path = message.GetPath();
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
-    SetYPath(transactionId, path, producer);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::SetYPath(AsYPath(~root), path, producer);
     return TVoid();
 }
 
-void TCypressManager::RemoveYPath(
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
     const TTransactionId& transactionId,
     TYPath path)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::RemoveYPath(AsYPath(root), path);
+    TMsgRemove message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::RemoveYPath,
+        TPtr(this));
 }
 
 TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    RemoveYPath(transactionId, path);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::RemoveYPath(AsYPath(~root), path);
     return TVoid();
 }
 
-void TCypressManager::LockYPath(const TTransactionId& transactionId, TYPath path)
+TMetaChange<TVoid>::TPtr TCypressManager::InitiateLockYPath(
+    const TTransactionId& transactionId,
+    TYPath path)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::LockYPath(AsYPath(root), path);
+    TMsgLock message;
+    message.SetTransactionId(transactionId.ToProto());
+    message.SetPath(~path);
+
+    return CreateMetaChange(
+        MetaStateManager,
+        message,
+        &TThis::LockYPath,
+        TPtr(this));
 }
 
 NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    LockYPath(transactionId, path);
+    auto root = GetNode(RootNodeId, transactionId);
+    NYTree::LockYPath(AsYPath(~root), path);
     return TVoid();
 }
 
@@ -561,6 +611,56 @@ void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
 
 METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
 METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager::TPtr cypressManager)
+    : CypressManager(cypressManager)
+{ }
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* value) const
+{
+    return value->Clone();
+}
+
+void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
+{
+    ::Save(output, static_cast<i32>(value->GetRuntimeType()));
+    ::Save(output, value->GetId());
+    value->Save(output);
+}
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
+{
+    i32 intType;
+    TBranchedNodeId id;
+    ::Load(input, intType);
+    ::Load(input, id);
+    TAutoPtr<ICypressNode> value;
+    auto type = ERuntimeNodeType(intType);
+    switch (type) {
+    case ERuntimeNodeType::String:
+        value = new TStringNode(id);
+        break;
+    case ERuntimeNodeType::Int64:
+        value = new TInt64Node(id);
+        break;
+    case ERuntimeNodeType::Double:
+        value = new TDoubleNode(id);
+        break;
+    case ERuntimeNodeType::Map:
+        value = new TMapNode(id);
+        break;
+    case ERuntimeNodeType::List:
+        value = new TListNode(id);
+        break;
+    default:
+        value = CypressManager->CreateDynamicNode(type, id);
+        break;
+    }
+    value->Load(input);
+    return value;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

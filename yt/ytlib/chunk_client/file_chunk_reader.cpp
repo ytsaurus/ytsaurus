@@ -18,8 +18,8 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
     File->Read(&footer, sizeof (footer));
 
     if (footer.Singature != TChunkFooter::ExpectedSignature) {
-        ythrow yexception() <<
-            Sprintf("Chunk footer signature mismatch in %s", ~fileName.Quote());
+        ythrow yexception() << Sprintf("Chunk footer signature mismatch (FileName: %s)",
+            ~fileName.Quote());
     }
 
     YASSERT(footer.MetaSize >= 0);
@@ -29,7 +29,7 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
     File->Pread(metaBlob.begin(), footer.MetaSize, footer.MetaOffset);
 
     if (!Meta.ParseFromArray(metaBlob.begin(), footer.MetaSize)) {
-        ythrow yexception() << Sprintf("Failed to parse chunk meta in %s",
+        ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
             ~FileName.Quote());
     }
 
@@ -60,7 +60,7 @@ TFileChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return New< TFuture<TReadResult> >(result);
 }
 
-NYT::TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
+TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
 {
     i32 blockCount = GetBlockCount();
 
@@ -72,7 +72,10 @@ NYT::TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
         blockIndex += blockCount;
     }
 
-    YASSERT(blockIndex >= 0 && blockIndex < blockCount);
+    if (blockIndex >= blockCount) {
+        return TSharedRef();
+    }
+
     const TBlockInfo& blockInfo = Meta.GetBlocks(blockIndex);
 
     TBlob data(blockInfo.GetSize());
@@ -81,7 +84,7 @@ NYT::TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
     TSharedRef result(data);
 
     if (blockInfo.GetChecksum() != GetChecksum(result)) {
-        ythrow yexception() << Sprintf("Chunk footer signature mismatch in %s (BlockIndex: %d)",
+        ythrow yexception() << Sprintf("Chunk footer signature mismatch (FileName: %s, BlockIndex: %d)",
             ~FileName.Quote(),
             blockIndex);
     }

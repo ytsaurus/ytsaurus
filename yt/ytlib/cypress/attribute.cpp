@@ -55,11 +55,11 @@ IAttributeProvider* TCypressNodeAttributeProvider::Get()
 
 TCypressNodeAttributeProvider::TCypressNodeAttributeProvider()
 {
-    RegisterGetter("id", FromMethod(&TThis::GetId));
+    RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
     RegisterGetter("type", FromMethod(&TThis::GetType));
 }
 
-void TCypressNodeAttributeProvider::GetId(const TGetRequest& request)
+void TCypressNodeAttributeProvider::GetNodeId(const TGetRequest& request)
 {
     BuildYsonFluently(request.Consumer)
         .Scalar(request.Proxy->GetNodeId().ToString());

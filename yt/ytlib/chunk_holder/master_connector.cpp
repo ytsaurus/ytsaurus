@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NChunkManager::NProto;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,9 +284,9 @@ void TMasterConnector::OnDisconnected()
     RemovedSinceLastSuccess.clear();
 }
 
-NChunkManager::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
+NChunkServer::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk::TPtr chunk)
 {
-    NChunkManager::NProto::TChunkInfo result;
+    NChunkServer::NProto::TChunkInfo result;
     result.SetId(chunk->GetId().ToProto());
     result.SetSize(chunk->GetSize());
     return result;

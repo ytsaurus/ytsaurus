@@ -57,19 +57,19 @@ public:
     IInvoker::TPtr GetEpochStateInvoker();
     IInvoker::TPtr GetSnapshotInvoker();
 
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChangeSync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         const TSharedRef& changeData);
 
-    TCommitResult::TPtr CommitChangeAsync(
+    TAsyncCommitResult::TPtr CommitChangeAsync(
         IAction::TPtr changeAction,
         const TSharedRef& changeData);
 
@@ -148,9 +148,11 @@ private:
         // Propagating AdvanceSegment
         auto version = MetaState->GetVersion();
         if (version.RecordCount > 0) {
+            MetaState->RotateChangeLog();
+
             for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
                 if (peerId == CellManager->GetSelfId()) continue;
-                LOG_DEBUG("Requesting peer %d to advance segment",
+                LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
                     peerId);
 
                 auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
@@ -159,8 +161,11 @@ private:
                 request->SetRecordCount(version.RecordCount);
                 request->SetEpoch(epoch.ToProto());
                 request->SetCreateSnapshot(false);
-                request->Invoke()->Subscribe(
-                    FromMethod(&TImpl::OnRemoteAdvanceSegment, TPtr(this), peerId, version));
+                request->Invoke()->Subscribe(FromMethod(
+                    &TImpl::OnRemoteAdvanceSegment,
+                    TPtr(this),
+                    peerId,
+                    version));
             }
         }
     
@@ -173,11 +178,11 @@ private:
         TMetaVersion version)
     {
         if (response->IsOK()) {
-            LOG_DEBUG("Follower advanced segment successfully (follower: %d, version: %s)",
+            LOG_DEBUG("Follower advanced segment successfully (FollowerId: %d, Version: %s)",
                 peerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (follower: %d, version: %s, error: %s)",
+            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
                 peerId,
                 ~version.ToString(),
                 ~response->GetErrorCode().ToString());
@@ -191,7 +196,7 @@ private:
         if (MetaState->GetVersion() != version) {
             Restart();
             throw TServiceException(EErrorCode::InvalidVersion) <<
-                Sprintf("Invalid version, segment advancement canceled: expected %s, found %s",
+                Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
                     ~version.ToString(),
                     ~MetaState->GetVersion().ToString());
         }
@@ -350,7 +355,7 @@ IInvoker::TPtr TMetaStateManager::TImpl::GetSnapshotInvoker()
     return MetaState->GetSnapshotInvoker();
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeSync(
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -366,7 +371,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
         mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeSync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
@@ -375,15 +380,15 @@ TMetaStateManager::TImpl::CommitChangeSync(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (GetStateStatus() != EPeerStatus::Leading) {
-        return New<TCommitResult>(ECommitResult::InvalidStatus);
+        return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
     }
 
     if (ReadOnly) {
-        return New<TCommitResult>(ECommitResult::ReadOnly);
+        return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
     }
 
     if (!FollowerTracker->HasActiveQuorum()) {
-        return New<TCommitResult>(ECommitResult::NotCommitted);
+        return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
     }
 
     return
@@ -392,7 +397,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -405,7 +410,7 @@ TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
         changeData);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChangeAsync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
@@ -536,7 +541,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetSnapshotInfo)
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid snapshot id %d", snapshotId);
+                Sprintf("Invalid snapshot id (SnapshotId: %d)", snapshotId);
         }
 
         reader->Open();
@@ -558,7 +563,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetSnapshotInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting snapshot info (SnapshotId: %d, What: %s)",
+            Sprintf("IO error while getting snapshot info (SnapshotId: %d, Error: %s)",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -602,7 +607,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-            Sprintf("IO error while reading snapshot (SnapshotId: %d, What: %s)",
+            Sprintf("IO error while reading snapshot (SnapshotId: %d, Error: %s)",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -621,7 +626,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid changelog id %d", changeLogId);
+                Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
         }
 
         i32 recordCount = changeLog->GetRecordCount();
@@ -633,7 +638,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting changelog info (ChangeLogId: %d, What: %s)",
+            Sprintf("IO error while getting changelog info (ChangeLogId: %d, Error: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -659,7 +664,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
         auto changeLog = ChangeLogCache->Get(changeLogId);
         if (~changeLog == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid changelog id %d", changeLogId);
+                Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
         }
 
         yvector<TSharedRef> recordData;
@@ -676,7 +681,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while reading changelog (ChangeLogId: %d, What: %s)",
+            Sprintf("IO error while reading changelog (ChangeLogId: %d, Error: %s)",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -697,13 +702,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
 
     if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid state %s", ~GetControlStatus().ToString());
+            Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-            Sprintf("Invalid epoch (expected: %s, received: %s)",
+            Sprintf("Invalid epoch (Expected: %s, Received: %s)",
                 ~Epoch.ToString(),
                 ~epoch.ToString());
     }
@@ -711,7 +716,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
     int changeCount = request->Attachments().size();
     switch (GetControlStatus()) {
         case EPeerStatus::Following: {
-            LOG_DEBUG("ApplyChange: applying %d changes", changeCount);
+            LOG_DEBUG("ApplyChange: applying changes (Version: %s, ChangeCount: %d)",
+                ~version.ToString(),
+                changeCount);
 
             YASSERT(~FollowerCommitter != NULL);
             for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
@@ -732,7 +739,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
         }
 
         case EPeerStatus::FollowerRecovery: {
-            LOG_DEBUG("ApplyChange: keeping %d postponed changes", changeCount);
+            LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
+                ~version.ToString(),
+                changeCount);
 
             YASSERT(~FollowerRecovery != NULL);
             for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
@@ -777,7 +786,7 @@ void TMetaStateManager::TImpl::OnLocalCommit(
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             Restart();
 
-            LOG_WARNING("ApplyChange: change %s is unexpected, restarting",
+            LOG_WARNING("ApplyChange: unexpected change version, restarting (Version: %s)",
                 ~version.ToString());
             break;
 
@@ -786,7 +795,6 @@ void TMetaStateManager::TImpl::OnLocalCommit(
     }
 }
 
-// TODO: reply whether snapshot was created
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
 {
     UNUSED(response);
@@ -805,13 +813,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
 
     if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid state %s", ~GetControlStatus().ToString());
+            Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
     }
 
     if (epoch != Epoch) {
         Restart();
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-            Sprintf("Invalid epoch: expected %s, received %s",
+            Sprintf("Invalid epoch (Expected: %s, Received: %s)",
                 ~Epoch.ToString(),
                 ~epoch.ToString());
     }
@@ -819,7 +827,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     switch (GetControlStatus()) {
         case EPeerStatus::Following:
             if (createSnapshot) {
-                LOG_DEBUG("CreateSnapshot: creating snapshot");
+                LOG_DEBUG("AdvanceSegment: creating snapshot");
     
                 FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
                     ->AsyncVia(GetStateInvoker())
@@ -829,7 +837,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                         TPtr(this),
                         context));
             } else {
-                LOG_DEBUG("Advancing segment");
+                LOG_DEBUG("AdvanceSegment: advancing segment (SegmentId: %d)", segmentId);
 
                 GetStateInvoker()->Invoke(
                     FromMethod(&TImpl::DoAdvanceSegment, TPtr(this), context, version));
@@ -837,7 +845,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             break;
             
         case EPeerStatus::FollowerRecovery: {
-            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance");
+            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance (SegmentId: %d)",
+                segmentId);
 
             YASSERT(~FollowerRecovery != NULL);
             auto result = FollowerRecovery->PostponeSegmentAdvance(version);
@@ -846,6 +855,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             }
 
             if (createSnapshot) {
+                LOG_INFO("Could not create snapshot during recovery (SegmentId: %d)",
+                    segmentId);
                 context->Reply(EErrorCode::InvalidStatus);
             } else {
                 context->Reply();
@@ -1319,7 +1330,7 @@ IInvoker::TPtr TMetaStateManager::GetSnapshotInvoker()
     return Impl->GetSnapshotInvoker();
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
     TMetaStateManager::CommitChangeSync(
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -1327,7 +1338,7 @@ TMetaStateManager::TCommitResult::TPtr
     return Impl->CommitChangeSync(changeData, mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeSync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
@@ -1336,13 +1347,13 @@ TMetaStateManager::CommitChangeSync(
     return Impl->CommitChangeSync(changeAction, changeData, mode);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeAsync(const TSharedRef& changeData)
 {
     return Impl->CommitChangeAsync(changeData);
 }
 
-TMetaStateManager::TCommitResult::TPtr
+TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChangeAsync(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)

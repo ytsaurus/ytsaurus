@@ -4,13 +4,18 @@
 #include "transaction.h"
 #include "transaction_manager.pb.h"
 
+#include "../misc/property.h"
+#include "../misc/id_generator.h"
 #include "../misc/lease_manager.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
+#include "../meta_state/meta_change.h"
 #include "../meta_state/map.h"
 
 namespace NYT {
 namespace NTransaction {
+
+using NMetaState::TMetaChange;
 
 ////////////////////////////////////////////////////////////////////////////////
     
@@ -18,6 +23,13 @@ namespace NTransaction {
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
+    //! Called when a new transaction is started.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<TTransaction&>);
+    //! Called during transaction commit.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<TTransaction&>);
+    //! Called during transaction abort.
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<TTransaction&>);
+
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
@@ -36,18 +48,9 @@ public:
         NMetaState::TMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState);
 
-    //! Called when a new transaction is started.
-    TParamSignal<TTransaction&>& OnTransactionStarted();
-    
-    //! Called during transaction commit.
-    TParamSignal<TTransaction&>& OnTransactionCommitted();
-    
-    //! Called during transaction abort.
-    TParamSignal<TTransaction&>& OnTransactionAborted();
-
-    TTransactionId StartTransaction(const NProto::TMsgCreateTransaction& message);
-    TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
-    TVoid AbortTransaction(const NProto::TMsgAbortTransaction& message);
+    TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
+    TMetaChange<TVoid>::TPtr          InitiateCommitTransaction(const TTransactionId& id);
+    TMetaChange<TVoid>::TPtr          InitiateAbortTransaction(const TTransactionId& id);
 
     void RenewLease(const TTransactionId& id);
 
@@ -57,12 +60,14 @@ private:
     typedef TTransactionManager TThis;
 
     TConfig Config;
+
+    TIdGenerator<TTransactionId> TransactionIdGenerator;
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
 
-    TParamSignal<TTransaction&> OnTransactionStarted_;
-    TParamSignal<TTransaction&> OnTransactionCommitted_;
-    TParamSignal<TTransaction&> OnTransactionAborted_;
+    TTransactionId StartTransaction(const NProto::TMsgStartTransaction& message);
+    TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
+    TVoid AbortTransaction(const NProto::TMsgAbortTransaction& message);
 
     virtual void OnStartLeading();
     virtual void OnStopLeading();

@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "cell_master_server.h"
 
-#include <yt/ytlib/chunk_manager/chunk_manager.h>
+#include <yt/ytlib/chunk_server/chunk_manager.h>
+#include <yt/ytlib/chunk_server/chunk_service.h>
 
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
@@ -12,18 +13,21 @@
 #include <yt/ytlib/cypress/cypress_service.h>
 
 #include <yt/ytlib/file_server/file_type_handler.h>
+#include <yt/ytlib/file_server/file_manager.h>
+#include <yt/ytlib/file_server/file_service.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 namespace NYT {
 
-static NLog::TLogger Logger("CellMasterSever");
+static NLog::TLogger Logger("Server");
 
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
 
-using NChunkManager::TChunkManagerConfig;
-using NChunkManager::TChunkManager;
+using NChunkServer::TChunkManagerConfig;
+using NChunkServer::TChunkManager;
+using NChunkServer::TChunkService;
 
 using NMetaState::TCompositeMetaState;
 
@@ -31,6 +35,8 @@ using NCypress::TCypressManager;
 using NCypress::TCypressService;
 
 using NFileServer::TFileTypeHandler;
+using NFileServer::TFileManager;
+using NFileServer::TFileService;
 
 using NMonitoring::TMonitoringManager;
 
@@ -90,8 +96,13 @@ void TCellMasterServer::Run()
         TChunkManagerConfig(),
         metaStateManager,
         metaState,
-        server,
         transactionManager);
+
+    auto chunkService = New<TChunkService>(
+        chunkManager,
+        transactionManager,
+        metaStateManager->GetStateInvoker(),
+        server);
 
     auto cypressManager = New<TCypressManager>(
         metaStateManager,
@@ -101,6 +112,19 @@ void TCellMasterServer::Run()
     auto cypressService = New<TCypressService>(
         cypressManager,
         transactionManager,
+        metaStateManager->GetStateInvoker(),
+        server);
+
+    auto fileManager = New<TFileManager>(
+        metaStateManager,
+        metaState,
+        cypressManager);
+
+    auto fileService = New<TFileService>(
+        cypressManager,
+        transactionManager,
+        chunkManager,
+        fileManager,
         metaStateManager->GetStateInvoker(),
         server);
 

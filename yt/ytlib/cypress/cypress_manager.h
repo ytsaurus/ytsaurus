@@ -13,6 +13,7 @@
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"
+#include "../meta_state/meta_change.h"
 
 namespace NYT {
 namespace NCypress {
@@ -20,6 +21,9 @@ namespace NCypress {
 using NTransaction::TTransaction;
 using NTransaction::NullTransactionId;
 using NTransaction::TTransactionManager;
+using NMetaState::TMetaChange;
+
+struct ICypressNodeProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,11 +43,11 @@ public:
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
-    INode::TPtr FindNode(
+    TIntrusivePtr<ICypressNodeProxy> FindNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    INode::TPtr GetNode(
+    TIntrusivePtr<ICypressNodeProxy> GetNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -60,6 +64,9 @@ public:
     INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
         IMapNode::TPtr description);
+    TAutoPtr<ICypressNode> CreateDynamicNode(
+        ERuntimeNodeType type,
+        const TBranchedNodeId& id);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -72,37 +79,52 @@ public:
         TYPath path,
         IYsonConsumer* consumer);
 
-    void SetYPath(
+    INode::TPtr NavigateYPath(
+        const TTransactionId& transactionId,
+        TYPath path);
+
+    TMetaChange<TVoid>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
         TYPath path,
-        TYsonProducer::TPtr producer);
+        const Stroka& value);
 
-    TVoid SetYPath(const NProto::TMsgSet& message);
-
-    void RemoveYPath(
+    TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
         const TTransactionId& transactionId,
         TYPath path);
 
-    TVoid RemoveYPath(const NProto::TMsgRemove& message);
-
-    void LockYPath(
+    TMetaChange<TVoid>::TPtr InitiateLockYPath(
         const TTransactionId& transactionId,
         TYPath path);
-
-    TVoid LockYPath(const NProto::TMsgLock& message);
-
 
 private:
+    class TNodeMapTraits
+    {
+    public:
+        TNodeMapTraits(TCypressManager::TPtr cypressManager);
+
+        TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
+        void Save(ICypressNode* value, TOutputStream* output) const;
+        TAutoPtr<ICypressNode> Load(TInputStream* input) const;
+
+    private:
+        TCypressManager::TPtr CypressManager;
+
+    };
+    
     TTransactionManager::TPtr TransactionManager;
 
     TIdGenerator<TNodeId> NodeIdGenerator;
-    NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode> NodeMap;
+    NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
 
     TIdGenerator<TLockId> LockIdGenerator; 
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
     yhash_map<ERuntimeNodeType, IDynamicTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, IDynamicTypeHandler::TPtr> TypeNameToHandler;
+
+    TVoid SetYPath(const NProto::TMsgSet& message);
+    TVoid RemoveYPath(const NProto::TMsgRemove& message);
+    TVoid LockYPath(const NProto::TMsgLock& message);
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;

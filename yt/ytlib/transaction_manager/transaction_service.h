@@ -32,27 +32,15 @@ private:
 
     TTransactionManager::TPtr TransactionManager;
 
-    //! Registers RPC methods.
     void RegisterMethods();
 
     void ValidateTransactionId(const TTransactionId& id);
 
     RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);
-    void OnTransactionStarted(
-        TTransactionId id,
-        TCtxStartTransaction::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, CommitTransaction);
-    void OnTransactionCommitted(
-        TVoid,
-        TCtxCommitTransaction::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, AbortTransaction);
-    void OnTransactionAborted(
-        TVoid,
-        TCtxAbortTransaction::TPtr context);
-
     RPC_SERVICE_METHOD_DECL(NProto, RenewTransactionLease);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

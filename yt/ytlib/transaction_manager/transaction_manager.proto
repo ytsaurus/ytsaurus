@@ -2,9 +2,8 @@ package NYT.NTransaction.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgCreateTransaction
+message TMsgStartTransaction
 {
-    required bytes TransactionId = 1;
 }
 
 message TMsgCommitTransaction

@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "composite_meta_state.h"
+#include "composite_meta_state_detail.h"
 
 #include "../misc/foreach.h"
 #include "../misc/assert.h"
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +28,21 @@ TMetaStatePart::TMetaStatePart(
         &TThis::OnStopLeading,
         TPtr(this)));
 }
+
+TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
+{
+    UNUSED(input);
+    return New< TFuture<TVoid> >(TVoid());
+}
+
+TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
+{
+    UNUSED(output);
+    return New< TFuture<TVoid> >(TVoid());
+}
+
+void TMetaStatePart::Clear()
+{ }
 
 bool TMetaStatePart::IsLeader() const
 {
@@ -80,7 +98,7 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input, IInvoker::TP
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
 {
-    NMetaState::NProto::TMsgChangeHeader header;
+    TMsgChangeHeader header;
     TRef messageData;
     DeserializeChange(
         changeData,

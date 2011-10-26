@@ -43,6 +43,25 @@ protected:
     EState State;
 };
 
+template <class TValue>
+struct TDefaultMetaMapTraits
+{
+    TAutoPtr<TValue> Clone(TValue* value) const
+    {
+        return value->Clone();
+    }
+
+    void Save(TValue* value, TOutputStream* output) const
+    {
+        value->Save(output);
+    }
+
+    TAutoPtr<TValue> Load(TInputStream* input) const
+    {
+        return TValue::Load(input);
+    }
+};
+
 //! Snapshottable map used to store various meta-state tables.
 /*!
  * \tparam TKey Key type.
@@ -58,16 +77,22 @@ protected:
 template <
     class TKey,
     class TValue,
+    class TTraits = TDefaultMetaMapTraits<TValue>,
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
     : protected TMetaStateMapBase
 {
 public:
-    typedef TMetaStateMap<TKey, TValue, THash> TThis;
+    typedef TMetaStateMap<TKey, TValue, TTraits, THash> TThis;
     typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
+
+    explicit TMetaStateMap(
+        TTraits traits = TTraits())
+        : Traits(traits)
+    { }
 
     ~TMetaStateMap()
     {
@@ -183,7 +208,7 @@ public:
                     return NULL;
                 }
 
-                TValue* clonedValue = mapIt->Second()->Clone().Release();
+                TValue* clonedValue = Traits.Clone(mapIt->Second()).Release();
                 YVERIFY(PatchMap.insert(MakePair(key, clonedValue)).Second());
                 return clonedValue;
             }
@@ -416,6 +441,8 @@ private:
 
     TMap MainMap;
     TMap PatchMap; // A pair (key, NULL) in PatchMap means that the key should be deleted
+
+    TTraits Traits;
     
     typedef TPair<TKey, TValue*> TItem;
 
@@ -428,7 +455,7 @@ private:
 
         FOREACH(const auto& item, items) {
             ::Save(output, item.First());
-            item.Second()->Save(output);
+            Traits.Save(item.Second(), output);
         }
         
         State = EState::HasPendingChanges;
@@ -445,7 +472,7 @@ private:
         for (i32 index = 0; index < size; ++index) {
             TKey key;
             ::Load(input, key);
-            TValue* value = TValue::Load(input).Release();
+            TValue* value = Traits.Load(input).Release();
             MainMap.insert(MakePair(key, value));
         }
 

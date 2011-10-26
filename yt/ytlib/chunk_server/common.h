@@ -13,11 +13,11 @@
 #include "../transaction_manager/transaction_manager.h"
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ChunkManagerLogger;
+extern NLog::TLogger ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +29,9 @@ using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;
+
+typedef int THolderId;
+const int InvalidHolderId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +59,6 @@ extern double ActiveSessionsPenalityCoeff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT
 

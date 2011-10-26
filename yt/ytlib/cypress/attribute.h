@@ -72,7 +72,7 @@ public:
 private:
     typedef TCypressNodeAttributeProvider TThis;
 
-    static void GetId(const TGetRequest& request);
+    static void GetNodeId(const TGetRequest& request);
     static void GetType(const TGetRequest& request);
 };
 

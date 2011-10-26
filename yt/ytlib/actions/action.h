@@ -102,6 +102,88 @@ struct IParamFunc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A bunch of helpers for constructing delegates from functors.
+
+template <class TFunctor, class TResult>
+struct TFunctorActionTraits
+{
+    typedef IFunc<TResult> TDelegate;
+
+    static TResult Thunk(const TFunctor& functor)
+    {
+        return functor();
+    }
+};
+
+template <class TFunctor>
+struct TFunctorActionTraits<TFunctor, void>
+{
+    typedef IAction TDelegate;
+
+    static void Thunk(const TFunctor& functor)
+    {
+        functor();
+    }
+};
+
+template <class TFunctor, class TParam, class TResult>
+struct TFunctorFuncTraits
+{
+    typedef IParamFunc<TParam, TResult> TDelegate;
+
+    static TResult Thunk(TParam param, const TFunctor& functor)
+    {
+        return functor(param);
+    }
+};
+
+template <class TFunctor, class TParam>
+struct TFunctorFuncTraits<TFunctor, TParam, void>
+{
+    typedef IParamAction<TParam> TDelegate;
+
+    static void Thunk(TParam param, const TFunctor& functor)
+    {
+        functor(param);
+    }
+};
+
+template <class TFunctor, class TOp>
+struct TFunctorTraits
+{ };
+
+template <class TFunctor, class TResult>
+struct TFunctorTraits<TFunctor, TResult (TFunctor::*)() const>
+{
+    static typename TFunctorActionTraits<TFunctor, TResult>::TDelegate::TPtr Construct(const TFunctor& functor)
+    {
+        return FromMethod(
+            &TFunctorActionTraits<TFunctor, TResult>::Thunk,
+            functor);
+    }
+};
+
+template <class TFunctor, class TParam, class TResult>
+struct TFunctorTraits<TFunctor, TResult (TFunctor::*)(TParam) const>
+{
+    static typename TFunctorFuncTraits<TFunctor, TParam, TResult>::TDelegate::TPtr Construct(const TFunctor& functor)
+    {
+        return FromMethod(
+            &TFunctorFuncTraits<TFunctor, TParam, TResult>::Thunk,
+            functor);
+    }
+};
+
+//! Constructs a delegate from functor.
+template <class TFunctor>
+auto FromFunctor(const TFunctor& functor) ->
+decltype (TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor))
+{
+    return TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define ACTION_INL_H_

@@ -81,10 +81,10 @@ void TClientResponse::Deserialize(IMessage::TPtr message)
     if (parts.ysize() > 1) {
         DeserializeBody(parts[1]);
         MyAttachments.clear();
-        NStl::copy(
+        std::copy(
             parts.begin() + 2,
             parts.end(),
-            NStl::back_inserter(MyAttachments));
+            std::back_inserter(MyAttachments));
     }
 }
 

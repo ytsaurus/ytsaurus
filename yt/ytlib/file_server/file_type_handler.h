@@ -24,7 +24,9 @@ public:
         const TTransactionId& transactionId,
         IMapNode::TPtr description);
 
-    virtual TAutoPtr<ICypressNode> Load(TInputStream* stream);
+    virtual TAutoPtr<ICypressNode> Create(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
 
 };
 

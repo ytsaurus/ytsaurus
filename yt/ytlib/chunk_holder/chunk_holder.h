@@ -77,12 +77,6 @@ private:
         TVoid,
         TCtxFinishChunk::TPtr context);
 
-    void OnGotBlock(
-        TCachedBlock::TPtr block,
-        int blockIndex,
-        TCtxGetBlocks::TPtr context);
-    void OnGotAllBlocks(TCtxGetBlocks::TPtr context);
-
     void OnSentBlocks(
         TProxy::TRspPutBlocks::TPtr putResponse, 
         TCtxSendBlocks::TPtr context);

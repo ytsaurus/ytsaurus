@@ -97,7 +97,7 @@ int main(int argc, const char *argv[])
 
         return 0;
     }
-    catch (NStl::exception& e) {
+    catch (std::exception& e) {
         Cerr << "ERROR: " << e.what() << Endl;
         return 2;
     }

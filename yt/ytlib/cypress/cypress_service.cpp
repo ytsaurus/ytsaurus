@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cypress_service.h"
+#include "node_proxy.h"
 
 #include "../ytree/yson_writer.h"
 
@@ -9,7 +10,6 @@ namespace NCypress {
 using namespace NRpc;
 using namespace NYTree;
 using namespace NMetaState;
-using namespace NTransaction::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +44,7 @@ void TCypressService::RegisterMethods()
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
 }
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
@@ -89,11 +90,9 @@ void TCypressService::ExecuteUnrecoverable(
         context->Reply(EErrorCode::UnrecoverableError);
 
         if (transactionId != NullTransactionId) {
-            TMsgAbortTransaction message;
-            message.SetTransactionId(transactionId.ToProto());
-            CommitChange(
-                TransactionManager, message,
-                &TTransactionManager::AbortTransaction);
+            TransactionManager
+                ->InitiateAbortTransaction(transactionId)
+                ->Commit();
         }
     }
 }
@@ -114,29 +113,19 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoGet,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
-}
+        FromFunctor([=] ()
+            {
+                Stroka output;
+                TStringOutput outputStream(output);
+                TYsonWriter writer(&outputStream, false); // TODO: use binary
 
-void TCypressService::DoGet(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxGet::TPtr context)
-{
-    Stroka output;
-    TStringOutput outputStream(output);
-    TYsonWriter writer(&outputStream, false); // TODO: use binary
+                CypressManager->GetYPath(transactionId, path, &writer);
 
-    CypressManager->GetYPath(transactionId, path, &writer);
+                auto* response = &context->Response();
+                response->SetValue(output);
 
-    auto* response = &context->Response();
-    response->SetValue(output);
-
-    context->Reply();
+                context->Reply();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
@@ -154,30 +143,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
     ExecuteUnrecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoSet,
-            TPtr(this),
-            transactionId,
-            path,
-            value,
-            context));
-}
-
-void TCypressService::DoSet(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    const Stroka& value,
-    TCtxSet::TPtr context)
-{
-    NProto::TMsgSet message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
-    message.SetValue(value);
-
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::SetYPath,
-        ECommitMode::MayFail);
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateSetYPath(transactionId, path, value)
+                    ->OnSuccess(this->CreateSuccessHandler(context))
+                    ->OnError(this->CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
@@ -194,27 +167,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoRemove,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
-}
-
-void TCypressService::DoRemove(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxRemove::TPtr context)
-{
-    NProto::TMsgRemove message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
-
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::RemoveYPath,
-        ECommitMode::MayFail);
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateRemoveYPath(transactionId, path)
+                    ->OnSuccess(this->CreateSuccessHandler(context))
+                    ->OnError(this->CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
@@ -231,27 +191,42 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
     ExecuteRecoverable(
         transactionId,
         context->GetUntypedContext(),
-        FromMethod(
-            &TCypressService::DoLock,
-            TPtr(this),
-            transactionId,
-            path,
-            context));
+        FromFunctor([=] ()
+            {
+                CypressManager
+                    ->InitiateLockYPath(transactionId, path)
+                    ->OnSuccess(this->CreateSuccessHandler(context))
+                    ->OnError(this->CreateErrorHandler(context))
+                    ->Commit();
+            }));
 }
 
-void TCypressService::DoLock(
-    const TTransactionId& transactionId,
-    const Stroka& path,
-    TCtxLock::TPtr context)
+RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
 {
-    NProto::TMsgLock message;
-    message.SetTransactionId(transactionId.ToProto());
-    message.SetPath(path);
+    UNUSED(response);
 
-    CommitChange(
-        this, context, CypressManager, message,
-        &TCypressManager::LockYPath,
-        ECommitMode::MayFail);
+    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    Stroka path = request->GetPath();
+
+    context->SetRequestInfo("TransactionId: %s, Path: %s",
+        ~transactionId.ToString(),
+        ~path);
+
+    ExecuteRecoverable(
+        transactionId,
+        context->GetUntypedContext(),
+        FromFunctor([=] ()
+            {
+                auto node = CypressManager->NavigateYPath(transactionId, path);
+                
+                ICypressNodeProxy::TPtr cypressNode(dynamic_cast<ICypressNodeProxy*>(~node));
+                if (~cypressNode == NULL) {
+                    throw yexception() << "Node has no id";
+                }
+
+                response->SetNodeId(cypressNode->GetNodeId().ToProto());
+                context->Reply();
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

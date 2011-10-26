@@ -6,11 +6,11 @@
 #include <util/random/random.h>
 
 namespace NYT {
-namespace NChunkManager {
+namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkManagerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,16 +79,17 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     auto beginGroupIt = holders.begin();
     while (beginGroupIt != holders.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
+        int groupSize = 0;
         while (endGroupIt != holders.end() && GetSessionCount(*(*beginGroupIt)) == GetSessionCount(*(*endGroupIt))) {
             ++endGroupIt;
+            ++groupSize;
         }
 
-        int groupSize = NStl::distance(beginGroupIt, endGroupIt);
         int sampleCount = Min(count, groupSize);
-        NStl::random_sample_n(
+        std::random_sample_n(
             beginGroupIt,
             endGroupIt,
-            NStl::back_inserter(holdersSample),
+            std::back_inserter(holdersSample),
             sampleCount);
 
         beginGroupIt = endGroupIt;
@@ -288,5 +289,5 @@ bool TChunkPlacement::IsFull(const THolder& holder) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkManager
+} // namespace NChunkServer
 } // namespace NYT

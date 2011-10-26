@@ -134,6 +134,7 @@ IYPathService::TSetResult TNodeBase::Set(
 
 IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
 {
+    UNUSED(producer);
     throw TYTreeException() << "Cannot modify the node";
 }
 

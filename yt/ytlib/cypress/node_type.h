@@ -6,18 +6,7 @@
 namespace NYT {
 namespace NCypress {
 
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(ERuntimeNodeType,
-    // Static types
-    (String)
-    (Int64)
-    (Double)
-    (Map)
-    (List)
-    // Dynamic types
-    (File)
-);
+// TODO: rename to dynamic_type.h
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +23,9 @@ struct IDynamicTypeHandler
         const TTransactionId& transactionId,
         IMapNode::TPtr description) = 0;
 
-    virtual TAutoPtr<ICypressNode> Load(TInputStream* stream) = 0;
+    virtual TAutoPtr<ICypressNode> Create(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
