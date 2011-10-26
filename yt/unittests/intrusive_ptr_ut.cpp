@@ -33,6 +33,10 @@ namespace {
             , Zeros(0)
         { }
 
+        template<typename T>
+        void BindToCookie(const T&)
+        { }
+
         void Increment()
         {
             ++Increments;
@@ -237,6 +241,21 @@ TEST(TIntrusivePtrTest, Cast)
     TIntrusivePtr<TSimpleObject> bar = New<TAnotherObject>();
 
     SUCCEED();
+}
+
+TEST(TIntrusivePtrTest, NewDoesNotAcquireAdditionalReferences)
+{
+    TIntricateObject* rawPtr = NULL;
+    TIntricateObject::TPtr ptr = New<TIntricateObject>();
+
+    // There was no acquision during construction. Note that
+    // TRefCountedBase has initial reference counter set to 1,
+    // so there will be no memory leaks.
+    rawPtr = ptr.Get();
+    EXPECT_THAT(*rawPtr, HasReferenceCounters(0, 0, 0));
+    ptr.Reset();
+    EXPECT_THAT(*rawPtr, HasReferenceCounters(0, 1, 0));
+    delete rawPtr;
 }
 
 TEST(TIntrusivePtrTest, ObjectIsNotDestroyedPrematurely)
