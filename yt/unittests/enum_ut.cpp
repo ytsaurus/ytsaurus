@@ -6,17 +6,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESimple, (X)(Y)(Z));
-DECLARE_ENUM(EColor,
-    ((Red)  (10))
-    ((Green)(20))
-    ((Blue) (30))
-     (Black)
-     (White)
-);
+namespace {
+    DECLARE_ENUM(ESimple, (X)(Y)(Z));
+    DECLARE_ENUM(EColor,
+        ((Red)  (10))
+        ((Green)(20))
+        ((Blue) (30))
+         (Black)
+         (White)
+    );
 
-DECLARE_POLY_ENUM1(EMyFirst, ((Chip)(1)));
-DECLARE_POLY_ENUM2(EMySecond, EMyFirst, ((Dale)(2)));
+    DECLARE_POLY_ENUM1(EMyFirst, ((Chip)(1)));
+    DECLARE_POLY_ENUM2(EMySecond, EMyFirst, ((Dale)(2)));
+} // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
 

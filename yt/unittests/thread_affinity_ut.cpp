@@ -9,24 +9,28 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+    class TMyObject
+    {
+        DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
+
+    public:
+        TVoid F() {
+            VERIFY_THREAD_AFFINITY(ServiceThread);
+            return TVoid();
+        }
+
+        TVoid G() {
+            VERIFY_THREAD_AFFINITY(ServiceThread);
+            return TVoid();
+        }
+    };
+} // namespace <anonymous>
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TThreadAffinityTest : public ::testing::Test
 { };
-
-class TMyObject
-{
-    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
-
-public:
-    TVoid F() {
-        VERIFY_THREAD_AFFINITY(ServiceThread);
-        return TVoid();
-    }
-
-    TVoid G() {
-        VERIFY_THREAD_AFFINITY(ServiceThread);
-        return TVoid();
-    }
-};
 
 TEST_F(TThreadAffinityTest, OneThread)
 {

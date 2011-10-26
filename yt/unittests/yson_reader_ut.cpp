@@ -1,14 +1,13 @@
 #include "../ytlib/ytree/yson_reader.h"
 #include <util/stream/mem.h>
 
-
 #include <contrib/testing/framework.h>
-
-namespace NYT {
-namespace NYTree {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+
+namespace NYT {
+namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,8 +251,6 @@ TEST_F(TYsonReaderTest, MapWithAttributes)
 
     Run();
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
