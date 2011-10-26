@@ -61,6 +61,34 @@ struct TEnableIfConvertable
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class T>
+struct TIntrusivePtrTraits
+{
+    static void Ref(T *p)
+    {
+        p->Ref();
+    }
+
+    static void UnRef(T *p)
+    {
+        p->UnRef();
+    }
+};
+
+template<class T>
+struct TIntrusivePtrTraits<const T>
+{
+    static void Ref(const T* p)
+    {
+        const_cast<T*>(p)->Ref();
+    }
+
+    static void UnRef(const T* p)
+    {
+        const_cast<T*>(p)->UnRef();
+    }
+};
+
+template<class T>
 class TIntrusivePtr
 {
 public:
@@ -73,18 +101,20 @@ public:
         : T_(p)
     {
         if (T_ != 0 && addReference) {
-            T_->Ref();
+            TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
 
+    //! Copy constructor.
     TIntrusivePtr(const TIntrusivePtr& other) throw()
         : T_(other.T_)
     {
         if (T_ != 0) {
-            T_->Ref();
+            TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
 
+    //! Copy constructor with an implicit cast between convertable classes.
     template<class U>
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
@@ -93,16 +123,18 @@ public:
         : T_(other.Get())
     {
         if (T_ != 0) {
-            T_->Ref();
+            TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
 
+    //! Move constructor.
     TIntrusivePtr(TIntrusivePtr&& other) throw()
         : T_(other.T_)
     {
         other.T_ = 0;
     }
 
+    //! Move constructor with an implicit cast between convertable classes.
     template<class U>
     TIntrusivePtr(
         TIntrusivePtr<U>&& other,
@@ -110,40 +142,44 @@ public:
         throw()
         : T_(other.Get())
     {
-        if (T_ != 0) {
-            T_->Ref();
-        }
+        other.T_ = 0;
     }
 
+    //! Destructor.
     ~TIntrusivePtr()
     {
         if (T_ != 0) {
-            T_->UnRef();
+            TIntrusivePtrTraits<T>::UnRef(T_);
         }
     }
 
+    //! Copy assignment operator.
     TIntrusivePtr& operator=(const TIntrusivePtr& other) throw()
     {
         TIntrusivePtr(other).Swap(*this);
         return *this;
     }
 
+    //! Move assignment operator.
     TIntrusivePtr& operator=(TIntrusivePtr&& other) throw()
     {
         TIntrusivePtr(MoveRV(other)).Swap(*this);
         return *this;
     }
 
+    //! Drop the pointee.
     void Reset() throw()
     {
         TIntrusivePtr().Swap(*this);
     }
 
+    //! Replace the pointee with a specified.
     void Reset(T* p) throw()
     {
         TIntrusivePtr(p).Swap(*this);
     }
 
+    //! Returns the pointee.
     T* Get() const throw() {
         return T_;
     }
