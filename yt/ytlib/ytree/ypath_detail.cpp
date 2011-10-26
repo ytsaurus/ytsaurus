@@ -46,7 +46,7 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
         ForwardingConsumer = NULL;
         if (~OnForwardingFinished != NULL) {
             OnForwardingFinished->Do();
-            OnForwardingFinished.Drop();
+            OnForwardingFinished.Reset();
         }
     }
 }

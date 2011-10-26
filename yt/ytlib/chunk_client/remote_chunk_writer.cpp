@@ -573,7 +573,7 @@ void TRemoteChunkWriter::ReleaseSlots(int count)
 
     if (~WindowReady != NULL) {
         WindowReady->Set(TVoid());
-        WindowReady.Drop();
+        WindowReady.Reset();
     }
 }
 
@@ -611,7 +611,7 @@ void TRemoteChunkWriter::Shutdown()
 
     if (~WindowReady != NULL) {
         WindowReady->Set(TVoid());
-        WindowReady.Drop();
+        WindowReady.Reset();
     }
 }
 
@@ -995,7 +995,7 @@ TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
         }
 
         // Drop the cyclic reference.
-        CurrentGroup.Drop();
+        CurrentGroup.Reset();
     }
 
     // Set IsCloseRequested via queue to ensure proper serialization
@@ -1018,7 +1018,7 @@ void TRemoteChunkWriter::Cancel()
         ~ChunkId.ToString());
 
     // Drop the cyclic reference.
-    CurrentGroup.Drop();
+    CurrentGroup.Reset();
 
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteChunkWriter::DoCancel,

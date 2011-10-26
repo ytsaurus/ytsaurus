@@ -197,7 +197,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
             LOG_DEBUG("Replication job completed (JobId: %s)",
                 ~JobId.ToString());
 
-            Writer.Drop();
+            Writer.Reset();
             State = EJobState::Completed;
             break;
 
@@ -206,7 +206,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
                 ~JobId.ToString());
 
             Writer->Cancel();
-            Writer.Drop();
+            Writer.Reset();
             State = EJobState::Failed;
             break;
 

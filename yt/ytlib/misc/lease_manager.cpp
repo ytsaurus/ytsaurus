@@ -76,7 +76,7 @@ void TLeaseManager::InvalidateLease(TLease lease)
     TDelayedInvoker::Get()->Cancel(lease->Cookie);
     lease->Cookie = TDelayedInvoker::TCookie();
     lease->IsValid = false;
-    lease->OnExpire.Drop();
+    lease->OnExpire.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

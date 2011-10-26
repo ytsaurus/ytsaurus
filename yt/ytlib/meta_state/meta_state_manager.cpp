@@ -944,7 +944,7 @@ void TMetaStateManager::TImpl::StopControlEpoch()
     
     YASSERT(~EpochControlInvoker != NULL);
     EpochControlInvoker->Cancel();
-    EpochControlInvoker.Drop();
+    EpochControlInvoker.Reset();
 }
 
 void TMetaStateManager::TImpl::StartStateEpoch()
@@ -961,7 +961,7 @@ void TMetaStateManager::TImpl::StopStateEpoch()
 
     YASSERT(~EpochStateInvoker != NULL);
     EpochStateInvoker->Cancel();
-    EpochStateInvoker.Drop();
+    EpochStateInvoker.Reset();
 }
 
 void TMetaStateManager::TImpl::OnStartLeading(const TEpoch& epoch)
@@ -1015,7 +1015,7 @@ void TMetaStateManager::TImpl::OnLeaderRecoveryComplete(TRecovery::EResult resul
 
     YASSERT(~LeaderRecovery != NULL);
     LeaderRecovery->Stop();
-    LeaderRecovery.Drop();
+    LeaderRecovery.Reset();
 
     if (result != TRecovery::EResult::OK) {
         LOG_WARNING("Leader recovery failed, restarting");
@@ -1078,21 +1078,21 @@ void TMetaStateManager::TImpl::OnStopLeading()
 
     if (~LeaderRecovery != NULL) {
         LeaderRecovery->Stop();
-        LeaderRecovery.Drop();
+        LeaderRecovery.Reset();
     }
 
     if (~LeaderCommitter != NULL) {
         LeaderCommitter->Stop();
-        LeaderCommitter.Drop();
+        LeaderCommitter.Reset();
     }
 
     if (~FollowerTracker != NULL) {
         FollowerTracker->Stop();
-        FollowerTracker.Drop();
+        FollowerTracker.Reset();
     }
 
     if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Drop();
+        SnapshotCreator.Reset();
     }
 }
 
@@ -1172,7 +1172,7 @@ void TMetaStateManager::TImpl::OnFollowerRecoveryComplete(TRecovery::EResult res
 
     YASSERT(~FollowerRecovery != NULL);
     FollowerRecovery->Stop();
-    FollowerRecovery.Drop();
+    FollowerRecovery.Reset();
 
     if (result != TRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
@@ -1240,21 +1240,21 @@ void TMetaStateManager::TImpl::OnStopFollowing()
     if (~FollowerRecovery != NULL) {
         // This may happen if the recovery gets interrupted.
         FollowerRecovery->Stop();
-        FollowerRecovery.Drop();
+        FollowerRecovery.Reset();
     }
 
     if (~FollowerCommitter != NULL) {
         FollowerCommitter->Stop();
-        FollowerCommitter.Drop();
+        FollowerCommitter.Reset();
     }
 
     if (~LeaderPinger != NULL) {
         LeaderPinger->Stop();
-        LeaderPinger.Drop();
+        LeaderPinger.Reset();
     }
 
     if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Drop();
+        SnapshotCreator.Reset();
     }
 }
 

@@ -38,10 +38,10 @@ void TCellChannel::Terminate()
 
     if (~Channel != NULL) {
         Channel->Terminate();
-        Channel.Drop();
+        Channel.Reset();
     }
 
-    LookupResult.Drop();
+    LookupResult.Reset();
 
     State = EState::Terminated;
 }
@@ -74,8 +74,8 @@ NRpc::EErrorCode TCellChannel::OnResponseReady(NRpc::EErrorCode errorCode)
         TGuard<TSpinLock> guard(SpinLock);
             if (State != EState::Terminated) {
             State = EState::Failed;
-            LookupResult.Drop();
-            Channel.Drop();
+            LookupResult.Reset();
+            Channel.Reset();
         }
     }
     return errorCode;
@@ -133,13 +133,13 @@ TFuture<NRpc::IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
 
     if (result.Id == NElection::InvalidPeerId) {
         State = EState::Failed;
-        LookupResult.Drop();
+        LookupResult.Reset();
         return New< TFuture<NRpc::IChannel::TPtr> >(NRpc::IChannel::TPtr(NULL));
     }
 
     State = EState::Connected;
     Channel = New<NRpc::TChannel>(result.Address);
-    LookupResult.Drop();
+    LookupResult.Reset();
     return New< TFuture<NRpc::IChannel::TPtr> >(~Channel);
 }
 

@@ -87,7 +87,7 @@ void TChannel::Terminate()
 
     YASSERT(~Bus != NULL);
     Bus->Terminate();
-    Bus.Drop();
+    Bus.Reset();
     Terminated = true;
 }
 

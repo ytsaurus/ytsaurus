@@ -117,7 +117,7 @@ inline bool TParallelAwaiter::IsCanceled() const
 
 inline void TParallelAwaiter::Terminate()
 {
-    OnComplete.Drop();
+    OnComplete.Reset();
     Terminated = true;
 }
 

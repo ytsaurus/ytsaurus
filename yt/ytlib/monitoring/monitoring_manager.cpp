@@ -62,7 +62,7 @@ void TMonitoringManager::Stop()
 
     IsStarted = false;
     PeriodicInvoker->Stop();
-    Root.Drop();
+    Root.Reset();
 }
 
 void TMonitoringManager::Update()

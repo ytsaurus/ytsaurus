@@ -241,7 +241,7 @@ void TLogManager::Shutdown()
     
     auto queue = Queue;
     if (~queue != NULL) {
-        Queue.Drop();
+        Queue.Reset();
         queue->Shutdown();
     }
 }

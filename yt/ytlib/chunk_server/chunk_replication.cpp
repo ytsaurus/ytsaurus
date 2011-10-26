@@ -590,7 +590,7 @@ void TChunkReplication::Stop()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(~Invoker != NULL);
-    Invoker.Drop();
+    Invoker.Reset();
 }
 
 TChunkReplication::THolderInfo* TChunkReplication::FindHolderInfo(THolderId holderId)

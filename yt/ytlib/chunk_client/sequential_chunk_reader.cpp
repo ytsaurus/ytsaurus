@@ -184,7 +184,7 @@ void TSequentialChunkReader::DoProcessPendingResult()
 
     if (!IsNextSlotEmpty()) {
         auto pending = PendingResult;
-        PendingResult.Drop();
+        PendingResult.Reset();
         pending->Set(GetNextSlotResult());
     }
 }

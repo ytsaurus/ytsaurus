@@ -32,7 +32,7 @@ void THolderExpiration::Start(IInvoker::TPtr invoker)
 void THolderExpiration::Stop()
 {
     YASSERT(~Invoker != NULL);
-    Invoker.Drop();
+    Invoker.Reset();
 }
 
 void THolderExpiration::AddHolder(const THolder& holder)
