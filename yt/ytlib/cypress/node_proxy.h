@@ -377,9 +377,9 @@ public: \
         return ENodeType::name; \
     } \
     \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
     { \
-        return const_cast<T ## name ## NodeProxy*>(this); \
+        return this; \
     } \
     \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() \
@@ -446,7 +446,7 @@ protected:
     { }
 
 public:
-    virtual TIntrusiveConstPtr<ICompositeNode> AsComposite() const
+    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const
     {
         return const_cast<TCompositeNodeProxyBase*>(this);
     }

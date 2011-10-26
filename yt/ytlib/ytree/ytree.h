@@ -37,7 +37,7 @@ struct INode
 
 #define DECLARE_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() = 0; \
-    virtual TIntrusiveConstPtr<I##name##Node> As##name() const = 0;
+    virtual TIntrusivePtr<const I##name##Node> As##name() const = 0;
 
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
