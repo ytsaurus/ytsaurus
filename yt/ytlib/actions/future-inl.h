@@ -84,6 +84,8 @@ bool TFuture<T>::IsSet() const
 template <class T>
 void TFuture<T>::Subscribe(typename IParamAction<T>::TPtr action)
 {
+    YASSERT(~action != NULL);
+
     TGuard<TSpinLock> guard(SpinLock);
     if (IsSet_) {
         guard.Release();
@@ -99,6 +101,9 @@ void ApplyFuncThunk(
     typename TFuture<TOther>::TPtr otherResult,
     typename IParamFunc<T, TOther>::TPtr func)
 {
+    YASSERT(~otherResult != NULL);
+    YASSERT(~func != NULL);
+
     otherResult->Set(func->Do(value));
 }
 
@@ -118,6 +123,8 @@ void AsyncApplyFuncThunk(
     typename TFuture<TOther>::TPtr otherResult,
     typename IParamFunc<T, typename TFuture<TOther>::TPtr>::TPtr func)
 {
+    YASSERT(~func != NULL);
+
     func->Do(value)->Subscribe(FromMethod(
         &TFuture<TOther>::Set, otherResult));
 }
