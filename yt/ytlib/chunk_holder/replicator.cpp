@@ -30,7 +30,12 @@ TJob::TJob(
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
-{ }
+{
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~chunkStore != NULL);
+    YASSERT(~blockStore != NULL);
+    YASSERT(~chunk != NULL);
+}
 
 EJobType TJob::GetType() const
 {

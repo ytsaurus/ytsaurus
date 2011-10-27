@@ -92,7 +92,6 @@ int ReadVarInt32(TInputStream* input, i32* value)
     ui64 varInt;
     int bytesRead = ReadVarUInt64(input, &varInt);
     if (varInt > Max<ui32>()) {
-        // TODO: exception message
         throw yexception() << Sprintf("Value %" PRIx64 " is to large to parse as ui32");
     }
     *value = ZigZagDecode32(static_cast<ui32> (varInt));

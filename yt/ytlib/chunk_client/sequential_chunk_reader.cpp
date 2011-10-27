@@ -26,6 +26,8 @@ TSequentialChunkReader::TSequentialChunkReader(
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
+
+    YASSERT(~ChunkReader != NULL);
     YASSERT(blockIndexes.ysize() > 0);
     YASSERT(Config.GroupSize <= Config.WindowSize);
 
