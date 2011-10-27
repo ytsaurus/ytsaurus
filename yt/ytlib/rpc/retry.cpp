@@ -221,6 +221,8 @@ TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     IClientResponseHandler::TPtr responseHandler, 
     TDuration timeout)
 {
+    // TODO: encapsulate this result in TRetriableRpcCall
+    // provide GetResult method and return it here
     auto result = New< TFuture<EErrorCode> > ();
     auto retriableCall = New<TRetriableRpcCall>(
         this,
@@ -232,7 +234,7 @@ TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     return result;
 }
 
-IChannel::TPtr TRetriableChannel::GetChannel()
+IChannel::TPtr TRetriableChannel::GetChannel() const
 {
     return Channel;
 }
