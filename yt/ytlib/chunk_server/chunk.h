@@ -19,6 +19,7 @@ class TChunk
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TChunkId);
     DECLARE_BYVAL_RW_PROPERTY(TransactionId, TTransactionId);
+    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
     DECLARE_BYVAL_RW_PROPERTY(Size, i64);
     DECLARE_BYREF_RO_PROPERTY(Locations, yvector<THolderId>);
 
@@ -31,6 +32,7 @@ public:
         : Id_(id)
         , TransactionId_(transactionId)
         , Size_(UnknownSize)
+        , RefCounter(0)
     { }
 
     TAutoPtr<TChunk> Clone() const
@@ -42,8 +44,10 @@ public:
     {
         ::Save(output, Id_);
         ::Save(output, TransactionId_);
+        ::Save(output, ChunkListId_);
         ::Save(output, Size_);
         ::Save(output, Locations_);
+        ::Save(output, RefCounter);
     }
 
     static TAutoPtr<TChunk> Load(TInputStream* input)
@@ -52,12 +56,16 @@ public:
         NTransaction::TTransactionId transactionId;
         ::Load(input, id);
         ::Load(input, transactionId);
-        auto* chunk = new TChunk(id, transactionId);
+        TAutoPtr<TChunk> chunk = new TChunk(id, transactionId);
+        ::Load(input, chunk->ChunkListId_);
         ::Load(input, chunk->Size_);
         ::Load(input, chunk->Locations_);
+        ::Load(input, chunk->RefCounter);
         return chunk;
     }
 
+
+    // TODO: is it needed?
     bool IsVisible(const TTransactionId& transactionId) const
     {
         return
@@ -78,12 +86,27 @@ public:
         Locations_.erase(it);
     }
 
+
+    i32 Ref()
+    {
+        return ++RefCounter;
+    }
+
+    i32 Unref()
+    {
+        return --RefCounter;
+    }
+
 private:
+    i32 RefCounter;
+
     TChunk(const TChunk& other)
         : Id_(other.Id_)
         , TransactionId_(other.TransactionId_)
+        , ChunkListId_(other.ChunkListId_)
         , Size_(other.Size_)
         , Locations_(other.Locations_)
+        , RefCounter(other.RefCounter)
     { }
 
 };

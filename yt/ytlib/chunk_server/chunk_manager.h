@@ -18,6 +18,13 @@ using NMetaState::TMetaChange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NMetaState::TMetaChange;
+using NMetaState::TMetaStateManager;
+using NMetaState::TCompositeMetaState;
+using NTransaction::TTransactionManager;
+using NTransaction::TTransactionId;
+using NTransaction::TTransaction;
+
 class TChunkManager
     : public TRefCountedBase
 {
@@ -28,11 +35,12 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
+        TMetaStateManager::TPtr metaStateManager,
+        TCompositeMetaState::TPtr metaState,
         TTransactionManager::TPtr transactionManager);
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);

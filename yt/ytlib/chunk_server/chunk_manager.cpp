@@ -89,6 +89,7 @@ public:
     }
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
@@ -177,6 +178,7 @@ private:
     TIdGenerator<THolderId> HolderIdGenerator;
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
+    TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
     TMetaStateMap<TChunkId, TJobList> JobListMap;
@@ -327,35 +329,37 @@ private:
         return "ChunkManager";
     }
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker)
+    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker)
     {
         auto chunkIdGenerator = ChunkIdGenerator;
         auto holderIdGenerator = HolderIdGenerator;
         invoker->Invoke(FromFunctor([=] ()
             {
-                ::Save(stream, holderIdGenerator);
-                ::Save(stream, chunkIdGenerator);
+                ::Save(output, holderIdGenerator);
+                ::Save(output, chunkIdGenerator);
             }));
         
-        HolderMap.Save(invoker, stream);
-        ChunkMap.Save(invoker, stream);
-        JobMap.Save(invoker, stream);
-        return JobListMap.Save(invoker, stream);
+        HolderMap.Save(invoker, output);
+        ChunkMap.Save(invoker, output);
+        ChunkListMap.Save(invoker, output);
+        JobMap.Save(invoker, output);
+        return JobListMap.Save(invoker, output);
     }
 
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker)
+    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker)
     {
         TPtr thisPtr = this;
         invoker->Invoke(FromFunctor([=] ()
             {
-                ::Load(stream, thisPtr->HolderIdGenerator);
-                ::Load(stream, thisPtr->ChunkIdGenerator);
+                ::Load(input, thisPtr->HolderIdGenerator);
+                ::Load(input, thisPtr->ChunkIdGenerator);
             }));
 
-        HolderMap.Load(invoker, stream);
-        ChunkMap.Load(invoker, stream);
-        JobMap.Load(invoker, stream);
-        JobListMap.Load(invoker, stream);
+        HolderMap.Load(invoker, input);
+        ChunkMap.Load(invoker, input);
+        ChunkListMap.Load(invoker, input);
+        JobMap.Load(invoker, input);
+        JobListMap.Load(invoker, input);
 
         return
             FromMethod(
@@ -389,6 +393,7 @@ private:
         ChunkIdGenerator.Reset();
         HolderMap.Clear();
         ChunkMap.Clear();
+        ChunkListMap.Clear();
         JobMap.Clear();
         JobListMap.Clear();
 

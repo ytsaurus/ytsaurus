@@ -6,9 +6,11 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkServerLogger("ChunkManager");
+NLog::TLogger ChunkServerLogger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChunkListId NullChunkListId = TChunkListId(0, 0, 0, 0);
 
 int MaxReplicationFanOut = 4;
 int MaxReplicationFanIn = 8;
