@@ -76,7 +76,7 @@ namespace NYT {
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
         result->BindToCookie(cookie); \
-        return MoveRV(result); \
+        return result; \
     } while(0)
 
 #else // !ENABLE_REF_COUNTED_TRACKING
@@ -87,7 +87,7 @@ namespace NYT {
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
-        return MoveRV(result); \
+        return result; \
     } while(0)
 
 #endif // ENABLE_REF_COUNTED_TRACKING
