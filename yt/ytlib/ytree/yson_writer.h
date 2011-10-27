@@ -13,7 +13,13 @@ class TYsonWriter
     , private TNonCopyable
 {
 public:
-    TYsonWriter(TOutputStream* stream, bool isBinary = false);
+    DECLARE_ENUM(EFormat,
+     (Binary)
+     (Text)
+     (Pretty)
+    );
+
+    TYsonWriter(TOutputStream* stream, EFormat format = EFormat::Pretty);
 
 private:
     TOutputStream* Stream;
@@ -21,7 +27,7 @@ private:
     bool IsEmptyEntity;
     int Indent;
 
-    bool IsBinary;
+    EFormat Format;
 
     static const int IndentSize = 4;
 
