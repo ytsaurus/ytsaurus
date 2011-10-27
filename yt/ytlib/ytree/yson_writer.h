@@ -21,6 +21,23 @@ public:
 
     TYsonWriter(TOutputStream* stream, EFormat format = EFormat::Pretty);
 
+    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnDoubleScalar(double value, bool hasAttributes);
+    virtual void OnEntity(bool hasAttributes);
+
+    virtual void OnBeginList();
+    virtual void OnListItem();
+    virtual void OnEndList(bool hasAttributes);
+
+    virtual void OnBeginMap();
+    virtual void OnMapItem(const Stroka& name);
+    virtual void OnEndMap(bool hasAttributes);
+
+    virtual void OnBeginAttributes();
+    virtual void OnAttributesItem(const Stroka& name);
+    virtual void OnEndAttributes();
+
 private:
     TOutputStream* Stream;
     bool IsFirstItem;
@@ -39,22 +56,6 @@ private:
     void CollectionItem(char separator);
     void EndCollection(char closeBracket);
 
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
-
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
-
-    virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap(bool hasAttributes);
-
-    virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
-    virtual void OnEndAttributes();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
