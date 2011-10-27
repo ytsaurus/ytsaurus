@@ -217,6 +217,8 @@ public:
         , Context(context)
         , Request_(context->GetRequestAttachments())
     {
+        YASSERT(~context != NULL);
+
         if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
@@ -254,6 +256,7 @@ public:
 
     IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
     {
+        YASSERT(~paramAction != NULL);
         return Context->Wrap(paramAction->Bind(TPtr(this)));
     }
     

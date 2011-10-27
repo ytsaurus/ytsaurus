@@ -120,7 +120,9 @@ public:
 
     TTypedClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
         : TClientRequest(channel, serviceName, methodName)
-    { }
+    {
+        YASSERT(~channel != NULL);
+    }
 
     typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
     {
@@ -146,6 +148,9 @@ private:
         typename TInvokeResult::TPtr asyncResult,
         typename TTypedResponse::TPtr response)
     {
+        YASSERT(~asyncResult != NULL);
+        YASSERT(~response != NULL);
+
         UNUSED(errorCode);
         asyncResult->Set(response);
     }
@@ -241,7 +246,9 @@ public:
         : TClientResponse(
             requestId,
             channel)
-    { }
+    {
+        YASSERT(~channel != NULL);
+    }
 
     TErrorCode GetErrorCode() const
     {

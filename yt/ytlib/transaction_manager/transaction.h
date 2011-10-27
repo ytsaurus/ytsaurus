@@ -37,6 +37,8 @@ public:
 
     void Save(TOutputStream* output) const
     {
+        YASSERT(output != NULL);
+
         ::Save(output, Id_);
         ::Save(output, RegisteredChunks_);
         ::Save(output, Locks_);
@@ -45,6 +47,8 @@ public:
 
     static TAutoPtr<TTransaction> Load(TInputStream* input)
     {
+        YASSERT(input != NULL);
+
         TTransactionId id;
         ::Load(input, id);
         auto* transaction = new TTransaction(id);

@@ -22,6 +22,9 @@ TTransactionManager::TTransactionManager(
     // Some random number.
     , TransactionIdGenerator(0x5fab718461fda630)
 {
+    YASSERT(~metaStateManager != NULL);
+    YASSERT(~metaState != NULL);
+
     RegisterMethod(this, &TThis::StartTransaction);
     RegisterMethod(this, &TThis::CommitTransaction);
     RegisterMethod(this, &TThis::AbortTransaction);

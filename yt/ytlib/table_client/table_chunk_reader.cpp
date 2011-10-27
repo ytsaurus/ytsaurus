@@ -53,6 +53,8 @@ TTableChunkReader::TTableChunkReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YASSERT(~chunkReader != NULL);
+
     // The last block contains meta.
     yvector<int> metaIndex(1, -1);
     chunkReader->AsyncReadBlocks(metaIndex)

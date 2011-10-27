@@ -26,11 +26,16 @@ TServiceContext::TServiceContext(
     , RequestId(requestId)
     , MethodName(methodName)
     , ReplyBus(replyBus)
-    , RequestBody(message->GetParts().at(1))
-    , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
-    , ServiceLogger(service->GetLoggingCategory())
+    , ServiceLogger(service->GetLoggingCategory()) // TODO: move this to body
     , Replied(false)
-{ }
+{
+    YASSERT(~service != NULL);
+    YASSERT(~message != NULL);
+    YASSERT(~replyBus != NULL);
+
+    RequestBody = message->GetParts().at(1);
+    RequestAttachments = yvector<TSharedRef>(message->GetParts().begin() + 2, message->GetParts().end());
+}
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
