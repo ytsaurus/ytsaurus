@@ -70,18 +70,18 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNode
     , RefCounter(0)
 { }
 
-NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
+TBranchedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
 }
 
-int TCypressNodeBase::Ref()
+i32 TCypressNodeBase::Ref()
 {
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return ++RefCounter;
 }
 
-int TCypressNodeBase::Unref()
+i32  TCypressNodeBase::Unref()
 {
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return --RefCounter;

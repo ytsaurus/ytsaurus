@@ -176,8 +176,8 @@ public:
 
     virtual TBranchedNodeId GetId() const;
 
-    virtual int Ref();
-    virtual int Unref();
+    virtual i32 Ref();
+    virtual i32 Unref();
 
     virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
 
@@ -197,7 +197,7 @@ protected:
         ICypressNode& branchedNode);
 
     TBranchedNodeId Id;
-    int RefCounter;
+    i32 RefCounter;
 
 };
 

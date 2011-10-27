@@ -12,8 +12,6 @@
 namespace NYT {
 namespace NFileServer {
 
-using NCypress::TCypressManager;
-using NTransaction::TTransactionManager;
 using NChunkServer::TChunkManager;
 
 ////////////////////////////////////////////////////////////////////////////////
