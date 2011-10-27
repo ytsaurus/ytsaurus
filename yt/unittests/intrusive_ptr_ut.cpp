@@ -64,6 +64,7 @@ namespace {
         "was decremented " + ::testing::PrintToString(decrements) + " times, " +
         "vanished to zero " + ::testing::PrintToString(zeros) + " times")
     {
+        UNUSED(result_listener);
         return
             arg.Increments == increments &&
             arg.Decrements == decrements &&
