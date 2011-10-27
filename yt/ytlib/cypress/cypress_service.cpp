@@ -117,7 +117,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
             {
                 Stroka output;
                 TStringOutput outputStream(output);
-                TYsonWriter writer(&outputStream, false); // TODO: use binary
+                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary); // TODO: use binary
 
                 CypressManager->GetYPath(transactionId, path, &writer);
 

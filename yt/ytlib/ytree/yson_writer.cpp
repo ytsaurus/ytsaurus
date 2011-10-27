@@ -11,12 +11,12 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
     
-TYsonWriter::TYsonWriter(TOutputStream* stream, bool isBinary)
+TYsonWriter::TYsonWriter(TOutputStream* stream, EFormat format)
     : Stream(stream)
     , IsFirstItem(false)
     , IsEmptyEntity(false)
     , Indent(0)
-    , IsBinary(isBinary)
+    , Format(format)
 { }
 
 void TYsonWriter::WriteIndent()
@@ -28,7 +28,7 @@ void TYsonWriter::WriteIndent()
 
 void TYsonWriter::WriteStringScalar(const Stroka& value)
 {
-    if (IsBinary) {
+    if (Format == EFormat::Binary) {
         Stream->Write(StringMarker);
         WriteVarInt32(Stream, static_cast<i32>(value.length()));
         Stream->Write(&value, value.length());
@@ -44,9 +44,13 @@ void TYsonWriter::WriteMapItem(const Stroka& name)
 {
     CollectionItem(MapItemSeparator);
     WriteStringScalar(name);
-    Stream->Write(' ');
+    if (Format == EFormat::Pretty) {
+        Stream->Write(' ');
+    }
     Stream->Write(KeyValueSeparator);
-    Stream->Write(' ');
+    if (Format == EFormat::Pretty) {
+        Stream->Write(' ');
+    }
     IsFirstItem = false;
 }
 
@@ -59,13 +63,17 @@ void TYsonWriter::BeginCollection(char openBracket)
 void TYsonWriter::CollectionItem(char separator)
 {
     if (IsFirstItem) {
-        Stream->Write('\n');
-        ++Indent;
+        if (Format == EFormat::Pretty) {
+            Stream->Write('\n');
+            ++Indent;
+        }
     } else {
         Stream->Write(separator);
-        Stream->Write('\n');
+        if (Format == EFormat::Pretty) {
+            Stream->Write('\n');
+        }
     }
-    if (!IsBinary) {
+    if (Format == EFormat::Pretty) {
         WriteIndent();
     }
     IsFirstItem = false;
@@ -73,51 +81,45 @@ void TYsonWriter::CollectionItem(char separator)
 
 void TYsonWriter::EndCollection(char closeBracket)
 {
-    if (!IsFirstItem) {
+    if (Format == EFormat::Pretty && !IsFirstItem) {
         Stream->Write('\n');
         --Indent;
-        if (!IsBinary) {
-            WriteIndent();
-        }
+        WriteIndent();
     }
     Stream->Write(closeBracket);
     IsFirstItem = false;
 }
 
-
 void TYsonWriter::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
-    // TODO: binary?
     WriteStringScalar(value);
-    if (hasAttributes) {
+    if (Format == EFormat::Pretty && hasAttributes) {
         Stream->Write(' ');
     }
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
 {
-    UNUSED(hasAttributes);
-    if (IsBinary) {
+    if (Format == EFormat::Binary) {
         Stream->Write(Int64Marker);
         WriteVarInt64(Stream, value);
     } else {
         Stream->Write(ToString(value));
     }
-    if (hasAttributes) {
+    if (Format == EFormat::Pretty && hasAttributes) {
         Stream->Write(' ');
     }
 }
 
 void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
 {
-    UNUSED(hasAttributes);
-    if (IsBinary) {
+    if (Format == EFormat::Binary) {
         Stream->Write(DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
         Stream->Write(ToString(value));
     }
-    if (hasAttributes) {
+    if (Format == EFormat::Pretty && hasAttributes) {
         Stream->Write(' ');
     }
 }
@@ -143,7 +145,7 @@ void TYsonWriter::OnListItem()
 void TYsonWriter::OnEndList(bool hasAttributes)
 {
     EndCollection(EndListSymbol);
-    if (hasAttributes) {
+    if (Format == EFormat::Pretty && hasAttributes) {
         Stream->Write(' ');
     }
 }
@@ -161,7 +163,7 @@ void TYsonWriter::OnMapItem(const Stroka& name)
 void TYsonWriter::OnEndMap(bool hasAttributes)
 {
     EndCollection(EndMapSymbol);
-    if (hasAttributes) {
+    if (Format == EFormat::Pretty && hasAttributes) {
         Stream->Write(' ');
     }
 }
