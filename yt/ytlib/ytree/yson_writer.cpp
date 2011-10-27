@@ -6,6 +6,8 @@
 
 #include "../misc/serialize.h"
 
+#include <util/string/escape.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -33,9 +35,8 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
         WriteVarInt32(Stream, static_cast<i32>(value.length()));
         Stream->Write(&value, value.length());
     } else {
-        // TODO: escaping
         Stream->Write('"');
-        Stream->Write(value);
+        Stream->Write(EscapeC(value));
         Stream->Write('"');
     }
 }
