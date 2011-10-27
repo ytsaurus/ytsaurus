@@ -64,6 +64,8 @@ bool EncodeMessagePacket(
     TSequenceId sequenceId,
     TBlob* data)
 {
+    YASSERT(~message != NULL);
+
     const yvector<TSharedRef>& parts = message->GetParts();
 
     if (parts.ysize() > TMultipartPacketHeader::MaxParts) {

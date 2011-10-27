@@ -18,10 +18,14 @@ TMessageRearranger::TMessageRearranger(
     : OnMessageDequeued(onMessage)
     , Timeout(timeout)
     , ExpectedSequenceId(-1)
-{ }
+{
+    YASSERT(~onMessage != NULL);
+}
 
 void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequenceId)
 {
+    YASSERT(~message != NULL);
+
     TGuard<TSpinLock> guard(SpinLock);
 
     if (sequenceId == ExpectedSequenceId || ExpectedSequenceId < 0) {
