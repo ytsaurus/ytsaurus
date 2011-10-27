@@ -35,6 +35,11 @@ TMasterConnector::TMasterConnector(
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
+    YASSERT(~chunkStore != NULL);
+    YASSERT(~sessionManager != NULL);
+    YASSERT(~replicator != NULL);
+    YASSERT(~serviceInvoker != NULL);
+
     NRpc::IChannel::TPtr channel = New<NMetaState::TCellChannel>(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
 

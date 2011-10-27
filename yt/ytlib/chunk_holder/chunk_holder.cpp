@@ -24,6 +24,9 @@ TChunkHolder::TChunkHolder(
         Logger.GetCategory())
     , Config(config)
 {
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~server != NULL);
+
     ChunkStore = New<TChunkStore>(Config);
     BlockStore = New<TBlockStore>(Config, ChunkStore);
 
