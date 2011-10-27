@@ -31,11 +31,11 @@ class TDelayedInvoker
 
     struct TEntryLess
     {
-        bool operator()(const TEntry::TPtr& left, const TEntry::TPtr& right) const
+        bool operator()(TEntry::TPtr left, TEntry::TPtr right) const
         {
             return left->Deadline < right->Deadline ||
-                   left->Deadline == right->Deadline && 
-                   ~left->Action < ~right->Action;
+                left->Deadline == right->Deadline &&
+                left->Action < right->Action;
         }
     };
 

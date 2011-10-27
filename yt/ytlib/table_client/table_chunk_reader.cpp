@@ -81,11 +81,11 @@ void TTableChunkReader::OnGotMeta(
 
     auto& metaBlob = readResult.Blocks.front();
     NProto::TChunkMeta protoMeta;
-    protoMeta.ParseFromArray(metaBlob.Begin(), metaBlob.Size());
+    protoMeta.ParseFromArray(metaBlob.Begin(), static_cast<int>(metaBlob.Size()));
 
     yvector<TChannel> channels;
     channels.reserve(protoMeta.ChannelsSize());
-    for(int i = 0; i < protoMeta.ChannelsSize(); ++i) {
+    for(int i = 0; i < protoMeta.channels_size(); ++i) {
         channels.push_back(
             TChannel::FromProto(protoMeta.GetChannels(i))
         );
@@ -210,7 +210,7 @@ yvector<int> TTableChunkReader::SelectChannels(const yvector<TChannel>& channels
     yvector<int> result;
 
     TChannel remainder = Channel;
-    for (int channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
+    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
         auto& curChannel = channels[channelIdx];
         if (curChannel.Overlaps(remainder)) {
             remainder -= curChannel;
@@ -231,9 +231,9 @@ int TTableChunkReader::SelectSingleChannel(
     int resultIdx = -1;
     int minBlockCount = -1;
 
-    for (int channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
+    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
         if (channels[channelIdx].Contains(Channel)) {
-            int blockCount = protoMeta.GetChannels(channelIdx).BlocksSize();
+            int blockCount = protoMeta.GetChannels(channelIdx).blocks_size();
             if (resultIdx < 0 || minBlockCount > blockCount) {
                 resultIdx = channelIdx;
                 minBlockCount = blockCount;
@@ -271,7 +271,7 @@ yvector<int> TTableChunkReader::GetBlockReadingOrder(
         std::pop_heap(blockHeap.begin(), blockHeap.end());
         blockHeap.pop_back();
 
-        if (nextBlockIndex < protoChannel.BlocksSize()) {
+        if (nextBlockIndex < protoChannel.blocks_size()) {
             const auto& protoBlock = protoChannel.GetBlocks(nextBlockIndex);
 
             blockHeap.push_back(TBlockInfo(

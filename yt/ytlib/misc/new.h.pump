@@ -76,7 +76,6 @@ namespace NYT {
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
         result->BindToCookie(cookie); \
-        return result; \
     } while(0)
 
 #else // !ENABLE_REF_COUNTED_TRACKING
@@ -87,7 +86,6 @@ namespace NYT {
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
-        return result; \
     } while(0)
 
 #endif // ENABLE_REF_COUNTED_TRACKING
@@ -109,8 +107,10 @@ template<
 inline TIntrusivePtr<TResult> New($ctor_args)
 {
     REF_COUNTED_NEW_PROLOGUE();
+    // Do not increment reference count because initial RC equals to 1.
     TIntrusivePtr<TResult> result(new TResult($args_list), false);
     REF_COUNTED_NEW_EPILOGUE();
+    return result;
 }
 
 ]]

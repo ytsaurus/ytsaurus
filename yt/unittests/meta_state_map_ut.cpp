@@ -11,50 +11,53 @@ namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMyInt
-{
-    static THolder<Event> SaveEvent;
-
-    int Value;
-
-    TMyInt()
-    { }
-
-    TMyInt(const TMyInt& other)
-        : Value(other.Value)
-    { }
-
-    TMyInt(int value)
-        : Value(value)
-    { }
-
-    TAutoPtr<TMyInt> Clone() const
+namespace {
+    struct TMyInt
     {
-        return new TMyInt(*this);
-    }
+        static THolder<Event> SaveEvent;
 
-    void Save(TOutputStream* output) const
-    {
-        SaveEvent->Wait();
-        Write(*output, Value);
-    }
+        int Value;
 
-    static TAutoPtr<TMyInt> Load(TInputStream* input)
-    {
-        int value;
-        Read(*input, &value);
-        return new TMyInt(value);
-    }
-};
+        TMyInt()
+        { }
 
-THolder<Event> TMyInt::SaveEvent;
+        TMyInt(const TMyInt& other)
+            : Value(other.Value)
+        { }
 
-class TMetaStateMapTest: public ::testing::Test
-{ };
+        TMyInt(int value)
+            : Value(value)
+        { }
 
-typedef Stroka TKey;
-typedef TMyInt TValue;
+        TAutoPtr<TMyInt> Clone() const
+        {
+            return new TMyInt(*this);
+        }
 
+        void Save(TOutputStream* output) const
+        {
+            SaveEvent->Wait();
+            Write(*output, Value);
+        }
+
+        static TAutoPtr<TMyInt> Load(TInputStream* input)
+        {
+            int value;
+            Read(*input, &value);
+            return new TMyInt(value);
+        }
+    };
+
+    THolder<Event> TMyInt::SaveEvent;
+
+    class TMetaStateMapTest: public ::testing::Test
+    { };
+
+    typedef Stroka TKey;
+    typedef TMyInt TValue;
+} // namespace <anonymous>
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 {

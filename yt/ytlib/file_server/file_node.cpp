@@ -28,7 +28,7 @@ ICypressNodeProxy::TPtr TFileNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
     const TTransactionId& transactionId) const
 {
-    return ~New<TFileNodeProxy>(cypressManager, transactionId, Id.NodeId);
+    return New<TFileNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
 TAutoPtr<ICypressNode> TFileNode::Branch(

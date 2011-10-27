@@ -69,9 +69,9 @@ public: \
         return ENodeType::name; \
     } \
     \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
     { \
-        return const_cast<T ## name ## Node*>(this); \
+        return this; \
     } \
     \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() \
@@ -112,9 +112,9 @@ public:
         return this;
     }
 
-    virtual TIntrusiveConstPtr<ICompositeNode> AsComposite() const
+    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const
     {
-        return const_cast< TCompositeNodeBase<IBase>* >(this);
+        return this;
     }
 };
 
@@ -397,32 +397,32 @@ INodeFactory* TEphemeralNodeFactory::Get()
 
 IStringNode::TPtr TEphemeralNodeFactory::CreateString()
 {
-    return ~New<TStringNode>();
+    return New<TStringNode>();
 }
 
 IInt64Node::TPtr TEphemeralNodeFactory::CreateInt64()
 {
-    return ~New<TInt64Node>();
+    return New<TInt64Node>();
 }
 
 IDoubleNode::TPtr TEphemeralNodeFactory::CreateDouble()
 {
-    return ~New<TDoubleNode>();
+    return New<TDoubleNode>();
 }
 
 IMapNode::TPtr TEphemeralNodeFactory::CreateMap()
 {
-    return ~New<TMapNode>();
+    return New<TMapNode>();
 }
 
 IListNode::TPtr TEphemeralNodeFactory::CreateList()
 {
-    return ~New<TListNode>();
+    return New<TListNode>();
 }
 
 IEntityNode::TPtr TEphemeralNodeFactory::CreateEntity()
 {
-    return ~New<TEntityNode>();
+    return New<TEntityNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

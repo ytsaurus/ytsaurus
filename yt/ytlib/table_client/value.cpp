@@ -67,7 +67,7 @@ int TValue::Save(TOutputStream* out)
         return WriteVarUInt64(out, 0);
     } else {
         int bytesWritten = WriteVarUInt64(out, GetSize() + 1);
-        bytesWritten += GetSize();
+        bytesWritten += static_cast<int>(GetSize());
         out->Write(GetData(), GetSize());
         return bytesWritten;
     }

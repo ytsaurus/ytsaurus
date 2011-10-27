@@ -9,29 +9,33 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+    class TMyObject
+    {
+        DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
+
+    public:
+        TVoid F() {
+            VERIFY_THREAD_AFFINITY(ServiceThread);
+            return TVoid();
+        }
+
+        TVoid G() {
+            VERIFY_THREAD_AFFINITY(ServiceThread);
+            return TVoid();
+        }
+    };
+} // namespace <anonymous>
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TThreadAffinityTest : public ::testing::Test
 { };
-
-class TMyObject
-{
-    DECLARE_THREAD_AFFINITY_SLOT(ServiceThread);
-
-public:
-    TVoid F() {
-        VERIFY_THREAD_AFFINITY(ServiceThread);
-        return TVoid();
-    }
-
-    TVoid G() {
-        VERIFY_THREAD_AFFINITY(ServiceThread);
-        return TVoid();
-    }
-};
 
 TEST_F(TThreadAffinityTest, OneThread)
 {
     TMyObject myObject;
-    TActionQueue::TPtr actionQueue = ~New<TActionQueue>();
+    TActionQueue::TPtr actionQueue = New<TActionQueue>();
     auto invoker = actionQueue->GetInvoker();
 
     FromMethod(&TMyObject::F, &myObject)->AsyncVia(invoker)->Do()->Get();
@@ -48,8 +52,8 @@ TEST_F(TThreadAffinityTest, OneFunctionDifferentThreads)
 {
     TMyObject myObject;
     ASSERT_DEATH({
-        TActionQueue::TPtr actionQueue1 = ~New<TActionQueue>();
-        TActionQueue::TPtr actionQueue2 = ~New<TActionQueue>();
+        TActionQueue::TPtr actionQueue1 = New<TActionQueue>();
+        TActionQueue::TPtr actionQueue2 = New<TActionQueue>();
         FromMethod(&TMyObject::F, &myObject)->AsyncVia(actionQueue1->GetInvoker())->Do()->Get();
         FromMethod(&TMyObject::F, &myObject)->AsyncVia(actionQueue2->GetInvoker())->Do()->Get();
     }, ".*");
@@ -60,8 +64,8 @@ TEST_F(TThreadAffinityTest, DifferentFunctionsDifferentThreads)
 {
     TMyObject myObject;
     ASSERT_DEATH({
-        TActionQueue::TPtr actionQueue1 = ~New<TActionQueue>();
-        TActionQueue::TPtr actionQueue2 = ~New<TActionQueue>();
+        TActionQueue::TPtr actionQueue1 = New<TActionQueue>();
+        TActionQueue::TPtr actionQueue2 = New<TActionQueue>();
         FromMethod(&TMyObject::F, &myObject)->AsyncVia(actionQueue1->GetInvoker())->Do()->Get();
         FromMethod(&TMyObject::G, &myObject)->AsyncVia(actionQueue2->GetInvoker())->Do()->Get();
     }, ".*");

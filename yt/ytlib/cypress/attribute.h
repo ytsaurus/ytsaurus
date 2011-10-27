@@ -7,8 +7,8 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TCypressManager;
 struct ICypressNodeProxy;
+struct TCypressManager;
 
 struct IAttributeProvider
 {
@@ -57,39 +57,6 @@ protected:
     yhash_map<Stroka, TGetter::TPtr> Getters;
 
     void RegisterGetter(const Stroka& name, TGetter::TPtr getter);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCypressNodeAttributeProvider
-    : public TAttributeProviderBase
-{
-public:
-    static IAttributeProvider* Get();
-
-    TCypressNodeAttributeProvider();
-
-private:
-    typedef TCypressNodeAttributeProvider TThis;
-
-    static void GetNodeId(const TGetRequest& request);
-    static void GetType(const TGetRequest& request);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCompositeNodeAttributeProvider
-    : public TCypressNodeAttributeProvider
-{
-public:
-    static IAttributeProvider* Get();
-
-    TCompositeNodeAttributeProvider();
-
-private:
-    typedef TCompositeNodeAttributeProvider TThis;
-
-    static void GetSize(const TGetRequest& request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

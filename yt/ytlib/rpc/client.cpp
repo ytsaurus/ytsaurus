@@ -31,14 +31,14 @@ TClientRequest::TClientRequest(
     , RequestId(TRequestId::Create())
 { }
 
-IMessage::TPtr TClientRequest::Serialize()
+IMessage::TPtr TClientRequest::Serialize() const
 {
     TBlob bodyData;
     if (!SerializeBody(&bodyData)) {
         LOG_FATAL("Error serializing request body");
     }
 
-    return ~New<TRpcRequestMessage>(
+    return New<TRpcRequestMessage>(
         RequestId,
         ServiceName,
         MethodName,
@@ -58,9 +58,19 @@ yvector<TSharedRef>& TClientRequest::Attachments()
     return Attachments_;
 }
 
-NYT::NRpc::TRequestId TClientRequest::GetRequestId()
+NYT::NRpc::TRequestId TClientRequest::GetRequestId() const
 {
     return RequestId;
+}
+
+Stroka TClientRequest::GetMethodName() const
+{
+    return MethodName;
+}
+
+Stroka TClientRequest::GetServiceName() const
+{
+    return ServiceName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

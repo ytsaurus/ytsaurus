@@ -22,7 +22,7 @@ public:
         YUNREACHABLE(); \
     } \
     \
-    virtual TIntrusiveConstPtr<I##name##Node> As##name() const \
+    virtual TIntrusivePtr<const I##name##Node> As##name() const \
     { \
         YUNREACHABLE(); \
     }

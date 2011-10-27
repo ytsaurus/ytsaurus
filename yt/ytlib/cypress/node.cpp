@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "node.h"
-#include "node_proxy.h"
+#include "node_proxy_detail.h"
 
 namespace NYT {
 namespace NCypress {
@@ -70,18 +70,18 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNode
     , RefCounter(0)
 { }
 
-NYT::NCypress::TBranchedNodeId TCypressNodeBase::GetId() const
+TBranchedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
 }
 
-int TCypressNodeBase::Ref()
+i32 TCypressNodeBase::Ref()
 {
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return ++RefCounter;
 }
 
-int TCypressNodeBase::Unref()
+i32  TCypressNodeBase::Unref()
 {
     YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
     return --RefCounter;
@@ -161,7 +161,7 @@ ICypressNodeProxy::TPtr TMapNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
     const TTransactionId& transactionId) const
 {
-    return ~New<TMapNodeProxy>(cypressManager, transactionId, Id.NodeId);
+    return New<TMapNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
 TAutoPtr<ICypressNode> TMapNode::Branch(
@@ -254,7 +254,7 @@ ICypressNodeProxy::TPtr TListNode::GetProxy(
     TIntrusivePtr<TCypressManager> cypressManager,
     const TTransactionId& transactionId) const
 {
-    return ~New<TListNodeProxy>(cypressManager, transactionId, Id.NodeId);
+    return New<TListNodeProxy>(cypressManager, transactionId, Id.NodeId);
 }
 
 TAutoPtr<ICypressNode> TListNode::Branch(

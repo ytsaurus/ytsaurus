@@ -11,25 +11,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleObject
-    : public NYT::TRefCountedBase
-{
-    ui32 Foo;
-    ui32 Bar;
-
-public:
-    typedef TIntrusivePtr<TSimpleObject> TPtr;
-
-    static i64 GetAliveCount()
+namespace {
+    class TSimpleObject
+        : public TRefCountedBase
     {
-        return TRefCountedTracker::GetAliveObjects(&typeid(TSimpleObject));
-    }
+        ui32 Foo;
+        ui32 Bar;
 
-    static i64 GetTotalCount()
-    {
-        return TRefCountedTracker::GetCreatedObjects(&typeid(TSimpleObject));
-    }
-};
+    public:
+        typedef TIntrusivePtr<TSimpleObject> TPtr;
+
+        static i64 GetAliveCount()
+        {
+            return TRefCountedTracker::GetAliveObjects(&typeid(TSimpleObject));
+        }
+
+        static i64 GetTotalCount()
+        {
+            return TRefCountedTracker::GetCreatedObjects(&typeid(TSimpleObject));
+        }
+    };
+} // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
 

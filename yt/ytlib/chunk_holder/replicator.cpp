@@ -95,7 +95,7 @@ void TJob::OnGotMeta(TChunkMeta::TPtr meta)
 {
     Meta = meta;
 
-    Writer = ~New<TRemoteChunkWriter>(
+    Writer = New<TRemoteChunkWriter>(
         TRemoteChunkWriter::TConfig(),
         Chunk->GetId(),
         TargetAddresses);

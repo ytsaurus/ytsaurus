@@ -13,25 +13,13 @@ class TYsonWriter
     , private TNonCopyable
 {
 public:
-    TYsonWriter(TOutputStream* stream, bool isBinary = false);
+    DECLARE_ENUM(EFormat,
+     (Binary)
+     (Text)
+     (Pretty)
+    );
 
-private:
-    TOutputStream* Stream;
-    bool IsFirstItem;
-    bool IsEmptyEntity;
-    int Indent;
-
-    bool IsBinary;
-
-    static const int IndentSize = 4;
-
-    void WriteIndent();
-    void WriteStringScalar(const Stroka& value);
-    void WriteMapItem(const Stroka& name);
-
-    void BeginCollection(char openBracket);
-    void CollectionItem(char separator);
-    void EndCollection(char closeBracket);
+    TYsonWriter(TOutputStream* stream, EFormat format = EFormat::Pretty);
 
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnInt64Scalar(i64 value, bool hasAttributes);
@@ -49,6 +37,25 @@ private:
     virtual void OnBeginAttributes();
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
+
+private:
+    TOutputStream* Stream;
+    bool IsFirstItem;
+    bool IsEmptyEntity;
+    int Indent;
+
+    EFormat Format;
+
+    static const int IndentSize = 4;
+
+    void WriteIndent();
+    void WriteStringScalar(const Stroka& value);
+    void WriteMapItem(const Stroka& name);
+
+    void BeginCollection(char openBracket);
+    void CollectionItem(char separator);
+    void EndCollection(char closeBracket);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
