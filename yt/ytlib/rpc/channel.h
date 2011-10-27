@@ -11,7 +11,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TClientRequest;
+struct IClientRequest;
 struct IClientResponseHandler;
 
 /*!
@@ -30,7 +30,7 @@ struct IChannel
      *  \return An asynchronous result of an RPC call.
      */
     virtual TFuture<EErrorCode>::TPtr Send(
-        TIntrusivePtr<TClientRequest> request,
+        TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout) = 0;
 
@@ -56,7 +56,7 @@ public:
     TChannel(Stroka address);
 
     virtual TFuture<EErrorCode>::TPtr Send(
-        TIntrusivePtr<TClientRequest> request,
+        TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout);
 

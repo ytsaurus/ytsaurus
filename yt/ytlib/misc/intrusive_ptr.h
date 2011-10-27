@@ -5,7 +5,7 @@
 
 #include <util/generic/ptr.h>
 
-// Implemntation was forked from util/generic/ptr.h
+// Implementation was forked from util/generic/ptr.h.
 
 namespace NYT {
 
@@ -13,7 +13,7 @@ namespace NYT {
 
 namespace NDetail {
 
-//! TIsConvertible<U, T>::Value True iff #S is convertable to #T.
+//! TIsConvertible<U, T>::Value is True iff #S is convertable to #T.
 template<class U, class T>
 struct TIsConvertible
 {
@@ -23,14 +23,14 @@ struct TIsConvertible
     static TYes f(T*);
     static TNo  f(...);
 
-    enum {
+    enum
+    {
         Value = sizeof( (f)(static_cast<U*>(0)) ) == sizeof(TYes)
     };
 };
 
 struct TEmpty
-{
-};
+{ };
 
 template<bool>
 struct TEnableIfConvertibleImpl;
@@ -43,14 +43,12 @@ struct TEnableIfConvertibleImpl<true>
 
 template<>
 struct TEnableIfConvertibleImpl<false>
-{
-};
+{ };
 
 template<class U, class T>
 struct TEnableIfConvertible
     : public TEnableIfConvertibleImpl< TIsConvertible<U, T>::Value >
-{
-};
+{ };
 
 } // namespace NDetail
 
@@ -89,9 +87,8 @@ class TIntrusivePtr
 {
 public:
     TIntrusivePtr() throw()
-        : T_(0)
-    {
-    }
+        : T_(NULL)
+    { }
 
     TIntrusivePtr(T* p, bool addReference = true) throw()
         : T_(p)
@@ -138,13 +135,13 @@ public:
         throw()
         : T_(other.Get())
     {
-        other.T_ = 0;
+        other.T_ = NULL;
     }
 
     //! Destructor.
     ~TIntrusivePtr()
     {
-        if (T_ != 0) {
+        if (T_ != NULL) {
             TIntrusivePtrTraits<T>::UnRef(T_);
         }
     }
@@ -176,7 +173,8 @@ public:
     }
 
     //! Returns the pointer.
-    T* Get() const throw() {
+    T* Get() const throw()
+    {
         return T_;
     }
 
@@ -192,7 +190,8 @@ public:
         return  T_;
     }
 
-    void Swap(TIntrusivePtr& r) throw() {
+    void Swap(TIntrusivePtr& r) throw()
+    {
         DoSwap(T_, r.T_);
     }
 

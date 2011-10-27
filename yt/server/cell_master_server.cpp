@@ -118,11 +118,11 @@ void TCellMasterServer::Run()
     auto fileManager = New<TFileManager>(
         metaStateManager,
         metaState,
-        cypressManager);
+        cypressManager,
+        chunkManager,
+        transactionManager);
 
     auto fileService = New<TFileService>(
-        cypressManager,
-        transactionManager,
         chunkManager,
         fileManager,
         metaStateManager->GetStateInvoker(),

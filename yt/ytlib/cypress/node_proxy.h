@@ -30,7 +30,6 @@ struct ICypressNodeProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TNodeFactory
     : public INodeFactory
 {
@@ -161,42 +160,12 @@ protected:
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
     {
-        // First try to fetch a branched copy.
-        auto* impl = CypressManager->FindNode(TBranchedNodeId(nodeId, TransactionId));
-        if (impl != NULL) {
-            return *impl;
-        }
-
-        // If failed, then try the unbranched one.
-        impl = CypressManager->FindNode(TBranchedNodeId(nodeId, NullTransactionId));
-        if (impl != NULL) {
-            return *impl;
-        }
-
-        YASSERT(false);
-        return *impl;
+        return CypressManager->GetTransactionNode(nodeId, TransactionId);
     }
 
     ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
     {
-        // First fetch an unbranched copy and check if it is uncommitted.
-        auto* nonbranchedImpl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        if (nonbranchedImpl != NULL && nonbranchedImpl->GetState() == ENodeState::Uncommitted) {
-            return *nonbranchedImpl;
-        }
-
-        // Then try to fetch a branched copy.
-        auto* branchedImpl = CypressManager->FindNodeForUpdate(TBranchedNodeId(nodeId, TransactionId));
-        if (branchedImpl != NULL) {
-            return *branchedImpl;
-        }
-
-        // Now a non-branched copy must exist and be committed.
-        YASSERT(nonbranchedImpl != NULL);
-        YASSERT(nonbranchedImpl->GetState() == ENodeState::Committed);
-
-        // Branch it!
-        return CypressManager->BranchNode(*nonbranchedImpl, TransactionId);
+        return CypressManager->GetTransactionNodeForUpdate(nodeId, TransactionId);
     }
 
 
@@ -214,12 +183,13 @@ protected:
     template <class T>
     TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
     {
-        if (nodeId == NullNodeId)
+        if (nodeId == NullNodeId) {
             return NULL;
+        }
 
-        auto node = CypressManager->FindNode(nodeId, TransactionId);
-        YASSERT(~node != NULL);
-        return dynamic_cast<T*>(~node);
+        auto& impl = CypressManager->GetTransactionNode(nodeId, TransactionId);
+        auto proxy = impl.GetProxy(CypressManager, TransactionId);
+        return dynamic_cast<T*>(~proxy);
     }
 
     static typename ICypressNodeProxy::TPtr ToProxy(INode::TPtr node)
@@ -228,81 +198,25 @@ protected:
     }
 
 
-    void EnsureInTransaction()
-    {
-        if (TransactionId == NullTransactionId) {
-            throw TYTreeException() << "Cannot modify the node outside of a transaction";
-        }
-    }
-
-    void EnsureModifiable()
-    {
-        EnsureInTransaction();
-        if (IsLockNeeded()) {
-            LockSelf();
-        }
-    }
-
-    bool IsLockNeeded() const
+    void EnsureLocked()
     {
         // A shortcut.
-        if (Locked) {
-            return false;
-        }
+        if (Locked)
+            return;
 
-        // Check if this node is created by the current transaction and is still uncommitted.
-        const auto* impl = CypressManager->FindNode(TBranchedNodeId(NodeId, NullTransactionId));
-        if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
-            return false;
-        }
+        if (CypressManager->IsTransactionNodeLocked(NodeId, TransactionId))
+            return;
 
-        // Walk up to the root.
-        auto currentNodeId = NodeId;
-        while (currentNodeId != NullNodeId) {
-            const auto& currentImpl = CypressManager->GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
-            // Check the locks assigned to the current node.
-            FOREACH (const auto& lockId, currentImpl.Locks()) {
-                const auto& lock = CypressManager->GetLock(lockId);
-                if (lock.GetTransactionId() == TransactionId) {
-                    return false;
-                }
-            }
-            currentNodeId = currentImpl.GetParentId();
-        }
-
-        return true;
+        LockSelf();
     }
 
     TLockResult LockSelf()
     {
-        auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(NodeId, NullTransactionId));
+        CypressManager->LockTransactionNode(NodeId, TransactionId);
 
-        // Make sure that the node is committed.
-        if (impl.GetState() != ENodeState::Committed) {
-            throw TYTreeException() << "Cannot lock an uncommitted node";
-        }
-
-        // Make sure that the node is not locked by another transaction.
-        FOREACH (const auto& lockId, impl.Locks()) {
-            const auto& lock = CypressManager->GetLock(lockId);
-            if (lock.GetTransactionId() != TransactionId) {
-                throw TYTreeException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
-                    ~lock.GetTransactionId().ToString());
-            }
-        }
-
-        // Create a lock and register it within the transaction.
-        auto& lock = CypressManager->CreateLock(NodeId, TransactionId);
-
-        // Walk up to the root and apply locks.
-        auto currentNodeId = NodeId;
-        while (currentNodeId != NullNodeId) {
-            auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-            impl.Locks().insert(lock.GetId());
-            currentNodeId = impl.GetParentId();
-        }
-
+        // Set the flag to speedup further checks.
         Locked = true;
+
         return TLockResult::CreateDone();
     }
 
@@ -363,7 +277,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->EnsureModifiable();
+        this->EnsureLocked();
         this->GetTypedImplForUpdate().Value() = value;
     }
 };

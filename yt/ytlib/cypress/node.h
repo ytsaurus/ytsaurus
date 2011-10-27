@@ -204,23 +204,23 @@ protected:
 //////////////////////////////////////////////////////////////////////////////// 
 
 template <class TValue>
-struct TNodeTypeTraits
+struct TNodeRuntimeTypeTraits
 { };
 
 template <>
-struct TNodeTypeTraits<Stroka>
+struct TNodeRuntimeTypeTraits<Stroka>
 {
     static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::String;
 };
 
 template <>
-struct TNodeTypeTraits<i64>
+struct TNodeRuntimeTypeTraits<i64>
 {
     static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::Int64;
 };
 
 template <>
-struct TNodeTypeTraits<double>
+struct TNodeRuntimeTypeTraits<double>
 {
     static const ERuntimeNodeType::EDomain RuntimeType = ERuntimeNodeType::Double;
 };
@@ -269,7 +269,7 @@ public:
 
     virtual ERuntimeNodeType GetRuntimeType() const
     {
-        return TNodeTypeTraits<TValue>::RuntimeType;
+        return TNodeRuntimeTypeTraits<TValue>::RuntimeType;
     }
 
     virtual void Save(TOutputStream* output) const
