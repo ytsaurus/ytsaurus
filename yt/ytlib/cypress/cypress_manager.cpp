@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "cypress_manager.h"
-#include "node_proxy.h"
+#include "node_proxy_detail.h"
 
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"

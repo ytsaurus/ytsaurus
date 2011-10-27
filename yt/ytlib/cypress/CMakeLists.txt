@@ -3,8 +3,10 @@ SET(YT_SOURCE_FILES
 
     node.cpp
     node_proxy.cpp
+    node_proxy_detail.cpp
     lock.cpp
     attribute.cpp
+    attribute_detail.cpp
 
     node_type.h
 

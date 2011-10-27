@@ -16,8 +16,8 @@ class TChunkList
 public:
     TChunkList(const TChunkListId& id)
         : Id_(id)
-        , RefCounter(0)
         , ReplicaCount_(3)
+        , RefCounter(0)
     { }
 
     TAutoPtr<TChunkList> Clone() const

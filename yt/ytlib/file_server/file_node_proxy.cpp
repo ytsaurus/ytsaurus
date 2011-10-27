@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
 
-#include "../cypress/attribute.h"
+#include "../cypress/attribute_detail.h"
 #include "../ytree/fluent.h"
 
 namespace NYT {

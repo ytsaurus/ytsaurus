@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "node.h"
-#include "node_proxy.h"
+#include "node_proxy_detail.h"
 
 namespace NYT {
 namespace NCypress {

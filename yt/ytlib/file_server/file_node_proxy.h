@@ -3,7 +3,7 @@
 #include "common.h"
 #include "file_node.h"
 
-#include "../cypress/node_proxy.h"
+#include "../cypress/node_proxy_detail.h"
 
 namespace NYT {
 namespace NFileServer {
