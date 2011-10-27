@@ -50,9 +50,11 @@ FORCED_INLINE typename NDetail::TRemoveReference<T>::TType&& MoveRV(T&& x) throw
     return static_cast<typename NDetail::TRemoveReference<T>::TType&&>(x);
 }
 
-#if 0
+#ifdef __GNUC__ 
 // GCC
 // N3242, 20.2.3
+
+//! Implements #std::forward<T> behaviour from C++11.
 template<typename T>
 FORCED_INLINE T&& ForwardRV(typename NDetail::TRemoveReference<T>::TType& x) throw()
 {
@@ -65,6 +67,11 @@ FORCED_INLINE T&& ForwardRV(typename NDetail::TRemoveReference<T>::TType&& x) th
     return static_cast<T&&>(x);
 }
 
+//! Fix instantiation errors (mainly due to reference collapsing).
+//! \{
+//! \}
+
+#else
 // MSVC
 // http://msdn.microsoft.com/en-us/library/ee390914.aspx
 // http://blogs.msdn.com/b/vcblog/archive/2009/02/03/rvalue-references-c-0x-features-in-vc10-part-2.aspx
@@ -74,6 +81,23 @@ FORCED_INLINE T&& ForwardRV(typename NDetail::TIdentity<T>::TType&& x) throw()
 {
     return x;
 }
+
+// TODO: This weird implementation of ForwardRV is intentional;
+// the main rationale is to provide a correct build under MSVS ignoring
+// any performance considerations.
+
+template<typename T>
+FORCED_INLINE T& ForwardRV(T& x) throw()
+{
+    return x;
+}
+
+template<typename T>
+FORCED_INLINE const T& ForwardRV(const T& x) throw()
+{
+    return x;
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
