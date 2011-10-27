@@ -43,15 +43,6 @@ public:
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
-    // TODO: ???
-    TIntrusivePtr<ICypressNodeProxy> FindNode(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
-
-    TIntrusivePtr<ICypressNodeProxy> GetNode(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
-
     const ICypressNode* FindTransactionNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
@@ -67,6 +58,8 @@ public:
     ICypressNode& GetTransactionNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
+
+    TIntrusivePtr<ICypressNodeProxy> GetRootProxy(const TTransactionId& transactionId);
 
     bool IsTransactionNodeLocked(
         const TNodeId& nodeId,

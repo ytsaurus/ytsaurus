@@ -183,12 +183,13 @@ protected:
     template <class T>
     TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
     {
-        if (nodeId == NullNodeId)
+        if (nodeId == NullNodeId) {
             return NULL;
+        }
 
-        auto node = CypressManager->FindNode(nodeId, TransactionId);
-        YASSERT(~node != NULL);
-        return dynamic_cast<T*>(~node);
+        auto& impl = CypressManager->GetTransactionNode(nodeId, TransactionId);
+        auto proxy = impl.GetProxy(CypressManager, TransactionId);
+        return dynamic_cast<T*>(~proxy);
     }
 
     static typename ICypressNodeProxy::TPtr ToProxy(INode::TPtr node)

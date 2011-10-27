@@ -69,6 +69,24 @@ public:
 
     TCypressNodeAttributeProvider();
 
+protected:
+    template <class TProxy>
+    static TIntrusivePtr<TProxy> GetProxy(const TGetRequest& request)
+    {
+        TIntrusivePtr<TProxy> typedProxy(dynamic_cast<TProxy*>(request.Proxy));
+        YASSERT(~typedProxy != NULL);
+        return 
+    }
+
+    template <class TImpl>
+    static const TImpl& GetImpl(const TGetRequest& request)
+    {
+        const auto& impl = request.CypressManager->GetTransactionNode(
+            request.Proxy->GetNodeId(),
+            request.Proxy->GetTransactionId());
+        return dynamic_cast<const TImpl&>(impl);
+    }
+
 private:
     typedef TCypressNodeAttributeProvider TThis;
 

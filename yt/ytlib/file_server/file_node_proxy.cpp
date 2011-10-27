@@ -31,8 +31,7 @@ private:
 
     static void GetSize(const TGetRequest& request)
     {
-        auto* typedProxy = dynamic_cast<TFileNodeProxy*>(~request.Proxy);
-        YASSERT(typedProxy != NULL);
+        //const auto& impl = GetImpl<TFileNode>(request);
         BuildYsonFluently(request.Consumer)
             .Scalar(-1);
 
@@ -40,10 +39,9 @@ private:
 
     static void GetChunkId(const TGetRequest& request)
     {
-        auto* typedProxy = dynamic_cast<TFileNodeProxy*>(~request.Proxy);
-        YASSERT(typedProxy != NULL);
+        const auto& impl = GetImpl<TFileNode>(request);
         BuildYsonFluently(request.Consumer)
-            .Scalar(typedProxy->GetChunkId().ToString());
+            .Scalar(impl.GetChunkId().ToString());
     }
 };
 
@@ -67,17 +65,6 @@ NYT::NYTree::ENodeType TFileNodeProxy::GetType() const
 Stroka TFileNodeProxy::GetTypeName() const
 {
     return FileTypeName;
-}
-
-TChunkId TFileNodeProxy::GetChunkId() const
-{
-    return GetTypedImpl().GetChunkId();
-}
-
-void TFileNodeProxy::SetChunkId(const TChunkId& chunkId)
-{
-    EnsureLocked();
-    GetTypedImplForUpdate().SetChunkId(chunkId);
 }
 
 IAttributeProvider* TFileNodeProxy::GetAttributeProvider()

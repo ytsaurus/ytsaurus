@@ -48,7 +48,7 @@ public:
         IAction::TPtr Append(
             i32 recordId,
             const TSharedRef& data,
-            const TAppendResult::TPtr& result)
+            TAppendResult::TPtr result)
         {
             THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
             TRecord* record = recordHolder.Get();
@@ -176,7 +176,7 @@ public:
         TChangeLog::TPtr changeLog,
         i32 recordId,
         const TSharedRef& data,
-        const TAppendResult::TPtr& result)
+        TAppendResult::TPtr result)
     {
         TGuard<TSpinLock> guard(SpinLock);
 

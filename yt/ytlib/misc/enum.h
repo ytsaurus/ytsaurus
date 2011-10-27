@@ -8,6 +8,7 @@
 #include "preprocessor.h"
 #include "rvalue.h"
 
+#include <util/stream/base.h>
 #include <util/string/cast.h>
 #include <util/generic/typehelpers.h>
 #include <util/generic/yexception.h>
@@ -63,6 +64,19 @@ public:
         return Value;
     }
 
+    void Load(TInputStream* input)
+    {
+        i32 value;
+        input->Load(&value, sizeof(i32));
+        Value = value;
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        i32 value = static_cast<i32>(Value);
+        output->Write(&value, sizeof(i32));
+    }
+
 protected:
     int Value;
 };
@@ -104,6 +118,19 @@ public:
     bool HasAssociatedStringLiteral() const
     {
         return Literal != NULL;
+    }
+
+    void Load(TInputStream* input)
+    {
+        i32 value;
+        input->Load(&value, sizeof(i32));
+        Value = value;
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        i32 value = static_cast<i32>(Value);
+        output->Write(&value, sizeof(i32));
     }
 
 protected:
@@ -165,7 +192,7 @@ protected:
         \
         name& operator=(const TBase& other) \
         { \
-            TBase::operator=(MoveRV(static_cast<TBase>(other))); \
+            TBase::operator=(other); \
             return *this; \
         } \
         \
@@ -191,7 +218,7 @@ protected:
         { \
             switch (value) \
             { \
-                PP_FOR_EACH(ENUM__STRING_BY_VALUE_ITEM, seq) \
+                PP_FOR_EACH(ENUM__LITERAL_BY_VALUE_ITEM, seq) \
                 default: \
                     return NULL; \
             } \
@@ -199,13 +226,13 @@ protected:
         \
         static bool GetValueByLiteral(const char* literal, int* target) \
         { \
-            PP_FOR_EACH(ENUM__VALUE_BY_STRING_ITEM, seq); \
+            PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
             return false; \
         } \
         \
         static name FromString(const Stroka& str) \
         { \
-            return MoveRV(FromString(str.c_str())); \
+            return FromString(str.c_str()); \
         } \
         \
         static name FromString(const char* str) \
@@ -215,7 +242,7 @@ protected:
                 ythrow yexception() \
                     << "Error parsing " PP_STRINGIZE(name) " value '" << str << "'"; \
             } else { \
-                return MoveRV(name::SpawnFauxBase(value)); \
+                return name::SpawnFauxBase(value); \
             } \
         } \
         \
@@ -248,34 +275,34 @@ protected:
 
 //! #GetLiteralByValue() helper.
 //! \{
-#define ENUM__STRING_BY_VALUE_ITEM(item) \
+#define ENUM__LITERAL_BY_VALUE_ITEM(item) \
     PP_IF( \
         PP_IS_SEQUENCE(item), \
-        ENUM__STRING_BY_VALUE_ITEM_SEQ, \
-        ENUM__STRING_BY_VALUE_ITEM_ATOMIC \
+        ENUM__LITERAL_BY_VALUE_ITEM_SEQ, \
+        ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC \
     )(item)
 
-#define ENUM__STRING_BY_VALUE_ITEM_SEQ(seq) \
-    ENUM__STRING_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+#define ENUM__LITERAL_BY_VALUE_ITEM_SEQ(seq) \
+    ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
-#define ENUM__STRING_BY_VALUE_ITEM_ATOMIC(item) \
+#define ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(item) \
     case static_cast<int>(item): \
         return PP_STRINGIZE(item);
 //! \}
 
 //! #GetValueByLiteral() helper.
 //! \{
-#define ENUM__VALUE_BY_STRING_ITEM(item) \
+#define ENUM__VALUE_BY_LITERAL_ITEM(item) \
     PP_IF( \
         PP_IS_SEQUENCE(item), \
-        ENUM__VALUE_BY_STRING_ITEM_SEQ, \
-        ENUM__VALUE_BY_STRING_ITEM_ATOMIC \
+        ENUM__VALUE_BY_LITERAL_ITEM_SEQ, \
+        ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC \
     )(item)
 
-#define ENUM__VALUE_BY_STRING_ITEM_SEQ(seq) \
-    ENUM__VALUE_BY_STRING_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+#define ENUM__VALUE_BY_LITERAL_ITEM_SEQ(seq) \
+    ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
-#define ENUM__VALUE_BY_STRING_ITEM_ATOMIC(item) \
+#define ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(item) \
     if (::strcmp(literal, PP_STRINGIZE(item)) == 0) { \
         *target = static_cast<int>(item); \
         return true; \
@@ -320,7 +347,7 @@ protected:
     private: \
         static TBase SpawnFauxBase(int value) \
         { \
-            return MoveRV(TBase(value)); \
+            return TBase(value); \
         } \
         \
     public: \
@@ -373,9 +400,9 @@ protected:
     private: \
         static TBase SpawnFauxBase(int value, const char* literal = NULL) \
         { \
-            return MoveRV(TBase( \
+            return TBase( \
                 value, literal ? literal : GetLiteralByValue(value) \
-            )); \
+            ); \
         } \
         \
     public: \

@@ -8,6 +8,8 @@
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
 
+#include <util/string/escape.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -165,7 +167,7 @@ Stroka TYsonReader::ReadString()
             result.append(static_cast<char>(ch));
         }
     }
-    return result;
+    return UnescapeC(result);
 }
 
 Stroka TYsonReader::ReadNumeric()

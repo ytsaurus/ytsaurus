@@ -55,31 +55,6 @@ void TCypressManager::RegisterDynamicType(IDynamicTypeHandler::TPtr handler)
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
 }
 
-// TODO: {{{{{
-ICypressNodeProxy::TPtr TCypressManager::FindNode(
-    const TNodeId& nodeId,
-    const TTransactionId& transactionId)
-{
-    auto impl = FindNode(TBranchedNodeId(nodeId, transactionId));
-    if (impl == NULL) {
-        impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
-    }
-    if (impl == NULL) {
-        return NULL;
-    }
-    return ~impl->GetProxy(this, transactionId);
-}
-
-ICypressNodeProxy::TPtr TCypressManager::GetNode(
-    const TNodeId& nodeId,
-    const TTransactionId& transactionId)
-{
-    auto node = FindNode(nodeId, transactionId);
-    YASSERT(~node != NULL);
-    return node;
-}
-// }}}}}}
-
 const ICypressNode* TCypressManager::FindTransactionNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
@@ -137,6 +112,11 @@ ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
     auto* impl = FindTransactionNodeForUpdate(nodeId, transactionId);
     YASSERT(impl != NULL);
     return *impl;
+}
+
+ICypressNodeProxy::TPtr TCypressManager::GetRootProxy(const TTransactionId& transactionId)
+{
+    return GetTransactionNode(RootNodeId, transactionId).GetProxy(this, transactionId);
 }
 
 bool TCypressManager::IsTransactionNodeLocked(
@@ -473,8 +453,8 @@ void TCypressManager::GetYPath(
     TYPath path,
     IYsonConsumer* consumer)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::GetYPath(AsYPath(~root), path, consumer);
+    auto root = GetRootProxy(transactionId);
+    NYTree::GetYPath(AsYPath(root), path, consumer);
 }
 
 
@@ -482,8 +462,8 @@ INode::TPtr TCypressManager::NavigateYPath(
     const TTransactionId& transactionId,
     TYPath path)
 {
-    auto root = GetNode(RootNodeId, transactionId);
-    return NYTree::NavigateYPath(AsYPath(~root), path);
+    auto root = GetRootProxy(transactionId);
+    return NYTree::NavigateYPath(AsYPath(root), path);
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
@@ -509,8 +489,8 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     auto path = message.GetPath();
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::SetYPath(AsYPath(~root), path, producer);
+    auto root = GetRootProxy(transactionId);
+    NYTree::SetYPath(AsYPath(root), path, producer);
     return TVoid();
 }
 
@@ -533,8 +513,8 @@ TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::RemoveYPath(AsYPath(~root), path);
+    auto root = GetRootProxy(transactionId);
+    NYTree::RemoveYPath(AsYPath(root), path);
     return TVoid();
 }
 
@@ -557,8 +537,8 @@ NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    auto root = GetNode(RootNodeId, transactionId);
-    NYTree::LockYPath(AsYPath(~root), path);
+    auto root = GetRootProxy(transactionId);
+    NYTree::LockYPath(AsYPath(root), path);
     return TVoid();
 }
 

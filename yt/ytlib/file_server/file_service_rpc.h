@@ -23,7 +23,7 @@ public:
         ((NoSuchTransaction)(1))
         ((NoSuchNode)(2))
         ((NoSuchChunk)(3))
-        ((InvalidNodeType)(4))
+        ((NotAFile)(4))
     );
 
     TFileServiceProxy(NRpc::IChannel::TPtr channel)
