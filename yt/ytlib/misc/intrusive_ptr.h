@@ -205,6 +205,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class T>
+bool operator<(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
+{
+    return lhs.Get() < rhs.Get();
+}
+
+template<class T>
+bool operator>(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
+{
+    return lhs.Get() > rhs.Get();
+}
+
 template<class T, class U>
 bool operator==(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 {
