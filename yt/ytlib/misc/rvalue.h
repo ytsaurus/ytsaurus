@@ -69,6 +69,11 @@ FORCED_INLINE T&& ForwardRV(typename NDetail::TRemoveReference<T>::TType&& x) th
 
 //! Fix instantiation errors (mainly due to reference collapsing).
 //! \{
+template<class T>
+FORCED_INLINE T&& ForwardRV(T&& x) throw()
+{
+    return x;
+}
 //! \}
 
 #else
@@ -87,7 +92,7 @@ FORCED_INLINE T&& ForwardRV(typename NDetail::TIdentity<T>::TType&& x) throw()
 // any performance considerations.
 
 template<typename T>
-FORCED_INLINE T& ForwardRV(T& x) throw()
+FORCED_INLINE T&& ForwardRV(T&& x) throw()
 {
     return x;
 }
