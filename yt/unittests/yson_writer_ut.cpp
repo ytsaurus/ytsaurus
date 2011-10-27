@@ -10,6 +10,28 @@ namespace NYTree {
 class TYsonWriterTest: public ::testing::Test
 { };
 
+TEST_F(TYsonWriterTest, BinaryString)
+{
+//    TStringStream outputStream;
+//    TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary);
+
+//    Stroka output;
+
+//    EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST_F(TYsonWriterTest, BinaryInt64)
+{
+
+}
+
+TEST_F(TYsonWriterTest, BinaryDouble)
+{
+
+
+}
+
+
 TEST_F(TYsonWriterTest, Escaping)
 {
     TStringStream outputStream;

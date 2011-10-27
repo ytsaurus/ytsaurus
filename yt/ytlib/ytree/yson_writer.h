@@ -19,7 +19,7 @@ public:
      (Pretty)
     );
 
-    TYsonWriter(TOutputStream* stream, EFormat format = EFormat::Pretty);
+    TYsonWriter(TOutputStream* stream, EFormat format);
 
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnInt64Scalar(i64 value, bool hasAttributes);
