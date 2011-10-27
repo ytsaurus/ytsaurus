@@ -18,6 +18,8 @@ TTableChunkWriter::TTableChunkWriter(
     , Schema(schema)
     , Codec(codec)
 {
+    YASSERT(~chunkWriter != NULL);
+
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
