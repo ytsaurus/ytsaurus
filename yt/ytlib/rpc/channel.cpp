@@ -20,6 +20,8 @@ static NLog::TLogger& Logger = RpcLogger;
 TChannel::TChannel(TBusClient::TPtr client)
     : Terminated(false)
 {
+    YASSERT(~client != NULL);
+
     Bus = client->CreateBus(this);
 }
 
@@ -34,6 +36,9 @@ TFuture<EErrorCode>::TPtr TChannel::Send(
     IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
+    YASSERT(~request != NULL);
+    YASSERT(~responseHandler != NULL);
+
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto requestId = request->GetRequestId();

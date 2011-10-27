@@ -26,6 +26,8 @@ TServer::~TServer()
 
 void TServer::RegisterService(IService::TPtr service)
 {
+    YASSERT(~service != NULL);
+
     YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
     LOG_INFO("Registered RPC service %s", ~service->GetServiceName());
 }

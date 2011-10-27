@@ -17,7 +17,9 @@ static NLog::TLogger& Logger = RpcLogger;
 TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +31,9 @@ TClientRequest::TClientRequest(
     , ServiceName(serviceName)
     , MethodName(methodName)
     , RequestId(TRequestId::Create())
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 IMessage::TPtr TClientRequest::Serialize() const
 {
@@ -83,10 +87,13 @@ TClientResponse::TClientResponse(
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
     , InvokeInstant(TInstant::Now())
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
 {
+    YASSERT(~message != NULL);
     const yvector<TSharedRef>& parts = message->GetParts();
     if (parts.ysize() > 1) {
         DeserializeBody(parts[1]);

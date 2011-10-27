@@ -102,6 +102,11 @@ public:
         , Timeout(timeout)
         , SendResult(sendResult)
     {
+        YASSERT(~channel != NULL);
+        YASSERT(~originalRequest != NULL);
+        YASSERT(~originalResponseHandler != NULL);
+        YASSERT(~sendResult != NULL);
+
         Send();
     }
 
@@ -120,6 +125,8 @@ public:
 
     void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message) 
     {
+        YASSERT(~message != NULL);
+
         if (errorCode.IsOK()) {
             OriginalResponseHandler->OnResponse(errorCode, message);
             SendResult->Set(errorCode);
@@ -157,7 +164,9 @@ TRetryResponseHandler::TRetryResponseHandler(
     TRetriableRpcCall::TPtr retriableCall)
     : State(EState::Sent)
     , RetriableCall(retriableCall)
-{ }
+{
+    YASSERT(~retriableCall != NULL);
+}
 
 void TRetryResponseHandler::OnAcknowledgement(
     IBus::ESendResult sendResult)
@@ -214,13 +223,18 @@ TRetriableChannel::TRetriableChannel(
     : Channel(channel)
     , RetryCount(retryCount)
     , BackoffTime(backoffTime)
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     IClientRequest::TPtr request, 
     IClientResponseHandler::TPtr responseHandler, 
     TDuration timeout)
 {
+    YASSERT(~request != NULL);
+    YASSERT(~responseHandler != NULL);
+
     auto result = New< TFuture<EErrorCode> > ();
     auto retriableCall = New<TRetriableRpcCall>(
         this,
