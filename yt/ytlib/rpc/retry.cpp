@@ -50,7 +50,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ToDo: make a better name
+// ToDo: consider a better name
 class TRetriableRpcCall;
 
 //! Although several handler routines could be called for a #TRetryResponseHandler
@@ -81,7 +81,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! As far as no more than one handler is active simultaneously
+//! As far as no more than one handler is active at any moment,
 //! no locking is required.
 class TRetriableRpcCall
     : public virtual TRefCountedBase
@@ -130,12 +130,12 @@ public:
 private:
     void Send() 
     {
-        auto request = New<TRetryRequestWrapper>(~OriginalRequest);
+        auto request = New<TRetryRequestWrapper>(OriginalRequest);
         auto responseHandlers = New<TRetryResponseHandler>(this);
 
         Channel->GetChannel()->Send(
-            ~request,
-            ~responseHandlers,
+            request,
+            responseHandlers,
             Timeout
         );
     }
@@ -223,7 +223,7 @@ TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     auto result = New< TFuture<EErrorCode> > ();
     auto retriableCall = New<TRetriableRpcCall>(
         this,
-        ~request,
+        request,
         responseHandler,
         timeout,
         result);

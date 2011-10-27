@@ -10,7 +10,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeMessage(google::protobuf::Message* message, TBlob* data);
+bool SerializeMessage(const google::protobuf::Message* message, TBlob* data);
 bool DeserializeMessage(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////

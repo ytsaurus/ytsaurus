@@ -11,7 +11,7 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeMessage(google::protobuf::Message* message, TBlob* data)
+bool SerializeMessage(const google::protobuf::Message* message, TBlob* data)
 {
     int size = message->ByteSize();
     data->resize(size);
