@@ -1,5 +1,7 @@
 #include "../ytlib/misc/enum.h"
 
+#include <util/stream/buffer.h>
+#include <util/ysaveload.h>
 #include <contrib/testing/framework.h>
 
 namespace NYT {
@@ -199,6 +201,49 @@ TEST(TEnumTest, OrderingWithPolymorphism)
     EXPECT_GE(f2, g2);
     EXPECT_EQ(f1, g1);
     EXPECT_NE(f1, g2);
+}
+
+TEST(TEnumTest, SaveAndLoad)
+{
+    TStringStream stream;
+
+    EColor first(EColor::Red);
+    EColor second(EColor::Black);
+    EColor third(0);
+    EColor fourth(0);
+
+    ::Save(&stream, first);
+    ::Save(&stream, second);
+
+    ::Load(&stream, third);
+    ::Load(&stream, fourth);
+
+    EXPECT_EQ(first, third);
+    EXPECT_EQ(second, fourth);
+}
+
+TEST(TEnumTest, SaveAndLoadWithPolymorphism)
+{
+    TStringStream stream;
+
+    EMyFirst f1(EMyFirst::Chip);
+    EMyFirst f2(0);
+
+    EXPECT_NE(f1, f2);
+
+    EMySecond g1(EMySecond::Dale);
+    EMySecond g2(0);
+
+    EXPECT_NE(g1, g2);
+
+    ::Save(&stream, f1);
+    ::Save(&stream, g1);
+
+    ::Load(&stream, f2);
+    ::Load(&stream, g2);
+
+    EXPECT_EQ(f1, f2);
+    EXPECT_EQ(g1, g2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
