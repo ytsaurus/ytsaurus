@@ -14,12 +14,68 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFileManagerBase::TFileManagerBase(
+    TCypressManager::TPtr cypressManager,
+    TChunkManager::TPtr chunkManager,
+    TTransactionManager::TPtr transactionManager)
+    : CypressManager(cypressManager)
+    , ChunkManager(chunkManager)
+    , TransactionManager(transactionManager)
+{
+    YASSERT(~cypressManager != NULL);
+    YASSERT(~chunkManager != NULL);
+    YASSERT(~transactionManager != NULL);
+}
+
+void TFileManagerBase::ValidateTransactionId(const TTransactionId& transactionId)
+{
+    if (transactionId != NullTransactionId &&
+        TransactionManager->FindTransaction(transactionId) == NULL)
+    {
+        ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
+            Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
+    }
+}
+
+void TFileManagerBase::ValidateChunkId(const TChunkId& chunkId)
+{
+    if (ChunkManager->FindChunk(chunkId) == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
+            Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
+    }
+}
+
+TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId)
+{
+    auto* impl = CypressManager->FindTransactionNodeForUpdate(nodeId, transactionId);
+    if (impl == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchNode) << 
+            Sprintf("Invalid file node id (NodeId: %s, TransactionId: %s)",
+                ~nodeId.ToString(),
+                ~transactionId.ToString());
+    }
+
+    auto* typedImpl = dynamic_cast<TFileNode*>(impl);
+    if (typedImpl == NULL) {
+        ythrow TServiceException(EErrorCode::NotAFile) << 
+            Sprintf("Not a file node (NodeId: %s, TransactionId: %s)",
+                ~nodeId.ToString(),
+                ~transactionId.ToString());
+    }
+
+    return *typedImpl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFileManager::TFileManager(
-    NMetaState::TMetaStateManager::TPtr metaStateManager,
-    NMetaState::TCompositeMetaState::TPtr metaState,
-    TCypressManager::TPtr cypressManager)
+    TMetaStateManager::TPtr metaStateManager,
+    TCompositeMetaState::TPtr metaState,
+    TCypressManager::TPtr cypressManager,
+    TChunkManager::TPtr chunkManager,
+    TTransactionManager::TPtr transactionManager)
     : TMetaStatePart(metaStateManager, metaState)
-    , CypressManager(cypressManager)
+    , TFileManagerBase(cypressManager, chunkManager, transactionManager)
 {
     YASSERT(~cypressManager != NULL);
 
@@ -28,10 +84,15 @@ TFileManager::TFileManager(
     metaState->RegisterPart(this);
 }
 
+Stroka TFileManager::GetPartName() const
+{
+    return "FileManager";
+}
+
 TMetaChange<TVoid>::TPtr
 TFileManager::InitiateSetFileChunk(
-    const TTransactionId& transactionId,
     const TNodeId& nodeId,
+    const TTransactionId& transactionId,
     const TChunkId& chunkId)
 {
     TMsgSetFileChunk message;
@@ -43,7 +104,8 @@ TFileManager::InitiateSetFileChunk(
         MetaStateManager,
         message,
         &TThis::SetFileChunk,
-        TPtr(this));
+        TPtr(this),
+        ECommitMode::MayFail);
 }
 
 TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
@@ -54,18 +116,22 @@ TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
     auto nodeId = TNodeId::FromProto(message.GetNodeId());
     auto chunkId = TChunkId::FromProto(message.GetChunkId());
 
-    auto node = CypressManager->GetNode(nodeId, transactionId);
-    auto* typedNode = dynamic_cast<TFileNodeProxy*>(~node);
-    YASSERT(typedNode != NULL);
+    ValidateTransactionId(transactionId);
+    ValidateChunkId(chunkId);
 
-    typedNode->SetChunkId(chunkId);
+    auto& impl = GetFileNode(nodeId, transactionId);
+    impl.SetChunkId(chunkId);
 
     return TVoid();
 }
 
-Stroka TFileManager::GetPartName() const
+TChunkId TFileManager::GetFileChunk(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId)
 {
-    return "FileManager";
+    ValidateTransactionId(transactionId);
+    auto& impl = GetFileNode(nodeId, transactionId);
+    return impl.GetChunkId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
