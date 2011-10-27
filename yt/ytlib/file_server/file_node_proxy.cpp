@@ -76,7 +76,7 @@ TChunkId TFileNodeProxy::GetChunkId() const
 
 void TFileNodeProxy::SetChunkId(const TChunkId& chunkId)
 {
-    EnsureModifiable();
+    EnsureLocked();
     GetTypedImplForUpdate().SetChunkId(chunkId);
 }
 

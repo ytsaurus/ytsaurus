@@ -43,11 +43,36 @@ public:
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
+    // TODO: ???
     TIntrusivePtr<ICypressNodeProxy> FindNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> GetNode(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    const ICypressNode* FindTransactionNode(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    const ICypressNode& GetTransactionNode(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    ICypressNode* FindTransactionNodeForUpdate(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    ICypressNode& GetTransactionNodeForUpdate(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    bool IsTransactionNodeLocked(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    TLockId LockTransactionNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -64,9 +89,6 @@ public:
     INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
         IMapNode::TPtr description);
-    TAutoPtr<ICypressNode> CreateDynamicNode(
-        ERuntimeNodeType type,
-        const TBranchedNodeId& id);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -143,15 +165,15 @@ private:
     void CommitCreatedNodes(TTransaction& transaction);
     void RemoveCreatedNodes(TTransaction& transaction);
 
+    TAutoPtr<ICypressNode> CreateDynamicNodeForLoading(
+        ERuntimeNodeType type,
+        const TBranchedNodeId& id);
+
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId);
 
     class TYsonDeserializationConsumer;
     friend class TYsonDeserializationConsumer;
-    INode::TPtr YsonDeserializerThunk(
-        TYsonProducer::TPtr producer,
-        const TTransactionId& transactionId);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

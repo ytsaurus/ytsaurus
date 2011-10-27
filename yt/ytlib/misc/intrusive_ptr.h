@@ -5,7 +5,7 @@
 
 #include <util/generic/ptr.h>
 
-// Implemntation was forked from util/generic/ptr.h
+// Implementation was forked from util/generic/ptr.h.
 
 namespace NYT {
 
@@ -15,7 +15,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TIsConvertable<U, T>::Value True iff #S is convertable to #T.
+//! TIsConvertable<U, T>::Value is True iff #S is convertable to #T.
 template<class U, class T>
 struct TIsConvertable
 {
@@ -25,14 +25,14 @@ struct TIsConvertable
     static TYes f(T*);
     static TNo  f(...);
 
-    enum {
+    enum
+    {
         Value = sizeof( (f)(static_cast<U*>(0)) ) == sizeof(TYes)
     };
 };
 
 struct TEmpty
-{
-};
+{ };
 
 template<bool>
 struct TEnableIfConvertableImpl;
@@ -45,14 +45,12 @@ struct TEnableIfConvertableImpl<true>
 
 template<>
 struct TEnableIfConvertableImpl<false>
-{
-};
+{ };
 
 template<class U, class T>
 struct TEnableIfConvertable
     : public TEnableIfConvertableImpl< TIsConvertable<U, T>::Value >
-{
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
