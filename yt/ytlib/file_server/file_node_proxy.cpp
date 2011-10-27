@@ -39,9 +39,9 @@ private:
 
     static void GetChunkId(const TGetRequest& request)
     {
-        const auto& impl = GetImpl<TFileNode>(request);
-        BuildYsonFluently(request.Consumer)
-            .Scalar(impl.GetChunkId().ToString());
+        //const auto& impl = GetImpl<TFileNode>(request);
+        //BuildYsonFluently(request.Consumer)
+        //    .Scalar(impl.GetChunkId().ToString());
     }
 };
 
