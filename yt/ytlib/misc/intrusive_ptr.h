@@ -13,8 +13,6 @@ namespace NYT {
 
 namespace NDetail {
 
-////////////////////////////////////////////////////////////////////////////////
-
 //! TIsConvertable<U, T>::Value is True iff #S is convertable to #T.
 template<class U, class T>
 struct TIsConvertable
@@ -51,8 +49,6 @@ template<class U, class T>
 struct TEnableIfConvertable
     : public TEnableIfConvertableImpl< TIsConvertable<U, T>::Value >
 { };
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 
@@ -91,9 +87,8 @@ class TIntrusivePtr
 {
 public:
     TIntrusivePtr() throw()
-        : T_(0)
-    {
-    }
+        : T_(NULL)
+    { }
 
     TIntrusivePtr(T* p, bool addReference = true) throw()
         : T_(p)
@@ -140,13 +135,13 @@ public:
         throw()
         : T_(other.Get())
     {
-        other.T_ = 0;
+        other.T_ = NULL;
     }
 
     //! Destructor.
     ~TIntrusivePtr()
     {
-        if (T_ != 0) {
+        if (T_ != NULL) {
             TIntrusivePtrTraits<T>::UnRef(T_);
         }
     }
@@ -178,7 +173,8 @@ public:
     }
 
     //! Returns the pointee.
-    T* Get() const throw() {
+    T* Get() const throw()
+    {
         return T_;
     }
 
@@ -194,7 +190,8 @@ public:
         return  T_;
     }
 
-    void Swap(TIntrusivePtr& r) throw() {
+    void Swap(TIntrusivePtr& r) throw()
+    {
         DoSwap(T_, r.T_);
     }
 
@@ -206,6 +203,18 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+bool operator<(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
+{
+    return lhs.Get() < rhs.Get();
+}
+
+template<class T>
+bool operator>(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
+{
+    return lhs.Get() > rhs.Get();
+}
 
 template<class T, class U>
 bool operator==(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
