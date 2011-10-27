@@ -8,7 +8,7 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICypressNodeProxy;
-struct TCypressManager;
+class  TCypressManager;
 
 struct IAttributeProvider
 {

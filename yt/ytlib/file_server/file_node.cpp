@@ -11,12 +11,12 @@ namespace NFileServer {
 
 TFileNode::TFileNode(const TBranchedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkId_(NullChunkId)
+    , ChunkListId_(NullChunkListId)
 { }
 
 TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)
     : TCypressNodeBase(id, other)
-    , ChunkId_(other.ChunkId_)
+    , ChunkListId_(other.ChunkListId_)
 { }
 
 ERuntimeNodeType TFileNode::GetRuntimeType() const
@@ -51,7 +51,7 @@ void TFileNode::Merge(
     TCypressNodeBase::Merge(cypressManager, branchedNode);
 
     auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-    ChunkId_ = typedBranchedNode.ChunkId_;
+    ChunkListId_ = typedBranchedNode.ChunkListId_;
 }
 
 TAutoPtr<ICypressNode> TFileNode::Clone() const

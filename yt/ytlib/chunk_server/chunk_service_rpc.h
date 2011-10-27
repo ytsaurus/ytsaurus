@@ -29,7 +29,7 @@ public:
 
     RPC_PROXY_METHOD(NProto, RegisterHolder);
     RPC_PROXY_METHOD(NProto, HolderHeartbeat);
-    RPC_PROXY_METHOD(NProto, AddChunk);
+    RPC_PROXY_METHOD(NProto, CreateChunk);
     RPC_PROXY_METHOD(NProto, FindChunk);
 
 };

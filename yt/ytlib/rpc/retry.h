@@ -18,6 +18,7 @@ class TRetriableChannel
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;
 
+    // TODO: doxygen here
     TRetriableChannel(
         IChannel::TPtr channel, 
         TDuration backoffTime, 
@@ -30,7 +31,8 @@ public:
 
     void Terminate();
 
-    IChannel::TPtr GetChannel();
+    // TODO: -> GetUnderlyingChannel
+    IChannel::TPtr GetChannel() const;
     int GetRetryCount() const;
     TDuration GetBackoffTime() const;
 
@@ -38,6 +40,7 @@ private:
     IChannel::TPtr Channel;
     const int RetryCount;
     const TDuration BackoffTime;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

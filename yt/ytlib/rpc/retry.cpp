@@ -232,6 +232,8 @@ TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     IClientResponseHandler::TPtr responseHandler, 
     TDuration timeout)
 {
+    // TODO: encapsulate this result in TRetriableRpcCall
+    // provide GetResult method and return it here
     YASSERT(~request != NULL);
     YASSERT(~responseHandler != NULL);
 
@@ -246,7 +248,7 @@ TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
     return result;
 }
 
-IChannel::TPtr TRetriableChannel::GetChannel()
+IChannel::TPtr TRetriableChannel::GetChannel() const
 {
     return Channel;
 }
