@@ -13,7 +13,7 @@ TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
 { }
 
 TFuture<NRpc::EErrorCode>::TPtr TCellChannel::Send(
-    NRpc::TClientRequest::TPtr request,
+    NRpc::IClientRequest::TPtr request,
     NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
@@ -48,7 +48,7 @@ void TCellChannel::Terminate()
 
 TFuture<NRpc::EErrorCode>::TPtr TCellChannel::OnGotChannel(
     NRpc::IChannel::TPtr channel,
-    NRpc::TClientRequest::TPtr request,
+    NRpc::IClientRequest::TPtr request,
     NRpc::IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {

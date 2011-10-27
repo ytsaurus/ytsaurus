@@ -166,7 +166,6 @@ inline yvector<TArrayItem> FromProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: a comment per function please
-// TODO: first argument -- stream, second argument -- value
 
 //! Functions to read and write varints from stream.
 

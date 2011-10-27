@@ -31,7 +31,7 @@ TClientRequest::TClientRequest(
     , RequestId(TRequestId::Create())
 { }
 
-IMessage::TPtr TClientRequest::Serialize()
+IMessage::TPtr TClientRequest::Serialize() const
 {
     TBlob bodyData;
     if (!SerializeBody(&bodyData)) {
@@ -58,9 +58,19 @@ yvector<TSharedRef>& TClientRequest::Attachments()
     return Attachments_;
 }
 
-NYT::NRpc::TRequestId TClientRequest::GetRequestId()
+NYT::NRpc::TRequestId TClientRequest::GetRequestId() const
 {
     return RequestId;
+}
+
+Stroka TClientRequest::GetMethodName() const
+{
+    return MethodName;
+}
+
+Stroka TClientRequest::GetServiceName() const
+{
+    return ServiceName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

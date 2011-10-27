@@ -145,14 +145,23 @@ Stroka TYsonReader::ReadString()
     Stroka result;
     if (PeekChar() == '"') {
         YVERIFY(ReadChar() == '"');
+        bool ignoreNextQuote = false;
         while (true) {
             int ch = ReadChar();
             if (ch == Eos) {
                 ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
                     ~GetPositionInfo());
             }
-            if (ch == '"')
+            if (ch == '"' && !ignoreNextQuote) {
                 break;
+            }
+
+            if (ch == '\\') {
+                ignoreNextQuote = true;
+            } else {
+                ignoreNextQuote = false;
+            }
+
             result.append(static_cast<char>(ch));
         }
     } else {

@@ -13,9 +13,9 @@ namespace NYT {
 
 namespace NDetail {
 
-//! TIsConvertable<U, T>::Value is True iff #S is convertable to #T.
+//! TIsConvertible<U, T>::Value is True iff #S is convertable to #T.
 template<class U, class T>
-struct TIsConvertable
+struct TIsConvertible
 {
     typedef char (&TYes)[1];
     typedef char (&TNo) [2];
@@ -33,21 +33,21 @@ struct TEmpty
 { };
 
 template<bool>
-struct TEnableIfConvertableImpl;
+struct TEnableIfConvertibleImpl;
 
 template<>
-struct TEnableIfConvertableImpl<true>
+struct TEnableIfConvertibleImpl<true>
 {
     typedef TEmpty TType;
 };
 
 template<>
-struct TEnableIfConvertableImpl<false>
+struct TEnableIfConvertibleImpl<false>
 { };
 
 template<class U, class T>
-struct TEnableIfConvertable
-    : public TEnableIfConvertableImpl< TIsConvertable<U, T>::Value >
+struct TEnableIfConvertible
+    : public TEnableIfConvertibleImpl< TIsConvertible<U, T>::Value >
 { };
 
 } // namespace NDetail
@@ -107,11 +107,11 @@ public:
         }
     }
 
-    //! Copy constructor with an implicit cast between convertable classes.
+    //! Copy constructor with an implicit cast between Convertible classes.
     template<class U>
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
-        typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        typename NDetail::TEnableIfConvertible<U, T>::TType = NDetail::TEmpty())
         throw()
         : T_(other.Get())
     {
@@ -127,11 +127,11 @@ public:
         other.T_ = 0;
     }
 
-    //! Move constructor with an implicit cast between convertable classes.
+    //! Move constructor with an implicit cast between Convertible classes.
     template<class U>
     TIntrusivePtr(
         TIntrusivePtr<U>&& other,
-        typename NDetail::TEnableIfConvertable<U, T>::TType = NDetail::TEmpty())
+        typename NDetail::TEnableIfConvertible<U, T>::TType = NDetail::TEmpty())
         throw()
         : T_(other.Get())
     {
@@ -160,7 +160,7 @@ public:
         return *this;
     }
 
-    //! Drop the pointee.
+    //! Drop the pointer.
     void Reset() throw()
     {
         TIntrusivePtr().Swap(*this);
@@ -172,7 +172,7 @@ public:
         TIntrusivePtr(p).Swap(*this);
     }
 
-    //! Returns the pointee.
+    //! Returns the pointer.
     T* Get() const throw()
     {
         return T_;

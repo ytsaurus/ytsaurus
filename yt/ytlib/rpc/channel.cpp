@@ -30,7 +30,7 @@ TChannel::TChannel(Stroka address)
 }
 
 TFuture<EErrorCode>::TPtr TChannel::Send(
-    TClientRequest::TPtr request,
+    IClientRequest::TPtr request,
     IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
@@ -70,8 +70,8 @@ TFuture<EErrorCode>::TPtr TChannel::Send(
     
     LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
         ~requestId.ToString(),
-        ~request->ServiceName,
-        ~request->MethodName);
+        ~request->GetServiceName(),
+        ~request->GetMethodName());
 
     return activeRequest.Ready;
 }
