@@ -66,13 +66,13 @@ message TRspHolderHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAddChunk
+message TReqCreateChunk
 {
     required bytes TransactionId = 1;
     required int32 ReplicaCount = 2;
 }
 
-message TRspAddChunk
+message TRspCreateChunk
 {
     required bytes ChunkId = 1;
     repeated bytes HolderAddresses = 2;

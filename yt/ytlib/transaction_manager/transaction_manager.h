@@ -23,6 +23,8 @@ using NMetaState::TMetaChange;
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
+    // TODO: pass const TTransaction& to the handlers.
+
     //! Called when a new transaction is started.
     DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<TTransaction&>);
     //! Called during transaction commit.

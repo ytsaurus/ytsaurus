@@ -20,7 +20,7 @@ using NCypress::TLockId;
 class TTransaction
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TTransactionId);
-    DECLARE_BYREF_RW_PROPERTY(AddedChunks, yvector<TChunkId>);
+    DECLARE_BYREF_RW_PROPERTY(RegisteredChunks, yvector<TChunkId>);
     DECLARE_BYREF_RW_PROPERTY(Locks, yvector<TLockId>);
     DECLARE_BYREF_RW_PROPERTY(BranchedNodes, yvector<TNodeId>);
     DECLARE_BYREF_RW_PROPERTY(CreatedNodes, yvector<TNodeId>);
@@ -38,7 +38,7 @@ public:
     void Save(TOutputStream* output) const
     {
         ::Save(output, Id_);
-        ::Save(output, AddedChunks_);
+        ::Save(output, RegisteredChunks_);
         ::Save(output, Locks_);
         ::Save(output, BranchedNodes_);
     }
@@ -48,7 +48,7 @@ public:
         TTransactionId id;
         ::Load(input, id);
         auto* transaction = new TTransaction(id);
-        ::Load(input, transaction->AddedChunks_);
+        ::Load(input, transaction->RegisteredChunks_);
         ::Load(input, transaction->Locks_);
         ::Load(input, transaction->BranchedNodes_);
         return transaction;
@@ -57,7 +57,7 @@ public:
 private:
     TTransaction(const TTransaction& other)
         : Id_(other.Id_)
-        , AddedChunks_(other.AddedChunks_)
+        , RegisteredChunks_(other.RegisteredChunks_)
         , Locks_(other.Locks_)
         , BranchedNodes_(other.BranchedNodes_)
     { }

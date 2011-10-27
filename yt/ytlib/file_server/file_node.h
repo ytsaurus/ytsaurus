@@ -3,19 +3,21 @@
 #include "common.h"
 
 #include "../misc/property.h"
+#include "../chunk_server/common.h"
 #include "../cypress/node.h"
 
 namespace NYT {
 namespace NFileServer {
 
 using namespace NCypress;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNode
     : public TCypressNodeBase
 {
-    DECLARE_BYVAL_RW_PROPERTY(ChunkId, TChunkId);
+    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
 
 public:
     explicit TFileNode(const TBranchedNodeId& id);

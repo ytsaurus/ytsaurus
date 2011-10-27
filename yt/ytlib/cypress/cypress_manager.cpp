@@ -586,19 +586,24 @@ void TCypressManager::CreateWorld()
 void TCypressManager::RefNode(ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    LOG_DEBUG_IF(!IsRecovery(), "Node referenced (NodeId: %s)", ~nodeId.NodeId.ToString());
 
+    int refCounter;
     if (nodeId.IsBranched()) {
-        auto& nonbranchedNode = GetNodeForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
-        nonbranchedNode.Ref();
+        auto& nonbranchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
+        refCounter = nonbranchedNode.Ref();
     } else {
-        node.Ref();
+        refCounter = node.Ref();
     }
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node referenced (NodeId: %s, RefCounter: %d)",
+        ~nodeId.NodeId.ToString(),
+        refCounter);
 }
 
 void TCypressManager::UnrefNode(ICypressNode& node)
 {
     auto nodeId = node.GetId();
+
     LOG_DEBUG_IF(!IsRecovery(), "Node unreferenced (NodeId: %s)", ~nodeId.NodeId.ToString());
 
     if (nodeId.IsBranched()) {

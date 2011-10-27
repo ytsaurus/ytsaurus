@@ -50,8 +50,14 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    TMetaChange<TChunkId>::TPtr InitiateAddChunk(const TTransactionId& transactionId);
+    TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
     
+    void RefChunk(TChunk& chunk);
+    void UnrefChunk(TChunk& chunk);
+
+    void RefChunkList(TChunkList& chunkList);
+    void UnrefChunkList(TChunkList& chunkList);
+
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         Stroka address,
         const NChunkHolder::THolderStatistics& statistics);

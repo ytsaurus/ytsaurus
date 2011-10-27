@@ -15,14 +15,9 @@ message TMsgUnregisterHolder
     required int32 HolderId = 1;
 }
 
-message TMsgAddChunk
+message TMsgCreateChunk
 {
     required bytes TransactionId = 1;
-}
-
-message TMsgRemoveChunk
-{
-    required bytes ChunkId = 1;
 }
 
 message TMsgHeartbeatRequest

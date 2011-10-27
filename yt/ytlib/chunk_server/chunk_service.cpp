@@ -37,7 +37,7 @@ void TChunkService::RegisterMethods()
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AddChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
 }
 
@@ -50,12 +50,10 @@ void TChunkService::ValidateHolderId(THolderId holderId)
     }
 }
 
-void TChunkService::ValidateChunkId(
-    const TChunkId& chunkId,
-    const TTransactionId& transactionId)
+void TChunkService::ValidateChunkId(const TChunkId& chunkId)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
-    if (chunk == NULL || !chunk->IsVisible(transactionId)) {
+    if (chunk == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchChunk) <<
             Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
     }
@@ -65,7 +63,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 {
     if (TransactionManager->FindTransaction(transactionId) == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("Invalid transaction (TransactionId: %s)", ~transactionId.ToString());
+            Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
     }
 }
 
@@ -194,7 +192,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         ->Commit();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkService, AddChunk)
+RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 {
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
@@ -212,7 +210,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, AddChunk)
     auto chunkId = TChunkId::Create();
 
     ChunkManager
-        ->InitiateAddChunk(transactionId)
+        ->InitiateCreateChunk(transactionId)
         ->OnSuccess(FromFunctor([=] (TChunkId id)
             {
                 response->SetChunkId(id.ToProto());
@@ -237,7 +235,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
         ~chunkId.ToString());
 
     ValidateTransactionId(transactionId);
-    ValidateChunkId(chunkId, transactionId);
+    ValidateChunkId(chunkId);
 
     auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
 

@@ -37,11 +37,11 @@ private:
 
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);
-    void ValidateChunkId(const TChunkId& chunkId, const TTransactionId& transactionId);
+    void ValidateChunkId(const TChunkId& chunkId);
 
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);
-    RPC_SERVICE_METHOD_DECL(NProto, AddChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, CreateChunk);
     RPC_SERVICE_METHOD_DECL(NProto, FindChunk);
 
 };
