@@ -68,6 +68,7 @@ public:
     {
         i32 value;
         input->Load(&value, sizeof(i32));
+        Value = value;
     }
 
     void Save(TOutputStream* output) const
@@ -123,6 +124,7 @@ public:
     {
         i32 value;
         input->Load(&value, sizeof(i32));
+        Value = value;
     }
 
     void Save(TOutputStream* output) const

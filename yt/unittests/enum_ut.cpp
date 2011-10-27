@@ -205,7 +205,26 @@ TEST(TEnumTest, OrderingWithPolymorphism)
 
 TEST(TEnumTest, SaveAndLoad)
 {
-    TBufferStream stream;
+    TStringStream stream;
+
+    EColor first(EColor::Red);
+    EColor second(EColor::Black);
+    EColor third(0);
+    EColor fourth(0);
+
+    ::Save(&stream, first);
+    ::Save(&stream, second);
+
+    ::Load(&stream, third);
+    ::Load(&stream, fourth);
+
+    EXPECT_EQ(first, third);
+    EXPECT_EQ(second, fourth);
+}
+
+TEST(TEnumTest, SaveAndLoadWithPolymorphism)
+{
+    TStringStream stream;
 
     EMyFirst f1(EMyFirst::Chip);
     EMyFirst f2(0);
