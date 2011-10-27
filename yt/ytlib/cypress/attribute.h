@@ -75,7 +75,7 @@ protected:
     {
         TIntrusivePtr<TProxy> typedProxy(dynamic_cast<TProxy*>(request.Proxy));
         YASSERT(~typedProxy != NULL);
-        return 
+        return typedProxy;
     }
 
     template <class TImpl>
