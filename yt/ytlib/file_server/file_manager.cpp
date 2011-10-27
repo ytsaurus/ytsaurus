@@ -110,28 +110,30 @@ TFileManager::InitiateSetFileChunk(
 
 TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    YUNREACHABLE();
+    //VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-    auto nodeId = TNodeId::FromProto(message.GetNodeId());
-    auto chunkId = TChunkId::FromProto(message.GetChunkId());
+    //auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
+    //auto nodeId = TNodeId::FromProto(message.GetNodeId());
+    //auto chunkId = TChunkId::FromProto(message.GetChunkId());
 
-    ValidateTransactionId(transactionId);
-    ValidateChunkId(chunkId);
+    //ValidateTransactionId(transactionId);
+    //ValidateChunkId(chunkId);
 
-    auto& impl = GetFileNode(nodeId, transactionId);
-    impl.SetChunkId(chunkId);
+    //auto& impl = GetFileNode(nodeId, transactionId);
+    //impl.SetChunkId(chunkId);
 
-    return TVoid();
+    //return TVoid();
 }
 
 TChunkId TFileManager::GetFileChunk(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
-    ValidateTransactionId(transactionId);
-    auto& impl = GetFileNode(nodeId, transactionId);
-    return impl.GetChunkId();
+    YUNREACHABLE();
+    //ValidateTransactionId(transactionId);
+    //auto& impl = GetFileNode(nodeId, transactionId);
+    //return impl.GetChunkId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
