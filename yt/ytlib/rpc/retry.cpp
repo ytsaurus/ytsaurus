@@ -96,6 +96,7 @@ public:
         TDuration timeout,
         TFuture<EErrorCode>::TPtr sendResult)
         : RetryCount(0)
+        , Channel(channel)
         , OriginalRequest(originalRequest)
         , OriginalResponseHandler(originalResponseHandler)
         , Timeout(timeout)
@@ -211,8 +212,8 @@ TRetriableChannel::TRetriableChannel(
     TDuration backoffTime, 
     int retryCount)
     : Channel(channel)
-    , BackoffTime(backoffTime)
     , RetryCount(retryCount)
+    , BackoffTime(backoffTime)
 { }
 
 TFuture<EErrorCode>::TPtr TRetriableChannel::Send(

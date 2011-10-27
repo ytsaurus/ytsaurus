@@ -42,7 +42,7 @@ void TTableChunkWriter::EndRow()
     {
         auto channel = ChannelWriters[channelIndex];
         channel->EndRow();
-        if (channel->GetCurrentSize() > Config.BlockSize) {
+        if (channel->GetCurrentSize() > static_cast<size_t>(Config.BlockSize)) {
             AddBlock(channelIndex);
         }
     }
@@ -75,7 +75,7 @@ void TTableChunkWriter::Close()
 
     YASSERT(UsedColumns.empty());
 
-    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++ channelIndex) {
+    for (int channelIndex = 0; channelIndex < ChannelWriters.ysize(); ++ channelIndex) {
         auto channel = ChannelWriters[channelIndex];
         if (channel->HasUnflushedData()) {
             AddBlock(channelIndex);
@@ -85,7 +85,7 @@ void TTableChunkWriter::Close()
     ChunkMeta.SetCodecId(Codec->GetId());
 
     TBlob metaBlock(ChunkMeta.ByteSize());
-    YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), metaBlock.size()));
+    YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), static_cast<int>(metaBlock.size())));
 
     ChunkWriter->WriteBlock(TSharedRef(metaBlock));
     ChunkWriter->Close();

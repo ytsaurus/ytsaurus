@@ -17,7 +17,7 @@ TFileChunkWriter::TFileChunkWriter(Stroka fileName)
 void TFileChunkWriter::WriteBlock(const TSharedRef& data)
 {
     TBlockInfo* blockInfo = Meta.AddBlocks();
-    blockInfo->SetSize(data.Size());
+    blockInfo->SetSize(static_cast<int>(data.Size()));
     blockInfo->SetChecksum(GetChecksum(data));
 
     File->Write(data.Begin(), data.Size());
