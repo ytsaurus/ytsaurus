@@ -125,11 +125,11 @@ public:
         if (it == Getters.end())
             return false;
 
-        TGetAttributeRequest request;
-        request.Node = &dynamic_cast<const TImpl&>(node);
-        request.Consumer = consumer;
+        TGetAttributeParam param;
+        param.Node = &dynamic_cast<const TImpl&>(node);
+        param.Consumer = consumer;
 
-        it->Second()->Do(request);
+        it->Second()->Do(param);
         return true;
     }
 
@@ -157,14 +157,13 @@ protected:
 
     TCypressManager::TPtr CypressManager;
 
-    // TODO: rename
-    struct TGetAttributeRequest
+    struct TGetAttributeParam
     {
         const TImpl* Node;
         IYsonConsumer* Consumer;
     };
 
-    typedef IParamAction<const TGetAttributeRequest&> TGetter;
+    typedef IParamAction<const TGetAttributeParam&> TGetter;
 
     yhash_map<Stroka, typename TGetter::TPtr> Getters;
 
@@ -173,15 +172,15 @@ protected:
         YVERIFY(Getters.insert(MakePair(name, getter)).Second());
     }
 
-    static void GetNodeId(const TGetAttributeRequest& request)
+    static void GetNodeId(const TGetAttributeParam& param)
     {
-        NYTree::BuildYsonFluently(request.Consumer)
-            .Scalar(request.Node->GetId().NodeId.ToString());
+        NYTree::BuildYsonFluently(param.Consumer)
+            .Scalar(param.Node->GetId().NodeId.ToString());
     }
 
-    void GetType(const TGetAttributeRequest& request)
+    void GetType(const TGetAttributeParam& param)
     {
-        NYTree::BuildYsonFluently(request.Consumer)
+        NYTree::BuildYsonFluently(param.Consumer)
             .Scalar(GetTypeName());
     }
 
@@ -358,6 +357,7 @@ public:
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
 
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -375,7 +375,9 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId);
 
-protected:
+private:
+    typedef TMapNodeTypeHandler TThis;
+
     virtual void DoDestroy(TMapNode& node);
 
     virtual void DoBranch(
@@ -384,6 +386,8 @@ protected:
     virtual void DoMerge(
         TMapNode& committedNode,
         TMapNode& branchedNode);
+
+    static void GetSize(const TGetAttributeParam& param);
 
 };
 
@@ -426,7 +430,9 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId);
 
-protected:
+private:
+    typedef TListNodeTypeHandler TThis;
+
     virtual void DoDestroy(TListNode& node);
 
     virtual void DoBranch(
@@ -435,6 +441,8 @@ protected:
     virtual void DoMerge(
         TListNode& committedNode,
         TListNode& branchedNode);
+
+    static void GetSize(const TGetAttributeParam& param);
 
 };
 

@@ -73,9 +73,9 @@ private:
     TIntrusivePtr<TFileManager> FileManager;
     TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
 
-    void GetSize(const TGetAttributeRequest& request);
-    static void GetChunkListId(const TGetAttributeRequest& request);
-    void GetChunkId(const TGetAttributeRequest& request);
+    void GetSize(const TGetAttributeParam& param);
+    static void GetChunkListId(const TGetAttributeParam& param);
+    void GetChunkId(const TGetAttributeParam& param);
     
     const NChunkServer::TChunk* GetChunk(const TFileNode& node);
 

@@ -2,8 +2,12 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
+#include "../ytree/fluent.h"
+
 namespace NYT {
 namespace NCypress {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +153,7 @@ void TMapNode::Load(TInputStream* input)
     }
 }
 
-NYT::NCypress::ERuntimeNodeType TMapNode::GetRuntimeType() const
+ERuntimeNodeType TMapNode::GetRuntimeType() const
 {
     return ERuntimeNodeType::Map;
 }
@@ -158,7 +162,9 @@ NYT::NCypress::ERuntimeNodeType TMapNode::GetRuntimeType() const
 
 TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager::TPtr cypressManager)
     : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
-{ }
+{
+    RegisterGetter("size", FromMethod(&TThis::GetSize));
+}
 
 ERuntimeNodeType TMapNodeTypeHandler::GetRuntimeType()
 {
@@ -211,6 +217,12 @@ void TMapNodeTypeHandler::DoMerge(
     // Replace the child list with the branched copy.
     committedNode.NameToChild().swap(branchedNode.NameToChild());
     committedNode.ChildToName().swap(branchedNode.ChildToName());
+}
+
+void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
+{
+    BuildYsonFluently(param.Consumer)
+        .Scalar(param.Node->NameToChild().ysize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,7 +278,9 @@ void TListNode::Load(TInputStream* input)
 
 TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager::TPtr cypressManager)
     : TCypressNodeTypeHandlerBase<TListNode>(cypressManager)
-{ }
+{
+    RegisterGetter("size", FromMethod(&TThis::GetSize));
+}
 
 ERuntimeNodeType TListNodeTypeHandler::GetRuntimeType()
 {
@@ -330,6 +344,12 @@ void TListNodeTypeHandler::DoMerge(
     // Replace the child list with the branched copy.
     committedNode.IndexToChild().swap(branchedNode.IndexToChild());
     committedNode.ChildToIndex().swap(branchedNode.ChildToIndex());
+}
+
+void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
+{
+    BuildYsonFluently(param.Consumer)
+        .Scalar(param.Node->IndexToChild().ysize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
