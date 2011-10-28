@@ -470,9 +470,7 @@ private:
         JobListMap.Load(invoker, input);
 
         return
-            FromMethod(
-                &TThis::OnLoaded,
-                thisPtr)
+            FromMethod(&TThis::OnLoaded, thisPtr)
             ->AsyncVia(invoker)
             ->Do();
     }
@@ -480,9 +478,8 @@ private:
     TVoid OnLoaded()
     {
         // Reconstruct HolderAddressMap.
-        HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
-            auto* holder = pair.Second();
+            const auto* holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
         }
 
@@ -490,6 +487,12 @@ private:
         ReplicationSinkMap.clear();
         FOREACH (const auto& pair, JobMap) {
             RegisterReplicationSinks(*pair.Second());
+        }
+
+        // Initialize HolderExpiration, ChunkPlacement and ChunkReplication.
+        FOREACH(const auto& pair, HolderMap) {
+            const auto* holder = pair.Second();
+            StartHolderTracking(*holder);
         }
 
         return TVoid();

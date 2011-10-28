@@ -96,13 +96,13 @@ struct TMetaStateManagerConfig
     //! A path where snapshots are stored.
     Stroka SnapshotLocation;
 
-    //! Snapshotting period (in number of changes).
+    //! Snapshotting period (measured in number of changes).
     /*!
      *  This is also an upper limit for the number of records in a changelog.
      *  
-     *  The limit may get violated if the server is under heavy load and
-     *  catch-up with snapshot creation in time. This situation is
-     *  considered abnormal and a warning is issued.
+     *  The limit may be violated if the server is under heavy load and
+     *  a new snapshot generation request is issued when the previous one is still in progress.
+     *  This situation is considered abnormal and a warning is reported.
      *  
      *  A special value of -1 means that snapshot creation is switched off.
      */
@@ -111,7 +111,7 @@ struct TMetaStateManagerConfig
     //! Maximum time a follower waits for "Sync" request from the leader.
     TDuration SyncTimeout;
 
-    //! Timeout for all RPC requests.
+    //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
     // TODO: refactor
@@ -120,7 +120,7 @@ struct TMetaStateManagerConfig
     TMetaStateManagerConfig()
         : LogLocation(".")
         , SnapshotLocation(".")
-        , MaxChangesBetweenSnapshots(1000)
+        , MaxChangesBetweenSnapshots(10)
         , SyncTimeout(TDuration::MilliSeconds(5000))
         , RpcTimeout(TDuration::MilliSeconds(3000))
     { }

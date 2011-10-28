@@ -44,7 +44,7 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
     , FileManager(fileManager)
     , ChunkManager(chunkManager)
 {
-    // NB: no smartpointer for this here
+    // NB: No smartpointer for this here.
     RegisterGetter("size", FromMethod(&TThis::GetSize, this));
     RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));

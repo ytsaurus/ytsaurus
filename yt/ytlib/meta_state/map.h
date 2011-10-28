@@ -22,16 +22,17 @@ class TMetaStateMapBase
     : private TNonCopyable
 {
 protected:
-    /* Transitions
-     *   Normal -> LoadingSnapshot,
-     *   Normal -> SavingSnapshot,
-     *   HasPendingChanges -> Normal
+    /*!
+     * Transitions
+     * - Normal -> LoadingSnapshot,
+     * - Normal -> SavingSnapshot,
+     * - HasPendingChanges -> Normal
      * are performed from the user thread.
      *
      * Transitions
-     *   LoadingSnapshot -> Normal,
-     *   SavingSnapshot -> HasPendingChanges
-     * are performed from the invoker.
+     * - LoadingSnapshot -> Normal,
+     * - SavingSnapshot -> HasPendingChanges
+     * are performed from the snapshot invoker.
      */
     DECLARE_ENUM(EState,
         (Normal)
@@ -64,12 +65,16 @@ struct TDefaultMetaMapTraits
 
 //! Snapshottable map used to store various meta-state tables.
 /*!
- * \tparam TKey Key type.
- * \tparam TValue Value type.
- * \tparam THash Hash function for keys.
+ *  \tparam TKey Key type.
+ *  \tparam TValue Value type.
+ *  \tparam THash Hash function for keys.
  * 
- * \note All the public methods must be called from one thread
- * \note TValue must have the following methods:
+ *  \note
+ *  All public methods must be called from a single thread.
+ *  Exceptions are #Begin and #End, see below.
+ * 
+ *  TODO: this is not true, write about Traits
+ *  TValue type must have the following methods:
  *          TAutoPtr<TValue> Clone();
  *          void Save(TOutputStream* output);
  *          static TAutoPtr<TValue> Load(TInputStream* input);
@@ -104,10 +109,10 @@ public:
 
             case EState::Normal:
             case EState::HasPendingChanges:
-                FOREACH (const auto& pair, MainMap) {
+                FOREACH (const auto& pair, PrimaryMap) {
                     delete pair.Second();
                 }
-                MainMap.clear();
+                PrimaryMap.clear();
                 FOREACH (const auto& pair, PatchMap) {
                     if (pair.Second() != NULL) {
                         delete pair.Second();
@@ -120,8 +125,11 @@ public:
 
     //! Inserts a key-value pair.
     /*!
-     * \note Value is owned by map after insertion.
-     * \note Fails if the key is already in map.
+     *  \param key A key to insert.
+     *  \param value A value to insert.
+     *  
+     *  \note The map will own the value and will call "delete" for it  when time comes.
+     *  \note Fails if the key is already in map.
      */
     void Insert(const TKey& key, TValue* value)
     {
@@ -132,7 +140,7 @@ public:
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
                 if (patchIt == PatchMap.end()) {
-                    YASSERT(MainMap.find(key) == MainMap.end());
+                    YASSERT(PrimaryMap.find(key) == PrimaryMap.end());
                     YVERIFY(PatchMap.insert(MakePair(key, value)).Second());
                 } else {
                     YASSERT(patchIt->Second() == NULL);
@@ -143,7 +151,7 @@ public:
             case EState::HasPendingChanges:
             case EState::Normal:
                 MergeTempTablesIfNeeded();
-                YVERIFY(MainMap.insert(MakePair(key, value)).Second());
+                YVERIFY(PrimaryMap.insert(MakePair(key, value)).Second());
                 break;
 
             default:
@@ -153,8 +161,8 @@ public:
 
     //! Tries to find a value by its key. The returned value is read-only.
     /*!
-     * \param key A key.
-     * \return Pointer to the const value if found, NULL otherwise.
+     *  \param key A key.
+     *  \return A pointer to the value if found, NULL otherwise.
      */
     const TValue* Find(const TKey& key) const
     {
@@ -177,14 +185,15 @@ public:
                 YUNREACHABLE();
         }
 
-        auto it = MainMap.find(key);
-        return it == MainMap.end() ? NULL : it->Second();
+        auto it = PrimaryMap.find(key);
+        return it == PrimaryMap.end() ? NULL : it->Second();
     }
 
-    //! Tries to find a value by its key. May return a modifiable copy if snapshot creation is in progress.
+    //! Tries to find a value by its key.
+    //! May return a modifiable copy if snapshot creation is in progress.
     /*!
      * \param key A key.
-     * \return Pointer to the value if found, NULL otherwise.
+     * \return A pointer to the value if found, NULL otherwise.
      */
     TValue* FindForUpdate(const TKey& key)
     {
@@ -194,8 +203,8 @@ public:
             case EState::HasPendingChanges:
             case EState::Normal: {
                 MergeTempTablesIfNeeded();
-                auto mapIt = MainMap.find(key);
-                return mapIt == MainMap.end() ? NULL : mapIt->Second();
+                auto mapIt = PrimaryMap.find(key);
+                return mapIt == PrimaryMap.end() ? NULL : mapIt->Second();
             }
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
@@ -203,8 +212,8 @@ public:
                     return patchIt->Second();
                 }         
 
-                auto mapIt = MainMap.find(key);
-                if (mapIt == MainMap.end()) {
+                auto mapIt = PrimaryMap.find(key);
+                if (mapIt == PrimaryMap.end()) {
                     return NULL;
                 }
 
@@ -221,7 +230,7 @@ public:
     /*!
      *  In contrast to #Find this method fails if the key does not exist in the map.
      *  \param key A key.
-     *  \returns Const reference to the value.
+     *  \returns A reference to the value.
      */
     const TValue& Get(const TKey& key) const
     {
@@ -236,7 +245,7 @@ public:
     /*!
      *  In contrast to #Find this method fails if the key does not exist in the map.
      *  \param key A key.
-     *  \returns Reference to the value.
+     *  \returns A reference to the value.
      */
     TValue& GetForUpdate(const TKey& key)
     {
@@ -248,6 +257,11 @@ public:
     }
 
     //! Removes the key from the map and deletes the corresponding value.
+    /*!
+     *  \param A key.
+     *  
+     *  \note Fails if the key is not in the map.
+     */
     void Remove(const TKey& key)
     {
         VERIFY_THREAD_AFFINITY(UserThread);
@@ -257,22 +271,22 @@ public:
             case EState::Normal: {
                 MergeTempTablesIfNeeded();
 
-                auto it = MainMap.find(key);
-                YASSERT(it != MainMap.end());
+                auto it = PrimaryMap.find(key);
+                YASSERT(it != PrimaryMap.end());
                 delete it->Second();
-                MainMap.erase(it);
+                PrimaryMap.erase(it);
                 break;
             }
             case EState::SavingSnapshot: {
                 auto patchIt = PatchMap.find(key);
-                auto mainIt = MainMap.find(key);
+                auto mainIt = PrimaryMap.find(key);
                 if (patchIt == PatchMap.end()) {
-                    YASSERT(mainIt != MainMap.end());
+                    YASSERT(mainIt != PrimaryMap.end());
                     YVERIFY(PatchMap.insert(TItem(key, NULL)).Second());
                 } else {
                     YASSERT(patchIt->Second() != NULL);
                     delete patchIt->Second();
-                    if (mainIt == MainMap.end()) {
+                    if (mainIt == PrimaryMap.end()) {
                         PatchMap.erase(patchIt);
                     } else {
                         patchIt->Second() = NULL;
@@ -287,7 +301,7 @@ public:
 
     //! Checks whether the key exists in the map.
     /*!
-     *  \param key A key to check.
+     *  \param key A key.
      *  \return True iff the key exists in the map.
      */
     bool Contains(const TKey& key) const
@@ -306,10 +320,10 @@ public:
             case EState::HasPendingChanges:
             case EState::Normal: {
                 MergeTempTablesIfNeeded();
-                FOREACH(const auto& pair, MainMap) {
+                FOREACH(const auto& pair, PrimaryMap) {
                     delete pair.Second();
                 }
-                MainMap.clear();
+                PrimaryMap.clear();
                 break;
             }
             case EState::SavingSnapshot: {
@@ -320,7 +334,7 @@ public:
                 }
                 PatchMap.clear();
 
-                FOREACH (const auto& pair, MainMap) {
+                FOREACH (const auto& pair, PrimaryMap) {
                     PatchMap.insert(TItem(pair.First(), NULL));
                 }
                 break;
@@ -332,63 +346,64 @@ public:
 
     //! (Unordered) begin()-iterator.
     /*!
+     *  \note
+     *  This call is potentially dangerous! 
+     *  The user must understand its semantics and call it at its own risk.
      *  Iteration is only possible when no snapshot is being created.
+     *  A typical use-case is to iterate over the items right after reading a snapshot.
      */
     TIterator Begin()
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-        MergeTempTablesIfNeeded();
-        return MainMap.begin();
+        YASSERT(State == EState::Normal);
+        return PrimaryMap.begin();
     }
 
     //! (Unordered) end()-iterator.
     /*!
-     *  Iteration is only possible when no snapshot is being created.
+     *  See the note for #Begin.
      */
     TIterator End()
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-        MergeTempTablesIfNeeded();
-        return MainMap.end();
+        YASSERT(State == EState::Normal);
+        return PrimaryMap.end();
     }
     
     //! (Unordered) const begin()-iterator.
     /*!
-     *  Iteration is only possible when no snapshot is being created.
+     *  See the note for #Begin.
      */
     TConstIterator Begin() const
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-        MergeTempTablesIfNeeded();
-        return MainMap.begin();
+        YASSERT(State == EState::Normal);
+        return PrimaryMap.begin();
     }
 
     //! (Unordered) const end()-iterator.
     /*!
-     *  Iteration is only possible when no snapshot is being created.
+     *  See the note for #Begin.
      */
     TConstIterator End() const
     {
         VERIFY_THREAD_AFFINITY(UserThread);
 
-        YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-        MergeTempTablesIfNeeded();
-        return MainMap.end();
+        YASSERT(State == EState::Normal);
+        return PrimaryMap.end();
     }
 
     //! Asynchronously saves the map to the stream.
     /*!
-     * This method saves the snapshot of the map as it seen at the moment of
-     * invocation. All further updates are accepted but kept in-memory.
-     * \param invoker Invoker for actual heavy work.
-     * \param stream Output stream.
-     * \return Callback on successful save.
+     *  This method saves the snapshot of the map as it is seen at the moment of
+     *  the invocation. All further updates are accepted but are kept in-memory.
+     *  
+     *  \param invoker Invoker used to perform the heavy lifting.
+     *  \param stream Output stream.
+     *  \return An asynchronous result indicating that the snapshot is saved.
      */
     TFuture<TVoid>::TPtr Save(
         IInvoker::TPtr invoker,
@@ -424,7 +439,7 @@ public:
 
         YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
         
-        MainMap.clear();
+        PrimaryMap.clear();
         PatchMap.clear();
         State = EState::LoadingSnapshot;
 
@@ -437,10 +452,13 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
     
-    bool IsSavingSnapshot;
+    //! When no shapshot is being written this is the actual map we're working with.
+    //! When a snapshot is being created this map is kept read-only and
+    //! #PathMap is used to store the changes.
+    TMap PrimaryMap;
 
-    TMap MainMap;
-    TMap PatchMap; // A pair (key, NULL) in PatchMap means that the key should be deleted
+    //! "(key, NULL)" indicates that the key should be deleted.
+    TMap PatchMap;
 
     TTraits Traits;
     
@@ -448,10 +466,15 @@ private:
 
     TVoid DoSave(TOutputStream* output)
     {
-        ::Save(output, static_cast<i32>(MainMap.size()));
+        ::Save(output, static_cast<i32>(PrimaryMap.size()));
 
-        yvector<TItem> items(MainMap.begin(), MainMap.end());
-        Sort(items.begin(), items.end());
+        yvector<TItem> items(PrimaryMap.begin(), PrimaryMap.end());
+        Sort(
+            items.begin(),
+            items.end(),
+            [] (const typename TMap::value_type& lhs, const typename TMap::value_type& rhs) {
+                return lhs.First() < rhs.First();
+            });
 
         FOREACH(const auto& item, items) {
             ::Save(output, item.First());
@@ -459,7 +482,6 @@ private:
         }
         
         State = EState::HasPendingChanges;
-
         return TVoid();
     }
 
@@ -473,7 +495,7 @@ private:
             TKey key;
             ::Load(input, key);
             TValue* value = Traits.Load(input).Release();
-            MainMap.insert(MakePair(key, value));
+            PrimaryMap.insert(MakePair(key, value));
         }
 
         State = EState::Normal;
@@ -487,18 +509,18 @@ private:
 
         FOREACH (const auto& pair, PatchMap) {
             auto* value = pair.Second();
-            auto mainIt = MainMap.find(pair.First());
+            auto mainIt = PrimaryMap.find(pair.First());
             if (value != NULL) {
-                if (mainIt == MainMap.end()) {
-                    YVERIFY(MainMap.insert(MakePair(pair.First(), value)).Second());
+                if (mainIt == PrimaryMap.end()) {
+                    YVERIFY(PrimaryMap.insert(MakePair(pair.First(), value)).Second());
                 } else {
                     delete mainIt->Second();
                     mainIt->Second() = value;
                 }
             } else {
-                YASSERT(mainIt != MainMap.end());
+                YASSERT(mainIt != PrimaryMap.end());
                 delete mainIt->Second();
-                MainMap.erase(mainIt);
+                PrimaryMap.erase(mainIt);
             }
         }
         PatchMap.clear();
@@ -516,12 +538,14 @@ private:
 namespace NYT {
 namespace NForeach {
 
+//! Provides a begin-like iterator for #FOREACH macro.
 template<class TKey, class TValue, class THash>
 inline auto Begin(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
+//! Provides an end-like iterator for #FOREACH macro.
 template<class TKey, class TValue, class THash>
 inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
 {
@@ -561,7 +585,6 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).GetForUpdate(id); \
     }
 
-// TODO: drop this
 #define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
     { \

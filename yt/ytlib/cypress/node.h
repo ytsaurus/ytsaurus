@@ -35,8 +35,14 @@ struct TBranchedNodeId
     Stroka ToString() const;
 };
 
-bool operator==(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
-inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+//! Compares TBranchedNodeId s for equality.
+bool operator == (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+
+//! Compares TBranchedNodeId s for inequality.
+bool operator != (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+
+//! Compares TBranchedNodeId s for "less than" (used to sort nodes in meta-map).
+bool operator <  (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
 
 } // namespace NCypress
 } // namespace NYT

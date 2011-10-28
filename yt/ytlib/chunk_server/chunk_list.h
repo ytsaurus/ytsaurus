@@ -38,8 +38,8 @@ public:
         TChunkListId id;
         ::Load(input, id);
         TAutoPtr<TChunkList> chunkList = new TChunkList(id);
-        ::Load(input, chunkList->ReplicaCount_);
         ::Load(input, chunkList->Chunks_);
+        ::Load(input, chunkList->ReplicaCount_);
         ::Load(input, chunkList->RefCounter);
         return chunkList;
     }

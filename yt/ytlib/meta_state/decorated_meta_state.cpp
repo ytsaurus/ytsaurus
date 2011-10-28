@@ -94,7 +94,7 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
     LOG_INFO("Started loading snapshot %d", segmentId);
 
     UpdateVersion(TMetaVersion(segmentId, 0));
-    return State->Load(input, GetSnapshotInvoker())->Apply(FromMethod(
+    return State->Load(input, GetStateInvoker())->Apply(FromMethod(
         &TDecoratedMetaState::OnLoad,
         TPtr(this),
         TInstant::Now()));
