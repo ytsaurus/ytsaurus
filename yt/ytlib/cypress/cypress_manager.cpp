@@ -653,7 +653,7 @@ void TCypressManager::UnrefNode(const TNodeId& nodeId)
     UnrefNode(node);
 }
 
-void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
+void TCypressManager::OnTransactionCommitted(const TTransaction& transaction)
 {
     ReleaseLocks(transaction);
     MergeBranchedNodes(transaction);
@@ -661,7 +661,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
     UnrefOriginatingNodes(transaction);
 }
 
-void TCypressManager::OnTransactionAborted(TTransaction& transaction)
+void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
 {
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
@@ -669,7 +669,7 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
     UnrefOriginatingNodes(transaction);
 }
 
-void TCypressManager::ReleaseLocks(TTransaction& transaction)
+void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 {
     // Iterate over all locks created by the transaction.
     FOREACH (const auto& lockId, transaction.Locks()) {
@@ -689,7 +689,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
     }
 }
 
-void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
+void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
 
@@ -711,7 +711,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
     }
 }
 
-void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
+void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
     // Drop the implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
@@ -719,7 +719,7 @@ void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
     }
 }
 
-void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
+void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
@@ -733,7 +733,7 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
     }
 }
 
-void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
+void TCypressManager::CommitCreatedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
@@ -746,7 +746,7 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
     }
 }
 
-void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
+void TCypressManager::RemoveCreatedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.CreatedNodes()) {

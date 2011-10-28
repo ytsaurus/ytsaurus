@@ -535,17 +535,17 @@ private:
     }
 
 
-    virtual void OnTransactionCommitted(TTransaction& transaction)
+    virtual void OnTransactionCommitted(const TTransaction& transaction)
     {
         ReleaseTransactionChunkRefs(transaction);
     }
 
-    virtual void OnTransactionAborted(TTransaction& transaction)
+    virtual void OnTransactionAborted(const TTransaction& transaction)
     {
         ReleaseTransactionChunkRefs(transaction);
     }
 
-    void ReleaseTransactionChunkRefs(TTransaction& transaction)
+    void ReleaseTransactionChunkRefs(const TTransaction& transaction)
     {
         // Release the references to every chunk created by the transaction.
         // For those chunks created but not assigned to any Cypress nodes

@@ -153,15 +153,15 @@ private:
 
     void CreateWorld();
 
-    void OnTransactionCommitted(TTransaction& transaction);
-    void OnTransactionAborted(TTransaction& transaction);
+    void OnTransactionCommitted(const TTransaction& transaction);
+    void OnTransactionAborted(const TTransaction& transaction);
 
-    void ReleaseLocks(TTransaction& transaction);
-    void MergeBranchedNodes(TTransaction& transaction);
-    void RemoveBranchedNodes(TTransaction& transaction);
-    void UnrefOriginatingNodes(TTransaction& transaction);
-    void CommitCreatedNodes(TTransaction& transaction);
-    void RemoveCreatedNodes(TTransaction& transaction);
+    void ReleaseLocks(const TTransaction& transaction);
+    void MergeBranchedNodes(const TTransaction& transaction);
+    void RemoveBranchedNodes(const TTransaction& transaction);
+    void UnrefOriginatingNodes(const TTransaction& transaction);
+    void CommitCreatedNodes(const TTransaction& transaction);
+    void RemoveCreatedNodes(const TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetNodeHandler(const ICypressNode& node);
 

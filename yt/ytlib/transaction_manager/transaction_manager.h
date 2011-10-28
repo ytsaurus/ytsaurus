@@ -23,14 +23,12 @@ using NMetaState::TMetaChange;
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
-    // TODO: pass const TTransaction& to the handlers.
-
     //! Called when a new transaction is started.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<const TTransaction&>);
     //! Called during transaction commit.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<const TTransaction&>);
     //! Called during transaction abort.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<const TTransaction&>);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
