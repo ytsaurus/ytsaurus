@@ -1,8 +1,5 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
-#include "attribute_detail.h"
-
-#include "../ytree/fluent.h"
 
 namespace NYT {
 namespace NCypress {
@@ -10,12 +7,12 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeFactory::TNodeFactory(
-    TCypressManager::TPtr cypressManager,
+    TCypressManager* cypressManager,
     const TTransactionId& transactionId)
     : CypressManager(cypressManager)
     , TransactionId(transactionId)
 {
-    YASSERT(~cypressManager != NULL);
+    YASSERT(cypressManager != NULL);
 }
 
 IStringNode::TPtr TNodeFactory::CreateString()
@@ -51,10 +48,12 @@ IEntityNode::TPtr TNodeFactory::CreateEntity()
 ////////////////////////////////////////////////////////////////////////////////
 
 TMapNodeProxy::TMapNodeProxy(
-    TCypressManager::TPtr cypressManager,
+    INodeTypeHandler* typeHandler,
+    TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCompositeNodeProxyBase(
+        typeHandler,
         cypressManager,
         transactionId,
         nodeId)
@@ -106,7 +105,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto childProxy = ToProxy(child);
+    auto* childProxy = ToProxy(~child);
     auto childId = childProxy->GetNodeId();
 
     if (!impl.NameToChild().insert(MakePair(name, childId)).Second())
@@ -147,7 +146,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
 
     auto& impl = GetTypedImplForUpdate();
     
-    auto childProxy = ToProxy(child);
+    auto* childProxy = ToProxy(~child);
     auto& childImpl = childProxy->GetImplForUpdate();
 
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
@@ -169,9 +168,9 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto oldChildProxy = ToProxy(oldChild);
+    auto* oldChildProxy = ToProxy(~oldChild);
     auto& oldChildImpl = oldChildProxy->GetImplForUpdate();
-    auto newChildProxy = ToProxy(newChild);
+    auto* newChildProxy = ToProxy(~newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl.ChildToName().find(oldChildProxy->GetNodeId());
@@ -200,18 +199,15 @@ IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer
         CypressManager->GetYsonDeserializer(TransactionId));
 }
 
-IAttributeProvider* TMapNodeProxy::GetAttributeProvider()
-{
-    return TCompositeNodeAttributeProvider::Get();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeProxy::TListNodeProxy(
-    TCypressManager::TPtr cypressManager,
+    INodeTypeHandler* typeHandler,
+    TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCompositeNodeProxyBase(
+        typeHandler,
         cypressManager,
         transactionId,
         nodeId)
@@ -261,7 +257,7 @@ void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
 
-    auto childProxy = ToProxy(child);
+    auto* childProxy = ToProxy(~child);
     auto childId = childProxy->GetNodeId();
     auto& childImpl = childProxy->GetImplForUpdate();
 
@@ -302,7 +298,7 @@ void TListNodeProxy::RemoveChild(INode::TPtr child)
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
     
-    auto childProxy = ToProxy(child);
+    auto childProxy = ToProxy(~child);
     auto& childImpl = childProxy->GetImplForUpdate();
 
     auto it = impl.ChildToIndex().find(childProxy->GetNodeId());
@@ -323,9 +319,9 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto oldChildProxy = ToProxy(oldChild);
+    auto* oldChildProxy = ToProxy(~oldChild);
     auto& oldChildImpl = oldChildProxy->GetImplForUpdate();
-    auto newChildProxy = ToProxy(newChild);
+    auto* newChildProxy = ToProxy(~newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl.ChildToIndex().find(oldChildProxy->GetNodeId());
@@ -351,11 +347,6 @@ IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProduce
         path,
         producer,
         CypressManager->GetYsonDeserializer(TransactionId));
-}
-
-IAttributeProvider* TListNodeProxy::GetAttributeProvider()
-{
-    return TCompositeNodeAttributeProvider::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

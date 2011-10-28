@@ -3,46 +3,79 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../chunk_server/common.h"
-#include "../cypress/node.h"
+#include "../chunk_server/chunk_manager.h"
+#include "../cypress/node_detail.h"
 
 namespace NYT {
 namespace NFileServer {
 
 using namespace NCypress;
-using namespace NChunkServer;
+using NChunkServer::TChunkListId;
+using NChunkServer::NullChunkListId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNode
-    : public TCypressNodeBase
+    : public NCypress::TCypressNodeBase
 {
     DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
 
 public:
     explicit TFileNode(const TBranchedNodeId& id);
-
-    virtual TAutoPtr<ICypressNode> Branch(
-        TIntrusivePtr<TCypressManager> cypressManager,
-        const TTransactionId& transactionId) const;
-    virtual void Merge(
-        TIntrusivePtr<TCypressManager> cypressManager,
-        ICypressNode& branchedNode);
+    TFileNode(const TBranchedNodeId& id, const TFileNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
     virtual ERuntimeNodeType GetRuntimeType() const;
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        TIntrusivePtr<TCypressManager> state,
-        const TTransactionId& transactionId) const;
+};
 
-    virtual void Destroy(TIntrusivePtr<TCypressManager> cypressManager);
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileManager;
+
+class TFileNodeTypeHandler
+    : public TCypressNodeTypeHandlerBase<TFileNode>
+{
+public:
+    TFileNodeTypeHandler(
+        TCypressManager* cypressManager,
+        TFileManager* fileManager,
+        NChunkServer::TChunkManager* chunkManager);
+
+    ERuntimeNodeType GetRuntimeType();
+
+    Stroka GetTypeName();
+
+    virtual TAutoPtr<ICypressNode> Create(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        IMapNode::TPtr manifest);
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId);
+
+protected:
+    virtual void DoDestroy(TFileNode& node);
+
+    virtual void DoBranch(
+        const TFileNode& committedNode,
+        TFileNode& branchedNode);
+
+    virtual void DoMerge(
+        TFileNode& committedNode,
+        TFileNode& branchedNode);
 
 private:
-    typedef TFileNode TThis;
+    typedef TFileNodeTypeHandler TThis;
 
-    TFileNode(const TBranchedNodeId& id, const TFileNode& other);
+    TIntrusivePtr<TFileManager> FileManager;
+    TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
+
+    static void GetSize(const TGetAttributeRequest& request);
+    static void GetChunkListId(const TGetAttributeRequest& request);
+    static void GetChunkId(const TGetAttributeRequest& request);
 
 };
 

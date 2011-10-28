@@ -22,13 +22,17 @@ using namespace NYTree;
 
 DECLARE_ENUM(ERuntimeNodeType,
     // Static types
-    ((String)(1))
-    ((Int64)(2))
-    ((Double)(3))
-    ((Map)(4))
-    ((List)(5))
+    ((String)(0))
+    ((Int64)(1))
+    ((Double)(2))
+    ((Map)(3))
+    ((List)(4))
+    
     // Dynamic types
-    ((File)(6))
+    ((File)(5))
+
+    // Auxiliary
+    ((Last)(6))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,13 +2,12 @@ SET(YT_SOURCE_FILES
     common.cpp
 
     node.cpp
+    node_detail.cpp
+
     node_proxy.cpp
     node_proxy_detail.cpp
-    lock.cpp
-    attribute.cpp
-    attribute_detail.cpp
 
-    node_type.h
+    lock.cpp
 
     cypress_manager.cpp
     cypress_manager.proto

@@ -37,9 +37,9 @@ protected:
     TTransactionManager::TPtr TransactionManager;
 
     TFileManagerBase(
-        TCypressManager::TPtr cypressManager,
-        TChunkManager::TPtr chunkManager,
-        TTransactionManager::TPtr transactionManager);
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager,
+        TTransactionManager* transactionManager);
 
     void ValidateTransactionId(const TTransactionId& transactionId);
     void ValidateChunkId(const TChunkId& chunkId);
@@ -59,11 +59,11 @@ public:
 
     //! Creates an instance.
     TFileManager(
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
-        TCypressManager::TPtr cypressManager,
-        TChunkManager::TPtr chunkManager,
-        TTransactionManager::TPtr transactionManager);
+        TMetaStateManager* metaStateManager,
+        TCompositeMetaState* metaState,
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager,
+        TTransactionManager* transactionManager);
 
     TMetaChange<TVoid>::TPtr InitiateSetFileChunk(
         const TNodeId& nodeId,

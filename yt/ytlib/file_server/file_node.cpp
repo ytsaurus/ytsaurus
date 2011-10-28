@@ -1,11 +1,16 @@
 #include "stdafx.h"
 #include "file_node.h"
 #include "file_node_proxy.h"
+#include "file_manager.h"
 
 #include "../cypress/node_proxy.h"
+#include "../ytree/fluent.h"
 
 namespace NYT {
 namespace NFileServer {
+
+using namespace NYTree;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,46 +29,106 @@ ERuntimeNodeType TFileNode::GetRuntimeType() const
     return ERuntimeNodeType::File;
 }
 
-ICypressNodeProxy::TPtr TFileNode::GetProxy(
-    TIntrusivePtr<TCypressManager> cypressManager,
-    const TTransactionId& transactionId) const
-{
-    return New<TFileNodeProxy>(cypressManager, transactionId, Id.NodeId);
-}
-
-TAutoPtr<ICypressNode> TFileNode::Branch(
-    TIntrusivePtr<TCypressManager> cypressManager,
-    const TTransactionId& transactionId) const
-{
-    TAutoPtr<ICypressNode> branchedNode = new TThis(
-        TBranchedNodeId(Id.NodeId, transactionId),
-        *this);
-
-    TCypressNodeBase::DoBranch(cypressManager, *branchedNode, transactionId);
-
-    return branchedNode;
-}
-
-void TFileNode::Merge(
-    TIntrusivePtr<TCypressManager> cypressManager,
-    ICypressNode& branchedNode)
-{
-    TCypressNodeBase::Merge(cypressManager, branchedNode);
-
-    auto& typedBranchedNode = dynamic_cast<TThis&>(branchedNode);
-    ChunkListId_ = typedBranchedNode.ChunkListId_;
-}
-
 TAutoPtr<ICypressNode> TFileNode::Clone() const
 {
-    return new TThis(Id, *this);
+    return new TFileNode(Id, *this);
 }
 
-void TFileNode::Destroy(TIntrusivePtr<TCypressManager> cypressManager)
-{
-    TCypressNodeBase::Destroy(cypressManager);
+////////////////////////////////////////////////////////////////////////////////
 
-    // TODO:
+TFileNodeTypeHandler::TFileNodeTypeHandler(
+    TCypressManager* cypressManager,
+    TFileManager* fileManager,
+    TChunkManager* chunkManager)
+    : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
+    , FileManager(fileManager)
+    , ChunkManager(chunkManager)
+{
+    RegisterGetter("size", FromMethod(&TThis::GetSize));
+    RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
+    RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId));
+}
+
+void TFileNodeTypeHandler::GetSize(const TGetAttributeRequest& request)
+{
+    BuildYsonFluently(request.Consumer)
+        // TODO: fixme
+        .Scalar(-1);
+}
+
+void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeRequest& request)
+{
+    BuildYsonFluently(request.Consumer)
+        .Scalar(request.Node->GetChunkListId().ToString());
+}
+
+void TFileNodeTypeHandler::GetChunkId(const TGetAttributeRequest& request)
+{
+    BuildYsonFluently(request.Consumer)
+        // TODO: fixme
+        .Scalar(TChunkId().ToString());
+}
+
+void TFileNodeTypeHandler::DoDestroy(TFileNode& node)
+{
+    if (node.GetChunkListId() != NullChunkListId) {
+        ChunkManager->UnrefChunkList(node.GetChunkListId());
+    }
+}
+
+void TFileNodeTypeHandler::DoBranch(
+    const TFileNode& committedNode,
+    TFileNode& branchedNode)
+{
+    UNUSED(branchedNode);
+
+    if (committedNode.GetChunkListId() != NullChunkListId) {
+        ChunkManager->RefChunkList(committedNode.GetChunkListId());
+    }
+}
+
+void TFileNodeTypeHandler::DoMerge(
+    TFileNode& committedNode,
+    TFileNode& branchedNode)
+{
+    if (committedNode.GetChunkListId() != NullChunkListId) {
+        ChunkManager->UnrefChunkList(committedNode.GetChunkListId());
+    }
+
+    committedNode.SetChunkListId(branchedNode.GetChunkListId());
+}
+
+TIntrusivePtr<ICypressNodeProxy> TFileNodeTypeHandler::GetProxy(
+    const ICypressNode& node,
+    const TTransactionId& transactionId)
+{
+    return New<TFileNodeProxy>(
+        this,
+        ~CypressManager,
+        transactionId,
+        node.GetId().NodeId);
+}
+
+ERuntimeNodeType TFileNodeTypeHandler::GetRuntimeType()
+{
+    return ERuntimeNodeType::File;
+}
+
+Stroka TFileNodeTypeHandler::GetTypeName()
+{
+    return FileTypeName;
+}
+
+TAutoPtr<ICypressNode> TFileNodeTypeHandler::Create(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId,
+    IMapNode::TPtr manifest )
+{
+    UNUSED(transactionId);
+    UNUSED(manifest);
+
+    TAutoPtr<TFileNode> node(new TFileNode(TBranchedNodeId(nodeId, NullTransactionId)));
+    return node.Release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

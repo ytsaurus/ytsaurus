@@ -18,10 +18,10 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressService::TCypressService(
-    TCypressManager::TPtr cypressManager,
-    TTransactionManager::TPtr transactionManager,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    TCypressManager* cypressManager,
+    TTransactionManager* transactionManager,
+    IInvoker* serviceInvoker,
+    NRpc::TServer* server)
     : TMetaStateServiceBase(
         serviceInvoker,
         TCypressServiceProxy::GetServiceName(),
@@ -29,9 +29,9 @@ TCypressService::TCypressService(
     , CypressManager(cypressManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(~cypressManager != NULL);
-    YASSERT(~serviceInvoker != NULL);
-    YASSERT(~server!= NULL);
+    YASSERT(cypressManager != NULL);
+    YASSERT(serviceInvoker != NULL);
+    YASSERT(server!= NULL);
 
     RegisterMethods();
 
@@ -57,8 +57,8 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 
 void TCypressService::ExecuteRecoverable(
     const TTransactionId& transactionId,
-    NRpc::TServiceContext::TPtr context,
-    IAction::TPtr action)
+    NRpc::TServiceContext* context,
+    IAction* action)
 {
     if (transactionId != NullTransactionId) {
         ValidateTransactionId(transactionId);
@@ -75,8 +75,8 @@ void TCypressService::ExecuteRecoverable(
 
 void TCypressService::ExecuteUnrecoverable(
     const TTransactionId& transactionId,
-    NRpc::TServiceContext::TPtr context,
-    IAction::TPtr action)
+    NRpc::TServiceContext* context,
+    IAction* action)
 {
     if (transactionId != NullTransactionId) {
         ValidateTransactionId(transactionId);
@@ -112,12 +112,13 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
 
     ExecuteRecoverable(
         transactionId,
-        context->GetUntypedContext(),
-        FromFunctor([=] ()
+        ~context->GetUntypedContext(),
+        ~FromFunctor([=] ()
             {
                 Stroka output;
                 TStringOutput outputStream(output);
-                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary);
+                // TODO: use binary
+                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Pretty);
 
                 CypressManager->GetYPath(transactionId, path, &writer);
 
@@ -142,8 +143,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 
     ExecuteUnrecoverable(
         transactionId,
-        context->GetUntypedContext(),
-        FromFunctor([=] ()
+        ~context->GetUntypedContext(),
+        ~FromFunctor([=] ()
             {
                 CypressManager
                     ->InitiateSetYPath(transactionId, path, value)
@@ -166,8 +167,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
 
     ExecuteRecoverable(
         transactionId,
-        context->GetUntypedContext(),
-        FromFunctor([=] ()
+        ~context->GetUntypedContext(),
+        ~FromFunctor([=] ()
             {
                 CypressManager
                     ->InitiateRemoveYPath(transactionId, path)
@@ -190,8 +191,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
 
     ExecuteRecoverable(
         transactionId,
-        context->GetUntypedContext(),
-        FromFunctor([=] ()
+        ~context->GetUntypedContext(),
+        ~FromFunctor([=] ()
             {
                 CypressManager
                     ->InitiateLockYPath(transactionId, path)
@@ -214,13 +215,13 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
 
     ExecuteRecoverable(
         transactionId,
-        context->GetUntypedContext(),
-        FromFunctor([=] ()
+        ~context->GetUntypedContext(),
+        ~FromFunctor([=] ()
             {
                 auto node = CypressManager->NavigateYPath(transactionId, path);
                 
-                ICypressNodeProxy::TPtr cypressNode(dynamic_cast<ICypressNodeProxy*>(~node));
-                if (~cypressNode == NULL) {
+                ICypressNodeProxy* cypressNode(dynamic_cast<ICypressNodeProxy*>(~node));
+                if (cypressNode == NULL) {
                     throw yexception() << "Node has no id";
                 }
 

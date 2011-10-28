@@ -2,8 +2,8 @@
 
 #include "common.h"
 #include "node.h"
+#include "node_proxy.h"
 #include "lock.h"
-#include "node_type.h"
 #include "cypress_manager.pb.h"
 
 #include "../transaction_manager/transaction.h"
@@ -35,11 +35,11 @@ public:
     typedef TIntrusivePtr<TThis> TPtr;
 
     TCypressManager(
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager);
+        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager);
 
-    void RegisterDynamicType(IDynamicTypeHandler::TPtr handler);
+    void RegisterNodeType(INodeTypeHandler* handler);
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
@@ -59,7 +59,9 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<ICypressNodeProxy> GetRootProxy(const TTransactionId& transactionId);
+    TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
 
     bool IsTransactionNodeLocked(
         const TNodeId& nodeId,
@@ -81,7 +83,7 @@ public:
     TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
     INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
-        IMapNode::TPtr description);
+        IMapNode* manifest);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -115,7 +117,7 @@ private:
     class TNodeMapTraits
     {
     public:
-        TNodeMapTraits(TCypressManager::TPtr cypressManager);
+        TNodeMapTraits(TCypressManager* cypressManager);
 
         TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
         void Save(ICypressNode* value, TOutputStream* output) const;
@@ -134,8 +136,8 @@ private:
     TIdGenerator<TLockId> LockIdGenerator; 
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
-    yhash_map<ERuntimeNodeType, IDynamicTypeHandler::TPtr> RuntimeTypeToHandler;
-    yhash_map<Stroka, IDynamicTypeHandler::TPtr> TypeNameToHandler;
+    yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
+    yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
     TVoid SetYPath(const NProto::TMsgSet& message);
     TVoid RemoveYPath(const NProto::TMsgRemove& message);
@@ -158,12 +160,12 @@ private:
     void CommitCreatedNodes(TTransaction& transaction);
     void RemoveCreatedNodes(TTransaction& transaction);
 
-    TAutoPtr<ICypressNode> CreateDynamicNodeForLoading(
-        ERuntimeNodeType type,
-        const TBranchedNodeId& id);
+    INodeTypeHandler::TPtr GetNodeHandler(const ICypressNode& node);
 
     template <class TImpl, class TProxy>
-    TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId);
+    TIntrusivePtr<TProxy> CreateNode(
+        const TTransactionId& transactionId,
+        ERuntimeNodeType type);
 
     class TYsonDeserializationConsumer;
     friend class TYsonDeserializationConsumer;

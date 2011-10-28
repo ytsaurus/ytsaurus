@@ -24,10 +24,10 @@ public:
 
     //! Creates an instance.
     TFileService(
-        TChunkManager::TPtr chunkManager,
-        TFileManager::TPtr fileManager,
-        IInvoker::TPtr serviceInvoker,
-        NRpc::TServer::TPtr server);
+        TChunkManager* chunkManager,
+        TFileManager* fileManager,
+        IInvoker* serviceInvoker,
+        NRpc::TServer* server);
 
 private:
     typedef TFileService TThis;

@@ -11,21 +11,19 @@ namespace NFileServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public TCypressNodeProxyBase<IEntityNode, TFileNode>
+    : public NCypress::TCypressNodeProxyBase<IEntityNode, TFileNode>
 {
 public:
     typedef TIntrusivePtr<TFileNodeProxy> TPtr;
 
     TFileNodeProxy(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
     virtual ENodeType GetType() const;
     virtual Stroka GetTypeName() const;
-
-protected:
-    virtual IAttributeProvider* GetAttributeProvider();
 
 };
 

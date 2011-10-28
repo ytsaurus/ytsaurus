@@ -183,7 +183,9 @@ static void InitGuidSeed()
 }
 
 TGuid::TGuid()
-{ }
+{
+    memset(&Parts, 0, sizeof (Parts));
+}
 
 TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
 {

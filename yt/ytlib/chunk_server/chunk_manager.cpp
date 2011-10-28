@@ -104,13 +104,23 @@ public:
             &TThis::CreateChunk,
             TPtr(this));
     }
-    
+
+    void RefChunk(const TChunkId& chunkId)
+    {
+        RefChunk(GetChunkForUpdate(chunkId));
+    }
+
     void RefChunk(TChunk& chunk)
     {
         int refCounter = chunk.Ref();
         LOG_DEBUG_IF(!IsRecovery(), "Chunk referenced (ChunkId: %s, RefCounter: %d)",
             ~chunk.GetId().ToString(),
             refCounter);
+    }
+
+    void UnrefChunk(const TChunkId& chunkId)
+    {
+        UnrefChunk(GetChunkForUpdate(chunkId));
     }
 
     void UnrefChunk(TChunk& chunk)
@@ -127,6 +137,11 @@ public:
     }
 
 
+    void RefChunkList(const TChunkListId& chunkListId)
+    {
+        RefChunkList(GetChunkListForUpdate(chunkListId));
+    }
+
     void RefChunkList(TChunkList& chunkList)
     {
         int refCounter = chunkList.Ref();
@@ -134,6 +149,11 @@ public:
             ~chunkList.GetId().ToString(),
             refCounter);
         
+    }
+
+    void UnrefChunkList(const TChunkListId& chunkListId)
+    {
+        UnrefChunkList(GetChunkListForUpdate(chunkListId));
     }
 
     void UnrefChunkList(TChunkList& chunkList)
@@ -479,8 +499,7 @@ private:
         // For those chunks created but not assigned to any Cypress nodes
         // this also destroys them.
         FOREACH(const auto& chunkId, transaction.RegisteredChunks()) {
-            auto& chunk = GetChunkForUpdate(chunkId);
-            UnrefChunk(chunk);
+            UnrefChunk(chunkId);
         }
     }
 
@@ -774,6 +793,7 @@ private:
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
+METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Holder, THolder, THolderId, HolderMap)
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
@@ -816,9 +836,19 @@ TMetaChange<TChunkId>::TPtr TChunkManager::InitiateCreateChunk(const TTransactio
     return Impl->InitiateCreateChunk(transactionId);
 }
 
+void TChunkManager::RefChunk(const TChunkId& chunkId)
+{
+    Impl->RefChunk(chunkId);
+}
+
 void TChunkManager::RefChunk(TChunk& chunk)
 {
     Impl->RefChunk(chunk);
+}
+
+void TChunkManager::UnrefChunk(const TChunkId& chunkId)
+{
+    Impl->UnrefChunk(chunkId);
 }
 
 void TChunkManager::UnrefChunk(TChunk& chunk)
@@ -826,9 +856,19 @@ void TChunkManager::UnrefChunk(TChunk& chunk)
     Impl->UnrefChunk(chunk);
 }
 
+void TChunkManager::RefChunkList(const TChunkListId& chunkListId)
+{
+    Impl->RefChunkList(chunkListId);
+}
+
 void TChunkManager::RefChunkList(TChunkList& chunkList)
 {
     Impl->RefChunkList(chunkList);
+}
+
+void TChunkManager::UnrefChunkList(const TChunkListId& chunkListId)
+{
+    Impl->UnrefChunkList(chunkListId);
 }
 
 void TChunkManager::UnrefChunkList(TChunkList& chunkList)

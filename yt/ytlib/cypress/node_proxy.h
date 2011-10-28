@@ -9,10 +9,12 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICypressNodeProxy
-    : public virtual TRefCountedBase
-    , public virtual INode
+    : virtual NYTree::INode
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
+
+    // TODO: kill me
+    ICypressNodeProxy() {}
 
     virtual TTransactionId GetTransactionId() const = 0;
     virtual TNodeId GetNodeId() const = 0;

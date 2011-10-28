@@ -14,9 +14,9 @@ class TYsonWriter
 {
 public:
     DECLARE_ENUM(EFormat,
-     (Binary)
-     (Text)
-     (Pretty)
+        (Binary)
+        (Text)
+        (Pretty)
     );
 
     TYsonWriter(TOutputStream* stream, EFormat format);

@@ -15,16 +15,16 @@ static NLog::TLogger& Logger = FileServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileManagerBase::TFileManagerBase(
-    TCypressManager::TPtr cypressManager,
-    TChunkManager::TPtr chunkManager,
-    TTransactionManager::TPtr transactionManager)
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager,
+    TTransactionManager* transactionManager)
     : CypressManager(cypressManager)
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(~cypressManager != NULL);
-    YASSERT(~chunkManager != NULL);
-    YASSERT(~transactionManager != NULL);
+    YASSERT(cypressManager != NULL);
+    YASSERT(chunkManager != NULL);
+    YASSERT(transactionManager != NULL);
 }
 
 void TFileManagerBase::ValidateTransactionId(const TTransactionId& transactionId)
@@ -69,17 +69,22 @@ TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransacti
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileManager::TFileManager(
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
-    TCypressManager::TPtr cypressManager,
-    TChunkManager::TPtr chunkManager,
-    TTransactionManager::TPtr transactionManager)
+    TMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager,
+    TTransactionManager* transactionManager)
     : TMetaStatePart(metaStateManager, metaState)
     , TFileManagerBase(cypressManager, chunkManager, transactionManager)
 {
-    YASSERT(~cypressManager != NULL);
+    YASSERT(cypressManager != NULL);
 
     RegisterMethod(this, &TThis::SetFileChunk);
+
+    cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(
+        cypressManager,
+        this,
+        chunkManager));
 
     metaState->RegisterPart(this);
 }
@@ -110,7 +115,6 @@ TFileManager::InitiateSetFileChunk(
 
 TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
 {
-    YUNREACHABLE();
     //VERIFY_THREAD_AFFINITY(StateThread);
 
     //auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
@@ -123,17 +127,18 @@ TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
     //auto& impl = GetFileNode(nodeId, transactionId);
     //impl.SetChunkId(chunkId);
 
-    //return TVoid();
+    return TVoid();
 }
 
 TChunkId TFileManager::GetFileChunk(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
-    YUNREACHABLE();
     //ValidateTransactionId(transactionId);
     //auto& impl = GetFileNode(nodeId, transactionId);
     //return impl.GetChunkId();
+    // 
+    return NullChunkId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

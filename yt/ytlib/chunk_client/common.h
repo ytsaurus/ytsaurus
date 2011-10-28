@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../misc/common.h"
 #include "../misc/guid.h"
 
 namespace NYT {

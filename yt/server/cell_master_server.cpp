@@ -12,7 +12,6 @@
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
 
-#include <yt/ytlib/file_server/file_type_handler.h>
 #include <yt/ytlib/file_server/file_manager.h>
 #include <yt/ytlib/file_server/file_service.h>
 
@@ -34,7 +33,6 @@ using NMetaState::TCompositeMetaState;
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
 
-using NFileServer::TFileTypeHandler;
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
 
@@ -105,31 +103,28 @@ void TCellMasterServer::Run()
         server);
 
     auto cypressManager = New<TCypressManager>(
-        metaStateManager,
-        metaState,
-        transactionManager);
+        ~metaStateManager,
+        ~metaState,
+        ~transactionManager);
 
     auto cypressService = New<TCypressService>(
-        cypressManager,
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~cypressManager,
+        ~transactionManager,
+        ~metaStateManager->GetStateInvoker(),
+        ~server);
 
     auto fileManager = New<TFileManager>(
-        metaStateManager,
-        metaState,
-        cypressManager,
-        chunkManager,
-        transactionManager);
+        ~metaStateManager,
+        ~metaState,
+        ~cypressManager,
+        ~chunkManager,
+        ~transactionManager);
 
     auto fileService = New<TFileService>(
-        chunkManager,
-        fileManager,
-        metaStateManager->GetStateInvoker(),
-        server);
-
-    auto fileTypeHandler = New<TFileTypeHandler>();
-    cypressManager->RegisterDynamicType(~fileTypeHandler);
+        ~chunkManager,
+        ~fileManager,
+        ~metaStateManager->GetStateInvoker(),
+        ~server);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(

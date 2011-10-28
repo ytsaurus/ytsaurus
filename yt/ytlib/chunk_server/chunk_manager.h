@@ -51,11 +51,15 @@ public:
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
-    
+
+    void RefChunk(const TChunkId& chunkId);
     void RefChunk(TChunk& chunk);
+    void UnrefChunk(const TChunkId& chunkId);
     void UnrefChunk(TChunk& chunk);
 
+    void RefChunkList(const TChunkListId& chunkListId);
     void RefChunkList(TChunkList& chunkList);
+    void UnrefChunkList(const TChunkListId& chunkListId);
     void UnrefChunkList(TChunkList& chunkList);
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(

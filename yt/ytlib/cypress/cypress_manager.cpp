@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cypress_manager.h"
+#include "node_detail.h"
 #include "node_proxy_detail.h"
 
 #include "../ytree/yson_reader.h"
@@ -14,7 +15,6 @@ namespace NCypress {
 using namespace NMetaState;
 using namespace NProto;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger& Logger = CypressLogger;
@@ -22,9 +22,9 @@ NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressManager::TCypressManager(
-    TMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState,
-    TTransactionManager::TPtr transactionManager)
+    TMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
+    TTransactionManager* transactionManager)
     : TMetaStatePart(metaStateManager, metaState)
     , TransactionManager(transactionManager)
     // Some random number.
@@ -32,8 +32,9 @@ TCypressManager::TCypressManager(
     , NodeMap(TNodeMapTraits(this))
     // Another random number.
     , LockIdGenerator(0x465901ab71fe2671)
+    , RuntimeTypeToHandler(static_cast<int>(ERuntimeNodeType::Last))
 {
-    YASSERT(~transactionManager != NULL);
+    YASSERT(transactionManager != NULL);
 
     transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
         &TThis::OnTransactionCommitted,
@@ -42,6 +43,12 @@ TCypressManager::TCypressManager(
         &TThis::OnTransactionAborted,
         TPtr(this)));
 
+    RegisterNodeType(~New<TStringNodeTypeHandler>(this));
+    RegisterNodeType(~New<TInt64NodeTypeHandler>(this));
+    RegisterNodeType(~New<TDoubleNodeTypeHandler>(this));
+    RegisterNodeType(~New<TMapNodeTypeHandler>(this));
+    RegisterNodeType(~New<TListNodeTypeHandler>(this));
+
     RegisterMethod(this, &TThis::SetYPath);
     RegisterMethod(this, &TThis::RemoveYPath);
     RegisterMethod(this, &TThis::LockYPath);
@@ -49,10 +56,16 @@ TCypressManager::TCypressManager(
     metaState->RegisterPart(this);
 }
 
-void TCypressManager::RegisterDynamicType(IDynamicTypeHandler::TPtr handler)
+void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
 {
-    YVERIFY(RuntimeTypeToHandler.insert(MakePair(handler->GetRuntimeType(), handler)).Second());
+    RuntimeTypeToHandler.at(static_cast<int>(handler->GetRuntimeType())) = handler;
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetNodeHandler(const ICypressNode& node)
+{
+    int type = static_cast<int>(node.GetRuntimeType());
+    return RuntimeTypeToHandler[type];
 }
 
 const ICypressNode* TCypressManager::FindTransactionNode(
@@ -114,9 +127,13 @@ ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
     return *impl;
 }
 
-ICypressNodeProxy::TPtr TCypressManager::GetRootProxy(const TTransactionId& transactionId)
+ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId)
 {
-    return GetTransactionNode(RootNodeId, transactionId).GetProxy(this, transactionId);
+    YASSERT(nodeId != NullNodeId);
+    const auto& impl = GetTransactionNode(nodeId, transactionId);
+    return GetNodeHandler(impl)->GetProxy(impl, transactionId);
 }
 
 bool TCypressManager::IsTransactionNodeLocked(
@@ -185,7 +202,9 @@ TLockId TCypressManager::LockTransactionNode(
 }
 
 template <class TImpl, class TProxy>
-TIntrusivePtr<TProxy> TCypressManager::CreateNode(const TTransactionId& transactionId)
+TIntrusivePtr<TProxy> TCypressManager::CreateNode(
+    const TTransactionId& transactionId,
+    ERuntimeNodeType type)
 {
     if (transactionId == NullTransactionId) {
         throw TYTreeException() << "Cannot create a node outside of a transaction";
@@ -197,7 +216,12 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(const TTransactionId& transact
     NodeMap.Insert(branchedNodeId, nodeImpl);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.CreatedNodes().push_back(nodeId);
-    auto proxy = New<TProxy>(this, transactionId, nodeId);
+    
+    auto proxy = New<TProxy>(
+        ~RuntimeTypeToHandler[static_cast<int>(type)],
+        this,
+        transactionId,
+        nodeId);
 
     LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -209,27 +233,27 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(const TTransactionId& transact
 
 IStringNode::TPtr TCypressManager::CreateStringNodeProxy(const TTransactionId& transactionId)
 {
-    return ~CreateNode<TStringNode, TStringNodeProxy>(transactionId);
+    return ~CreateNode<TStringNode, TStringNodeProxy>(transactionId, ERuntimeNodeType::String);
 }
 
 IInt64Node::TPtr TCypressManager::CreateInt64NodeProxy(const TTransactionId& transactionId)
 {
-    return ~CreateNode<TInt64Node, TInt64NodeProxy>(transactionId);
+    return ~CreateNode<TInt64Node, TInt64NodeProxy>(transactionId, ERuntimeNodeType::Int64);
 }
 
 IDoubleNode::TPtr TCypressManager::CreateDoubleNodeProxy(const TTransactionId& transactionId)
 {
-    return ~CreateNode<TDoubleNode, TDoubleNodeProxy>(transactionId);
+    return ~CreateNode<TDoubleNode, TDoubleNodeProxy>(transactionId, ERuntimeNodeType::Double);
 }
 
 IMapNode::TPtr TCypressManager::CreateMapNodeProxy(const TTransactionId& transactionId)
 {
-    return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId);
+    return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId, ERuntimeNodeType::Map);
 }
 
 IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& transactionId)
 {
-    return ~CreateNode<TListNode, TListNodeProxy>(transactionId);
+    return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
 }
 
 class TCypressManager::TYsonDeserializationConsumer
@@ -237,7 +261,7 @@ class TCypressManager::TYsonDeserializationConsumer
 {
 public:
     TYsonDeserializationConsumer(
-        TCypressManager::TPtr cypressManager,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId)
         : CypressManager(cypressManager)
         , TransactionId(transactionId)
@@ -333,9 +357,9 @@ private:
 
     void OnForwardingFinished()
     {
-        auto description = DynamicBuilder.GetRoot()->GetAttributes();
-        YASSERT(~description != NULL);
-        DynamicResult = CypressManager->CreateDynamicNode(TransactionId, description);
+        auto manifest = DynamicBuilder.GetRoot()->GetAttributes();
+        YASSERT(~manifest != NULL);
+        DynamicResult = CypressManager->CreateDynamicNode(TransactionId, ~manifest);
     }
 
 };
@@ -354,14 +378,14 @@ TYsonBuilder::TPtr TCypressManager::GetYsonDeserializer(const TTransactionId& tr
 
 INode::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
-    IMapNode::TPtr description)
+    IMapNode* manifest)
 {
     if (transactionId == NullTransactionId) {
         throw TYTreeException() << "Cannot create a node outside of a transaction";
     }
 
     // TODO: refactor using upcoming YSON configuration API
-    auto typeNode = description->FindChild("type");
+    auto typeNode = manifest->FindChild("type");
     if (~typeNode == NULL) {
         throw TYTreeException() << "Must specify a valid \"type\" attribute to create a dynamic node";
     }
@@ -379,14 +403,14 @@ INode::TPtr TCypressManager::CreateDynamicNode(
     TAutoPtr<ICypressNode> nodeImpl(handler->Create(
         nodeId,
         transactionId,
-        description));
+        manifest));
     auto* nodePtr = nodeImpl.Get();
     NodeMap.Insert(branchedNodeId, nodeImpl.Release());
 
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.CreatedNodes().push_back(nodeId);
 
-    auto proxy = nodePtr->GetProxy(this, transactionId);
+    auto proxy = GetNodeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
 
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -394,17 +418,6 @@ INode::TPtr TCypressManager::CreateDynamicNode(
         ~transactionId.ToString());
 
     return ~proxy;
-}
-
-TAutoPtr<ICypressNode> TCypressManager::CreateDynamicNodeForLoading(
-    ERuntimeNodeType type,
-    const TBranchedNodeId& id)
-{
-    auto it = RuntimeTypeToHandler.find(type);
-    YASSERT(it != RuntimeTypeToHandler.end());
-
-    auto handler = it->Second();
-    return handler->Create(id.NodeId, id.TransactionId);
 }
 
 TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
@@ -429,7 +442,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     auto nodeId = node.GetId().NodeId;
 
     // Create a branched node and initialize its state.
-    auto branchedNode = node.Branch(this, transactionId);
+    auto branchedNode = GetNodeHandler(node)->Branch(node, transactionId);
     branchedNode->SetState(ENodeState::Branched);
     auto* branchedNodePtr = branchedNode.Release();
     NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr);
@@ -453,7 +466,7 @@ void TCypressManager::GetYPath(
     TYPath path,
     IYsonConsumer* consumer)
 {
-    auto root = GetRootProxy(transactionId);
+    auto root = GetNodeProxy(RootNodeId, transactionId);
     NYTree::GetYPath(AsYPath(root), path, consumer);
 }
 
@@ -462,7 +475,7 @@ INode::TPtr TCypressManager::NavigateYPath(
     const TTransactionId& transactionId,
     TYPath path)
 {
-    auto root = GetRootProxy(transactionId);
+    auto root = GetNodeProxy(RootNodeId, transactionId);
     return NYTree::NavigateYPath(AsYPath(root), path);
 }
 
@@ -480,7 +493,8 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
         MetaStateManager,
         message,
         &TThis::SetYPath,
-        TPtr(this));
+        TPtr(this),
+        ECommitMode::MayFail);
 }
 
 TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
@@ -489,7 +503,7 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     auto path = message.GetPath();
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
-    auto root = GetRootProxy(transactionId);
+    auto root = GetNodeProxy(RootNodeId, transactionId);
     NYTree::SetYPath(AsYPath(root), path, producer);
     return TVoid();
 }
@@ -506,14 +520,15 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
         MetaStateManager,
         message,
         &TThis::RemoveYPath,
-        TPtr(this));
+        TPtr(this),
+        ECommitMode::MayFail);
 }
 
 TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    auto root = GetRootProxy(transactionId);
+    auto root = GetNodeProxy(RootNodeId, transactionId);
     NYTree::RemoveYPath(AsYPath(root), path);
     return TVoid();
 }
@@ -530,14 +545,15 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateLockYPath(
         MetaStateManager,
         message,
         &TThis::LockYPath,
-        TPtr(this));
+        TPtr(this),
+        ECommitMode::MayFail);
 }
 
 NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
 {
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto path = message.GetPath();
-    auto root = GetRootProxy(transactionId);
+    auto root = GetNodeProxy(RootNodeId, transactionId);
     NYTree::LockYPath(AsYPath(root), path);
     return TVoid();
 }
@@ -613,7 +629,7 @@ void TCypressManager::UnrefNode(ICypressNode& node)
         if (node.Unref() == 0) {
             LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
 
-            node.Destroy(this);
+            GetNodeHandler(node)->Destroy(node);
             NodeMap.Remove(nodeId);
         }
     }
@@ -665,7 +681,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        node.Merge(this, branchedNode);
+        GetNodeHandler(node)->Merge(node, branchedNode);
 
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
@@ -723,7 +739,7 @@ METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, Nod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager::TPtr cypressManager)
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
 
@@ -741,33 +757,14 @@ void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* o
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
 {
-    i32 intType;
+    i32 type;
     TBranchedNodeId id;
-    ::Load(input, intType);
+    ::Load(input, type);
     ::Load(input, id);
-    TAutoPtr<ICypressNode> value;
-    auto type = ERuntimeNodeType(intType);
-    switch (type) {
-    case ERuntimeNodeType::String:
-        value = new TStringNode(id);
-        break;
-    case ERuntimeNodeType::Int64:
-        value = new TInt64Node(id);
-        break;
-    case ERuntimeNodeType::Double:
-        value = new TDoubleNode(id);
-        break;
-    case ERuntimeNodeType::Map:
-        value = new TMapNode(id);
-        break;
-    case ERuntimeNodeType::List:
-        value = new TListNode(id);
-        break;
-    default:
-        value = CypressManager->CreateDynamicNodeForLoading(type, id);
-        break;
-    }
+
+    auto value = CypressManager->RuntimeTypeToHandler[type]->Create(id);
     value->Load(input);
+
     return value;
 }
 

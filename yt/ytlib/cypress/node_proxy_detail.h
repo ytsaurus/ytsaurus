@@ -2,11 +2,12 @@
 
 #include "common.h"
 #include "node_proxy.h"
-#include "attribute_detail.h"
+#include "node_detail.h"
 
 #include "../ytree/ytree.h"
 #include "../ytree/ypath.h"
 #include "../ytree/ypath_detail.h"
+#include "../ytree/node_detail.h"
 
 namespace NYT {
 namespace NCypress {
@@ -18,7 +19,7 @@ class TNodeFactory
 {
 public:
     TNodeFactory(
-        TCypressManager::TPtr cypressManager,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId);
 
     virtual IStringNode::TPtr CreateString();
@@ -46,16 +47,19 @@ public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
     TCypressNodeProxyBase(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : CypressManager(cypressManager)
+        : TypeHandler(typeHandler)
+        , CypressManager(cypressManager)
         , TransactionId(transactionId)
         , NodeId(nodeId)
         , NodeFactory(cypressManager, transactionId)
         , Locked(false)
     {
-        YASSERT(~cypressManager != NULL);
+        YASSERT(typeHandler != NULL);
+        YASSERT(cypressManager != NULL);
     }
 
     INodeFactory* GetFactory() const
@@ -92,8 +96,8 @@ public:
 
     virtual void SetParent(ICompositeNode::TPtr parent)
     {
-        auto proxy = ToProxy(INode::TPtr(~parent));
-        GetImplForUpdate().SetParentId(~proxy == NULL ? NullNodeId : proxy->GetNodeId());
+        auto* proxy = ToProxy(~parent);
+        GetImplForUpdate().SetParentId(proxy == NULL ? NullNodeId : proxy->GetNodeId());
     }
 
 
@@ -112,7 +116,7 @@ public:
         }
 
         if (~attributes != NULL) {
-            auto attrProxy = ToProxy(INode::TPtr(~attributes));
+            auto* attrProxy = ToProxy(~attributes);
             auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
             AttachChild(attrImpl);
             impl.SetAttributesId(attrProxy->GetNodeId());
@@ -133,12 +137,26 @@ public:
 
 
 protected:
+    INodeTypeHandler::TPtr TypeHandler;
     TCypressManager::TPtr CypressManager;
     TTransactionId TransactionId;
     TNodeId NodeId;
     mutable TNodeFactory NodeFactory;
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
+
+
+    virtual yvector<Stroka> GetVirtualAttributeNames()
+    {
+        yvector<Stroka> names;
+        TypeHandler->GetAttributeNames(GetImpl(), &names);
+        return names;
+    }
+
+    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
+    {
+        return TypeHandler->GetAttribute(GetImpl(), name, consumer);
+    }
 
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
@@ -168,16 +186,15 @@ protected:
     {
         if (nodeId == NullNodeId) {
             return NULL;
+        } else {
+            auto proxy = CypressManager->GetNodeProxy(nodeId, TransactionId);
+            return dynamic_cast<T*>(~proxy);
         }
-
-        auto& impl = CypressManager->GetTransactionNode(nodeId, TransactionId);
-        auto proxy = impl.GetProxy(CypressManager, TransactionId);
-        return dynamic_cast<T*>(~proxy);
     }
 
-    static typename ICypressNodeProxy::TPtr ToProxy(INode::TPtr node)
+    static typename ICypressNodeProxy* ToProxy(INode* node)
     {
-        return dynamic_cast<ICypressNodeProxy*>(~node);
+        return dynamic_cast<ICypressNodeProxy*>(node);
     }
 
 
@@ -216,24 +233,6 @@ protected:
         child.SetParentId(NullNodeId);
         CypressManager->UnrefNode(child);
     }
-
-
-    virtual IAttributeProvider* GetAttributeProvider()
-    {
-        return TCypressNodeAttributeProvider::Get();
-    }
-
-    virtual yvector<Stroka> GetVirtualAttributeNames()
-    {
-        yvector<Stroka> names;
-        GetAttributeProvider()->GetAttributeNames(CypressManager, this, names);
-        return names;
-    }
-
-    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
-    {
-        return GetAttributeProvider()->GetAttribute(CypressManager, this, name, consumer);
-    }
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -244,10 +243,12 @@ class TScalarNodeProxy
 {
 public:
     TScalarNodeProxy(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
+            typeHandler,
             cypressManager,
             transactionId,
             nodeId)
@@ -300,10 +301,12 @@ public: \
     \
     public: \
         T ## name ## NodeProxy( \
-            TCypressManager::TPtr cypressManager, \
+            INodeTypeHandler* typeHandler, \
+            TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
             const TNodeId& nodeId) \
             : TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node>( \
+                typeHandler, \
                 cypressManager, \
                 transactionId, \
                 nodeId) \
@@ -311,13 +314,16 @@ public: \
     }; \
     \
     template <> \
-    inline ICypressNodeProxy::TPtr TScalarNode<type>::GetProxy( \
-        TIntrusivePtr<TCypressManager> cypressManager, \
-        const TTransactionId& transactionId) const \
+    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy( \
+        const ICypressNode& node, \
+        const TTransactionId& transactionId) \
     { \
-        return New<T ## name ## NodeProxy>(cypressManager, transactionId, Id.NodeId); \
+        return New<T ## name ## NodeProxy>( \
+            this, \
+            ~CypressManager, \
+            transactionId, \
+            node.GetId().NodeId); \
     }
-
 
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
@@ -333,10 +339,12 @@ class TCompositeNodeProxyBase
 {
 protected:
     TCompositeNodeProxyBase(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
+            typeHandler,
             cypressManager,
             transactionId,
             nodeId)
@@ -364,7 +372,8 @@ class TMapNodeProxy
 
 public:
     TMapNodeProxy(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
@@ -378,8 +387,6 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
 private:
-    virtual IAttributeProvider* GetAttributeProvider();
-
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
     virtual TNavigateResult NavigateRecursive(TYPath path);
 
@@ -395,7 +402,8 @@ class TListNodeProxy
 
 public:
     TListNodeProxy(
-        TCypressManager::TPtr cypressManager,
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
@@ -409,8 +417,6 @@ public:
     virtual void RemoveChild(INode::TPtr child);
 
 private:
-    virtual IAttributeProvider* GetAttributeProvider();
-
     virtual TNavigateResult NavigateRecursive(TYPath path);
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 

@@ -16,10 +16,10 @@ static NLog::TLogger& Logger = FileServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileService::TFileService(
-    TChunkManager::TPtr chunkManager,
-    TFileManager::TPtr fileManager,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    TChunkManager* chunkManager,
+    TFileManager* fileManager,
+    IInvoker* serviceInvoker,
+    NRpc::TServer* server)
     : TMetaStateServiceBase(
         serviceInvoker,
         TFileServiceProxy::GetServiceName(),
@@ -27,8 +27,8 @@ TFileService::TFileService(
     , ChunkManager(chunkManager)
     , FileManager(fileManager)
 {
-    YASSERT(~serviceInvoker != NULL);
-    YASSERT(~server!= NULL);
+    YASSERT(serviceInvoker != NULL);
+    YASSERT(server!= NULL);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SetFileChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileChunk));
