@@ -3,9 +3,6 @@
 #include "common.h"
 
 #include "../actions/future.h"
-#include "../misc/assert.h"
-
-#include <util/system/yield.h>
 
 namespace NYT {
 

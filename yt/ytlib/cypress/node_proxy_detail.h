@@ -192,7 +192,7 @@ protected:
         }
     }
 
-    static typename ICypressNodeProxy* ToProxy(INode* node)
+    static ICypressNodeProxy* ToProxy(INode* node)
     {
         return dynamic_cast<ICypressNodeProxy*>(node);
     }

@@ -32,12 +32,14 @@ TMetaStatePart::TMetaStatePart(
 TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
 {
     UNUSED(input);
+    UNUSED(invoker);
     return New< TFuture<TVoid> >(TVoid());
 }
 
 TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
     UNUSED(output);
+    UNUSED(invoker);
     return New< TFuture<TVoid> >(TVoid());
 }
 
