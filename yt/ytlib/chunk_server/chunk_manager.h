@@ -35,9 +35,9 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMetaStateManager::TPtr metaStateManager,
-        TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager);
+        TMetaStateManager* metaStateManager,
+        TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager);
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
     METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
@@ -51,6 +51,8 @@ public:
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
+
+    TChunkList& CreateChunkList();
 
     void RefChunk(const TChunkId& chunkId);
     void RefChunk(TChunk& chunk);

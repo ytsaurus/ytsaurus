@@ -72,7 +72,9 @@ public:
         const TTransactionId& transactionId);
 
     void RefNode(ICypressNode& node);
+    void RefNode(const TNodeId& nodeId);
     void UnrefNode(ICypressNode & node);
+    void UnrefNode(const TNodeId& nodeId);
 
     IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
     IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
@@ -157,6 +159,7 @@ private:
     void ReleaseLocks(TTransaction& transaction);
     void MergeBranchedNodes(TTransaction& transaction);
     void RemoveBranchedNodes(TTransaction& transaction);
+    void UnrefOriginatingNodes(TTransaction& transaction);
     void CommitCreatedNodes(TTransaction& transaction);
     void RemoveCreatedNodes(TTransaction& transaction);
 

@@ -128,8 +128,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         auto chunkId = TChunkId::FromProto(protoChunkId);
         if (holder.Chunks().find(chunkId) != holder.Chunks().end()) {
             requestMessage.AddRemovedChunks(chunkId.ToProto());
-        } else {
-            LOG_WARNING("Chunk replica does not exist or already removed (ChunkId: %s, Address: %s, HolderId: %d)",
+        } else if (ChunkManager->FindChunk(chunkId) != NULL) {
+            LOG_WARNING("Chunk replica is already removed (ChunkId: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
@@ -200,6 +200,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
         ~transactionId.ToString(),
         replicaCount);
+
+    ValidateTransactionId(transactionId);
 
     auto holderIds = ChunkManager->AllocateUploadTargets(replicaCount);
     FOREACH(auto holderId, holderIds) {

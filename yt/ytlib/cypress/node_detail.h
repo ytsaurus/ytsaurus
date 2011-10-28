@@ -46,10 +46,6 @@ public:
 
     virtual void Destroy(ICypressNode& node)
     {
-        YASSERT(node.GetId().NodeId != RootNodeId);
-        YASSERT(node.GetState() == ENodeState::Committed ||
-                node.GetState() == ENodeState::Uncommitted);
-
         // Release the reference to the attributes, if any.
         if (node.GetAttributesId() != NullNodeId) {
             auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(

@@ -97,6 +97,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: refactor & cleanup
 struct TReplicationSink
 {
     explicit TReplicationSink(const Stroka &address)

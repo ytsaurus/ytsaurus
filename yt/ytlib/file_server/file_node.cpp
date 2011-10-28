@@ -44,16 +44,18 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
     , FileManager(fileManager)
     , ChunkManager(chunkManager)
 {
-    RegisterGetter("size", FromMethod(&TThis::GetSize));
+    // NB: no smartpointer for this here
+    RegisterGetter("size", FromMethod(&TThis::GetSize, this));
     RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-    RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId));
+    RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
 }
 
 void TFileNodeTypeHandler::GetSize(const TGetAttributeRequest& request)
 {
+    const auto* chunk = GetChunk(*request.Node);
+    i64 size = chunk == NULL ? -1 : chunk->GetSize();
     BuildYsonFluently(request.Consumer)
-        // TODO: fixme
-        .Scalar(-1);
+        .Scalar(size);
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeRequest& request)
@@ -64,9 +66,22 @@ void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeRequest& request)
 
 void TFileNodeTypeHandler::GetChunkId(const TGetAttributeRequest& request)
 {
+    const auto* chunk = GetChunk(*request.Node);
+    auto chunkId = chunk == NULL ? TChunkId() : chunk->GetId();
     BuildYsonFluently(request.Consumer)
-        // TODO: fixme
-        .Scalar(TChunkId().ToString());
+        .Scalar(chunkId.ToString());
+}
+
+const NChunkServer::TChunk* TFileNodeTypeHandler::GetChunk(const TFileNode& node)
+{
+    if (node.GetChunkListId() == NullChunkListId) {
+        return NULL;
+    }
+
+    const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
+    YASSERT(chunkList.Chunks().ysize() == 1);
+
+    return &ChunkManager->GetChunk(chunkList.Chunks()[0]);
 }
 
 void TFileNodeTypeHandler::DoDestroy(TFileNode& node)

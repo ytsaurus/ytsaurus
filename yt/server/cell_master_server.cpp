@@ -92,9 +92,9 @@ void TCellMasterServer::Run()
 
     auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
-        metaStateManager,
-        metaState,
-        transactionManager);
+        ~metaStateManager,
+        ~metaState,
+        ~transactionManager);
 
     auto chunkService = New<TChunkService>(
         chunkManager,

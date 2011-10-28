@@ -21,6 +21,7 @@ using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
 using NCypress::TCypressManager;
 using NChunkServer::TChunkManager;
+using NChunkServer::TChunk;
 using NTransaction::TTransactionManager;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,8 +42,9 @@ protected:
         TChunkManager* chunkManager,
         TTransactionManager* transactionManager);
 
-    void ValidateTransactionId(const TTransactionId& transactionId);
-    void ValidateChunkId(const TChunkId& chunkId);
+    void ValidateTransactionId(const TTransactionId& transactionId, bool mayBeNull);
+
+    TChunk& GetChunk(const TChunkId& chunkId);
     TFileNode& GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId);
 
 };

@@ -616,23 +616,41 @@ void TCypressManager::RefNode(ICypressNode& node)
         refCounter);
 }
 
+void TCypressManager::RefNode(const TNodeId& nodeId)
+{
+    auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    RefNode(node);
+}
+
 void TCypressManager::UnrefNode(ICypressNode& node)
 {
     auto nodeId = node.GetId();
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node unreferenced (NodeId: %s)", ~nodeId.NodeId.ToString());
-
+    int refCounter;
     if (nodeId.IsBranched()) {
         auto& nonbranchedNode = GetNodeForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
-        YVERIFY(nonbranchedNode.Unref() > 0);
+        refCounter = nonbranchedNode.Unref();
+        YVERIFY(refCounter > 0);
     } else {
-        if (node.Unref() == 0) {
-            LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
-
-            GetNodeHandler(node)->Destroy(node);
-            NodeMap.Remove(nodeId);
-        }
+        refCounter = node.Unref();
     }
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node unreferenced (NodeId: %s, RefCounter: %d)",
+        ~nodeId.NodeId.ToString(),
+        refCounter);
+
+    if (refCounter == 0) {
+        LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
+
+        GetNodeHandler(node)->Destroy(node);
+        NodeMap.Remove(nodeId);
+    }
+}
+
+void TCypressManager::UnrefNode(const TNodeId& nodeId)
+{
+    auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    UnrefNode(node);
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
@@ -640,6 +658,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
     ReleaseLocks(transaction);
     MergeBranchedNodes(transaction);
     CommitCreatedNodes(transaction);
+    UnrefOriginatingNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction& transaction)
@@ -647,6 +666,7 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
     RemoveCreatedNodes(transaction);
+    UnrefOriginatingNodes(transaction);
 }
 
 void TCypressManager::ReleaseLocks(TTransaction& transaction)
@@ -689,11 +709,13 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
+}
 
+void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
+{
     // Drop the implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        UnrefNode(node);
+        UnrefNode(nodeId);
     }
 }
 
@@ -701,6 +723,8 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
+        auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
+        GetNodeHandler(node)->Destroy(node);
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
@@ -726,6 +750,8 @@ void TCypressManager::RemoveCreatedNodes(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
+        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        GetNodeHandler(node)->Destroy(node);
         NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Uncommitted node removed (NodeId: %s, TransactionId: %s)",

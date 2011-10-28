@@ -27,21 +27,15 @@ TFileManagerBase::TFileManagerBase(
     YASSERT(transactionManager != NULL);
 }
 
-void TFileManagerBase::ValidateTransactionId(const TTransactionId& transactionId)
+void TFileManagerBase::ValidateTransactionId(
+    const TTransactionId& transactionId,
+    bool mayBeNull)
 {
-    if (transactionId != NullTransactionId &&
+    if ((transactionId != NullTransactionId || !mayBeNull) &&
         TransactionManager->FindTransaction(transactionId) == NULL)
     {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
-    }
-}
-
-void TFileManagerBase::ValidateChunkId(const TChunkId& chunkId)
-{
-    if (ChunkManager->FindChunk(chunkId) == NULL) {
-        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
-            Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
     }
 }
 
@@ -64,6 +58,16 @@ TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransacti
     }
 
     return *typedImpl;
+}
+
+TChunk& TFileManagerBase::GetChunk(const TChunkId& chunkId)
+{
+    auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
+    if (chunk == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchChunk) << 
+            Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
+    }
+    return *chunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,17 +119,28 @@ TFileManager::InitiateSetFileChunk(
 
 TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
 {
-    //VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(StateThread);
 
-    //auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-    //auto nodeId = TNodeId::FromProto(message.GetNodeId());
-    //auto chunkId = TChunkId::FromProto(message.GetChunkId());
+    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
+    auto nodeId = TNodeId::FromProto(message.GetNodeId());
+    auto chunkId = TChunkId::FromProto(message.GetChunkId());
 
-    //ValidateTransactionId(transactionId);
-    //ValidateChunkId(chunkId);
+    ValidateTransactionId(transactionId, false);
 
-    //auto& impl = GetFileNode(nodeId, transactionId);
-    //impl.SetChunkId(chunkId);
+    auto& chunk = GetChunk(chunkId);
+    auto& fileNode = GetFileNode(nodeId, transactionId);
+
+    if (fileNode.GetChunkListId() != NullChunkListId) {
+        // TODO: exception type
+        throw yexception() << "Chunk is already assigned to file node";
+    }
+
+    auto& chunkList = ChunkManager->CreateChunkList();
+    fileNode.SetChunkListId(chunkList.GetId());
+    ChunkManager->RefChunkList(chunkList);
+
+    chunkList.Chunks().push_back(chunkId);
+    ChunkManager->RefChunk(chunk);
 
     return TVoid();
 }
@@ -134,11 +149,16 @@ TChunkId TFileManager::GetFileChunk(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
-    //ValidateTransactionId(transactionId);
-    //auto& impl = GetFileNode(nodeId, transactionId);
-    //return impl.GetChunkId();
-    // 
-    return NullChunkId;
+    ValidateTransactionId(transactionId, true);
+    auto& fileNode = GetFileNode(nodeId, transactionId);
+
+    if (fileNode.GetChunkListId() == NullChunkId) {
+        return NullChunkId;
+    }
+
+    const auto& chunkList = ChunkManager->GetChunkList(fileNode.GetChunkListId());
+    YASSERT(chunkList.Chunks().ysize() == 1);
+    return chunkList.Chunks()[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

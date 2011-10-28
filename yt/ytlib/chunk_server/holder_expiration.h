@@ -16,9 +16,9 @@ public:
 
     THolderExpiration(
         const TConfig& config,
-        TChunkManager::TPtr chunkManager);
+        TChunkManager* chunkManager);
 
-    void Start(IInvoker::TPtr invoker);
+    void Start(IInvoker* invoker);
     void Stop();
 
     void AddHolder(const THolder& holder);
