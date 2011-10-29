@@ -16,6 +16,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Translates YSON events into a series of calls to TJsonWriter
+//! thus enabling to transform YSON into JSON.
+// TODO: write about limitations
 class TJsonAdapter
     : public IYsonConsumer
 {

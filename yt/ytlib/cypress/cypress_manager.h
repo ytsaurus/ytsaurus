@@ -161,7 +161,6 @@ private:
     void RemoveBranchedNodes(const TTransaction& transaction);
     void UnrefOriginatingNodes(const TTransaction& transaction);
     void CommitCreatedNodes(const TTransaction& transaction);
-    void RemoveCreatedNodes(const TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetNodeHandler(const ICypressNode& node);
 

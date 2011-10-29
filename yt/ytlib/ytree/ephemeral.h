@@ -8,6 +8,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! An ephemeral (non-persistent, in memory) implementation
+//! of the YTree.
 class TEphemeralNodeFactory
     : public INodeFactory
 {

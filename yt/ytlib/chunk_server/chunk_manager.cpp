@@ -490,10 +490,10 @@ private:
         }
 
         // Initialize HolderExpiration, ChunkPlacement and ChunkReplication.
-        FOREACH(const auto& pair, HolderMap) {
-            const auto* holder = pair.Second();
-            StartHolderTracking(*holder);
-        }
+        //FOREACH(const auto& pair, HolderMap) {
+        //    const auto* holder = pair.Second();
+        //    StartHolderTracking(*holder);
+        //}
 
         return TVoid();
     }

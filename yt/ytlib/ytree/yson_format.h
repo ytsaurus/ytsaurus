@@ -20,7 +20,7 @@ const char ListItemSeparator = ';';
 const char MapItemSeparator = ';';
 const char KeyValueSeparator = '=';
 
-// Indicates start of binary data of specific type
+// Marks the beginning of binary data of a specific type.
 const char Int64Marker = char(1);
 const char DoubleMarker = char(2);
 const char StringMarker = char(3);

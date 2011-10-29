@@ -28,6 +28,9 @@ public:
 
     virtual ERuntimeNodeType GetRuntimeType() const;
 
+    virtual void Save(TOutputStream* output) const;
+    
+    virtual void Load(TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

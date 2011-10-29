@@ -674,8 +674,9 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
 {
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
-    RemoveCreatedNodes(transaction);
     UnrefOriginatingNodes(transaction);
+
+    // TODO: check that all creates nodes died
 }
 
 void TCypressManager::ReleaseLocks(const TTransaction& transaction)
@@ -750,20 +751,6 @@ void TCypressManager::CommitCreatedNodes(const TTransaction& transaction)
         node.SetState(ENodeState::Committed);
 
         LOG_INFO_IF(!IsRecovery(), "Node committed (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
-    }
-}
-
-void TCypressManager::RemoveCreatedNodes(const TTransaction& transaction)
-{
-    auto transactionId = transaction.GetId();
-    FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        GetNodeHandler(node)->Destroy(node);
-        NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
-
-        LOG_INFO_IF(!IsRecovery(), "Uncommitted node removed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
