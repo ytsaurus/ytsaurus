@@ -127,7 +127,7 @@ public:
     {
         YASSERT(~message != NULL);
 
-        if (errorCode.IsOK()) {
+        if (!errorCode.IsRpcError()) {
             OriginalResponseHandler->OnResponse(errorCode, message);
             SendResult->Set(errorCode);
         } else {
