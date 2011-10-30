@@ -3,6 +3,8 @@
 #include "common.h"
 #include "node.h"
 
+#include "../ytree/ytree.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -13,8 +15,9 @@ struct ICypressNodeProxy
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
 
-    // TODO: kill me
-    ICypressNodeProxy() {}
+    // TODO: removing this causes link error, investigate!
+    ICypressNodeProxy()
+    { }
 
     virtual TTransactionId GetTransactionId() const = 0;
     virtual TNodeId GetNodeId() const = 0;

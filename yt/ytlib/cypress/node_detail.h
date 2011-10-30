@@ -35,12 +35,12 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr description)
+        NYTree::IMapNode::TPtr description)
     {
         UNUSED(nodeId);
         UNUSED(transactionId);
         UNUSED(description);
-        throw TYTreeException() << Sprintf("Cannot create a node of type %s via dynamic interface",
+        throw NYTree::TYTreeException() << Sprintf("Cannot create a node of type %s via dynamic interface",
             ~GetTypeName().Quote());
     }
 
@@ -119,7 +119,7 @@ public:
     virtual bool GetAttribute(
         const ICypressNode& node,
         const Stroka& name,
-        IYsonConsumer* consumer)
+        NYTree::IYsonConsumer* consumer)
     {
         auto it = Getters.find(name);
         if (it == Getters.end())
@@ -160,7 +160,7 @@ protected:
     struct TGetAttributeParam
     {
         const TImpl* Node;
-        IYsonConsumer* Consumer;
+        NYTree::IYsonConsumer* Consumer;
     };
 
     typedef IParamAction<const TGetAttributeParam&> TGetter;
@@ -227,7 +227,7 @@ struct TCypressScalarTypeTraits
 
 template <>
 struct TCypressScalarTypeTraits<Stroka>
-    : TScalarTypeTraits<Stroka>
+    : NYTree::TScalarTypeTraits<Stroka>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;
@@ -235,7 +235,7 @@ struct TCypressScalarTypeTraits<Stroka>
 
 template <>
 struct TCypressScalarTypeTraits<i64>
-    : TScalarTypeTraits<i64>
+    : NYTree::TScalarTypeTraits<i64>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;
@@ -243,7 +243,7 @@ struct TCypressScalarTypeTraits<i64>
 
 template <>
 struct TCypressScalarTypeTraits<double>
-    : TScalarTypeTraits<double>
+    : NYTree::TScalarTypeTraits<double>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;

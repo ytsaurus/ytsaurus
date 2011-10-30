@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
+#include "../ytree/ytree.h"
 #include "../transaction_manager/common.h"
 
 namespace NYT {
@@ -97,7 +98,7 @@ struct INodeTypeHandler
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr description) = 0;
+        NYTree::IMapNode::TPtr description) = 0;
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;
@@ -142,7 +143,7 @@ struct INodeTypeHandler
     virtual bool GetAttribute(
         const ICypressNode& node,
         const Stroka& name,
-        IYsonConsumer* consumer) = 0;
+        NYTree::IYsonConsumer* consumer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

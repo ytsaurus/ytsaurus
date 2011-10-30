@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NYTree;
 using namespace NMetaState;
 using namespace NProto;
 

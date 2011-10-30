@@ -53,7 +53,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr manifest);
+        NYTree::IMapNode::TPtr manifest);
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
