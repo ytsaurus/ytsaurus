@@ -69,6 +69,7 @@ private:
     TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
     TVoid AbortTransaction(const NProto::TMsgAbortTransaction& message);
 
+    virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
     void OnTransactionExpired(const TTransactionId& id);
@@ -80,7 +81,6 @@ private:
     virtual Stroka GetPartName() const;
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker);
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
-    TVoid OnLoaded();
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

@@ -39,6 +39,8 @@ public:
         TCompositeMetaState* metaState,
         TTransactionManager* transactionManager);
 
+    // TODO: provide Stop method
+
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
     METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);

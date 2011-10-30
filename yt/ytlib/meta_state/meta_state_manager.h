@@ -96,15 +96,18 @@ public:
     //! Raised within the state thread when the state has started leading
     //! and now enters recovery.
     TSignal& OnStartLeading();
+    //! Raised within the state thread when the leader recovery is complete.
+    TSignal& OnLeaderRecoveryComplete();
     //! Raised within the state thread when the state has stopped leading.
     TSignal& OnStopLeading();
+
     //! Raised within the state thread when the state has started following
     //! and now enters recovery.
     TSignal& OnStartFollowing();
+    //! Raised within the state thread when the follower recovery is complete.
+    TSignal& OnFollowerRecoveryComplete();
     //! Raised within the   state thread when the state has started leading.
     TSignal& OnStopFollowing();
-    //! Raised within the state thread when the recovery is complete.
-    TSignal& OnRecoveryComplete();
 
 private:
     class TImpl;

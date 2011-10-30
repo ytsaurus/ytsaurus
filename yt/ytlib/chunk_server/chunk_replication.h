@@ -21,7 +21,8 @@ public:
 
     TChunkReplication(
         TChunkManager* chunkManager,
-        TChunkPlacement* chunkPlacement);
+        TChunkPlacement* chunkPlacement,
+        IInvoker* invoker);
 
     void AddHolder(const THolder& holder);
     void RemoveHolder(const THolder& holder);
@@ -30,9 +31,6 @@ public:
     void RemoveReplica(const THolder& holder, const TChunk& chunk);
 
     void ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk);
-
-    void Start(IInvoker* invoker);
-    void Stop();
 
     void RunJobControl(
         const THolder& holder,

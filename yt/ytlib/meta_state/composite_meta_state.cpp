@@ -24,7 +24,9 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
-
+    metaStateManager->OnLeaderRecoveryComplete().Subscribe(FromMethod(
+        &TThis::OnLeaderRecoveryComplete,
+        TPtr(this)));
     metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));
@@ -56,13 +58,13 @@ void TMetaStatePart::Clear()
 bool TMetaStatePart::IsLeader() const
 {
     auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Leading || status == EPeerStatus::LeaderRecovery;
+    return status == EPeerStatus::Leading;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
     auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Following || status == EPeerStatus::FollowerRecovery;
+    return status == EPeerStatus::Following;
 }
 
 bool TMetaStatePart::IsRecovery() const
@@ -72,6 +74,9 @@ bool TMetaStatePart::IsRecovery() const
 }
 
 void TMetaStatePart::OnStartLeading()
+{ }
+
+void TMetaStatePart::OnLeaderRecoveryComplete()
 { }
 
 void TMetaStatePart::OnStopLeading()

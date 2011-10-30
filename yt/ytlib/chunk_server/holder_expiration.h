@@ -16,7 +16,8 @@ public:
 
     THolderExpiration(
         const TConfig& config,
-        TChunkManager* chunkManager);
+        TChunkManager* chunkManager,
+        IInvoker* invoker);
 
     void Start(IInvoker* invoker);
     void Stop();

@@ -41,15 +41,15 @@ public:
         TTransactionManager::TPtr transactionManager)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
+        // TODO: this makes a cyclic reference, don't forget to drop it in Stop
+        , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
-        , ChunkPlacement(New<TChunkPlacement>(chunkManager))
-        , ChunkReplication(New<TChunkReplication>(~chunkManager, ~ChunkPlacement))
-        , HolderExpiration(New<THolderExpiration>(config, ~chunkManager))
         // Some random number.
         , ChunkIdGenerator(0x7390bac62f716a19)
         // Some random number.
         , ChunkListIdGenerator(0x761ba739c541fcd0)
     {
+        YASSERT(~chunkManager != NULL);
         YASSERT(~transactionManager != NULL);
 
         RegisterMethod(this, &TImpl::CreateChunk);
@@ -249,6 +249,7 @@ private:
     typedef TImpl TThis;
 
     TConfig Config;
+    TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
     
     TChunkPlacement::TPtr ChunkPlacement;
@@ -492,15 +493,6 @@ private:
             RegisterReplicationSinks(*pair.Second());
         }
 
-        if (IsLeader()) {
-            HolderExpiration->Start(~MetaStateManager->GetEpochStateInvoker());
-            FOREACH(const auto& pair, HolderMap) {
-                StartHolderTracking(*pair.Second());
-            }
-
-            ChunkReplication->Start(~MetaStateManager->GetEpochStateInvoker());
-        }
-
         return TVoid();
     }
 
@@ -519,14 +511,29 @@ private:
         ReplicationSinkMap.clear();
     }
 
+
+    virtual void OnLeaderRecoveryComplete()
+    {
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkReplication = New<TChunkReplication>(
+            ~ChunkManager,
+            ~ChunkPlacement,
+            ~MetaStateManager->GetEpochStateInvoker());
+        HolderExpiration = New<THolderExpiration>(
+            Config,
+            ~ChunkManager,
+            ~MetaStateManager->GetEpochStateInvoker());
+
+        FOREACH(const auto& pair, HolderMap) {
+            StartHolderTracking(*pair.Second());
+        }
+    }
+
     virtual void OnStopLeading()
     {
-        FOREACH(const auto& pair, HolderMap) {
-            StopHolderTracking(*pair.Second());
-        }
-        HolderExpiration->Stop();
-
-        ChunkReplication->Stop();
+        ChunkPlacement.Reset();
+        ChunkReplication.Reset();
+        HolderExpiration.Reset();
     }
 
 
@@ -604,7 +611,7 @@ private:
             holder.GetId(),
             chunk.GetSize());
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             ChunkReplication->AddReplica(holder, chunk);
         }
     }

@@ -77,10 +77,12 @@ public:
 
     // TODO: get rid of this stupid name clash with IElectionCallbacks
     DECLARE_BYREF_RW_PROPERTY(OnMyStartLeading, TSignal);
+    DECLARE_BYREF_RW_PROPERTY(OnMyLeaderRecoveryComplete, TSignal);
     DECLARE_BYREF_RW_PROPERTY(OnMyStopLeading, TSignal);
+
     DECLARE_BYREF_RW_PROPERTY(OnMyStartFollowing, TSignal);
+    DECLARE_BYREF_RW_PROPERTY(OnMyFollowerRecoveryComplete, TSignal);
     DECLARE_BYREF_RW_PROPERTY(OnMyStopFollowing, TSignal);
-    DECLARE_BYREF_RW_PROPERTY(OnRecoveryComplete, TSignal);
 
 private:
     typedef TImpl TThis;
@@ -162,7 +164,7 @@ private:
             }
         }
     
-        OnRecoveryComplete_.Fire();
+        OnMyLeaderRecoveryComplete_.Fire();
     }
 
     void OnRemoteAdvanceSegment(
@@ -1182,7 +1184,7 @@ void TMetaStateManager::TImpl::DoFollowerRecoveryComplete()
     YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
     StateStatus = EPeerStatus::Following;
 
-    OnRecoveryComplete_.Fire();
+    OnMyFollowerRecoveryComplete_.Fire();
 }
 
 void TMetaStateManager::TImpl::OnStopFollowing()
@@ -1329,6 +1331,11 @@ TSignal& TMetaStateManager::OnStartLeading()
     return Impl->OnMyStartLeading();
 }
 
+TSignal& TMetaStateManager::OnLeaderRecoveryComplete()
+{
+    return Impl->OnMyLeaderRecoveryComplete();
+}
+
 TSignal& TMetaStateManager::OnStopLeading()
 {
     return Impl->OnMyStopLeading();
@@ -1339,14 +1346,14 @@ TSignal& TMetaStateManager::OnStartFollowing()
     return Impl->OnMyStartFollowing();
 }
 
+TSignal& TMetaStateManager::OnFollowerRecoveryComplete()
+{
+    return Impl->OnMyFollowerRecoveryComplete();
+}
+
 TSignal& TMetaStateManager::OnStopFollowing()
 {
     return Impl->OnMyStopFollowing();
-}
-
-TSignal& TMetaStateManager::OnRecoveryComplete()
-{
-    return Impl->OnRecoveryComplete();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

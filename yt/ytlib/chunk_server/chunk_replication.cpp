@@ -16,12 +16,17 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 TChunkReplication::TChunkReplication(
     TChunkManager* chunkManager,
-    TChunkPlacement* chunkPlacement)
+    TChunkPlacement* chunkPlacement,
+    IInvoker* invoker)
     : ChunkManager(chunkManager)
     , ChunkPlacement(chunkPlacement)
+    , Invoker(invoker)
 {
     YASSERT(chunkManager != NULL);
     YASSERT(chunkPlacement != NULL);
+    YASSERT(invoker != NULL);
+
+    ScheduleNextRefresh();
 }
 
 void TChunkReplication::RunJobControl(
@@ -574,23 +579,6 @@ void TChunkReplication::OnRefresh()
         RefreshList.pop_front();
     }
     ScheduleNextRefresh();
-}
-
-void TChunkReplication::Start(IInvoker* invoker)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    YASSERT(~Invoker == NULL);
-    YASSERT(invoker != NULL);
-    Invoker = invoker;
-    ScheduleNextRefresh();
-}
-
-void TChunkReplication::Stop()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    Invoker.Reset();
 }
 
 TChunkReplication::THolderInfo* TChunkReplication::FindHolderInfo(THolderId holderId)

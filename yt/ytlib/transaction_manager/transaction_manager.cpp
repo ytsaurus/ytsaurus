@@ -173,23 +173,7 @@ TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::T
             ::Load(stream, thisPtr->TransactionIdGenerator);
         }));
 
-    TransactionMap.Load(invoker, stream);
-
-    return
-        FromMethod(&TThis::OnLoaded, thisPtr)
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
-TVoid TTransactionManager::OnLoaded()
-{
-    if (IsLeader()) {
-        FOREACH (const auto& pair, TransactionMap) {
-            CreateLease(*pair.Second());
-        }
-    }
-
-    return TVoid();
+    return TransactionMap.Load(invoker, stream);
 }
 
 void TTransactionManager::Clear()
@@ -198,6 +182,13 @@ void TTransactionManager::Clear()
 
     TransactionIdGenerator.Reset();
     TransactionMap.Clear();
+}
+
+void TTransactionManager::OnLeaderRecoveryComplete()
+{
+    FOREACH (const auto& pair, TransactionMap) {
+        CreateLease(*pair.Second());
+    }
 }
 
 void TTransactionManager::OnStopLeading()
