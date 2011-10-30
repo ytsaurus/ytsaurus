@@ -85,19 +85,6 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        const TSharedRef& changeData);
-
-    /*!
-     * \note Thread affinity: any
-     */
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData);
-
-    /*!
-     * \note Thread affinity: any
-     */
     void SetReadOnly(bool readOnly);
 
     //! Returns monitoring info.

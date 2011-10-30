@@ -66,13 +66,6 @@ public:
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        const TSharedRef& changeData);
-
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData);
-
     void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -395,37 +388,6 @@ TMetaStateManager::TImpl::CommitChangeSync(
         LeaderCommitter
         ->CommitLeader(changeAction, changeData, mode)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return CommitChangeAsync(
-        FromMethod(
-            &IMetaState::ApplyChange,
-            MetaState->GetState(),
-            changeData),
-        changeData);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeAsync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return
-        FromMethod(
-            &TImpl::CommitChangeSync,
-            TPtr(this),
-            changeAction,
-            changeData,
-            ECommitMode::NeverFails)
-        ->AsyncVia(GetStateInvoker())
-        ->Do();
 }
 
 ECommitResult TMetaStateManager::TImpl::OnChangeCommit(
@@ -1345,20 +1307,6 @@ TMetaStateManager::CommitChangeSync(
     ECommitMode mode)
 {
     return Impl->CommitChangeSync(changeAction, changeData, mode);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeAsync(const TSharedRef& changeData)
-{
-    return Impl->CommitChangeAsync(changeData);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeAsync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData)
-{
-    return Impl->CommitChangeAsync(changeAction, changeData);
 }
 
 void TMetaStateManager::SetReadOnly(bool readOnly)
