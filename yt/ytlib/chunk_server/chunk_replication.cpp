@@ -590,7 +590,6 @@ void TChunkReplication::Stop()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YASSERT(~Invoker != NULL);
     Invoker.Reset();
 }
 

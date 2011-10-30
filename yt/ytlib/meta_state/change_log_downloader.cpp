@@ -101,7 +101,6 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         if (!response->IsOK()) {
             auto errorCode = response->GetErrorCode();
             if (response->IsServiceError()) {
-                // TODO: drop ToValue()
                 switch (errorCode) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING("Peer %d does not have changelog %d anymore",

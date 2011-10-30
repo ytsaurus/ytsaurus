@@ -30,7 +30,6 @@ void THolderExpiration::Start(IInvoker* invoker)
 
 void THolderExpiration::Stop()
 {
-    YASSERT(~Invoker != NULL);
     Invoker.Reset();
 }
 

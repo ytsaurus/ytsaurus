@@ -56,7 +56,7 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction&
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
     
-    if (IsLeader() && !IsRecovery()) {
+    if (IsLeader()) {
         CreateLease(*transaction);
     }
 
@@ -88,7 +88,7 @@ TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& messag
 
     auto& transaction = TransactionMap.GetForUpdate(id);
 
-    if (IsLeader() && !IsRecovery()) {
+    if (IsLeader()) {
         CloseLease(transaction);
     }
 
@@ -122,7 +122,7 @@ TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
 
     auto& transaction = TransactionMap.GetForUpdate(id);
 
-    if (IsLeader() && !IsRecovery()) {
+    if (IsLeader()) {
         CloseLease(transaction);
     }
 
@@ -173,7 +173,23 @@ TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::T
             ::Load(stream, thisPtr->TransactionIdGenerator);
         }));
 
-    return TransactionMap.Load(invoker, stream);
+    TransactionMap.Load(invoker, stream);
+
+    return
+        FromMethod(&TThis::OnLoaded, thisPtr)
+        ->AsyncVia(invoker)
+        ->Do();
+}
+
+TVoid TTransactionManager::OnLoaded()
+{
+    if (IsLeader()) {
+        FOREACH (const auto& pair, TransactionMap) {
+            CreateLease(*pair.Second());
+        }
+    }
+
+    return TVoid();
 }
 
 void TTransactionManager::Clear()
@@ -184,21 +200,8 @@ void TTransactionManager::Clear()
     TransactionMap.Clear();
 }
 
-void TTransactionManager::OnStartLeading()
-{
-    TMetaStatePart::OnStartLeading();
-
-    YASSERT(LeaseMap.empty());
-
-    FOREACH (const auto& pair, TransactionMap) {
-        CreateLease(*pair.Second());
-    }
-}
-
 void TTransactionManager::OnStopLeading()
 {
-    TMetaStatePart::OnStopLeading();
-
     FOREACH (const auto& pair, LeaseMap) {
         TLeaseManager::Get()->CloseLease(pair.Second());
     }

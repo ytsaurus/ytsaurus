@@ -21,7 +21,6 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
 
-    // TODO: fixme
     metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
@@ -34,13 +33,21 @@ TMetaStatePart::TMetaStatePart(
 TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
 {
     UNUSED(input);
-    return New< TFuture<TVoid> >(TVoid());
+    // NB: Need to pass a dummy action to the queue to ensure proper ordering of snapshot parts.
+    return 
+        FromFunctor([] () { return TVoid(); })
+        ->AsyncVia(invoker)
+        ->Do();
 }
 
 TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
     UNUSED(output);
-    return New< TFuture<TVoid> >(TVoid());
+    // NB: Same as in Load.
+    return 
+        FromFunctor([] () { return TVoid(); })
+        ->AsyncVia(invoker)
+        ->Do();
 }
 
 void TMetaStatePart::Clear()

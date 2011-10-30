@@ -295,7 +295,10 @@ private:
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = GetHolderForUpdate(holderId);
             YVERIFY(holder.Chunks().erase(chunkId) == 1);
-            ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+
+            if (IsLeader()) {
+                ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+            }
         }
 
         ChunkMap.Remove(chunkId);
@@ -344,7 +347,7 @@ private:
         HolderMap.Insert(holderId, newHolder);
         HolderAddressMap.insert(MakePair(address, holderId)).Second();
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             StartHolderTracking(*newHolder);
         }
 
@@ -376,7 +379,7 @@ private:
         auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics() = statistics;
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             HolderExpiration->RenewHolder(holder);
             ChunkPlacement->UpdateHolder(holder);
         }
@@ -489,6 +492,15 @@ private:
             RegisterReplicationSinks(*pair.Second());
         }
 
+        if (IsLeader()) {
+            HolderExpiration->Start(~MetaStateManager->GetEpochStateInvoker());
+            FOREACH(const auto& pair, HolderMap) {
+                StartHolderTracking(*pair.Second());
+            }
+
+            ChunkReplication->Start(~MetaStateManager->GetEpochStateInvoker());
+        }
+
         return TVoid();
     }
 
@@ -507,22 +519,8 @@ private:
         ReplicationSinkMap.clear();
     }
 
-    virtual void OnStartLeading()
-    {
-        TMetaStatePart::OnStartLeading();
-
-        HolderExpiration->Start(~MetaStateManager->GetEpochStateInvoker());
-        FOREACH(const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.Second());
-        }
-
-        ChunkReplication->Start(~MetaStateManager->GetEpochStateInvoker());
-    }
-
     virtual void OnStopLeading()
     {
-        TMetaStatePart::OnStopLeading();
-
         FOREACH(const auto& pair, HolderMap) {
             StopHolderTracking(*pair.Second());
         }
@@ -572,7 +570,7 @@ private:
     { 
         auto holderId = holder.GetId();
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             StopHolderTracking(holder);
         }
 
@@ -621,7 +619,7 @@ private:
              ~holder.GetAddress(),
              holder.GetId());
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             ChunkReplication->RemoveReplica(holder, chunk);
         }
     }
@@ -635,7 +633,7 @@ private:
              ~holder.GetAddress(),
              holder.GetId());
 
-        if (IsLeader() && !IsRecovery()) {
+        if (IsLeader()) {
             ChunkReplication->RemoveReplica(holder, chunk);
         }
     }
