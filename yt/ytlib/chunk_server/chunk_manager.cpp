@@ -344,7 +344,7 @@ private:
         HolderMap.Insert(holderId, newHolder);
         HolderAddressMap.insert(MakePair(address, holderId)).Second();
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             StartHolderTracking(*newHolder);
         }
 
@@ -376,7 +376,7 @@ private:
         auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics() = statistics;
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             HolderExpiration->RenewHolder(holder);
             ChunkPlacement->UpdateHolder(holder);
         }
@@ -489,12 +489,6 @@ private:
             RegisterReplicationSinks(*pair.Second());
         }
 
-        // Initialize HolderExpiration, ChunkPlacement and ChunkReplication.
-        //FOREACH(const auto& pair, HolderMap) {
-        //    const auto* holder = pair.Second();
-        //    StartHolderTracking(*holder);
-        //}
-
         return TVoid();
     }
 
@@ -576,9 +570,9 @@ private:
 
     void DoUnregisterHolder(const THolder& holder)
     { 
-        THolderId holderId = holder.GetId();
+        auto holderId = holder.GetId();
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             StopHolderTracking(holder);
         }
 
@@ -612,7 +606,7 @@ private:
             holder.GetId(),
             chunk.GetSize());
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             ChunkReplication->AddReplica(holder, chunk);
         }
     }
@@ -627,7 +621,7 @@ private:
              ~holder.GetAddress(),
              holder.GetId());
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             ChunkReplication->RemoveReplica(holder, chunk);
         }
     }
@@ -641,7 +635,7 @@ private:
              ~holder.GetAddress(),
              holder.GetId());
 
-        if (IsLeader()) {
+        if (IsLeader() && !IsRecovery()) {
             ChunkReplication->RemoveReplica(holder, chunk);
         }
     }

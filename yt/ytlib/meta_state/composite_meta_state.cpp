@@ -21,9 +21,11 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
 
+    // TODO: fixme
     metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
+
     metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));

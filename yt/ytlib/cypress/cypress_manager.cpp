@@ -267,7 +267,7 @@ public:
         , TransactionId(transactionId)
         , Factory(cypressManager, transactionId)
         , StaticBuilder(&Factory)
-        , DynamicBuilder(TEphemeralNodeFactory::Get())
+        , DynamicBuilder(GetEphemeralNodeFactory())
     { }
 
     INode::TPtr GetResult()

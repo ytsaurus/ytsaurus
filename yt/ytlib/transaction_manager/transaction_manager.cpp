@@ -56,7 +56,7 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction&
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
     
-    if (IsLeader()) {
+    if (IsLeader() && !IsRecovery()) {
         CreateLease(*transaction);
     }
 
@@ -88,7 +88,7 @@ TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& messag
 
     auto& transaction = TransactionMap.GetForUpdate(id);
 
-    if (IsLeader()) {
+    if (IsLeader() && !IsRecovery()) {
         CloseLease(transaction);
     }
 
@@ -122,7 +122,7 @@ TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
 
     auto& transaction = TransactionMap.GetForUpdate(id);
 
-    if (IsLeader()) {
+    if (IsLeader() && !IsRecovery()) {
         CloseLease(transaction);
     }
 

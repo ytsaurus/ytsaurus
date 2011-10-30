@@ -68,7 +68,7 @@ void TMonitoringManager::Stop()
 void TMonitoringManager::Update()
 {
     try {
-        INode::TPtr newRoot = ~TEphemeralNodeFactory::Get()->CreateMap();
+        INode::TPtr newRoot = GetEphemeralNodeFactory()->CreateMap();
         auto newRootService = AsYPath(newRoot);
         FOREACH(const auto& pair, MonitoringMap) {
             SetYPath(newRootService, pair.first, pair.second);
