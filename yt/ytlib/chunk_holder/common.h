@@ -1,12 +1,13 @@
 #pragma once
 
+#include "../misc/common.h"
+
 #include "chunk_holder.pb.h"
 #include "chunk_service_rpc.pb.h"
 
 #include "../chunk_client/common.h"
 #include "../election/leader_lookup.h"
 #include "../misc/guid.h"
-#include "../misc/common.h"
 #include "../logging/log.h"
 
 namespace NYT {

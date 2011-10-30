@@ -1,8 +1,5 @@
 #pragma once
 
-#include <util/system/yassert.h>
-#include <util/system/defaults.h>
-
 #include <util/generic/ptr.h>
 
 // Implementation was forked from util/generic/ptr.h.
