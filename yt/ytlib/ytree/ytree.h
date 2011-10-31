@@ -11,10 +11,13 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to NDetail
+namespace NDetail {
+
 template<class T>
 struct TScalarTypeTraits
 { };
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,11 +29,11 @@ DECLARE_ENUM(ENodeType,
     (Int64)
     // Node contains an FP number (double).
     (Double)
-    //! Node contains a map from strings to other nodes.
+    // Node contains a map from strings to other nodes.
     (Map)
-    //! Node contains a list (vector) of other nodes.
+    // Node contains a list (vector) of other nodes.
     (List)
-    //! Node is atomic, i.e. has no visible properties (aside from attributes).
+    // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
 );
     
@@ -92,15 +95,15 @@ struct INode
     template<class T>
     T GetValue() const
     {
-        return TScalarTypeTraits<T>::GetValue(this);
+        return NDetail::TScalarTypeTraits<T>::GetValue(this);
     }
 
     //! A helper method for assigning a scalar value to a node.
     //! Invokes an appropriate "AsSomething" call followed by "SetValue".
     template<class T>
-    void SetValue(typename TScalarTypeTraits<T>::TParamType value)
+    void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
     {
-        TScalarTypeTraits<T>::SetValue(this, value);
+        NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
 };
 
@@ -129,6 +132,8 @@ struct IScalarNode
         typedef TIntrusivePtr<I##name##Node> TPtr; \
     }; \
     \
+    namespace NDetail { \
+    \
     template<> \
     struct TScalarTypeTraits<type> \
     { \
@@ -144,7 +149,9 @@ struct IScalarNode
         { \
             node->As##name()->SetValue(value); \
         } \
-    };
+    }; \
+    \
+    }
 
 DECLARE_SCALAR_TYPE(String, Stroka, const Stroka&)
 DECLARE_SCALAR_TYPE(Int64, i64, i64)

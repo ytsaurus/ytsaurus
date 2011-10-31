@@ -132,7 +132,9 @@ class TNodeSetter
             return ENodeType::name; \
         } \
         \
-        virtual void On ## name ## Scalar(TScalarTypeTraits<type>::TParamType value, bool hasAttributes) \
+        virtual void On ## name ## Scalar( \
+            NDetail::TScalarTypeTraits<type>::TParamType value, \
+            bool hasAttributes) \
         { \
             UNUSED(hasAttributes); \
             Node->SetValue(value); \

@@ -221,13 +221,15 @@ protected:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+namespace NDetail {
+
 template <class TValue>
 struct TCypressScalarTypeTraits
 { };
 
 template <>
 struct TCypressScalarTypeTraits<Stroka>
-    : NYTree::TScalarTypeTraits<Stroka>
+    : NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;
@@ -235,7 +237,7 @@ struct TCypressScalarTypeTraits<Stroka>
 
 template <>
 struct TCypressScalarTypeTraits<i64>
-    : NYTree::TScalarTypeTraits<i64>
+    : NYTree::NDetail::TScalarTypeTraits<i64>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;
@@ -243,11 +245,13 @@ struct TCypressScalarTypeTraits<i64>
 
 template <>
 struct TCypressScalarTypeTraits<double>
-    : NYTree::TScalarTypeTraits<double>
+    : NYTree::NDetail::TScalarTypeTraits<double>
 {
     static const ERuntimeNodeType::EDomain RuntimeType;
     static const char* TypeName;
 };
+
+} // namespace NDetail
 
 //////////////////////////////////////////////////////////////////////////////// 
 
@@ -276,7 +280,7 @@ public:
 
     virtual ERuntimeNodeType GetRuntimeType() const
     {
-        return TCypressScalarTypeTraits<TValue>::RuntimeType;
+        return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
     virtual void Save(TOutputStream* output) const
@@ -309,12 +313,12 @@ public:
 
     virtual ERuntimeNodeType GetRuntimeType()
     {
-        return TCypressScalarTypeTraits<TValue>::RuntimeType;
+        return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
     virtual Stroka GetTypeName()
     {
-        return TCypressScalarTypeTraits<TValue>::TypeName;
+        return NDetail::TCypressScalarTypeTraits<TValue>::TypeName;
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

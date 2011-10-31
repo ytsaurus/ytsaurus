@@ -11,14 +11,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<Stroka>::RuntimeType = ERuntimeNodeType::String;
-const char* TCypressScalarTypeTraits<Stroka>::TypeName = "string";
+const ERuntimeNodeType::EDomain NDetail::TCypressScalarTypeTraits<Stroka>::RuntimeType = ERuntimeNodeType::String;
+const char* NDetail::TCypressScalarTypeTraits<Stroka>::TypeName = "string";
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<i64>::RuntimeType = ERuntimeNodeType::Int64;
-const char* TCypressScalarTypeTraits<i64>::TypeName = "int64";
+const ERuntimeNodeType::EDomain NDetail::TCypressScalarTypeTraits<i64>::RuntimeType = ERuntimeNodeType::Int64;
+const char* NDetail::TCypressScalarTypeTraits<i64>::TypeName = "int64";
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<double>::RuntimeType = ERuntimeNodeType::Double;
-const char* TCypressScalarTypeTraits<double>::TypeName = "double";
+const ERuntimeNodeType::EDomain NDetail::TCypressScalarTypeTraits<double>::RuntimeType = ERuntimeNodeType::Double;
+const char* NDetail::TCypressScalarTypeTraits<double>::TypeName = "double";
 
 ////////////////////////////////////////////////////////////////////////////////
 
