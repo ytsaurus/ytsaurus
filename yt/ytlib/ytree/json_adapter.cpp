@@ -14,11 +14,6 @@ TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, true))
 { }
 
-TJsonAdapter::~TJsonAdapter()
-{
-    JsonWriter->Flush();
-}
-
 void TJsonAdapter::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
@@ -75,18 +70,18 @@ void TJsonAdapter::OnEndMap(bool hasAttributes)
 
 void TJsonAdapter::OnBeginAttributes()
 {
-    YUNIMPLEMENTED();
+    YUNREACHABLE();
 }
 
 void TJsonAdapter::OnAttributesItem(const Stroka& name)
 {
     UNUSED(name);
-    YUNIMPLEMENTED();
+    YUNREACHABLE();
 }
 
 void TJsonAdapter::OnEndAttributes()
 {
-    YUNIMPLEMENTED();
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
