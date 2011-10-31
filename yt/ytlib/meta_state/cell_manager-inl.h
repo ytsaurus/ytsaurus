@@ -1,5 +1,5 @@
 #ifndef CELL_MANAGER_INL_H_
-#error "Direct inclusion of this file is not allowed, include action_util.h"
+#error "Direct inclusion of this file is not allowed, include cell_manager.h"
 #endif
 #undef CELL_MANAGER_INL_H_
 

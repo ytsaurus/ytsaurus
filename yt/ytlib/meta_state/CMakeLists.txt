@@ -40,6 +40,7 @@ SET(YT_SOURCE_FILES
     leader_pinger.cpp
 
     map.h
+    map-inl.h
     
     composite_meta_state-inl.h
     composite_meta_state.cpp
