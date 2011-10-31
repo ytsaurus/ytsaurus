@@ -285,7 +285,7 @@ void TYsonReader::ParseAttributes()
         SkipWhitespaces();
         if (PeekChar() == EndAttributesSymbol)
             break;
-        ExpectChar(MapItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndAttributesSymbol);
     Consumer->OnEndAttributes();
@@ -309,7 +309,7 @@ void TYsonReader::ParseList()
         SkipWhitespaces();
         if (PeekChar() == EndListSymbol)
             break;
-        ExpectChar(ListItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndListSymbol);
 
@@ -347,7 +347,7 @@ void TYsonReader::ParseMap()
         SkipWhitespaces();
         if (PeekChar() == EndMapSymbol)
             break;
-        ExpectChar(MapItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndMapSymbol);
 

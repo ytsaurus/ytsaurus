@@ -43,7 +43,7 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
 
 void TYsonWriter::WriteMapItem(const Stroka& name)
 {
-    CollectionItem(MapItemSeparator);
+    CollectionItem(ItemSeparator);
     WriteStringScalar(name);
     if (Format == EFormat::Pretty) {
         Stream->Write(' ');
@@ -140,7 +140,7 @@ void TYsonWriter::OnBeginList()
 
 void TYsonWriter::OnListItem()
 {
-    CollectionItem(ListItemSeparator);
+    CollectionItem(ItemSeparator);
 }
 
 void TYsonWriter::OnEndList(bool hasAttributes)
