@@ -5,6 +5,7 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NCypress;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +21,7 @@ TFileNodeProxy::TFileNodeProxy(
         nodeId)
 { }
 
-NYT::NYTree::ENodeType TFileNodeProxy::GetType() const
+ENodeType TFileNodeProxy::GetType() const
 {
     return ENodeType::Entity;
 }

@@ -28,6 +28,9 @@ public:
 
     virtual ERuntimeNodeType GetRuntimeType() const;
 
+    virtual void Save(TOutputStream* output) const;
+    
+    virtual void Load(TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +53,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr manifest);
+        NYTree::IMapNode::TPtr manifest);
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,

@@ -15,19 +15,19 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
-    : public INodeFactory
+    : public NYTree::INodeFactory
 {
 public:
     TNodeFactory(
         TCypressManager* cypressManager,
         const TTransactionId& transactionId);
 
-    virtual IStringNode::TPtr CreateString();
-    virtual IInt64Node::TPtr CreateInt64();
-    virtual IDoubleNode::TPtr CreateDouble();
-    virtual IMapNode::TPtr CreateMap();
-    virtual IListNode::TPtr CreateList();
-    virtual IEntityNode::TPtr CreateEntity();
+    virtual NYTree::IStringNode::TPtr CreateString();
+    virtual NYTree::IInt64Node::TPtr CreateInt64();
+    virtual NYTree::IDoubleNode::TPtr CreateDouble();
+    virtual NYTree::IMapNode::TPtr CreateMap();
+    virtual NYTree::IListNode::TPtr CreateList();
+    virtual NYTree::IEntityNode::TPtr CreateEntity();
 
 private:
     TCypressManager::TPtr CypressManager;
@@ -39,7 +39,7 @@ private:
 
 template <class IBase, class TImpl>
 class TCypressNodeProxyBase
-    : public TNodeBase
+    : public NYTree::TNodeBase
     , public ICypressNodeProxy
     , public virtual IBase
 {
@@ -62,7 +62,7 @@ public:
         YASSERT(cypressManager != NULL);
     }
 
-    INodeFactory* GetFactory() const
+    NYTree::INodeFactory* GetFactory() const
     {
         return &NodeFactory;
     }
@@ -89,24 +89,24 @@ public:
     }
 
 
-    virtual ICompositeNode::TPtr GetParent() const
+    virtual NYTree::ICompositeNode::TPtr GetParent() const
     {
-        return GetProxy<ICompositeNode>(GetImpl().GetParentId());
+        return GetProxy<NYTree::ICompositeNode>(GetImpl().GetParentId());
     }
 
-    virtual void SetParent(ICompositeNode::TPtr parent)
+    virtual void SetParent(NYTree::ICompositeNode::TPtr parent)
     {
         auto* proxy = ToProxy(~parent);
         GetImplForUpdate().SetParentId(proxy == NULL ? NullNodeId : proxy->GetNodeId());
     }
 
 
-    virtual IMapNode::TPtr GetAttributes() const
+    virtual NYTree::IMapNode::TPtr GetAttributes() const
     {
-        return GetProxy<IMapNode>(GetImpl().GetAttributesId());
+        return GetProxy<NYTree::IMapNode>(GetImpl().GetAttributesId());
     }
 
-    virtual void SetAttributes(IMapNode::TPtr attributes)
+    virtual void SetAttributes(NYTree::IMapNode::TPtr attributes)
     {
         auto& impl = GetImplForUpdate();
         if (impl.GetAttributesId() != NullNodeId) {
@@ -126,11 +126,11 @@ public:
     virtual Stroka GetTypeName() const
     {
         switch (GetType()) {
-            case ENodeType::String: return "string";
-            case ENodeType::Int64:  return "int64";
-            case ENodeType::Double: return "double";
-            case ENodeType::Map:    return "map";
-            case ENodeType::List:   return "list";
+            case NYTree::ENodeType::String: return "string";
+            case NYTree::ENodeType::Int64:  return "int64";
+            case NYTree::ENodeType::Double: return "double";
+            case NYTree::ENodeType::Map:    return "map";
+            case NYTree::ENodeType::List:   return "list";
             default: YUNREACHABLE();
         }
     }
@@ -153,7 +153,7 @@ protected:
         return names;
     }
 
-    virtual bool GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
+    virtual bool GetVirtualAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         return TypeHandler->GetAttribute(GetImpl(), name, consumer);
     }
@@ -270,42 +270,42 @@ public:
 
 #define DECLARE_TYPE_OVERRIDES(name) \
 public: \
-    virtual ENodeType GetType() const \
+    virtual NYTree::ENodeType GetType() const \
     { \
-        return ENodeType::name; \
+        return NYTree::ENodeType::name; \
     } \
     \
-    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<const NYTree::I##name##Node> As##name() const \
     { \
         return this; \
     } \
     \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
+    virtual TIntrusivePtr<NYTree::I##name##Node> As##name() \
     { \
         return this; \
     } \
     \
-    virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
+    virtual TSetResult SetSelf(NYTree::TYsonProducer::TPtr producer) \
     { \
-        SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
+        SetNodeFromProducer(TIntrusivePtr<NYTree::I##name##Node>(this), producer); \
         return TSetResult::CreateDone(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_SCALAR_TYPE(name, type) \
-    class T ## name ## NodeProxy \
-        : public TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node> \
+    class T##name##NodeProxy \
+        : public TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node> \
     { \
         DECLARE_TYPE_OVERRIDES(name) \
     \
     public: \
-        T ## name ## NodeProxy( \
+        T##name##NodeProxy( \
             INodeTypeHandler* typeHandler, \
             TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
             const TNodeId& nodeId) \
-            : TScalarNodeProxy<type, I ## name ## Node, T ## name ## Node>( \
+            : TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node>( \
                 typeHandler, \
                 cypressManager, \
                 transactionId, \
@@ -318,7 +318,7 @@ public: \
         const ICypressNode& node, \
         const TTransactionId& transactionId) \
     { \
-        return New<T ## name ## NodeProxy>( \
+        return New<T##name##NodeProxy>( \
             this, \
             ~CypressManager, \
             transactionId, \
@@ -351,12 +351,12 @@ protected:
     { }
 
 public:
-    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const
+    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
     {
         return const_cast<TCompositeNodeProxyBase*>(this);
     }
 
-    virtual TIntrusivePtr<ICompositeNode> AsComposite()
+    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()
     {
         return this;
     }
@@ -365,8 +365,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNodeProxy
-    : public TCompositeNodeProxyBase<IMapNode, TMapNode>
-    , public TMapNodeMixin
+    : public TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode>
+    , public NYTree::TMapNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(Map)
 
@@ -379,24 +379,24 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const;
+    virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
     virtual INode::TPtr FindChild(const Stroka& name) const;
-    virtual bool AddChild(INode::TPtr child, const Stroka& name);
+    virtual bool AddChild(NYTree::INode::TPtr child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
-    virtual void RemoveChild(INode::TPtr child);
+    virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
+    virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
-    virtual TNavigateResult NavigateRecursive(TYPath path);
+    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
+    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeProxy
-    : public TCompositeNodeProxyBase<IListNode, TListNode>
-    , public TListNodeMixin
+    : public TCompositeNodeProxyBase<NYTree::IListNode, TListNode>
+    , public NYTree::TListNodeMixin
 {
     DECLARE_TYPE_OVERRIDES(List)
 
@@ -411,14 +411,14 @@ public:
     virtual int GetChildCount() const;
     virtual yvector<INode::TPtr> GetChildren() const;
     virtual INode::TPtr FindChild(int index) const;
-    virtual void AddChild(INode::TPtr child, int beforeIndex = -1);
+    virtual void AddChild(NYTree::INode::TPtr child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
-    virtual void RemoveChild(INode::TPtr child);
+    virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
+    virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TNavigateResult NavigateRecursive(TYPath path);
-    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
+    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
+    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
 
 };
 

@@ -69,7 +69,7 @@ private:
     TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
     TVoid AbortTransaction(const NProto::TMsgAbortTransaction& message);
 
-    virtual void OnStartLeading();
+    virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
     void OnTransactionExpired(const TTransactionId& id);

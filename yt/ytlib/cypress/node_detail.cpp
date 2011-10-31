@@ -22,39 +22,6 @@ const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBranchedNodeId::TBranchedNodeId()
-{ }
-
-TBranchedNodeId::TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId)
-    : NodeId(nodeId)
-    , TransactionId(transactionId)
-{ }
-
-bool TBranchedNodeId::IsBranched() const
-{
-    return TransactionId != NullTransactionId;
-}
-
-Stroka TBranchedNodeId::ToString() const
-{
-    return Sprintf("%s:%s",
-        ~NodeId.ToString(),
-        ~TransactionId.ToString());
-}
-
-//! Compares TBranchedNodeId s for equality.
-bool operator == (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
-{
-    return lhs.NodeId == rhs.NodeId &&
-           lhs.TransactionId == rhs.TransactionId;
-}
-
-//! Compares TBranchedNodeId s for inequality.
-bool operator != (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
-{
-    return !(lhs == rhs);
-}
-
 } // namespace NCypress
 } // namespace NYT
 
@@ -104,17 +71,21 @@ i32  TCypressNodeBase::Unref()
 
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
+    ::Save(output, RefCounter);
     SaveSet(output, Locks_);
     ::Save(output, ParentId_);
     ::Save(output, AttributesId_);
+    // TODO: enum serialization
     ::Save(output, static_cast<i32>(State_));
 }
 
 void TCypressNodeBase::Load(TInputStream* input)
 {
+    ::Load(input, RefCounter);
     ::Load(input, Locks_);
     ::Load(input, ParentId_);
     ::Load(input, AttributesId_);
+    // TODO: enum serialization
     i32 state;
     ::Load(input, state);
     State_ = ENodeState(state);

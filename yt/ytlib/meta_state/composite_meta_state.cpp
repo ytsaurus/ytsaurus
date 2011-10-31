@@ -24,6 +24,9 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
         TPtr(this)));
+    metaStateManager->OnLeaderRecoveryComplete().Subscribe(FromMethod(
+        &TThis::OnLeaderRecoveryComplete,
+        TPtr(this)));
     metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));
@@ -32,15 +35,21 @@ TMetaStatePart::TMetaStatePart(
 TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
 {
     UNUSED(input);
-    UNUSED(invoker);
-    return New< TFuture<TVoid> >(TVoid());
+    // NB: Need to pass a dummy action to the queue to ensure proper ordering of snapshot parts.
+    return 
+        FromFunctor([] () { return TVoid(); })
+        ->AsyncVia(invoker)
+        ->Do();
 }
 
 TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
     UNUSED(output);
-    UNUSED(invoker);
-    return New< TFuture<TVoid> >(TVoid());
+    // NB: Same as in Load.
+    return 
+        FromFunctor([] () { return TVoid(); })
+        ->AsyncVia(invoker)
+        ->Do();
 }
 
 void TMetaStatePart::Clear()
@@ -49,13 +58,13 @@ void TMetaStatePart::Clear()
 bool TMetaStatePart::IsLeader() const
 {
     auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Leading || status == EPeerStatus::LeaderRecovery;
+    return status == EPeerStatus::Leading;
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
     auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Following || status == EPeerStatus::FollowerRecovery;
+    return status == EPeerStatus::Following;
 }
 
 bool TMetaStatePart::IsRecovery() const
@@ -65,6 +74,9 @@ bool TMetaStatePart::IsRecovery() const
 }
 
 void TMetaStatePart::OnStartLeading()
+{ }
+
+void TMetaStatePart::OnLeaderRecoveryComplete()
 { }
 
 void TMetaStatePart::OnStopLeading()

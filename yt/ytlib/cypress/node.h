@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
+#include "../ytree/ytree.h"
 #include "../transaction_manager/common.h"
 
 namespace NYT {
@@ -35,8 +36,14 @@ struct TBranchedNodeId
     Stroka ToString() const;
 };
 
-bool operator==(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
-inline bool operator!=(const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+//! Compares TBranchedNodeId s for equality.
+bool operator == (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+
+//! Compares TBranchedNodeId s for inequality.
+bool operator != (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
+
+//! Compares TBranchedNodeId s for "less than" (used to sort nodes in meta-map).
+bool operator <  (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
 
 } // namespace NCypress
 } // namespace NYT
@@ -91,7 +98,7 @@ struct INodeTypeHandler
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        IMapNode::TPtr description) = 0;
+        NYTree::IMapNode::TPtr description) = 0;
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;
@@ -136,7 +143,7 @@ struct INodeTypeHandler
     virtual bool GetAttribute(
         const ICypressNode& node,
         const Stroka& name,
-        IYsonConsumer* consumer) = 0;
+        NYTree::IYsonConsumer* consumer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

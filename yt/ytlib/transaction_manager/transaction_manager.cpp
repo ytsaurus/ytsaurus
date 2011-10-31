@@ -184,12 +184,8 @@ void TTransactionManager::Clear()
     TransactionMap.Clear();
 }
 
-void TTransactionManager::OnStartLeading()
+void TTransactionManager::OnLeaderRecoveryComplete()
 {
-    TMetaStatePart::OnStartLeading();
-
-    YASSERT(LeaseMap.empty());
-
     FOREACH (const auto& pair, TransactionMap) {
         CreateLease(*pair.Second());
     }
@@ -197,8 +193,6 @@ void TTransactionManager::OnStartLeading()
 
 void TTransactionManager::OnStopLeading()
 {
-    TMetaStatePart::OnStopLeading();
-
     FOREACH (const auto& pair, LeaseMap) {
         TLeaseManager::Get()->CloseLease(pair.Second());
     }

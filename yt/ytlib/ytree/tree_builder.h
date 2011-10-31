@@ -14,23 +14,39 @@ namespace NYTree {
 
 // TODO: move impl to cpp
 
+//! Reconstructs a YTree from IYsonConsumer calls.
 class TTreeBuilder
     : public IYsonConsumer
 {
 public:
+    //! Initializes an instance.
+    /*!
+     *  \param factory A factory used for materializing the nodes.
+     */
     TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
     { }
 
+    //! Returns the root node of the constructed tree.
+    /*!
+     *  \note
+     *  Must be called after the tree is constructed.
+     */
     INode::TPtr GetRoot() const
     {
         YASSERT(Stack.ysize() == 1);
         return Stack[0];
     }
 
+    //! Creates a YSON builder.
     static TYsonBuilder::TPtr CreateYsonBuilder(INodeFactory* factory)
     {
-        return FromMethod(&TTreeBuilder::YsonBuilderThunk, factory);
+        return FromFunctor([=] (TYsonProducer::TPtr producer) -> INode::TPtr
+            {
+                TTreeBuilder builder(factory);
+                producer->Do(&builder);
+                return builder.GetRoot();
+            });
     }
 
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes)

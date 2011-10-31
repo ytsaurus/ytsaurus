@@ -34,6 +34,18 @@ TAutoPtr<ICypressNode> TFileNode::Clone() const
     return new TFileNode(Id, *this);
 }
 
+void TFileNode::Save(TOutputStream* output) const
+{
+    TCypressNodeBase::Save(output);
+    ::Save(output, ChunkListId_);
+}
+
+void TFileNode::Load(TInputStream* input)
+{
+    TCypressNodeBase::Load(input);
+    ::Load(input, ChunkListId_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileNodeTypeHandler::TFileNodeTypeHandler(
@@ -44,7 +56,7 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
     , FileManager(fileManager)
     , ChunkManager(chunkManager)
 {
-    // NB: no smartpointer for this here
+    // NB: No smartpointer for this here.
     RegisterGetter("size", FromMethod(&TThis::GetSize, this));
     RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
@@ -137,7 +149,7 @@ Stroka TFileNodeTypeHandler::GetTypeName()
 TAutoPtr<ICypressNode> TFileNodeTypeHandler::Create(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
-    IMapNode::TPtr manifest )
+    IMapNode::TPtr manifest)
 {
     UNUSED(transactionId);
     UNUSED(manifest);

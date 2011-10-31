@@ -286,19 +286,19 @@ Stroka TGuid::ToProto() const
     return protoGuid;
 }
 
-bool operator==(const TGuid &a, const TGuid &b)
+bool operator == (const TGuid& lhs, const TGuid& rhs)
 {
-    return memcmp(&a, &b, sizeof(a)) == 0;
+    return memcmp(&lhs, &rhs, sizeof (lhs)) == 0;
 }
 
-bool operator!=(const TGuid &a, const TGuid &b)
+bool operator != (const TGuid& lhs, const TGuid& rhs)
 {
-    return !(a == b);
+    return !(lhs == rhs);
 }
 
-bool operator<(const TGuid &a, const TGuid &b)
+bool operator < (const TGuid& lhs, const TGuid& rhs)
 {
-    return THash<TGuid>()(a) < THash<TGuid>()(b);
+    return memcmp(&lhs, &rhs, sizeof (lhs)) < 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

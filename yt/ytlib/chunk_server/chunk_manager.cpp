@@ -41,15 +41,15 @@ public:
         TTransactionManager::TPtr transactionManager)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
+        // TODO: this makes a cyclic reference, don't forget to drop it in Stop
+        , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
-        , ChunkPlacement(New<TChunkPlacement>(chunkManager))
-        , ChunkReplication(New<TChunkReplication>(~chunkManager, ~ChunkPlacement))
-        , HolderExpiration(New<THolderExpiration>(config, ~chunkManager))
         // Some random number.
         , ChunkIdGenerator(0x7390bac62f716a19)
         // Some random number.
         , ChunkListIdGenerator(0x761ba739c541fcd0)
     {
+        YASSERT(~chunkManager != NULL);
         YASSERT(~transactionManager != NULL);
 
         RegisterMethod(this, &TImpl::CreateChunk);
@@ -249,6 +249,7 @@ private:
     typedef TImpl TThis;
 
     TConfig Config;
+    TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
     
     TChunkPlacement::TPtr ChunkPlacement;
@@ -295,7 +296,10 @@ private:
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = GetHolderForUpdate(holderId);
             YVERIFY(holder.Chunks().erase(chunkId) == 1);
-            ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+
+            if (IsLeader()) {
+                ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+            }
         }
 
         ChunkMap.Remove(chunkId);
@@ -470,9 +474,7 @@ private:
         JobListMap.Load(invoker, input);
 
         return
-            FromMethod(
-                &TThis::OnLoaded,
-                thisPtr)
+            FromMethod(&TThis::OnLoaded, thisPtr)
             ->AsyncVia(invoker)
             ->Do();
     }
@@ -480,9 +482,8 @@ private:
     TVoid OnLoaded()
     {
         // Reconstruct HolderAddressMap.
-        HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
-            auto* holder = pair.Second();
+            const auto* holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
         }
 
@@ -510,28 +511,29 @@ private:
         ReplicationSinkMap.clear();
     }
 
-    virtual void OnStartLeading()
-    {
-        TMetaStatePart::OnStartLeading();
 
-        HolderExpiration->Start(~MetaStateManager->GetEpochStateInvoker());
+    virtual void OnLeaderRecoveryComplete()
+    {
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkReplication = New<TChunkReplication>(
+            ~ChunkManager,
+            ~ChunkPlacement,
+            ~MetaStateManager->GetEpochStateInvoker());
+        HolderExpiration = New<THolderExpiration>(
+            Config,
+            ~ChunkManager,
+            ~MetaStateManager->GetEpochStateInvoker());
+
         FOREACH(const auto& pair, HolderMap) {
             StartHolderTracking(*pair.Second());
         }
-
-        ChunkReplication->Start(~MetaStateManager->GetEpochStateInvoker());
     }
 
     virtual void OnStopLeading()
     {
-        TMetaStatePart::OnStopLeading();
-
-        FOREACH(const auto& pair, HolderMap) {
-            StopHolderTracking(*pair.Second());
-        }
-        HolderExpiration->Stop();
-
-        ChunkReplication->Stop();
+        ChunkPlacement.Reset();
+        ChunkReplication.Reset();
+        HolderExpiration.Reset();
     }
 
 
@@ -573,7 +575,7 @@ private:
 
     void DoUnregisterHolder(const THolder& holder)
     { 
-        THolderId holderId = holder.GetId();
+        auto holderId = holder.GetId();
 
         if (IsLeader()) {
             StopHolderTracking(holder);

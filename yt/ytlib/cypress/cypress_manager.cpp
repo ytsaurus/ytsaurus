@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NYTree;
 using namespace NMetaState;
 using namespace NProto;
 
@@ -267,7 +268,7 @@ public:
         , TransactionId(transactionId)
         , Factory(cypressManager, transactionId)
         , StaticBuilder(&Factory)
-        , DynamicBuilder(TEphemeralNodeFactory::Get())
+        , DynamicBuilder(GetEphemeralNodeFactory())
     { }
 
     INode::TPtr GetResult()
@@ -563,22 +564,31 @@ Stroka TCypressManager::GetPartName() const
     return "Cypress";
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
-    UNUSED(stream);
-    UNUSED(invoker);
-    YUNIMPLEMENTED();
-    //*stream << NodeIdGenerator
-    //        << LockIdGenerator;
+    auto nodeIdGenerator = NodeIdGenerator;
+    auto lockIdGenerator = LockIdGenerator;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Save(output, nodeIdGenerator);
+            ::Save(output, lockIdGenerator);
+        }));
+        
+    NodeMap.Save(invoker, output);
+    return LockMap.Save(invoker, output);
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* input, IInvoker::TPtr invoker)
 {
-    UNUSED(stream);
-    UNUSED(invoker);
-    YUNIMPLEMENTED();
-    //*stream >> NodeIdGenerator
-    //        >> LockIdGenerator;
+    TPtr thisPtr = this;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Load(input, thisPtr->NodeIdGenerator);
+            ::Load(input, thisPtr->LockIdGenerator);
+        }));
+
+    NodeMap.Load(invoker, input);
+    return LockMap.Load(invoker, input);
 }
 
 void TCypressManager::Clear()
@@ -665,8 +675,9 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
 {
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
-    RemoveCreatedNodes(transaction);
     UnrefOriginatingNodes(transaction);
+
+    // TODO: check that all creates nodes died
 }
 
 void TCypressManager::ReleaseLocks(const TTransaction& transaction)
@@ -746,20 +757,6 @@ void TCypressManager::CommitCreatedNodes(const TTransaction& transaction)
     }
 }
 
-void TCypressManager::RemoveCreatedNodes(const TTransaction& transaction)
-{
-    auto transactionId = transaction.GetId();
-    FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        GetNodeHandler(node)->Destroy(node);
-        NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
-
-        LOG_INFO_IF(!IsRecovery(), "Uncommitted node removed (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
-    }
-}
-
 METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
 METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
 
@@ -776,6 +773,7 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
+    // TODO: enum serialization
     ::Save(output, static_cast<i32>(value->GetRuntimeType()));
     ::Save(output, value->GetId());
     value->Save(output);
@@ -783,6 +781,7 @@ void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* o
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
 {
+    // TODO: enum serialization
     i32 type;
     TBranchedNodeId id;
     ::Load(input, type);

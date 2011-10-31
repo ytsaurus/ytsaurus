@@ -10,10 +10,16 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: move impl to cpp
+//! Traverses a YTree and invokes appropriate methods of IYsonConsumer.
 class TTreeVisitor
     : private TNonCopyable
 {
 public:
+    //! Initializes an instance.
+    /*!
+     *  \param consumer A consumer to call.
+     *  \param visitAttributes Enables going into attribute maps during traversal.
+     */
     TTreeVisitor(
         IYsonConsumer* consumer,
         bool visitAttributes = true)
@@ -21,6 +27,10 @@ public:
         , VisitAttributes_(visitAttributes)
     { }
 
+    //! Starts the traversal.
+    /*!
+     *  \param root A root from which to start.
+     */
     void Visit(INode::TPtr root)
     {
         VisitAny(root);

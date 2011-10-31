@@ -76,16 +76,16 @@ public:
     void UnrefNode(ICypressNode & node);
     void UnrefNode(const TNodeId& nodeId);
 
-    IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
-    IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
-    IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
-    IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
-    IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
+    NYTree::IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
+    NYTree::IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
+    NYTree::IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
+    NYTree::IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
+    NYTree::IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
-    TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
-    INode::TPtr CreateDynamicNode(
+    NYTree::TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
+    NYTree::INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
-        IMapNode* manifest);
+        NYTree::IMapNode* manifest);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -95,25 +95,25 @@ public:
 
     void GetYPath(
         const TTransactionId& transactionId,
-        TYPath path,
-        IYsonConsumer* consumer);
+        NYTree::TYPath path,
+        NYTree::IYsonConsumer* consumer);
 
-    INode::TPtr NavigateYPath(
+    NYTree::INode::TPtr NavigateYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
 
     TMetaChange<TVoid>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
-        TYPath path,
+        NYTree::TYPath path,
         const Stroka& value);
 
     TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
 
     TMetaChange<TVoid>::TPtr InitiateLockYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
 
 private:
     class TNodeMapTraits
@@ -161,7 +161,6 @@ private:
     void RemoveBranchedNodes(const TTransaction& transaction);
     void UnrefOriginatingNodes(const TTransaction& transaction);
     void CommitCreatedNodes(const TTransaction& transaction);
-    void RemoveCreatedNodes(const TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetNodeHandler(const ICypressNode& node);
 

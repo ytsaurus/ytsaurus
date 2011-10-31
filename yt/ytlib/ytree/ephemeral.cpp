@@ -190,7 +190,7 @@ TEphemeralNodeBase::TEphemeralNodeBase()
 
 INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
-    return TEphemeralNodeFactory::Get();
+    return GetEphemeralNodeFactory();
 }
 
 ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
@@ -390,39 +390,44 @@ IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeFactory* TEphemeralNodeFactory::Get()
+class TEphemeralNodeFactory
+    : public INodeFactory
+{
+public:
+    virtual IStringNode::TPtr CreateString()
+    {
+        return New<TStringNode>();
+    }
+
+    virtual IInt64Node::TPtr CreateInt64()
+    {
+        return New<TInt64Node>();
+    }
+
+    virtual IDoubleNode::TPtr CreateDouble()
+    {
+        return New<TDoubleNode>();
+    }
+
+    virtual IMapNode::TPtr CreateMap()
+    {
+        return New<TMapNode>();
+    }
+
+    virtual IListNode::TPtr CreateList()
+    {
+        return New<TListNode>();
+    }
+
+    virtual IEntityNode::TPtr CreateEntity()
+    {
+        return New<TEntityNode>();
+    }
+};
+
+INodeFactory* GetEphemeralNodeFactory()
 {
     return Singleton<TEphemeralNodeFactory>();
-}
-
-IStringNode::TPtr TEphemeralNodeFactory::CreateString()
-{
-    return New<TStringNode>();
-}
-
-IInt64Node::TPtr TEphemeralNodeFactory::CreateInt64()
-{
-    return New<TInt64Node>();
-}
-
-IDoubleNode::TPtr TEphemeralNodeFactory::CreateDouble()
-{
-    return New<TDoubleNode>();
-}
-
-IMapNode::TPtr TEphemeralNodeFactory::CreateMap()
-{
-    return New<TMapNode>();
-}
-
-IListNode::TPtr TEphemeralNodeFactory::CreateList()
-{
-    return New<TListNode>();
-}
-
-IEntityNode::TPtr TEphemeralNodeFactory::CreateEntity()
-{
-    return New<TEntityNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

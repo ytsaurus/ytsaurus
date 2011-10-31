@@ -11,7 +11,7 @@ namespace NFileServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public NCypress::TCypressNodeProxyBase<IEntityNode, TFileNode>
+    : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode>
 {
 public:
     typedef TIntrusivePtr<TFileNodeProxy> TPtr;
@@ -22,7 +22,7 @@ public:
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
-    virtual ENodeType GetType() const;
+    virtual NYTree::ENodeType GetType() const;
     virtual Stroka GetTypeName() const;
 
 };
