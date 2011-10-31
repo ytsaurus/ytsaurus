@@ -33,7 +33,7 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
     if (Format == EFormat::Binary) {
         Stream->Write(StringMarker);
         WriteVarInt32(Stream, static_cast<i32>(value.length()));
-        Stream->Write(&value, value.length());
+        Stream->Write(value.begin(), value.length());
     } else {
         Stream->Write('"');
         Stream->Write(EscapeC(value));
