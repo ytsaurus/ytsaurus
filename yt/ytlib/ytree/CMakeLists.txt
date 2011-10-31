@@ -7,7 +7,7 @@ SET(YT_SOURCE_FILES
     yson_reader.cpp
     yson_writer.cpp
     tree_builder.h
-    tree_visitor.h
+    tree_visitor.cpp
     ypath.cpp
     node_detail.cpp
     ephemeral.cpp
