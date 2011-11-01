@@ -180,6 +180,20 @@ TEST_F(TYsonReaderTest, OneElementMap)
     Run();
 }
 
+TEST_F(TYsonReaderTest, OneElementBinaryMap)
+{
+    Input = Stroka("{\x03\x0Ahello=\x03\x0Aworld}",1 + 7 + 1 + 7 + 1);
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnMapItem("hello"));
+    EXPECT_CALL(Mock, OnStringScalar("world", false));
+    EXPECT_CALL(Mock, OnEndMap(false));
+
+    Run();
+}
+
+
 
 TEST_F(TYsonReaderTest, SeveralElementsList)
 {

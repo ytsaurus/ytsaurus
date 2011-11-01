@@ -142,42 +142,74 @@ void TYsonReader::SkipWhitespaces()
 
 Stroka TYsonReader::ReadString()
 {
+    int ch = PeekChar();
+    switch (ch) {
+        case StringMarker:
+            return ReadBinaryString();
+        case '"':
+            return ReadQuoteStartingString();
+        default:
+            return ReadLetterStartingString();
+    }
+}
+
+Stroka TYsonReader::ReadQuoteStartingString()
+{
+    ExpectChar('"');
+
     Stroka result;
-    if (PeekChar() == '"') {
-        YVERIFY(ReadChar() == '"');
-        bool ignoreNextQuote = false;
-        while (true) {
-            int ch = ReadChar();
-            if (ch == Eos) {
-                ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
-                    ~GetPositionInfo());
-            }
-            if (ch == '"' && !ignoreNextQuote) {
-                break;
-            }
-
-            if (ch == '\\') {
-                ignoreNextQuote = true;
-            } else {
-                ignoreNextQuote = false;
-            }
-
-            result.append(static_cast<char>(ch));
+    bool ignoreNextQuote = false;
+    while (true) {
+        int ch = ReadChar();
+        if (ch == Eos) {
+            ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
+                ~GetPositionInfo());
         }
-    } else {
-        while (true) {
-            int ch = PeekChar();
-            if (!(ch >= 'a' && ch <= 'z' ||
-                  ch >= 'A' && ch <= 'Z' ||
-                  ch == '_' ||
-                  ch >= '0' && ch <= '9' && !result.Empty()))
-                  break;
-            ReadChar();
-            result.append(static_cast<char>(ch));
+        if (ch == '"' && !ignoreNextQuote) {
+            break;
         }
+
+        if (ch == '\\') {
+            ignoreNextQuote = true;
+        } else {
+            ignoreNextQuote = false;
+        }
+
+        result.append(static_cast<char>(ch));
     }
     return UnescapeC(result);
 }
+
+Stroka TYsonReader::ReadLetterStartingString()
+{
+    Stroka result;
+    while (true) {
+        int ch = PeekChar();
+        if (!(ch >= 'a' && ch <= 'z' ||
+              ch >= 'A' && ch <= 'Z' ||
+              ch == '_' ||
+              ch >= '0' && ch <= '9' && !result.Empty()))
+              break;
+        ReadChar();
+        result.append(static_cast<char>(ch));
+    }
+    return UnescapeC(result);
+}
+
+Stroka TYsonReader::ReadBinaryString()
+{
+    ExpectChar(StringMarker);
+    YASSERT(Lookahead == NoLookahead);
+
+    i32 length;
+    int bytesRead = ReadVarInt32(Stream, &length);
+    Position += bytesRead;
+    Offset += bytesRead;
+
+    return ReadChars(length, true);
+}
+
+
 
 Stroka TYsonReader::ReadNumeric()
 {
@@ -218,7 +250,7 @@ void TYsonReader::ParseAny()
             break;
 
         case StringMarker:
-            ParseBinaryString();
+            ParseString();
             break;
 
         case Int64Marker:
@@ -421,26 +453,6 @@ void TYsonReader::ParseNumeric()
         } else {
             Consumer->OnDoubleScalar(value, false);
         }
-    }
-}
-
-void TYsonReader::ParseBinaryString()
-{
-    ExpectChar(StringMarker);
-    YASSERT(Lookahead == NoLookahead);
-
-    i32 length;
-    int bytesRead = ReadVarInt32(Stream, &length);
-    Position += bytesRead;
-    Offset += bytesRead;
-
-    Stroka value = ReadChars(length, true);
-
-    if (HasAttributes()) {
-        Consumer->OnStringScalar(value, true);
-        ParseAttributes();
-    } else {
-        Consumer->OnStringScalar(value, false);
     }
 }
 
