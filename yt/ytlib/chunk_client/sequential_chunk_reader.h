@@ -57,7 +57,8 @@ public:
     void Shift()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        CyclicStart = (++CyclicStart) % Window.size();
+        ++CyclicStart;
+        CyclicStart = CyclicStart % Window.size();
         ++WindowStart;
     }
 
