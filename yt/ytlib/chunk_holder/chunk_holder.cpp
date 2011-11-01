@@ -190,7 +190,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(~ChannelCache.GetChannel(address));
+    TProxy proxy(ChannelCache.GetChannel(address));
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);

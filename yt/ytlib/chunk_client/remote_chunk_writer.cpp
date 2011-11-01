@@ -446,7 +446,7 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     FOREACH(const auto& address, addresses) {
-        Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
+        Nodes.push_back(New<TNode>(address, HolderChannelCache->GetChannel(address)));
     }
 }
 

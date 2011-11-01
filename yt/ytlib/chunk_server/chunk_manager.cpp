@@ -514,7 +514,7 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(ChunkManager);
         ChunkReplication = New<TChunkReplication>(
             ~ChunkManager,
             ~ChunkPlacement,
@@ -867,7 +867,7 @@ TChunkManager::TChunkManager(
         metaState,
         transactionManager))
 {
-    metaState->RegisterPart(~Impl);
+    metaState->RegisterPart(Impl);
 }
 
 const THolder* TChunkManager::FindHolder(const Stroka& address)
