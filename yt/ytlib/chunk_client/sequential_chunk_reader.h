@@ -2,13 +2,12 @@
 
 #include "common.h"
 #include "chunk_reader.h"
+#include "reader_thread.h"
 
 #include "../misc/common.h"
-#include "../misc/lazy_ptr.h"
 #include "../misc/enum.h"
 #include "../misc/thread_affinity.h"
 #include "../actions/future.h"
-#include "../actions/action_queue.h"
 
 namespace NYT {
 
@@ -169,8 +168,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
-
-    static TLazyPtr<TActionQueue> ReaderThread;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
