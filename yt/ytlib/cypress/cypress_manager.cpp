@@ -409,7 +409,7 @@ private:
     virtual void OnMyEntity(bool hasAttributes)
     {
         if (!hasAttributes) {
-            throw TYTreeException() << "Must specify attributes a dynamic node";
+            throw TYTreeException() << "Must specify a manifest in attributes";
         }
 
         DynamicBuilder->BeginTree();
@@ -458,7 +458,7 @@ INode::TPtr TCypressManager::CreateDynamicNode(
 
     auto nodeId = NodeIdGenerator.Next();
     TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    TAutoPtr<ICypressNode> nodeImpl(handler->Create(
+    TAutoPtr<ICypressNode> nodeImpl(handler->CreateFromManifest(
         nodeId,
         transactionId,
         manifest));

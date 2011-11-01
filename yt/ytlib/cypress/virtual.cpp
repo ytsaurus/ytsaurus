@@ -152,7 +152,7 @@ public:
         return TypeName;
     }
     
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest)

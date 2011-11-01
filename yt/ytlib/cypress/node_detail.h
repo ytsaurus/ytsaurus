@@ -32,7 +32,7 @@ public:
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest)
@@ -40,7 +40,7 @@ public:
         UNUSED(nodeId);
         UNUSED(transactionId);
         UNUSED(manifest);
-        throw NYTree::TYTreeException() << Sprintf("Cannot create a node of type %s via dynamic interface",
+        throw NYTree::TYTreeException() << Sprintf("Nodes of type %s cannot be created from a manifest",
             ~GetTypeName().Quote());
     }
 

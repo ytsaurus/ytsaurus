@@ -96,7 +96,7 @@ struct INodeTypeHandler
     virtual NYTree::ENodeType GetNodeType() = 0;
     virtual Stroka GetTypeName() = 0;
     
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest) = 0;
