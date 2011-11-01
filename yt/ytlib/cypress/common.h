@@ -25,8 +25,12 @@ DECLARE_ENUM(ERuntimeNodeType,
     // Dynamic types
     ((File)(5))
 
+    // Virtual types
+    ((ChunkMap)(6))
+
     // Auxiliary
-    ((Last)(6))
+    ((Invalid)(-1))
+    ((Last)(7))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

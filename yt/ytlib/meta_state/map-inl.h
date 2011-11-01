@@ -31,6 +31,7 @@ TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Load(TInputStream* input) const
 template <class TKey, class TValue, class TTraits, class THash >
 TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(TTraits traits)
     : Traits(traits)
+    , Size(0)
 { }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -85,6 +86,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
         default:
             YUNREACHABLE();
     }
+    ++Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -201,6 +203,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
         default:
             YUNREACHABLE();
     }
+    --Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -242,6 +245,45 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
         default:
             YUNREACHABLE();
     }
+    Size = 0;
+}
+
+template <class TKey, class TValue, class TTraits, class THash >
+int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    return Size;
+}
+
+template <class TKey, class TValue, class TTraits, class THash >
+yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    yvector<TKey> keys;
+    keys.reserve(Size);
+    if (State == EState::Normal) {
+        FOREACH(const auto& pair, PrimaryMap) {
+            keys.push_back(pair.First());
+        }
+    } else {
+        FOREACH(const auto& pair, PrimaryMap) {
+            auto patchIt = PatchMap.find(pair.First());
+            if (patchIt == PatchMap.end() || patchIt->Second() != NULL) {
+                keys.push_back(pair.First());
+            }
+        }
+        FOREACH(const auto& pair, PatchMap) {
+            if (pair.Second() != NULL) {
+                auto primaryIt = PrimaryMap.find(pair.First());
+                if (primaryIt == PrimaryMap.end()) {
+                    keys.push_back(pair.First());
+                }
+            }
+        }
+    }
+    return keys;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >

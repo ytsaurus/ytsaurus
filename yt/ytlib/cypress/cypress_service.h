@@ -40,11 +40,9 @@ private:
     
     void ExecuteRecoverable(
         const TTransactionId& transactionId,
-        NRpc::TServiceContext* context,
         IAction* action);
     void ExecuteUnrecoverable(
         const TTransactionId& transactionId,
-        NRpc::TServiceContext* context,
         IAction* action);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);

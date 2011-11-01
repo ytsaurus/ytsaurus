@@ -33,7 +33,7 @@ public:
         (Failed)
     );
 
-    typedef TFuture<EResult> TResult;
+    typedef TFuture<EResult> TAsyncResult;
 
     //! Constructs an instance.
     /*!
@@ -53,6 +53,8 @@ public:
      * \note Thread affinity: Any.
      */
     void Stop();
+
+    virtual TAsyncResult::TPtr Run() = 0;
 
 protected:
     friend class TLeaderRecovery;
@@ -75,7 +77,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread.
      */
-    TResult::TPtr RecoverFromSnapshotAndChangeLog(
+    TAsyncResult::TPtr RecoverFromSnapshotAndChangeLog(
         TMetaVersion targetVersion,
         i32 snapshotId);
 
@@ -90,7 +92,7 @@ protected:
      * 
      *  \note Thread affinity: StateThread.
      */
-    TResult::TPtr RecoverFromChangeLog(
+    TAsyncResult::TPtr RecoverFromChangeLog(
         TVoid,
         TSnapshotReader::TPtr,
         TMetaVersion targetVersion,
@@ -155,7 +157,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread.
      */
-    TResult::TPtr Run();
+    virtual TAsyncResult::TPtr Run();
 
 private:
     virtual bool IsLeader() const;
@@ -189,7 +191,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread.
      */
-    TResult::TPtr Run();
+    virtual TAsyncResult::TPtr Run();
 
     //! Postpones an incoming request for advancing the current segment.
     /*!
@@ -242,18 +244,18 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Any thread.
-    TResult::TPtr Result;
+    TAsyncResult::TPtr Result;
 
     // Control thread
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     bool SyncReceived;
 
-    TResult::TPtr CapturePostponedChanges();
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    TAsyncResult::TPtr CapturePostponedChanges();
+    TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
     void OnSync(TProxy::TRspSync::TPtr response);
-    TResult::TPtr OnSyncReached(EResult result);
+    TAsyncResult::TPtr OnSyncReached(EResult result);
 
     virtual bool IsLeader() const;
 

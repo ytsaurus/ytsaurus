@@ -25,7 +25,7 @@ struct ICypressNodeProxy
     virtual const ICypressNode& GetImpl() const = 0;
     virtual ICypressNode& GetImplForUpdate() = 0;
 
-    virtual Stroka GetTypeName() const = 0;
+    virtual INodeTypeHandler::TPtr GetTypeHandler() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

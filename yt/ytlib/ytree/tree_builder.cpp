@@ -1,4 +1,6 @@
+#include "stdafx.h"
 #include "tree_builder.h"
+
 #include "../actions/action_util.h"
 
 namespace NYT {
@@ -6,24 +8,74 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTreeBuilder
+    : public ITreeBuilder
+{
+public:
+    TTreeBuilder(INodeFactory* factory);
+
+    virtual void BeginTree();
+    virtual INode::TPtr EndTree();
+
+    virtual void OnNode(INode* node);
+
+    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnDoubleScalar(double value, bool hasAttributes);
+    virtual void OnEntity(bool hasAttributes);
+
+    virtual void OnBeginList();
+    virtual void OnListItem();
+    virtual void OnEndList(bool hasAttributes);
+
+    virtual void OnBeginMap();
+    virtual void OnMapItem(const Stroka& name);
+    virtual void OnEndMap(bool hasAttributes);
+
+    virtual void OnBeginAttributes();
+    virtual void OnAttributesItem(const Stroka& name);
+    virtual void OnEndAttributes();
+
+private:
+    INodeFactory* Factory;
+    yvector<INode::TPtr> Stack;
+
+    void AddToList();
+    void AddToMap();
+
+    void Push(INode::TPtr node);
+    INode::TPtr Pop();
+    INode::TPtr Peek();
+};
+
+TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
+{
+    return new TTreeBuilder(factory);
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTreeBuilder::TTreeBuilder(INodeFactory* factory)
     : Factory(factory)
 { }
 
-INode::TPtr TTreeBuilder::GetRoot() const
+void TTreeBuilder::BeginTree()
 {
-    YASSERT(Stack.ysize() == 1);
-    return Stack[0];
+    Stack.clear();
 }
 
-TYsonBuilder::TPtr TTreeBuilder::CreateYsonBuilder(INodeFactory* factory)
+INode::TPtr TTreeBuilder::EndTree()
 {
-    return FromFunctor([=] (TYsonProducer::TPtr producer) -> INode::TPtr
-        {
-            TTreeBuilder builder(factory);
-            producer->Do(&builder);
-            return builder.GetRoot();
-        });
+    YASSERT(Stack.ysize() == 1);
+    auto node = Stack[0];
+    Stack.clear();
+    return node;
+}
+
+void TTreeBuilder::OnNode(INode* node)
+{
+    Push(node);
 }
 
 void TTreeBuilder::OnStringScalar(const Stroka& value, bool hasAttributes)
@@ -55,7 +107,6 @@ void TTreeBuilder::OnEntity(bool hasAttributes)
     UNUSED(hasAttributes);
     Push(~Factory->CreateEntity());
 }
-
 
 void TTreeBuilder::OnBeginList()
 {
@@ -95,7 +146,6 @@ void TTreeBuilder::OnEndMap(bool hasAttributes)
     AddToMap();
 }
 
-
 void TTreeBuilder::OnBeginAttributes()
 {
     OnBeginMap();
@@ -112,15 +162,6 @@ void TTreeBuilder::OnEndAttributes()
     auto attributes = Pop()->AsMap();
     auto node = Peek();
     node->SetAttributes(attributes);
-}
-
-INode::TPtr TTreeBuilder::YsonBuilderThunk(
-    TYsonProducer::TPtr producer,
-    INodeFactory* factory)
-{
-    TTreeBuilder builder(factory);
-    producer->Do(&builder);
-    return builder.GetRoot();
 }
 
 void TTreeBuilder::AddToList()
@@ -141,7 +182,6 @@ void TTreeBuilder::AddToMap()
         map->AddChild(child, name->GetValue<Stroka>());
     }
 }
-
 
 void TTreeBuilder::Push(INode::TPtr node)
 {

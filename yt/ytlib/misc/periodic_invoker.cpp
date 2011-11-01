@@ -27,7 +27,7 @@ bool TPeriodicInvoker::IsActive() const
 
 void TPeriodicInvoker::Start()
 {
-    PerformAction();
+    RunAction();
 }
 
 void TPeriodicInvoker::Stop()
@@ -35,14 +35,14 @@ void TPeriodicInvoker::Stop()
     YASSERT(IsActive());
     CancelableInvoker->Cancel();
     TDelayedInvoker::Get()->Cancel(Cookie);
-    Cookie = NULL;
+    Cookie.Reset();
 }
 
-void TPeriodicInvoker::PerformAction()
+void TPeriodicInvoker::RunAction()
 {
     Action->Do();
     Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TPeriodicInvoker::PerformAction, TPtr(this))
+        FromMethod(&TPeriodicInvoker::RunAction, TPtr(this))
         ->Via(~CancelableInvoker),
         Period);
 }

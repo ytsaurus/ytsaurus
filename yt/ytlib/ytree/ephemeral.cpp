@@ -81,7 +81,8 @@ public: \
     \
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
     { \
-        SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
+        auto builder = CreateBuilderFromFactory(GetFactory()); \
+        SetNodeFromProducer<I##name##Node>(this, ~producer, ~builder); \
         return TSetResult::CreateDone(); \
     }
 
@@ -307,10 +308,11 @@ IYPathService::TNavigateResult TMapNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CreateBuilderFromFactory(GetFactory());
     return TMapNodeMixin::SetRecursive(
         path,
-        producer,
-        TTreeBuilder::CreateYsonBuilder(GetFactory()));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,10 +384,11 @@ IYPathService::TNavigateResult TListNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CreateBuilderFromFactory(GetFactory());
     return TListNodeMixin::SetRecursive(
         path,
-        producer,
-        TTreeBuilder::CreateYsonBuilder(GetFactory()));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -141,6 +141,11 @@ ERuntimeNodeType TFileNodeTypeHandler::GetRuntimeType()
     return ERuntimeNodeType::File;
 }
 
+ENodeType TFileNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Entity;
+}
+
 Stroka TFileNodeTypeHandler::GetTypeName()
 {
     return FileTypeName;

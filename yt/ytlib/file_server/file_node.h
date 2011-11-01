@@ -47,7 +47,7 @@ public:
         NChunkServer::TChunkManager* chunkManager);
 
     ERuntimeNodeType GetRuntimeType();
-
+    NYTree::ENodeType GetNodeType();
     Stroka GetTypeName();
 
     virtual TAutoPtr<ICypressNode> Create(

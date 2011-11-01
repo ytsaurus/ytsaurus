@@ -93,12 +93,13 @@ struct INodeTypeHandler
         const TTransactionId& transactionId) = 0;
 
     virtual ERuntimeNodeType GetRuntimeType() = 0;
+    virtual NYTree::ENodeType GetNodeType() = 0;
     virtual Stroka GetTypeName() = 0;
     
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr description) = 0;
+        NYTree::IMapNode::TPtr manifest) = 0;
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;

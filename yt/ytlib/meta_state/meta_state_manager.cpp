@@ -382,7 +382,9 @@ TMetaStateManager::TImpl::CommitChangeSync(
         return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
     }
 
-    if (!FollowerTracker->HasActiveQuorum()) {
+    // FollowerTracker is modified concurrently from the ControlThread.
+    auto followerTracker = FollowerTracker;
+    if (~followerTracker == NULL || !followerTracker->HasActiveQuorum()) {
         return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
     }
 

@@ -58,7 +58,7 @@ public:
         : Value(value)
     { }
 
-    //! Returns underlying integral value.
+    //! Returns the underlying integral value.
     int ToValue() const
     {
         return Value;

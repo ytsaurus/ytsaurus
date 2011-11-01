@@ -1,9 +1,6 @@
 #include "stdafx.h"
 #include "cell_master_server.h"
 
-#include <yt/ytlib/chunk_server/chunk_manager.h>
-#include <yt/ytlib/chunk_server/chunk_service.h>
-
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
 #include <yt/ytlib/transaction_manager/transaction_manager.h>
@@ -11,6 +8,11 @@
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
+#include <yt/ytlib/cypress/world_initializer.h>
+
+#include <yt/ytlib/chunk_server/chunk_manager.h>
+#include <yt/ytlib/chunk_server/chunk_service.h>
+#include <yt/ytlib/chunk_server/cypress_integration.h>
 
 #include <yt/ytlib/file_server/file_manager.h>
 #include <yt/ytlib/file_server/file_service.h>
@@ -27,11 +29,13 @@ using NTransaction::TTransactionService;
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
+using NChunkServer::CreateChunkMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
+using NCypress::TWorldInitializer;
 
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
@@ -125,6 +129,16 @@ void TCellMasterServer::Run()
         ~fileManager,
         ~metaStateManager->GetStateInvoker(),
         ~server);
+
+    // TODO: move
+    cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+
+    auto worldIntializer = New<TWorldInitializer>(
+        ~metaStateManager,
+        ~cypressManager);
+    worldIntializer->Start();
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(

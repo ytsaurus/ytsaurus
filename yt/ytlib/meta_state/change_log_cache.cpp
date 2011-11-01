@@ -73,14 +73,6 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
     return cookie.GetAsyncResult()->Get();
 }
 
-void TChangeLogCache::OnTrim(TValuePtr value)
-{
-    if (!value->IsFinalized()) {
-        LOG_WARNING("Trimming a non-finalized changelog (SegmentId: %d)",
-            value->GetId());
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState

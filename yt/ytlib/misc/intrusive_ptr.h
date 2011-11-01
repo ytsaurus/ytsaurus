@@ -108,7 +108,7 @@ public:
     template<class U>
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
-        typename NDetail::TEnableIfConvertible<U, T>::TType = NDetail::TEmpty())
+        typename NYT::NDetail::TEnableIfConvertible<U, T>::TType = NYT::NDetail::TEmpty())
         throw()
         : T_(other.Get())
     {
@@ -128,7 +128,7 @@ public:
     template<class U>
     TIntrusivePtr(
         TIntrusivePtr<U>&& other,
-        typename NDetail::TEnableIfConvertible<U, T>::TType = NDetail::TEmpty())
+        typename NYT::NDetail::TEnableIfConvertible<U, T>::TType = NYT::NDetail::TEmpty())
         throw()
         : T_(other.Get())
     {
@@ -163,7 +163,7 @@ public:
         TIntrusivePtr().Swap(*this);
     }
 
-    //! Replace the pointee with a specified.
+    //! Replace the pointer with a specified one.
     void Reset(T* p) throw()
     {
         TIntrusivePtr(p).Swap(*this);

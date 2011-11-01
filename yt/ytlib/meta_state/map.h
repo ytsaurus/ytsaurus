@@ -147,6 +147,11 @@ public:
     //! Clears the map.
     void Clear();
 
+    //! Returns the size of the map.
+    int GetSize() const;
+
+    yvector<TKey> GetKeys() const;
+
     //! (Unordered) begin()-iterator.
     /*!
      *  \note
@@ -208,6 +213,7 @@ private:
     TMap PatchMap;
 
     TTraits Traits;
+    int Size;
     
     typedef TPair<TKey, TValue*> TItem;
 
@@ -250,7 +256,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName ## ForUpdate(const idType& id); \
-    yvector<const entityType*> Get ## entityName ## s();
+    yvector<idType> Get ## entityName ## Ids();
 
 #define METAMAP_ACCESSORS_IMPL(declaringType, entityName, entityType, idType, map) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
@@ -271,6 +277,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (map).GetForUpdate(id); \
+    } \
+    \
+    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    { \
+        return (map).GetKeys(); \
     }
 
 #define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
@@ -292,6 +303,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (fwd).Get ## entityName ## ForUpdate(id); \
+    } \
+    \
+    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    { \
+        return (fwd).Get ## entityName ## Ids(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

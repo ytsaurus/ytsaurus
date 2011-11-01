@@ -84,6 +84,9 @@ void TForwardingYsonConsumer::OnEntity(bool hasAttributes)
         OnMyEntity(hasAttributes);
     } else {
         ForwardingConsumer->OnEntity(hasAttributes);
+        if (hasAttributes) {
+            UpdateDepth(+1);
+        }
     }
 }
 
@@ -103,7 +106,6 @@ void TForwardingYsonConsumer::OnListItem()
         OnMyListItem();
     } else {
         ForwardingConsumer->OnListItem();
-        UpdateDepth(0);
     }
 }
 
@@ -135,7 +137,6 @@ void TForwardingYsonConsumer::OnMapItem(const Stroka& name)
         OnMyMapItem(name);
     } else {
         ForwardingConsumer->OnMapItem(name);
-        UpdateDepth(0);
     }
 }
 
@@ -166,7 +167,6 @@ void TForwardingYsonConsumer::OnAttributesItem(const Stroka& name)
         OnMyAttributesItem(name);
     } else {
         ForwardingConsumer->OnAttributesItem(name);
-        UpdateDepth(0);
     }
 }
 

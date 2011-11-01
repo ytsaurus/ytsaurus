@@ -6,9 +6,11 @@
 #include "lock.h"
 #include "cypress_manager.pb.h"
 
+#include "../misc/thread_affinity.h"
 #include "../transaction_manager/transaction.h"
 #include "../transaction_manager/transaction_manager.h"
 #include "../ytree/ypath.h"
+#include "../ytree/tree_builder.h"
 #include "../misc/id_generator.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
@@ -40,6 +42,8 @@ public:
         TTransactionManager* transactionManager);
 
     void RegisterNodeType(INodeTypeHandler* handler);
+
+    bool IsWorldInitialized();
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
@@ -82,7 +86,8 @@ public:
     NYTree::IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
     NYTree::IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
-    NYTree::TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
+    TAutoPtr<NYTree::ITreeBuilder> GetDeserializationBuilder(const TTransactionId& transactionId);
+
     NYTree::INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
         NYTree::IMapNode* manifest);
@@ -115,6 +120,8 @@ public:
         const TTransactionId& transactionId,
         NYTree::TYPath path);
 
+    TMetaChange<TVoid>::TPtr InitiateCreateWorld();
+
 private:
     class TNodeMapTraits
     {
@@ -144,14 +151,13 @@ private:
     TVoid SetYPath(const NProto::TMsgSet& message);
     TVoid RemoveYPath(const NProto::TMsgRemove& message);
     TVoid LockYPath(const NProto::TMsgLock& message);
+    TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker);
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
-
-    void CreateWorld();
 
     void OnTransactionCommitted(const TTransaction& transaction);
     void OnTransactionAborted(const TTransaction& transaction);
@@ -169,8 +175,11 @@ private:
         const TTransactionId& transactionId,
         ERuntimeNodeType type);
 
-    class TYsonDeserializationConsumer;
-    friend class TYsonDeserializationConsumer;
+    class TDeserializationBuilder;
+    friend class TDeserializationBuilder;
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

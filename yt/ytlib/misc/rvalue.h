@@ -45,9 +45,9 @@ struct TRemoveReference<T&&> {
 
 //! Implements #std::move<T> behaviour from C++11.
 template<typename T>
-FORCED_INLINE typename NDetail::TRemoveReference<T>::TType&& MoveRV(T&& x) throw()
+FORCED_INLINE typename NYT::NDetail::TRemoveReference<T>::TType&& MoveRV(T&& x) throw()
 {
-    return static_cast<typename NDetail::TRemoveReference<T>::TType&&>(x);
+    return static_cast<typename NYT::NDetail::TRemoveReference<T>::TType&&>(x);
 }
 
 #ifdef __GNUC__ 
@@ -56,13 +56,13 @@ FORCED_INLINE typename NDetail::TRemoveReference<T>::TType&& MoveRV(T&& x) throw
 
 //! Implements #std::forward<T> behaviour from C++11.
 template<typename T>
-FORCED_INLINE T&& ForwardRV(typename NDetail::TRemoveReference<T>::TType& x) throw()
+FORCED_INLINE T&& ForwardRV(typename NYT::NDetail::TRemoveReference<T>::TType& x) throw()
 {
     return static_cast<T&&>(x);
 }
 
 template<typename T>
-FORCED_INLINE T&& ForwardRV(typename NDetail::TRemoveReference<T>::TType&& x) throw()
+FORCED_INLINE T&& ForwardRV(typename NYT::NDetail::TRemoveReference<T>::TType&& x) throw()
 {
     return static_cast<T&&>(x);
 }

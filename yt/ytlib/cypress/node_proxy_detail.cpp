@@ -195,10 +195,11 @@ IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
     return TMapNodeMixin::SetRecursive(
         path,
-        producer,
-        CypressManager->GetYsonDeserializer(TransactionId));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,10 +346,11 @@ IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
     return TListNodeMixin::SetRecursive(
         path,
-        producer,
-        CypressManager->GetYsonDeserializer(TransactionId));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

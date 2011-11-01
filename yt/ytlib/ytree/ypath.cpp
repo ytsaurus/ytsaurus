@@ -1,10 +1,73 @@
 #include "stdafx.h"
 #include "ypath.h"
+#include "tree_builder.h"
+#include "ephemeral.h"
 
 #include "../actions/action_util.h"
 
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYPathServiceFromProducer
+    : public IYPathService
+{
+public:
+    TYPathServiceFromProducer(TYsonProducer* producer)
+    {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        builder->BeginTree();
+        producer->Do(~builder);
+        Root = FromNode(~builder->EndTree());
+    }
+
+    virtual TNavigateResult Navigate(TYPath path)
+    {
+        return Root->Navigate(path);
+    }
+
+    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
+    {
+        return Root->Get(path, consumer);
+    }
+
+    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) 
+    {
+        return Root->Set(path, producer);
+    }
+
+    virtual TRemoveResult Remove(TYPath path)
+    {
+        return Root->Remove(path);
+    }
+
+    virtual TLockResult Lock(TYPath path)
+    {
+        return Root->Lock(path);
+    }
+
+private:
+    IYPathService::TPtr Root;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathService::TPtr IYPathService::FromNode(INode* node)
+{
+    YASSERT(node != NULL);
+    auto* service = dynamic_cast<IYPathService*>(node);
+    if (service == NULL) {
+        throw TYTreeException() << "YPath is not supported by the node";
+    }
+    return service;
+}
+
+IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
+{
+    return New<TYPathServiceFromProducer>(producer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,8 +98,6 @@ void ChopYPathPrefix(
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TYPath GetResolvedYPathPrefix(
     TYPath wholePath,
     TYPath unresolvedPath)
@@ -46,7 +107,6 @@ TYPath GetResolvedYPathPrefix(
     return TYPath(wholePath.begin(), wholePath.begin() + resolvedLength);
 }
 
-////////////////////////////////////////////////////////////////////////////////
 
 TYPath ParseYPathRoot(TYPath path)
 {
@@ -59,16 +119,6 @@ TYPath ParseYPathRoot(TYPath path)
     }
 
     return TYPath(path.begin() + 1, path.end());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-IYPathService::TPtr AsYPath(INode::TPtr node)
-{
-    YASSERT(~node != NULL);
-    auto* service = dynamic_cast<IYPathService*>(~node);
-    YASSERT(service != NULL);
-    return service;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

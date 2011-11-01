@@ -35,11 +35,11 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr description)
+        NYTree::IMapNode::TPtr manifest)
     {
         UNUSED(nodeId);
         UNUSED(transactionId);
-        UNUSED(description);
+        UNUSED(manifest);
         throw NYTree::TYTreeException() << Sprintf("Cannot create a node of type %s via dynamic interface",
             ~GetTypeName().Quote());
     }
@@ -316,6 +316,11 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
+    virtual NYTree::ENodeType GetNodeType()
+    {
+        return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
+    }
+
     virtual Stroka GetTypeName()
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::TypeName;
@@ -373,6 +378,7 @@ public:
     TMapNodeTypeHandler(TCypressManager::TPtr cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
+    virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
@@ -428,6 +434,7 @@ public:
     TListNodeTypeHandler(TCypressManager::TPtr cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
+    virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

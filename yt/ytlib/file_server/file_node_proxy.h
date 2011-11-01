@@ -22,9 +22,6 @@ public:
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
-    virtual NYTree::ENodeType GetType() const;
-    virtual Stroka GetTypeName() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

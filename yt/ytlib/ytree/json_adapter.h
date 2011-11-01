@@ -19,7 +19,8 @@ namespace NYTree {
 //! Translates YSON events into a series of calls to TJsonWriter
 //! thus enabling to transform YSON into JSON.
 /*!
- *  \note Limitations: doesn't support attributes and entities.
+ *  \note
+ *  Limitations: doesn't support attributes and entities.
  */
 // TODO: UTF8 strings
 

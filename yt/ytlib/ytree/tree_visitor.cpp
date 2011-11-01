@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "tree_visitor.h"
 
 namespace NYT {

@@ -14,6 +14,9 @@ struct IYPathService
 {
     typedef TIntrusivePtr<IYPathService> TPtr;
 
+    static IYPathService::TPtr FromNode(INode* node);
+    static IYPathService::TPtr FromProducer(TYsonProducer* producer);
+
     DECLARE_ENUM(ECode,
         (Undefined)
         (Done)
@@ -69,7 +72,7 @@ struct IYPathService
     virtual TNavigateResult Navigate(TYPath path) = 0;
 
     typedef TResult<TVoid> TGetResult;
-    virtual TGetResult Get(TYPath path, IYsonConsumer* events) = 0;
+    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer) = 0;
 
     typedef TResult<TVoid> TSetResult;
     virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) = 0;
@@ -82,8 +85,6 @@ struct IYPathService
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-IYPathService::TPtr AsYPath(INode::TPtr node);
 
 void ChopYPathPrefix(
     TYPath path,

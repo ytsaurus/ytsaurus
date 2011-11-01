@@ -146,6 +146,11 @@ ERuntimeNodeType TMapNodeTypeHandler::GetRuntimeType()
     return ERuntimeNodeType::Map;
 }
 
+ENodeType TMapNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Map;
+}
+
 Stroka TMapNodeTypeHandler::GetTypeName()
 {
     return "map";
@@ -260,6 +265,11 @@ TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager::TPtr cypressManager)
 ERuntimeNodeType TListNodeTypeHandler::GetRuntimeType()
 {
     return ERuntimeNodeType::List;
+}
+
+ENodeType TListNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::List;
 }
 
 Stroka TListNodeTypeHandler::GetTypeName()
