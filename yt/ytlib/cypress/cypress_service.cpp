@@ -18,20 +18,20 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressService::TCypressService(
+    TMetaStateManager* metaStateManager,
     TCypressManager* cypressManager,
     TTransactionManager* transactionManager,
-    IInvoker* serviceInvoker,
     NRpc::TServer* server)
     : TMetaStateServiceBase(
-        serviceInvoker,
+        metaStateManager,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
-    YASSERT(serviceInvoker != NULL);
-    YASSERT(server!= NULL);
+    YASSERT(transactionManager != NULL);
+    YASSERT(server != NULL);
 
     RegisterMethods();
 
@@ -140,6 +140,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
         ~transactionId.ToString(),
         ~path);
 
+    ValidateLeader();
+
     ExecuteUnrecoverable(
         transactionId,
         ~FromFunctor([=] ()
@@ -163,6 +165,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
         ~transactionId.ToString(),
         ~path);
 
+    ValidateLeader();
+
     ExecuteRecoverable(
         transactionId,
         ~FromFunctor([=] ()
@@ -185,6 +189,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
     context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
         ~path);
+
+    ValidateLeader();
 
     ExecuteRecoverable(
         transactionId,

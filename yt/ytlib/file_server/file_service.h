@@ -12,8 +12,6 @@
 namespace NYT {
 namespace NFileServer {
 
-using NChunkServer::TChunkManager;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileService
@@ -24,9 +22,9 @@ public:
 
     //! Creates an instance.
     TFileService(
-        TChunkManager* chunkManager,
+        NMetaState::TMetaStateManager* metaStateManager,
+        NChunkServer::TChunkManager* chunkManager,
         TFileManager* fileManager,
-        IInvoker* serviceInvoker,
         NRpc::TServer* server);
 
 private:

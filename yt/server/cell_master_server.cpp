@@ -90,9 +90,9 @@ void TCellMasterServer::Run()
         metaState);
 
     auto transactionService = New<TTransactionService>(
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~transactionManager,
+        ~server);
 
     auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
@@ -101,10 +101,10 @@ void TCellMasterServer::Run()
         ~transactionManager);
 
     auto chunkService = New<TChunkService>(
-        chunkManager,
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~chunkManager,
+        ~transactionManager,
+        ~server);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
@@ -112,9 +112,9 @@ void TCellMasterServer::Run()
         ~transactionManager);
 
     auto cypressService = New<TCypressService>(
+        ~metaStateManager,
         ~cypressManager,
         ~transactionManager,
-        ~metaStateManager->GetStateInvoker(),
         ~server);
 
     auto fileManager = New<TFileManager>(
@@ -125,9 +125,9 @@ void TCellMasterServer::Run()
         ~transactionManager);
 
     auto fileService = New<TFileService>(
+        ~metaStateManager,
         ~chunkManager,
         ~fileManager,
-        ~metaStateManager->GetStateInvoker(),
         ~server);
 
     // TODO: move

@@ -21,9 +21,9 @@ public:
 
     //! Creates an instance.
     TCypressService(
+        NMetaState::TMetaStateManager* metaStateManager,
         TCypressManager* cypressManager,
-        TTransactionManager* transactionManager,
-        IInvoker* serviceInvoker,
+        NTransaction::TTransactionManager* transactionManager,
         NRpc::TServer* server);
 
 private:

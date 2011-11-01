@@ -15,19 +15,19 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkService::TChunkService(
-    TChunkManager::TPtr chunkManager,
-    TTransactionManager::TPtr transactionManager,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    NMetaState::TMetaStateManager* metaStateManager,
+    TChunkManager* chunkManager,
+    TTransactionManager* transactionManager,
+    NRpc::TServer* server)
     : TMetaStateServiceBase(
-        serviceInvoker,
+        metaStateManager,
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(~chunkManager != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(chunkManager != NULL);
+    YASSERT(server != NULL);
 
     RegisterMethods();
     server->RegisterService(this);
@@ -80,6 +80,8 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
         ~address,
         ~statistics.ToString());
 
+    ValidateLeader();
+
     ChunkManager
         ->InitiateRegisterHolder(address, statistics)
         ->OnSuccess(FromFunctor([=] (THolderId id)
@@ -100,6 +102,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     context->SetRequestInfo("HolderId: %d", holderId);
 
+    ValidateLeader();
     ValidateHolderId(holderId);
 
     const auto& holder = ChunkManager->GetHolder(holderId);
@@ -201,6 +204,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
         ~transactionId.ToString(),
         replicaCount);
 
+    ValidateLeader();
     ValidateTransactionId(transactionId);
 
     auto holderIds = ChunkManager->AllocateUploadTargets(replicaCount);
@@ -236,6 +240,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
         ~transactionId.ToString(),
         ~chunkId.ToString());
 
+    ValidateLeader();
     ValidateTransactionId(transactionId);
     ValidateChunkId(chunkId);
 
