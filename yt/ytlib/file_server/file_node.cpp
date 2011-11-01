@@ -151,7 +151,7 @@ Stroka TFileNodeTypeHandler::GetTypeName()
     return FileTypeName;
 }
 
-TAutoPtr<ICypressNode> TFileNodeTypeHandler::Create(
+TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     IMapNode::TPtr manifest)
