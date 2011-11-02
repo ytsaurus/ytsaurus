@@ -14,25 +14,14 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 THolderExpiration::THolderExpiration(
     const TConfig& config,
-    TChunkManager::TPtr chunkManager)
+    TChunkManager* chunkManager,
+    IInvoker* invoker)
     : Config(config)
     , ChunkManager(chunkManager)
+    , Invoker(invoker)
 {
-    YASSERT(~chunkManager != NULL);
-}
-
-void THolderExpiration::Start(IInvoker::TPtr invoker)
-{
-    YASSERT(~invoker != NULL);
-
-    YASSERT(~Invoker == NULL);
-    Invoker = invoker;
-}
-
-void THolderExpiration::Stop()
-{
-    YASSERT(~Invoker != NULL);
-    Invoker.Drop();
+    YASSERT(chunkManager != NULL);
+    YASSERT(invoker != NULL);
 }
 
 void THolderExpiration::AddHolder(const THolder& holder)

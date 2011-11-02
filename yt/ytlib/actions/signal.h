@@ -27,6 +27,8 @@ public:
      */
     void Subscribe(typename T::TPtr action)
     {
+        YASSERT(~action != NULL);
+
         TGuard<TSpinLock> guard(SpinLock);
         Actions.push_back(action);
     }
@@ -38,6 +40,8 @@ public:
      */
     bool Unsubscribe(typename T::TPtr action)
     {
+        YASSERT(~action != NULL);
+
         TGuard<TSpinLock> guard(SpinLock);
         auto it = Find(Actions.begin(), Actions.end(), action);
         if (it == Actions.end())

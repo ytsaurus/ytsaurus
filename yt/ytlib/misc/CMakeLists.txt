@@ -31,6 +31,8 @@ SET(YT_SOURCE_FILES
     ref_counted_base.h
     intrusive_ptr.h
     singleton.h
+    rvalue.h
+
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

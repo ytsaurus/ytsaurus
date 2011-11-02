@@ -15,13 +15,18 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TChunkReplication(
-    TChunkManager::TPtr chunkManager,
-    TChunkPlacement::TPtr chunkPlacement)
+    TChunkManager* chunkManager,
+    TChunkPlacement* chunkPlacement,
+    IInvoker* invoker)
     : ChunkManager(chunkManager)
     , ChunkPlacement(chunkPlacement)
+    , Invoker(invoker)
 {
-    YASSERT(~chunkManager != NULL);
-    YASSERT(~chunkPlacement != NULL);
+    YASSERT(chunkManager != NULL);
+    YASSERT(chunkPlacement != NULL);
+    YASSERT(invoker != NULL);
+
+    ScheduleNextRefresh();
 }
 
 void TChunkReplication::RunJobControl(
@@ -82,6 +87,14 @@ void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk
     ScheduleRefresh(chunk.GetId());
 }
 
+void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk)
+{
+    auto& holderInfo = GetHolderInfo(holder.GetId());
+    auto chunkId = chunk.GetId();
+    holderInfo.ChunksToReplicate.erase(chunkId);
+    holderInfo.ChunksToRemove.insert(chunkId);
+}
+
 void TChunkReplication::ProcessExistingJobs(
     const THolder& holder,
     const yvector<NProto::TJobInfo>& runningJobs,
@@ -93,6 +106,7 @@ void TChunkReplication::ProcessExistingJobs(
     *removalJobCount = 0;
 
     // TODO: check for missing jobs
+    // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.GetJobId());
         const auto& job = ChunkManager->GetJob(jobId);
@@ -231,7 +245,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     const auto& chunk = ChunkManager->GetChunk(chunkId);
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for balancing is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG("Postponed chunk balancing until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -277,16 +291,8 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     const TChunkId& chunkId,
     yvector<NProto::TJobStartInfo>* jobsToStart)
 {
-    const auto* chunk = ChunkManager->FindChunk(chunkId);
-    if (chunk == NULL) {
-        LOG_INFO("Chunk for removal is missing (ChunkId: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            holder.GetId());
-        return EScheduleFlags::Purged;
-    }
-
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for removal is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG("Postponed chunk removal until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~holder.GetAddress(),
             holder.GetId());
@@ -464,7 +470,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             minusCount,
             desiredCount);
     } else if (realCount - minusCount > desiredCount) {
-        // NB: never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
+        // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
             LOG_INFO("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
                 ~chunk.GetId().ToString(),
@@ -495,7 +501,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             minusCount,
             desiredCount);
     } else if (realCount + plusCount < desiredCount && minusCount == 0) {
-        // NB: never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
+        // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
             LOG_INFO("Chunk is under-replicated, waiting for pending removals to complete (ChunkId: %s, ReplicaCount: %d+%d-%d, DesiredReplicaCount: %d)",
                 ~chunk.GetId().ToString(),
@@ -573,24 +579,6 @@ void TChunkReplication::OnRefresh()
         RefreshList.pop_front();
     }
     ScheduleNextRefresh();
-}
-
-void TChunkReplication::Start(IInvoker::TPtr invoker)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    YASSERT(~Invoker == NULL);
-    YASSERT(~invoker != NULL);
-    Invoker = invoker;
-    ScheduleNextRefresh();
-}
-
-void TChunkReplication::Stop()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    YASSERT(~Invoker != NULL);
-    Invoker.Drop();
 }
 
 TChunkReplication::THolderInfo* TChunkReplication::FindHolderInfo(THolderId holderId)

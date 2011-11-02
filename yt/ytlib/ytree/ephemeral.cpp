@@ -69,9 +69,9 @@ public: \
         return ENodeType::name; \
     } \
     \
-    virtual TIntrusiveConstPtr<I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
     { \
-        return const_cast<T ## name ## Node*>(this); \
+        return this; \
     } \
     \
     virtual TIntrusivePtr<I ## name ## Node> As ## name() \
@@ -81,7 +81,8 @@ public: \
     \
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
     { \
-        SetNodeFromProducer(TIntrusivePtr<I##name##Node>(this), producer); \
+        auto builder = CreateBuilderFromFactory(GetFactory()); \
+        SetNodeFromProducer<I##name##Node>(this, ~producer, ~builder); \
         return TSetResult::CreateDone(); \
     }
 
@@ -112,9 +113,9 @@ public:
         return this;
     }
 
-    virtual TIntrusiveConstPtr<ICompositeNode> AsComposite() const
+    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const
     {
-        return const_cast< TCompositeNodeBase<IBase>* >(this);
+        return this;
     }
 };
 
@@ -190,7 +191,7 @@ TEphemeralNodeBase::TEphemeralNodeBase()
 
 INodeFactory* TEphemeralNodeBase::GetFactory() const
 {
-    return TEphemeralNodeFactory::Get();
+    return GetEphemeralNodeFactory();
 }
 
 ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
@@ -307,10 +308,11 @@ IYPathService::TNavigateResult TMapNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CreateBuilderFromFactory(GetFactory());
     return TMapNodeMixin::SetRecursive(
         path,
-        producer,
-        TTreeBuilder::CreateYsonBuilder(GetFactory()));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,47 +384,53 @@ IYPathService::TNavigateResult TListNode::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
 {
+    auto builder = CreateBuilderFromFactory(GetFactory());
     return TListNodeMixin::SetRecursive(
         path,
-        producer,
-        TTreeBuilder::CreateYsonBuilder(GetFactory()));
+        ~producer,
+        ~builder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeFactory* TEphemeralNodeFactory::Get()
+class TEphemeralNodeFactory
+    : public INodeFactory
+{
+public:
+    virtual IStringNode::TPtr CreateString()
+    {
+        return New<TStringNode>();
+    }
+
+    virtual IInt64Node::TPtr CreateInt64()
+    {
+        return New<TInt64Node>();
+    }
+
+    virtual IDoubleNode::TPtr CreateDouble()
+    {
+        return New<TDoubleNode>();
+    }
+
+    virtual IMapNode::TPtr CreateMap()
+    {
+        return New<TMapNode>();
+    }
+
+    virtual IListNode::TPtr CreateList()
+    {
+        return New<TListNode>();
+    }
+
+    virtual IEntityNode::TPtr CreateEntity()
+    {
+        return New<TEntityNode>();
+    }
+};
+
+INodeFactory* GetEphemeralNodeFactory()
 {
     return Singleton<TEphemeralNodeFactory>();
-}
-
-IStringNode::TPtr TEphemeralNodeFactory::CreateString()
-{
-    return ~New<TStringNode>();
-}
-
-IInt64Node::TPtr TEphemeralNodeFactory::CreateInt64()
-{
-    return ~New<TInt64Node>();
-}
-
-IDoubleNode::TPtr TEphemeralNodeFactory::CreateDouble()
-{
-    return ~New<TDoubleNode>();
-}
-
-IMapNode::TPtr TEphemeralNodeFactory::CreateMap()
-{
-    return ~New<TMapNode>();
-}
-
-IListNode::TPtr TEphemeralNodeFactory::CreateList()
-{
-    return ~New<TListNode>();
-}
-
-IEntityNode::TPtr TEphemeralNodeFactory::CreateEntity()
-{
-    return ~New<TEntityNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeMessage(google::protobuf::Message* message, TBlob* data);
+bool SerializeMessage(const google::protobuf::Message* message, TBlob* data);
 bool DeserializeMessage(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,9 +22,9 @@ class TRpcRequestMessage
 {
 public:
     TRpcRequestMessage(
-        TRequestId requestId,
-        Stroka serviceName,
-        Stroka methodName,
+        const TRequestId requestId,
+        const Stroka serviceName,
+        const Stroka methodName,
         TBlob* body,
         const yvector<TSharedRef>& attachments);
 

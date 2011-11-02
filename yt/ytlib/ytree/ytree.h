@@ -11,33 +11,57 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 template<class T>
 struct TScalarTypeTraits
 { };
 
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A static node type.
 DECLARE_ENUM(ENodeType,
+    // Node contains a string (Stroka).
     (String)
+    // Node contains an integer number (i64).
     (Int64)
+    // Node contains an FP number (double).
     (Double)
+    // Node contains a map from strings to other nodes.
     (Map)
+    // Node contains a list (vector) of other nodes.
     (List)
+    // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
 );
     
+//! A base DOM-like interface representing a node.
 struct INode
     : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<INode> TPtr;
 
+    //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;
     
+    //! Returns a factory for creating new nodes.
+    /*!
+     *  Every YTree implementation provides its own set of
+     *  node implementations. E.g., for an ephemeral implementation
+     *  this factory creates ephemeral nodes while for
+     *  a persistent implementation (see Cypress) this factory
+     *  creates persistent nodes.
+     */
     virtual INodeFactory* GetFactory() const = 0;
 
+    // A bunch of "AsSomething" methods that return a pointer
+    // to the same node but typed as "Something".
+    // These methods throw an exception on type mismatch.
 #define DECLARE_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() = 0; \
-    virtual TIntrusiveConstPtr<I##name##Node> As##name() const = 0;
+    virtual TIntrusivePtr<const I##name##Node> As##name() const = 0;
 
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
@@ -45,30 +69,47 @@ struct INode
     DECLARE_AS_METHODS(Double)
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
-
 #undef DECLARE_AS_METHODS
 
+    //! Returns a map containing the attributes of the node
+    //! or NULL if no such map is assigned.
     virtual TIntrusivePtr<IMapNode> GetAttributes() const = 0;
+    //! Sets the attribute map. NULL is a viable value indicating that
+    //! no such map is assigned.
     virtual void SetAttributes(TIntrusivePtr<IMapNode> attributes) = 0;
 
+    //! Returns the parent of the node.
+    //! NULL indicates that the current node is the root.
     virtual TIntrusivePtr<ICompositeNode> GetParent() const = 0;
+    //! Sets the parent of the node.
+    /*!
+     *  This method is called automatically when one subtree (possibly)
+     *  consisting of a single node is attached to another.
+     *  
+     *  This method must not be called explicitly.
+     */
     virtual void SetParent(TIntrusivePtr<ICompositeNode> parent) = 0;
 
+    //! A helper method for retrieving a scalar value from a node.
+    //! Invokes an appropriate "AsSomething" call followed by "GetValue".
     template<class T>
     T GetValue() const
     {
-        return TScalarTypeTraits<T>::GetValue(this);
+        return NDetail::TScalarTypeTraits<T>::GetValue(this);
     }
 
+    //! A helper method for assigning a scalar value to a node.
+    //! Invokes an appropriate "AsSomething" call followed by "SetValue".
     template<class T>
-    void SetValue(typename TScalarTypeTraits<T>::TParamType value)
+    void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
     {
-        TScalarTypeTraits<T>::SetValue(this, value);
+        NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A base interface for all scalar nodes, i.e. nodes containing a single atomic value.
 template<class T>
 struct IScalarNode
     : virtual INode
@@ -76,77 +117,14 @@ struct IScalarNode
     typedef T TValue;
     typedef TIntrusivePtr< IScalarNode<T> > TPtr;
 
+    //! Gets the values.
     virtual TValue GetValue() const = 0;
+    //! Sets the value.
     virtual void SetValue(const TValue& value) = 0;
 };
 
-////////////////////////////////////////////////////////////////////////////////
 
-struct ICompositeNode
-    : virtual INode
-{
-    typedef TIntrusivePtr<ICompositeNode> TPtr;
-
-    virtual void Clear() = 0;
-    virtual int GetChildCount() const = 0;
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild) = 0;
-    virtual void RemoveChild(INode::TPtr child) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IListNode
-    : ICompositeNode
-{
-    typedef TIntrusivePtr<IListNode> TPtr;
-
-    using ICompositeNode::RemoveChild;
-
-    virtual yvector<INode::TPtr> GetChildren() const = 0;
-    virtual INode::TPtr FindChild(int index) const = 0;
-    virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
-    virtual bool RemoveChild(int index) = 0;
-
-    INode::TPtr GetChild(int index) const
-    {
-        auto child = FindChild(index);
-        YASSERT(~child != NULL);
-        return child;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IMapNode
-    : ICompositeNode
-{
-    typedef TIntrusivePtr<IMapNode> TPtr;
-
-    using ICompositeNode::RemoveChild;
-
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
-    virtual INode::TPtr FindChild(const Stroka& name) const = 0;
-    virtual bool AddChild(INode::TPtr child, const Stroka& name) = 0;
-    virtual bool RemoveChild(const Stroka& name) = 0;
-
-    INode::TPtr GetChild(const Stroka& name) const
-    {
-        auto child = FindChild(name);
-        YASSERT(~child != NULL);
-        return child;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IEntityNode
-    : virtual INode
-{
-    typedef TIntrusivePtr<IEntityNode> TPtr;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
+// Define the actual scalar node types: IStringNode, IInt64Node, IDoubleNode.
 #define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
         : IScalarNode<type> \
@@ -154,11 +132,15 @@ struct IEntityNode
         typedef TIntrusivePtr<I##name##Node> TPtr; \
     }; \
     \
+    namespace NDetail { \
+    \
     template<> \
     struct TScalarTypeTraits<type> \
     { \
         typedef I##name##Node TNode; \
         typedef paramType TParamType; \
+        \
+        static const ENodeType::EDomain NodeType = ENodeType::name; \
         \
         static type GetValue(const INode* node) \
         { \
@@ -169,7 +151,9 @@ struct IEntityNode
         { \
             node->As##name()->SetValue(value); \
         } \
-    };
+    }; \
+    \
+    }
 
 DECLARE_SCALAR_TYPE(String, Stroka, const Stroka&)
 DECLARE_SCALAR_TYPE(Int64, i64, i64)
@@ -179,16 +163,147 @@ DECLARE_SCALAR_TYPE(Double, double, double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A base interface for all composite nodes, i.e. nodes containing other nodes.
+struct ICompositeNode
+    : virtual INode
+{
+    typedef TIntrusivePtr<ICompositeNode> TPtr;
+
+    //! Removes all child nodes.
+    virtual void Clear() = 0;
+    //! Returns the number of child nodes.
+    virtual int GetChildCount() const = 0;
+    //! Replaces one child by the other.
+    //! #newChild must be a root.
+    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild) = 0;
+    //! Removes a child.
+    //! The removed child becomes a root.
+    virtual void RemoveChild(INode::TPtr child) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
+struct IMapNode
+    : ICompositeNode
+{
+    typedef TIntrusivePtr<IMapNode> TPtr;
+
+    using ICompositeNode::RemoveChild;
+
+    //! Returns the current snapshot of the map.
+    /*!
+     *  Map items are returned in unspecified order.
+     */
+    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+    //! Gets a child by its key.
+    /*!
+     *  \param key A key.
+     *  \return A child with the given key or NULL if the index is not valid.
+     */
+    virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+    //! Adds a new child with a given key.
+    /*!
+     *  \param child A child.
+     *  \param key A key.
+     *  \return True iff the key was not in the map already and thus the child is inserted.
+     *  
+     *  \note
+     *  #child must be a root.
+     */
+    virtual bool AddChild(INode::TPtr child, const Stroka& key) = 0;
+    //! Removes a child by its index.
+    /*!
+     *  \param index A key.
+     *  \return True iff there was a child with the given key.
+     */
+    virtual bool RemoveChild(const Stroka& key) = 0;
+
+    //! Similar to #FindChild but fails if no child is found.
+    INode::TPtr GetChild(const Stroka& key) const
+    {
+        auto child = FindChild(key);
+        YASSERT(~child != NULL);
+        return child;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A list node, which keeps a list (vector) of children.
+struct IListNode
+    : ICompositeNode
+{
+    typedef TIntrusivePtr<IListNode> TPtr;
+
+    using ICompositeNode::RemoveChild;
+
+    //! Returns the current snapshot of the list.
+    virtual yvector<INode::TPtr> GetChildren() const = 0;
+    //! Gets a child by its index.
+    /*!
+     *  \param index An index.
+     *  \return A child with the given index or NULL if the index is not valid.
+     */
+    virtual INode::TPtr FindChild(int index) const = 0;
+    //! Adds a new child at a given position.
+    /*!
+     *  \param child A child.
+     *  \param beforeIndex A position before which the insertion must happen.
+     *  -1 indicates the end of the list.
+     *  
+     *  \note
+     *  #child must be a root.
+     */
+    virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
+    //! Removes a child by its index.
+    /*!
+     *  \param index An index.
+     *  \return True iff the index is valid and thus the child is removed.
+     */
+    virtual bool RemoveChild(int index) = 0;
+
+    //! Similar to #FindChild but fails if the index is not valid.
+    INode::TPtr GetChild(int index) const
+    {
+        auto child = FindChild(index);
+        YASSERT(~child != NULL);
+        return child;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An structureless entity node.
+struct IEntityNode
+    : virtual INode
+{
+    typedef TIntrusivePtr<IEntityNode> TPtr;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A factory for creating nodes.
+/*!
+ *  \note
+ *  All freshly created nodes are roots, i.e. have no parent.
+ */
 struct INodeFactory
 {
     virtual ~INodeFactory()
     { }
 
+    //! Creates a string node.
     virtual IStringNode::TPtr CreateString() = 0;
+    //! Creates an integer node.
     virtual IInt64Node::TPtr CreateInt64() = 0;
+    //! Creates an FP number node.
     virtual IDoubleNode::TPtr CreateDouble() = 0;
+    //! Creates a map node.
     virtual IMapNode::TPtr CreateMap() = 0;
+    //! Creates a list node.
     virtual IListNode::TPtr CreateList() = 0;
+    //! Creates an entity node.
     virtual IEntityNode::TPtr CreateEntity() = 0;
 };
 

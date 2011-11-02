@@ -1,8 +1,6 @@
 #pragma once
 
 #include "common.h"
-
-#include "common.h"
 #include "file_service_rpc.pb.h"
 
 #include "../rpc/service.h"
@@ -23,10 +21,10 @@ public:
         ((NoSuchTransaction)(1))
         ((NoSuchNode)(2))
         ((NoSuchChunk)(3))
-        ((InvalidNodeType)(4))
+        ((NotAFile)(4))
     );
 
-    TFileServiceProxy(NRpc::IChannel::TPtr channel)
+    TFileServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

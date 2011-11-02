@@ -20,6 +20,8 @@ static NLog::TLogger& Logger = RpcLogger;
 TChannel::TChannel(TBusClient::TPtr client)
     : Terminated(false)
 {
+    YASSERT(~client != NULL);
+
     Bus = client->CreateBus(this);
 }
 
@@ -30,10 +32,13 @@ TChannel::TChannel(Stroka address)
 }
 
 TFuture<EErrorCode>::TPtr TChannel::Send(
-    TClientRequest::TPtr request,
+    IClientRequest::TPtr request,
     IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
 {
+    YASSERT(~request != NULL);
+    YASSERT(~responseHandler != NULL);
+
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto requestId = request->GetRequestId();
@@ -70,8 +75,8 @@ TFuture<EErrorCode>::TPtr TChannel::Send(
     
     LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
         ~requestId.ToString(),
-        ~request->ServiceName,
-        ~request->MethodName);
+        ~request->GetServiceName(),
+        ~request->GetMethodName());
 
     return activeRequest.Ready;
 }
@@ -87,7 +92,7 @@ void TChannel::Terminate()
 
     YASSERT(~Bus != NULL);
     Bus->Terminate();
-    Bus.Drop();
+    Bus.Reset();
     Terminated = true;
 }
 

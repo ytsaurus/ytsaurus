@@ -6,14 +6,16 @@ SET(YT_SOURCE_FILES
     yson_events.h
     yson_reader.cpp
     yson_writer.cpp
-    tree_builder.h
-    tree_visitor.h
+    tree_builder.cpp
+    tree_visitor.cpp
     ypath.cpp
     node_detail.cpp
     ephemeral.cpp
     fluent.h
     json_adapter.cpp
     ypath_detail.cpp
+    forwarding_yson_events.cpp
+    virtual.cpp
 )
 
 include_directories(

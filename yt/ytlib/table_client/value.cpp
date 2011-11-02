@@ -63,11 +63,13 @@ TBlob TValue::ToBlob() const
 
 int TValue::Save(TOutputStream* out)
 {
+    YASSERT(out != NULL);
+
     if (IsNull()) {
         return WriteVarUInt64(out, 0);
     } else {
         int bytesWritten = WriteVarUInt64(out, GetSize() + 1);
-        bytesWritten += GetSize();
+        bytesWritten += static_cast<int>(GetSize());
         out->Write(GetData(), GetSize());
         return bytesWritten;
     }
@@ -75,6 +77,8 @@ int TValue::Save(TOutputStream* out)
 
 TValue TValue::Load(TMemoryInput* input)
 {
+    YASSERT(input != NULL);
+
     ui64 size;
     ReadVarUInt64(input, &size);
     if (size == 0) {

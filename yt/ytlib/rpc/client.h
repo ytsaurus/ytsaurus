@@ -52,13 +52,27 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IClientRequest
+    : virtual public TRefCountedBase
+{
+    typedef TIntrusivePtr<IClientRequest> TPtr;
+
+    virtual NBus::IMessage::TPtr Serialize() const = 0;
+
+    virtual TRequestId GetRequestId() const = 0;
+    virtual Stroka GetServiceName() const = 0;
+    virtual Stroka GetMethodName() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClientRequest
-    : public TRefCountedBase
+    : public IClientRequest
 {
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
 
-    TRequestId GetRequestId();
+    TRequestId GetRequestId() const;
 
     yvector<TSharedRef>& Attachments();
 
@@ -70,19 +84,20 @@ protected:
         Stroka serviceName,
         Stroka methodName);
 
-    virtual bool SerializeBody(TBlob* data) = 0;
+    virtual bool SerializeBody(TBlob* data) const = 0;
     TFuture<EErrorCode>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
 
-private:
-    friend class TChannel;
+    Stroka GetServiceName() const;
+    Stroka GetMethodName() const;
 
+private:
     Stroka ServiceName;
     Stroka MethodName;
     TRequestId RequestId;
 
     yvector<TSharedRef> Attachments_;
 
-    NBus::IMessage::TPtr Serialize();
+    NBus::IMessage::TPtr Serialize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +120,9 @@ public:
 
     TTypedClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
         : TClientRequest(channel, serviceName, methodName)
-    { }
+    {
+        YASSERT(~channel != NULL);
+    }
 
     typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
     {
@@ -121,7 +138,7 @@ public:
     }
 
 private:
-    virtual bool SerializeBody(TBlob* data)
+    virtual bool SerializeBody(TBlob* data) const
     {
         return SerializeMessage(this, data);
     }
@@ -131,6 +148,9 @@ private:
         typename TInvokeResult::TPtr asyncResult,
         typename TTypedResponse::TPtr response)
     {
+        YASSERT(~asyncResult != NULL);
+        YASSERT(~response != NULL);
+
         UNUSED(errorCode);
         asyncResult->Set(response);
     }
@@ -226,7 +246,9 @@ public:
         : TClientResponse(
             requestId,
             channel)
-    { }
+    {
+        YASSERT(~channel != NULL);
+    }
 
     TErrorCode GetErrorCode() const
     {

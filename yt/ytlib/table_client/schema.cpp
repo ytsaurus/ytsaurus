@@ -151,11 +151,11 @@ NProto::TChannel TChannel::ToProto() const
 NYT::NTableClient::TChannel TChannel::FromProto( const NProto::TChannel& protoChannel )
 {
     TChannel result;
-    for (int i = 0; i < protoChannel.ColumnsSize(); ++i) {
+    for (int i = 0; i < protoChannel.columns_size(); ++i) {
         result.AddColumn(protoChannel.GetColumns(i));
     }
 
-    for (int i = 0; i < protoChannel.RangesSize(); ++i) {
+    for (int i = 0; i < protoChannel.ranges_size(); ++i) {
         result.AddRange(TRange::FromProto(protoChannel.GetRanges(i)));
     }
     return result;

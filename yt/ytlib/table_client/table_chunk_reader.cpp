@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "table_reader.h"
+#include "table_chunk_reader.h"
 
 #include "chunk_meta.pb.h"
 
@@ -39,7 +39,7 @@ struct TBlockInfo {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReader::TTableReader(
+TTableChunkReader::TTableChunkReader(
     const TSequentialChunkReader::TConfig& config,
     const TChannel& channel,
     IChunkReader::TPtr chunkReader)
@@ -53,17 +53,19 @@ TTableReader::TTableReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YASSERT(~chunkReader != NULL);
+
     // The last block contains meta.
     yvector<int> metaIndex(1, -1);
     chunkReader->AsyncReadBlocks(metaIndex)
         ->Subscribe(FromMethod(
-            &TTableReader::OnGotMeta, 
+            &TTableChunkReader::OnGotMeta, 
             TPtr(this),
             config,
             chunkReader));
 }
 
-void TTableReader::OnGotMeta(
+void TTableChunkReader::OnGotMeta(
     IChunkReader::TReadResult readResult, 
     const TSequentialChunkReader::TConfig& config,
     IChunkReader::TPtr chunkReader)
@@ -81,11 +83,11 @@ void TTableReader::OnGotMeta(
 
     auto& metaBlob = readResult.Blocks.front();
     NProto::TChunkMeta protoMeta;
-    protoMeta.ParseFromArray(metaBlob.Begin(), metaBlob.Size());
+    protoMeta.ParseFromArray(metaBlob.Begin(), static_cast<int>(metaBlob.Size()));
 
     yvector<TChannel> channels;
     channels.reserve(protoMeta.ChannelsSize());
-    for(int i = 0; i < protoMeta.ChannelsSize(); ++i) {
+    for(int i = 0; i < protoMeta.channels_size(); ++i) {
         channels.push_back(
             TChannel::FromProto(protoMeta.GetChannels(i))
         );
@@ -115,7 +117,7 @@ void TTableReader::OnGotMeta(
     InitSuccess->Set(true);
 }
 
-bool TTableReader::NextRow()
+bool TTableChunkReader::NextRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     if (!InitSuccess->Get()) {
@@ -151,7 +153,7 @@ bool TTableReader::NextRow()
     return true;
 }
 
-bool TTableReader::NextColumn()
+bool TTableChunkReader::NextColumn()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -183,7 +185,7 @@ bool TTableReader::NextColumn()
     YUNREACHABLE();
 }
 
-const TColumn& TTableReader::GetColumn() const
+const TColumn& TTableChunkReader::GetColumn() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -194,7 +196,7 @@ const TColumn& TTableReader::GetColumn() const
     return CurrentColumn;
 }
 
-TValue TTableReader::GetValue() const
+TValue TTableChunkReader::GetValue() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(InitSuccess->IsSet());
@@ -205,12 +207,12 @@ TValue TTableReader::GetValue() const
     return ChannelReaders[CurrentChannel].GetValue();
 }
 
-yvector<int> TTableReader::SelectChannels(const yvector<TChannel>& channels)
+yvector<int> TTableChunkReader::SelectChannels(const yvector<TChannel>& channels)
 {
     yvector<int> result;
 
     TChannel remainder = Channel;
-    for (int channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
+    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
         auto& curChannel = channels[channelIdx];
         if (curChannel.Overlaps(remainder)) {
             remainder -= curChannel;
@@ -224,16 +226,16 @@ yvector<int> TTableReader::SelectChannels(const yvector<TChannel>& channels)
     return result;
 }
 
-int TTableReader::SelectSingleChannel(
+int TTableChunkReader::SelectSingleChannel(
     const yvector<TChannel>& channels, 
     const NProto::TChunkMeta& protoMeta)
 {
     int resultIdx = -1;
     int minBlockCount = -1;
 
-    for (int channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
+    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
         if (channels[channelIdx].Contains(Channel)) {
-            int blockCount = protoMeta.GetChannels(channelIdx).BlocksSize();
+            int blockCount = protoMeta.GetChannels(channelIdx).blocks_size();
             if (resultIdx < 0 || minBlockCount > blockCount) {
                 resultIdx = channelIdx;
                 minBlockCount = blockCount;
@@ -244,7 +246,7 @@ int TTableReader::SelectSingleChannel(
 }
 
 // Note: sets RowCount as side effect
-yvector<int> TTableReader::GetBlockReadingOrder(
+yvector<int> TTableChunkReader::GetBlockReadingOrder(
     const yvector<int>& selectedChannels, 
     const NProto::TChunkMeta& protoMeta)
 {
@@ -271,7 +273,7 @@ yvector<int> TTableReader::GetBlockReadingOrder(
         std::pop_heap(blockHeap.begin(), blockHeap.end());
         blockHeap.pop_back();
 
-        if (nextBlockIndex < protoChannel.BlocksSize()) {
+        if (nextBlockIndex < protoChannel.blocks_size()) {
             const auto& protoBlock = protoChannel.GetBlocks(nextBlockIndex);
 
             blockHeap.push_back(TBlockInfo(

@@ -21,9 +21,14 @@ struct TActionTargetTraits< TIntrusivePtr<T> >
 {
     typedef T TUnderlying;
 
-    static FORCED_INLINE TUnderlying* Get(TIntrusivePtr<T> ptr)
+    static FORCED_INLINE TUnderlying* Get(const TIntrusivePtr<T>& ptr)
     {
-        return ~ptr;
+        return ptr.Get();
+    }
+
+    static FORCED_INLINE TUnderlying* Get(const TIntrusivePtr<T>&& ptr)
+    {
+        return ptr.Get();
     }
 };
 
@@ -77,6 +82,7 @@ $var TArgs = [[$for j, [[TArg$j]]]]
 $var  Args = [[$for j, [[Arg$j]]]]
 $var  args = [[$for j, [[arg$j]]]]
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for member function, without parameter, without return value.
 namespace NActionThunks {
 template <class TTargetPtr$_and_$tmpl_args>
@@ -120,9 +126,10 @@ IAction::TPtr FromMethod(
     void (TUnderlying::* method)($TArgs),
     TTargetPtr target$wrap_args)
 {
-    return ~New< NActionThunks::TMemberVoidFunc$i<TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+    return New< NActionThunks::TMemberVoidFunc$i<TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for member function, without parameter, with return value.
 namespace NActionThunks {
 template <class TResult, class TTargetPtr$_and_$tmpl_args>
@@ -166,9 +173,10 @@ typename IFunc<TResult>::TPtr FromMethod(
     TResult (TUnderlying::* method)($TArgs),
     TTargetPtr target$wrap_args)
 {
-    return ~New< NActionThunks::TMemberFunc$i<TResult, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+    return New< NActionThunks::TMemberFunc$i<TResult, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for member function, with parameter, without return value.
 namespace NActionThunks {
 template <class TParam, class TTargetPtr$_and_$tmpl_args>
@@ -212,9 +220,10 @@ typename IParamAction<TParam>::TPtr FromMethod(
     void (TUnderlying::* method)(TParam$_and_$TArgs),
     TTargetPtr target$wrap_args)
 {
-    return ~New< NActionThunks::TParamMemberVoidFunc$i<TParam, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+    return New< NActionThunks::TParamMemberVoidFunc$i<TParam, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for member function, with parameter, with return value.
 namespace NActionThunks {
 template <class TParam, class TResult, class TTargetPtr$_and_$tmpl_args>
@@ -258,9 +267,10 @@ typename IParamFunc<TParam, TResult>::TPtr FromMethod(
     TResult (TUnderlying::* method)(TParam$_and_$TArgs),
     TTargetPtr target$wrap_args)
 {
-    return ~New< NActionThunks::TParamMemberFunc$i<TParam, TResult, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+    return New< NActionThunks::TParamMemberFunc$i<TParam, TResult, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for free function, without parameter, without return value.
 namespace NActionThunks {
 [[$if i > 0 [[
@@ -306,9 +316,10 @@ inline // TODO: FORCED_INLINE
 IAction::TPtr FromMethod(
     void (* method)($TArgs)$wrap_args)
 {
-    return ~New< NActionThunks::TVoidFunc$i[[$if i > 0 [[<$TArgs>]]]] >(method$_and_$args);
+    return New< NActionThunks::TVoidFunc$i[[$if i > 0 [[<$TArgs>]]]] >(method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for free function, without parameter, with return value.
 namespace NActionThunks {
 template <class TResult$_and_$tmpl_args>
@@ -348,9 +359,10 @@ inline // TODO: FORCED_INLINE
 typename IFunc<TResult>::TPtr FromMethod(
     TResult (* method)($TArgs)$wrap_args)
 {
-    return ~New< NActionThunks::TFunc$i<TResult$_and_$TArgs> >(method$_and_$args);
+    return New< NActionThunks::TFunc$i<TResult$_and_$TArgs> >(method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for free function, with parameter, without return value.
 namespace NActionThunks {
 template <class TParam$_and_$tmpl_args>
@@ -390,9 +402,10 @@ inline // TODO: FORCED_INLINE
 typename IParamAction<TParam>::TPtr FromMethod(
     void (* method)(TParam$_and_$TArgs)$wrap_args)
 {
-    return ~New< NActionThunks::TParamVoidFunc$i<TParam$_and_$TArgs> >(method$_and_$args);
+    return New< NActionThunks::TParamVoidFunc$i<TParam$_and_$TArgs> >(method$_and_$args);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for free function, with parameter, with return value.
 namespace NActionThunks {
 template <class TParam, class TResult$_and_$tmpl_args>
@@ -432,7 +445,7 @@ inline // TODO: FORCED_INLINE
 typename IParamFunc<TParam, TResult>::TPtr FromMethod(
     TResult (* method)(TParam$_and_$TArgs)$wrap_args)
 {
-    return ~New< NActionThunks::TParamFunc$i<TParam, TResult$_and_$TArgs> >(method$_and_$args);
+    return New< NActionThunks::TParamFunc$i<TParam, TResult$_and_$TArgs> >(method$_and_$args);
 }
 
 

@@ -24,6 +24,9 @@ TChunkHolder::TChunkHolder(
         Logger.GetCategory())
     , Config(config)
 {
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~server != NULL);
+
     ChunkStore = New<TChunkStore>(Config);
     BlockStore = New<TBlockStore>(Config, ChunkStore);
 
@@ -187,7 +190,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 
     TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(~ChannelCache.GetChannel(address));
+    TProxy proxy(ChannelCache.GetChannel(address));
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);

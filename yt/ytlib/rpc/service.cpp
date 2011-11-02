@@ -26,11 +26,16 @@ TServiceContext::TServiceContext(
     , RequestId(requestId)
     , MethodName(methodName)
     , ReplyBus(replyBus)
-    , RequestBody(message->GetParts().at(1))
-    , RequestAttachments(message->GetParts().begin() + 2, message->GetParts().end())
-    , ServiceLogger(service->GetLoggingCategory())
+    , ServiceLogger(service->GetLoggingCategory()) // TODO: move this to body
     , Replied(false)
-{ }
+{
+    YASSERT(~service != NULL);
+    YASSERT(~message != NULL);
+    YASSERT(~replyBus != NULL);
+
+    RequestBody = message->GetParts().at(1);
+    RequestAttachments = yvector<TSharedRef>(message->GetParts().begin() + 2, message->GetParts().end());
+}
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
@@ -54,13 +59,13 @@ void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
 
     IMessage::TPtr message;
     if (errorCode.IsOK()) {
-        message = ~New<TRpcResponseMessage>(
+        message = New<TRpcResponseMessage>(
             RequestId,
             errorCode,
             &ResponseBody,
             ResponseAttachments);
     } else {
-        message = ~New<TRpcErrorResponseMessage>(
+        message = New<TRpcErrorResponseMessage>(
             RequestId,
             errorCode);
     }
@@ -256,7 +261,7 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName,
             ~methodName);
-        IMessage::TPtr errorMessage(~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage(New<TRpcErrorResponseMessage>(
             context->GetRequestId(),
             EErrorCode::NoMethod));
         context->GetReplyBus()->Send(errorMessage);

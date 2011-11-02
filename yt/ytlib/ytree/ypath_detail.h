@@ -4,6 +4,7 @@
 #include "ypath.h"
 #include "yson_events.h"
 #include "tree_builder.h"
+#include "forwarding_yson_events.h"
 
 #include "../actions/action_util.h"
 
@@ -12,68 +13,11 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move to forwarding_yson_events.h/cpp
-
-class TForwardingYsonConsumer
-    : public IYsonConsumer
-{
-protected:
-    TForwardingYsonConsumer();
-
-    void ForwardNode(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
-    void ForwardAttributes(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
-
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes) = 0;
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes) = 0;
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes) = 0;
-    virtual void OnMyEntity(bool hasAttributes) = 0;
-
-    virtual void OnMyBeginList() = 0;
-    virtual void OnMyListItem() = 0;
-    virtual void OnMyEndList(bool hasAttributes) = 0;
-
-    virtual void OnMyBeginMap() = 0;
-    virtual void OnMyMapItem(const Stroka& name) = 0;
-    virtual void OnMyEndMap(bool hasAttributes) = 0;
-
-    virtual void OnMyBeginAttributes() = 0;
-    virtual void OnMyAttributesItem(const Stroka& name) = 0;
-    virtual void OnMyEndAttributes() = 0;
-
-private:
-    IYsonConsumer* ForwardingConsumer;
-    int ForwardingDepth;
-    IAction::TPtr OnForwardingFinished;
-
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
-
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
-
-    virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap(bool hasAttributes);
-
-    virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
-    virtual void OnEndAttributes();
-
-    void DoForward(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished, int depth);
-    void UpdateDepth(int depthDelta);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
 protected:
-    TNodeSetterBase(INode::TPtr node);
+    TNodeSetterBase(INode* node, ITreeBuilder* builder);
 
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
@@ -96,12 +40,14 @@ protected:
     virtual void OnMyAttributesItem(const Stroka& name);
     virtual void OnMyEndAttributes();
 
-private:
+protected:
     typedef TNodeSetterBase TThis;
 
     INode::TPtr Node;
+    ITreeBuilder* Builder;
+
     Stroka AttributeName;
-    TAutoPtr<TTreeBuilder> AttributeBuilder;
+    TAutoPtr<ITreeBuilder> AttributeBuilder;
 
     void OnForwardingFinished();
 
@@ -119,8 +65,8 @@ class TNodeSetter
         : public TNodeSetterBase \
     { \
     public: \
-        TNodeSetter(I##name##Node::TPtr node) \
-            : TNodeSetterBase(~node) \
+        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
+            : TNodeSetterBase(node, builder) \
             , Node(node) \
         { } \
     \
@@ -132,7 +78,9 @@ class TNodeSetter
             return ENodeType::name; \
         } \
         \
-        virtual void On ## name ## Scalar(TScalarTypeTraits<type>::TParamType value, bool hasAttributes) \
+        virtual void On ## name ## Scalar( \
+            NDetail::TScalarTypeTraits<type>::TParamType value, \
+            bool hasAttributes) \
         { \
             UNUSED(hasAttributes); \
             Node->SetValue(value); \
@@ -152,8 +100,8 @@ class TNodeSetter<IMapNode>
     : public TNodeSetterBase
 {
 public:
-    TNodeSetter(IMapNode::TPtr map)
-        : TNodeSetterBase(~map)
+    TNodeSetter(IMapNode* map, ITreeBuilder* builder)
+        : TNodeSetterBase(map, builder)
         , Map(map)
     { }
 
@@ -162,7 +110,6 @@ private:
 
     IMapNode::TPtr Map;
     Stroka ItemName;
-    TAutoPtr<TTreeBuilder> ItemBuilder;
 
     virtual ENodeType GetExpectedType()
     {
@@ -176,17 +123,14 @@ private:
 
     virtual void OnMyMapItem(const Stroka& name)
     {
-        YASSERT(~ItemBuilder == NULL);
         ItemName = name;
-        ItemBuilder.Reset(new TTreeBuilder(Map->GetFactory()));
-        ForwardNode(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        Builder->BeginTree();
+        ForwardNode(Builder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YASSERT(~ItemBuilder != NULL);
-        Map->AddChild(ItemBuilder->GetRoot(), ItemName);
-        ItemBuilder.Destroy();
+        Map->AddChild(Builder->EndTree(), ItemName);
         ItemName.clear();
     }
 
@@ -204,8 +148,8 @@ class TNodeSetter<IListNode>
     : public TNodeSetterBase
 {
 public:
-    TNodeSetter(IListNode::TPtr list)
-        : TNodeSetterBase(~list)
+    TNodeSetter(IListNode* list, ITreeBuilder* builder)
+        : TNodeSetterBase(list, builder)
         , List(list)
     { }
 
@@ -213,7 +157,6 @@ private:
     typedef TNodeSetter<IListNode> TThis;
 
     IListNode::TPtr List;
-    TAutoPtr<TTreeBuilder> ItemBuilder;
 
     virtual ENodeType GetExpectedType()
     {
@@ -227,16 +170,13 @@ private:
 
     virtual void OnMyListItem()
     {
-        YASSERT(~ItemBuilder == NULL);
-        ItemBuilder.Reset(new TTreeBuilder(List->GetFactory()));
-        ForwardNode(~ItemBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        Builder->BeginTree();
+        ForwardNode(Builder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YASSERT(~ItemBuilder != NULL);
-        List->AddChild(ItemBuilder->GetRoot());
-        ItemBuilder.Destroy();
+        List->AddChild(Builder->EndTree());
     }
 
     virtual void OnMyEndList(bool hasAttributes)
@@ -253,8 +193,8 @@ class TNodeSetter<IEntityNode>
     : public TNodeSetterBase
 {
 public:
-    TNodeSetter(IEntityNode::TPtr entity)
-        : TNodeSetterBase(~entity)
+    TNodeSetter(IEntityNode* entity, ITreeBuilder* builder)
+        : TNodeSetterBase(entity, builder)
     { }
 
 private:
@@ -273,12 +213,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TNode>
-void SetNodeFromProducer(TIntrusivePtr<TNode> node, TYsonProducer::TPtr producer)
+void SetNodeFromProducer(
+    TNode* node,
+    TYsonProducer* producer,
+    ITreeBuilder* builder)
 {
-    YASSERT(~node != NULL);
-    YASSERT(~producer != NULL);
+    YASSERT(node != NULL);
+    YASSERT(producer != NULL);
+    YASSERT(builder != NULL);
 
-    TNodeSetter<TNode> setter(node);
+    TNodeSetter<TNode> setter(node, builder);
     producer->Do(&setter);
 }
 

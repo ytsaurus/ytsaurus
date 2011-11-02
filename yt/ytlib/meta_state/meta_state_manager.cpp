@@ -66,13 +66,6 @@ public:
         const TSharedRef& changeData,
         ECommitMode mode = ECommitMode::NeverFails);
 
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        const TSharedRef& changeData);
-
-    TAsyncCommitResult::TPtr CommitChangeAsync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData);
-
     void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -84,10 +77,12 @@ public:
 
     // TODO: get rid of this stupid name clash with IElectionCallbacks
     DECLARE_BYREF_RW_PROPERTY(OnMyStartLeading, TSignal);
+    DECLARE_BYREF_RW_PROPERTY(OnMyLeaderRecoveryComplete, TSignal);
     DECLARE_BYREF_RW_PROPERTY(OnMyStopLeading, TSignal);
+
     DECLARE_BYREF_RW_PROPERTY(OnMyStartFollowing, TSignal);
+    DECLARE_BYREF_RW_PROPERTY(OnMyFollowerRecoveryComplete, TSignal);
     DECLARE_BYREF_RW_PROPERTY(OnMyStopFollowing, TSignal);
-    DECLARE_BYREF_RW_PROPERTY(OnRecoveryComplete, TSignal);
 
 private:
     typedef TImpl TThis;
@@ -169,7 +164,7 @@ private:
             }
         }
     
-        OnRecoveryComplete_.Fire();
+        OnMyLeaderRecoveryComplete_.Fire();
     }
 
     void OnRemoteAdvanceSegment(
@@ -387,7 +382,9 @@ TMetaStateManager::TImpl::CommitChangeSync(
         return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
     }
 
-    if (!FollowerTracker->HasActiveQuorum()) {
+    // FollowerTracker is modified concurrently from the ControlThread.
+    auto followerTracker = FollowerTracker;
+    if (~followerTracker == NULL || !followerTracker->HasActiveQuorum()) {
         return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
     }
 
@@ -395,37 +392,6 @@ TMetaStateManager::TImpl::CommitChangeSync(
         LeaderCommitter
         ->CommitLeader(changeAction, changeData, mode)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeAsync(const TSharedRef& changeData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return CommitChangeAsync(
-        FromMethod(
-            &IMetaState::ApplyChange,
-            MetaState->GetState(),
-            changeData),
-        changeData);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeAsync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return
-        FromMethod(
-            &TImpl::CommitChangeSync,
-            TPtr(this),
-            changeAction,
-            changeData,
-            ECommitMode::NeverFails)
-        ->AsyncVia(GetStateInvoker())
-        ->Do();
 }
 
 ECommitResult TMetaStateManager::TImpl::OnChangeCommit(
@@ -944,7 +910,7 @@ void TMetaStateManager::TImpl::StopControlEpoch()
     
     YASSERT(~EpochControlInvoker != NULL);
     EpochControlInvoker->Cancel();
-    EpochControlInvoker.Drop();
+    EpochControlInvoker.Reset();
 }
 
 void TMetaStateManager::TImpl::StartStateEpoch()
@@ -961,7 +927,7 @@ void TMetaStateManager::TImpl::StopStateEpoch()
 
     YASSERT(~EpochStateInvoker != NULL);
     EpochStateInvoker->Cancel();
-    EpochStateInvoker.Drop();
+    EpochStateInvoker.Reset();
 }
 
 void TMetaStateManager::TImpl::OnStartLeading(const TEpoch& epoch)
@@ -1015,7 +981,7 @@ void TMetaStateManager::TImpl::OnLeaderRecoveryComplete(TRecovery::EResult resul
 
     YASSERT(~LeaderRecovery != NULL);
     LeaderRecovery->Stop();
-    LeaderRecovery.Drop();
+    LeaderRecovery.Reset();
 
     if (result != TRecovery::EResult::OK) {
         LOG_WARNING("Leader recovery failed, restarting");
@@ -1078,21 +1044,21 @@ void TMetaStateManager::TImpl::OnStopLeading()
 
     if (~LeaderRecovery != NULL) {
         LeaderRecovery->Stop();
-        LeaderRecovery.Drop();
+        LeaderRecovery.Reset();
     }
 
     if (~LeaderCommitter != NULL) {
         LeaderCommitter->Stop();
-        LeaderCommitter.Drop();
+        LeaderCommitter.Reset();
     }
 
     if (~FollowerTracker != NULL) {
         FollowerTracker->Stop();
-        FollowerTracker.Drop();
+        FollowerTracker.Reset();
     }
 
     if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Drop();
+        SnapshotCreator.Reset();
     }
 }
 
@@ -1172,7 +1138,7 @@ void TMetaStateManager::TImpl::OnFollowerRecoveryComplete(TRecovery::EResult res
 
     YASSERT(~FollowerRecovery != NULL);
     FollowerRecovery->Stop();
-    FollowerRecovery.Drop();
+    FollowerRecovery.Reset();
 
     if (result != TRecovery::EResult::OK) {
         LOG_INFO("Follower recovery failed, restarting");
@@ -1220,7 +1186,7 @@ void TMetaStateManager::TImpl::DoFollowerRecoveryComplete()
     YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
     StateStatus = EPeerStatus::Following;
 
-    OnRecoveryComplete_.Fire();
+    OnMyFollowerRecoveryComplete_.Fire();
 }
 
 void TMetaStateManager::TImpl::OnStopFollowing()
@@ -1240,21 +1206,21 @@ void TMetaStateManager::TImpl::OnStopFollowing()
     if (~FollowerRecovery != NULL) {
         // This may happen if the recovery gets interrupted.
         FollowerRecovery->Stop();
-        FollowerRecovery.Drop();
+        FollowerRecovery.Reset();
     }
 
     if (~FollowerCommitter != NULL) {
         FollowerCommitter->Stop();
-        FollowerCommitter.Drop();
+        FollowerCommitter.Reset();
     }
 
     if (~LeaderPinger != NULL) {
         LeaderPinger->Stop();
-        LeaderPinger.Drop();
+        LeaderPinger.Reset();
     }
 
     if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Drop();
+        SnapshotCreator.Reset();
     }
 }
 
@@ -1347,20 +1313,6 @@ TMetaStateManager::CommitChangeSync(
     return Impl->CommitChangeSync(changeAction, changeData, mode);
 }
 
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeAsync(const TSharedRef& changeData)
-{
-    return Impl->CommitChangeAsync(changeData);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeAsync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData)
-{
-    return Impl->CommitChangeAsync(changeAction, changeData);
-}
-
 void TMetaStateManager::SetReadOnly(bool readOnly)
 {
     Impl->SetReadOnly(readOnly);
@@ -1381,6 +1333,11 @@ TSignal& TMetaStateManager::OnStartLeading()
     return Impl->OnMyStartLeading();
 }
 
+TSignal& TMetaStateManager::OnLeaderRecoveryComplete()
+{
+    return Impl->OnMyLeaderRecoveryComplete();
+}
+
 TSignal& TMetaStateManager::OnStopLeading()
 {
     return Impl->OnMyStopLeading();
@@ -1391,14 +1348,14 @@ TSignal& TMetaStateManager::OnStartFollowing()
     return Impl->OnMyStartFollowing();
 }
 
+TSignal& TMetaStateManager::OnFollowerRecoveryComplete()
+{
+    return Impl->OnMyFollowerRecoveryComplete();
+}
+
 TSignal& TMetaStateManager::OnStopFollowing()
 {
     return Impl->OnMyStopFollowing();
-}
-
-TSignal& TMetaStateManager::OnRecoveryComplete()
-{
-    return Impl->OnRecoveryComplete();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

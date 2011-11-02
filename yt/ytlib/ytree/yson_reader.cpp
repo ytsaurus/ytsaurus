@@ -8,6 +8,8 @@
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
 
+#include <util/string/escape.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -140,33 +142,74 @@ void TYsonReader::SkipWhitespaces()
 
 Stroka TYsonReader::ReadString()
 {
-    Stroka result;
-    if (PeekChar() == '"') {
-        YVERIFY(ReadChar() == '"');
-        while (true) {
-            int ch = ReadChar();
-            if (ch == Eos) {
-                ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
-                    ~GetPositionInfo());
-            }
-            if (ch == '"')
-                break;
-            result.append(static_cast<char>(ch));
-        }
-    } else {
-        while (true) {
-            int ch = PeekChar();
-            if (!(ch >= 'a' && ch <= 'z' ||
-                  ch >= 'A' && ch <= 'Z' ||
-                  ch == '_' ||
-                  ch >= '0' && ch <= '9' && !result.Empty()))
-                  break;
-            ReadChar();
-            result.append(static_cast<char>(ch));
-        }
+    int ch = PeekChar();
+    switch (ch) {
+        case StringMarker:
+            return ReadBinaryString();
+        case '"':
+            return ReadQuoteStartingString();
+        default:
+            return ReadLetterStartingString();
     }
-    return result;
 }
+
+Stroka TYsonReader::ReadQuoteStartingString()
+{
+    ExpectChar('"');
+
+    Stroka result;
+    bool ignoreNextQuote = false;
+    while (true) {
+        int ch = ReadChar();
+        if (ch == Eos) {
+            ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
+                ~GetPositionInfo());
+        }
+        if (ch == '"' && !ignoreNextQuote) {
+            break;
+        }
+
+        if (ch == '\\') {
+            ignoreNextQuote = true;
+        } else {
+            ignoreNextQuote = false;
+        }
+
+        result.append(static_cast<char>(ch));
+    }
+    return UnescapeC(result);
+}
+
+Stroka TYsonReader::ReadLetterStartingString()
+{
+    Stroka result;
+    while (true) {
+        int ch = PeekChar();
+        if (!(ch >= 'a' && ch <= 'z' ||
+              ch >= 'A' && ch <= 'Z' ||
+              ch == '_' ||
+              ch >= '0' && ch <= '9' && !result.Empty()))
+              break;
+        ReadChar();
+        result.append(static_cast<char>(ch));
+    }
+    return UnescapeC(result);
+}
+
+Stroka TYsonReader::ReadBinaryString()
+{
+    ExpectChar(StringMarker);
+    YASSERT(Lookahead == NoLookahead);
+
+    i32 length;
+    int bytesRead = ReadVarInt32(Stream, &length);
+    Position += bytesRead;
+    Offset += bytesRead;
+
+    return ReadChars(length, true);
+}
+
+
 
 Stroka TYsonReader::ReadNumeric()
 {
@@ -207,7 +250,7 @@ void TYsonReader::ParseAny()
             break;
 
         case StringMarker:
-            ParseBinaryString();
+            ParseString();
             break;
 
         case Int64Marker:
@@ -274,7 +317,7 @@ void TYsonReader::ParseAttributes()
         SkipWhitespaces();
         if (PeekChar() == EndAttributesSymbol)
             break;
-        ExpectChar(MapItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndAttributesSymbol);
     Consumer->OnEndAttributes();
@@ -298,7 +341,7 @@ void TYsonReader::ParseList()
         SkipWhitespaces();
         if (PeekChar() == EndListSymbol)
             break;
-        ExpectChar(ListItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndListSymbol);
 
@@ -336,7 +379,7 @@ void TYsonReader::ParseMap()
         SkipWhitespaces();
         if (PeekChar() == EndMapSymbol)
             break;
-        ExpectChar(MapItemSeparator);
+        ExpectChar(ItemSeparator);
     }
     YVERIFY(ReadChar() == EndMapSymbol);
 
@@ -410,26 +453,6 @@ void TYsonReader::ParseNumeric()
         } else {
             Consumer->OnDoubleScalar(value, false);
         }
-    }
-}
-
-void TYsonReader::ParseBinaryString()
-{
-    ExpectChar(StringMarker);
-    YASSERT(Lookahead == NoLookahead);
-
-    i32 length;
-    int bytesRead = ReadVarInt32(Stream, &length);
-    Position += bytesRead;
-    Offset += bytesRead;
-
-    Stroka value = ReadChars(length, true);
-
-    if (HasAttributes()) {
-        Consumer->OnStringScalar(value, true);
-        ParseAttributes();
-    } else {
-        Consumer->OnStringScalar(value, false);
     }
 }
 

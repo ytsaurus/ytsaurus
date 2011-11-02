@@ -576,11 +576,11 @@ void TElectionManager::Reset()
     EpochStart = TInstant();
     if (~ControlEpochInvoker != NULL) {
         ControlEpochInvoker->Cancel();
-        ControlEpochInvoker.Drop();
+        ControlEpochInvoker.Reset();
     }
     AliveFollowers.clear();
     PotentialFollowers.clear();
-    PingTimeoutCookie.Drop();
+    PingTimeoutCookie.Reset();
 }
 
 void TElectionManager::OnLeaderPingTimeout()
@@ -722,7 +722,7 @@ void TElectionManager::StopLeading()
 
     YASSERT(~FollowerPinger != NULL);
     FollowerPinger->Stop();
-    FollowerPinger.Drop();
+    FollowerPinger.Reset();
 
     StopEpoch();
     

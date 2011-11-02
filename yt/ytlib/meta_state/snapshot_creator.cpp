@@ -170,8 +170,7 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
     }
     Creating = true;
 
-    LOG_INFO("Creating a local snapshot for state (%d, %d)",
-               version.SegmentId, version.RecordCount);
+    LOG_INFO("Creating a local snapshot for state %s", ~version.ToString());
 
     // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {

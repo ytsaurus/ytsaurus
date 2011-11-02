@@ -47,6 +47,7 @@ protected:
     virtual void Clear();
 
     virtual void OnStartLeading();
+    virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
 private:

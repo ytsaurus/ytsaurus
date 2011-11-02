@@ -20,8 +20,9 @@ public:
     typedef TIntrusivePtr<TChunkReplication> TPtr;
 
     TChunkReplication(
-        TChunkManager::TPtr chunkManager,
-        TChunkPlacement::TPtr chunkPlacement);
+        TChunkManager* chunkManager,
+        TChunkPlacement* chunkPlacement,
+        IInvoker* invoker);
 
     void AddHolder(const THolder& holder);
     void RemoveHolder(const THolder& holder);
@@ -29,8 +30,7 @@ public:
     void AddReplica(const THolder& holder, const TChunk& chunk);
     void RemoveReplica(const THolder& holder, const TChunk& chunk);
 
-    void Start(IInvoker::TPtr invoker);
-    void Stop();
+    void ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk);
 
     void RunJobControl(
         const THolder& holder,

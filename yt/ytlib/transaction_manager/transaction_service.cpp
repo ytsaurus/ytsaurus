@@ -5,6 +5,7 @@ namespace NYT {
 namespace NTransaction {
 
 using namespace NProto;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,17 +14,17 @@ static NLog::TLogger& Logger = TransactionLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionService::TTransactionService(
-    TTransactionManager::TPtr transactionManager,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    TMetaStateManager* metaStateManager,
+    TTransactionManager* transactionManager,
+    NRpc::TServer* server)
     : TMetaStateServiceBase(
-        serviceInvoker,
+        metaStateManager,
         TTransactionServiceProxy::GetServiceName(),
         TransactionLogger.GetCategory())
     , TransactionManager(transactionManager)
 {
-    YASSERT(~transactionManager != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(transactionManager != NULL);
+    YASSERT(server != NULL);
 
     RegisterMethods();
 
@@ -55,6 +56,8 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 
     context->SetRequestInfo("");
 
+    ValidateLeader();
+
     TransactionManager
         ->InitiateStartTransaction()
         ->OnSuccess(FromFunctor([=] (TTransactionId id)
@@ -79,6 +82,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
+    ValidateLeader();
     ValidateTransactionId(id);
 
     TransactionManager
@@ -97,6 +101,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
+    ValidateLeader();
     ValidateTransactionId(id);
 
     TransactionManager
@@ -115,6 +120,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, RenewTransactionLease)
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
     
+    ValidateLeader();
     ValidateTransactionId(id);
 
     TransactionManager->RenewLease(id);

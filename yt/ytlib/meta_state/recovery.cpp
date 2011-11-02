@@ -60,21 +60,23 @@ void TRecovery::Stop()
     CancelableStateInvoker->Cancel();
 }
 
-TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
+TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
     TMetaVersion targetVersion,
     i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto currentVersion = MetaState->GetVersion();
+
     LOG_INFO("Recovering state from %s to %s",
-        ~MetaState->GetVersion().ToString(),
+        ~currentVersion.ToString(),
         ~targetVersion.ToString());
 
     YASSERT(MetaState->GetVersion() <= targetVersion);
 
     // Check if loading a snapshot is preferable.
     // Currently this is done by comparing segmentIds and is subject to further optimization.
-    if (snapshotId != NonexistingSnapshotId && MetaState->GetVersion().SegmentId < snapshotId)
+    if (snapshotId != NonexistingSnapshotId && currentVersion.SegmentId < snapshotId)
     {
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
@@ -101,7 +103,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
                     snapshotId,
                     ~snapshotResult.ToString());
-                return New<TResult>(EResult::Failed);
+                return New<TAsyncResult>(EResult::Failed);
             }
 
             snapshotReader = SnapshotStore->GetReader(snapshotId);
@@ -129,7 +131,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         LOG_DEBUG("No snapshot is used for recovery");
 
         i32 prevRecordCount =
-            targetVersion.SegmentId == 0
+            currentVersion.SegmentId == 0
             ? NonexistingPrevRecordCount
             : UnknownPrevRecordCount;
 
@@ -141,7 +143,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
     }
 }
 
-TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
+TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
     TVoid,
     TSnapshotReader::TPtr,
     TMetaVersion targetVersion,
@@ -191,7 +193,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
             auto response = request->Invoke(Config.RpcTimeout)->Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Could not get changelog %d info from leader", segmentId);
-                return New<TResult>(EResult::Failed);
+                return New<TAsyncResult>(EResult::Failed);
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -214,6 +216,16 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                 LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
                     segmentId,
                     remoteRecordCount);
+
+                auto currentVersion = MetaState->GetVersion();
+                YASSERT(currentVersion.SegmentId <= segmentId);
+
+                if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
+                    LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
+
+                    MetaState->Clear();
+                    return Run();
+                }
             }
 
             // Do not download more than actually needed.
@@ -235,13 +247,13 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
                     LOG_ERROR("Error downloading changelog (ChangeLogId: %d, Result: %s)",
                         segmentId,
                         ~changeLogResult.ToString());
-                    return New<TResult>(EResult::Failed);
+                    return New<TAsyncResult>(EResult::Failed);
                 }
             }
         }
 
         if (!isFinal && !changeLog->IsFinalized()) {
-            LOG_WARNING("Forcing finalization of an intermediate changelog %d", segmentId);
+            LOG_INFO("Finalizing an intermediate changelog %d", segmentId);
             changeLog->Finalize();
         }
 
@@ -260,7 +272,7 @@ TRecovery::TResult::TPtr TRecovery::RecoverFromChangeLog(
 
     YASSERT(MetaState->GetVersion() == targetVersion);
 
-    return New<TResult>(EResult::OK);
+    return New<TAsyncResult>(EResult::OK);
 }
 
 void TRecovery::ApplyChangeLog(
@@ -333,7 +345,7 @@ TLeaderRecovery::TLeaderRecovery(
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
-TRecovery::TResult::TPtr TLeaderRecovery::Run()
+TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -377,7 +389,7 @@ TFollowerRecovery::TFollowerRecovery(
         epoch,
         leaderId,
         controlInvoker)
-    , Result(New<TResult>())
+    , Result(New<TAsyncResult>())
     , SyncReceived(false)
 {
     YASSERT(~cellManager != NULL);
@@ -389,7 +401,7 @@ TFollowerRecovery::TFollowerRecovery(
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
-TRecovery::TResult::TPtr TFollowerRecovery::Run()
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -452,16 +464,16 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
         &TFollowerRecovery::OnSyncReached,
         TPtr(this)))
     ->Subscribe(FromMethod(
-        &TResult::Set,
+        &TAsyncResult::Set,
         Result));
 }
 
-TRecovery::TResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (result != EResult::OK) {
-        return New<TResult>(result);
+        return New<TAsyncResult>(result);
     }
 
     LOG_INFO("Sync reached");
@@ -471,14 +483,14 @@ TRecovery::TResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
            ->Do();
 }
 
-TRecovery::TResult::TPtr TFollowerRecovery::CapturePostponedChanges()
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // TODO: use threshold?
     if (PostponedChanges.ysize() == 0) {
         LOG_INFO("No postponed changes left");
-        return New<TResult>(EResult::OK);
+        return New<TAsyncResult>(EResult::OK);
     }
 
     THolder<TPostponedChanges> changes(new TPostponedChanges());
@@ -494,7 +506,7 @@ TRecovery::TResult::TPtr TFollowerRecovery::CapturePostponedChanges()
            ->Do();
 }
 
-TRecovery::TResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     TAutoPtr<TPostponedChanges> changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);

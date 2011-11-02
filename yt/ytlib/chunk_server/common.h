@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/common.h"
 
 #include "../logging/log.h"
 
@@ -21,10 +20,6 @@ extern NLog::TLogger ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NTransaction::TTransactionId;
-using NTransaction::TTransaction;
-using NTransaction::TTransactionManager;
-
 using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
@@ -32,6 +27,9 @@ using NChunkHolder::TJobId;
 
 typedef int THolderId;
 const int InvalidHolderId = -1;
+
+typedef TGuid TChunkListId;
+extern TChunkListId NullChunkListId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

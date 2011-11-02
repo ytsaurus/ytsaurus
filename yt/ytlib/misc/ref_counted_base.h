@@ -17,7 +17,7 @@ class TRefCountedBase
 public:
     //! Constructs an instance.
     TRefCountedBase()
-        // Counter is initially set to 1, see #AfterConstruction.
+        // Counter is initially set to 1.
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
@@ -29,27 +29,14 @@ public:
     { }
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    //! Called from #New functions to kill the initial fake reference
-    //! and initialize the #Cookie.
-    /*!
-     * When reference tracking is enabled, this call also registers the instance
-     * with the tracker.
-     */
-    inline void AfterConstruction(TRefCountedTracker::TCookie cookie)
+    //! Called from #New functions to initialize the tracking cookie.
+    inline void BindToCookie(TRefCountedTracker::TCookie cookie)
     {
         YASSERT(Cookie == NULL);
         Cookie = cookie;
         TRefCountedTracker::Register(cookie);
 
         YASSERT(RefCounter >= 1);
-        UnRef();
-    }
-#else
-    //! Called from #New functions to kill the initial fake reference.
-    inline void AfterConstruction()
-    {
-        YASSERT(RefCounter >= 1);
-        UnRef();
     }
 #endif
 

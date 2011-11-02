@@ -16,7 +16,7 @@ void TSyncInvoker::Invoke(IAction::TPtr action)
 
 IInvoker::TPtr TSyncInvoker::Get()
 {
-    return ~RefCountedSingleton<TSyncInvoker>();
+    return RefCountedSingleton<TSyncInvoker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,10 +24,14 @@ IInvoker::TPtr TSyncInvoker::Get()
 TCancelableInvoker::TCancelableInvoker(IInvoker::TPtr underlyingInvoker)
     : Canceled(false)
     , UnderlyingInvoker(underlyingInvoker)
-{ }
+{
+    YASSERT(~underlyingInvoker != NULL);
+}
 
 void TCancelableInvoker::Invoke(IAction::TPtr action)
 {
+    YASSERT(~action != NULL);
+
     if (Canceled)
         return;
     UnderlyingInvoker->Invoke(FromMethod(

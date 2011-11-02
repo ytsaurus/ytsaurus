@@ -3,6 +3,7 @@
 #include "common.h"
 #include "ytree.h"
 #include "ypath.h"
+#include "tree_builder.h"
 
 namespace NYT {
 namespace NYTree {
@@ -22,7 +23,7 @@ public:
         YUNREACHABLE(); \
     } \
     \
-    virtual TIntrusiveConstPtr<I##name##Node> As##name() const \
+    virtual TIntrusivePtr<const I##name##Node> As##name() const \
     { \
         YUNREACHABLE(); \
     }
@@ -78,8 +79,8 @@ protected:
 
     IYPathService::TSetResult SetRecursive(
         TYPath path,
-        TYsonProducer::TPtr producer,
-        TYsonBuilder::TPtr builder);
+        TYsonProducer* producer,
+        ITreeBuilder* builder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,8 +93,8 @@ protected:
 
     IYPathService::TSetResult SetRecursive(
         TYPath path,
-        TYsonProducer::TPtr producer,
-        TYsonBuilder::TPtr builder);
+        TYsonProducer* producer,
+        ITreeBuilder* builder);
 
     IYPathService::TNavigateResult GetYPathChild(
         int index,
@@ -102,8 +103,8 @@ protected:
     IYPathService::TSetResult CreateYPathChild(
         int beforeIndex,
         TYPath tailPath,
-        TYsonProducer::TPtr producer,
-        TYsonBuilder::TPtr builder);
+        TYsonProducer* producer,
+        ITreeBuilder* builder);
 
 };
 

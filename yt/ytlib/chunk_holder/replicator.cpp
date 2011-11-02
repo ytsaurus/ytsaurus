@@ -30,7 +30,12 @@ TJob::TJob(
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
-{ }
+{
+    YASSERT(~serviceInvoker != NULL);
+    YASSERT(~chunkStore != NULL);
+    YASSERT(~blockStore != NULL);
+    YASSERT(~chunk != NULL);
+}
 
 EJobType TJob::GetType() const
 {
@@ -95,7 +100,7 @@ void TJob::OnGotMeta(TChunkMeta::TPtr meta)
 {
     Meta = meta;
 
-    Writer = ~New<TRemoteChunkWriter>(
+    Writer = New<TRemoteChunkWriter>(
         TRemoteChunkWriter::TConfig(),
         Chunk->GetId(),
         TargetAddresses);
@@ -197,7 +202,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
             LOG_DEBUG("Replication job completed (JobId: %s)",
                 ~JobId.ToString());
 
-            Writer.Drop();
+            Writer.Reset();
             State = EJobState::Completed;
             break;
 
@@ -206,7 +211,7 @@ void TJob::OnWriterClosed(IChunkWriter::EResult result)
                 ~JobId.ToString());
 
             Writer->Cancel();
-            Writer.Drop();
+            Writer.Reset();
             State = EJobState::Failed;
             break;
 

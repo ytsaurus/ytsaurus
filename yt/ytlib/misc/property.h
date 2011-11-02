@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rvalue.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Defines a trivial public read-write property that is passed by reference.
@@ -43,6 +45,11 @@ public: \
     FORCED_INLINE void Set##name(const type& value) \
     { \
         name##_ = value; \
+    } \
+    \
+    FORCED_INLINE void Set##name(type&& value) \
+    { \
+        name##_ = MoveRV(value); \
     }
 
 //! Defines a trivial public read-only property that is passed by value.

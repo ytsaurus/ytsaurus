@@ -26,8 +26,10 @@ public:
     typedef TIntrusivePtr<TChunkMeta> TPtr;
 
     TChunkMeta(TFileChunkReader::TPtr reader)
-        : BlockCount(reader->GetBlockCount())
-    { }
+    {
+        YASSERT(~reader != NULL);
+        BlockCount = reader->GetBlockCount();
+    }
 
     i32 GetBlockCount() const
     {

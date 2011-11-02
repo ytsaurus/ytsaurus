@@ -24,11 +24,11 @@ class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
     //! Called when a new transaction is started.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionStarted, TParamSignal<const TTransaction&>);
     //! Called during transaction commit.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionCommitted, TParamSignal<const TTransaction&>);
     //! Called during transaction abort.
-    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<TTransaction&>);
+    DECLARE_BYREF_RW_PROPERTY(OnTransactionAborted, TParamSignal<const TTransaction&>);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -69,7 +69,7 @@ private:
     TVoid CommitTransaction(const NProto::TMsgCommitTransaction& message);
     TVoid AbortTransaction(const NProto::TMsgAbortTransaction& message);
 
-    virtual void OnStartLeading();
+    virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
     void OnTransactionExpired(const TTransactionId& id);

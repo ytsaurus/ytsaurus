@@ -1,9 +1,6 @@
 #include "stdafx.h"
 #include "cell_master_server.h"
 
-#include <yt/ytlib/chunk_server/chunk_manager.h>
-#include <yt/ytlib/chunk_server/chunk_service.h>
-
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
 #include <yt/ytlib/transaction_manager/transaction_manager.h>
@@ -11,12 +8,17 @@
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
+#include <yt/ytlib/cypress/world_initializer.h>
 
-#include <yt/ytlib/file_server/file_type_handler.h>
+#include <yt/ytlib/chunk_server/chunk_manager.h>
+#include <yt/ytlib/chunk_server/chunk_service.h>
+#include <yt/ytlib/chunk_server/cypress_integration.h>
+
 #include <yt/ytlib/file_server/file_manager.h>
 #include <yt/ytlib/file_server/file_service.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/ytlib/monitoring/cypress_integration.h>
 
 namespace NYT {
 
@@ -28,17 +30,19 @@ using NTransaction::TTransactionService;
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
+using NChunkServer::CreateChunkMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
+using NCypress::TWorldInitializer;
 
-using NFileServer::TFileTypeHandler;
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
 
 using NMonitoring::TMonitoringManager;
+using NMonitoring::CreateMonitoringTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +83,7 @@ void TCellMasterServer::Run()
     auto metaStateManager = New<TMetaStateManager>(
         Config.MetaState,
         controlQueue->GetInvoker(),
-        ~metaState,
+        metaState,
         server);
 
     auto transactionManager = New<TTransactionManager>(
@@ -88,48 +92,50 @@ void TCellMasterServer::Run()
         metaState);
 
     auto transactionService = New<TTransactionService>(
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~transactionManager,
+        ~server);
 
     auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
-        metaStateManager,
-        metaState,
-        transactionManager);
+        ~metaStateManager,
+        ~metaState,
+        ~transactionManager);
 
     auto chunkService = New<TChunkService>(
-        chunkManager,
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~chunkManager,
+        ~transactionManager,
+        ~server);
 
     auto cypressManager = New<TCypressManager>(
-        metaStateManager,
-        metaState,
-        transactionManager);
+        ~metaStateManager,
+        ~metaState,
+        ~transactionManager);
 
     auto cypressService = New<TCypressService>(
-        cypressManager,
-        transactionManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~cypressManager,
+        ~transactionManager,
+        ~server);
 
     auto fileManager = New<TFileManager>(
-        metaStateManager,
-        metaState,
-        cypressManager);
+        ~metaStateManager,
+        ~metaState,
+        ~cypressManager,
+        ~chunkManager,
+        ~transactionManager);
 
     auto fileService = New<TFileService>(
-        cypressManager,
-        transactionManager,
-        chunkManager,
-        fileManager,
-        metaStateManager->GetStateInvoker(),
-        server);
+        ~metaStateManager,
+        ~chunkManager,
+        ~fileManager,
+        ~server);
 
-    auto fileTypeHandler = New<TFileTypeHandler>();
-    cypressManager->RegisterDynamicType(~fileTypeHandler);
+    auto worldIntializer = New<TWorldInitializer>(
+        ~metaStateManager,
+        ~cypressManager);
+    worldIntializer->Start();
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -140,8 +146,14 @@ void TCellMasterServer::Run()
         FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
 
     // TODO: register more monitoring infos
-
     monitoringManager->Start();
+
+    cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
+        ~cypressManager,
+        ~monitoringManager));
 
     MonitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),

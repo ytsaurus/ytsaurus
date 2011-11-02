@@ -607,7 +607,7 @@ IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
 
     auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);
-    return ~bus;
+    return bus;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/common.h"
 #include "../misc/guid.h"
 
 #include "../actions/invoker.h"

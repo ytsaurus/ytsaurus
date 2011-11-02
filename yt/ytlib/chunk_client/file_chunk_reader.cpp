@@ -43,7 +43,7 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
 
 i32 TFileChunkReader::GetBlockCount() const
 {
-    return Meta.BlocksSize();
+    return Meta.blocks_size();
 }
 
 TFuture<IChunkReader::TReadResult>::TPtr

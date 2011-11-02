@@ -4,8 +4,6 @@
 #include "../misc/enum.h"
 #include "../misc/guid.h"
 #include "../logging/log.h"
-#include "../ytree/ytree.h"
-#include "../ytree/ypath.h"
 
 namespace NYT {
 namespace NCypress {
@@ -16,19 +14,25 @@ extern NLog::TLogger CypressLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_ENUM(ERuntimeNodeType,
     // Static types
-    ((String)(1))
-    ((Int64)(2))
-    ((Double)(3))
-    ((Map)(4))
-    ((List)(5))
+    ((String)(0))
+    ((Int64)(1))
+    ((Double)(2))
+    ((Map)(3))
+    ((List)(4))
+    
     // Dynamic types
-    ((File)(6))
+    ((File)(10))
+
+    // Virtual types
+    ((ChunkMap)(20))
+    ((Monitoring)(21))
+
+    // Denotes some uninitialized value.
+    ((Invalid)(-1))
+    // An upper bound will do.
+    ((Last)(30))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

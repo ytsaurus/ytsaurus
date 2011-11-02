@@ -12,7 +12,6 @@ using NTransaction::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impl to cpp
 class TLock
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TLockId);
@@ -35,6 +34,33 @@ public:
     TAutoPtr<TLock> Clone() const
     {
         return new TLock(*this);
+    }
+
+    void Save(TOutputStream* output) const
+    {
+        ::Save(output, Id_);
+        ::Save(output, NodeId_);
+        ::Save(output, TransactionId_);
+        // TODO: enum serialization
+        ::Save(output, static_cast<i32>(Mode_));
+    }
+
+    static TAutoPtr<TLock> Load(TInputStream* input)
+    {
+        TLockId id;
+        TNodeId nodeId;
+        TTransactionId transactionId;
+        // TODO: enum serialization
+        i32 mode;
+        ::Load(input, id);
+        ::Load(input, nodeId);
+        ::Load(input, transactionId);
+        ::Load(input, mode);
+        return new TLock(
+            id,
+            nodeId,
+            transactionId,
+            static_cast<ELockMode>(mode));
     }
 
 private:

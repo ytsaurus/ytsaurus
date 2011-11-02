@@ -7,25 +7,24 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TLazyPtr<TActionQueue> TSequentialChunkReader::ReaderThread;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TSequentialChunkReader::TSequentialChunkReader(
     const TConfig& config, 
     const yvector<int>& blockIndexes, 
     IChunkReader::TPtr chunkReader)
-    : Config(config)
-    , BlockIndexSequence(blockIndexes)
+    : BlockIndexSequence(blockIndexes)
+    , FirstUnfetchedIndex(0)
+    , Config(config)
     , ChunkReader(chunkReader)
     , Window(config.WindowSize)
     , FreeSlots(config.WindowSize)
-    , FirstUnfetchedIndex(0)
+    , PendingResult(NULL)
     , HasFailed(false)
     , NextSequenceIndex(0)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
+
+    YASSERT(~ChunkReader != NULL);
     YASSERT(blockIndexes.ysize() > 0);
     YASSERT(Config.GroupSize <= Config.WindowSize);
 
@@ -117,7 +116,7 @@ void TSequentialChunkReader::DoShiftWindow()
 void TSequentialChunkReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
-    YASSERT(FreeSlots > Config.GroupSize);
+    YASSERT(FreeSlots >= Config.GroupSize);
 
     auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
     auto groupEnd = BlockIndexSequence.end();
@@ -184,7 +183,7 @@ void TSequentialChunkReader::DoProcessPendingResult()
 
     if (!IsNextSlotEmpty()) {
         auto pending = PendingResult;
-        PendingResult.Drop();
+        PendingResult.Reset();
         pending->Set(GetNextSlotResult());
     }
 }

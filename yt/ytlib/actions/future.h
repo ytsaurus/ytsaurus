@@ -1,12 +1,9 @@
 #pragma once
 
+#include "common.h"
 #include "action.h"
-#include "invoker.h"
 
-#include "../misc/common.h"
-#include "../misc/new.h"
-#include "../misc/ref_counted_base.h"
-#include "../misc/foreach.h"
+#include <util/system/event.h>
 
 namespace NYT {
 

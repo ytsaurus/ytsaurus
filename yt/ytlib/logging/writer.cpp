@@ -68,7 +68,7 @@ void TFileLogWriter::EnsureInitialized()
         return;
     }
 
-    LogWriter = ~New<TStreamLogWriter>(~FileOutput, Pattern);
+    LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
     LogWriter->Write(TLogEvent(
         SystemLoggingCategory,
         ELogLevel::Info,

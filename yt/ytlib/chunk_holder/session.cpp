@@ -132,6 +132,9 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
+    YASSERT(~sessionManager != NULL);
+    YASSERT(~location != NULL);
+
     Location->IncSessionCount();
 
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);

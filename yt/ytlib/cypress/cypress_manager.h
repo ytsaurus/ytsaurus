@@ -2,13 +2,15 @@
 
 #include "common.h"
 #include "node.h"
+#include "node_proxy.h"
 #include "lock.h"
-#include "node_type.h"
 #include "cypress_manager.pb.h"
 
+#include "../misc/thread_affinity.h"
 #include "../transaction_manager/transaction.h"
 #include "../transaction_manager/transaction_manager.h"
 #include "../ytree/ypath.h"
+#include "../ytree/tree_builder.h"
 #include "../misc/id_generator.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
@@ -35,38 +37,60 @@ public:
     typedef TIntrusivePtr<TThis> TPtr;
 
     TCypressManager(
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager);
+        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager);
 
-    void RegisterDynamicType(IDynamicTypeHandler::TPtr handler);
+    void RegisterNodeType(INodeTypeHandler* handler);
+
+    bool IsWorldInitialized();
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
-    TIntrusivePtr<ICypressNodeProxy> FindNode(
+    const ICypressNode* FindTransactionNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<ICypressNodeProxy> GetNode(
+    const ICypressNode& GetTransactionNode(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    ICypressNode* FindTransactionNodeForUpdate(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    ICypressNode& GetTransactionNodeForUpdate(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    bool IsTransactionNodeLocked(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    TLockId LockTransactionNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
     void RefNode(ICypressNode& node);
+    void RefNode(const TNodeId& nodeId);
     void UnrefNode(ICypressNode & node);
+    void UnrefNode(const TNodeId& nodeId);
 
-    IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
-    IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
-    IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
-    IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
-    IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
+    NYTree::IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
+    NYTree::IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
+    NYTree::IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
+    NYTree::IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
+    NYTree::IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
-    TYsonBuilder::TPtr GetYsonDeserializer(const TTransactionId& transactionId);
-    INode::TPtr CreateDynamicNode(
+    TAutoPtr<NYTree::ITreeBuilder> GetDeserializationBuilder(const TTransactionId& transactionId);
+
+    NYTree::INode::TPtr CreateDynamicNode(
         const TTransactionId& transactionId,
-        IMapNode::TPtr description);
-    TAutoPtr<ICypressNode> CreateDynamicNode(
-        ERuntimeNodeType type,
-        const TBranchedNodeId& id);
+        NYTree::IMapNode* manifest);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
@@ -76,31 +100,33 @@ public:
 
     void GetYPath(
         const TTransactionId& transactionId,
-        TYPath path,
-        IYsonConsumer* consumer);
+        NYTree::TYPath path,
+        NYTree::IYsonConsumer* consumer);
 
-    INode::TPtr NavigateYPath(
+    NYTree::INode::TPtr NavigateYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
 
     TMetaChange<TVoid>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
-        TYPath path,
+        NYTree::TYPath path,
         const Stroka& value);
 
     TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
 
     TMetaChange<TVoid>::TPtr InitiateLockYPath(
         const TTransactionId& transactionId,
-        TYPath path);
+        NYTree::TYPath path);
+
+    TMetaChange<TVoid>::TPtr InitiateCreateWorld();
 
 private:
     class TNodeMapTraits
     {
     public:
-        TNodeMapTraits(TCypressManager::TPtr cypressManager);
+        TNodeMapTraits(TCypressManager* cypressManager);
 
         TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
         void Save(ICypressNode* value, TOutputStream* output) const;
@@ -119,12 +145,13 @@ private:
     TIdGenerator<TLockId> LockIdGenerator; 
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
-    yhash_map<ERuntimeNodeType, IDynamicTypeHandler::TPtr> RuntimeTypeToHandler;
-    yhash_map<Stroka, IDynamicTypeHandler::TPtr> TypeNameToHandler;
+    yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
+    yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
     TVoid SetYPath(const NProto::TMsgSet& message);
     TVoid RemoveYPath(const NProto::TMsgRemove& message);
     TVoid LockYPath(const NProto::TMsgLock& message);
+    TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
 
     // TMetaStatePart overrides.
     virtual Stroka GetPartName() const;
@@ -132,25 +159,26 @@ private:
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
-    void CreateWorld();
+    void OnTransactionCommitted(const TTransaction& transaction);
+    void OnTransactionAborted(const TTransaction& transaction);
 
-    void OnTransactionCommitted(TTransaction& transaction);
-    void OnTransactionAborted(TTransaction& transaction);
+    void ReleaseLocks(const TTransaction& transaction);
+    void MergeBranchedNodes(const TTransaction& transaction);
+    void RemoveBranchedNodes(const TTransaction& transaction);
+    void UnrefOriginatingNodes(const TTransaction& transaction);
+    void CommitCreatedNodes(const TTransaction& transaction);
 
-    void ReleaseLocks(TTransaction& transaction);
-    void MergeBranchedNodes(TTransaction& transaction);
-    void RemoveBranchedNodes(TTransaction& transaction);
-    void CommitCreatedNodes(TTransaction& transaction);
-    void RemoveCreatedNodes(TTransaction& transaction);
+    INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
 
     template <class TImpl, class TProxy>
-    TIntrusivePtr<TProxy> CreateNode(const TTransactionId& transactionId);
+    TIntrusivePtr<TProxy> CreateNode(
+        const TTransactionId& transactionId,
+        ERuntimeNodeType type);
 
-    class TYsonDeserializationConsumer;
-    friend class TYsonDeserializationConsumer;
-    INode::TPtr YsonDeserializerThunk(
-        TYsonProducer::TPtr producer,
-        const TTransactionId& transactionId);
+    class TDeserializationBuilder;
+    friend class TDeserializationBuilder;
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 

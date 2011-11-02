@@ -6,4 +6,5 @@ SET(YT_SOURCE_FILES
     server.cpp
     rpc.proto
     message.cpp
+    retry.cpp
 )

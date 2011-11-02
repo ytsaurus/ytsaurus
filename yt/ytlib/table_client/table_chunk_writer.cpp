@@ -1,12 +1,12 @@
 #include "stdafx.h"
-#include "table_writer.h"
+#include "table_chunk_writer.h"
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableWriter::TTableWriter(
+TTableChunkWriter::TTableChunkWriter(
     const TConfig& config, 
     IChunkWriter::TPtr chunkWriter,
     const TSchema& schema,
@@ -18,6 +18,8 @@ TTableWriter::TTableWriter(
     , Schema(schema)
     , Codec(codec)
 {
+    YASSERT(~chunkWriter != NULL);
+
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
@@ -25,7 +27,7 @@ TTableWriter::TTableWriter(
     }
 }
 
-void TTableWriter::Write(const TColumn& column, TValue value)
+void TTableChunkWriter::Write(const TColumn& column, TValue value)
 {
     YASSERT(!UsedColumns.has(column));
     UsedColumns.insert(column);
@@ -34,7 +36,7 @@ void TTableWriter::Write(const TColumn& column, TValue value)
     }
 }
 
-void TTableWriter::EndRow()
+void TTableChunkWriter::EndRow()
 {
     for (int channelIndex = 0; 
         channelIndex < ChannelWriters.ysize(); 
@@ -42,7 +44,7 @@ void TTableWriter::EndRow()
     {
         auto channel = ChannelWriters[channelIndex];
         channel->EndRow();
-        if (channel->GetCurrentSize() > Config.BlockSize) {
+        if (channel->GetCurrentSize() > static_cast<size_t>(Config.BlockSize)) {
             AddBlock(channelIndex);
         }
     }
@@ -54,7 +56,7 @@ void TTableWriter::EndRow()
 }
 
 // thread may block here, if chunkwriter window is overfilled
-void TTableWriter::AddBlock(int channelIndex)
+void TTableChunkWriter::AddBlock(int channelIndex)
 {
     auto channel = ChannelWriters[channelIndex];
 
@@ -67,7 +69,7 @@ void TTableWriter::AddBlock(int channelIndex)
     ++CurrentBlockIndex;
 }
 
-void TTableWriter::Close()
+void TTableChunkWriter::Close()
 {
     if (IsClosed) {
         return;
@@ -75,7 +77,7 @@ void TTableWriter::Close()
 
     YASSERT(UsedColumns.empty());
 
-    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++ channelIndex) {
+    for (int channelIndex = 0; channelIndex < ChannelWriters.ysize(); ++ channelIndex) {
         auto channel = ChannelWriters[channelIndex];
         if (channel->HasUnflushedData()) {
             AddBlock(channelIndex);
@@ -85,14 +87,14 @@ void TTableWriter::Close()
     ChunkMeta.SetCodecId(Codec->GetId());
 
     TBlob metaBlock(ChunkMeta.ByteSize());
-    YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), metaBlock.size()));
+    YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), static_cast<int>(metaBlock.size())));
 
     ChunkWriter->WriteBlock(TSharedRef(metaBlock));
     ChunkWriter->Close();
     IsClosed = true;
 }
 
-TTableWriter::~TTableWriter()
+TTableChunkWriter::~TTableChunkWriter()
 {
     Close();
 }

@@ -36,6 +36,8 @@ public:
 
         Output() << "\r\n";
 
+        Output().Flush();
+
         return true;
     }
 

@@ -26,6 +26,8 @@ TServer::~TServer()
 
 void TServer::RegisterService(IService::TPtr service)
 {
+    YASSERT(~service != NULL);
+
     YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
     LOG_INFO("Registered RPC service %s", ~service->GetServiceName());
 }
@@ -70,7 +72,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~requestId.ToString());
 
     if (!Started) {
-        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage = New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::Unavailable);
         replyBus->Send(errorMessage);
@@ -81,7 +83,7 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 
     auto service = GetService(serviceName);
     if (~service == NULL) {
-        IMessage::TPtr errorMessage = ~New<TRpcErrorResponseMessage>(
+        IMessage::TPtr errorMessage = New<TRpcErrorResponseMessage>(
             requestId,
             EErrorCode::NoService);
         replyBus->Send(errorMessage);

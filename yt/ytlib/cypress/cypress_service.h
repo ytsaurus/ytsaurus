@@ -21,10 +21,10 @@ public:
 
     //! Creates an instance.
     TCypressService(
-        TCypressManager::TPtr cypressManager,
-        TTransactionManager::TPtr transactionManager,
-        IInvoker::TPtr serviceInvoker,
-        NRpc::TServer::TPtr server);
+        NMetaState::TMetaStateManager* metaStateManager,
+        TCypressManager* cypressManager,
+        NTransaction::TTransactionManager* transactionManager,
+        NRpc::TServer* server);
 
 private:
     typedef TCypressService TThis;
@@ -40,12 +40,10 @@ private:
     
     void ExecuteRecoverable(
         const TTransactionId& transactionId,
-        NRpc::TServiceContext::TPtr context,
-        IAction::TPtr action);
+        IAction* action);
     void ExecuteUnrecoverable(
         const TTransactionId& transactionId,
-        NRpc::TServiceContext::TPtr context,
-        IAction::TPtr action);
+        IAction* action);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);
     RPC_SERVICE_METHOD_DECL(NProto, Set);

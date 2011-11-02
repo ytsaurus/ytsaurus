@@ -14,7 +14,9 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
     , RequestCount(0)
     , ResponseCount(0)
     , CancelableInvoker(New<TCancelableInvoker>(invoker))
-{ }
+{
+    YASSERT(~invoker != NULL);
+}
 
 
 template<class T>
@@ -22,6 +24,8 @@ void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
     TIntrusivePtr< IParamAction<T> > onResult)
 {
+    YASSERT(~result != NULL);
+
     typename IParamAction<T>::TPtr wrappedOnResult;
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -33,7 +37,7 @@ void TParallelAwaiter::Await(
         ++RequestCount;
 
         if (~onResult != NULL) {
-            wrappedOnResult = onResult->Via(~CancelableInvoker);
+            wrappedOnResult = onResult->Via(CancelableInvoker);
         }
     }
 
@@ -75,7 +79,7 @@ void TParallelAwaiter::OnResult(T result, typename IParamAction<T>::TPtr onResul
 inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
 {
     if (~onComplete != NULL) {
-        onComplete = onComplete->Via(~CancelableInvoker);
+        onComplete = onComplete->Via(CancelableInvoker);
     }
 
     bool invokeOnComplete;
@@ -117,7 +121,7 @@ inline bool TParallelAwaiter::IsCanceled() const
 
 inline void TParallelAwaiter::Terminate()
 {
-    OnComplete.Drop();
+    OnComplete.Reset();
     Terminated = true;
 }
 

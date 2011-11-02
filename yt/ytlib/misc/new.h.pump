@@ -75,8 +75,7 @@ namespace NYT {
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
-        result->AfterConstruction(cookie); \
-        return result; \
+        result->BindToCookie(cookie); \
     } while(0)
 
 #else // !ENABLE_REF_COUNTED_TRACKING
@@ -87,28 +86,9 @@ namespace NYT {
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     do { \
-        result->AfterConstruction(); \
-        return result; \
     } while(0)
 
 #endif // ENABLE_REF_COUNTED_TRACKING
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: fix this and use perfect forwarding
-// for more information about this see
-// http://blogs.msdn.com/b/vcblog/archive/2009/02/03/rvalue-references-c-0x-features-in-vc10-part-2.aspx
-// part "perfect forwarding: the pattern"
-
-//template <typename T> struct Identity
-//{
-//    typedef T type;
-//};
-
-//template <typename T> T&& Forward(typename Identity<T>::type&& t)
-//{
-//    return t;
-//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,8 +98,8 @@ $range j 1..i
 
 $$ Handy shortcuts.
 $var tmpl_args = [[$for j [[, class TArg$j ]]]]
-$var ctor_args = [[$for j , [[ const TArg$j& arg$j ]]]]
-$var args_list = [[$for j , [[ arg$j ]]]]
+$var ctor_args = [[$for j , [[ TArg$j&& arg$j ]]]]
+$var args_list = [[$for j , [[ ForwardRV(arg$j) ]]]]
 
 template<
     class TResult$tmpl_args
@@ -127,8 +107,10 @@ template<
 inline TIntrusivePtr<TResult> New($ctor_args)
 {
     REF_COUNTED_NEW_PROLOGUE();
-    TIntrusivePtr<TResult> result = new TResult($args_list);
+    // Do not increment reference count because initial RC equals to 1.
+    TIntrusivePtr<TResult> result(new TResult($args_list), false);
     REF_COUNTED_NEW_EPILOGUE();
+    return result;
 }
 
 ]]

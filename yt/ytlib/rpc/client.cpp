@@ -17,7 +17,9 @@ static NLog::TLogger& Logger = RpcLogger;
 TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,16 +31,18 @@ TClientRequest::TClientRequest(
     , ServiceName(serviceName)
     , MethodName(methodName)
     , RequestId(TRequestId::Create())
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
-IMessage::TPtr TClientRequest::Serialize()
+IMessage::TPtr TClientRequest::Serialize() const
 {
     TBlob bodyData;
     if (!SerializeBody(&bodyData)) {
         LOG_FATAL("Error serializing request body");
     }
 
-    return ~New<TRpcRequestMessage>(
+    return New<TRpcRequestMessage>(
         RequestId,
         ServiceName,
         MethodName,
@@ -58,9 +62,19 @@ yvector<TSharedRef>& TClientRequest::Attachments()
     return Attachments_;
 }
 
-NYT::NRpc::TRequestId TClientRequest::GetRequestId()
+NYT::NRpc::TRequestId TClientRequest::GetRequestId() const
 {
     return RequestId;
+}
+
+Stroka TClientRequest::GetMethodName() const
+{
+    return MethodName;
+}
+
+Stroka TClientRequest::GetServiceName() const
+{
+    return ServiceName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,10 +87,13 @@ TClientResponse::TClientResponse(
     , State(EState::Sent)
     , ErrorCode(EErrorCode::OK)
     , InvokeInstant(TInstant::Now())
-{ }
+{
+    YASSERT(~channel != NULL);
+}
 
 void TClientResponse::Deserialize(IMessage::TPtr message)
 {
+    YASSERT(~message != NULL);
     const yvector<TSharedRef>& parts = message->GetParts();
     if (parts.ysize() > 1) {
         DeserializeBody(parts[1]);

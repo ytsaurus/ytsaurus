@@ -69,7 +69,7 @@ public:
         MessageRearranger.Destroy();
 
         // Also forget about the server.
-        Server.Drop();
+        Server.Reset();
     }
 
     void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
@@ -202,7 +202,7 @@ void TBusServer::Terminate()
 
     PingMap.clear();
 
-    Handler.Drop();
+    Handler.Reset();
 }
 
 void* TBusServer::ThreadFunc(void* param)

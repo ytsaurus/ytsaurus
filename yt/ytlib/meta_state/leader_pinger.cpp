@@ -37,8 +37,8 @@ TLeaderPinger::TLeaderPinger(
 void TLeaderPinger::Stop()
 {
     CancelableInvoker->Cancel();
-    CancelableInvoker.Drop();
-    MetaStateManager.Drop();
+    CancelableInvoker.Reset();
+    MetaStateManager.Reset();
 }
 
 void TLeaderPinger::SchedulePing()

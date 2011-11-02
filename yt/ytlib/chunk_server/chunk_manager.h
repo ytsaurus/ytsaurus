@@ -18,6 +18,13 @@ using NMetaState::TMetaChange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NMetaState::TMetaChange;
+using NMetaState::TMetaStateManager;
+using NMetaState::TCompositeMetaState;
+using NTransaction::TTransactionManager;
+using NTransaction::TTransactionId;
+using NTransaction::TTransaction;
+
 class TChunkManager
     : public TRefCountedBase
 {
@@ -28,11 +35,14 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager);
+        TMetaStateManager* metaStateManager,
+        TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager);
+
+    // TODO: provide Stop method
 
     METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
@@ -42,8 +52,20 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    TMetaChange<TChunkId>::TPtr InitiateAddChunk(const TTransactionId& transactionId);
-    
+    TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
+
+    TChunkList& CreateChunkList();
+
+    void RefChunk(const TChunkId& chunkId);
+    void RefChunk(TChunk& chunk);
+    void UnrefChunk(const TChunkId& chunkId);
+    void UnrefChunk(TChunk& chunk);
+
+    void RefChunkList(const TChunkListId& chunkListId);
+    void RefChunkList(TChunkList& chunkList);
+    void UnrefChunkList(const TChunkListId& chunkListId);
+    void UnrefChunkList(TChunkList& chunkList);
+
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         Stroka address,
         const NChunkHolder::THolderStatistics& statistics);

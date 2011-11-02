@@ -359,7 +359,7 @@ TEST(TYTreeFluentTest, Complex)
 
             // 5
             .Item().WithAttributes()
-            .EntityScalar()
+            .Entity()
             .BeginAttributes()
                 .Item("type").Scalar("extra")
             .EndAttributes()

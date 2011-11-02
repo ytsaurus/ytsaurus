@@ -37,9 +37,6 @@ public:
     TCachedAsyncChangeLog::TPtr Get(i32 segmentId);
     TCachedAsyncChangeLog::TPtr Create(i32 segmentId, i32 prevRecordCount);
 
-protected:
-    virtual void OnTrim(TValuePtr value);
-
 private:
     Stroka GetChangeLogFileName(i32 segmentId);
 

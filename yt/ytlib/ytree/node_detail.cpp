@@ -22,6 +22,8 @@ IYPathService::TGetResult TNodeBase::Get(
         auto attributes = GetAttributes();
 
         if (path == "@") {
+            // TODO: use fluent API
+
             consumer->OnBeginMap();
             auto names = GetVirtualAttributeNames();
             FOREACH (const auto& name, names) {
@@ -94,7 +96,7 @@ IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path)
         }
 
         return TNavigateResult::CreateRecurse(
-            AsYPath(~attributes),
+            IYPathService::FromNode(~attributes),
             TYPath(path.begin() + 1, path.end()));
     }
 
@@ -125,7 +127,7 @@ IYPathService::TSetResult TNodeBase::Set(
         // TODO: should not be able to override a virtual attribute
 
         return IYPathService::TSetResult::CreateRecurse(
-            AsYPath(~attributes),
+            IYPathService::FromNode(~attributes),
             TYPath(path.begin() + 1, path.end()));
     } else {
         return SetRecursive(path, producer);
@@ -157,7 +159,7 @@ IYPathService::TRemoveResult TNodeBase::Remove(TYPath path)
         }
 
         return IYPathService::TRemoveResult::CreateRecurse(
-            AsYPath(~attributes),
+            IYPathService::FromNode(~attributes),
             TYPath(path.begin() + 1, path.end()));
     } else {
         return RemoveRecursive(path);
@@ -226,40 +228,37 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path)
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        throw TYTreeException() << Sprintf("Child %s it not found",
+        throw TYTreeException() << Sprintf("Key %s it not found",
             ~prefix.Quote());
     }
 
-    return IYPathService::TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return IYPathService::TNavigateResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
 }
 
 IYPathService::TSetResult TMapNodeMixin::SetRecursive(
     TYPath path,
-    TYsonProducer::TPtr producer,
-    TYsonBuilder::TPtr builder)
+    TYsonProducer* producer,
+    ITreeBuilder* builder)
 {
-    if (path.empty()) {
-        SetNodeFromProducer(IMapNode::TPtr(this), producer);
-        return IYPathService::TSetResult::CreateDone();
-    }
-
     Stroka prefix;
     TYPath tailPath;
     ChopYPathPrefix(path, &prefix, &tailPath);
 
     auto child = FindChild(prefix);
     if (~child != NULL) {
-        return IYPathService::TSetResult::CreateRecurse(AsYPath(child), tailPath);
+        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
     }
 
     if (tailPath.empty()) {
-        INode::TPtr newChild = builder->Do(producer);
+        builder->BeginTree();
+        producer->Do(builder);
+        auto newChild = builder->EndTree();
         AddChild(newChild, prefix);
         return IYPathService::TSetResult::CreateDone();
     } else {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
+        auto newChild = GetFactory()->CreateMap();
         AddChild(newChild, prefix);
-        return IYPathService::TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
+        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~newChild), tailPath);
     }
 }
 
@@ -284,8 +283,8 @@ IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path)
 
 IYPathService::TSetResult TListNodeMixin::SetRecursive(
     TYPath path,
-    TYsonProducer::TPtr producer,
-    TYsonBuilder::TPtr builder)
+    TYsonProducer* producer,
+    ITreeBuilder* builder)
 {
     Stroka prefix;
     TYPath tailPath;
@@ -329,17 +328,19 @@ IYPathService::TSetResult TListNodeMixin::SetRecursive(
 IYPathService::TSetResult TListNodeMixin::CreateYPathChild(
     int beforeIndex,
     TYPath tailPath,
-    TYsonProducer::TPtr producer,
-    TYsonBuilder::TPtr builder)
+    TYsonProducer* producer,
+    ITreeBuilder* builder)
 {
     if (tailPath.empty()) {
-        INode::TPtr newChild = builder->Do(producer);
+        builder->BeginTree();
+        producer->Do(builder);
+        auto newChild = builder->EndTree();
         AddChild(newChild, beforeIndex);
         return IYPathService::TSetResult::CreateDone();
     } else {
         INode::TPtr newChild = ~GetFactory()->CreateMap();
         AddChild(newChild, beforeIndex);
-        return IYPathService::TSetResult::CreateRecurse(AsYPath(newChild), tailPath);
+        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~newChild), tailPath);
     }
 }
 
@@ -359,7 +360,7 @@ IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
     }
 
     auto child = FindChild(index);
-    return IYPathService::TNavigateResult::CreateRecurse(AsYPath(child), tailPath);
+    return IYPathService::TNavigateResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
