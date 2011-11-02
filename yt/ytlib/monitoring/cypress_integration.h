@@ -1,22 +1,21 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_manager.h"
+#include "monitoring_manager.h"
 
-#include "../cypress/cypress_manager.h"
 #include "../cypress/node.h"
-#include "../ytree/ypath.h"
+#include "../cypress/cypress_manager.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
+NCypress::INodeTypeHandler::TPtr CreateMonitoringTypeHandler(
     NCypress::TCypressManager* cypressManager,
-    TChunkManager* chunkManager);
+    TMonitoringManager* monitoringManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NMonitoring
 } // namespace NYT

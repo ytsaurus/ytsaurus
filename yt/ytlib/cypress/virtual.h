@@ -17,8 +17,8 @@ struct TCreateServiceParam
     TTransactionId TransactionId;
 };
 
-// TODO: do we really need this level of customization?
-typedef IParamFunc<
+typedef
+    IParamFunc<
         const TCreateServiceParam&,
         NYTree::IYPathService::TPtr
     >

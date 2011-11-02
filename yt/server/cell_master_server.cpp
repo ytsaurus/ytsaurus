@@ -18,6 +18,7 @@
 #include <yt/ytlib/file_server/file_service.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/ytlib/monitoring/cypress_integration.h>
 
 namespace NYT {
 
@@ -41,6 +42,7 @@ using NFileServer::TFileManager;
 using NFileServer::TFileService;
 
 using NMonitoring::TMonitoringManager;
+using NMonitoring::CreateMonitoringTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,11 +132,6 @@ void TCellMasterServer::Run()
         ~fileManager,
         ~server);
 
-    // TODO: move
-    cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
-        ~cypressManager,
-        ~chunkManager));
-
     auto worldIntializer = New<TWorldInitializer>(
         ~metaStateManager,
         ~cypressManager);
@@ -149,8 +146,14 @@ void TCellMasterServer::Run()
         FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
 
     // TODO: register more monitoring infos
-
     monitoringManager->Start();
+
+    cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
+        ~cypressManager,
+        ~monitoringManager));
 
     MonitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),

@@ -72,10 +72,12 @@ bool TCypressManager::IsWorldInitialized()
     return NodeMap.GetSize() > 1;
 }
 
-INodeTypeHandler::TPtr TCypressManager::GetNodeHandler(const ICypressNode& node)
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
 {
     int type = static_cast<int>(node.GetRuntimeType());
-    return RuntimeTypeToHandler[type];
+    auto handler = RuntimeTypeToHandler[type];
+    YASSERT(~handler != NULL);
+    return handler;
 }
 
 const ICypressNode* TCypressManager::FindTransactionNode(
@@ -161,7 +163,7 @@ ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
 
     YASSERT(nodeId != NullNodeId);
     const auto& impl = GetTransactionNode(nodeId, transactionId);
-    return GetNodeHandler(impl)->GetProxy(impl, transactionId);
+    return GetTypeHandler(impl)->GetProxy(impl, transactionId);
 }
 
 bool TCypressManager::IsTransactionNodeLocked(
@@ -470,7 +472,7 @@ INode::TPtr TCypressManager::CreateDynamicNode(
         transaction.CreatedNodes().push_back(nodeId);
     }
 
-    auto proxy = GetNodeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
+    auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
 
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -506,7 +508,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     auto nodeId = node.GetId().NodeId;
 
     // Create a branched node and initialize its state.
-    auto branchedNode = GetNodeHandler(node)->Branch(node, transactionId);
+    auto branchedNode = GetTypeHandler(node)->Branch(node, transactionId);
     branchedNode->SetState(ENodeState::Branched);
     auto* branchedNodePtr = branchedNode.Release();
     NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr);
@@ -662,8 +664,12 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("sys").BeginMap()
+                        // TODO: use named constants instead of literals
                         .Item("chunks").WithAttributes().Entity().BeginAttributes()
                             .Item("type").Scalar("chunk_map")
+                        .EndAttributes()
+                        .Item("monitoring").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("monitoring")
                         .EndAttributes()
                     .EndMap()
                     .Item("home").BeginMap()
@@ -770,7 +776,7 @@ void TCypressManager::UnrefNode(ICypressNode& node)
     if (refCounter == 0) {
         LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
 
-        GetNodeHandler(node)->Destroy(node);
+        GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(nodeId);
     }
 }
@@ -834,7 +840,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        GetNodeHandler(node)->Merge(node, branchedNode);
+        GetTypeHandler(node)->Merge(node, branchedNode);
 
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
@@ -857,7 +863,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
-        GetNodeHandler(node)->Destroy(node);
+        GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",

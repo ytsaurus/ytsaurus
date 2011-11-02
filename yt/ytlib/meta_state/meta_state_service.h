@@ -25,7 +25,10 @@ protected:
             metaStateManager->GetStateInvoker(),
             serviceName,
             loggingCategory)
-    { }
+        , MetaStateManager(metaStateManager)
+    {
+        YASSERT(metaStateManager != NULL);
+    }
 
     template <class TContext>
     IParamAction<TVoid>::TPtr CreateSuccessHandler(TIntrusivePtr<TContext> context)

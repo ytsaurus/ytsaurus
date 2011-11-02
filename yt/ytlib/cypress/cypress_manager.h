@@ -168,7 +168,7 @@ private:
     void UnrefOriginatingNodes(const TTransaction& transaction);
     void CommitCreatedNodes(const TTransaction& transaction);
 
-    INodeTypeHandler::TPtr GetNodeHandler(const ICypressNode& node);
+    INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(

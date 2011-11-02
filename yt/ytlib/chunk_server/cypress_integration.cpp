@@ -56,13 +56,6 @@ private:
 
 };
 
-IYPathService::TPtr CreateChunkMapService(TChunkManager* chunkManager)
-{
-    YASSERT(chunkManager != NULL);
-    
-    return New<TVirtualChunkMap>(chunkManager);
-}
-
 INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
@@ -73,8 +66,9 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         ERuntimeNodeType::ChunkMap,
+        // TODO: extract type name
         "chunk_map",
-        ~CreateChunkMapService(chunkManager));
+        ~New<TVirtualChunkMap>(chunkManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
