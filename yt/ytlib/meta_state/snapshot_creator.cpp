@@ -134,7 +134,7 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , Creating(false)
+    , LocalProgress(New< TFuture<TVoid> >(TVoid()))
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
@@ -149,7 +149,7 @@ TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (Creating) {
+    if (IsInProgress()) {
         return EResultCode::AlreadyInProgress;
     }
 
@@ -163,12 +163,12 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (Creating) {
+    if (IsInProgress()) {
         LOG_ERROR("Could not create local snapshot for version %s, snapshot creation is already in progress",
             ~version.ToString());
         return New<TAsyncLocalResult>(TLocalResult(EResultCode::AlreadyInProgress));
     }
-    Creating = true;
+    LocalProgress = New< TFuture<TVoid> >();
 
     LOG_INFO("Creating a local snapshot for state %s", ~version.ToString());
 
@@ -212,8 +212,7 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
         segmentId,
         writer->GetChecksum());
 
-    YASSERT(Creating);
-    Creating = false;
+    LocalProgress->Set(TVoid());
 
     return TLocalResult(EResultCode::OK, writer->GetChecksum());
 }

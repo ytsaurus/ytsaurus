@@ -74,6 +74,27 @@ public:
      */
     TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
 
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    TFuture<TVoid>::TPtr GetLocalProgress() const
+    {
+         VERIFY_THREAD_AFFINITY(StateThread);
+        
+         return LocalProgress;
+    }
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    bool IsInProgress() const
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        TVoid fake;
+        return !LocalProgress->TryGet(&fake);
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
@@ -90,10 +111,7 @@ private:
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
 
-    /*!
-     * \note Becomes true in StateThread, becomes false in SnapshotThread
-     */
-    volatile bool Creating;
+    TFuture<TVoid>::TPtr LocalProgress;
 
     TLocalResult OnSave(
         TVoid /* fake */,
