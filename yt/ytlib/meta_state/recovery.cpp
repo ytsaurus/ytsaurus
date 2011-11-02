@@ -217,9 +217,11 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
                     segmentId,
                     remoteRecordCount);
 
-                auto version = MetaState->GetVersion();
-                if (version.SegmentId == segmentId && version.RecordCount > remoteRecordCount) {
-                    LOG_INFO("Current state contains uncommitted changes, restarting recovery");
+                auto currentVersion = MetaState->GetVersion();
+                YASSERT(currentVersion.SegmentId <= segmentId);
+
+                if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
+                    LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
 
                     MetaState->Clear();
                     return Run();

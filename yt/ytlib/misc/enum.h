@@ -12,6 +12,7 @@
 #include <util/string/cast.h>
 #include <util/generic/typehelpers.h>
 #include <util/generic/yexception.h>
+#include <util/ysaveload.h>
 
 namespace NYT {
 
@@ -67,14 +68,14 @@ public:
     void Load(TInputStream* input)
     {
         i32 value;
-        input->Load(&value, sizeof(i32));
+        ::Load(input, value);
         Value = value;
     }
 
     void Save(TOutputStream* output) const
     {
         i32 value = static_cast<i32>(Value);
-        output->Write(&value, sizeof(i32));
+        ::Save(output, value);
     }
 
 protected:

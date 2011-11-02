@@ -125,7 +125,7 @@ void TActionQueue::OnIdle()
 
 IInvoker::TPtr TActionQueue::GetInvoker()
 {
-    return ~QueueInvoker;
+    return QueueInvoker;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -157,7 +157,7 @@ void* TPrioritizedActionQueue::ThreadFunc(void* param)
 IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
 {
     YASSERT(0 <= priority && priority < static_cast<int>(QueueInvokers.size()));
-    return ~QueueInvokers[priority];
+    return QueueInvokers[priority];
 }
 
 void TPrioritizedActionQueue::Shutdown()

@@ -332,7 +332,7 @@ TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 
 TFileChunkReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
 {
-    return ~ReaderCache->Get(chunk);
+    return ReaderCache->Get(chunk);
 }
 
 TParamSignal<TChunk::TPtr>& TChunkStore::ChunkAdded()

@@ -83,7 +83,7 @@ void TCellMasterServer::Run()
     auto metaStateManager = New<TMetaStateManager>(
         Config.MetaState,
         controlQueue->GetInvoker(),
-        ~metaState,
+        metaState,
         server);
 
     auto transactionManager = New<TTransactionManager>(
