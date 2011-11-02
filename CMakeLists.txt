@@ -10,7 +10,7 @@ INCLUDE_DIRECTORIES(${ARCADIA_ROOT}/include)
 
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/include/global.cmake NO_POLICY_SCOPE)
 
-ADD_SUBDIRECTORY(extern)
+ADD_SUBDIRECTORY( ${CMAKE_CURRENT_SOURCE_DIR}/extern/STLport/build/cmake ${CMAKE_CURRENT_BINARY_DIR}/extern/STLport/build/cmake )
 ADD_DIRS(util)
 ADD_DIRS(library/json)
 ADD_DIRS(yt)
