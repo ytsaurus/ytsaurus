@@ -375,7 +375,7 @@ TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Load(
 template <class TKey, class TValue, class TTraits, class THash >
 TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
 {
-    ::Save(output, static_cast<i32>(PrimaryMap.size()));
+    ::SaveSize(output, PrimaryMap.size());
 
     yvector<TItem> items(PrimaryMap.begin(), PrimaryMap.end());
     Sort(
@@ -397,10 +397,8 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
 template <class TKey, class TValue, class TTraits, class THash >
 TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoLoad(TInputStream* input)
 {
-    i32 size;
-    ::Load(input, size);
-    YASSERT(size >= 0);
-
+    i32 size = ::LoadSize(input);
+    
     for (i32 index = 0; index < size; ++index) {
         TKey key;
         ::Load(input, key);

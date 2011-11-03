@@ -54,7 +54,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
         [] (const TKey* lhs, const TKey* rhs) {
             return *lhs < *rhs;
         });
-    ::Save(output, keys.size());
+    ::SaveSize(output, keys.size());
     FOREACH(const auto* ptr, keys) {
         ::Save(output, *ptr);
     }
@@ -75,7 +75,7 @@ void SaveMap(TOutputStream* output, const TMap& map)
         [] (TIterator lhs, TIterator rhs) {
             return lhs->First() < rhs->First();
         });
-    ::Save(output, iterators.size());
+    ::SaveSize(output, iterators.size());
     FOREACH(const auto& it, iterators) {
         ::Save(output, it->First());
         ::Save(output, it->Second());
