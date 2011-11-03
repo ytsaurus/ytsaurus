@@ -292,7 +292,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.begin();
 }
 
@@ -302,7 +304,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.end();
 }
 
@@ -312,7 +316,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.begin();
 }
 
@@ -322,7 +328,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.end();
 }
 
