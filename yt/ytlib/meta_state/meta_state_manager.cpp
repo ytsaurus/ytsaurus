@@ -104,7 +104,7 @@ private:
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
 
-    // Per epoch, service thread
+    // Per epoch, control (service) thread
     TEpoch Epoch;
     TCancelableInvoker::TPtr EpochControlInvoker;
     TCancelableInvoker::TPtr EpochStateInvoker;
@@ -334,6 +334,20 @@ private:
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartLeading,
             TPtr(this)));
+
+        YASSERT(~LeaderRecovery == NULL);
+        LeaderRecovery = New<TLeaderRecovery>(
+            Config,
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            LeaderId,
+            ControlInvoker);
+        LeaderRecovery->Run()->Subscribe(
+            FromMethod(&TThis::OnLeaderRecoveryComplete, TPtr(this))
+            ->Via(~EpochControlInvoker));
     }
 
     virtual void OnStopLeading()
@@ -366,6 +380,8 @@ private:
         }
 
         if (~SnapshotCreator != NULL) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
             SnapshotCreator.Reset();
         }
     }
@@ -384,6 +400,21 @@ private:
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartFollowing,
             TPtr(this)));
+
+        YASSERT(~FollowerRecovery == NULL);
+        FollowerRecovery = New<TFollowerRecovery>(
+            Config,
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            LeaderId,
+            ControlInvoker);
+
+        FollowerRecovery->Run()->Subscribe(
+            FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
+            ->Via(~EpochControlInvoker));
     }
 
     virtual void OnStopFollowing()
@@ -417,6 +448,8 @@ private:
         }
 
         if (~SnapshotCreator != NULL) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
             SnapshotCreator.Reset();
         }
     }
@@ -424,6 +457,13 @@ private:
     virtual TPeerPriority GetPriority();
     virtual Stroka FormatPriority(TPeerPriority priority);
 
+    // Blocks state thread until snapshot creation is finished
+    void WaitSnapshotCreation(TSnapshotCreator::TPtr snapshotCreator)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        snapshotCreator->GetLocalProgress()->Get();
+    }
 
     void DoStartLeading()
     {
@@ -432,32 +472,9 @@ private:
         YASSERT(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::LeaderRecovery;
 
-        SnapshotCreator->GetLocalProgress()->Subscribe(
-            FromMethod(&TThis::StartLeaderRecovery, TPtr(this))
-            ->Via(~EpochControlInvoker));
-
         StartStateEpoch();
 
         OnMyStartLeading_.Fire();
-    }
-
-    void StartLeaderRecovery(TVoid /* fake */) 
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YASSERT(~LeaderRecovery == NULL);
-        LeaderRecovery = New<TLeaderRecovery>(
-            Config,
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
-            Epoch,
-            LeaderId,
-            ControlInvoker);
-        LeaderRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnLeaderRecoveryComplete, TPtr(this))
-            ->Via(~EpochControlInvoker));
     }
 
     void DoStopLeading()
@@ -480,33 +497,9 @@ private:
         YASSERT(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::FollowerRecovery;
 
-        SnapshotCreator->GetLocalProgress()->Subscribe(
-            FromMethod(&TThis::StartFollowerRecovery, TPtr(this))
-            ->Via(~EpochControlInvoker));
-
         StartStateEpoch();
 
         OnMyStartFollowing_.Fire();
-    }
-
-    void StartFollowerRecovery(TVoid /* fake */) 
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YASSERT(~FollowerRecovery == NULL);
-        FollowerRecovery = New<TFollowerRecovery>(
-            Config,
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
-            Epoch,
-            LeaderId,
-            ControlInvoker);
-
-        FollowerRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
-            ->Via(~EpochControlInvoker));
     }
 
     void DoFollowerRecoveryComplete()
