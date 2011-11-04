@@ -25,14 +25,14 @@ protected:
     /*!
      * Transitions
      * - Normal -> LoadingSnapshot,
+     * - LoadingSnapshot -> Normal,
      * - Normal -> SavingSnapshot,
      * - HasPendingChanges -> Normal
      * are performed from the user thread.
      *
-     * Transitions
-     * - LoadingSnapshot -> Normal,
+     * Transition
      * - SavingSnapshot -> HasPendingChanges
-     * are performed from the snapshot invoker.
+     * is performed from the snapshot invoker.
      */
     DECLARE_ENUM(EState,
         (Normal)
@@ -61,7 +61,6 @@ struct TDefaultMetaMapTraits
  * 
  *  \note
  *  All public methods must be called from a single thread.
- *  Exceptions are #Begin and #End, see below.
  * 
  *  TODO: this is not true, write about Traits
  *  TValue type must have the following methods:
@@ -191,15 +190,12 @@ public:
      */
     TFuture<TVoid>::TPtr Save(IInvoker::TPtr invoker, TOutputStream* output);
 
-    //! Asynchronously loads the map from the stream.
+    //! Synchronously loads the map from the stream.
     /*!
-     * This method loads the snapshot of the map in the background and at some
-     * moment in the future swaps current map with the loaded one.
-     * \param invoker Invoker for actual heavy work.
      * \param stream Input stream.
      * \return Callback on successful load.
      */
-    TFuture<TVoid>::TPtr Load(IInvoker::TPtr invoker, TInputStream* input);
+    void Load(TInputStream* input);
     
 private:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
@@ -218,8 +214,7 @@ private:
     typedef TPair<TKey, TValue*> TItem;
 
     TVoid DoSave(TOutputStream* output);
-    TVoid DoLoad(TInputStream* input);
-
+    
     void MergeTempTablesIfNeeded();
 };
 

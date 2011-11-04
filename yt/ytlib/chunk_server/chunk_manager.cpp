@@ -464,30 +464,18 @@ private:
         return JobListMap.Save(invoker, output);
     }
 
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker)
+    virtual void Load(TInputStream* input)
     {
-        TPtr thisPtr = this;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Load(input, thisPtr->ChunkIdGenerator);
-                ::Load(input, thisPtr->ChunkListIdGenerator);
-                ::Load(input, thisPtr->HolderIdGenerator);
-            }));
+        ::Load(input, ChunkIdGenerator);
+        ::Load(input, ChunkListIdGenerator);
+        ::Load(input, HolderIdGenerator);
+        
+        ChunkMap.Load(input);
+        ChunkListMap.Load(input);
+        HolderMap.Load(input);
+        JobMap.Load(input);
+        JobListMap.Load(input);
 
-        ChunkMap.Load(invoker, input);
-        ChunkListMap.Load(invoker, input);
-        HolderMap.Load(invoker, input);
-        JobMap.Load(invoker, input);
-        JobListMap.Load(invoker, input);
-
-        return
-            FromMethod(&TThis::OnLoaded, thisPtr)
-            ->AsyncVia(invoker)
-            ->Do();
-    }
-
-    TVoid OnLoaded()
-    {
         // Reconstruct HolderAddressMap.
         FOREACH(const auto& pair, HolderMap) {
             const auto* holder = pair.Second();
@@ -499,8 +487,6 @@ private:
         FOREACH (const auto& pair, JobMap) {
             RegisterReplicationSinks(*pair.Second());
         }
-
-        return TVoid();
     }
 
     virtual void Clear()

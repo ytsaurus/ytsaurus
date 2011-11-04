@@ -115,17 +115,12 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         snapshotReader->Open();
         auto* stream = &snapshotReader->GetStream();
 
+        MetaState->Load(snapshotId, stream);
+
         // The reader reference is being held by the closure action.
-        return MetaState
-            ->Load(snapshotId, stream)
-            ->Apply(
-                FromMethod(
-                    &TRecovery::RecoverFromChangeLog,
-                    TPtr(this),
-                    snapshotReader,
-                    targetVersion,
-                    snapshotReader->GetPrevRecordCount())
-                ->AsyncVia(~CancelableStateInvoker));
+        return RecoverFromChangeLog(
+            targetVersion,
+            snapshotReader->GetPrevRecordCount());
     } else {
         // Recovery using changelogs only.
         LOG_DEBUG("No snapshot is used for recovery");
@@ -136,16 +131,12 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
             : UnknownPrevRecordCount;
 
         return RecoverFromChangeLog(
-            TVoid(),
-            TSnapshotReader::TPtr(),
             targetVersion,
             prevRecordCount);
     }
 }
 
 TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
-    TVoid,
-    TSnapshotReader::TPtr,
     TMetaVersion targetVersion,
     i32 expectedPrevRecordCount)
 {

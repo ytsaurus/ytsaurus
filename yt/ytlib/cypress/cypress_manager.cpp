@@ -708,19 +708,15 @@ TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* output, IInvoker::TPtr
     return LockMap.Save(invoker, output);
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* input, IInvoker::TPtr invoker)
+void TCypressManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TPtr thisPtr = this;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Load(input, thisPtr->NodeIdGenerator);
-            ::Load(input, thisPtr->LockIdGenerator);
-        }));
-
-    NodeMap.Load(invoker, input);
-    return LockMap.Load(invoker, input);
+    ::Load(input, NodeIdGenerator);
+    ::Load(input, LockIdGenerator);
+    
+    NodeMap.Load(input);
+    LockMap.Load(input);
 }
 
 void TCypressManager::Clear()

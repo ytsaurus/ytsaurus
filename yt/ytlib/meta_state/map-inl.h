@@ -219,7 +219,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-     switch (State) {
+    switch (State) {
         case EState::HasPendingChanges:
         case EState::Normal: {
             MergeTempTablesIfNeeded();
@@ -263,26 +263,38 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
 
     yvector<TKey> keys;
     keys.reserve(Size);
-    if (State == EState::Normal) {
-        FOREACH(const auto& pair, PrimaryMap) {
-            keys.push_back(pair.First());
-        }
-    } else {
-        FOREACH(const auto& pair, PrimaryMap) {
-            auto patchIt = PatchMap.find(pair.First());
-            if (patchIt == PatchMap.end() || patchIt->Second() != NULL) {
+
+    switch (State) {
+        case EState::HasPendingChanges:
+        case EState::Normal: {
+            const_cast<TThis*>(this)->MergeTempTablesIfNeeded();
+            FOREACH(const auto& pair, PrimaryMap) {
                 keys.push_back(pair.First());
             }
+            break;
         }
-        FOREACH(const auto& pair, PatchMap) {
-            if (pair.Second() != NULL) {
-                auto primaryIt = PrimaryMap.find(pair.First());
-                if (primaryIt == PrimaryMap.end()) {
+        case EState::SavingSnapshot: {
+            FOREACH(const auto& pair, PrimaryMap) {
+                auto patchIt = PatchMap.find(pair.First());
+                if (patchIt == PatchMap.end() || patchIt->Second() != NULL) {
                     keys.push_back(pair.First());
                 }
             }
+            FOREACH(const auto& pair, PatchMap) {
+                if (pair.Second() != NULL) {
+                    auto primaryIt = PrimaryMap.find(pair.First());
+                    if (primaryIt == PrimaryMap.end()) {
+                        keys.push_back(pair.First());
+                    }
+                }
+            }
+            break;
         }
+        default:
+            YUNREACHABLE();
     }
+
+    YASSERT(keys.ysize() == Size);
     return keys;
 }
 
@@ -334,6 +346,29 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
     return PrimaryMap.end();
 }
 
+template <class TKey, class TValue, class TTraits, class THash>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::Load(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+
+    PrimaryMap.clear();
+    PatchMap.clear();
+    State = EState::LoadingSnapshot;
+
+    i32 size = ::LoadSize(input);
+    
+    for (i32 index = 0; index < size; ++index) {
+        TKey key;
+        ::Load(input, key);
+        TValue* value = Traits.Load(key, input).Release();
+        PrimaryMap.insert(MakePair(key, value));
+    }
+
+    State = EState::Normal;
+}
+
 template <class TKey, class TValue, class TTraits, class THash >
 TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Save(
     IInvoker::TPtr invoker,
@@ -349,25 +384,6 @@ TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Save(
 
     return
         FromMethod(&TMetaStateMap::DoSave, this, output)
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
-template <class TKey, class TValue, class TTraits, class THash >
-TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Load(
-    IInvoker::TPtr invoker,
-    TInputStream* input)
-{
-    VERIFY_THREAD_AFFINITY(UserThread);
-
-    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-
-    PrimaryMap.clear();
-    PatchMap.clear();
-    State = EState::LoadingSnapshot;
-
-    return
-        FromMethod(&TMetaStateMap::DoLoad, this, input)
         ->AsyncVia(invoker)
         ->Do();
 }
@@ -391,23 +407,6 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
     }
 
     State = EState::HasPendingChanges;
-    return TVoid();
-}
-
-template <class TKey, class TValue, class TTraits, class THash >
-TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoLoad(TInputStream* input)
-{
-    i32 size = ::LoadSize(input);
-    
-    for (i32 index = 0; index < size; ++index) {
-        TKey key;
-        ::Load(input, key);
-        TValue* value = Traits.Load(key, input).Release();
-        PrimaryMap.insert(MakePair(key, value));
-    }
-
-    State = EState::Normal;
-
     return TVoid();
 }
 

@@ -32,14 +32,9 @@ TMetaStatePart::TMetaStatePart(
         TPtr(this)));
 }
 
-TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
+void TMetaStatePart::Load(TInputStream* input)
 {
     UNUSED(input);
-    // NB: Need to pass a dummy action to the queue to ensure proper ordering of snapshot parts.
-    return 
-        FromFunctor([] () { return TVoid(); })
-        ->AsyncVia(invoker)
-        ->Do();
 }
 
 TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
@@ -101,13 +96,11 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::
     return result;
 }
 
-TFuture<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input, IInvoker::TPtr invoker)
+void TCompositeMetaState::Load(TInputStream* input)
 {
-    TFuture<TVoid>::TPtr result;
     FOREACH(auto& pair, Parts) {
-        result = pair.Second()->Load(input, invoker);
+        pair.Second()->Load(input);
     }
-    return result;
 }
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)

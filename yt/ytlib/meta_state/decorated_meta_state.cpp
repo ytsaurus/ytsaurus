@@ -84,7 +84,7 @@ TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
+void TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
@@ -94,20 +94,12 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
     LOG_INFO("Started loading snapshot %d", segmentId);
 
     UpdateVersion(TMetaVersion(segmentId, 0));
-    return State->Load(input, GetStateInvoker())->Apply(FromMethod(
-        &TDecoratedMetaState::OnLoad,
-        TPtr(this),
-        TInstant::Now()));
-}
 
-TVoid TDecoratedMetaState::OnLoad(TVoid, TInstant started)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
+    TInstant started = TInstant::Now();
+    State->Load(input);
     auto finished = TInstant::Now();
-    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 
-    return TVoid();
+    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 }
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)

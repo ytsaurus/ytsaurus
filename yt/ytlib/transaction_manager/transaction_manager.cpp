@@ -150,30 +150,25 @@ Stroka TTransactionManager::GetPartName() const
     return "TransactionManager";
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TTransactionManager::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto transactionIdGenerator = TransactionIdGenerator;
     invoker->Invoke(FromFunctor([=] ()
         {
-            ::Save(stream, transactionIdGenerator);
+            ::Save(output, transactionIdGenerator);
         }));
 
-    return TransactionMap.Save(invoker, stream);
+    return TransactionMap.Save(invoker, output);
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
+void TTransactionManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TPtr thisPtr = this;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Load(stream, thisPtr->TransactionIdGenerator);
-        }));
-
-    return TransactionMap.Load(invoker, stream);
+    ::Load(input, TransactionIdGenerator);
+    TransactionMap.Load(input);
 }
 
 void TTransactionManager::Clear()

@@ -19,7 +19,7 @@ struct IMetaState
     typedef TIntrusivePtr<IMetaState> TPtr;
 
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker) = 0;
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker) = 0;
+    virtual void Load(TInputStream* input) = 0;
 
     virtual void ApplyChange(const TRef& changeData) = 0;
     virtual void Clear() = 0;

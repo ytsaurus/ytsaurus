@@ -43,7 +43,7 @@ protected:
 
     virtual Stroka GetPartName() const = 0;
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
+    virtual void Load(TInputStream* input);
     virtual void Clear();
 
     virtual void OnStartLeading();
@@ -81,7 +81,7 @@ private:
     TPartMap Parts;
 
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
+    virtual void Load(TInputStream* input);
 
     virtual void ApplyChange(const TRef& changeData);
 
