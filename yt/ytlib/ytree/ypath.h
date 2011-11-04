@@ -74,7 +74,7 @@ struct IYPathService
     typedef TResult<TVoid> TGetResult;
     virtual TGetResult Get(TYPath path, IYsonConsumer* consumer) = 0;
 
-    typedef TResult<TVoid> TSetResult;
+    typedef TResult<INode::TPtr> TSetResult;
     virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) = 0;
 
     typedef TResult<TVoid> TRemoveResult;
@@ -100,7 +100,7 @@ void GetYPath(
     TYPath path,
     IYsonConsumer* consumer);
 
-void SetYPath(
+INode::TPtr SetYPath(
     IYPathService::TPtr rootService,
     TYPath path,
     TYsonProducer::TPtr producer);

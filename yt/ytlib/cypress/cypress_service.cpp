@@ -142,13 +142,19 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
 
     ValidateLeader();
 
+    auto onSuccess = FromFunctor([=] (TNodeId nodeId)
+        {
+            response->SetNodeId(nodeId.ToProto());
+            context->Reply();
+        });
+
     ExecuteUnrecoverable(
         transactionId,
         ~FromFunctor([=] ()
             {
                 CypressManager
                     ->InitiateSetYPath(transactionId, path, value)
-                    ->OnSuccess(this->CreateSuccessHandler(context))
+                    ->OnSuccess(onSuccess)
                     ->OnError(this->CreateErrorHandler(context))
                     ->Commit();
             }));

@@ -552,7 +552,7 @@ INode::TPtr TCypressManager::NavigateYPath(
     return NYTree::NavigateYPath(IYPathService::FromNode(~root), path);
 }
 
-TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
+TMetaChange<TNodeId>::TPtr TCypressManager::InitiateSetYPath(
     const TTransactionId& transactionId,
     TYPath path,
     const Stroka& value)
@@ -570,7 +570,7 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
         ECommitMode::MayFail);
 }
 
-TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
+TNodeId TCypressManager::SetYPath(const NProto::TMsgSet& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -579,8 +579,9 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
     auto root = GetNodeProxy(RootNodeId, transactionId);
-    NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
-    return TVoid();
+    auto node = NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
+    auto* typedNode = dynamic_cast<ICypressNodeProxy*>(~node);
+    return typedNode == NULL ? NullNodeId : typedNode->GetNodeId();
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(

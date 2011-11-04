@@ -83,7 +83,7 @@ public: \
     { \
         auto builder = CreateBuilderFromFactory(GetFactory()); \
         SetNodeFromProducer<I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(); \
+        return TSetResult::CreateDone(this); \
     }
 
 #define DECLARE_SCALAR_TYPE(name, type) \

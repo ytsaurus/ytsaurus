@@ -198,12 +198,12 @@ void GetYPath(
         "get");
 }
 
-void SetYPath(
+INode::TPtr SetYPath(
     IYPathService::TPtr rootService,
     TYPath path,
     TYsonProducer::TPtr producer)
 {
-    ExecuteYPathVerb<TVoid>(
+    return ExecuteYPathVerb<INode::TPtr>(
         rootService,
         path,
         FromFunctor([&] (TYPathOperationState state) -> IYPathService::TSetResult
