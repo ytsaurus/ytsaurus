@@ -110,7 +110,7 @@ void TFileNodeTypeHandler::DoBranch(
 {
     UNUSED(committedNode);
 
-    // branchedNode is copy of committedNode.
+    // branchedNode is a copy of committedNode.
 
     // Reference the list chunk from branchedNode.
     if (branchedNode.GetChunkListId() != NullChunkListId) {

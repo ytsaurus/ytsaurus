@@ -120,19 +120,25 @@ TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
     ValidateTransactionId(transactionId, false);
 
     auto& chunk = GetChunk(chunkId);
+    if (chunk.GetChunkListId() != NullChunkListId) {
+        // TODO: exception type
+        ythrow yexception() << "Chunk is already assigned to another chunk list";
+    }
+
     auto& fileNode = GetFileNode(nodeId, transactionId);
 
     if (fileNode.GetChunkListId() != NullChunkListId) {
         // TODO: exception type
-        throw yexception() << "Chunk is already assigned to file node";
+        ythrow yexception() << "File already has a chunk";
     }
 
+    // Create a chunklist and couple it with the chunk.
     auto& chunkList = ChunkManager->CreateChunkList();
+    ChunkManager->AddChunkToChunkList(chunk, chunkList);
+
+    // Reference the chunklist from the file.
     fileNode.SetChunkListId(chunkList.GetId());
     ChunkManager->RefChunkList(chunkList);
-
-    chunkList.ChunkIds().push_back(chunkId);
-    ChunkManager->RefChunk(chunk);
 
     return TVoid();
 }

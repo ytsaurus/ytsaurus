@@ -14,10 +14,9 @@
 namespace NYT {
 namespace NChunkServer {
 
-using NMetaState::TMetaChange;
-
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: drop
 using NMetaState::TMetaChange;
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;
@@ -55,6 +54,7 @@ public:
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
 
     TChunkList& CreateChunkList();
+    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
 
     void RefChunk(const TChunkId& chunkId);
     void RefChunk(TChunk& chunk);

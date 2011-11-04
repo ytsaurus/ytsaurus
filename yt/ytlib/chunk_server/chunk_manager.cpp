@@ -121,6 +121,13 @@ public:
         return *chunkList;
     }
 
+    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList) 
+    {
+        chunkList.ChunkIds().push_back(chunk.GetId());
+        chunk.SetChunkListId(chunkList.GetId());
+        RefChunk(chunk);
+    }
+
 
     void RefChunk(const TChunkId& chunkId)
     {
@@ -844,6 +851,7 @@ private:
             YVERIFY(ReplicationSinkMap.erase(address) == 1);
         }
     }
+
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
@@ -893,6 +901,11 @@ TMetaChange<TChunkId>::TPtr TChunkManager::InitiateCreateChunk(const TTransactio
 TChunkList& TChunkManager::CreateChunkList()
 {
     return Impl->CreateChunkList();
+}
+
+void TChunkManager::AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList)
+{
+    return Impl->AddChunkToChunkList(chunk, chunkList);
 }
 
 void TChunkManager::RefChunk(const TChunkId& chunkId)

@@ -125,8 +125,7 @@ TVoid TTableManager::AddTableChunks(const NProto::TMsgAddTableChunks& message)
 
     FOREACH (const auto& chunkId, message.GetChunkIds()) {
         auto& chunk = GetChunk(TChunkId::FromProto(chunkId));
-        appendChunkList.ChunkIds().push_back(chunk.GetId());
-        ChunkManager->RefChunk(chunk);
+        ChunkManager->AddChunkToChunkList(chunk, appendChunkList);
     }
 
     return TVoid();

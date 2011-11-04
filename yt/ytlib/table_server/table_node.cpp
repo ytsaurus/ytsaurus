@@ -102,7 +102,7 @@ void TTableNodeTypeHandler::DoMerge(
         ChunkManager->UnrefChunkList(*it);
     }
 
-    // Check is some chunks were added during the transaction.
+    // Check if some chunks were added during the transaction.
     auto appendChunkListId = branchedNode.ChunkListIds().back();
     auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
     if (appendChunkList.ChunkIds().empty()) {
