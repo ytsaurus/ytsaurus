@@ -36,21 +36,6 @@ TMetaStatePart::TMetaStatePart(
         TPtr(this)));
 }
 
-void TMetaStatePart::Load(TInputStream* input)
-{
-    UNUSED(input);
-}
-
-TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
-{
-    UNUSED(output);
-    // NB: Same as in Load.
-    return 
-        FromFunctor([] () { return TVoid(); })
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
 void TMetaStatePart::Clear()
 { }
 

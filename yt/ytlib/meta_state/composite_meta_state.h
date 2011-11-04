@@ -41,8 +41,6 @@ protected:
     bool IsFolllower() const;
     bool IsRecovery() const;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual void Load(TInputStream* input);
     virtual void Clear();
 
     virtual void OnStartLeading();
