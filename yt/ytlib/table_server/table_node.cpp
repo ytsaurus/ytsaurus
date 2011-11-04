@@ -70,22 +70,49 @@ void TTableNodeTypeHandler::DoBranch(
     const TTableNode& committedNode,
     TTableNode& branchedNode)
 {
-    UNUSED(branchedNode);
+    UNUSED(committedNode);
 
-    FOREACH(const auto& chunkListId, committedNode.ChunkListIds()) {
+    // branchedNode is a copy of committedNode.
+
+    // Reference shared chunklists from branchedNode.
+    FOREACH(const auto& chunkListId, branchedNode.ChunkListIds()) {
         ChunkManager->RefChunkList(chunkListId);
     }
+
+    // Create a new chunk list that will keep all newly added chunks.
+    auto& appendChunkList = ChunkManager->CreateChunkList();
+    branchedNode.ChunkListIds().push_back(appendChunkList.GetId());
+
+    // Reference this chunklist from branchedNode.
+    ChunkManager->RefChunkList(appendChunkList);
 }
 
 void TTableNodeTypeHandler::DoMerge(
     TTableNode& committedNode,
     TTableNode& branchedNode)
 {
-    FOREACH(const auto& chunkListId, committedNode.ChunkListIds()) {
-        ChunkManager->UnrefChunkList(chunkListId);
+    YASSERT(branchedNode.ChunkListIds().ysize() >= 1);
+    YASSERT(branchedNode.ChunkListIds().ysize() >= committedNode.ChunkListIds().ysize() + 1);
+
+    // Drop references to shared chunklists from branchedNode.
+    for (auto it = branchedNode.ChunkListIds().begin();
+         it != branchedNode.ChunkListIds().end() - 1;
+         ++it)
+    {
+        ChunkManager->UnrefChunkList(*it);
     }
 
-    committedNode.ChunkListIds().swap(branchedNode.ChunkListIds());
+    // Check is some chunks were added during the transaction.
+    auto appendChunkListId = branchedNode.ChunkListIds().back();
+    auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
+    if (appendChunkList.ChunkIds().empty()) {
+        // No chunks were added, just unref this chunklist.
+        // This prevents creation of empty chunklists.
+        ChunkManager->UnrefChunkList(appendChunkList);
+    } else {
+        // Perform the actual merge: add this chunklist to committedNode.
+        committedNode.ChunkListIds().push_back(appendChunkListId);
+    }
 }
 
 TIntrusivePtr<ICypressNodeProxy> TTableNodeTypeHandler::GetProxy(

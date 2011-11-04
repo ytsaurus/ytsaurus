@@ -200,12 +200,12 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
         return false;
     }
 
-    if (targetHolder.Chunks().find(chunk.GetId()) != targetHolder.Chunks().end())  {
+    if (targetHolder.ChunkIds().find(chunk.GetId()) != targetHolder.ChunkIds().end())  {
         // Do not balance to a holder already having the chunk.
         return false;
     }
 
-    FOREACH (const auto& jobId, targetHolder.Jobs()) {
+    FOREACH (const auto& jobId, targetHolder.JobIds()) {
         const auto& job = ChunkManager->GetJob(jobId);
         if (job.ChunkId == chunk.GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
@@ -237,14 +237,14 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
 {
     // Do not balance chunks that already have a job assigned.
     yhash_set<TChunkId> forbiddenChunkIds;
-    FOREACH (const auto& jobId, holder.Jobs()) {
+    FOREACH (const auto& jobId, holder.JobIds()) {
         const auto& job = ChunkManager->GetJob(jobId);
         forbiddenChunkIds.insert(job.ChunkId);
     }
 
     // TODO: do something smart
     yvector<TChunkId> result;
-    FOREACH (const auto& chunkId, holder.Chunks()) {
+    FOREACH (const auto& chunkId, holder.ChunkIds()) {
         if (result.ysize() >= count)
             break;
         result.push_back(chunkId);

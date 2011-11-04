@@ -131,7 +131,7 @@ TVoid TTableManager::AddTableChunks(const NProto::TMsgAddTableChunks& message)
     //tableNode.SetChunkListId(chunkList.GetId());
     //ChunkManager->RefChunkList(chunkList);
 
-    //chunkList.Chunks().push_back(chunkId);
+    //chunkList.ChunkIds().push_back(chunkId);
     //ChunkManager->RefChunk(chunk);
 
     return TVoid();

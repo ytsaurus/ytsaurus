@@ -140,7 +140,7 @@ TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
     fileNode.SetChunkListId(chunkList.GetId());
     ChunkManager->RefChunkList(chunkList);
 
-    chunkList.Chunks().push_back(chunkId);
+    chunkList.ChunkIds().push_back(chunkId);
     ChunkManager->RefChunk(chunk);
 
     return TVoid();
@@ -158,8 +158,8 @@ TChunkId TFileManager::GetFileChunk(
     }
 
     const auto& chunkList = ChunkManager->GetChunkList(fileNode.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
-    return chunkList.Chunks()[0];
+    YASSERT(chunkList.ChunkIds().ysize() == 1);
+    return chunkList.ChunkIds()[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

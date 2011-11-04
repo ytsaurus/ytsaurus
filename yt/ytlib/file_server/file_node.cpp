@@ -92,9 +92,9 @@ const NChunkServer::TChunk* TFileNodeTypeHandler::GetChunk(const TFileNode& node
     }
 
     const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
+    YASSERT(chunkList.ChunkIds().ysize() == 1);
 
-    return &ChunkManager->GetChunk(chunkList.Chunks()[0]);
+    return &ChunkManager->GetChunk(chunkList.ChunkIds()[0]);
 }
 
 void TFileNodeTypeHandler::DoDestroy(TFileNode& node)
