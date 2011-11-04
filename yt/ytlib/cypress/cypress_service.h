@@ -32,7 +32,7 @@ private:
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TCypressManager::TPtr CypressManager;
-    TTransactionManager::TPtr TransactionManager;
+    NTransaction::TTransactionManager::TPtr TransactionManager;
 
     void RegisterMethods();
 

@@ -22,9 +22,9 @@ INodeTypeHandler::TPtr CreateMonitoringTypeHandler(
         ERuntimeNodeType::Monitoring,
         // TODO: extract constant
         "monitoring",
-        ~FromFunctor([=] (const TCreateServiceParam& param) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
-                UNUSED(param);
+                UNUSED(context);
                 return IYPathService::FromNode(~monitoringManager_->GetRoot());
             }));
 }

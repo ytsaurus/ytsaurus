@@ -3,6 +3,7 @@
 #include "common.h"
 #include "cypress_manager.h"
 #include "node.h"
+#include "node_proxy.h"
 
 #include "../ytree/ypath.h"
 
@@ -11,15 +12,17 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCreateServiceParam
+struct TVirtualYPathContext
 {
-    const ICypressNode* Node;
+    TNodeId NodeId;
     TTransactionId TransactionId;
+    Stroka Manifest;
+    ICypressNodeProxy::TPtr Fallback; 
 };
 
 typedef
     IParamFunc<
-        const TCreateServiceParam&,
+        const TVirtualYPathContext&,
         NYTree::IYPathService::TPtr
     >
     TYPathServiceBuilder;

@@ -349,7 +349,7 @@ protected:
 public:
     virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
     {
-        return const_cast<TCompositeNodeProxyBase*>(this);
+        return this;//const_cast<TCompositeNodeProxyBase*>(this);
     }
 
     virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()

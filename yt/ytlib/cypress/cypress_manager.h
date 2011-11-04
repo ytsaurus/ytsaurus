@@ -20,14 +20,9 @@
 namespace NYT {
 namespace NCypress {
 
-using NTransaction::TTransaction;
-using NTransaction::NullTransactionId;
-using NTransaction::TTransactionManager;
-using NMetaState::TMetaChange;
+////////////////////////////////////////////////////////////////////////////////
 
 struct ICypressNodeProxy;
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
@@ -39,7 +34,7 @@ public:
     TCypressManager(
         NMetaState::TMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
-        TTransactionManager* transactionManager);
+        NTransaction::TTransactionManager* transactionManager);
 
     void RegisterNodeType(INodeTypeHandler* handler);
 
@@ -104,23 +99,23 @@ public:
         NYTree::IYsonConsumer* consumer);
 
     NYTree::INode::TPtr NavigateYPath(
-        const TTransactionId& transactionId,
+        const NTransaction::TTransactionId& transactionId,
         NYTree::TYPath path);
 
-    TMetaChange<TNodeId>::TPtr InitiateSetYPath(
-        const TTransactionId& transactionId,
+    NMetaState::TMetaChange<TNodeId>::TPtr InitiateSetYPath(
+        const NTransaction::TTransactionId& transactionId,
         NYTree::TYPath path,
         const Stroka& value);
 
-    TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
-        const TTransactionId& transactionId,
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
+        const NTransaction::TTransactionId& transactionId,
         NYTree::TYPath path);
 
-    TMetaChange<TVoid>::TPtr InitiateLockYPath(
-        const TTransactionId& transactionId,
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateLockYPath(
+        const NTransaction::TTransactionId& transactionId,
         NYTree::TYPath path);
 
-    TMetaChange<TVoid>::TPtr InitiateCreateWorld();
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateCreateWorld();
 
 private:
     class TNodeMapTraits
@@ -137,7 +132,7 @@ private:
 
     };
     
-    TTransactionManager::TPtr TransactionManager;
+    NTransaction::TTransactionManager::TPtr TransactionManager;
 
     TIdGenerator<TNodeId> NodeIdGenerator;
     NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
@@ -159,14 +154,14 @@ private:
     virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
     virtual void Clear();
 
-    void OnTransactionCommitted(const TTransaction& transaction);
-    void OnTransactionAborted(const TTransaction& transaction);
+    void OnTransactionCommitted(const NTransaction::TTransaction& transaction);
+    void OnTransactionAborted(const NTransaction::TTransaction& transaction);
 
-    void ReleaseLocks(const TTransaction& transaction);
-    void MergeBranchedNodes(const TTransaction& transaction);
-    void RemoveBranchedNodes(const TTransaction& transaction);
-    void UnrefOriginatingNodes(const TTransaction& transaction);
-    void CommitCreatedNodes(const TTransaction& transaction);
+    void ReleaseLocks(const NTransaction::TTransaction& transaction);
+    void MergeBranchedNodes(const NTransaction::TTransaction& transaction);
+    void RemoveBranchedNodes(const NTransaction::TTransaction& transaction);
+    void UnrefOriginatingNodes(const NTransaction::TTransaction& transaction);
+    void CommitCreatedNodes(const NTransaction::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
     INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);

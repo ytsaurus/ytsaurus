@@ -178,7 +178,7 @@ IYPathService::TRemoveResult TNodeBase::RemoveSelf()
     return TRemoveResult::CreateDone();
 }
 
-IYPathService::TRemoveResult TNodeBase::RemoveRecursive( TYPath path )
+IYPathService::TRemoveResult TNodeBase::RemoveRecursive(TYPath path)
 {
     return Navigate(path);
 }

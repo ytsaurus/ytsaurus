@@ -84,7 +84,10 @@ void ChopYPathPrefix(
         switch (path[index]) {
             case '/':
                 *prefix = Stroka(path.begin(), index);
-                *tailPath = TYPath(path.begin() + index + 1, path.end());
+                *tailPath =
+                    index == path.length() - 1
+                    ? TYPath(path.begin() + index, path.end())
+                    : TYPath(path.begin() + index + 1, path.end());
                 break;
 
             case '@':

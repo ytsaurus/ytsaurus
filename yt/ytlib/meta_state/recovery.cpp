@@ -224,7 +224,9 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
                     LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
 
                     MetaState->Clear();
-                    return Run();
+                    return FromMethod(&TRecovery::Run, TPtr(this))
+                           ->AsyncVia(~CancelableControlInvoker)
+                           ->Do();
                 }
             }
 

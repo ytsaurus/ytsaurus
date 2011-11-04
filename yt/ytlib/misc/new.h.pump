@@ -107,7 +107,7 @@ template<
 inline TIntrusivePtr<TResult> New($ctor_args)
 {
     REF_COUNTED_NEW_PROLOGUE();
-    // Do not increment reference count because initial RC equals to 1.
+    // Do not increment reference count because initial RC equals 1.
     TIntrusivePtr<TResult> result(new TResult($args_list), false);
     REF_COUNTED_NEW_EPILOGUE();
     return result;
