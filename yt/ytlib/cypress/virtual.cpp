@@ -14,42 +14,32 @@ using namespace NYTree;
 class TVirtualNode
     : public TCypressNodeBase
 {
+    DECLARE_BYVAL_RO_PROPERTY(RuntimeType, ERuntimeNodeType);
+
 public:
     explicit TVirtualNode(
         const TBranchedNodeId& id,
         ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid)
         : TCypressNodeBase(id)
-        , RuntimeType(runtimeType)
+        , RuntimeType_(runtimeType)
     { }
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TVirtualNode(Id, RuntimeType);
-    }
-
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return RuntimeType;
+        return new TVirtualNode(Id, RuntimeType_);
     }
 
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
-        // TODO: enum serialization
-        ::Save(output, static_cast<i32>(RuntimeType));
+        ::Save(output, RuntimeType_);
     }
 
     virtual void Load(TInputStream* input)
     {
         TCypressNodeBase::Load(input);
-        // TODO: enum serialization
-        i32 type;
-        ::Load(input, type);
-        RuntimeType = ERuntimeNodeType(type);
+        ::Load(input, RuntimeType_);
     }
-
-private:
-    ERuntimeNodeType RuntimeType;
 
 };
 

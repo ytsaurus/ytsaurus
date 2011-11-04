@@ -74,8 +74,12 @@ bool TCypressManager::IsWorldInitialized()
 
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
 {
-    int type = static_cast<int>(node.GetRuntimeType());
-    auto handler = RuntimeTypeToHandler[type];
+    return GetTypeHandler(node.GetRuntimeType());
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
+{
+    auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
     YASSERT(~handler != NULL);
     return handler;
 }
@@ -901,21 +905,19 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
-    // TODO: enum serialization
-    ::Save(output, static_cast<i32>(value->GetRuntimeType()));
+    ::Save(output, value->GetRuntimeType());
     ::Save(output, value->GetId());
     value->Save(output);
 }
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
 {
-    // TODO: enum serialization
-    i32 type;
+    ERuntimeNodeType type;
     TBranchedNodeId id;
     ::Load(input, type);
     ::Load(input, id);
 
-    auto value = CypressManager->RuntimeTypeToHandler[type]->Create(id);
+    auto value = CypressManager->GetTypeHandler(type)->Create(id);
     value->Load(input);
 
     return value;

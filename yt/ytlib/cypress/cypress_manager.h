@@ -169,6 +169,7 @@ private:
     void CommitCreatedNodes(const TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
+    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(
