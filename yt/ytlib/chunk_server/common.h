@@ -25,8 +25,8 @@ using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;
 
-typedef int THolderId;
-const int InvalidHolderId = -1;
+typedef i32 THolderId;
+const i32 InvalidHolderId = -1;
 
 typedef TGuid TChunkListId;
 extern TChunkListId NullChunkListId;

@@ -130,7 +130,7 @@ private:
 
         TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
         void Save(ICypressNode* value, TOutputStream* output) const;
-        TAutoPtr<ICypressNode> Load(TInputStream* input) const;
+        TAutoPtr<ICypressNode> Load(const TBranchedNodeId& id, TInputStream* input) const;
 
     private:
         TCypressManager::TPtr CypressManager;

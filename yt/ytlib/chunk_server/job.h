@@ -38,21 +38,19 @@ struct TJob
     void Save(TOutputStream* output) const
     {
         ::Save(output, (i32) Type); // temp. For some reason could not DECLARE_PODTYPE(EJobType)
-        ::Save(output, JobId);
+        //::Save(output, JobId);
         ::Save(output, ChunkId);
         ::Save(output, RunnerAddress);
         ::Save(output, TargetAddresses);
     }
 
-    static TAutoPtr<TJob> Load(TInputStream* input)
+    static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input)
     {
         i32 type; // temp. For some reason could not DECLARE_PODTYPE(EJobType)
-        TJobId jobId;
         TChunkId chunkId;
         Stroka runnerAddress;
         yvector<Stroka> targetAddresses;
         ::Load(input, type);
-        ::Load(input, jobId);
         ::Load(input, chunkId);
         ::Load(input, runnerAddress);
         ::Load(input, targetAddresses);

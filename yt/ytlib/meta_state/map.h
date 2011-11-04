@@ -44,13 +44,13 @@ protected:
     EState State;
 };
 
-template <class TValue>
+template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
     TAutoPtr<TValue> Clone(TValue* value) const;
 
     void Save(TValue* value, TOutputStream* output) const;
-    TAutoPtr<TValue> Load(TInputStream* input) const;
+    TAutoPtr<TValue> Load(const TKey& key, TInputStream* input) const;
 };
 
 //! Snapshottable map used to store various meta-state tables.
@@ -72,7 +72,7 @@ struct TDefaultMetaMapTraits
 template <
     class TKey,
     class TValue,
-    class TTraits = TDefaultMetaMapTraits<TValue>,
+    class TTraits = TDefaultMetaMapTraits<TKey, TValue>,
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
@@ -204,7 +204,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
     
-    //! When no shapshot is being written this is the actual map we're working with.
+    //! When no snapshot is being written this is the actual map we're working with.
     //! When a snapshot is being created this map is kept read-only and
     //! #PathMap is used to store the changes.
     TMap PrimaryMap;

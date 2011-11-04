@@ -39,18 +39,16 @@ public:
     {
         YASSERT(output != NULL);
 
-        ::Save(output, Id_);
+        //::Save(output, Id_);
         ::Save(output, RegisteredChunks_);
         ::Save(output, Locks_);
         ::Save(output, BranchedNodes_);
     }
 
-    static TAutoPtr<TTransaction> Load(TInputStream* input)
+    static TAutoPtr<TTransaction> Load(const TTransactionId& id, TInputStream* input)
     {
         YASSERT(input != NULL);
 
-        TTransactionId id;
-        ::Load(input, id);
         auto* transaction = new TTransaction(id);
         ::Load(input, transaction->RegisteredChunks_);
         ::Load(input, transaction->Locks_);

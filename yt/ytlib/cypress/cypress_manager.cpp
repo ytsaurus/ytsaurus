@@ -903,18 +903,16 @@ void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* o
 {
     // TODO: enum serialization
     ::Save(output, static_cast<i32>(value->GetRuntimeType()));
-    ::Save(output, value->GetId());
+    //::Save(output, value->GetId());
     value->Save(output);
 }
 
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TBranchedNodeId& id, TInputStream* input) const
 {
     // TODO: enum serialization
     i32 type;
-    TBranchedNodeId id;
     ::Load(input, type);
-    ::Load(input, id);
-
+    
     auto value = CypressManager->RuntimeTypeToHandler[type]->Create(id);
     value->Load(input);
 

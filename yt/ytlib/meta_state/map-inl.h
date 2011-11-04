@@ -8,22 +8,22 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Clone(TValue* value) const
+template <class TKey, class TValue>
+TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Clone(TValue* value) const
 {
     return value->Clone();
 }
 
-template <class TValue>
-void TDefaultMetaMapTraits<TValue>::Save(TValue* value, TOutputStream* output) const
+template <class TKey, class TValue>
+void TDefaultMetaMapTraits<TKey, TValue>::Save(TValue* value, TOutputStream* output) const
 {
     value->Save(output);
 }
 
-template <class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Load(TInputStream* input) const
+template <class TKey, class TValue>
+TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Load(const TKey& key, TInputStream* input) const
 {
-    return TValue::Load(input);
+    return TValue::Load(key, input);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,7 +402,7 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoLoad(TInputStream* input)
     for (i32 index = 0; index < size; ++index) {
         TKey key;
         ::Load(input, key);
-        TValue* value = Traits.Load(input).Release();
+        TValue* value = Traits.Load(key, input).Release();
         PrimaryMap.insert(MakePair(key, value));
     }
 

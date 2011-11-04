@@ -27,16 +27,14 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Id_);
+        //::Save(output, Id_);
         ::Save(output, Chunks_);
         ::Save(output, ReplicaCount_);
         ::Save(output, RefCounter);
     }
 
-    static TAutoPtr<TChunkList> Load(TInputStream* input)
+    static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input)
     {
-        TChunkListId id;
-        ::Load(input, id);
         TAutoPtr<TChunkList> chunkList = new TChunkList(id);
         ::Load(input, chunkList->Chunks_);
         ::Load(input, chunkList->ReplicaCount_);

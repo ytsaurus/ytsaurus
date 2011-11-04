@@ -38,21 +38,19 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Id_);
+        //::Save(output, Id_);
         ::Save(output, NodeId_);
         ::Save(output, TransactionId_);
         // TODO: enum serialization
         ::Save(output, static_cast<i32>(Mode_));
     }
 
-    static TAutoPtr<TLock> Load(TInputStream* input)
+    static TAutoPtr<TLock> Load(const TLockId& id, TInputStream* input)
     {
-        TLockId id;
         TNodeId nodeId;
         TTransactionId transactionId;
         // TODO: enum serialization
         i32 mode;
-        ::Load(input, id);
         ::Load(input, nodeId);
         ::Load(input, transactionId);
         ::Load(input, mode);

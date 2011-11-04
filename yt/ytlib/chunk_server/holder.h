@@ -57,7 +57,7 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Id_);
+        //::Save(output, Id_);
         ::Save(output, Address_);
         ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         ::Save(output, Statistics_);
@@ -65,9 +65,8 @@ public:
         ::Save(output, Jobs_);
     }
 
-    static TAutoPtr<THolder> Load(TInputStream* input)
+    static TAutoPtr<THolder> Load(THolderId id, TInputStream* input)
     {
-        THolderId id;
         Stroka address;
         i32 state; // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         THolderStatistics statistics;

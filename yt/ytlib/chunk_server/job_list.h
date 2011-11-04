@@ -25,14 +25,12 @@ struct TJobList
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, ChunkId);
+        //::Save(output, ChunkId);
         ::Save(output, Jobs);
     }
 
-    static TAutoPtr<TJobList> Load(TInputStream* input)
+    static TAutoPtr<TJobList> Load(const TChunkId& chunkId, TInputStream* input)
     {
-        TChunkId chunkId;
-        ::Load(input, chunkId);
         auto* jobList = new TJobList(chunkId);
         ::Load(input, jobList->Jobs);
         return jobList;
