@@ -115,24 +115,19 @@ TVoid TTableManager::AddTableChunks(const NProto::TMsgAddTableChunks& message)
 
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto nodeId = TNodeId::FromProto(message.GetNodeId());
-    //auto chunkId = TChunkId::FromProto(message.GetChunkId());
 
-    //ValidateTransactionId(transactionId, false);
+    ValidateTransactionId(transactionId, false);
 
-    //auto& chunk = GetChunk(chunkId);
-    //auto& tableNode = GetTableNode(nodeId, transactionId);
+    auto& tableNode = GetTableNode(nodeId, transactionId);
+    YASSERT(tableNode.ChunkListIds().ysize() >= 1);
+    const auto& appendChunkListId = tableNode.ChunkListIds().back();
+    auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
 
-    //if (tableNode.GetChunkListId() != NullChunkListId) {
-    //    // TODO: exception type
-    //    throw yexception() << "Chunk is already assigned to table node";
-    //}
-
-    //auto& chunkList = ChunkManager->CreateChunkList();
-    //tableNode.SetChunkListId(chunkList.GetId());
-    //ChunkManager->RefChunkList(chunkList);
-
-    //chunkList.ChunkIds().push_back(chunkId);
-    //ChunkManager->RefChunk(chunk);
+    FOREACH (const auto& chunkId, message.GetChunkIds()) {
+        auto& chunk = GetChunk(TChunkId::FromProto(chunkId));
+        appendChunkList.ChunkIds().push_back(chunk.GetId());
+        ChunkManager->RefChunk(chunk);
+    }
 
     return TVoid();
 }

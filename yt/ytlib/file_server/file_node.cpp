@@ -108,10 +108,13 @@ void TFileNodeTypeHandler::DoBranch(
     const TFileNode& committedNode,
     TFileNode& branchedNode)
 {
-    UNUSED(branchedNode);
+    UNUSED(committedNode);
 
-    if (committedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->RefChunkList(committedNode.GetChunkListId());
+    // branchedNode is copy of committedNode.
+
+    // Reference the list chunk from branchedNode.
+    if (branchedNode.GetChunkListId() != NullChunkListId) {
+        ChunkManager->RefChunkList(branchedNode.GetChunkListId());
     }
 }
 
@@ -119,10 +122,12 @@ void TFileNodeTypeHandler::DoMerge(
     TFileNode& committedNode,
     TFileNode& branchedNode)
 {
+    // Drop the reference from committedNode.
     if (committedNode.GetChunkListId() != NullChunkListId) {
         ChunkManager->UnrefChunkList(committedNode.GetChunkListId());
     }
 
+    // Transfer the chunklist from branchedNode to committedNode.
     committedNode.SetChunkListId(branchedNode.GetChunkListId());
 }
 
