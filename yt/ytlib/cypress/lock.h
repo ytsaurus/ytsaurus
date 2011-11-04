@@ -8,22 +8,20 @@
 namespace NYT {
 namespace NCypress {
 
-using NTransaction::TTransactionId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLock
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TLockId);
     DECLARE_BYVAL_RO_PROPERTY(NodeId, TNodeId);
-    DECLARE_BYVAL_RO_PROPERTY(TransactionId, TTransactionId);
+    DECLARE_BYVAL_RO_PROPERTY(TransactionId, NTransaction::TTransactionId);
     DECLARE_BYVAL_RO_PROPERTY(Mode, ELockMode);
 
 public:
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        const NTransaction::TTransactionId& transactionId,
         ELockMode mode)
         : Id_(id)
         , NodeId_(nodeId)
@@ -41,16 +39,14 @@ public:
         //::Save(output, Id_);
         ::Save(output, NodeId_);
         ::Save(output, TransactionId_);
-        // TODO: enum serialization
-        ::Save(output, static_cast<i32>(Mode_));
+        ::Save(output, Mode_);
     }
 
     static TAutoPtr<TLock> Load(const TLockId& id, TInputStream* input)
     {
         TNodeId nodeId;
-        TTransactionId transactionId;
-        // TODO: enum serialization
-        i32 mode;
+        NTransaction::TTransactionId transactionId;
+        ELockMode mode;
         ::Load(input, nodeId);
         ::Load(input, transactionId);
         ::Load(input, mode);
@@ -58,7 +54,7 @@ public:
             id,
             nodeId,
             transactionId,
-            static_cast<ELockMode>(mode));
+            mode);
     }
 
 private:

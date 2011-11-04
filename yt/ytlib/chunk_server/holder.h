@@ -26,8 +26,8 @@ class THolder
     DECLARE_BYVAL_RO_PROPERTY(Address, Stroka);
     DECLARE_BYVAL_RW_PROPERTY(State, EHolderState);
     DECLARE_BYREF_RW_PROPERTY(Statistics, THolderStatistics);
-    DECLARE_BYREF_RW_PROPERTY(Chunks, yhash_set<TChunkId>);
-    DECLARE_BYREF_RO_PROPERTY(Jobs, yvector<TJobId>);
+    DECLARE_BYREF_RW_PROPERTY(ChunkIds, yhash_set<TChunkId>);
+    DECLARE_BYREF_RO_PROPERTY(JobIds, yvector<TJobId>);
 
 public:
     THolder(
@@ -46,8 +46,8 @@ public:
         , Address_(other.Address_)
         , State_(other.State_)
         , Statistics_(other.Statistics_)
-        , Chunks_(other.Chunks_)
-        , Jobs_(other.Jobs_)
+        , ChunkIds_(other.ChunkIds_)
+        , JobIds_(other.JobIds_)
     { }
 
     TAutoPtr<THolder> Clone() const
@@ -61,8 +61,8 @@ public:
         ::Save(output, Address_);
         ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
         ::Save(output, Statistics_);
-        SaveSet(output, Chunks_);
-        ::Save(output, Jobs_);
+        SaveSet(output, ChunkIds_);
+        ::Save(output, JobIds_);
     }
 
     static TAutoPtr<THolder> Load(THolderId id, TInputStream* input)
@@ -75,21 +75,21 @@ public:
         ::Load(input, state);
         ::Load(input, statistics);
         auto* holder = new THolder(id, address, EHolderState(state), statistics);
-        ::Load(input, holder->Chunks_);
-        ::Load(input, holder->Jobs_);
+        ::Load(input, holder->ChunkIds_);
+        ::Load(input, holder->JobIds_);
         return holder;
     }
 
     void AddJob(const TJobId& id)
     {
-        Jobs_.push_back(id);
+        JobIds_.push_back(id);
     }
 
     void RemoveJob(const TJobId& id)
     {
-        auto it = Find(Jobs_.begin(), Jobs_.end(), id);
-        if (it != Jobs_.end()) {
-            Jobs_.erase(it);
+        auto it = Find(JobIds_.begin(), JobIds_.end(), id);
+        if (it != JobIds_.end()) {
+            JobIds_.erase(it);
         }
     }
 };

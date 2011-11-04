@@ -9,24 +9,20 @@
 namespace NYT {
 namespace NTableServer {
 
-using namespace NCypress;
-using NChunkServer::TChunkListId;
-using NChunkServer::NullChunkListId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNode
     : public NCypress::TCypressNodeBase
 {
-    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
+    DECLARE_BYREF_RW_PROPERTY(ChunkListIds, yvector<NChunkServer::TChunkListId>);
 
 public:
-    explicit TTableNode(const TBranchedNodeId& id);
-    TTableNode(const TBranchedNodeId& id, const TTableNode& other);
+    explicit TTableNode(const NCypress::TBranchedNodeId& id);
+    TTableNode(const NCypress::TBranchedNodeId& id, const TTableNode& other);
 
-    virtual TAutoPtr<ICypressNode> Clone() const;
+    virtual TAutoPtr<NCypress::ICypressNode> Clone() const;
 
-    virtual ERuntimeNodeType GetRuntimeType() const;
+    virtual NCypress::ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     
@@ -38,26 +34,26 @@ public:
 class TTableManager;
 
 class TTableNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TTableNode>
+    : public NCypress::TCypressNodeTypeHandlerBase<TTableNode>
 {
 public:
     TTableNodeTypeHandler(
-        TCypressManager* cypressManager,
+        NCypress::TCypressManager* cypressManager,
         TTableManager* tableManager,
         NChunkServer::TChunkManager* chunkManager);
 
-    ERuntimeNodeType GetRuntimeType();
+    NCypress::ERuntimeNodeType GetRuntimeType();
     NYTree::ENodeType GetNodeType();
     Stroka GetTypeName();
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest);
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
+        const NCypress::ICypressNode& node,
+        const NTransaction::TTransactionId& transactionId);
 
 protected:
     virtual void DoDestroy(TTableNode& node);
@@ -75,12 +71,6 @@ private:
 
     TIntrusivePtr<TTableManager> TableManager;
     TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
-
-    void GetSize(const TGetAttributeParam& param);
-    static void GetChunkListId(const TGetAttributeParam& param);
-    void GetChunkId(const TGetAttributeParam& param);
-    
-    const NChunkServer::TChunk* GetChunk(const TTableNode& node);
 
 };
 

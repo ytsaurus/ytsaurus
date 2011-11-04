@@ -6,6 +6,9 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NMetaState;
+using namespace NCypress;
+using namespace NChunkServer;
+using namespace NTransaction;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,20 +17,37 @@ static NLog::TLogger& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableManagerBase::TTableManagerBase(
+TTableManager::TTableManager(
+    TMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
     TCypressManager* cypressManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager)
-    : CypressManager(cypressManager)
+    : TMetaStatePart(metaStateManager, metaState)
+    , CypressManager(cypressManager)
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
     YASSERT(chunkManager != NULL);
     YASSERT(transactionManager != NULL);
+
+    RegisterMethod(this, &TThis::AddTableChunks);
+
+    cypressManager->RegisterNodeType(~New<TTableNodeTypeHandler>(
+        cypressManager,
+        this,
+        chunkManager));
+
+    metaState->RegisterPart(this);
 }
 
-void TTableManagerBase::ValidateTransactionId(
+Stroka TTableManager::GetPartName() const
+{
+    return "TableManager";
+}
+
+void TTableManager::ValidateTransactionId(
     const TTransactionId& transactionId,
     bool mayBeNull)
 {
@@ -39,7 +59,7 @@ void TTableManagerBase::ValidateTransactionId(
     }
 }
 
-TTableNode& TTableManagerBase::GetTableNode(const TNodeId& nodeId, const TTransactionId& transactionId)
+TTableNode& TTableManager::GetTableNode(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto* impl = CypressManager->FindTransactionNodeForUpdate(nodeId, transactionId);
     if (impl == NULL) {
@@ -60,7 +80,7 @@ TTableNode& TTableManagerBase::GetTableNode(const TNodeId& nodeId, const TTransa
     return *typedImpl;
 }
 
-TChunk& TTableManagerBase::GetChunk(const TChunkId& chunkId)
+TChunk& TTableManager::GetChunk(const TChunkId& chunkId)
 {
     auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
     if (chunk == NULL) {
@@ -70,95 +90,45 @@ TChunk& TTableManagerBase::GetChunk(const TChunkId& chunkId)
     return *chunk;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTableManager::TTableManager(
-    TMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
-    TTransactionManager* transactionManager)
-    : TMetaStatePart(metaStateManager, metaState)
-    , TTableManagerBase(cypressManager, chunkManager, transactionManager)
-{
-    YASSERT(cypressManager != NULL);
-
-    RegisterMethod(this, &TThis::SetTableChunk);
-
-    cypressManager->RegisterNodeType(~New<TTableNodeTypeHandler>(
-        cypressManager,
-        this,
-        chunkManager));
-
-    metaState->RegisterPart(this);
-}
-
-Stroka TTableManager::GetPartName() const
-{
-    return "TableManager";
-}
-
 TMetaChange<TVoid>::TPtr
-TTableManager::InitiateSetTableChunk(
+TTableManager::InitiateAddTableChunks(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
-    const TChunkId& chunkId)
+    const yvector<TChunkId>& chunkIds)
 {
-    TMsgSetTableChunk message;
+    TMsgAddTableChunks message;
     message.SetTransactionId(transactionId.ToProto());
     message.SetNodeId(nodeId.ToProto());
-    message.SetChunkId(chunkId.ToProto());
+    ToProto<TChunkId, Stroka>(*message.MutableChunkIds(), chunkIds);
 
     return CreateMetaChange(
         MetaStateManager,
         message,
-        &TThis::SetTableChunk,
+        &TThis::AddTableChunks,
         TPtr(this),
         ECommitMode::MayFail);
 }
 
-TVoid TTableManager::SetTableChunk(const NProto::TMsgSetTableChunk& message)
+TVoid TTableManager::AddTableChunks(const NProto::TMsgAddTableChunks& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
     auto nodeId = TNodeId::FromProto(message.GetNodeId());
-    auto chunkId = TChunkId::FromProto(message.GetChunkId());
 
     ValidateTransactionId(transactionId, false);
 
-    auto& chunk = GetChunk(chunkId);
     auto& tableNode = GetTableNode(nodeId, transactionId);
+    YASSERT(tableNode.ChunkListIds().ysize() >= 1);
+    const auto& appendChunkListId = tableNode.ChunkListIds().back();
+    auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
 
-    if (tableNode.GetChunkListId() != NullChunkListId) {
-        // TODO: exception type
-        throw yexception() << "Chunk is already assigned to table node";
+    FOREACH (const auto& chunkId, message.GetChunkIds()) {
+        auto& chunk = GetChunk(TChunkId::FromProto(chunkId));
+        ChunkManager->AddChunkToChunkList(chunk, appendChunkList);
     }
-
-    auto& chunkList = ChunkManager->CreateChunkList();
-    tableNode.SetChunkListId(chunkList.GetId());
-    ChunkManager->RefChunkList(chunkList);
-
-    chunkList.Chunks().push_back(chunkId);
-    ChunkManager->RefChunk(chunk);
 
     return TVoid();
-}
-
-TChunkId TTableManager::GetTableChunk(
-    const TNodeId& nodeId,
-    const TTransactionId& transactionId)
-{
-    ValidateTransactionId(transactionId, true);
-    auto& tableNode = GetTableNode(nodeId, transactionId);
-
-    if (tableNode.GetChunkListId() == NullChunkId) {
-        return NullChunkId;
-    }
-
-    const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
-    return chunkList.Chunks()[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

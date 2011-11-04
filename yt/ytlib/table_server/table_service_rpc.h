@@ -28,8 +28,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, SetTableChunk);
-    RPC_PROXY_METHOD(NProto, GetTableChunk);
+    RPC_PROXY_METHOD(NProto, AddTableChunks);
 
 };
 

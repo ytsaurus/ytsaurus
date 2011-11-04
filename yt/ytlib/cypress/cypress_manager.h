@@ -107,7 +107,7 @@ public:
         const TTransactionId& transactionId,
         NYTree::TYPath path);
 
-    TMetaChange<TVoid>::TPtr InitiateSetYPath(
+    TMetaChange<TNodeId>::TPtr InitiateSetYPath(
         const TTransactionId& transactionId,
         NYTree::TYPath path,
         const Stroka& value);
@@ -148,7 +148,7 @@ private:
     yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
-    TVoid SetYPath(const NProto::TMsgSet& message);
+    TNodeId SetYPath(const NProto::TMsgSet& message);
     TVoid RemoveYPath(const NProto::TMsgRemove& message);
     TVoid LockYPath(const NProto::TMsgLock& message);
     TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
@@ -169,6 +169,7 @@ private:
     void CommitCreatedNodes(const TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
+    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(

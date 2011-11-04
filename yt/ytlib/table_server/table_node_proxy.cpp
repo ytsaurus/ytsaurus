@@ -2,19 +2,19 @@
 #include "table_node_proxy.h"
 
 namespace NYT {
-namespace NFileServer {
+namespace NTableServer {
 
 using namespace NCypress;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNodeProxy::TFileNodeProxy(
+TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandler* typeHandler,
     TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
-    : TCypressNodeProxyBase<IEntityNode, TFileNode>(
+    : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         cypressManager,
         transactionId,
@@ -23,6 +23,6 @@ TFileNodeProxy::TFileNodeProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
+} // namespace NTableServer
 } // namespace NYT
 

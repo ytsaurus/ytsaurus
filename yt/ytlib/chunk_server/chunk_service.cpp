@@ -117,7 +117,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     FOREACH(const auto& chunkInfo, request->GetAddedChunks()) {
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
-        if (holder.Chunks().find(chunkId) == holder.Chunks().end()) {
+        if (holder.ChunkIds().find(chunkId) == holder.ChunkIds().end()) {
             *requestMessage.AddAddedChunks() = chunkInfo;
         } else {
             LOG_WARNING("Chunk replica is already added (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -129,7 +129,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     FOREACH(const auto& protoChunkId, request->GetRemovedChunks()) {
         auto chunkId = TChunkId::FromProto(protoChunkId);
-        if (holder.Chunks().find(chunkId) != holder.Chunks().end()) {
+        if (holder.ChunkIds().find(chunkId) != holder.ChunkIds().end()) {
             requestMessage.AddRemovedChunks(chunkId.ToProto());
         } else if (ChunkManager->FindChunk(chunkId) != NULL) {
             LOG_WARNING("Chunk replica is already removed (ChunkId: %s, Address: %s, HolderId: %d)",

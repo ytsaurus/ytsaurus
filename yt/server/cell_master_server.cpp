@@ -17,6 +17,9 @@
 #include <yt/ytlib/file_server/file_manager.h>
 #include <yt/ytlib/file_server/file_service.h>
 
+#include <yt/ytlib/table_server/table_manager.h>
+#include <yt/ytlib/table_server/table_service.h>
+
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
@@ -40,6 +43,9 @@ using NCypress::TWorldInitializer;
 
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
+
+using NTableServer::TTableManager;
+using NTableServer::TTableService;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::CreateMonitoringTypeHandler;
@@ -130,6 +136,19 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~fileManager,
+        ~server);
+
+    auto tableManager = New<TTableManager>(
+        ~metaStateManager,
+        ~metaState,
+        ~cypressManager,
+        ~chunkManager,
+        ~transactionManager);
+
+    auto tableService = New<TTableService>(
+        ~metaStateManager,
+        ~chunkManager,
+        ~tableManager,
         ~server);
 
     auto worldIntializer = New<TWorldInitializer>(

@@ -7,151 +7,141 @@
 #include "../ytree/fluent.h"
 
 namespace NYT {
-namespace NFileServer {
+namespace NTableServer {
 
+using namespace NCypress;
+using namespace NTransaction;
 using namespace NYTree;
 using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TBranchedNodeId& id)
+TTableNode::TTableNode(const TBranchedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkListId_(NullChunkListId)
 { }
 
-TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)
+TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
-    , ChunkListId_(other.ChunkListId_)
+    , ChunkListIds_(other.ChunkListIds_)
 { }
 
-ERuntimeNodeType TFileNode::GetRuntimeType() const
+ERuntimeNodeType TTableNode::GetRuntimeType() const
 {
-    return ERuntimeNodeType::File;
+    return ERuntimeNodeType::Table;
 }
 
-TAutoPtr<ICypressNode> TFileNode::Clone() const
+TAutoPtr<ICypressNode> TTableNode::Clone() const
 {
-    return new TFileNode(Id, *this);
+    return new TTableNode(Id, *this);
 }
 
-void TFileNode::Save(TOutputStream* output) const
+void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    ::Save(output, ChunkListId_);
+    ::Save(output, ChunkListIds_);
 }
 
-void TFileNode::Load(TInputStream* input)
+void TTableNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    ::Load(input, ChunkListId_);
+    ::Load(input, ChunkListIds_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNodeTypeHandler::TFileNodeTypeHandler(
+TTableNodeTypeHandler::TTableNodeTypeHandler(
     TCypressManager* cypressManager,
-    TFileManager* tableManager,
+    TTableManager* tableManager,
     TChunkManager* chunkManager)
-    : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
-    , FileManager(tableManager)
+    : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
+    , TableManager(tableManager)
     , ChunkManager(chunkManager)
 {
-    // NB: No smartpointer for this here.
-    RegisterGetter("size", FromMethod(&TThis::GetSize, this));
-    RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-    RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
 }
 
-void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
+void TTableNodeTypeHandler::DoDestroy(TTableNode& node)
 {
-    const auto* chunk = GetChunk(*param.Node);
-    i64 size = chunk == NULL ? -1 : chunk->GetSize();
-    BuildYsonFluently(param.Consumer)
-        .Scalar(size);
-}
-
-void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)
-{
-    BuildYsonFluently(param.Consumer)
-        .Scalar(param.Node->GetChunkListId().ToString());
-}
-
-void TFileNodeTypeHandler::GetChunkId(const TGetAttributeParam& param)
-{
-    const auto* chunk = GetChunk(*param.Node);
-    auto chunkId = chunk == NULL ? TChunkId() : chunk->GetId();
-    BuildYsonFluently(param.Consumer)
-        .Scalar(chunkId.ToString());
-}
-
-const NChunkServer::TChunk* TFileNodeTypeHandler::GetChunk(const TFileNode& node)
-{
-    if (node.GetChunkListId() == NullChunkListId) {
-        return NULL;
-    }
-
-    const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
-
-    return &ChunkManager->GetChunk(chunkList.Chunks()[0]);
-}
-
-void TFileNodeTypeHandler::DoDestroy(TFileNode& node)
-{
-    if (node.GetChunkListId() != NullChunkListId) {
-        ChunkManager->UnrefChunkList(node.GetChunkListId());
+    FOREACH(const auto& chunkListId, node.ChunkListIds()) {
+        ChunkManager->UnrefChunkList(chunkListId);
     }
 }
 
-void TFileNodeTypeHandler::DoBranch(
-    const TFileNode& committedNode,
-    TFileNode& branchedNode)
+void TTableNodeTypeHandler::DoBranch(
+    const TTableNode& committedNode,
+    TTableNode& branchedNode)
 {
-    UNUSED(branchedNode);
+    UNUSED(committedNode);
 
-    if (committedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->RefChunkList(committedNode.GetChunkListId());
+    // branchedNode is a copy of committedNode.
+
+    // Reference shared chunklists from branchedNode.
+    FOREACH(const auto& chunkListId, branchedNode.ChunkListIds()) {
+        ChunkManager->RefChunkList(chunkListId);
+    }
+
+    // Create a new chunk list that will keep all newly added chunks.
+    auto& appendChunkList = ChunkManager->CreateChunkList();
+    branchedNode.ChunkListIds().push_back(appendChunkList.GetId());
+
+    // Reference this chunklist from branchedNode.
+    ChunkManager->RefChunkList(appendChunkList);
+}
+
+void TTableNodeTypeHandler::DoMerge(
+    TTableNode& committedNode,
+    TTableNode& branchedNode)
+{
+    YASSERT(branchedNode.ChunkListIds().ysize() >= 1);
+    YASSERT(branchedNode.ChunkListIds().ysize() >= committedNode.ChunkListIds().ysize() + 1);
+
+    // Drop references to shared chunklists from branchedNode.
+    for (auto it = branchedNode.ChunkListIds().begin();
+         it != branchedNode.ChunkListIds().end() - 1;
+         ++it)
+    {
+        ChunkManager->UnrefChunkList(*it);
+    }
+
+    // Check if some chunks were added during the transaction.
+    auto appendChunkListId = branchedNode.ChunkListIds().back();
+    auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
+    if (appendChunkList.ChunkIds().empty()) {
+        // No chunks were added, just unref this chunklist.
+        // This prevents creation of empty chunklists.
+        ChunkManager->UnrefChunkList(appendChunkList);
+    } else {
+        // Perform the actual merge: add this chunklist to committedNode.
+        committedNode.ChunkListIds().push_back(appendChunkListId);
     }
 }
 
-void TFileNodeTypeHandler::DoMerge(
-    TFileNode& committedNode,
-    TFileNode& branchedNode)
-{
-    if (committedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->UnrefChunkList(committedNode.GetChunkListId());
-    }
-
-    committedNode.SetChunkListId(branchedNode.GetChunkListId());
-}
-
-TIntrusivePtr<ICypressNodeProxy> TFileNodeTypeHandler::GetProxy(
+TIntrusivePtr<ICypressNodeProxy> TTableNodeTypeHandler::GetProxy(
     const ICypressNode& node,
     const TTransactionId& transactionId)
 {
-    return New<TFileNodeProxy>(
+    return New<TTableNodeProxy>(
         this,
         ~CypressManager,
         transactionId,
         node.GetId().NodeId);
 }
 
-ERuntimeNodeType TFileNodeTypeHandler::GetRuntimeType()
+ERuntimeNodeType TTableNodeTypeHandler::GetRuntimeType()
 {
-    return ERuntimeNodeType::File;
+    return ERuntimeNodeType::Table;
 }
 
-ENodeType TFileNodeTypeHandler::GetNodeType()
+ENodeType TTableNodeTypeHandler::GetNodeType()
 {
     return ENodeType::Entity;
 }
 
-Stroka TFileNodeTypeHandler::GetTypeName()
+Stroka TTableNodeTypeHandler::GetTypeName()
 {
-    return FileTypeName;
+    return TableTypeName;
 }
 
-TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
+TAutoPtr<ICypressNode> TTableNodeTypeHandler::CreateFromManifest(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     IMapNode::TPtr manifest)
@@ -159,12 +149,12 @@ TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
     UNUSED(transactionId);
     UNUSED(manifest);
 
-    TAutoPtr<TFileNode> node(new TFileNode(TBranchedNodeId(nodeId, NullTransactionId)));
+    TAutoPtr<TTableNode> node(new TTableNode(TBranchedNodeId(nodeId, NullTransactionId)));
     return node.Release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
+} // namespace NTableServer
 } // namespace NYT
 

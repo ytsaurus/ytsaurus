@@ -121,6 +121,13 @@ public:
         return *chunkList;
     }
 
+    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList) 
+    {
+        chunkList.ChunkIds().push_back(chunk.GetId());
+        chunk.SetChunkListId(chunkList.GetId());
+        RefChunk(chunk);
+    }
+
 
     void RefChunk(const TChunkId& chunkId)
     {
@@ -295,7 +302,7 @@ private:
         // Unregister chunk replicas from all known locations.
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = GetHolderForUpdate(holderId);
-            YVERIFY(holder.Chunks().erase(chunkId) == 1);
+            YVERIFY(holder.ChunkIds().erase(chunkId) == 1);
 
             if (IsLeader()) {
                 ChunkReplication->ScheduleChunkRemoval(holder, chunk);
@@ -313,7 +320,7 @@ private:
         auto chunkListId = chunkList.GetId();
 
         // Drop references to chunks.
-        FOREACH (const auto& chunkId, chunkList.Chunks()) {
+        FOREACH (const auto& chunkId, chunkList.ChunkIds()) {
             UnrefChunk(chunkId);
         }
 
@@ -581,12 +588,12 @@ private:
             StopHolderTracking(holder);
         }
 
-        FOREACH(const auto& chunkId, holder.Chunks()) {
+        FOREACH(const auto& chunkId, holder.ChunkIds()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             DoRemovedChunkReplicaAtDeadHolder(holder, chunk);
         }
 
-        FOREACH(const auto& jobId, holder.Jobs()) {
+        FOREACH(const auto& jobId, holder.JobIds()) {
             const auto& job = GetJob(jobId);
             DoRemoveJobAtDeadHolder(holder, job);
         }
@@ -602,7 +609,7 @@ private:
 
     void DoAddChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks().insert(chunk.GetId()).Second());
+        YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
@@ -618,7 +625,7 @@ private:
 
     void DoRemoveChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks().erase(chunk.GetId()) == 1);
+        YVERIFY(holder.ChunkIds().erase(chunk.GetId()) == 1);
         chunk.RemoveLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -844,6 +851,7 @@ private:
             YVERIFY(ReplicationSinkMap.erase(address) == 1);
         }
     }
+
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
@@ -893,6 +901,11 @@ TMetaChange<TChunkId>::TPtr TChunkManager::InitiateCreateChunk(const TTransactio
 TChunkList& TChunkManager::CreateChunkList()
 {
     return Impl->CreateChunkList();
+}
+
+void TChunkManager::AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList)
+{
+    return Impl->AddChunkToChunkList(chunk, chunkList);
 }
 
 void TChunkManager::RefChunk(const TChunkId& chunkId)

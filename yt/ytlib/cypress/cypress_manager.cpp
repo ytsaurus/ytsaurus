@@ -74,8 +74,12 @@ bool TCypressManager::IsWorldInitialized()
 
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
 {
-    int type = static_cast<int>(node.GetRuntimeType());
-    auto handler = RuntimeTypeToHandler[type];
+    return GetTypeHandler(node.GetRuntimeType());
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
+{
+    auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
     YASSERT(~handler != NULL);
     return handler;
 }
@@ -548,7 +552,7 @@ INode::TPtr TCypressManager::NavigateYPath(
     return NYTree::NavigateYPath(IYPathService::FromNode(~root), path);
 }
 
-TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
+TMetaChange<TNodeId>::TPtr TCypressManager::InitiateSetYPath(
     const TTransactionId& transactionId,
     TYPath path,
     const Stroka& value)
@@ -566,7 +570,7 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
         ECommitMode::MayFail);
 }
 
-TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
+TNodeId TCypressManager::SetYPath(const NProto::TMsgSet& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -575,8 +579,9 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
     auto root = GetNodeProxy(RootNodeId, transactionId);
-    NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
-    return TVoid();
+    auto node = NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
+    auto* typedNode = dynamic_cast<ICypressNodeProxy*>(~node);
+    return typedNode == NULL ? NullNodeId : typedNode->GetNodeId();
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
@@ -901,19 +906,17 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
-    // TODO: enum serialization
-    ::Save(output, static_cast<i32>(value->GetRuntimeType()));
+    ::Save(output, value->GetRuntimeType());
     //::Save(output, value->GetId());
     value->Save(output);
 }
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TBranchedNodeId& id, TInputStream* input) const
 {
-    // TODO: enum serialization
-    i32 type;
+    ERuntimeNodeType type;
     ::Load(input, type);
     
-    auto value = CypressManager->RuntimeTypeToHandler[type]->Create(id);
+    auto value = CypressManager->GetTypeHandler(type)->Create(id);
     value->Load(input);
 
     return value;

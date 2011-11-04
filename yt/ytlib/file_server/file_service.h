@@ -32,7 +32,7 @@ private:
     typedef TFileServiceProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
-    TChunkManager::TPtr ChunkManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
     TFileManager::TPtr FileManager;
 
     RPC_SERVICE_METHOD_DECL(NProto, SetFileChunk);

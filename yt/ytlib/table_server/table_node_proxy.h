@@ -6,26 +6,26 @@
 #include "../cypress/node_proxy_detail.h"
 
 namespace NYT {
-namespace NFileServer {
+namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileNodeProxy
-    : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode>
+class TTableNodeProxy
+    : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode>
 {
 public:
-    typedef TIntrusivePtr<TFileNodeProxy> TPtr;
+    typedef TIntrusivePtr<TTableNodeProxy> TPtr;
 
-    TFileNodeProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId);
+    TTableNodeProxy(
+        NCypress::INodeTypeHandler* typeHandler,
+        NCypress::TCypressManager* cypressManager,
+        const NTransaction::TTransactionId& transactionId,
+        const NCypress::TNodeId& nodeId);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
+} // namespace NTableServer
 } // namespace NYT
 

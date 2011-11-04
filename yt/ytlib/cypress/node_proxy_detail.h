@@ -284,7 +284,7 @@ public: \
     { \
         auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
         NYTree::SetNodeFromProducer<NYTree::I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(); \
+        return TSetResult::CreateDone(this); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

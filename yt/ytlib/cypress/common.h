@@ -24,6 +24,7 @@ DECLARE_ENUM(ERuntimeNodeType,
     
     // Dynamic types
     ((File)(10))
+    ((Table)(11))
 
     // Virtual types
     ((ChunkMap)(20))

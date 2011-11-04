@@ -59,7 +59,7 @@ void TChunkReplication::AddHolder(const THolder& holder)
 
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).Second());
 
-    FOREACH(const auto& chunk, holder.Chunks()) {
+    FOREACH(const auto& chunk, holder.ChunkIds()) {
         ScheduleRefresh(chunk);
     }
 }
