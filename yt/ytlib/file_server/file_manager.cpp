@@ -17,20 +17,32 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileManagerBase::TFileManagerBase(
+TFileManager::TFileManager(
+    TMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
     TCypressManager* cypressManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager)
-    : CypressManager(cypressManager)
+    : TMetaStatePart(metaStateManager, metaState)
+    , CypressManager(cypressManager)
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
     YASSERT(chunkManager != NULL);
     YASSERT(transactionManager != NULL);
+
+    RegisterMethod(this, &TThis::SetFileChunk);
+
+    cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(
+        cypressManager,
+        this,
+        chunkManager));
+
+    metaState->RegisterPart(this);
 }
 
-void TFileManagerBase::ValidateTransactionId(
+void TFileManager::ValidateTransactionId(
     const TTransactionId& transactionId,
     bool mayBeNull)
 {
@@ -42,7 +54,7 @@ void TFileManagerBase::ValidateTransactionId(
     }
 }
 
-TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId)
+TFileNode& TFileManager::GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto* impl = CypressManager->FindTransactionNodeForUpdate(nodeId, transactionId);
     if (impl == NULL) {
@@ -63,7 +75,7 @@ TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransacti
     return *typedImpl;
 }
 
-TChunk& TFileManagerBase::GetChunk(const TChunkId& chunkId)
+TChunk& TFileManager::GetChunk(const TChunkId& chunkId)
 {
     auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
     if (chunk == NULL) {
@@ -71,27 +83,6 @@ TChunk& TFileManagerBase::GetChunk(const TChunkId& chunkId)
             Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
     }
     return *chunk;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFileManager::TFileManager(
-    TMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
-    TTransactionManager* transactionManager)
-    : TMetaStatePart(metaStateManager, metaState)
-    , TFileManagerBase(cypressManager, chunkManager, transactionManager)
-{
-    RegisterMethod(this, &TThis::SetFileChunk);
-
-    cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(
-        cypressManager,
-        this,
-        chunkManager));
-
-    metaState->RegisterPart(this);
 }
 
 Stroka TFileManager::GetPartName() const

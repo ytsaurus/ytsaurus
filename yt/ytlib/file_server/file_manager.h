@@ -18,39 +18,9 @@ namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
    
-// TODO: possibly merge into TFileManager
-class TFileManagerBase
-{
-protected:
-    typedef TFileServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
-
-    NCypress::TCypressManager::TPtr CypressManager;
-    NChunkServer::TChunkManager::TPtr ChunkManager;
-    NTransaction::TTransactionManager::TPtr TransactionManager;
-
-    TFileManagerBase(
-        NCypress::TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager,
-        NTransaction::TTransactionManager* transactionManager);
-
-    void ValidateTransactionId(
-        const NTransaction::TTransactionId& transactionId,
-        bool mayBeNull);
-
-    NChunkServer::TChunk& GetChunk(const TChunkId& chunkId);
-    TFileNode& GetFileNode(
-        const NCypress::TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Manages files.
 class TFileManager
     : public NMetaState::TMetaStatePart
-    , public TFileManagerBase
 {
 public:
     typedef TIntrusivePtr<TFileManager> TPtr;
@@ -73,7 +43,22 @@ public:
         const NTransaction::TTransactionId& transactionId);
 
 private:
+    typedef TFileServiceProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef TFileManager TThis;
+
+    NCypress::TCypressManager::TPtr CypressManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+    NTransaction::TTransactionManager::TPtr TransactionManager;
+
+    void ValidateTransactionId(
+        const NTransaction::TTransactionId& transactionId,
+        bool mayBeNull);
+
+    NChunkServer::TChunk& GetChunk(const TChunkId& chunkId);
+    TFileNode& GetFileNode(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId);
 
     virtual Stroka GetPartName() const;
 
