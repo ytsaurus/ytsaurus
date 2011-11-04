@@ -85,11 +85,6 @@ TChunk& TFileManager::GetChunk(const TChunkId& chunkId)
     return *chunk;
 }
 
-Stroka TFileManager::GetPartName() const
-{
-    return "FileManager";
-}
-
 TMetaChange<TVoid>::TPtr
 TFileManager::InitiateSetFileChunk(
     const TNodeId& nodeId,

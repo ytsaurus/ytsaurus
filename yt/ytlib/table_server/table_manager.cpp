@@ -42,11 +42,6 @@ TTableManager::TTableManager(
     metaState->RegisterPart(this);
 }
 
-Stroka TTableManager::GetPartName() const
-{
-    return "TableManager";
-}
-
 void TTableManager::ValidateTransactionId(
     const TTransactionId& transactionId,
     bool mayBeNull)

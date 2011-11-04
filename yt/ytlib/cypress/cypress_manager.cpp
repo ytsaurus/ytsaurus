@@ -56,6 +56,13 @@ TCypressManager::TCypressManager(
     RegisterMethod(this, &TThis::LockYPath);
     RegisterMethod(this, &TThis::CreateWorld);
 
+    metaState->RegisterLoader(
+        "Cypress.1",
+        FromMethod(&TCypressManager::Load, TPtr(this)));
+    metaState->RegisterSaver(
+        "Cypress.1",
+        FromMethod(&TCypressManager::Save, TPtr(this)));
+
     metaState->RegisterPart(this);
 }
 
@@ -687,14 +694,12 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
     return TVoid();
 }
 
-Stroka TCypressManager::GetPartName() const
-{
-    return "Cypress";
-}
-
-TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* output, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TCypressManager::Save(TSaveContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* output = context.Output;
+    auto invoker = context.Invoker;
 
     auto nodeIdGenerator = NodeIdGenerator;
     auto lockIdGenerator = LockIdGenerator;

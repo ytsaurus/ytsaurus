@@ -58,6 +58,13 @@ public:
         RegisterMethod(this, &TImpl::HeartbeatRequest);
         RegisterMethod(this, &TImpl::HeartbeatResponse);
 
+        metaState->RegisterLoader(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Load, TPtr(this)));
+        metaState->RegisterSaver(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
+
         transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
             &TThis::OnTransactionCommitted,
             TPtr(this)));
@@ -439,14 +446,11 @@ private:
         return TVoid();
     }
 
-    // TMetaStatePart overrides.
-    virtual Stroka GetPartName() const
+    TFuture<TVoid>::TPtr Save(TSaveContext context)
     {
-        return "ChunkManager";
-    }
+        auto* output = context.Output;
+        auto invoker = context.Invoker;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker)
-    {
         auto chunkIdGenerator = ChunkIdGenerator;
         auto chunkListIdGenerator = ChunkListIdGenerator;
         auto holderIdGenerator = HolderIdGenerator;
@@ -464,7 +468,7 @@ private:
         return JobListMap.Save(invoker, output);
     }
 
-    virtual void Load(TInputStream* input)
+    void Load(TInputStream* input)
     {
         ::Load(input, ChunkIdGenerator);
         ::Load(input, ChunkListIdGenerator);

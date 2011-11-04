@@ -77,10 +77,9 @@ private:
     void CreateLease(const TTransaction& transaction);
     void CloseLease(const TTransaction& transaction);
 
-    // TMetaStatePart overrides.
-    virtual Stroka GetPartName() const;
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual void Load(TInputStream* input);
+    // TMetaStatePart overrides
+    TFuture<TVoid>::TPtr Save(NMetaState::TSaveContext context);
+    void Load(TInputStream* input);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
