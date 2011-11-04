@@ -2,11 +2,11 @@ package NYT.NTableServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgSetTableChunk
+message TMsgAddTableChunks
 {
     required bytes TransactionId = 1;
     required bytes NodeId = 2;
-    required bytes ChunkId = 3;
+    repeated bytes ChunkIds = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

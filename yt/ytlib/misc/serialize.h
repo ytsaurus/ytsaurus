@@ -156,7 +156,7 @@ template<class TArrayItem, class TProtoItem>
 inline yvector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
 {
-    yvector<Stroka> array(proto.size());
+    yvector<TArrayItem> array(proto.size());
     for (int i = 0; i < proto.size(); ++i) {
         array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
     }

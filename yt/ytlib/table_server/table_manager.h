@@ -16,72 +16,50 @@
 namespace NYT {
 namespace NTableServer {
 
-using NMetaState::TMetaChange;
-using NMetaState::TMetaStateManager;
-using NMetaState::TCompositeMetaState;
-using NCypress::TCypressManager;
-using NChunkServer::TChunkManager;
-using NChunkServer::TChunk;
-using NTransaction::TTransactionManager;
-
 ////////////////////////////////////////////////////////////////////////////////
    
-// TODO: possibly merge into TTableManager
-class TTableManagerBase
-{
-protected:
-    typedef TTableServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
-
-    TCypressManager::TPtr CypressManager;
-    TChunkManager::TPtr ChunkManager;
-    TTransactionManager::TPtr TransactionManager;
-
-    TTableManagerBase(
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
-        TTransactionManager* transactionManager);
-
-    void ValidateTransactionId(const TTransactionId& transactionId, bool mayBeNull);
-
-    TChunk& GetChunk(const TChunkId& chunkId);
-    TTableNode& GetTableNode(const TNodeId& nodeId, const TTransactionId& transactionId);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Manages tables.
 class TTableManager
     : public NMetaState::TMetaStatePart
-    , public TTableManagerBase
 {
 public:
     typedef TIntrusivePtr<TTableManager> TPtr;
 
     //! Creates an instance.
     TTableManager(
-        TMetaStateManager* metaStateManager,
-        TCompositeMetaState* metaState,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
-        TTransactionManager* transactionManager);
+        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        NCypress::TCypressManager* cypressManager,
+        NChunkServer::TChunkManager* chunkManager,
+        NTransaction::TTransactionManager* transactionManager);
 
-    TMetaChange<TVoid>::TPtr InitiateSetTableChunk(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        const TChunkId& chunkId);
-
-    TChunkId GetTableChunk(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateAddTableChunks(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId,
+        const yvector<TChunkId>& chunkIds);
 
 private:
+    typedef TTableServiceProxy::EErrorCode EErrorCode;
+    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef TTableManager TThis;
+
+    NCypress::TCypressManager::TPtr CypressManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+    NTransaction::TTransactionManager::TPtr TransactionManager;
+
+    void ValidateTransactionId(
+        const NTransaction::TTransactionId& transactionId,
+        bool mayBeNull);
+
+    NChunkServer::TChunk& GetChunk(const TChunkId& chunkId);
+    
+    TTableNode& GetTableNode(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId);
 
     virtual Stroka GetPartName() const;
 
-    TVoid SetTableChunk(const NProto::TMsgSetTableChunk& message);
+    TVoid AddTableChunks(const NProto::TMsgAddTableChunks& message);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

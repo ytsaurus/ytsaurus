@@ -32,11 +32,10 @@ private:
     typedef TTableServiceProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
-    TChunkManager::TPtr ChunkManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
     TTableManager::TPtr TableManager;
 
-    RPC_SERVICE_METHOD_DECL(NProto, SetTableChunk);
-    RPC_SERVICE_METHOD_DECL(NProto, GetTableChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, AddTableChunks);
 
 };
 

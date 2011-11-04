@@ -10,6 +10,7 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NYTree;
+using namespace NCypress;
 using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////

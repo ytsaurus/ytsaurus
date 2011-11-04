@@ -2,7 +2,6 @@
 
 #include "../misc/common.h"
 #include "../logging/log.h"
-#include "../chunk_client/common.h"
 
 namespace NYT {
 namespace NFileServer {

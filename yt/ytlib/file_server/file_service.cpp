@@ -6,6 +6,7 @@
 namespace NYT {
 namespace NFileServer {
 
+using namespace NChunkServer;
 using namespace NMetaState;
 using namespace NProto;
 
@@ -23,7 +24,7 @@ TFileService::TFileService(
     : TMetaStateServiceBase(
         metaStateManager,
         TFileServiceProxy::GetServiceName(),
-        CypressLogger.GetCategory())
+        FileServerLogger.GetCategory())
     , ChunkManager(chunkManager)
     , FileManager(fileManager)
 {

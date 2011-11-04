@@ -16,14 +16,6 @@
 namespace NYT {
 namespace NFileServer {
 
-using NMetaState::TMetaChange;
-using NMetaState::TMetaStateManager;
-using NMetaState::TCompositeMetaState;
-using NCypress::TCypressManager;
-using NChunkServer::TChunkManager;
-using NChunkServer::TChunk;
-using NTransaction::TTransactionManager;
-
 ////////////////////////////////////////////////////////////////////////////////
    
 // TODO: possibly merge into TFileManager
@@ -33,19 +25,23 @@ protected:
     typedef TFileServiceProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
-    TCypressManager::TPtr CypressManager;
-    TChunkManager::TPtr ChunkManager;
-    TTransactionManager::TPtr TransactionManager;
+    NCypress::TCypressManager::TPtr CypressManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+    NTransaction::TTransactionManager::TPtr TransactionManager;
 
     TFileManagerBase(
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
-        TTransactionManager* transactionManager);
+        NCypress::TCypressManager* cypressManager,
+        NChunkServer::TChunkManager* chunkManager,
+        NTransaction::TTransactionManager* transactionManager);
 
-    void ValidateTransactionId(const TTransactionId& transactionId, bool mayBeNull);
+    void ValidateTransactionId(
+        const NTransaction::TTransactionId& transactionId,
+        bool mayBeNull);
 
-    TChunk& GetChunk(const TChunkId& chunkId);
-    TFileNode& GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId);
+    NChunkServer::TChunk& GetChunk(const TChunkId& chunkId);
+    TFileNode& GetFileNode(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId);
 
 };
 
@@ -61,20 +57,20 @@ public:
 
     //! Creates an instance.
     TFileManager(
-        TMetaStateManager* metaStateManager,
-        TCompositeMetaState* metaState,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
-        TTransactionManager* transactionManager);
+        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        NCypress::TCypressManager* cypressManager,
+        NChunkServer::TChunkManager* chunkManager,
+        NTransaction::TTransactionManager* transactionManager);
 
-    TMetaChange<TVoid>::TPtr InitiateSetFileChunk(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateSetFileChunk(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId,
         const TChunkId& chunkId);
 
     TChunkId GetFileChunk(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId);
 
 private:
     typedef TFileManager TThis;

@@ -6,6 +6,9 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NMetaState;
+using namespace NCypress;
+using namespace NChunkServer;
+using namespace NTransaction;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +84,6 @@ TFileManager::TFileManager(
     : TMetaStatePart(metaStateManager, metaState)
     , TFileManagerBase(cypressManager, chunkManager, transactionManager)
 {
-    YASSERT(cypressManager != NULL);
-
     RegisterMethod(this, &TThis::SetFileChunk);
 
     cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(

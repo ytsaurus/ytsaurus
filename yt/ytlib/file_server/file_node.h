@@ -9,24 +9,20 @@
 namespace NYT {
 namespace NFileServer {
 
-using namespace NCypress;
-using NChunkServer::TChunkListId;
-using NChunkServer::NullChunkListId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNode
     : public NCypress::TCypressNodeBase
 {
-    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
+    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, NChunkServer::TChunkListId);
 
 public:
-    explicit TFileNode(const TBranchedNodeId& id);
-    TFileNode(const TBranchedNodeId& id, const TFileNode& other);
+    explicit TFileNode(const NCypress::TBranchedNodeId& id);
+    TFileNode(const NCypress::TBranchedNodeId& id, const TFileNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
-    virtual ERuntimeNodeType GetRuntimeType() const;
+    virtual NCypress::ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     
@@ -38,26 +34,26 @@ public:
 class TFileManager;
 
 class TFileNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TFileNode>
+    : public NCypress::TCypressNodeTypeHandlerBase<TFileNode>
 {
 public:
     TFileNodeTypeHandler(
-        TCypressManager* cypressManager,
+        NCypress::TCypressManager* cypressManager,
         TFileManager* fileManager,
         NChunkServer::TChunkManager* chunkManager);
 
-    ERuntimeNodeType GetRuntimeType();
+    NCypress::ERuntimeNodeType GetRuntimeType();
     NYTree::ENodeType GetNodeType();
     Stroka GetTypeName();
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest);
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
+        const NCypress::ICypressNode& node,
+        const NTransaction::TTransactionId& transactionId);
 
 protected:
     virtual void DoDestroy(TFileNode& node);
