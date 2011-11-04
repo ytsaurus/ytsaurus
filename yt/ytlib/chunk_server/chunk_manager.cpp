@@ -58,6 +58,13 @@ public:
         RegisterMethod(this, &TImpl::HeartbeatRequest);
         RegisterMethod(this, &TImpl::HeartbeatResponse);
 
+        metaState->RegisterLoader(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Load, TPtr(this)));
+        metaState->RegisterSaver(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
+
         transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
             &TThis::OnTransactionCommitted,
             TPtr(this)));
@@ -439,14 +446,11 @@ private:
         return TVoid();
     }
 
-    // TMetaStatePart overrides.
-    virtual Stroka GetPartName() const
+    TFuture<TVoid>::TPtr Save(TSaveContext context)
     {
-        return "ChunkManager";
-    }
+        auto* output = context.Output;
+        auto invoker = context.Invoker;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker)
-    {
         auto chunkIdGenerator = ChunkIdGenerator;
         auto chunkListIdGenerator = ChunkListIdGenerator;
         auto holderIdGenerator = HolderIdGenerator;
@@ -464,30 +468,18 @@ private:
         return JobListMap.Save(invoker, output);
     }
 
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker)
+    void Load(TInputStream* input)
     {
-        TPtr thisPtr = this;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Load(input, thisPtr->ChunkIdGenerator);
-                ::Load(input, thisPtr->ChunkListIdGenerator);
-                ::Load(input, thisPtr->HolderIdGenerator);
-            }));
+        ::Load(input, ChunkIdGenerator);
+        ::Load(input, ChunkListIdGenerator);
+        ::Load(input, HolderIdGenerator);
+        
+        ChunkMap.Load(input);
+        ChunkListMap.Load(input);
+        HolderMap.Load(input);
+        JobMap.Load(input);
+        JobListMap.Load(input);
 
-        ChunkMap.Load(invoker, input);
-        ChunkListMap.Load(invoker, input);
-        HolderMap.Load(invoker, input);
-        JobMap.Load(invoker, input);
-        JobListMap.Load(invoker, input);
-
-        return
-            FromMethod(&TThis::OnLoaded, thisPtr)
-            ->AsyncVia(invoker)
-            ->Do();
-    }
-
-    TVoid OnLoaded()
-    {
         // Reconstruct HolderAddressMap.
         FOREACH(const auto& pair, HolderMap) {
             const auto* holder = pair.Second();
@@ -499,8 +491,6 @@ private:
         FOREACH (const auto& pair, JobMap) {
             RegisterReplicationSinks(*pair.Second());
         }
-
-        return TVoid();
     }
 
     virtual void Clear()

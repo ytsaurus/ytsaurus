@@ -29,6 +29,13 @@ TTransactionManager::TTransactionManager(
     RegisterMethod(this, &TThis::CommitTransaction);
     RegisterMethod(this, &TThis::AbortTransaction);
 
+    metaState->RegisterLoader(
+        "TransactionManager.1",
+        FromMethod(&TTransactionManager::Load, TPtr(this)));
+    metaState->RegisterSaver(
+        "TransactionManager.1",
+        FromMethod(&TTransactionManager::Save, TPtr(this)));
+
     metaState->RegisterPart(this);
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
@@ -145,35 +152,28 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::Get()->RenewLease(it->Second());
 }
 
-Stroka TTransactionManager::GetPartName() const
-{
-    return "TransactionManager";
-}
-
-TFuture<TVoid>::TPtr TTransactionManager::Save(TOutputStream* stream, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TTransactionManager::Save(TSaveContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* output = context.Output;
+    auto invoker = context.Invoker;
 
     auto transactionIdGenerator = TransactionIdGenerator;
     invoker->Invoke(FromFunctor([=] ()
         {
-            ::Save(stream, transactionIdGenerator);
+            ::Save(output, transactionIdGenerator);
         }));
 
-    return TransactionMap.Save(invoker, stream);
+    return TransactionMap.Save(invoker, output);
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Load(TInputStream* stream, IInvoker::TPtr invoker)
+void TTransactionManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TPtr thisPtr = this;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Load(stream, thisPtr->TransactionIdGenerator);
-        }));
-
-    return TransactionMap.Load(invoker, stream);
+    ::Load(input, TransactionIdGenerator);
+    TransactionMap.Load(input);
 }
 
 void TTransactionManager::Clear()

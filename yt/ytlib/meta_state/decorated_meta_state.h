@@ -74,7 +74,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TFuture<TVoid>::TPtr Load(i32 segmentId, TInputStream* input);
+    void Load(i32 segmentId, TInputStream* input);
     
     //! Delegates the call to IMetaState::ApplyChange and updates the version.
     /*!

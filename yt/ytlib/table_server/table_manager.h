@@ -57,8 +57,6 @@ private:
         const NCypress::TNodeId& nodeId,
         const NTransaction::TTransactionId& transactionId);
 
-    virtual Stroka GetPartName() const;
-
     TVoid AddTableChunks(const NProto::TMsgAddTableChunks& message);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

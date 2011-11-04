@@ -186,7 +186,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
         TStringInput input(snapshotData);
-        map.Load(invoker, &input)->Get();
+        map.Load(&input);
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {

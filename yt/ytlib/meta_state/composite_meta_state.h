@@ -41,9 +41,6 @@ protected:
     bool IsFolllower() const;
     bool IsRecovery() const;
 
-    virtual Stroka GetPartName() const = 0;
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
     virtual void Clear();
 
     virtual void OnStartLeading();
@@ -63,13 +60,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSaveContext
+{
+    TOutputStream* Output;
+    IInvoker::TPtr Invoker;
+    
+    TSaveContext(TOutputStream* output, IInvoker::TPtr invoker);
+};
+    
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompositeMetaState
     : public IMetaState 
 {
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
+   
+    typedef IParamFunc<TSaveContext, TFuture<TVoid>::TPtr> TSaver;
+    typedef IParamAction<TInputStream*> TLoader;
 
     void RegisterPart(TMetaStatePart::TPtr part);
+    void RegisterLoader(const Stroka& name, TLoader::TPtr loader);
+    void RegisterSaver(const Stroka& name, TSaver::TPtr saver);
 
 private:
     friend class TMetaStatePart;
@@ -77,11 +89,16 @@ private:
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
 
-    typedef yhash_map<Stroka, TMetaStatePart::TPtr> TPartMap;
-    TPartMap Parts;
+    yvector<TMetaStatePart::TPtr> Parts;
+
+    typedef yhash_map<Stroka, TLoader::TPtr> TLoaderMap;
+    typedef yhash_map<Stroka, TSaver::TPtr> TSaverMap;
+
+    TLoaderMap Loaders;
+    TSaverMap Savers;
 
     virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker);
+    virtual void Load(TInputStream* input);
 
     virtual void ApplyChange(const TRef& changeData);
 

@@ -149,9 +149,8 @@ private:
     TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
 
     // TMetaStatePart overrides.
-    virtual Stroka GetPartName() const;
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* stream, IInvoker::TPtr invoker);
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* stream, IInvoker::TPtr invoker);
+    TFuture<TVoid>::TPtr Save(NMetaState::TSaveContext context);
+    void Load(TInputStream* input);
     virtual void Clear();
 
     void OnTransactionCommitted(const NTransaction::TTransaction& transaction);

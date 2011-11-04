@@ -93,8 +93,6 @@ protected:
      *  \note Thread affinity: StateThread.
      */
     TAsyncResult::TPtr RecoverFromChangeLog(
-        TVoid,
-        TSnapshotReader::TPtr,
         TMetaVersion targetVersion,
         i32 expectedPrevRecordCount);
 

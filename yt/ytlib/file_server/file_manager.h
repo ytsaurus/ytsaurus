@@ -60,8 +60,6 @@ private:
         const NCypress::TNodeId& nodeId,
         const NTransaction::TTransactionId& transactionId);
 
-    virtual Stroka GetPartName() const;
-
     TVoid SetFileChunk(const NProto::TMsgSetFileChunk& message);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
