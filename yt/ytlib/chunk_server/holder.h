@@ -57,7 +57,6 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        //::Save(output, Id_);
         ::Save(output, Address_);
         ::Save(output, State_);
         ::Save(output, Statistics_);
@@ -70,11 +69,10 @@ public:
         Stroka address;
         EHolderState state;
         THolderStatistics statistics;
-        ::Load(input, id);
         ::Load(input, address);
         ::Load(input, state);
         ::Load(input, statistics);
-        auto* holder = new THolder(id, address, state, statistics);
+        TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
         ::Load(input, holder->ChunkIds_);
         ::Load(input, holder->JobIds_);
         return holder;

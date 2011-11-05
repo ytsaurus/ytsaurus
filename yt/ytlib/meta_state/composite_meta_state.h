@@ -59,24 +59,23 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TSaveContext
-{
-    TOutputStream* Output;
-    IInvoker::TPtr Invoker;
     
-    TSaveContext(TOutputStream* output, IInvoker::TPtr invoker);
-};
-    
-////////////////////////////////////////////////////////////////////////////////
-
 class TCompositeMetaState
     : public IMetaState 
 {
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
    
-    typedef IParamFunc<TSaveContext, TFuture<TVoid>::TPtr> TSaver;
+
+    struct TSaveContext
+    {
+        TSaveContext(TOutputStream* output, IInvoker::TPtr invoker);
+
+        TOutputStream* Output;
+        IInvoker::TPtr Invoker;
+    };
+
+    typedef IParamFunc<const TSaveContext&, TFuture<TVoid>::TPtr> TSaver;
     typedef IParamAction<TInputStream*> TLoader;
 
     void RegisterPart(TMetaStatePart::TPtr part);

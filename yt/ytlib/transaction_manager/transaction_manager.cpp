@@ -152,7 +152,7 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::Get()->RenewLease(it->Second());
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Save(TSaveContext context)
+TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

@@ -446,7 +446,7 @@ private:
         return TVoid();
     }
 
-    TFuture<TVoid>::TPtr Save(TSaveContext context)
+    TFuture<TVoid>::TPtr Save(const TCompositeMetaState::TSaveContext& context)
     {
         auto* output = context.Output;
         auto invoker = context.Invoker;

@@ -359,13 +359,13 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Load(TInputStream* input)
     PatchMap.clear();
     State = EState::LoadingSnapshot;
 
-    i32 size = ::LoadSize(input);
+    Size = ::LoadSize(input);
     
-    for (i32 index = 0; index < size; ++index) {
+    for (i32 index = 0; index < Size; ++index) {
         TKey key;
         ::Load(input, key);
-        TValue* value = Traits.Load(key, input).Release();
-        PrimaryMap.insert(MakePair(key, value));
+        auto value = Traits.Load(key, input);
+        PrimaryMap.insert(MakePair(key, value.Release()));
     }
 
     State = EState::Normal;

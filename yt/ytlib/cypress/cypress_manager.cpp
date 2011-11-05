@@ -76,7 +76,7 @@ bool TCypressManager::IsWorldInitialized()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return NodeMap.GetSize() > 1;
+    return NodeMap.GetSize() > 0;
 }
 
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
@@ -694,7 +694,7 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Save(TSaveContext context)
+TFuture<TVoid>::TPtr TCypressManager::Save(const TCompositeMetaState::TSaveContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

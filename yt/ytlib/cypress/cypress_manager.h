@@ -149,7 +149,7 @@ private:
     TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
 
     // TMetaStatePart overrides.
-    TFuture<TVoid>::TPtr Save(NMetaState::TSaveContext context);
+    TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
     virtual void Clear();
 

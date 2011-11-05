@@ -39,7 +39,6 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        //::Save(output, Id_);
         ::Save(output, ChunkListId_);
         ::Save(output, Size_);
         ::Save(output, Locations_);

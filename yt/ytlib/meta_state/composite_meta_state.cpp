@@ -68,7 +68,7 @@ void TMetaStatePart::OnStopLeading()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSaveContext::TSaveContext(
+TCompositeMetaState::TSaveContext::TSaveContext(
     TOutputStream* output,
     IInvoker::TPtr invoker)
     : Output(output)
@@ -87,8 +87,8 @@ void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
     i32 size = Savers.size();
-    invoker->Invoke(FromFunctor(
-        [=] () {
+    invoker->Invoke(FromFunctor([=] ()
+        {
             ::Save(output, size);
         }));
 
@@ -98,8 +98,8 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::
     TFuture<TVoid>::TPtr result;
     FOREACH(auto pair, savers) {
         Stroka name = pair.First();
-        invoker->Invoke(FromFunctor(
-            [=] () {
+        invoker->Invoke(FromFunctor([=] ()
+            {
                 ::Save(output, name);
             }));
         auto saver = pair.Second();
@@ -119,7 +119,7 @@ void TCompositeMetaState::Load(TInputStream* input)
         ::Load(input, name);
         auto it = Loaders.find(name);
         if (it == Loaders.end()) {
-            LOG_FATAL("No registered loader for the part (PartName: %s)",
+            LOG_FATAL("No appropriate loader is registered (PartName: %s)",
                 ~name);
         }
         auto loader = it->Second();

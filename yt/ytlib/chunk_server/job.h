@@ -37,8 +37,7 @@ struct TJob
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, (i32) Type); // temp. For some reason could not DECLARE_PODTYPE(EJobType)
-        //::Save(output, JobId);
+        ::Save(output, Type);
         ::Save(output, ChunkId);
         ::Save(output, RunnerAddress);
         ::Save(output, TargetAddresses);
@@ -46,7 +45,7 @@ struct TJob
 
     static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input)
     {
-        i32 type; // temp. For some reason could not DECLARE_PODTYPE(EJobType)
+        EJobType type;
         TChunkId chunkId;
         Stroka runnerAddress;
         yvector<Stroka> targetAddresses;
@@ -54,7 +53,7 @@ struct TJob
         ::Load(input, chunkId);
         ::Load(input, runnerAddress);
         ::Load(input, targetAddresses);
-        return new TJob(EJobType(type), jobId, chunkId, runnerAddress, targetAddresses);
+        return new TJob(type, jobId, chunkId, runnerAddress, targetAddresses);
     }
 
     EJobType Type;

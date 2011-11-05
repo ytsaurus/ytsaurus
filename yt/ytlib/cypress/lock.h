@@ -36,7 +36,6 @@ public:
 
     void Save(TOutputStream* output) const
     {
-        //::Save(output, Id_);
         ::Save(output, NodeId_);
         ::Save(output, TransactionId_);
         ::Save(output, Mode_);
