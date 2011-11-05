@@ -243,17 +243,19 @@ private:
         YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
-        // Propagating AdvanceSegment
+        // Switch to a new changelog unless the current one is empty.
+        // This enables changelog truncation for those followers that are down and have uncommitted changes.
         auto version = MetaState->GetVersion();
         if (version.RecordCount > 0) {
-            MetaState->RotateChangeLog();
+            LOG_INFO("Switching to a new changelog for a new epoch (Version: %s)",
+                ~version.ToString());
 
-            for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-                if (peerId == CellManager->GetSelfId()) continue;
+            for (TPeerId followerId = 0; followerId < CellManager->GetPeerCount(); ++followerId) {
+                if (followerId == CellManager->GetSelfId()) continue;
                 LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
-                    peerId);
+                    followerId);
 
-                auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+                auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
                 auto request = proxy->AdvanceSegment();
                 request->SetSegmentId(version.SegmentId);
                 request->SetRecordCount(version.RecordCount);
@@ -262,9 +264,11 @@ private:
                 request->Invoke()->Subscribe(FromMethod(
                     &TImpl::OnRemoteAdvanceSegment,
                     TPtr(this),
-                    peerId,
+                    followerId,
                     version));
             }
+
+            MetaState->RotateChangeLog();
         }
     
         OnMyLeaderRecoveryComplete_.Fire();
@@ -272,16 +276,16 @@ private:
 
     void OnRemoteAdvanceSegment(
         TProxy::TRspAdvanceSegment::TPtr response,
-        TPeerId peerId,
+        TPeerId followerId,
         TMetaVersion version)
     {
         if (response->IsOK()) {
             LOG_DEBUG("Follower advanced segment successfully (FollowerId: %d, Version: %s)",
-                peerId,
+                followerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
-                peerId,
+            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, ErrorCode: %s)",
+                followerId,
                 ~version.ToString(),
                 ~response->GetErrorCode().ToString());
         }
@@ -318,8 +322,7 @@ private:
 
     ECommitResult OnChangeCommit(TLeaderCommitter::EResult result);
 
-    //--- IElectionCallbacks implementation ---
-
+    // IElectionCallbacks implementation.
     virtual void OnStartLeading(const TEpoch& epoch)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -756,8 +759,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, Sync)
     
     if (GetControlStatus() != EPeerStatus::Leading && GetControlStatus() != EPeerStatus::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid status (Status: %s)",
-                ~GetControlStatus().ToString());
+            Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
     }
 
     GetStateInvoker()->Invoke(FromMethod(
@@ -849,7 +851,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid snapshot id %d", snapshotId);
+                Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
         }
 
         reader->Open(offset);
@@ -1069,7 +1071,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
         ~epoch.ToString(),
         ~version.ToString(),
-        createSnapshot ? "True" : "False");
+        ~ToString(createSnapshot));
 
     if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
@@ -1099,8 +1101,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             } else {
                 LOG_DEBUG("AdvanceSegment: advancing segment (SegmentId: %d)", segmentId);
 
-                GetStateInvoker()->Invoke(
-                    FromMethod(&TImpl::DoAdvanceSegment, TPtr(this), context, version));
+                GetStateInvoker()->Invoke(context->Wrap(FromMethod(
+                    &TImpl::DoAdvanceSegment,
+                    TPtr(this),
+                    version)));
             }
             break;
             

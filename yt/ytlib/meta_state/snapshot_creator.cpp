@@ -33,16 +33,16 @@ public:
 
     void Run()
     {
-        LOG_INFO("Creating a distributed snapshot for state %s",
+        LOG_INFO("Creating a distributed snapshot (Version: %s)",
             ~Version.ToString());
 
         const TConfig& config = Creator->Config;
-        for (TPeerId peerId = 0; peerId < Creator->CellManager->GetPeerCount(); ++peerId) {
-            if (peerId == Creator->CellManager->GetSelfId()) continue;
-            LOG_DEBUG("Requesting peer %d to create a snapshot",
-                peerId);
+        for (TPeerId followerId = 0; followerId < Creator->CellManager->GetPeerCount(); ++followerId) {
+            if (followerId == Creator->CellManager->GetSelfId()) continue;
+            LOG_DEBUG("Requesting follower to create a snapshot (FollowerId: %d)",
+                followerId);
 
-            auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(peerId);
+            auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
             auto request = proxy->AdvanceSegment();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
@@ -52,7 +52,7 @@ public:
             Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
                 &TSession::OnRemote,
                 TPtr(this),
-                peerId));
+                followerId));
         }
 
         auto asyncResult = Creator->CreateLocal(Version);
@@ -93,22 +93,22 @@ private:
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
-    void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId peerId)
+    void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error %s requesting peer %d to create a snapshot at state %s",
-                ~response->GetErrorCode().ToString(),
-                peerId,
-                ~Version.ToString());
+            LOG_WARNING("Error creating a snapshot at follower (FollowerId: %s, Version: %s, ErrorCode: %s)",
+                followerId,
+                ~Version.ToString(),
+                ~response->GetErrorCode().ToString());
             return;
         }
 
         TChecksum checksum = response->GetChecksum();
-        LOG_INFO("Remote snapshot is created (PeerId: %d, Checksum: %" PRIx64 ")",
-            peerId,
+        LOG_INFO("Remote snapshot is created (FollowerId: %d, Checksum: %" PRIx64 ")",
+            followerId,
             checksum);
 
-        Checksums[peerId] = MakePair(checksum, true);
+        Checksums[followerId] = MakePair(checksum, true);
     }
 
     TSnapshotCreator::TPtr Creator;
@@ -164,17 +164,18 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (IsInProgress()) {
-        LOG_ERROR("Could not create local snapshot for version %s, snapshot creation is already in progress",
+        LOG_ERROR("Could not create local snapshot, snapshot creation is already in progress (Version: %s)",
             ~version.ToString());
         return New<TAsyncLocalResult>(TLocalResult(EResultCode::AlreadyInProgress));
     }
+
     LocalProgress = New< TFuture<TVoid> >();
 
-    LOG_INFO("Creating a local snapshot for state %s", ~version.ToString());
+    LOG_INFO("Creating a local snapshot (Version: %s)", ~version.ToString());
 
     // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {
-        LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, found %s",
+        LOG_WARNING("Invalid version, snapshot creation canceled (expected: %s, received: %s)",
             ~version.ToString(),
             ~MetaState->GetVersion().ToString());
         return New<TAsyncLocalResult>(TLocalResult(EResultCode::InvalidVersion));
@@ -182,10 +183,10 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
 
     // Prepare writer.
     i32 snapshotId = version.SegmentId + 1;
-    TSnapshotWriter::TPtr writer = SnapshotStore->GetWriter(snapshotId);
+    auto writer = SnapshotStore->GetWriter(snapshotId);
     writer->Open(version.RecordCount);
     
-    TOutputStream* stream = &writer->GetStream();
+    auto* stream = &writer->GetStream();
 
     // Start an async snapshot creation process.
     auto saveResult = MetaState->Save(stream);
