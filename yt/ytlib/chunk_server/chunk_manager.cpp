@@ -312,7 +312,7 @@ private:
             YVERIFY(holder.ChunkIds().erase(chunkId) == 1);
 
             if (IsLeader()) {
-                ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
             }
         }
 
@@ -547,7 +547,7 @@ private:
     void ReleaseTransactionChunkRefs(const TTransaction& transaction)
     {
         // Release the references to every chunk created by the transaction.
-        // For those chunks created but not assigned to any Cypress nodes
+        // For those chunks created but not assigned to any Cypress node
         // this also destroys them.
         FOREACH(const auto& chunkId, transaction.RegisteredChunks()) {
             UnrefChunk(chunkId);
@@ -632,7 +632,7 @@ private:
     {
         chunk.RemoveLocation(holder.GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
              ~holder.GetAddress(),
              holder.GetId());
@@ -705,7 +705,7 @@ private:
 
         JobMap.Remove(job.JobId);
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Job removed since holder is dead (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId());
@@ -720,13 +720,16 @@ private:
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
-        TChunk* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_ERROR_IF(!IsRecovery(), "Unknown chunk added at holder (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
                 size);
+            if (IsLeader()) {
+                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+            }
             return;
         }
 
@@ -753,7 +756,7 @@ private:
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~holder.GetAddress(),
                  holderId);

@@ -9,6 +9,7 @@
 namespace NYT {
 namespace NCypress {
 
+// TODO: get rid
 using NTransaction::TTransactionId;
 using NTransaction::NullTransactionId;
 

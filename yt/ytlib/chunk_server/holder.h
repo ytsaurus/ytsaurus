@@ -59,7 +59,7 @@ public:
     {
         //::Save(output, Id_);
         ::Save(output, Address_);
-        ::Save(output, (i32) State_); // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
+        ::Save(output, State_);
         ::Save(output, Statistics_);
         SaveSet(output, ChunkIds_);
         ::Save(output, JobIds_);
@@ -68,13 +68,13 @@ public:
     static TAutoPtr<THolder> Load(THolderId id, TInputStream* input)
     {
         Stroka address;
-        i32 state; // TODO: For some reason could not DECLARE_PODTYPE(EHolderState)
+        EHolderState state;
         THolderStatistics statistics;
         ::Load(input, id);
         ::Load(input, address);
         ::Load(input, state);
         ::Load(input, statistics);
-        auto* holder = new THolder(id, address, EHolderState(state), statistics);
+        auto* holder = new THolder(id, address, state, statistics);
         ::Load(input, holder->ChunkIds_);
         ::Load(input, holder->JobIds_);
         return holder;

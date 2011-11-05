@@ -163,7 +163,8 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
+    virtual void OnAcknowledgement(
+        NBus::IBus::ESendResult sendResult) = 0;
 
     virtual void OnResponse(
         EErrorCode errorCode,
@@ -208,7 +209,7 @@ private:
         (Done)
     );
 
-    //! Protects state.
+    // Protects state.
     TSpinLock SpinLock;
     TRequestId RequestId;
     IChannel::TPtr Channel;
@@ -217,7 +218,7 @@ private:
     yvector<TSharedRef> MyAttachments;
     TInstant InvokeInstant;
 
-    //! IClientResponseHandler implementation.
+    // IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
     virtual void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message);
     virtual void OnTimeout();

@@ -149,6 +149,7 @@ public:
     //! Returns the size of the map.
     int GetSize() const;
 
+    //! Returns all keys that are present in the map.
     yvector<TKey> GetKeys() const;
 
     //! (Unordered) begin()-iterator.

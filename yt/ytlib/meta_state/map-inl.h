@@ -3,6 +3,8 @@
 #endif
 #undef MAP_INL_H_
 
+#include "../misc/rvalue.h"
+
 namespace NYT {
 namespace NMetaState {
 
@@ -295,7 +297,7 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
     }
 
     YASSERT(keys.ysize() == Size);
-    return keys;
+    return MoveRV(keys);
 }
 
 template <class TKey, class TValue, class TTraits, class THash >

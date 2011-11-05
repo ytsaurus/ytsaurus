@@ -9,6 +9,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+// TODO: get rid
 using NTransaction::TTransactionId;
 using NTransaction::NullTransactionId;
 

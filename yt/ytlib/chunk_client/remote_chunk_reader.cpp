@@ -85,8 +85,9 @@ void TRemoteChunkReader::OnBlocksRead(
 
 bool TRemoteChunkReader::ChangeCurrentHolder()
 {
-    // Thread affinity important here to ensure no race conditions on #CurrentHolder 
+    // Thread affinity is important here to ensure no race conditions on #CurrentHolder 
     VERIFY_THREAD_AFFINITY(Response);
+
     ++CurrentHolder;
     if (CurrentHolder < HolderAddresses.ysize()) {
         return true;

@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NTransaction {
 
+// TODO: get rid
 using NCypress::TNodeId;
 using NCypress::TLockId;
 

@@ -20,6 +20,7 @@ extern NLog::TLogger ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: get rid
 using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;

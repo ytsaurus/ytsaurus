@@ -16,7 +16,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: drop
+// TODO: get rid
 using NMetaState::TMetaChange;
 using NMetaState::TMetaStateManager;
 using NMetaState::TCompositeMetaState;

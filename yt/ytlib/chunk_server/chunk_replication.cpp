@@ -87,10 +87,9 @@ void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk
     ScheduleRefresh(chunk.GetId());
 }
 
-void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
-    auto chunkId = chunk.GetId();
     holderInfo.ChunksToReplicate.erase(chunkId);
     holderInfo.ChunksToRemove.insert(chunkId);
 }
@@ -164,7 +163,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (chunk == NULL) {
-        LOG_INFO("Chunk for replication is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -172,7 +171,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for replication is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -193,7 +192,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     int requestedCount = desiredCount - (realCount + plusCount);
     if (requestedCount <= 0) {
         // TODO: is this possible?
-        LOG_INFO("Chunk for replication has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
