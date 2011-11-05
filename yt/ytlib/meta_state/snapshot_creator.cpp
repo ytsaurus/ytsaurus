@@ -96,7 +96,7 @@ private:
     void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating a snapshot at follower (FollowerId: %s, Version: %s, ErrorCode: %s)",
+            LOG_WARNING("Error creating a snapshot at follower (FollowerId: %d, Version: %s, ErrorCode: %s)",
                 followerId,
                 ~Version.ToString(),
                 ~response->GetErrorCode().ToString());
