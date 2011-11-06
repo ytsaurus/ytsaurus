@@ -481,6 +481,7 @@ private:
         JobListMap.Load(input);
 
         // Reconstruct HolderAddressMap.
+        HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
             const auto* holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
