@@ -539,7 +539,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!SyncReceived) {
-        LOG_DEBUG("Postponed segment advance received before sync, ignored");
+        LOG_DEBUG("Segment advance received before sync, ignored");
         return EResult::OK;
     }
 
@@ -568,7 +568,7 @@ TRecovery::EResult TFollowerRecovery::PostponeChange(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!SyncReceived) {
-        LOG_DEBUG("Postponed change received before sync, ignored");
+        LOG_DEBUG("Change received before sync, ignored");
         return EResult::OK;
     }
 

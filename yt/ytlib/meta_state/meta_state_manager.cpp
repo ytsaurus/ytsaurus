@@ -1099,7 +1099,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                         TPtr(this),
                         context));
             } else {
-                LOG_DEBUG("AdvanceSegment: advancing segment (SegmentId: %d)", segmentId);
+                LOG_DEBUG("AdvanceSegment: advancing segment (Version: %s)",
+                    ~version.ToString());
 
                 GetStateInvoker()->Invoke(context->Wrap(FromMethod(
                     &TImpl::DoAdvanceSegment,
@@ -1109,8 +1110,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             break;
             
         case EPeerStatus::FollowerRecovery: {
-            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance (SegmentId: %d)",
-                segmentId);
+            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance (Version: %s)",
+                ~version.ToString());
 
             YASSERT(~FollowerRecovery != NULL);
             auto result = FollowerRecovery->PostponeSegmentAdvance(version);
@@ -1119,8 +1120,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             }
 
             if (createSnapshot) {
-                LOG_INFO("Could not create snapshot during recovery (SegmentId: %d)",
-                    segmentId);
+                LOG_INFO("Could not create snapshot during recovery (Version: %s)",
+                    ~version.ToString());
                 context->Reply(EErrorCode::InvalidStatus);
             } else {
                 context->Reply();
