@@ -107,10 +107,6 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     const auto& holder = ChunkManager->GetHolder(holderId);
 
-    context->SetRequestInfo("Address: %s, HolderId: %d",
-        ~holder.GetAddress(),
-        holderId);
-
     NProto::TMsgHeartbeatRequest requestMessage;
     requestMessage.SetHolderId(holderId);
     *requestMessage.MutableStatistics() = request->GetStatistics();

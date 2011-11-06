@@ -40,7 +40,7 @@ TMasterConnector::TMasterConnector(
     YASSERT(~replicator != NULL);
     YASSERT(~serviceInvoker != NULL);
 
-    NRpc::IChannel::TPtr channel = New<NMetaState::TCellChannel>(Config.Masters);
+    auto channel = New<NMetaState::TCellChannel>(Config.Masters);
     Proxy.Reset(new TProxy(channel));
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);
