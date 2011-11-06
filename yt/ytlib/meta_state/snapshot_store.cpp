@@ -54,7 +54,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
     if (CachedMaxSnapshotId != NonexistingSnapshotId &&
         isexist(~GetSnapshotFileName(CachedMaxSnapshotId)))
     {
-        LOG_DEBUG("Cached maximum snapshot id is ", CachedMaxSnapshotId);
+        LOG_DEBUG("Cached maximum snapshot id is %d", CachedMaxSnapshotId);
         return CachedMaxSnapshotId;
     }
 
