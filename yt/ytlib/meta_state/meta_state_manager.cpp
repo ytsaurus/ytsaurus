@@ -1113,7 +1113,11 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 Restart();
             }
 
-            context->Reply(createSnapshot ? EErrorCode::InvalidStatus : NRpc::EErrorCode::OK);
+            if (createSnapshot) {
+                context->Reply(EErrorCode::InvalidStatus);
+            } else {
+                context->Reply();
+            }
             break;
         }
 
