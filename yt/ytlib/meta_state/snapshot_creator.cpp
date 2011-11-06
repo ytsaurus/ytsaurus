@@ -49,16 +49,16 @@ public:
             request->SetEpoch(Creator->Epoch.ToProto());
             request->SetCreateSnapshot(true);
 
-            Awaiter->Await(request->Invoke(config.Timeout), FromMethod(
-                &TSession::OnRemote,
-                TPtr(this),
-                followerId));
+            Awaiter->Await(
+                request->Invoke(config.Timeout),
+                FromMethod(
+                    &TSession::OnRemote,
+                    TPtr(this),
+                    followerId));
         }
 
-        auto asyncResult = Creator->CreateLocal(Version);
-
         Awaiter->Await(
-            asyncResult,
+            Creator->CreateLocal(Version),
             FromMethod(&TSession::OnLocal, TPtr(this)));
 
         Awaiter->Complete(FromMethod(&TSession::OnComplete, TPtr(this)));
@@ -90,6 +90,7 @@ private:
     void OnLocal(TLocalResult result)
     {
         YASSERT(result.ResultCode == EResultCode::OK);
+
         Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
     }
 
@@ -103,7 +104,7 @@ private:
             return;
         }
 
-        TChecksum checksum = response->GetChecksum();
+        auto checksum = response->GetChecksum();
         LOG_INFO("Remote snapshot is created (FollowerId: %d, Checksum: %" PRIx64 ")",
             followerId,
             checksum);
@@ -208,6 +209,8 @@ TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
     TSnapshotWriter::TPtr writer)
 {
     writer->Close();
+
+    SnapshotStore->UpdateMaxSnapshotId(segmentId);
 
     LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
         segmentId,

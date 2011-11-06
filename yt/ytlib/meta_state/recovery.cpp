@@ -106,6 +106,8 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 return New<TAsyncResult>(EResult::Failed);
             }
 
+            SnapshotStore->UpdateMaxSnapshotId(snapshotId);
+
             snapshotReader = SnapshotStore->GetReader(snapshotId);
             if (~snapshotReader == NULL) {
                 LOG_FATAL("Snapshot %d has vanished", snapshotId);

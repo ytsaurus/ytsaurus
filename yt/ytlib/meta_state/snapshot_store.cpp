@@ -58,6 +58,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
         return CachedMaxSnapshotId;
     }
 
+    // Look for snapshots.
     CachedMaxSnapshotId = NonexistingSnapshotId;
     LOG_DEBUG("Looking for snapshots in %s", ~Location.Quote());
 
@@ -88,6 +89,11 @@ i32 TSnapshotStore::GetMaxSnapshotId()
 
     CachedMaxSnapshotId = maxSnapshotId;
     return maxSnapshotId;
+}
+
+void TSnapshotStore::UpdateMaxSnapshotId(int snapshotId)
+{
+    CachedMaxSnapshotId = Max(CachedMaxSnapshotId, snapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
