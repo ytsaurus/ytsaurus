@@ -1006,15 +1006,11 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
                 changeCount);
 
             YASSERT(~FollowerRecovery != NULL);
-            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(GetControlStatus() == EPeerStatus::FollowerRecovery);
-                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
-                const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                auto result = FollowerRecovery->PostponeChange(commitVersion, changeData);
-                if (result != TRecovery::EResult::OK) {
-                    Restart();
-                    break;
-                }
+            YASSERT(GetControlStatus() == EPeerStatus::FollowerRecovery);
+
+            auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
+            if (result != TRecovery::EResult::OK) {
+                Restart();
             }
 
             response->SetCommitted(false);
@@ -1089,7 +1085,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     switch (GetControlStatus()) {
         case EPeerStatus::Following:
             if (createSnapshot) {
-                LOG_DEBUG("AdvanceSegment: creating snapshot");
+                LOG_DEBUG("AdvanceSegment: starting snapshot creation (Version: %s)",
+                    ~version.ToString());
     
                 FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
                     ->AsyncVia(GetStateInvoker())
@@ -1110,23 +1107,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             break;
             
         case EPeerStatus::FollowerRecovery: {
-            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance (Version: %s)",
-                ~version.ToString());
-
             YASSERT(~FollowerRecovery != NULL);
             auto result = FollowerRecovery->PostponeSegmentAdvance(version);
             if (result != TRecovery::EResult::OK) {
                 Restart();
             }
 
-            if (createSnapshot) {
-                LOG_INFO("Could not create snapshot during recovery (Version: %s)",
-                    ~version.ToString());
-                context->Reply(EErrorCode::InvalidStatus);
-            } else {
-                context->Reply();
-            }
-
+            context->Reply(createSnapshot ? EErrorCode::InvalidStatus : NRpc::EErrorCode::OK);
             break;
         }
 

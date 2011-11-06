@@ -445,7 +445,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
         maxSnapshotId);
 
     PostponedVersion = version;
-    YASSERT(PostponedChanges.ysize() == 0);
+    YASSERT(PostponedChanges.empty());
 
     i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
 
@@ -545,8 +545,15 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
         return EResult::OK;
     }
 
-    if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order postponed segment advance received (expected: %s, received: %s)",
+    if (PostponedVersion > version) {
+        LOG_DEBUG("Late segment advance received, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
+        return EResult::OK;
+    }
+
+    if (PostponedVersion < version) {
+        LOG_WARNING("Out-of-order segment advance received (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
@@ -554,8 +561,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
     
-    LOG_DEBUG("Enqueued postponed segment advance %s",
-        ~PostponedVersion.ToString());
+    LOG_DEBUG("Postponing segment advance (Version: %s)", ~PostponedVersion.ToString());
 
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
@@ -563,30 +569,40 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     return EResult::OK;
 }
 
-TRecovery::EResult TFollowerRecovery::PostponeChange(
+TRecovery::EResult TFollowerRecovery::PostponeChanges(
     const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!SyncReceived) {
-        LOG_DEBUG("Change received before sync, ignored");
+        LOG_DEBUG("Changes received before sync, ignored");
         return EResult::OK;
     }
 
-    if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order postponed change received (ExpectedVersion: %s, Version: %s)",
+    if (PostponedVersion > version) {
+        LOG_WARNING("Late changes received, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
-    PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
-    
-    LOG_DEBUG("Enqueued postponed change %s",
-        ~PostponedVersion.ToString());
+    if (PostponedVersion != version) {
+        LOG_WARNING("Out-of-order changes received (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
+        return EResult::Failed;
+    }
 
-    ++PostponedVersion.RecordCount;
+    LOG_DEBUG("Postponing changes (Version: %s, ChangeCount: %d)",
+        ~PostponedVersion.ToString(),
+        changes.ysize());
+
+    FOREACH (const auto& change, changes) {
+        PostponedChanges.push_back(TPostponedChange::CreateChange(change));
+    }
+    
+    PostponedVersion.RecordCount += changes.ysize();
 
     return EResult::OK;
 }
