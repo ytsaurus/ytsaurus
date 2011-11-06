@@ -825,7 +825,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetSnapshotInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting snapshot info (SnapshotId: %d, Error: %s)",
+            Sprintf("IO error while getting snapshot info (SnapshotId: %d): %s",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -869,7 +869,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-            Sprintf("IO error while reading snapshot (SnapshotId: %d, Error: %s)",
+            Sprintf("IO error while reading snapshot (SnapshotId: %d): %s",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -900,7 +900,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting changelog info (ChangeLogId: %d, Error: %s)",
+            Sprintf("IO error while getting changelog info (ChangeLogId: %d): %s",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -943,7 +943,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while reading changelog (ChangeLogId: %d, Error: %s)",
+            Sprintf("IO error while reading changelog (ChangeLogId: %d): %s",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }

@@ -270,7 +270,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
+                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s): %s",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());
@@ -283,7 +283,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
+                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s): %s",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());

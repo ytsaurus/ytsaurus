@@ -168,7 +168,7 @@ void TServiceContext::LogException(
     AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
     AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
-    AppendInfo(str, Sprintf("What: %s", what.c_str()));
+    AppendInfo(str, Sprintf("Error: %s", what.c_str()));
     LOG_EVENT(
         ServiceLogger,
         level,
