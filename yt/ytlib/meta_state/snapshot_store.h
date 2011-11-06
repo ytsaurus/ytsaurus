@@ -25,6 +25,7 @@ public:
 
 private:
     Stroka Location;
+    int CachedMaxSnapshotId;
 
     Stroka GetSnapshotFileName(i32 snapshotId);
 

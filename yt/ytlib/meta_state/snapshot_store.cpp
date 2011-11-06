@@ -21,13 +21,15 @@ static const char* const SnapshotExtension = "snapshot";
 
 TSnapshotStore::TSnapshotStore(Stroka location)
     : Location(location)
+    , CachedMaxSnapshotId(NonexistingSnapshotId)
 { }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId)
 {
-    return Location + "/" +
-           Sprintf("%09d", snapshotId) + "." +
-           SnapshotExtension;
+    return
+        Location + "/" +
+        Sprintf("%09d", snapshotId) + "." +
+        SnapshotExtension;
 }
 
 TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId)
@@ -48,7 +50,16 @@ TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId)
 
 i32 TSnapshotStore::GetMaxSnapshotId()
 {
-    LOG_DEBUG("Looking for snapshots in %s", ~Location);
+    // Check for a cached value first.
+    if (CachedMaxSnapshotId != NonexistingSnapshotId &&
+        isexist(~GetSnapshotFileName(CachedMaxSnapshotId)))
+    {
+        LOG_DEBUG("Cached maximum snapshot id is ", CachedMaxSnapshotId);
+        return CachedMaxSnapshotId;
+    }
+
+    CachedMaxSnapshotId = NonexistingSnapshotId;
+    LOG_DEBUG("Looking for snapshots in %s", ~Location.Quote());
 
     TFileList fileList;
     fileList.Fill(Location);
@@ -64,7 +75,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
                 LOG_DEBUG("Found snapshot %d", segmentId);
                 maxSnapshotId = Max(maxSnapshotId, segmentId);
             } catch (const yexception&) {
-                LOG_WARNING("Found unrecognized file %s", ~fileName);
+                LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }
     }
@@ -75,6 +86,7 @@ i32 TSnapshotStore::GetMaxSnapshotId()
         LOG_DEBUG("Maximum snapshot id is %d", maxSnapshotId);
     }
 
+    CachedMaxSnapshotId = maxSnapshotId;
     return maxSnapshotId;
 }
 
