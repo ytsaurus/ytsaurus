@@ -92,24 +92,21 @@ public:
 
         auto cellManager = Committer->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id != cellManager->GetSelfId() &&
-                Committer->FollowerTracker->IsFollowerActive(id))
-            {
+            if (id == cellManager->GetSelfId()) continue;
 
-                auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-                auto request = proxy->ApplyChanges();
-                request->SetSegmentId(Version.SegmentId);
-                request->SetRecordCount(Version.RecordCount);
-                request->SetEpoch(Committer->Epoch.ToProto());
-                FOREACH(const auto& change, BatchedChanges) {
-                    request->Attachments().push_back(change);
-                }
-
-                Awaiter->Await(
-                    request->Invoke(Committer->Config.RpcTimeout),
-                    FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
-                LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
+            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+            auto request = proxy->ApplyChanges();
+            request->SetSegmentId(Version.SegmentId);
+            request->SetRecordCount(Version.RecordCount);
+            request->SetEpoch(Committer->Epoch.ToProto());
+            FOREACH(const auto& change, BatchedChanges) {
+                request->Attachments().push_back(change);
             }
+
+            Awaiter->Await(
+                request->Invoke(Committer->Config.RpcTimeout),
+                FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
+            LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
