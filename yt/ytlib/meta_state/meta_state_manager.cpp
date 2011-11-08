@@ -601,8 +601,16 @@ void TMetaStateManager::TImpl::Restart()
     VERIFY_THREAD_AFFINITY_ANY();
 
     // To prevent multiple restarts.
-    EpochControlInvoker->Cancel();
+    auto epochControlInvoker = EpochControlInvoker;
+    if (~epochControlInvoker != NULL) {
+        epochControlInvoker->Cancel();
+    }
 
+    auto epochStateInvoker = EpochStateInvoker;
+    if (~epochStateInvoker != NULL) {
+        epochStateInvoker->Cancel();
+    }
+    
     ElectionManager->Restart();
 }
 
