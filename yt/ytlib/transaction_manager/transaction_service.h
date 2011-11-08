@@ -32,8 +32,6 @@ private:
 
     TTransactionManager::TPtr TransactionManager;
 
-    void RegisterMethods();
-
     void ValidateTransactionId(const TTransactionId& id);
 
     RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);

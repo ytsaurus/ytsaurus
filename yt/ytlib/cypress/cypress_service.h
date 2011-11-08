@@ -34,8 +34,6 @@ private:
     TCypressManager::TPtr CypressManager;
     NTransaction::TTransactionManager::TPtr TransactionManager;
 
-    void RegisterMethods();
-
     void ValidateTransactionId(const TTransactionId& transactionId);
     
     void ExecuteRecoverable(

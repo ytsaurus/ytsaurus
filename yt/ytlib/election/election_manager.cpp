@@ -55,14 +55,10 @@ TElectionManager::TElectionManager(
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     Reset();
-    RegisterMethods();
-    server->RegisterService(this);
-}
 
-void TElectionManager::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
+    server->RegisterService(this);
 }
 
 void TElectionManager::Start()

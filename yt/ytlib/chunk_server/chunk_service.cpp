@@ -29,19 +29,14 @@ TChunkService::TChunkService(
     YASSERT(chunkManager != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethods();
-    server->RegisterService(this);
-}
-
-void TChunkService::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
+    server->RegisterService(this);
 }
 
-void TChunkService::ValidateHolderId(THolderId holderId)
+ void TChunkService::ValidateHolderId(THolderId holderId)
 {
     const auto* holder = ChunkManager->FindHolder(holderId);
     if (holder == NULL) {

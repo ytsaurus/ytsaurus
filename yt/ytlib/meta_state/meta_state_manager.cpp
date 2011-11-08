@@ -127,7 +127,6 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
-    void RegisterMethods();
     void SendSync(const TEpoch& epoch, TCtxSync::TPtr context);
 
     void OnLeaderRecoveryComplete(TRecovery::EResult result)
@@ -561,7 +560,14 @@ TMetaStateManager::TImpl::TImpl(
     YASSERT(~metaState != NULL);
     YASSERT(~server != NULL);
 
-    RegisterMethods();
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 
     NFS::CleanTempFiles(config.LogLocation);
     ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
@@ -588,18 +594,6 @@ TMetaStateManager::TImpl::TImpl(
         server);
 
     server->RegisterService(this);
-}
-
-void TMetaStateManager::TImpl::RegisterMethods()
-{
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 }
 
 void TMetaStateManager::TImpl::Restart()
