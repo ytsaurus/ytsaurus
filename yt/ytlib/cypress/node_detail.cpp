@@ -76,7 +76,7 @@ i32  TCypressNodeBase::Unref()
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
     ::Save(output, RefCounter);
-    SaveSet(output, Locks_);
+    SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
     ::Save(output, AttributesId_);
     ::Save(output, State_);
@@ -85,7 +85,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 void TCypressNodeBase::Load(TInputStream* input)
 {
     ::Load(input, RefCounter);
-    ::Load(input, Locks_);
+    ::Load(input, LockIds_);
     ::Load(input, ParentId_);
     ::Load(input, AttributesId_);
     ::Load(input, State_);

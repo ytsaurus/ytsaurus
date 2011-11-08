@@ -183,9 +183,9 @@ struct ICypressNode
     virtual void SetAttributesId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.
-    virtual const yhash_set<TLockId>& Locks() const = 0;
+    virtual const yhash_set<TLockId>& LockIds() const = 0;
     //! Gets an mutable reference to the node's locks.
-    virtual yhash_set<TLockId>& Locks() = 0;
+    virtual yhash_set<TLockId>& LockIds() = 0;
 
     //! Increments the reference counter, returns the incremented value.
     virtual int Ref() = 0;
