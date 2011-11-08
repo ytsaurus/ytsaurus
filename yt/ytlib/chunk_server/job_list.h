@@ -10,12 +10,12 @@ namespace NChunkServer {
 struct TJobList
 {
     TJobList(const TChunkId& chunkId)
-        : ChunkId(chunkId)
+        : ChunkId_(chunkId)
     { }
 
     TJobList(const TJobList& other)
-        : ChunkId(other.ChunkId)
-        , Jobs(other.Jobs)
+        : ChunkId_(other.ChunkId_)
+        , JobIds_(other.JobIds_)
     { }
 
     TAutoPtr<TJobList> Clone() const
@@ -25,32 +25,31 @@ struct TJobList
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Jobs);
+        ::Save(output, JobIds_);
     }
 
     static TAutoPtr<TJobList> Load(const TChunkId& chunkId, TInputStream* input)
     {
         TAutoPtr<TJobList> jobList = new TJobList(chunkId);
-        ::Load(input, jobList->Jobs);
+        ::Load(input, jobList->JobIds_);
         return jobList;
     }
 
     void AddJob(const TJobId& id)
     {
-        Jobs.push_back(id);
+        JobIds_.push_back(id);
     }
 
     void RemoveJob(const TJobId& id)
     {
-        auto it = Find(Jobs.begin(), Jobs.end(), id);
-        if (it != Jobs.end()) {
-            Jobs.erase(it);
+        auto it = Find(JobIds_.begin(), JobIds_.end(), id);
+        if (it != JobIds_.end()) {
+            JobIds_.erase(it);
         }
     }
     
-    TChunkId ChunkId;
-    yvector<TJobId> Jobs;
-
+    DECLARE_BYVAL_RO_PROPERTY(ChunkId, TChunkId);
+    DECLARE_BYREF_RO_PROPERTY(JobIds, yvector<TJobId>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
