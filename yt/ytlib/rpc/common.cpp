@@ -46,6 +46,21 @@ Stroka TError::ToString() const
         : Message + " (" + Code.ToString() + ")";
 }
 
+bool TError::IsOK() const
+{
+    return Code == EErrorCode::OK;
+}
+
+bool TError::IsRpcError() const
+{
+    return Code < EErrorCode::OK;
+}
+
+bool TError::IsServiceError() const
+{
+    return Code > EErrorCode::OK;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRpcManager::TRpcManager()

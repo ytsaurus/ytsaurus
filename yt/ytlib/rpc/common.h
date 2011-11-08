@@ -44,25 +44,15 @@ public:
     EErrorCode GetCode() const;
     Stroka GetMessage() const;
 
-    bool IsOK() const
-    {
-        return Code == EErrorCode::OK;
-    }
-
-    bool IsRpcError() const
-    {
-        return Code < EErrorCode::OK;
-    }
-
-    bool IsServiceError() const
-    {
-        return Code > EErrorCode::OK;
-    }
+    bool IsOK() const;
+    bool IsRpcError() const;
+    bool IsServiceError() const;
 
     Stroka ToString() const;
 
 private:
     EErrorCode Code;
+    Stroka CodeString;
     Stroka Message;
 
 };

@@ -98,7 +98,7 @@ public:
         NBus::IMessage::TPtr message,
         NBus::IBus::TPtr replyBus);
 
-    void Reply(EErrorCode errorCode = EErrorCode::OK);
+    void Reply(EErrorCode errorCode);
     void Reply(const TError& error);
     bool IsReplied() const;
 
@@ -230,7 +230,13 @@ public:
         return Response_;
     }
 
-    void Reply(EErrorCode errorCode = EErrorCode::OK)
+    // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
+    void Reply()
+    {
+        Reply(EErrorCode::OK);
+    }
+
+    void Reply(EErrorCode errorCode)
     {
         Reply(TError(errorCode));
     }
