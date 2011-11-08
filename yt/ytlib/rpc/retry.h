@@ -42,7 +42,7 @@ public:
         TDuration backoffTime, 
         int retryCount);
 
-    TFuture<EErrorCode>::TPtr Send(
+    TFuture<TError>::TPtr Send(
         IClientRequest::TPtr request, 
         IClientResponseHandler::TPtr responseHandler, 
         TDuration timeout);

@@ -29,7 +29,7 @@ struct IChannel
      *  \param timeout Request processing timeout.
      *  \return An asynchronous result of an RPC call.
      */
-    virtual TFuture<EErrorCode>::TPtr Send(
+    virtual TFuture<TError>::TPtr Send(
         TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout) = 0;
@@ -55,7 +55,7 @@ public:
     TChannel(NBus::TBusClient::TPtr client);
     TChannel(Stroka address);
 
-    virtual TFuture<EErrorCode>::TPtr Send(
+    virtual TFuture<TError>::TPtr Send(
         TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout);
@@ -70,7 +70,7 @@ private:
     {
         TRequestId RequestId;
         TIntrusivePtr<IClientResponseHandler> ResponseHandler;
-        TFuture<EErrorCode>::TPtr Ready;
+        TFuture<TError>::TPtr Ready;
         TDelayedInvoker::TCookie TimeoutCookie;
     };
 

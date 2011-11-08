@@ -283,10 +283,10 @@ private:
                 followerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, ErrorCode: %s)",
+            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
                 followerId,
                 ~version.ToString(),
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
     }
 

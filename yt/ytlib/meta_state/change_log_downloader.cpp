@@ -99,9 +99,9 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         auto response = request->Invoke(Config.ReadTimeout)->Get();
 
         if (!response->IsOK()) {
-            auto errorCode = response->GetErrorCode();
-            if (response->IsServiceError()) {
-                switch (errorCode) {
+            auto error = response->GetError();
+            if (error.IsServiceError()) {
+                switch (TProxy::EErrorCode(error.GetCode())) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING("Peer %d does not have changelog %d anymore",
                             sourceId,
@@ -116,13 +116,13 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
                     default:
                         LOG_FATAL("Unknown error code %s received from peer %d",
-                            ~errorCode.ToString(),
+                            ~error.ToString(),
                             sourceId);
                         break;
                 }
             } else {
                 LOG_WARNING("Error %s reading snapshot from peer %d",
-                    ~errorCode.ToString(),
+                    ~error.ToString(),
                     sourceId);
                 return EResult::RemoteError;
             }
@@ -169,7 +169,7 @@ void TChangeLogDownloader::OnResponse(
 {
     if (!response->IsOK()) {
         LOG_INFO("Error %s requesting info on changelog %d from peer %d",
-            ~response->GetErrorCode().ToString(),
+            ~response->GetError().ToString(),
             version.SegmentId,
             peerId);
         return;

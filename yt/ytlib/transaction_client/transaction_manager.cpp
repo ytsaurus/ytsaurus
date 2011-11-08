@@ -46,8 +46,8 @@ public:
             State = EState::Finished;
 
             // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction (ErrorCode: %s)",
-                ~rsp->GetErrorCode().ToString());
+            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction (Error: %s)",
+                ~rsp->GetError().ToString());
         }
 
         Id = TTransactionId::FromProto(rsp->GetTransactionId());
@@ -97,9 +97,9 @@ public:
             OnAborted_.Fire();
 
             // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s, ErrorCode: %s)",
+            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s, Error: %s)",
                 ~Id.ToString(),
-                ~rsp->GetErrorCode().ToString());
+                ~rsp->GetError().ToString());
         }
 
         LOG_DEBUG("Transaction committed (TransactionId: %s)", ~Id.ToString());

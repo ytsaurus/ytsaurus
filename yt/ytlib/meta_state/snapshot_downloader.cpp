@@ -79,7 +79,7 @@ void TSnapshotDownloader::OnResponse(
     if (!response->IsOK()) {
         // We have no snapshot id to log it here
         LOG_INFO("Error %s requesting snapshot info from peer %d",
-            ~response->GetErrorCode().ToString(),
+            ~response->GetError().ToString(),
             peerId);
         return;
     }
@@ -167,9 +167,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         auto response = request->Invoke(Config.ReadTimeout)->Get();
 
         if (!response->IsOK()) {
-            TProxy::EErrorCode errorCode = response->GetErrorCode();
-            if (response->IsServiceError()) {
-                switch (errorCode) {
+            auto error = response->GetError();
+            if (error.IsServiceError()) {
+                switch (TProxy::EErrorCode(error.GetCode())) {
                     case TProxy::EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
                             "Peer %d does not have snapshot %d anymore",
@@ -186,13 +186,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
                     default:
                         LOG_FATAL("Unknown error code %s received from peer %d",
-                            ~errorCode.ToString(),
+                            ~error.ToString(),
                             sourceId);
                         break;
                 }
             } else {
                 LOG_WARNING("RPC error %s reading snapshot from peer %d",
-                    ~errorCode.ToString(),
+                    ~error.ToString(),
                     sourceId);
                 return EResult::RemoteError;
             }

@@ -57,9 +57,9 @@ void TLeaderLookup::OnResponse(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting leader from peer (Address: %s, ErrorCode: %s)",
+        LOG_WARNING("Error requesting leader from peer (Address: %s, Error: %s)",
             ~address,
-            ~response->GetErrorCode().ToString());
+            ~response->GetError().ToString());
         return;
     }
 

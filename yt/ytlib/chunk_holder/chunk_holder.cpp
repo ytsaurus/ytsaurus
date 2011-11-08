@@ -208,8 +208,8 @@ void TChunkHolder::OnSentBlocks(
     if (putResponse->IsOK()) {
         context->Reply();
     } else {
-        LOG_WARNING("SendBlocks: error %s putting blocks on the remote chunk holder",
-            ~putResponse->GetErrorCode().ToString());
+        LOG_WARNING("SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
+            ~putResponse->GetError().ToString());
         context->Reply(TProxy::EErrorCode::RemoteCallFailed);
     }
 }

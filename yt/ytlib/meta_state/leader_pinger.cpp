@@ -75,9 +75,9 @@ void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
         LOG_DEBUG("Leader ping succeeded (LeaderId: %d)",
             LeaderId);
     } else {
-        LOG_WARNING("Error pinging leader (LeaderId: %d, ErrorCode: %s)",
+        LOG_WARNING("Error pinging leader (LeaderId: %d, Error: %s)",
             LeaderId,
-            ~response->GetErrorCode().ToString());
+            ~response->GetError().ToString());
     }
 
     if (response->GetErrorCode() == NRpc::EErrorCode::Timeout) {
