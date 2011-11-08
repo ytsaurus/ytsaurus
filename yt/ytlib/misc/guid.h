@@ -68,7 +68,11 @@ struct hash<NYT::TGuid>
 {
     inline size_t operator()(const NYT::TGuid &a) const
     {
-        return a.Parts[0] + a.Parts[1] + a.Parts[2] + a.Parts[3];
+        ui32 p = 1e9 + 9; // prime number
+        return a.Parts[0] +
+               a.Parts[1] * p +
+               a.Parts[2] * p * p +
+               a.Parts[3] * p * p * p;
     }
 };
 
