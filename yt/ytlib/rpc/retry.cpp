@@ -186,8 +186,8 @@ TRetriableChannel::TRetriableChannel(
     TDuration backoffTime, 
     int retryCount)
     : UnderlyingChannel_(underlyingChannel)
-    , RetryCount_(retryCount)
     , BackoffTime_(backoffTime)
+    , RetryCount_(retryCount)
 {
     YASSERT(underlyingChannel != NULL);
     YASSERT(retryCount >= 1);
