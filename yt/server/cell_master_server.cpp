@@ -23,6 +23,8 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
+#include <yt/ytlib/orchid/cypress_integration.h>
+
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
@@ -49,6 +51,8 @@ using NTableServer::TTableService;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::CreateMonitoringTypeHandler;
+
+using NOrchid::CreateOrchidTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +177,8 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
         ~cypressManager,
         ~monitoringManager));
+    cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
+        ~cypressManager));
 
     MonitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),
