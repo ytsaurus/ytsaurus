@@ -22,6 +22,7 @@ SRCS(
     varint_ut.cpp
     async_change_log_ut.cpp
     intrusive_ptr_ut.cpp
+    tree_builder_ut.cpp
 )
 
 PEERDIR(
