@@ -104,7 +104,7 @@ public:
 
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId)
     {
-        YASSERT(transactionId != NullTransactionId);
+        YASSERT(transactionId != NTransaction::NullTransactionId);
 
         TMsgCreateChunk message;
         message.SetTransactionId(transactionId.ToProto());

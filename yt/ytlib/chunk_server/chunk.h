@@ -9,12 +9,7 @@
 namespace NYT {
 namespace NChunkServer {
 
-// TODO: get rid
-using NTransaction::TTransactionId;
-using NTransaction::NullTransactionId;
-
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: move implementation to cpp
 
 class TChunk
 {
@@ -26,69 +21,23 @@ class TChunk
 public:
     static const i64 UnknownSize = -1;
 
-    TChunk(const TChunkId& id)
-        : Id_(id)
-        , Size_(UnknownSize)
-        , RefCounter(0)
-    { }
+    TChunk(const TChunkId& id);
 
-    TAutoPtr<TChunk> Clone() const
-    {
-        return new TChunk(*this);
-    }
+    TAutoPtr<TChunk> Clone() const;
 
-    void Save(TOutputStream* output) const
-    {
-        ::Save(output, ChunkListId_);
-        ::Save(output, Size_);
-        ::Save(output, Locations_);
-        ::Save(output, RefCounter);
-    }
+    void Save(TOutputStream* output) const;
+    static TAutoPtr<TChunk> Load(const TChunkId& id, TInputStream* input);
 
-    static TAutoPtr<TChunk> Load(const TChunkId& id, TInputStream* input)
-    {
-        TAutoPtr<TChunk> chunk = new TChunk(id);
-        ::Load(input, chunk->ChunkListId_);
-        ::Load(input, chunk->Size_);
-        ::Load(input, chunk->Locations_);
-        ::Load(input, chunk->RefCounter);
-        return chunk;
-    }
+    void AddLocation(THolderId holderId);
+    void RemoveLocation(THolderId holderId);
 
-
-    void AddLocation(THolderId holderId)
-    {
-        Locations_.push_back(holderId);
-    }
-
-    void RemoveLocation(THolderId holderId)
-    {
-        auto it = Find(Locations_.begin(), Locations_.end(), holderId);
-        YASSERT(it != Locations_.end());
-        Locations_.erase(it);
-    }
-
-
-    i32 Ref()
-    {
-        return ++RefCounter;
-    }
-
-    i32 Unref()
-    {
-        return --RefCounter;
-    }
+    i32 Ref();
+    i32 Unref();
 
 private:
     i32 RefCounter;
 
-    TChunk(const TChunk& other)
-        : Id_(other.Id_)
-        , ChunkListId_(other.ChunkListId_)
-        , Size_(other.Size_)
-        , Locations_(other.Locations_)
-        , RefCounter(other.RefCounter)
-    { }
+    TChunk(const TChunk& other);
 
 };
 
