@@ -84,6 +84,11 @@ void TJsonAdapter::OnEndAttributes()
     YUNREACHABLE();
 }
 
+void TJsonAdapter::Flush()
+{
+    JsonWriter->Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

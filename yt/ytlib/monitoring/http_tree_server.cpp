@@ -33,10 +33,9 @@ public:
 
         TJsonAdapter adapter(&Output());
         YsonProducer->Do(&adapter);
+        adapter.Flush();
 
         Output() << "\r\n";
-
-        Output().Flush();
 
         return true;
     }
