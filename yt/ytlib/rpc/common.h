@@ -31,22 +31,31 @@ public:
     EErrorCode(int value)
         : TBase(value)
     { }
-
-    bool IsOK() const
-    {
-        return *this == OK;
-    }
-
-    bool IsRpcError() const
-    {
-        return *this < OK;
-    }
-
-    bool IsServiceError() const
-    {
-        return *this > OK;
-    }
 END_DECLARE_POLY_ENUM();
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TError
+{
+public:
+    TError();
+    TError(EErrorCode code, const Stroka& message = "");
+
+    EErrorCode GetCode() const;
+    Stroka GetMessage() const;
+
+    bool IsOK() const;
+    bool IsRpcError() const;
+    bool IsServiceError() const;
+
+    Stroka ToString() const;
+
+private:
+    EErrorCode Code;
+    Stroka CodeString;
+    Stroka Message;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

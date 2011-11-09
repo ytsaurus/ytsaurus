@@ -26,9 +26,9 @@ public:
     { }
 
     //! Gets the error code.
-    EErrorCode GetErrorCode() const
+    TError GetError() const
     {
-        return ErrorCode;
+        return TError(ErrorCode, what());
     }
 
 protected:
@@ -63,12 +63,6 @@ public:
     explicit TTypedServiceException(TErrorCode errorCode = EErrorCode::ServiceError)
         : TServiceException(errorCode)
     { }
-
-    //! Gets the error code.
-    EErrorCode GetErrorCode() const
-    {
-        return EErrorCode(TServiceException::GetErrorCode());
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,11 +94,12 @@ public:
     TServiceContext(
         IService::TPtr service,
         TRequestId requestId,
-        Stroka methodName,
+        const Stroka& methodName,
         NBus::IMessage::TPtr message,
         NBus::IBus::TPtr replyBus);
-    
-    void Reply(EErrorCode errorCode = EErrorCode::OK);
+
+    void Reply(EErrorCode errorCode);
+    void Reply(const TError& error);
     bool IsReplied() const;
 
     TSharedRef GetRequestBody() const;
@@ -150,14 +145,14 @@ protected:
     Stroka ResponseInfo;
 
 private:
-    void DoReply(EErrorCode errorCode);
+    void DoReply(const TError& error);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, EErrorCode errorCode, Stroka what);
+    void LogException(NLog::ELogLevel level, const TError& error);
     void LogRequestInfo();
-    void LogResponseInfo(EErrorCode errorCode);
+    void LogResponseInfo(const TError& error);
 
-    static void AppendInfo(Stroka& lhs, Stroka rhs);
+    static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,9 +230,20 @@ public:
         return Response_;
     }
 
-    void Reply(EErrorCode errorCode = EErrorCode::OK)
+    // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
+    void Reply()
     {
-        if (errorCode.IsOK()) {
+        Reply(EErrorCode::OK);
+    }
+
+    void Reply(EErrorCode errorCode)
+    {
+        Reply(TError(errorCode));
+    }
+
+    void Reply(const TError& error)
+    {
+        if (error.IsOK()) {
             TBlob responseData;
             if (!SerializeMessage(&Response_, &responseData)) {
                 ythrow TServiceException(EErrorCode::ProtocolError) <<
@@ -246,7 +252,7 @@ public:
             Context->SetResponseBody(&responseData);
             Context->SetResponseAttachments(&Response_.Attachments());
         }
-        Context->Reply(errorCode);
+        Context->Reply(error);
     }
 
     bool IsReplied() const
@@ -331,7 +337,7 @@ protected:
     struct TMethodDescriptor
     {
         //! Initializes the instance.
-        TMethodDescriptor(Stroka methodName, THandler::TPtr handler)
+        TMethodDescriptor(const Stroka& methodName, THandler::TPtr handler)
             : MethodName(methodName)
             , Handler(handler)
         {
@@ -359,8 +365,8 @@ protected:
      */
     TServiceBase(
         IInvoker::TPtr defaultServiceInvoker,
-        Stroka serviceName,
-        Stroka loggingCategory);
+        const Stroka& serviceName,
+        const Stroka& loggingCategory);
 
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);

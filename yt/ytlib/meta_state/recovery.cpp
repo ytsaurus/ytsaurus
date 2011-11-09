@@ -416,8 +416,8 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!response->IsOK()) {
-        LOG_ERROR("Error synchronizing with leader (ErrorCode: %s)",
-            ~response->GetErrorCode().ToString());
+        LOG_ERROR("Error synchronizing with leader (Error: %s)",
+            ~response->GetError().ToString());
         Result->Set(EResult::Failed);
         return;
     }

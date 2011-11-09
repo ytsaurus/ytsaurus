@@ -115,8 +115,6 @@ private:
     RPC_SERVICE_METHOD_DECL(NElection::NProto, PingFollower);
     RPC_SERVICE_METHOD_DECL(NElection::NProto, GetStatus);
 
-    void RegisterMethods();
-
     void Reset();
     void OnLeaderPingTimeout();
 

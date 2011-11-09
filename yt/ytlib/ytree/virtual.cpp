@@ -16,6 +16,7 @@ IYPathService::TNavigateResult TVirtualMapBase::Navigate(TYPath path)
 IYPathService::TSetResult TVirtualMapBase::Set(TYPath path, TYsonProducer::TPtr producer)
 {
     UNUSED(path);
+    UNUSED(producer);
     ythrow TYTreeException() << "Node is read-only";
 }
 

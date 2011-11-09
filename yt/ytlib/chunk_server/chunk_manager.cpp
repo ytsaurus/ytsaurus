@@ -676,9 +676,9 @@ private:
 
     void DoRemoveJob(THolder& holder, const TJob& job)
     {
-        auto jobId = job.JobId;
+        auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
@@ -686,7 +686,7 @@ private:
 
         UnregisterReplicationSinks(job);
 
-        JobMap.Remove(job.JobId);
+        JobMap.Remove(job.GetJobId());
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -696,15 +696,15 @@ private:
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
     {
-        auto jobId = job.JobId;
+        auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
         UnregisterReplicationSinks(job);
 
-        JobMap.Remove(job.JobId);
+        JobMap.Remove(job.GetJobId());
 
         LOG_INFO_IF(!IsRecovery(), "Job removed since holder is dead (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -780,19 +780,19 @@ private:
 
     void MaybeDropJobList(const TJobList& list)
     {
-        if (list.Jobs.empty()) {
-            JobListMap.Remove(list.ChunkId);
+        if (list.JobIds().empty()) {
+            JobListMap.Remove(list.GetChunkId());
         }
     }
 
 
     void RegisterReplicationSinks(const TJob& job)
     {
-        switch (job.Type) {
+        switch (job.GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses) {
+                FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds.insert(job.JobId).Second());
+                    YASSERT(sink.JobIds.insert(job.GetJobId()).Second());
                 }
                 break;
             }
@@ -807,11 +807,11 @@ private:
 
     void UnregisterReplicationSinks(const TJob& job)
     {
-        switch (job.Type) {
+        switch (job.GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses) {
+                FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds.erase(job.JobId) == 1);
+                    YASSERT(sink.JobIds.erase(job.GetJobId()) == 1);
                     MaybeDropReplicationSink(sink);
                 }
                 break;

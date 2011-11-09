@@ -30,18 +30,12 @@ TCypressService::TCypressService(
     YASSERT(transactionManager != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethods();
-
-    server->RegisterService(this);
-}
-
-void TCypressService::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
+    server->RegisterService(this);
 }
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)

@@ -52,17 +52,6 @@ TChunkHolder::TChunkHolder(
         LOG_INFO("Running in standalone mode");
     }
 
-    RegisterMethods();
-    server->RegisterService(this);
-}
-
-// Do not remove this!
-// Required for TInstusivePtr with an incomplete type.
-TChunkHolder::~TChunkHolder() 
-{ }
-
-void TChunkHolder::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
@@ -70,7 +59,13 @@ void TChunkHolder::RegisterMethods()
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+    server->RegisterService(this);
 }
+
+// Do not remove this!
+// Required for TInstusivePtr with an incomplete type.
+TChunkHolder::~TChunkHolder() 
+{ }
 
 void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 {
@@ -213,8 +208,8 @@ void TChunkHolder::OnSentBlocks(
     if (putResponse->IsOK()) {
         context->Reply();
     } else {
-        LOG_WARNING("SendBlocks: error %s putting blocks on the remote chunk holder",
-            ~putResponse->GetErrorCode().ToString());
+        LOG_WARNING("SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
+            ~putResponse->GetError().ToString());
         context->Reply(TProxy::EErrorCode::RemoteCallFailed);
     }
 }

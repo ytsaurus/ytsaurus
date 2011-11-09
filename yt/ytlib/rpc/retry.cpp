@@ -68,14 +68,14 @@ public:
         , OriginalRequest(originalRequest)
         , OriginalResponseHandler(originalResponseHandler)
         , Timeout(timeout)
-        , SendResult(New< TFuture<EErrorCode> >())
+        , SendResult(New< TFuture<TError> >())
     {
         YASSERT(channel != NULL);
         YASSERT(originalRequest != NULL);
         YASSERT(originalResponseHandler != NULL);
     }
 
-    TFuture<EErrorCode>::TPtr Send() 
+    TFuture<TError>::TPtr Send() 
     {
         DoSend();
         return SendResult;
@@ -89,7 +89,7 @@ private:
     IClientResponseHandler::TPtr OriginalResponseHandler;
     TDuration Timeout;
     //! Result returned by #IChannel::Send
-    TFuture<EErrorCode>::TPtr SendResult;
+    TFuture<TError>::TPtr SendResult;
 
     DECLARE_ENUM(EState, 
         (Sent)
@@ -146,16 +146,16 @@ private:
         }
     }
 
-    virtual void OnResponse(EErrorCode errorCode, IMessage::TPtr message)
+    virtual void OnResponse(const TError& error, IMessage::TPtr message)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Sent) {
             State = EState::Done;
             guard.Release();
 
-            if (!errorCode.IsRpcError()) {
-                OriginalResponseHandler->OnResponse(errorCode, message);
-                SendResult->Set(errorCode);
+            if (!error.IsRpcError()) {
+                OriginalResponseHandler->OnResponse(error, message);
+                SendResult->Set(error);
             } else {
                 OnAttemptFailed();
             }
@@ -171,8 +171,10 @@ private:
                 FromMethod(&TRetriableRequest::DoSend, TPtr(this)),
                 TInstant::Now() + Channel->GetBackoffTime());
         } else {
-            OriginalResponseHandler->OnResponse(EErrorCode::Unavailable, NULL);
-            SendResult->Set(EErrorCode::Unavailable);
+            // TODO: provide better diagnostics
+            TError error(EErrorCode::Unavailable);
+            OriginalResponseHandler->OnResponse(error, NULL);
+            SendResult->Set(error);
         }
     }
 };
@@ -184,14 +186,14 @@ TRetriableChannel::TRetriableChannel(
     TDuration backoffTime, 
     int retryCount)
     : UnderlyingChannel_(underlyingChannel)
-    , RetryCount_(retryCount)
     , BackoffTime_(backoffTime)
+    , RetryCount_(retryCount)
 {
     YASSERT(underlyingChannel != NULL);
     YASSERT(retryCount >= 1);
 }
 
-TFuture<EErrorCode>::TPtr TRetriableChannel::Send(
+TFuture<TError>::TPtr TRetriableChannel::Send(
     IClientRequest::TPtr request, 
     IClientResponseHandler::TPtr responseHandler, 
     TDuration timeout)

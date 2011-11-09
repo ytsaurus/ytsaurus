@@ -31,7 +31,7 @@ TChannel::TChannel(Stroka address)
     Bus = New<TBusClient>(address)->CreateBus(this);
 }
 
-TFuture<EErrorCode>::TPtr TChannel::Send(
+TFuture<TError>::TPtr TChannel::Send(
     IClientRequest::TPtr request,
     IClientResponseHandler::TPtr responseHandler,
     TDuration timeout)
@@ -46,7 +46,7 @@ TFuture<EErrorCode>::TPtr TChannel::Send(
     TActiveRequest activeRequest;
     activeRequest.RequestId = requestId;
     activeRequest.ResponseHandler = responseHandler;
-    activeRequest.Ready = New< TFuture<EErrorCode> >();
+    activeRequest.Ready = New< TFuture<TError> >();
 
     if (timeout != TDuration::Zero()) {
         activeRequest.TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
@@ -141,9 +141,11 @@ void TChannel::OnMessage(
         // Don't need the guard anymore.
         guard.Release();
 
-        auto errorCode = header.GetErrorCode();
-        responseHandler->OnResponse(errorCode, message);
-        ready->Set(errorCode);
+        TError error(
+            EErrorCode(header.GetErrorCode(), Stroka(header.GetErrorCodeString())),
+            header.GetErrorMessage());
+        responseHandler->OnResponse(error, message);
+        ready->Set(error);
     }
 }
 
@@ -175,7 +177,7 @@ void TChannel::OnAcknowledgement(
         guard.Release();
 
         responseHandler->OnAcknowledgement(sendResult);
-        ready->Set(EErrorCode::TransportError);
+        ready->Set(TError(EErrorCode::TransportError));
     } else {
         // Don't need the guard anymore.
         guard.Release();
@@ -208,7 +210,7 @@ void TChannel::OnTimeout(TRequestId requestId)
     guard.Release();
 
     responseHandler->OnTimeout();
-    ready->Set(EErrorCode::Timeout);
+    ready->Set(TError(EErrorCode::Timeout));
 }
 
 void TChannel::UnregisterRequest(TRequestMap::iterator it)

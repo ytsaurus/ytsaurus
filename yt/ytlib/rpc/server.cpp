@@ -29,7 +29,7 @@ void TServer::RegisterService(IService::TPtr service)
     YASSERT(~service != NULL);
 
     YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
-    LOG_INFO("Registered RPC service %s", ~service->GetServiceName());
+    LOG_INFO("Registered RPC service (ServiceName: %s)", ~service->GetServiceName());
 }
 
 void TServer::Start()
@@ -72,9 +72,9 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         ~requestId.ToString());
 
     if (!Started) {
-        IMessage::TPtr errorMessage = New<TRpcErrorResponseMessage>(
+        auto errorMessage = New<TRpcErrorResponseMessage>(
             requestId,
-            EErrorCode::Unavailable);
+            TError(EErrorCode::Unavailable));
         replyBus->Send(errorMessage);
 
         LOG_DEBUG("Server is not started");
@@ -83,16 +83,16 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
 
     auto service = GetService(serviceName);
     if (~service == NULL) {
-        IMessage::TPtr errorMessage = New<TRpcErrorResponseMessage>(
+        auto errorMessage = New<TRpcErrorResponseMessage>(
             requestId,
-            EErrorCode::NoService);
+            TError(EErrorCode::NoService));
         replyBus->Send(errorMessage);
 
         LOG_WARNING("Unknown service (ServiceName: %s)", ~serviceName);
         return;
     }
 
-    TServiceContext::TPtr context = New<TServiceContext>(
+    auto context = New<TServiceContext>(
         service,
         requestId,
         methodName,

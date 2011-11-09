@@ -57,7 +57,7 @@ IYPathService::TGetResult TNodeBase::Get(
 
             auto child = attributes->FindChild(prefix);
             if (~child == NULL) {
-                throw TYTreeException() << Sprintf("Attribute %s it not found",
+                throw TYTreeException() << Sprintf("Attribute %s is not found",
                     ~prefix.Quote());
             }
 
@@ -228,7 +228,7 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path)
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        throw TYTreeException() << Sprintf("Key %s it not found",
+        throw TYTreeException() << Sprintf("Key %s is not found",
             ~prefix.Quote());
     }
 

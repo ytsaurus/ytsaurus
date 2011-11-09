@@ -63,7 +63,7 @@ void TRemoteChunkReader::OnBlocksRead(
     VERIFY_THREAD_AFFINITY(Response);
 
     if (rsp->IsOK()) {
-        ExecutionTime.AddDelta(rsp->GetInvokeInstant());
+        ExecutionTime.AddDelta(rsp->GetStartTime());
 
         TReadResult readResult;
         for (int i = 0; i < rsp->Attachments().ysize(); i++) {

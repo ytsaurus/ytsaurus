@@ -144,11 +144,11 @@ private:
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_WARNING("Error committing changes by follower (Version: %s, ChangeCount: %d, FollowerId: %d, ErrorCode: %s)",
+            LOG_WARNING("Error committing changes by follower (Version: %s, ChangeCount: %d, FollowerId: %d, Error: %s)",
                 ~Version.ToString(),
                 BatchedChanges.ysize(),
                 peerId,
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
             return;
         }
 
