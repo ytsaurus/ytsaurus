@@ -97,42 +97,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-// TODO: move to channel_cache.h/cpp
-// 
-//! Caches TChannel instances by address.
-/*!
- *  \note Thread affinity: any.
- */
-class TChannelCache
-    : private TNonCopyable
-{
-public:
-    //! Creates a new instance.
-    TChannelCache();
-
-    //! Constructs new or gets an earlier created channel for a given address.
-    TChannel::TPtr GetChannel(Stroka address);
-
-    //! Shuts down all channels.
-    /*!
-     *  It is safe to call this method multiple times.
-     *  After the first call the instance is no longer usable.
-     */
-    void Shutdown();
-
-private:
-    typedef yhash_map<Stroka, TChannel::TPtr> TChannelMap;
-
-    bool IsTerminated;
-    TChannelMap ChannelMap;
-    //! Protects #IsTerminated and #ChannelMap.
-    TSpinLock SpinLock;
-
-};
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NRpc
 } // namespace NYT
