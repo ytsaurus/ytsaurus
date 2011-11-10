@@ -80,11 +80,12 @@ public:
             SnapshotStore,
             ChangeLogCache);
 
-        VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
-
         ReadQueue = New<TActionQueue>();
 
+        VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
+        VERIFY_INVOKER_AFFINITY(ReadQueue->GetInvoker(), ReadThread);
+        
         CellManager = New<TCellManager>(Config.Cell);
 
         // TODO: fill config
@@ -174,40 +175,65 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadSnapshot);
 
     void DoReadSnapshot(
+        TCtxReadSnapshot::TPtr context,
+        i32 snapshotId,
         TSnapshotReader::TPtr reader,
-        i32 length,
-        TCtxReadSnapshot::TPtr context) 
+        i64 offset,
+        i32 length) 
     {
-        TBlob data(length);
-        i32 bytesRead = reader->GetStream().Read(data.begin(), length);
-        data.erase(data.begin() + bytesRead, data.end());
+        VERIFY_THREAD_AFFINITY(ReadThread);
 
-        context->Response().Attachments().push_back(TSharedRef(data));
-        context->SetResponseInfo("BytesRead: %d", bytesRead);
+        try {
+            reader->Open(offset);
 
-        context->Reply();
+            TBlob data(length);
+            i32 bytesRead = reader->GetStream().Read(data.begin(), length);
+            data.erase(data.begin() + bytesRead, data.end());
+
+            context->Response().Attachments().push_back(TSharedRef(data));
+            context->SetResponseInfo("BytesRead: %d", bytesRead);
+
+            context->Reply();
+        } catch (...) {
+            // TODO: fail?
+            ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+                Sprintf("IO error while reading snapshot (SnapshotId: %d): %s",
+                    snapshotId,
+                    ~CurrentExceptionMessage());
+        }
     }
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetChangeLogInfo);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadChangeLog);
 
     void DoReadChangeLog(
+        TCtxReadChangeLog::TPtr context,
+        i32 changeLogId,
         TCachedAsyncChangeLog::TPtr changeLog,
         i32 startRecordId,
-        i32 recordCount,
-        TCtxReadChangeLog::TPtr context) 
+        i32 recordCount) 
     {
-        yvector<TSharedRef> recordData;
-        changeLog->Read(startRecordId, recordCount, &recordData);
+        VERIFY_THREAD_AFFINITY(ReadThread);
 
-        context->Response().SetRecordsRead(recordData.ysize());
-        context->Response().Attachments().insert(
-            context->Response().Attachments().end(),
-            recordData.begin(),
-            recordData.end());
+        try {
+            yvector<TSharedRef> recordData;
+            changeLog->Read(startRecordId, recordCount, &recordData);
 
-        context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-        context->Reply();
+            context->Response().SetRecordsRead(recordData.ysize());
+            context->Response().Attachments().insert(
+                context->Response().Attachments().end(),
+                recordData.begin(),
+                recordData.end());
+
+            context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+            context->Reply();
+        } catch (...) {
+            // TODO: fail?
+            ythrow TServiceException(EErrorCode::IOError) <<
+                Sprintf("IO error while reading changelog (ChangeLogId: %d): %s",
+                    changeLogId,
+                    ~CurrentExceptionMessage());
+        }
     }
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ApplyChanges);
@@ -622,7 +648,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
+    DECLARE_THREAD_AFFINITY_SLOT(ReadThread);
 };
 
 void TMetaStateManager::TImpl::Restart()
@@ -880,24 +906,21 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     YASSERT(offset >= 0);
     YASSERT(length >= 0);
 
-    try {
-        auto reader = SnapshotStore->GetReader(snapshotId);
-        if (~reader == NULL) {
-            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
-        }
-
-        reader->Open(offset);
-
-        ReadQueue->GetInvoker()->Invoke(
-            FromMethod(&TImpl::DoReadSnapshot, TPtr(this), reader, length, context));
-    } catch (...) {
-        // TODO: fail?
-        ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-            Sprintf("IO error while reading snapshot (SnapshotId: %d): %s",
-                snapshotId,
-                ~CurrentExceptionMessage());
+    auto reader = SnapshotStore->GetReader(snapshotId);
+    if (~reader == NULL) {
+        ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+            Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
     }
+
+    ReadQueue->GetInvoker()->Invoke(
+        context->Wrap(
+            FromMethod(
+                &TImpl::DoReadSnapshot,
+                TPtr(this),
+                snapshotId,
+                reader,
+                offset,
+                length)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
@@ -949,29 +972,20 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
     YASSERT(startRecordId >= 0);
     YASSERT(recordCount >= 0);
     
-    try {
-        auto changeLog = ChangeLogCache->Get(changeLogId);
-        if (~changeLog == NULL) {
-            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
-        }
-
-        ReadQueue->GetInvoker()->Invoke(
-            FromMethod(
-                &TImpl::DoReadChangeLog,
-                TPtr(this),
-                changeLog,
-                startRecordId,
-                recordCount,
-                context));
-
-    } catch (...) {
-        // TODO: fail?
-        ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while reading changelog (ChangeLogId: %d): %s",
-                changeLogId,
-                ~CurrentExceptionMessage());
+    auto changeLog = ChangeLogCache->Get(changeLogId);
+    if (~changeLog == NULL) {
+        ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
+            Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
     }
+
+    ReadQueue->GetInvoker()->Invoke(
+        context->Wrap(FromMethod(
+            &TImpl::DoReadChangeLog,
+            TPtr(this),
+            changeLogId,
+            changeLog,
+            startRecordId,
+            recordCount)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
