@@ -41,7 +41,7 @@ inline void Read(bool* parameter, NYTree::INode* node)
     } else if (value == "False") {
         *parameter = false;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Could not load bool parameter (Value: "
             << (value.length() <= 10
                 ? value
@@ -106,14 +106,14 @@ void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
         try {
             Read(Parameter, node);
         } catch (const yexception& ex) {
-            throw yexception()
+            ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
                     ~path, ex.what());
         }
     } else if (HasDefaultValue) {
         *Parameter = DefaultValue;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Required parameter is missing (Path: " << path << ")";
     }
 }
@@ -125,7 +125,7 @@ void TParameter<T, false>::Validate(Stroka path) const
         try {
             validator->Do(*Parameter);
         } catch (const yexception& ex) {
-            throw yexception()
+            ythrow yexception()
                 << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
                     ~path, ex.what());
         }
@@ -157,7 +157,7 @@ TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr vali
         Check(FromFunctor([=] (T parameter) \
             { \
                 if (!(condition)) { \
-                    throw (ex); \
+                    ythrow (ex); \
                 } \
             })); \
         return *this; \
