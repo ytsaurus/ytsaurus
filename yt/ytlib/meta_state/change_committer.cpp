@@ -241,7 +241,7 @@ void TLeaderCommitter::Flush()
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
+TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -373,7 +373,7 @@ TFollowerCommitter::TFollowerCommitter(
     YASSERT(~controlInvoker != NULL);
 }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
+TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
     const yvector<TSharedRef>& changes)
 {
@@ -382,7 +382,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
 
     return
         FromMethod(
-            &TFollowerCommitter::DoCommitFollower,
+            &TFollowerCommitter::DoCommit,
             TPtr(this),
             expectedVersion,
             changes)
@@ -390,7 +390,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
         ->Do();
 }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
+TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
     const yvector<TSharedRef>& changes)
 {
@@ -418,12 +418,13 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
     TResult::TPtr result;
     FOREACH (const auto& change, changes) {
         result = MetaState
-            ->LogChange(expectedVersion, change)
+            ->LogChange(currentVersion, change)
             ->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
                 {
                     return TCommitterBase::EResult::Committed;
                 }));
         MetaState->ApplyChange(change);
+        ++currentVersion.RecordCount;
     }
 
     return result;

@@ -99,7 +99,7 @@ public:
      *  
      *  \note Thread affinity: StateThread
      */
-    TResult::TPtr CommitLeader(
+    TResult::TPtr Commit(
         IAction::TPtr changeAction,
         const TSharedRef& changeData,
         ECommitMode mode);
@@ -167,12 +167,12 @@ public:
      *  
      *  \note Thread affinity: ControlThread
      */
-    TResult::TPtr CommitFollower(
+    TResult::TPtr Commit(
         const TMetaVersion& expectedVersion,
         const yvector<TSharedRef>& changes);
 
 private:
-    TResult::TPtr DoCommitFollower(
+    TResult::TPtr DoCommit(
         const TMetaVersion& expectedVersion,
         const yvector<TSharedRef>& changes);
 

@@ -689,7 +689,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
 
     return
         LeaderCommitter
-        ->CommitLeader(changeAction, changeData, mode)
+        ->Commit(changeAction, changeData, mode)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
@@ -987,7 +987,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
             YASSERT(~FollowerCommitter != NULL);
 
             FollowerCommitter
-                ->CommitFollower(version, request->Attachments())
+                ->Commit(version, request->Attachments())
                 ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
             break;
         }
