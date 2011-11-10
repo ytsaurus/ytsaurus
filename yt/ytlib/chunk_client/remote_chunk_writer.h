@@ -70,18 +70,19 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncWriteBlock(const TSharedRef& data);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TFuture<EResult>::TPtr AsyncClose();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
 
 
     /*!
      * \note Thread affinity: any.
      */
-    void Cancel();
+    void Cancel(const Stroka& errorMessage);
 
     ~TRemoteChunkWriter();
 
@@ -118,26 +119,17 @@ private:
     TChunkId ChunkId;
     const TConfig Config;
 
-    DECLARE_ENUM(EWriterState,
-        (Initializing)
-        (Writing)
-        (Closed)
-        (Canceled)
-    );
+    TAsyncStreamState State;
 
-    //! Set in #WriterThread, read from client and writer threads
-    EWriterState State;
+    bool IsInitComplete;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
 
-    // Result of write session, set when session is completed.
-    // Is returned from #AsyncClose
-    TFuture<EResult>::TPtr Result;
-
+    // ToDo: replace by cyclic buffer
     TWindow Window;
-    TSemaphore WindowSlots;
+    TAsyncSemaphore WindowSlots;
 
     yvector<TNodePtr> Nodes;
 
@@ -150,8 +142,6 @@ private:
 
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
-
-    TFuture<TVoid>::TPtr WindowReady;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
@@ -292,6 +282,8 @@ private:
         int node, 
         IAction::TPtr onSuccess,
         TMetric* metric);
+
+    void AddBlock(TVoid, const TSharedRef& data);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

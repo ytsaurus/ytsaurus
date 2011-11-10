@@ -1,25 +1,23 @@
 ﻿#pragma once
 
 #include "common.h"
+#include "thread_affinity.h"
+#include "../actions/future.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Custom semaphore class based on Event and CAS operations.
+//! Custom semaphore class with async aquire operation.
 /*!
- *  This class was brought into existence primarily because of instability of util's analogue.
+ *  Can be used by a single acquire thread and possibly multiple 
+ *  release threads. The acquirer must not call AsyncAquire again, 
+ *  until returned future is set.
  */
-class TSemaphore
+class TAsyncSemaphore
 {
 public:
-    explicit TSemaphore(int maxFreeSlots);
-
-    //! Decreases the counter.
-    /*!
-     *  Keeps a thread blocked while the semaphore counter is 0.
-     */
-    void Acquire();
+    explicit TAsyncSemaphore(int maxFreeSlots);
 
     //! Increases the counter.
     /*!
@@ -27,23 +25,22 @@ public:
      */
     bool Release();
 
-    //! Tries to enter the semaphore gate. A non-blocking variant of #Acquire.
-    //! Returns 'true' if the semaphore counter has decreased.
-    bool TryAcquire();
-
-    //! Returns the current number of free slots in the semaphore.
     /*!
-     *  The returned value is only a snapshot of the counter kept by the semaphore.
-     *  The caller must make sure that no one calls #Acquire, #Release or #TryAcquire
-     *  simultaneously.
+     *  Must be called from single thread.
+     *  The client must not call AsyncAquire again, until returned
+     *  future is set.
      */
-    int GetFreeSlotCount() const;
+    TFuture<TVoid>::TPtr AsyncAcquire();
 
 private:
-    const int MaxFreeSlots;
-    TAtomic FreeSlotCount;
-    Event FreeSlotExists;
+    TSpinLock SpinLock;
 
+    const int MaxFreeSlots;
+    int FreeSlotCount;
+
+    TFuture<TVoid>::TPtr AcquireEvent;
+    TFuture<TVoid>::TPtr StaticResult;
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

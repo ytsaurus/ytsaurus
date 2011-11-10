@@ -570,29 +570,21 @@ void TRemoteChunkWriter::ReleaseSlots(int count)
     for (int i = 0; i < count; ++i) {
         YVERIFY(WindowSlots.Release());
     }
-
-    if (~WindowReady != NULL) {
-        WindowReady->Set(TVoid());
-        WindowReady.Reset();
-    }
 }
 
 void TRemoteChunkWriter::DoClose()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
+    YASSERT(!IsCloseRequested);
 
-    if (IsCloseRequested)
-        return;
-
-    if (State == EWriterState::Closed ||
-        State == EWriterState::Canceled)
+    if (!State.IsActive())
         return;
 
     LOG_DEBUG("Writer close requested (ChunkId: %s)",
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    if (Window.empty() && State == EWriterState::Writing) {
+    if (Window.empty() && IsInitComplete) {
         CloseSession();
     }
 }
@@ -604,25 +596,15 @@ void TRemoteChunkWriter::Shutdown()
     // Some groups may still be pending.
     // Drop the references to ensure proper resource disposal.
     Window.clear();
-
-    Result->Set(EResult::Failed);
-    State = EWriterState::Canceled;
     CancelAllPings();
 
-    if (~WindowReady != NULL) {
-        WindowReady->Set(TVoid());
-        WindowReady.Reset();
-    }
+    // ToDo: use rpc error here.
+    State.Cancel("");
 }
 
 void TRemoteChunkWriter::DoCancel()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
-    if (State == EWriterState::Closed ||
-        State == EWriterState::Canceled)
-        return;
-
     Shutdown();
 
     LOG_DEBUG("Writer canceled (ChunkId: %s)",
@@ -632,15 +614,10 @@ void TRemoteChunkWriter::DoCancel()
 void TRemoteChunkWriter::AddGroup(TGroupPtr group)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
     YASSERT(!IsCloseRequested);
 
-    if (State == EWriterState::Canceled) {
-        // TODO: fix comment
-        // Release client thread if it is blocked inside AddBlock.
-        ReleaseSlots(group->GetBlockCount());
+    if (!State.IsActive())
         return;
-    } 
 
     LOG_DEBUG("Group added (ChunkId: %s, Blocks: %d-%d)", 
         ~ChunkId.ToString(), 
@@ -906,42 +883,25 @@ void TRemoteChunkWriter::CancelAllPings()
     }
 }
 
-void TRemoteChunkWriter::RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-    YASSERT(~WindowReady == NULL);
-
-    if (WindowSlots.GetFreeSlotCount() > 0 ||
-        State == EWriterState::Canceled ||
-        State == EWriterState::Closed)
-    {
-        windowReady->Set(TVoid());
-    } else {
-        WindowReady = windowReady;
-    }
-}
-
-IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
-    const TSharedRef& data,
-    TFuture<TVoid>::TPtr* ready)
+TAsyncStreamState::TAsyncResult::TPtr 
+TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(ready != NULL);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(!State.IsClosed());
 
-    // Check that the current group is still valid.
-    // If no, then the client had already canceled or closed the writer.
-    YASSERT(~CurrentGroup != NULL);
+    State.StartOperation();
+    WindowSlots.AsyncAcquire()->Subscribe(FromMethod(
+        &TRemoteChunkWriter::AddBlock,
+        TPtr(this),
+        data));
 
-    // Make a quick check and fail immediately if the writer is already closed or canceled.
-    // We still can make a round-trip to the writer thread in case
-    // the writer is closing or canceling and the window is full.
-    // Fortunately, RegisterReadyEvent (which gets invoked in the writers thread)
-    // is capable of handling this case.
-    if (State == EWriterState::Canceled ||
-        State == EWriterState::Closed)
-        return EResult::Failed;
+    return State.GetOperationResult();
+}
 
-    if (WindowSlots.TryAcquire()) {
+void TRemoteChunkWriter::AddBlock(TVoid, const TSharedRef& data)
+{
+    if (State.IsActive()) {
         LOG_DEBUG("Block added (ChunkId: %s, BlockIndex: %d)",
             ~ChunkId.ToString(),
             BlockCount);
@@ -951,52 +911,36 @@ IChunkWriter::EResult TRemoteChunkWriter::AsyncWriteBlock(
 
         if (CurrentGroup->GetSize() >= Config.GroupSize) {
             WriterThread->GetInvoker()->Invoke(FromMethod(
-                &TRemoteChunkWriter::AddGroup, 
+                &TRemoteChunkWriter::AddGroup,
                 TPtr(this),
                 CurrentGroup));
-
-            // Construct a new (empty) group.
-            CurrentGroup = New<TGroup>(Nodes.ysize(), BlockCount, this);
-        }
-
-        return EResult::OK;
-    } else {
-        LOG_DEBUG("Window is full (ChunkId: %s)",
-            ~ChunkId.ToString());
-
-        *ready = New< TFuture<TVoid> >();
-        WriterThread->GetInvoker()->Invoke(FromMethod(
-            &TRemoteChunkWriter::RegisterReadyEvent,
-            TPtr(this),
-            *ready));
-
-        return EResult::TryLater;
+        // Construct a new (empty) group.
+        CurrentGroup = New<TGroup>(Nodes.ysize(), BlockCount, this);
     }
+
+    State.FinishOperation();
 }
 
-TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
+TAsyncStreamState::TAsyncResult::TPtr TRemoteChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(!State.IsClosed());
 
-    // Make a quick check and return immediately if the writer is already closed or canceled.
-    if (State == EWriterState::Closed ||
-        State == EWriterState::Canceled)
-        return Result;
+    State.StartOperation();
 
     LOG_DEBUG("Requesting close (ChunkId: %s)",
         ~ChunkId.ToString());
 
-    if (~CurrentGroup != NULL) {
-        if (CurrentGroup->GetSize() > 0) {
-            WriterThread->GetInvoker()->Invoke(FromMethod(
-                &TRemoteChunkWriter::AddGroup,
-                TPtr(this), 
-                CurrentGroup));
-        }
-
-        // Drop the cyclic reference.
-        CurrentGroup.Reset();
+    if (CurrentGroup->GetSize() > 0) {
+        WriterThread->GetInvoker()->Invoke(FromMethod(
+            &TRemoteChunkWriter::AddGroup,
+            TPtr(this), 
+            CurrentGroup));
     }
+
+    // Drop the cyclic reference.
+    CurrentGroup.Reset();
 
     // Set IsCloseRequested via queue to ensure proper serialization
     // (i.e. the flag will be set when all appended blocks are processed).
@@ -1004,7 +948,7 @@ TFuture<IChunkWriter::EResult>::TPtr TRemoteChunkWriter::AsyncClose()
         &TRemoteChunkWriter::DoClose, 
         TPtr(this)));
 
-    return Result;
+    return State.GetOperationResult();
 }
 
 void TRemoteChunkWriter::Cancel()

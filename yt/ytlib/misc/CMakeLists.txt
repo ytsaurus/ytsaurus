@@ -32,7 +32,9 @@ SET(YT_SOURCE_FILES
     intrusive_ptr.h
     singleton.h
     rvalue.h
-
+    codec.h
+    async_stream_state.cpp
+    cyclic_buffer.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

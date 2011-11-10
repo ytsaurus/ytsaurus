@@ -96,11 +96,8 @@ void TSequentialChunkReader::DoShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    auto& slot = Window.First();
+    auto& slot = Window.Front();
     YASSERT(!slot.IsEmpty);
-
-    slot.IsEmpty = true;
-    slot.Result = TResult();
 
     Window.Shift();
     ++FreeSlots;
