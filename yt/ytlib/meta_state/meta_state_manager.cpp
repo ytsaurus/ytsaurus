@@ -46,8 +46,57 @@ public:
         const TConfig& config,
         IInvoker::TPtr controlInvoker,
         IMetaState::TPtr metaState,
-        TServer::TPtr server);
+        TServer::TPtr server)
+        : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
+        , Owner(owner)
+        , ControlStatus(EPeerStatus::Stopped)
+        , StateStatus(EPeerStatus::Stopped)
+        , Config(config)
+        , LeaderId(NElection::InvalidPeerId)
+        , ControlInvoker(controlInvoker)
+        , ReadOnly(false)
+    {
+        YASSERT(~controlInvoker != NULL);
+        YASSERT(~metaState != NULL);
+        YASSERT(~server != NULL);
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
+
+        NFS::CleanTempFiles(config.LogLocation);
+        ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
+
+        NFS::CleanTempFiles(config.SnapshotLocation);
+        SnapshotStore = New<TSnapshotStore>(Config.SnapshotLocation);
+
+        MetaState = New<TDecoratedMetaState>(
+            metaState,
+            SnapshotStore,
+            ChangeLogCache);
+
+        VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
+
+        ReadQueue = New<TActionQueue>();
+
+        CellManager = New<TCellManager>(Config.Cell);
+
+        // TODO: fill config
+        ElectionManager = New<TElectionManager>(
+            NElection::TElectionManager::TConfig(),
+            CellManager,
+            controlInvoker,
+            this,
+            server);
+
+        server->RegisterService(this);
+    }
     void Start();
 
     EPeerStatus GetControlStatus() const;
@@ -104,6 +153,8 @@ private:
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
 
+    TActionQueue::TPtr ReadQueue;
+
     // Per epoch, control (service) thread
     TEpoch Epoch;
     TCancelableInvoker::TPtr EpochControlInvoker;
@@ -121,14 +172,50 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetSnapshotInfo);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadSnapshot);
+
+    void DoReadSnapshot(
+        TSnapshotReader::TPtr reader,
+        i32 length,
+        TCtxReadSnapshot::TPtr context) 
+    {
+        TBlob data(length);
+        i32 bytesRead = reader->GetStream().Read(data.begin(), length);
+        data.erase(data.begin() + bytesRead, data.end());
+
+        context->Response().Attachments().push_back(TSharedRef(data));
+        context->SetResponseInfo("BytesRead: %d", bytesRead);
+
+        context->Reply();
+    }
+
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetChangeLogInfo);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadChangeLog);
+
+    void DoReadChangeLog(
+        TCachedAsyncChangeLog::TPtr changeLog,
+        i32 startRecordId,
+        i32 recordCount,
+        TCtxReadChangeLog::TPtr context) 
+    {
+        yvector<TSharedRef> recordData;
+        changeLog->Read(startRecordId, recordCount, &recordData);
+
+        context->Response().SetRecordsRead(recordData.ysize());
+        context->Response().Attachments().insert(
+            context->Response().Attachments().end(),
+            recordData.begin(),
+            recordData.end());
+
+        context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+        context->Reply();
+    }
+
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ApplyChanges);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
     void SendSync(const TEpoch& epoch, TCtxSync::TPtr context);
-
+    
     void OnLeaderRecoveryComplete(TRecovery::EResult result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -538,64 +625,6 @@ private:
 
 };
 
-TMetaStateManager::TImpl::TImpl(
-    TMetaStateManager::TPtr owner,
-    const TConfig& config,
-    IInvoker::TPtr controlInvoker,
-    IMetaState::TPtr metaState,
-    TServer::TPtr server)
-    : TServiceBase(
-        controlInvoker,
-        TProxy::GetServiceName(),
-        Logger.GetCategory())
-    , Owner(owner)
-    , ControlStatus(EPeerStatus::Stopped)
-    , StateStatus(EPeerStatus::Stopped)
-    , Config(config)
-    , LeaderId(NElection::InvalidPeerId)
-    , ControlInvoker(controlInvoker)
-    , ReadOnly(false)
-{
-    YASSERT(~controlInvoker != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~server != NULL);
-
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
-
-    NFS::CleanTempFiles(config.LogLocation);
-    ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
-
-    NFS::CleanTempFiles(config.SnapshotLocation);
-    SnapshotStore = New<TSnapshotStore>(Config.SnapshotLocation);
-
-    MetaState = New<TDecoratedMetaState>(
-        metaState,
-        SnapshotStore,
-        ChangeLogCache);
-
-    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
-
-    CellManager = New<TCellManager>(Config.Cell);
-
-    // TODO: fill config
-    ElectionManager = New<TElectionManager>(
-        NElection::TElectionManager::TConfig(),
-        CellManager,
-        controlInvoker,
-        this,
-        server);
-
-    server->RegisterService(this);
-}
-
 void TMetaStateManager::TImpl::Restart()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -837,6 +866,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    UNUSED(response);
+
     i32 snapshotId = request->GetSnapshotId();
     i64 offset = request->GetOffset();
     i32 length = request->GetLength();
@@ -858,16 +889,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
 
         reader->Open(offset);
 
-        TBlob data(length);
-        i32 bytesRead = reader->GetStream().Read(data.begin(), length);
-        data.erase(data.begin() + bytesRead, data.end());
-
-        response->Attachments().push_back(TSharedRef(data));
-
-        context->SetResponseInfo("BytesRead: %d",
-            bytesRead);
-
-        context->Reply();
+        ReadQueue->GetInvoker()->Invoke(
+            FromMethod(&TImpl::DoReadSnapshot, TPtr(this), reader, length, context));
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(TProxy::EErrorCode::IOError) <<
@@ -912,6 +935,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    UNUSED(response);
+
     i32 changeLogId = request->GetChangeLogId();
     i32 startRecordId = request->GetStartRecordId();
     i32 recordCount = request->GetRecordCount();
@@ -931,17 +956,15 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
                 Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
         }
 
-        yvector<TSharedRef> recordData;
-        changeLog->Read(startRecordId, recordCount, &recordData);
+        ReadQueue->GetInvoker()->Invoke(
+            FromMethod(
+                &TImpl::DoReadChangeLog,
+                TPtr(this),
+                changeLog,
+                startRecordId,
+                recordCount,
+                context));
 
-        response->SetRecordsRead(recordData.ysize());
-        response->Attachments().insert(
-            response->Attachments().end(),
-            recordData.begin(),
-            recordData.end());
-        
-        context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-        context->Reply();
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
