@@ -4,6 +4,7 @@
 #include "../cypress/virtual.h"
 #include "../ytree/virtual.h"
 #include "../ytree/fluent.h"
+#include "../misc/string.h"
 
 
 namespace NYT {
@@ -27,13 +28,7 @@ private:
 
     virtual yvector<Stroka> GetKeys()
     {
-        auto ids = TransactionManager->GetTransactionIds();
-        yvector<Stroka> keys;
-        keys.reserve(ids.ysize());
-        FOREACH(const auto& id, ids) {
-            keys.push_back(id.ToString());
-        }
-        return keys;
+        return ConvertToStrings(TransactionManager->GetTransactionIds());
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key)

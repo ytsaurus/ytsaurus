@@ -4,6 +4,7 @@
 #include "../cypress/virtual.h"
 #include "../ytree/virtual.h"
 #include "../ytree/fluent.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -26,13 +27,7 @@ private:
 
     virtual yvector<Stroka> GetKeys()
     {
-        auto ids = ChunkManager->GetChunkIds();
-        yvector<Stroka> keys;
-        keys.reserve(ids.ysize());
-        FOREACH(const auto& id, ids) {
-            keys.push_back(id.ToString());
-        }
-        return keys;
+        return ConvertToStrings(ChunkManager->GetChunkIds());
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key)
@@ -85,13 +80,7 @@ private:
 
     virtual yvector<Stroka> GetKeys()
     {
-        auto ids = ChunkManager->GetChunkListIds();
-        yvector<Stroka> keys;
-        keys.reserve(ids.ysize());
-        FOREACH(const auto& id, ids) {
-            keys.push_back(id.ToString());
-        }
-        return keys;
+        return ConvertToStrings(ChunkManager->GetChunkListIds());
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key)

@@ -43,4 +43,18 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class T>
+yvector<Stroka> ConvertToStrings(yvector<T> elements)
+{
+    yvector <Stroka> result;
+    result.reserve(elements.ysize());
+    FOREACH(const auto& element, elements) {
+        result.push_back(::ToString(element));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT
