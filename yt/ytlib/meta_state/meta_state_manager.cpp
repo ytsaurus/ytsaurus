@@ -307,7 +307,7 @@ private:
         context->Reply();
     }
 
-    void OnLocalCommit(
+    void OnFollowerCommit(
         TLeaderCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
 
@@ -689,7 +689,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
 
     return
         LeaderCommitter
-        ->CommitLeader(changeAction, changeData, mode)
+        ->Commit(changeAction, changeData, mode)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
@@ -985,20 +985,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
                 changeCount);
 
             YASSERT(~FollowerCommitter != NULL);
-            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(GetControlStatus() == EPeerStatus::Following);
-                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
-                const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                auto asyncResult = FollowerCommitter->CommitFollower(commitVersion, changeData);
-                // Subscribe to the last change
-                if (changeIndex == changeCount - 1) {
-                    asyncResult->Subscribe(FromMethod(
-                            &TThis::OnLocalCommit,
-                            TPtr(this),
-                            context)
-                        ->Via(ControlInvoker));
-                }
-            }
+
+            FollowerCommitter
+                ->Commit(version, request->Attachments())
+                ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
             break;
         }
 
@@ -1008,7 +998,6 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
                 changeCount);
 
             YASSERT(~FollowerRecovery != NULL);
-            YASSERT(GetControlStatus() == EPeerStatus::FollowerRecovery);
 
             auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
             if (result != TRecovery::EResult::OK) {
@@ -1025,29 +1014,27 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
     }
 }
 
-void TMetaStateManager::TImpl::OnLocalCommit(
+void TMetaStateManager::TImpl::OnFollowerCommit(
     TLeaderCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto& request = context->Request();
     auto& response = context->Response();
 
-    TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
-
     switch (result) {
-        case TLeaderCommitter::EResult::Committed:
+        case TCommitterBase::EResult::Committed:
             response.SetCommitted(true);
             context->Reply();
             break;
 
-        case TLeaderCommitter::EResult::InvalidVersion:
+        case TCommitterBase::EResult::LateChanges:
+            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            break;
+
+        case TCommitterBase::EResult::OutOfOrderChanges:
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             Restart();
-
-            LOG_WARNING("ApplyChange: unexpected change version, restarting (Version: %s)",
-                ~version.ToString());
             break;
 
         default:
@@ -1060,7 +1047,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
+    auto epoch = TEpoch::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 recordCount = request->GetRecordCount();
     TMetaVersion version(segmentId, recordCount);

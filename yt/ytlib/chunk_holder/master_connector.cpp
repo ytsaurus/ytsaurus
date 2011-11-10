@@ -199,8 +199,9 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         LOG_WARNING("Error sending heartbeat to master (Error: %s)",
             ~response->GetError().ToString());
 
-        // Don't panic upon getting TransportError or Unavailable.
-        if (errorCode != NRpc::EErrorCode::TransportError && 
+        // Don't panic upon getting Timeout, TransportError or Unavailable.
+        if (errorCode != NRpc::EErrorCode::Timeout && 
+            errorCode != NRpc::EErrorCode::TransportError && 
             errorCode != NRpc::EErrorCode::Unavailable)
         {
             OnDisconnected();
