@@ -79,6 +79,14 @@ public: \
         return this; \
     } \
     \
+    virtual void SetSelf2(TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context) \
+    { \
+        UNUSED(response); \
+        auto builder = CreateBuilderFromFactory(GetFactory()); \
+        DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
+        context->Reply(); \
+    } \
+    \
     virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
     { \
         auto builder = CreateBuilderFromFactory(GetFactory()); \
@@ -141,6 +149,9 @@ private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
+    virtual IYPathService2::TNavigateResult2 NavigateRecursive2(TYPath path);
+    virtual void SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
+
     virtual TNavigateResult NavigateRecursive(TYPath path);
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
 
@@ -166,6 +177,9 @@ public:
 
 private:
     yvector<INode::TPtr> List;
+
+    virtual TNavigateResult2 NavigateRecursive2(TYPath path);
+    virtual void SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
 
     virtual TNavigateResult NavigateRecursive(TYPath path);
     virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
@@ -315,6 +329,24 @@ IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPt
         ~builder);
 }
 
+IYPathService2::TNavigateResult2 TMapNode::NavigateRecursive2(TYPath path)
+{
+    return TMapNodeMixin::NavigateRecursive2(path);
+}
+
+void TMapNode::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+{
+    UNUSED(response);
+
+    auto builder = CreateBuilderFromFactory(GetFactory());
+    TMapNodeMixin::SetRecursive2(
+        path,
+        request->GetValue(),
+        ~builder);
+
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TListNode::Clear()
@@ -389,6 +421,25 @@ IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TP
         path,
         ~producer,
         ~builder);
+}
+
+
+IYPathService2::TNavigateResult2 TListNode::NavigateRecursive2(TYPath path)
+{
+    return TListNodeMixin::NavigateRecursive2(path);
+}
+
+void TListNode::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+{
+    UNUSED(response);
+
+    auto builder = CreateBuilderFromFactory(GetFactory());
+    TListNodeMixin::SetRecursive2(
+        path,
+        request->GetValue(),
+        ~builder);
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

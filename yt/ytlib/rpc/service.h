@@ -15,7 +15,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents an error occured while serving an RPC request.
+//! Represents an error that has occurred during serving an RPC request.
 class TServiceException 
     : public yexception
 {
@@ -443,12 +443,6 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     TMethodDescriptor(#method, FromMethod(&TThis::method##Thunk, this)) \
 
-// TODO: not used, consider dropping
-#define USE_RPC_SERVICE_METHOD_LOGGER() \
-    ::NYT::NLog::TPrefixLogger Logger( \
-        ServiceLogger, \
-        context->GetMethodName() + ": ")
-        
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

@@ -7,7 +7,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TStringBuf TYPath;
+typedef Stroka TYPath;
+typedef Stroka TYson;
 
 struct INode;
 struct ICompositeNode;

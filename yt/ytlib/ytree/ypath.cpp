@@ -10,63 +10,32 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYPathServiceFromProducer
-    : public IYPathService
+IYPathService2::TPtr IYPathService2::FromNode(INode* node)
 {
-public:
-    TYPathServiceFromProducer(TYsonProducer* producer)
-    {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        builder->BeginTree();
-        producer->Do(~builder);
-        Root = FromNode(~builder->EndTree());
+    YASSERT(node != NULL);
+    auto* service = dynamic_cast<IYPathService2*>(node);
+    if (service == NULL) {
+        throw TYTreeException() << "Node does not support YPath";
     }
-
-    virtual TNavigateResult Navigate(TYPath path)
-    {
-        return Root->Navigate(path);
-    }
-
-    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
-    {
-        return Root->Get(path, consumer);
-    }
-
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) 
-    {
-        return Root->Set(path, producer);
-    }
-
-    virtual TRemoveResult Remove(TYPath path)
-    {
-        return Root->Remove(path);
-    }
-
-    virtual TLockResult Lock(TYPath path)
-    {
-        return Root->Lock(path);
-    }
-
-private:
-    IYPathService::TPtr Root;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+    return service;
+}
 
 IYPathService::TPtr IYPathService::FromNode(INode* node)
 {
     YASSERT(node != NULL);
     auto* service = dynamic_cast<IYPathService*>(node);
     if (service == NULL) {
-        throw TYTreeException() << "YPath is not supported by the node";
+        throw TYTreeException() << "Node does not support YPath";
     }
     return service;
 }
 
 IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
 {
-    return New<TYPathServiceFromProducer>(producer);
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    producer->Do(~builder);
+    return FromNode(~builder->EndTree());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
