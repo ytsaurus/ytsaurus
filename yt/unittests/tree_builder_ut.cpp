@@ -96,83 +96,82 @@ TEST_F(TTreeBuilderTest, NestedMaps)
     visitor.Visit(root);
 }
 
-// TODO: uncomment this when sorted order of map is supported
-//TEST_F(TTreeBuilderTest, MapWithAttributes)
-//{
-//    InSequence dummy;
-//    EXPECT_CALL(Mock, OnBeginMap());
+TEST_F(TTreeBuilderTest, MapWithAttributes)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
 
-//    EXPECT_CALL(Mock, OnMapItem("path"));
-//        EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
+    EXPECT_CALL(Mock, OnMapItem("mode"));
+        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
 
-//    EXPECT_CALL(Mock, OnMapItem("mode"));
-//        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
+    EXPECT_CALL(Mock, OnMapItem("path"));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
 
-//    EXPECT_CALL(Mock, OnEndMap(true));
+    EXPECT_CALL(Mock, OnEndMap(true));
 
-//    EXPECT_CALL(Mock, OnBeginAttributes());
-//    EXPECT_CALL(Mock, OnAttributesItem("acl"));
-//        EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnBeginAttributes());
+    EXPECT_CALL(Mock, OnAttributesItem("acl"));
+        EXPECT_CALL(Mock, OnBeginMap());
 
-//        EXPECT_CALL(Mock, OnMapItem("read"));
-//        EXPECT_CALL(Mock, OnBeginList());
-//        EXPECT_CALL(Mock, OnListItem());
-//        EXPECT_CALL(Mock, OnStringScalar("*", false));
-//        EXPECT_CALL(Mock, OnEndList(false));
+        EXPECT_CALL(Mock, OnMapItem("read"));
+        EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("*", false));
+        EXPECT_CALL(Mock, OnEndList(false));
 
-//        EXPECT_CALL(Mock, OnMapItem("write"));
-//        EXPECT_CALL(Mock, OnBeginList());
-//        EXPECT_CALL(Mock, OnListItem());
-//        EXPECT_CALL(Mock, OnStringScalar("sandello", false));
-//        EXPECT_CALL(Mock, OnEndList(false));
+        EXPECT_CALL(Mock, OnMapItem("write"));
+        EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("sandello", false));
+        EXPECT_CALL(Mock, OnEndList(false));
 
-//        EXPECT_CALL(Mock, OnEndMap(false));
+        EXPECT_CALL(Mock, OnEndMap(false));
 
-//    EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
-//        EXPECT_CALL(Mock, OnStringScalar("mytables", false));
+    EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
+        EXPECT_CALL(Mock, OnStringScalar("mytables", false));
 
-//    EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnEndAttributes());
 
-//    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
 
-//    builder->BeginTree();
-//    builder->OnBeginMap();
+    builder->BeginTree();
+    builder->OnBeginMap();
 
-//    builder->OnMapItem("path");
-//        builder->OnStringScalar("/home/sandello", false);
+    builder->OnMapItem("path");
+        builder->OnStringScalar("/home/sandello", false);
 
-//    builder->OnMapItem("mode");
-//        builder->OnInt64Scalar(755, false);
+    builder->OnMapItem("mode");
+        builder->OnInt64Scalar(755, false);
 
-//    builder->OnEndMap(true);
+    builder->OnEndMap(true);
 
-//    builder->OnBeginAttributes();
-//    builder->OnAttributesItem("acl");
-//        builder->OnBeginMap();
+    builder->OnBeginAttributes();
+    builder->OnAttributesItem("acl");
+        builder->OnBeginMap();
 
-//        builder->OnMapItem("read");
-//        builder->OnBeginList();
-//        builder->OnListItem();
-//        builder->OnStringScalar("*", false);
-//        builder->OnEndList(false);
+        builder->OnMapItem("read");
+        builder->OnBeginList();
+        builder->OnListItem();
+        builder->OnStringScalar("*", false);
+        builder->OnEndList(false);
 
-//        builder->OnMapItem("write");
-//        builder->OnBeginList();
-//        builder->OnListItem();
-//        builder->OnStringScalar("sandello", false);
-//        builder->OnEndList(false);
+        builder->OnMapItem("write");
+        builder->OnBeginList();
+        builder->OnListItem();
+        builder->OnStringScalar("sandello", false);
+        builder->OnEndList(false);
 
-//        builder->OnEndMap(false);
+        builder->OnEndMap(false);
 
-//    builder->OnAttributesItem("lock_scope");
-//        builder->OnStringScalar("mytables", false);
+    builder->OnAttributesItem("lock_scope");
+        builder->OnStringScalar("mytables", false);
 
-//    builder->OnEndAttributes();
-//    auto root = builder->EndTree();
+    builder->OnEndAttributes();
+    auto root = builder->EndTree();
 
-//    TTreeVisitor visitor(&Mock);
-//    visitor.Visit(root);
-//}
+    TTreeVisitor visitor(&Mock);
+    visitor.Visit(root);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
