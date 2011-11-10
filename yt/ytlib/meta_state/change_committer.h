@@ -27,7 +27,8 @@ public:
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
-        (InvalidVersion)
+        (LateChanges)
+        (OutOfOrderChanges)
     );
     typedef TFuture<EResult> TResult;
 
@@ -38,8 +39,6 @@ public:
     void Stop();
 
 protected:
-    static EResult OnAppend(TVoid);
-
     // Corresponds to ControlThread.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     // Corresponds to MetaState->GetInvoker().
@@ -157,11 +156,10 @@ public:
         TDecoratedMetaState::TPtr metaState,
         IInvoker::TPtr controlInvoker);
 
-    //! Carries out a commit at a follower.
+    //! Commits a bunch of changes at a follower.
     /*!
-     *  \param version A version that the state is currently expected to have.
-     *  \param changeData A serialized representation of the change that
-     *  the follower must apply.
+     *  \param expectedVersion A version that the state is currently expected to have.
+     *  \param changes A bunch of serialized changes to apply.
      *  \return An asynchronous flag indicating the outcome of the local commit.
      *  
      *  The current implementation regards a local commit as completed when the update is
@@ -170,13 +168,13 @@ public:
      *  \note Thread affinity: ControlThread
      */
     TResult::TPtr CommitFollower(
-        const TMetaVersion& version,
-        const TSharedRef& changeData);
+        const TMetaVersion& expectedVersion,
+        const yvector<TSharedRef>& changes);
 
 private:
     TResult::TPtr DoCommitFollower(
-        const TMetaVersion& version,
-        const TSharedRef& changeData);
+        const TMetaVersion& expectedVersion,
+        const yvector<TSharedRef>& changes);
 
 };
 

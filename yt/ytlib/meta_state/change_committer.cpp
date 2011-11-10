@@ -32,13 +32,6 @@ void TCommitterBase::Stop()
     CancelableControlInvoker->Cancel();
 }
 
-TCommitterBase::EResult TCommitterBase::OnAppend(TVoid)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return EResult::Committed;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
@@ -381,38 +374,59 @@ TFollowerCommitter::TFollowerCommitter(
 }
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
-    const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const TMetaVersion& expectedVersion,
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+    YASSERT(!changes.empty());
 
     return
         FromMethod(
             &TFollowerCommitter::DoCommitFollower,
             TPtr(this),
-            version,
-            changeData)
+            expectedVersion,
+            changes)
         ->AsyncVia(MetaState->GetStateInvoker())
         ->Do();
 }
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
-    const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const TMetaVersion& expectedVersion,
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (MetaState->GetVersion() != version) {
-        return New<TResult>(EResult::InvalidVersion);
+    auto currentVersion = MetaState->GetVersion();
+    if (currentVersion > expectedVersion) {
+        LOG_WARNING("Late changes received by follower, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~expectedVersion.ToString(),
+            ~currentVersion.ToString());
+        return New<TResult>(EResult::LateChanges);
     }
 
-    auto appendResult = MetaState
-        ->LogChange(version, changeData)
-        ->Apply(FromMethod(&TFollowerCommitter::OnAppend));
+    if (currentVersion != expectedVersion) {
+        LOG_WARNING("Out-of-order changes received by follower, restarting (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~expectedVersion.ToString(),
+            ~currentVersion.ToString());
+        return New<TResult>(EResult::OutOfOrderChanges);
+    }
 
-    MetaState->ApplyChange(changeData);
+    LOG_DEBUG("Applying changes at follower (Version: %s, ChangeCount: %d)",
+        ~currentVersion.ToString(),
+        changes.ysize());
 
-    return appendResult;
+    TResult::TPtr result;
+    FOREACH (const auto& change, changes) {
+        result = MetaState
+            ->LogChange(expectedVersion, change)
+            ->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
+                {
+                    return TCommitterBase::EResult::Committed;
+                }));
+        MetaState->ApplyChange(change);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
