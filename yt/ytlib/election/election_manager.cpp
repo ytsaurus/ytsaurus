@@ -55,14 +55,10 @@ TElectionManager::TElectionManager(
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     Reset();
-    RegisterMethods();
-    server->RegisterService(this);
-}
 
-void TElectionManager::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
+    server->RegisterService(this);
 }
 
 void TElectionManager::Start()
@@ -158,13 +154,13 @@ private:
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
 
         if (!response->IsOK()) {
-            auto errorCode = response->GetErrorCode();
-            if (response->IsRpcError()) {
+            auto error = response->GetError();
+            if (error.IsRpcError()) {
                 // Hard error
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                    LOG_WARNING("Error pinging follower %d, considered down (ErrorCode: %s)",
+                    LOG_WARNING("Error pinging follower %d, considered down (Error: %s)",
                         id,
-                        ~errorCode.ToString());
+                        ~error.ToString());
                     ElectionManager->PotentialFollowers.erase(id);
                 }
             } else {
@@ -173,21 +169,21 @@ private:
                     ElectionManager->PotentialFollowers.end())
                 {
                     if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                        LOG_WARNING("Error pinging follower %d, considered down (ErrorCode: %s)",
+                        LOG_WARNING("Error pinging follower %d, considered down (Error: %s)",
                             id,
-                            ~errorCode.ToString());
+                            ~error.ToString());
                     }
                 } else {
                     if (TInstant::Now() > ElectionManager->EpochStart + TConfig::PotentialFollowerTimeout) {
-                        LOG_WARNING("Error pinging follower %d, no success within timeout, considered down (ErrorCode: %s)",
+                        LOG_WARNING("Error pinging follower %d, no success within timeout, considered down (Error: %s)",
                             id,
-                            ~errorCode.ToString());
+                            ~error.ToString());
                         ElectionManager->PotentialFollowers.erase(id);
                         ElectionManager->AliveFollowers.erase(id);
                     } else {
-                        LOG_INFO("Error pinging follower %d, will retry later (ErrorCode: %s)",
+                        LOG_INFO("Error pinging follower %d, will retry later (Error: %s)",
                             id,
-                            ~errorCode.ToString());
+                            ~error.ToString());
                     }
                 }
             }
@@ -317,10 +313,10 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_INFO("Error requesting status from peer %d (Round: %p, ErrorCode: %s)",
+            LOG_INFO("Error requesting status from peer %d (Round: %p, Error: %s)",
                        peerId,
                        this,
-                       ~response->GetErrorCode().ToString());
+                       ~response->GetError().ToString());
             return;
         }
 

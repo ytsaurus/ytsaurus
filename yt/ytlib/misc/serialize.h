@@ -61,7 +61,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
 }
 
 template<class TMap>
-void SaveMap(TOutputStream* output, const TMap& map)
+yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
 {
     typedef typename TMap::const_iterator TIterator;
     yvector<TIterator> iterators;
@@ -75,6 +75,13 @@ void SaveMap(TOutputStream* output, const TMap& map)
         [] (TIterator lhs, TIterator rhs) {
             return lhs->First() < rhs->First();
         });
+    return iterators;
+}
+
+template<class TMap>
+void SaveMap(TOutputStream* output, const TMap& map)
+{
+    auto iterators = GetSortedIterators(map);
     ::SaveSize(output, iterators.size());
     FOREACH(const auto& it, iterators) {
         ::Save(output, it->First());

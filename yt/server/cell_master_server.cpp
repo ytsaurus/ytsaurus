@@ -3,8 +3,8 @@
 
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
-#include <yt/ytlib/transaction_manager/transaction_manager.h>
-#include <yt/ytlib/transaction_manager/transaction_service.h>
+#include <yt/ytlib/transaction_server/transaction_manager.h>
+#include <yt/ytlib/transaction_server/transaction_service.h>
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
@@ -23,6 +23,8 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
+#include <yt/ytlib/orchid/cypress_integration.h>
+
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
@@ -34,6 +36,7 @@ using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
+using NChunkServer::CreateChunkListMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
@@ -49,6 +52,8 @@ using NTableServer::TTableService;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::CreateMonitoringTypeHandler;
+
+using NOrchid::CreateOrchidTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,9 +175,14 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
         ~cypressManager,
         ~monitoringManager));
+    cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
+        ~cypressManager));
 
     MonitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),

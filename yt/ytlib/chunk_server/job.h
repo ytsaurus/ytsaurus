@@ -15,19 +15,19 @@ struct TJob
         const TChunkId& chunkId,
         Stroka runnerAddress,
         const yvector<Stroka>& targetAddresses)
-        : Type(type)
-        , JobId(jobId)
-        , ChunkId(chunkId)
-        , RunnerAddress(runnerAddress)
-        , TargetAddresses(targetAddresses)
+        : Type_(type)
+        , JobId_(jobId)
+        , ChunkId_(chunkId)
+        , RunnerAddress_(runnerAddress)
+        , TargetAddresses_(targetAddresses)
     { }
 
     TJob(const TJob& other)
-        : Type(other.Type)
-        , JobId(other.JobId)
-        , ChunkId(other.ChunkId)
-        , RunnerAddress(other.RunnerAddress)
-        , TargetAddresses(other.TargetAddresses)
+        : Type_(other.Type_)
+        , JobId_(other.JobId_)
+        , ChunkId_(other.ChunkId_)
+        , RunnerAddress_(other.RunnerAddress_)
+        , TargetAddresses_(other.TargetAddresses_)
     { }
 
     TAutoPtr<TJob> Clone()
@@ -37,10 +37,10 @@ struct TJob
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, Type);
-        ::Save(output, ChunkId);
-        ::Save(output, RunnerAddress);
-        ::Save(output, TargetAddresses);
+        ::Save(output, Type_);
+        ::Save(output, ChunkId_);
+        ::Save(output, RunnerAddress_);
+        ::Save(output, TargetAddresses_);
     }
 
     static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input)
@@ -56,12 +56,11 @@ struct TJob
         return new TJob(type, jobId, chunkId, runnerAddress, targetAddresses);
     }
 
-    EJobType Type;
-    TJobId JobId;
-    TChunkId ChunkId;
-    Stroka RunnerAddress;
-    yvector<Stroka> TargetAddresses;
-
+    DECLARE_BYVAL_RO_PROPERTY(Type, EJobType);
+    DECLARE_BYVAL_RO_PROPERTY(JobId, TJobId);
+    DECLARE_BYVAL_RO_PROPERTY(ChunkId, TChunkId);
+    DECLARE_BYVAL_RO_PROPERTY(RunnerAddress, Stroka);
+    DECLARE_BYREF_RO_PROPERTY(TargetAddresses, yvector<Stroka>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

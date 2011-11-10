@@ -199,7 +199,7 @@ bool TCypressManager::IsTransactionNodeLocked(
     while (currentNodeId != NullNodeId) {
         const auto& currentImpl = GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
         // Check the locks assigned to the current node.
-        FOREACH (const auto& lockId, currentImpl.Locks()) {
+        FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
             if (lock.GetTransactionId() == transactionId) {
                 return true;
@@ -230,7 +230,7 @@ TLockId TCypressManager::LockTransactionNode(
     }
 
     // Make sure that the node is not locked by another transaction.
-    FOREACH (const auto& lockId, impl.Locks()) {
+    FOREACH (const auto& lockId, impl.LockIds()) {
         const auto& lock = GetLock(lockId);
         if (lock.GetTransactionId() != transactionId) {
             throw TYTreeException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
@@ -245,7 +245,7 @@ TLockId TCypressManager::LockTransactionNode(
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
         auto& impl = GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-        impl.Locks().insert(lock.GetId());
+        impl.LockIds().insert(lock.GetId());
         currentNodeId = impl.GetParentId();
     }
 
@@ -501,7 +501,7 @@ TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
     auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
     LockMap.Insert(id, lock);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-    transaction.Locks().push_back(lock->GetId());
+    transaction.LockIds().push_back(lock->GetId());
 
     LOG_INFO_IF(!IsRecovery(), "Lock created (LockId: %s, NodeId: %s, TransactionId: %s)",
         ~id.ToString(),
@@ -680,6 +680,9 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
                         .Item("chunks").WithAttributes().Entity().BeginAttributes()
                             .Item("type").Scalar("chunk_map")
                         .EndAttributes()
+                        .Item("chunk_lists").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("chunk_list_map")
+                        .EndAttributes()
                         .Item("monitoring").WithAttributes().Entity().BeginAttributes()
                             .Item("type").Scalar("monitoring")
                         .EndAttributes()
@@ -817,14 +820,14 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
 void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 {
     // Iterate over all locks created by the transaction.
-    FOREACH (const auto& lockId, transaction.Locks()) {
+    FOREACH (const auto& lockId, transaction.LockIds()) {
         const auto& lock = LockMap.Get(lockId);
 
         // Walk up to the root and remove the locks.
         auto currentNodeId = lock.GetNodeId();
         while (currentNodeId != NullNodeId) {
             auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-            YVERIFY(node.Locks().erase(lockId) == 1);
+            YVERIFY(node.LockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();
         }
 

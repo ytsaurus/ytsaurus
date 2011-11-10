@@ -66,7 +66,7 @@ public:
                 ~RemoteAddress,
                 ~RemoteRoot,
                 ~path,
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
 
         TStringInput input(response->GetValue());
@@ -96,7 +96,7 @@ public:
                 ~RemoteAddress,
                 ~RemoteRoot,
                 ~path,
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
 
         return TSetResult::CreateDone();
@@ -117,7 +117,7 @@ public:
                 ~RemoteAddress,
                 ~RemoteRoot,
                 ~path,
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
 
         return TRemoveResult::CreateDone();

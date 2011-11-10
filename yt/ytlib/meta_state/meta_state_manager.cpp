@@ -127,7 +127,6 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
-    void RegisterMethods();
     void SendSync(const TEpoch& epoch, TCtxSync::TPtr context);
 
     void OnLeaderRecoveryComplete(TRecovery::EResult result)
@@ -284,10 +283,10 @@ private:
                 followerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, ErrorCode: %s)",
+            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
                 followerId,
                 ~version.ToString(),
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
     }
 
@@ -561,7 +560,14 @@ TMetaStateManager::TImpl::TImpl(
     YASSERT(~metaState != NULL);
     YASSERT(~server != NULL);
 
-    RegisterMethods();
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 
     NFS::CleanTempFiles(config.LogLocation);
     ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
@@ -590,25 +596,21 @@ TMetaStateManager::TImpl::TImpl(
     server->RegisterService(this);
 }
 
-void TMetaStateManager::TImpl::RegisterMethods()
-{
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
-}
-
 void TMetaStateManager::TImpl::Restart()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     // To prevent multiple restarts.
-    EpochControlInvoker->Cancel();
+    auto epochControlInvoker = EpochControlInvoker;
+    if (~epochControlInvoker != NULL) {
+        epochControlInvoker->Cancel();
+    }
 
+    auto epochStateInvoker = EpochStateInvoker;
+    if (~epochStateInvoker != NULL) {
+        epochStateInvoker->Cancel();
+    }
+    
     ElectionManager->Restart();
 }
 
@@ -1113,7 +1115,11 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 Restart();
             }
 
-            context->Reply(createSnapshot ? EErrorCode::InvalidStatus : NRpc::EErrorCode::OK);
+            if (createSnapshot) {
+                context->Reply(EErrorCode::InvalidStatus);
+            } else {
+                context->Reply();
+            }
             break;
         }
 

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -89,9 +91,11 @@ void TTreeVisitor::VisitList(IListNode::TPtr node, bool hasAttributes)
 void TTreeVisitor::VisitMap(IMapNode::TPtr node, bool hasAttributes)
 {
     Consumer->OnBeginMap();
-    FOREACH(const auto& pair, node->GetChildren()) {
-        Consumer->OnMapItem(pair.First());
-        VisitAny(pair.Second());
+    auto children = node->GetChildren();
+    auto sortedChildren = GetSortedIterators(children);
+    FOREACH(const auto& pair, sortedChildren) {
+        Consumer->OnMapItem(pair->First());
+        VisitAny(pair->Second());
     }
     Consumer->OnEndMap(hasAttributes);
 }

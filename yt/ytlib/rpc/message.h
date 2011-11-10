@@ -15,16 +15,14 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TRpcRequestMessage
     : public NBus::IMessage
 {
 public:
     TRpcRequestMessage(
-        const TRequestId requestId,
-        const Stroka serviceName,
-        const Stroka methodName,
+        const TRequestId& requestId,
+        const Stroka& serviceName,
+        const Stroka& methodName,
         TBlob* body,
         const yvector<TSharedRef>& attachments);
 
@@ -42,8 +40,8 @@ class TRpcResponseMessage
 {
 public:
     TRpcResponseMessage(
-        TRequestId requestId,
-        EErrorCode errorCode,
+        const TRequestId& requestId,
+        const TError& error,
         TBlob* body,
         const yvector<TSharedRef>& attachments);
 
@@ -60,7 +58,9 @@ class TRpcErrorResponseMessage
     : public NBus::IMessage
 {
 public:
-    TRpcErrorResponseMessage(TRequestId requestId, EErrorCode errorCode);
+    TRpcErrorResponseMessage(
+        const TRequestId& requestId,
+        const TError& error);
 
     virtual const yvector<TSharedRef>& GetParts();
 

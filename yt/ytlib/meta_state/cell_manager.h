@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../rpc/client.h"
+#include "../rpc/channel_cache.h"
 
 #include "../misc/config.h"
 

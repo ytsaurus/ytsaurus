@@ -39,9 +39,13 @@ public:
 private:
     INodeFactory* Factory;
     yvector<INode::TPtr> Stack;
+    yvector<Stroka> NameStack; // contains names of corresponding childs in map
 
     void AddToList();
     void AddToMap();
+
+    void PushName(const Stroka &name);
+    Stroka PopName();
 
     void Push(INode::TPtr node);
     INode::TPtr Pop();
@@ -51,7 +55,6 @@ private:
 TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
 {
     return new TTreeBuilder(factory);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +66,7 @@ TTreeBuilder::TTreeBuilder(INodeFactory* factory)
 void TTreeBuilder::BeginTree()
 {
     Stack.clear();
+    NameStack.clear();
 }
 
 INode::TPtr TTreeBuilder::EndTree()
@@ -128,16 +132,14 @@ void TTreeBuilder::OnEndList(bool hasAttributes)
 void TTreeBuilder::OnBeginMap()
 {
     Push(~Factory->CreateMap());
-    Push(NULL);
+    PushName("");
     Push(NULL);
 }
 
 void TTreeBuilder::OnMapItem(const Stroka& name)
 {
     AddToMap();
-    auto node = Factory->CreateString();
-    node->SetValue(name);
-    Push(~node);
+    PushName(name);
 }
 
 void TTreeBuilder::OnEndMap(bool hasAttributes)
@@ -176,10 +178,10 @@ void TTreeBuilder::AddToList()
 void TTreeBuilder::AddToMap()
 {
     auto child = Pop();
-    auto name = Pop();
+    auto name = PopName();
     auto map = Peek()->AsMap();
     if (~child != NULL) {
-        map->AddChild(child, name->GetValue<Stroka>());
+        map->AddChild(child, name);
     }
 }
 
@@ -200,6 +202,19 @@ INode::TPtr TTreeBuilder::Peek()
 {
     YASSERT(!Stack.empty());
     return Stack.back();
+}
+
+void TTreeBuilder::PushName(const Stroka& name)
+{
+    NameStack.push_back(name);
+}
+
+Stroka TTreeBuilder::PopName()
+{
+    YASSERT(!NameStack.empty());
+    auto result = NameStack.back();
+    NameStack.pop_back();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../transaction_manager/common.h"
+#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NCypress {
@@ -22,48 +22,15 @@ public:
         const TLockId& id,
         const TNodeId& nodeId,
         const NTransaction::TTransactionId& transactionId,
-        ELockMode mode)
-        : Id_(id)
-        , NodeId_(nodeId)
-        , TransactionId_(transactionId)
-        , Mode_(mode)
-    { }
+        ELockMode mode);
 
-    TAutoPtr<TLock> Clone() const
-    {
-        return new TLock(*this);
-    }
+    TAutoPtr<TLock> Clone() const;
 
-    void Save(TOutputStream* output) const
-    {
-        ::Save(output, NodeId_);
-        ::Save(output, TransactionId_);
-        ::Save(output, Mode_);
-    }
-
-    static TAutoPtr<TLock> Load(const TLockId& id, TInputStream* input)
-    {
-        TNodeId nodeId;
-        NTransaction::TTransactionId transactionId;
-        ELockMode mode;
-        ::Load(input, nodeId);
-        ::Load(input, transactionId);
-        ::Load(input, mode);
-        return new TLock(
-            id,
-            nodeId,
-            transactionId,
-            mode);
-    }
+    void Save(TOutputStream* output) const;
+    static TAutoPtr<TLock> Load(const TLockId& id, TInputStream* input);
 
 private:
-    TLock(const TLock& other)
-        : Id_(other.Id_)
-        , NodeId_(other.NodeId_)
-        , TransactionId_(other.TransactionId_)
-        , Mode_(other.Mode_)
-    { }
-
+    TLock(const TLock& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

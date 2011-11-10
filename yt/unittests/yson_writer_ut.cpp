@@ -53,11 +53,11 @@ TEST_F(TYsonWriterTest, BinaryString)
     EXPECT_CALL(Mock, OnStringScalar(value, false));
 
     TStringStream stream;
-
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-    writer.OnStringScalar(value, false);
-    stream.Flush();
 
+    writer.OnStringScalar(value, false);
+
+    stream.Flush();
     TYsonReader reader(&Mock);
     reader.Read(&stream);
 }
@@ -70,11 +70,11 @@ TEST_F(TYsonWriterTest, BinaryInt64)
     EXPECT_CALL(Mock, OnInt64Scalar(value, false));
 
     TStringStream stream;
-
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-    writer.OnInt64Scalar(value, false);
-    stream.Flush();
 
+    writer.OnInt64Scalar(value, false);
+
+    stream.Flush();
     TYsonReader reader(&Mock);
     reader.Read(&stream);
 }
@@ -87,14 +87,12 @@ TEST_F(TYsonWriterTest, EmptyMap)
     EXPECT_CALL(Mock, OnEndMap(false));
 
     TStringStream stream;
-
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnEndMap(false);
 
     stream.Flush();
-
     TYsonReader reader(&Mock);
     reader.Read(&stream);
 
@@ -110,7 +108,6 @@ TEST_F(TYsonWriterTest, OneItemMap)
     EXPECT_CALL(Mock, OnEndMap(false));
 
     TStringStream stream;
-
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
 
     writer.OnBeginMap();
@@ -119,10 +116,86 @@ TEST_F(TYsonWriterTest, OneItemMap)
     writer.OnEndMap(false);
 
     stream.Flush();
-
     TYsonReader reader(&Mock);
     reader.Read(&stream);
 
+}
+
+TEST_F(TYsonWriterTest, MapWithAttributes)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
+
+    EXPECT_CALL(Mock, OnMapItem("path"));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
+
+    EXPECT_CALL(Mock, OnMapItem("mode"));
+        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
+
+    EXPECT_CALL(Mock, OnEndMap(true));
+
+    EXPECT_CALL(Mock, OnBeginAttributes());
+    EXPECT_CALL(Mock, OnAttributesItem("acl"));
+        EXPECT_CALL(Mock, OnBeginMap());
+
+        EXPECT_CALL(Mock, OnMapItem("read"));
+        EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("*", false));
+        EXPECT_CALL(Mock, OnEndList(false));
+
+        EXPECT_CALL(Mock, OnMapItem("write"));
+        EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("sandello", false));
+        EXPECT_CALL(Mock, OnEndList(false));
+
+        EXPECT_CALL(Mock, OnEndMap(false));
+
+    EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
+        EXPECT_CALL(Mock, OnStringScalar("mytables", false));
+
+    EXPECT_CALL(Mock, OnEndAttributes());
+
+    TStringStream stream;
+    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+
+    writer.OnBeginMap();
+
+    writer.OnMapItem("path");
+        writer.OnStringScalar("/home/sandello", false);
+
+    writer.OnMapItem("mode");
+        writer.OnInt64Scalar(755, false);
+
+    writer.OnEndMap(true);
+
+    writer.OnBeginAttributes();
+    writer.OnAttributesItem("acl");
+        writer.OnBeginMap();
+
+        writer.OnMapItem("read");
+        writer.OnBeginList();
+        writer.OnListItem();
+        writer.OnStringScalar("*", false);
+        writer.OnEndList(false);
+
+        writer.OnMapItem("write");
+        writer.OnBeginList();
+        writer.OnListItem();
+        writer.OnStringScalar("sandello", false);
+        writer.OnEndList(false);
+
+        writer.OnEndMap(false);
+
+    writer.OnAttributesItem("lock_scope");
+        writer.OnStringScalar("mytables", false);
+
+    writer.OnEndAttributes();
+
+    stream.Flush();
+    TYsonReader reader(&Mock);
+    reader.Read(&stream);
 }
 
 TEST_F(TYsonWriterTest, Escaping)
