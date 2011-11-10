@@ -2,9 +2,10 @@
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/ephemeral.h"
 #include "../ytlib/ytree/fluent.h"
+#include "../ytlib/ytree/yson_writer.h"
+#include "../ytlib/ytree/tree_visitor.h"
 
 #include <contrib/testing/framework.h>
-
 
 namespace NYT {
 namespace NConfig {
@@ -19,8 +20,8 @@ struct TTestSubconfig
 
     TTestSubconfig()
     {
-        Register("i1", &I1).Default(100);
-        Register("b1", &B1).Default(false);
+        Register("i1", I1).Default(100);
+        Register("b1", B1).Default(false);
     }
 };
 
@@ -32,8 +33,8 @@ struct TTestConfig
 
     TTestConfig()
     {
-        Register("s1", &S1);
-        Register("sub", &Subconfig);
+        Register("s1", S1);
+        Register("sub", Subconfig);
     }
 };
 
@@ -115,8 +116,8 @@ TEST(TConfigTest, MissingRequiredParameter)
     auto configNode = builder->EndTree();
 
     TTestConfig config;
-    config.Load(~configNode->AsMap());
-    EXPECT_THROW(config.Validate(), yexception);
+    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+    config.Validate();
 }
 
 } // namespace NConfig

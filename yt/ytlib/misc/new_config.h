@@ -57,7 +57,7 @@ public:
     virtual void Validate(Stroka path) const;
 
 public: // for users
-    TParameter& Default(T defaultValue);
+    TParameter& Default(const T& defaultValue);
     TParameter& Check(typename TValidator::TPtr validator);
     // TParameter& GreaterThan, etc.
 
@@ -80,7 +80,7 @@ public:
 
 protected:
     template <class T>
-    TParameter<T>& Register(Stroka parameterName, T* value);
+    TParameter<T>& Register(Stroka parameterName, T& value);
 
 private:
     typedef yhash_map<Stroka, IParameter::TPtr> ParameterMap;

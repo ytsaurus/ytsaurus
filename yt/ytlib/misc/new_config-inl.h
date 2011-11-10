@@ -74,6 +74,7 @@ void TParameter<T, true>::Validate(Stroka path) const
 template <class T>
 TParameter<T, false>::TParameter(T* parameter)
     : Parameter(parameter)
+    , HasDefaultValue(false)
 { }
 
 template <class T>
@@ -104,7 +105,7 @@ void TParameter<T, false>::Validate(Stroka path) const
 }
 
 template <class T>
-TParameter<T, false>& TParameter<T, false>::Default(T defaultValue)
+TParameter<T, false>& TParameter<T, false>::Default(const T& defaultValue)
 {
     DefaultValue = defaultValue;
     HasDefaultValue = true;
@@ -120,11 +121,15 @@ TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr vali
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TConfigBase::~TConfigBase()
+{ }
+
 void TConfigBase::Load(NYTree::IMapNode* node, Stroka prefix)
 {
     FOREACH (auto pair, Parameters) {
-        Stroka childPath = prefix + "/" + pair.First();
-        auto child = node != NULL ? node->GetChild(childPath) : NULL;
+        auto name = pair.First();
+        Stroka childPath = prefix + "/" + name;
+        auto child = node != NULL ? node->FindChild(name) : NULL;
         pair.Second()->Load(~child, childPath);
     }
 }
@@ -137,7 +142,7 @@ void TConfigBase::Validate(Stroka prefix) const
 }
 
 template <class T>
-TParameter<T>& TConfigBase::Register(Stroka parameterName, T* value)
+TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
 {
     YASSERT(value != NULL);
     auto parameter = New< TParameter<T> >(value);
