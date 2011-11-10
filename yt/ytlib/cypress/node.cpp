@@ -26,6 +26,15 @@ Stroka TBranchedNodeId::ToString() const
         ~TransactionId.ToString());
 }
 
+TBranchedNodeId TBranchedNodeId::FromString(const Stroka &s)
+{
+    yvector<Stroka> tokens;
+    SplitStroku(&tokens, s, ":");
+    auto nodeId = TNodeId::FromString(tokens[0]);
+    auto transactionId = TTransactionId::FromString(tokens[1]);
+    return TBranchedNodeId(nodeId, transactionId);
+}
+
 bool operator == (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs)
 {
     return memcmp(&lhs, &rhs, sizeof (TBranchedNodeId)) == 0;

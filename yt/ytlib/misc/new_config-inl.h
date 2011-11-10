@@ -41,13 +41,35 @@ inline void Read(bool* parameter, NYTree::INode* node)
     } else if (value == "False") {
         *parameter = false;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Could not load bool parameter (Value: "
             << (value.length() <= 10
                 ? value
                 : value.substr(0, 10) + "...")
             << ")";
     }
+}
+
+template <class T>
+inline void Read(yvector<T>* parameter, NYTree::INode* node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    parameter->resize(size);
+    for (int i = 0; i < size; ++i) {
+        Read(&(*parameter)[i], ~listNode->GetChild(i));
+    }
+}
+
+template <class T>
+inline void Read(
+    T* parameter,
+    NYTree::INode* node,
+    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
+        NYT::NDetail::TEmpty())
+{
+    Stroka value = node->AsString()->GetValue();
+    *parameter = T::FromString(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,11 +103,17 @@ template <class T>
 void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
 {
     if (node != NULL) {
-        Read(Parameter, node);
+        try {
+            Read(Parameter, node);
+        } catch (...) {
+            ythrow yexception()
+                << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
+                    ~path, ~CurrentExceptionMessage());
+        }
     } else if (HasDefaultValue) {
         *Parameter = DefaultValue;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Required parameter is missing (Path: " << path << ")";
     }
 }
@@ -96,16 +124,16 @@ void TParameter<T, false>::Validate(Stroka path) const
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(*Parameter);
-        } catch (const yexception& ex) {
-            throw yexception()
+        } catch (...) {
+            ythrow yexception()
                 << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
-                    ~path, ex.what());
+                    ~path, ~CurrentExceptionMessage());
         }
     }
 }
 
 template <class T>
-TParameter<T, false>& TParameter<T, false>::Default(const T& defaultValue)
+TParameter<T, false>& TParameter<T, false>::Default(T defaultValue)
 {
     DefaultValue = defaultValue;
     HasDefaultValue = true;
@@ -118,6 +146,65 @@ TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr vali
     Validators.push_back(validator);
     return *this;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Standard validators
+
+#define DEFINE_VALIDATOR(method, condition, ex) \
+    template <class T> \
+    TParameter<T, false>& TParameter<T, false>::method \
+    { \
+        Check(FromFunctor([=] (T parameter) \
+            { \
+                if (!(condition)) { \
+                    ythrow (ex); \
+                } \
+            })); \
+        return *this; \
+    }
+
+DEFINE_VALIDATOR(
+    GreaterThan(T value),
+    parameter > value,
+    yexception()
+        << "Validation failure (Expected: > "
+        << value << ", Actual: " << parameter << ")")
+
+DEFINE_VALIDATOR(
+    GreaterThanOrEqual(T value),
+    parameter >= value,
+    yexception()
+        << "Validation failure (Expected: >= "
+        << value << ", Actual: " << parameter << ")")
+
+DEFINE_VALIDATOR(
+    LessThan(T value),
+    parameter < value,
+    yexception()
+        << "Validation failure (Expected: < "
+        << value << ", Actual: " << parameter << ")")
+
+DEFINE_VALIDATOR(
+    LessThanOrEqual(T value),
+    parameter <= value,
+    yexception()
+        << "Validation failure (Expected: <= "
+        << value << ", Actual: " << parameter << ")")
+
+DEFINE_VALIDATOR(
+    InRange(T lowerBound, T upperBound),
+    lowerBound <= parameter && parameter <= upperBound,
+    yexception()
+        << "Validation failure, parameter is not in range "
+        << "(Range: [" << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
+
+DEFINE_VALIDATOR(
+    NonEmpty(),
+    parameter.size() > 0,
+    yexception()
+        << "Validation failure, parameter is empty")
+
+#undef DEFINE_VALIDATOR
 
 ////////////////////////////////////////////////////////////////////////////////
 
