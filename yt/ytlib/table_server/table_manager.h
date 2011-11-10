@@ -5,7 +5,7 @@
 #include "table_manager.pb.h"
 #include "table_service_rpc.h"
 
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../chunk_server/chunk_manager.h"
 #include "../chunk_server/chunk.h"
 #include "../cypress/cypress_manager.h"

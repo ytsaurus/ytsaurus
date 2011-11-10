@@ -3,8 +3,8 @@
 
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
-#include <yt/ytlib/transaction_manager/transaction_manager.h>
-#include <yt/ytlib/transaction_manager/transaction_service.h>
+#include <yt/ytlib/transaction_server/transaction_manager.h>
+#include <yt/ytlib/transaction_server/transaction_service.h>
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>

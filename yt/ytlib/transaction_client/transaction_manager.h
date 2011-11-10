@@ -4,7 +4,7 @@
 #include "transaction.h"
 
 #include "../rpc/channel.h"
-#include "../transaction_manager/transaction_service_rpc.h"
+#include "../transaction_server/transaction_service_rpc.h"
 
 namespace NYT {
 namespace NTransactionClient {
