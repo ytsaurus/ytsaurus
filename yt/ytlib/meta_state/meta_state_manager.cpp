@@ -988,9 +988,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
 
             FollowerCommitter
                 ->CommitFollower(version, request->Attachments())
-                ->Subscribe(
-                    FromMethod(&TThis::OnFollowerCommit, TPtr(this), context)
-                    ->Via(~EpochControlInvoker));
+                ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
             break;
         }
 
@@ -1020,12 +1018,9 @@ void TMetaStateManager::TImpl::OnFollowerCommit(
     TLeaderCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto& request = context->Request();
     auto& response = context->Response();
-
-    TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
 
     switch (result) {
         case TCommitterBase::EResult::Committed:
