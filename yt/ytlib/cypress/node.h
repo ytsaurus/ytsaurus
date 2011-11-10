@@ -35,6 +35,8 @@ struct TBranchedNodeId
 
     //! Formats the id to string (for debugging and logging purposes mainly).
     Stroka ToString() const;
+
+    static TBranchedNodeId FromString(const Stroka &s);
 };
 
 //! Compares TBranchedNodeId s for equality.

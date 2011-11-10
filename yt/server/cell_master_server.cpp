@@ -5,10 +5,12 @@
 
 #include <yt/ytlib/transaction_server/transaction_manager.h>
 #include <yt/ytlib/transaction_server/transaction_service.h>
+#include <yt/ytlib/transaction_server/cypress_integration.h>
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
 #include <yt/ytlib/cypress/world_initializer.h>
+#include <yt/ytlib/cypress/cypress_integration.h>
 
 #include <yt/ytlib/chunk_server/chunk_manager.h>
 #include <yt/ytlib/chunk_server/chunk_service.h>
@@ -31,6 +33,7 @@ static NLog::TLogger Logger("Server");
 
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
+using NTransaction::CreateTransactionMapTypeHandler;
 
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
@@ -43,6 +46,7 @@ using NMetaState::TCompositeMetaState;
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
 using NCypress::TWorldInitializer;
+using NCypress::CreateLockMapTypeHandler;
 
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
@@ -178,6 +182,14 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateTransactionMapTypeHandler(
+        ~cypressManager,
+        ~transactionManager));
+    cypressManager->RegisterNodeType(~CreateNodeMapTypeHandler(
+        ~cypressManager));
+    cypressManager->RegisterNodeType(~CreateLockMapTypeHandler(
+        ~cypressManager));
+
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
         ~cypressManager,
         ~monitoringManager));

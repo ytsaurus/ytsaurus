@@ -32,7 +32,9 @@ SET(YT_SOURCE_FILES
     intrusive_ptr.h
     singleton.h
     rvalue.h
-
+    mpl.h
+    new_config.h
+    new_config-inl.h
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

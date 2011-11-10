@@ -15,7 +15,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents an error occured while serving an RPC request.
+//! Represents an error that has occurred during serving an RPC request.
 class TServiceException 
     : public yexception
 {
@@ -121,12 +121,6 @@ public:
     IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
-    DECLARE_ENUM(EState,
-        (Received)
-        (Replied)
-    );
-
-    EState State;
     IService::TPtr Service;
     TRequestId RequestId;
     Stroka MethodName;
@@ -143,10 +137,8 @@ protected:
     Stroka ResponseInfo;
 
 private:
-    void DoReply(const TError& error);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, const TError& error);
     void LogRequestInfo();
     void LogResponseInfo(const TError& error);
 
@@ -447,12 +439,6 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     TMethodDescriptor(#method, FromMethod(&TThis::method##Thunk, this)) \
 
-// TODO: not used, consider dropping
-#define USE_RPC_SERVICE_METHOD_LOGGER() \
-    ::NYT::NLog::TPrefixLogger Logger( \
-        ServiceLogger, \
-        context->GetMethodName() + ": ")
-        
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

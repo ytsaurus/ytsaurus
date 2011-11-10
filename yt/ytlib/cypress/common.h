@@ -26,16 +26,21 @@ DECLARE_ENUM(ERuntimeNodeType,
     ((File)(10))
     ((Table)(11))
 
-    // Virtual types
+    // Virtual maps
     ((ChunkMap)(20))
     ((ChunkListMap)(21))
-    ((Monitoring)(22))
-    ((Orchid)(23))
+    ((TransactionMap)(22))
+    ((NodeMap)(23))
+    ((LockMap)(24))
+
+    // Other virtual types
+    ((Monitoring)(30))
+    ((Orchid)(31))
 
     // Denotes some uninitialized value.
     ((Invalid)(-1))
     // An upper bound will do.
-    ((Last)(30))
+    ((Last)(40))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,4 +18,6 @@ SET(YT_SOURCE_FILES
 
     virtual.cpp
     world_initializer.cpp
+
+    cypress_integration.cpp
 )

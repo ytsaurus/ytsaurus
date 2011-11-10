@@ -21,8 +21,7 @@ TServiceContext::TServiceContext(
     const Stroka& methodName,
     IMessage::TPtr message,
     IBus::TPtr replyBus)
-    : State(EState::Received)
-    , Service(service)
+    : Service(service)
     , RequestId(requestId)
     , MethodName(methodName)
     , ReplyBus(replyBus)
@@ -50,17 +49,6 @@ void TServiceContext::Reply(const TError& error)
     Replied = true;
     LogResponseInfo(error);
     Service->OnEndRequest(this);
-    DoReply(error);
-}
-
-bool TServiceContext::IsReplied() const
-{
-    return Replied;
-}
-
-void TServiceContext::DoReply(const TError& error)
-{
-    YASSERT(State == EState::Received);
 
     IMessage::TPtr message;
     if (error.IsOK()) {
@@ -76,7 +64,12 @@ void TServiceContext::DoReply(const TError& error)
     }
 
     ReplyBus->Send(message);
-    State = EState::Replied;
+    
+}
+
+bool TServiceContext::IsReplied() const
+{
+    return Replied;
 }
 
 TSharedRef TServiceContext::GetRequestBody() const
@@ -137,7 +130,10 @@ Stroka TServiceContext::GetResponseInfo()
 
 IAction::TPtr TServiceContext::Wrap(IAction::TPtr action)
 {
-    return FromMethod(&TServiceContext::WrapThunk, TPtr(this), action);
+    return FromMethod(
+        &TServiceContext::WrapThunk,
+        TPtr(this),
+        action);
 }
 
 void TServiceContext::WrapThunk(IAction::TPtr action) throw()
@@ -145,32 +141,18 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
     try {
         action->Do();
     } catch (const TServiceException& ex) {
-        DoReply(ex.GetError());
-        LogException(
-            NLog::ELogLevel::Debug,
-            ex.GetError());
+        Reply(ex.GetError());
     } catch (...) {
-        DoReply(TError(EErrorCode::ServiceError));
-        LogException(
-            NLog::ELogLevel::Fatal,
-            TError(EErrorCode::ServiceError, CurrentExceptionMessage()));
-    }
-}
+        auto errorMessage = CurrentExceptionMessage();
+        Reply(TError(EErrorCode::ServiceError, errorMessage));
 
-void TServiceContext::LogException(
-    NLog::ELogLevel level,
-    const TError& error)
-{
-    Stroka str;
-    AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-    AppendInfo(str, ResponseInfo);
-    AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
-    LOG_EVENT(
-        ServiceLogger,
-        level,
-        "%s -> %s",
-        ~MethodName,
-        ~str);
+        Stroka str;
+        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, ResponseInfo);
+        LOG_FATAL("Unhandled exception in service method (%s): %s",
+            ~str,
+            ~errorMessage);
+    }
 }
 
 void TServiceContext::LogRequestInfo()
