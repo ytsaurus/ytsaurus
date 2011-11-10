@@ -49,7 +49,7 @@ yvector<Stroka> ConvertToStrings(yvector<T> elements)
     yvector <Stroka> result;
     result.reserve(elements.ysize());
     FOREACH(const auto& element, elements) {
-        result.push_back(::ToString(element));
+        result.push_back(element.ToString());
     }
     return result;
 }
