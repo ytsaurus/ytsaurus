@@ -7,8 +7,8 @@
 #include "cypress_manager.pb.h"
 
 #include "../misc/thread_affinity.h"
-#include "../transaction_manager/transaction.h"
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../ytree/ypath.h"
 #include "../ytree/tree_builder.h"
 #include "../misc/id_generator.h"

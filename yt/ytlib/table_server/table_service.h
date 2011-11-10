@@ -6,7 +6,7 @@
 
 #include "../rpc/server.h"
 #include "../meta_state/meta_state_service.h"
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../chunk_server/chunk_manager.h"
 
 namespace NYT {

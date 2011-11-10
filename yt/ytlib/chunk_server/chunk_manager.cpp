@@ -5,7 +5,7 @@
 #include "chunk_replication.h"
 #include "holder_expiration.h"
 
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"

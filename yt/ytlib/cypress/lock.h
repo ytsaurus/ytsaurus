@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../transaction_manager/common.h"
+#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NCypress {
