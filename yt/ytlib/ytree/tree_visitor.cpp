@@ -103,9 +103,11 @@ void TTreeVisitor::VisitMap(IMapNode::TPtr node, bool hasAttributes)
 void TTreeVisitor::VisitAttributes(IMapNode::TPtr node)
 {
     Consumer->OnBeginAttributes();
-    FOREACH(const auto& pair, node->GetChildren()) {
-        Consumer->OnAttributesItem(pair.First());
-        VisitAny(pair.Second());
+    auto children = node->GetChildren();
+    auto sortedChildren = GetSortedIterators(children);
+    FOREACH(const auto& pair, sortedChildren) {
+        Consumer->OnAttributesItem(pair->First());
+        VisitAny(pair->Second());
     }
     Consumer->OnEndAttributes();
 }
