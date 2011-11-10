@@ -2,6 +2,7 @@
 
 #include "mpl.h"
 #include "../actions/action.h"
+#include "../actions/action_util.h"
 #include "../ytree/ytree.h"
 
 namespace NYT {
@@ -59,10 +60,15 @@ public:
     virtual void Validate(Stroka path) const;
 
 public: // for users
-    TParameter& Default(const T& defaultValue);
+    TParameter& Default(T defaultValue = T());
     TParameter& Check(typename TValidator::TPtr validator);
-    // TParameter& GreaterThan, etc.
-
+    TParameter& GreaterThan(T value);
+    TParameter& GreaterThanOrEqual(T value);
+    TParameter& LessThan(T value);
+    TParameter& LessThanOrEqual(T value);
+    TParameter& InRange(T lowerBound, T upperBound);
+    TParameter& NonEmpty();
+    
 private:
     T* Parameter;
     bool HasDefaultValue;
