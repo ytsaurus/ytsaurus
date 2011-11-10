@@ -10,6 +10,7 @@
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
 #include <yt/ytlib/cypress/world_initializer.h>
+#include <yt/ytlib/cypress/cypress_integration.h>
 
 #include <yt/ytlib/chunk_server/chunk_manager.h>
 #include <yt/ytlib/chunk_server/chunk_service.h>
@@ -45,6 +46,7 @@ using NMetaState::TCompositeMetaState;
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
 using NCypress::TWorldInitializer;
+using NCypress::CreateLockMapTypeHandler;
 
 using NFileServer::TFileManager;
 using NFileServer::TFileService;
@@ -183,6 +185,11 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateTransactionMapTypeHandler(
         ~cypressManager,
         ~transactionManager));
+    cypressManager->RegisterNodeType(~CreateNodeMapTypeHandler(
+        ~cypressManager));
+    cypressManager->RegisterNodeType(~CreateLockMapTypeHandler(
+        ~cypressManager));
+
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
         ~cypressManager,
         ~monitoringManager));
