@@ -227,9 +227,9 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
     RegisterMethod(descriptor, DefaultServiceInvoker);
 }
 
-void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
+void TServiceBase::OnBeginRequest(IServiceContext* context)
 {
-    YASSERT(~context != NULL);
+    YASSERT(context != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -256,9 +256,9 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
     }
 }
 
-void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
+void TServiceBase::OnEndRequest(IServiceContext* context)
 {
-    YASSERT(~context != NULL);
+    YASSERT(context != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
     auto it = ActiveRequests.find(context);

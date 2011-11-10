@@ -67,7 +67,36 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServiceContext;
+struct IServiceContext
+    : public virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IServiceContext> TPtr;
+
+    virtual void Reply(EErrorCode errorCode) = 0;
+    virtual void Reply(const TError& error) = 0;
+    virtual bool IsReplied() const = 0;
+
+    virtual TSharedRef GetRequestBody() const = 0;
+    // TODO: TSharedRef?
+    virtual void SetResponseBody(TBlob* responseBody) = 0;
+
+    virtual const yvector<TSharedRef>& GetRequestAttachments() const = 0;
+    virtual void SetResponseAttachments(yvector<TSharedRef>* attachments) = 0;
+
+    virtual Stroka GetServiceName() const = 0;
+    virtual Stroka GetMethodName() const = 0;
+    virtual const TRequestId& GetRequestId() const = 0;
+
+    virtual void SetRequestInfo(const Stroka& info) = 0;
+    virtual Stroka GetRequestInfo() const = 0;
+
+    virtual void SetResponseInfo(const Stroka& info) = 0;
+    virtual Stroka GetResponseInfo() = 0;
+
+    virtual IAction::TPtr Wrap(IAction::TPtr action) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct IService
     : virtual TRefCountedBase
@@ -77,8 +106,8 @@ struct IService
     virtual Stroka GetServiceName() const = 0;
     virtual Stroka GetLoggingCategory() const = 0;
 
-    virtual void OnBeginRequest(TIntrusivePtr<TServiceContext> context) = 0;
-    virtual void OnEndRequest(TIntrusivePtr<TServiceContext> context) = 0;
+    virtual void OnBeginRequest(IServiceContext* context) = 0;
+    virtual void OnEndRequest(IServiceContext* context) = 0;
 
     virtual Stroka GetDebugInfo() const = 0;
 };
@@ -86,7 +115,7 @@ struct IService
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContext
-    : public TRefCountedBase
+    : public IServiceContext
 {
 public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
@@ -197,12 +226,12 @@ public:
     typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
-    TTypedServiceContext(TServiceContext::TPtr context)
+    TTypedServiceContext(IServiceContext* context)
         : Logger(RpcLogger)
         , Context(context)
         , Request_(context->GetRequestAttachments())
     {
-        YASSERT(~context != NULL);
+        YASSERT(context != NULL);
 
         if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
@@ -303,7 +332,7 @@ public:
 
 private:
     NLog::TLogger& Logger;
-    TServiceContext::TPtr Context;
+    IServiceContext::TPtr Context;
     TTypedRequest Request_;
     TTypedResponse Response_;
 
@@ -321,7 +350,7 @@ public:
 
 protected:
     //! Describes a handler for a service method.
-    typedef IParamAction<TIntrusivePtr<TServiceContext> > THandler;
+    typedef IParamAction<IServiceContext*> THandler;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -397,10 +426,10 @@ private:
     //! Protects #RuntimeMethodInfos and #OutstandingRequests.
     TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
-    yhash_map<TServiceContext::TPtr, TActiveRequest> ActiveRequests;
+    yhash_map<IServiceContext::TPtr, TActiveRequest> ActiveRequests;
 
-    virtual void OnBeginRequest(TServiceContext::TPtr context);
-    virtual void OnEndRequest(TServiceContext::TPtr context);
+    virtual void OnBeginRequest(IServiceContext* context);
+    virtual void OnEndRequest(IServiceContext* context);
 
     virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;
@@ -414,15 +443,15 @@ private:
     typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
     \
-    void method##Thunk(::NYT::NRpc::TServiceContext::TPtr context); \
+    void method##Thunk(::NYT::NRpc::IServiceContext* context); \
     \
     void method( \
-        TCtx##method::TTypedRequest* request, \
-        TCtx##method::TTypedResponse* response, \
+        TReq##method* request, \
+        TRsp##method* response, \
         TCtx##method::TPtr context)
 
 #define RPC_SERVICE_METHOD_IMPL(type, method) \
-    void type::method##Thunk(::NYT::NRpc::TServiceContext::TPtr context) \
+    void type::method##Thunk(::NYT::NRpc::IServiceContext* context) \
     { \
         auto typedContext = New<TCtx##method>(context); \
         method( \
@@ -432,8 +461,8 @@ private:
     } \
     \
     void type::method( \
-        TCtx##method::TTypedRequest* request, \
-        TCtx##method::TTypedResponse* response, \
+        TReq##method* request, \
+        TRsp##method* response, \
         TCtx##method::TPtr context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
