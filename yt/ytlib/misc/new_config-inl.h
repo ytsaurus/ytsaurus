@@ -105,10 +105,10 @@ void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
     if (node != NULL) {
         try {
             Read(Parameter, node);
-        } catch (const yexception& ex) {
+        } catch (...) {
             ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
-                    ~path, ex.what());
+                    ~path, ~CurrentExceptionMessage());
         }
     } else if (HasDefaultValue) {
         *Parameter = DefaultValue;
@@ -124,10 +124,10 @@ void TParameter<T, false>::Validate(Stroka path) const
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(*Parameter);
-        } catch (const yexception& ex) {
+        } catch (...) {
             ythrow yexception()
                 << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
-                    ~path, ex.what());
+                    ~path, ~CurrentExceptionMessage());
         }
     }
 }

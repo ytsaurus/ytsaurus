@@ -144,6 +144,20 @@ TEST(TConfigTest, MissingRequiredParameter)
     EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
 }
 
+TEST(TConfigTest, IncorrectNodeType)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(~builder)
+        .BeginMap()
+            .Item("s1").Scalar(1) // incorrect type
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    TTestConfig config;
+    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+}
+
 TEST(TConfigTest, Validate)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());

@@ -20,12 +20,16 @@ public:
 #define IMPLEMENT_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
-        YUNREACHABLE(); \
+        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+            #name, \
+            ~GetType().ToString()); \
     } \
     \
     virtual TIntrusivePtr<const I##name##Node> As##name() const \
     { \
-        YUNREACHABLE(); \
+        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+            #name, \
+            ~GetType().ToString()); \
     }
 
     IMPLEMENT_AS_METHODS(Entity)
