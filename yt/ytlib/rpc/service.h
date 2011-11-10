@@ -123,12 +123,6 @@ public:
     IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
-    DECLARE_ENUM(EState,
-        (Received)
-        (Replied)
-    );
-
-    EState State;
     IService::TPtr Service;
     TRequestId RequestId;
     Stroka MethodName;
@@ -145,10 +139,8 @@ protected:
     Stroka ResponseInfo;
 
 private:
-    void DoReply(const TError& error);
     void WrapThunk(IAction::TPtr action) throw();
 
-    void LogException(NLog::ELogLevel level, const TError& error);
     void LogRequestInfo();
     void LogResponseInfo(const TError& error);
 
