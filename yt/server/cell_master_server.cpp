@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/transaction_server/transaction_manager.h>
 #include <yt/ytlib/transaction_server/transaction_service.h>
+#include <yt/ytlib/transaction_server/cypress_integration.h>
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
@@ -31,6 +32,7 @@ static NLog::TLogger Logger("Server");
 
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
+using NTransaction::CreateTransactionMapTypeHandler;
 
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
@@ -178,6 +180,9 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateTransactionMapTypeHandler(
+        ~cypressManager,
+        ~transactionManager));
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
         ~cypressManager,
         ~monitoringManager));

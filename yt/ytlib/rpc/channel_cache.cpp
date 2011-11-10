@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "channel_cache.h"
 
 #include "../misc/thread_affinity.h"

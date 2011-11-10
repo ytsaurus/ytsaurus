@@ -29,8 +29,9 @@ DECLARE_ENUM(ERuntimeNodeType,
     // Virtual types
     ((ChunkMap)(20))
     ((ChunkListMap)(21))
-    ((Monitoring)(22))
-    ((Orchid)(23))
+    ((TransactionMap)(22))
+    ((Monitoring)(23))
+    ((Orchid)(24))
 
     // Denotes some uninitialized value.
     ((Invalid)(-1))

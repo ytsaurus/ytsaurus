@@ -53,7 +53,6 @@ private:
                     .EndMap();
             }));
     }
-
 };
 
 INodeTypeHandler::TPtr CreateChunkMapTypeHandler(

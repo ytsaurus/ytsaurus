@@ -483,7 +483,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // TODO: use threshold?
-    if (PostponedChanges.ysize() == 0) {
+    if (PostponedChanges.empty()) {
         LOG_INFO("No postponed changes left");
         return New<TAsyncResult>(EResult::OK);
     }
@@ -546,14 +546,14 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     }
 
     if (PostponedVersion > version) {
-        LOG_DEBUG("Late segment advance received, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_DEBUG("Late segment advance received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::OK;
     }
 
     if (PostponedVersion < version) {
-        LOG_WARNING("Out-of-order segment advance received (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Out-of-order segment advance received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
@@ -581,14 +581,14 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
     }
 
     if (PostponedVersion > version) {
-        LOG_WARNING("Late changes received, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Late changes received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
     if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order changes received (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Out-of-order changes received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
