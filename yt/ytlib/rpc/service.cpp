@@ -114,11 +114,6 @@ const TRequestId& TServiceContext::GetRequestId() const
     return RequestId;
 }
 
-IBus::TPtr TServiceContext::GetReplyBus() const
-{
-    return ReplyBus;
-}
-
 void TServiceContext::SetRequestInfo(const Stroka& info)
 {
     RequestInfo = info;
@@ -257,26 +252,26 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
     TGuard<TSpinLock> guard(SpinLock);
 
     Stroka methodName = context->GetMethodName();
-    auto it = RuntimeMethodInfos.find(methodName);
-    if (it == RuntimeMethodInfos.end()) {
+    auto methodIt = RuntimeMethodInfos.find(methodName);
+    TRuntimeMethodInfo* runtimeInfo =
+        methodIt == RuntimeMethodInfos.end()
+        ? NULL
+        : &methodIt->Second();
+
+    YVERIFY(ActiveRequests.insert(MakePair(
+        context,
+        TActiveRequest(runtimeInfo, TInstant::Now()))).Second());
+
+    if (runtimeInfo == NULL) {
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName,
             ~methodName);
-        auto errorMessage = New<TRpcErrorResponseMessage>(
-            context->GetRequestId(),
-            TError(EErrorCode::NoMethod));
-        context->GetReplyBus()->Send(errorMessage);
-        return;
+        context->Reply(EErrorCode::NoMethod);
+    } else {
+        auto handler = runtimeInfo->Descriptor.Handler;
+        auto wrappedHandler = context->Wrap(handler->Bind(context));
+        runtimeInfo->Invoker->Invoke(wrappedHandler);
     }
-
-    auto& info = it->Second();
-    YVERIFY(ActiveRequests.insert(MakePair(
-        context,
-        TActiveRequest(&info, TInstant::Now()))).Second());
-
-    auto handler = info.Descriptor.Handler;
-    auto wrappedHandler = context->Wrap(handler->Bind(context));
-    info.Invoker->Invoke(wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
@@ -284,11 +279,12 @@ void TServiceBase::OnEndRequest(TServiceContext::TPtr context)
     YASSERT(~context != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
-
     auto it = ActiveRequests.find(context);
     YASSERT(it != ActiveRequests.end());
     auto& request = it->Second();
-    request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);
+    if (request.RuntimeInfo != NULL) {
+        request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
+    }
     ActiveRequests.erase(it);
 }
 

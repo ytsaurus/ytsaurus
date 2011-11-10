@@ -112,8 +112,6 @@ public:
     Stroka GetMethodName() const;
     const TRequestId& GetRequestId() const;
 
-    NBus::IBus::TPtr GetReplyBus() const;
-
     void SetRequestInfo(const Stroka& info);
     Stroka GetRequestInfo() const;
 
@@ -394,9 +392,7 @@ private:
         TActiveRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
             : RuntimeInfo(runtimeInfo)
             , StartTime(startTime)
-        {
-            YASSERT(runtimeInfo != NULL);
-        }
+        { }
 
         TRuntimeMethodInfo* RuntimeInfo;
         TInstant StartTime;
