@@ -161,7 +161,7 @@ private:
      * Invoked from #Cancel
      * \note Thread affinity: WriterThread.
      */
-    void DoCancel();
+    void DoCancel(const Stroka& errorMessage);
 
     /*!
      * \note Thread affinity: WriterThread
@@ -196,13 +196,13 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFlushedBlock(int node, int blockIndex);
+    void OnBlockFlushed(int node, int blockIndex);
 
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnWindowShifted(int blockIndex);
 
+    void OnWindowShifted(int blockIndex);
     /*!
      * \note Thread affinity: ClientThread
      */
@@ -221,7 +221,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnStartedChunk(int node);
+    void OnChunkStarted(int node);
 
     /*!
      * \note Thread affinity: WriterThread
@@ -241,12 +241,12 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFinishedChunk(int node);
+    void OnChunkFinished(int node);
 
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFinishedSession();
+    void OnSessionFinished();
 
     /*!
      * \note Thread affinity: WriterThread

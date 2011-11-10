@@ -369,14 +369,11 @@ void TRemoteChunkWriter::TGroup::Process()
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
-    if (Writer->State == EWriterState::Canceled ||
-        // This can be if the last response came from the node considered dead
-        Writer->State == EWriterState::Closed)
-    {
+    if (!Writer->State.IsActive()) {
         return;
     }
 
-    YASSERT(Writer->State == EWriterState::Writing);
+    YASSERT(Writer->IsInitComplete);
 
     LOG_DEBUG("Processing group (ChunkId: %s, Blocks: %d-%d)",
         ~Writer->ChunkId.ToString(),
@@ -395,7 +392,7 @@ void TRemoteChunkWriter::TGroup::Process()
         }
     }
 
-    if (!emptyNodeFound || Writer->State == EWriterState::Canceled) {
+    if (!emptyNodeFound) {
         Writer->ShiftWindow();
     } else if (nodeWithBlocks < 0) {
         PutGroup();
@@ -414,14 +411,12 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     const yvector<Stroka>& addresses)
     : ChunkId(chunkId) 
     , Config(config)
-    , State(EWriterState::Initializing)
+    , IsInitComplete(false)
     , IsCloseRequested(false)
-    , Result(New< TFuture<EResult> >())
     , WindowSlots(config.WindowSize)
     , AliveNodeCount(addresses.ysize())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
-    , WindowReady(NULL)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
     , SendBlocksTiming(0, 1000, 20)
@@ -452,20 +447,23 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
 
 TRemoteChunkWriter::~TRemoteChunkWriter()
 {
-    YASSERT(
-        State == EWriterState::Closed && Window.empty() ||
-        State == EWriterState::Canceled);
+    YASSERT(!State.IsActive());
 }
 
 void TRemoteChunkWriter::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
+    if (!State.IsActive()) {
+        YASSERT(Window.empty());
+        return;
+    }
+
     int lastFlushableBlock = -1;
     for (auto it = Window.begin(); it != Window.end(); ++it) {
         auto group = *it;
         if (!group->IsFlushing()) {
-            if (group->IsWritten() || State == EWriterState::Canceled) {
+            if (group->IsWritten()) {
                 lastFlushableBlock = group->GetEndBlockIndex();
                 group->SetFlushing();
             } else {
@@ -479,9 +477,9 @@ void TRemoteChunkWriter::ShiftWindow()
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
-        if (Nodes[node]->IsAlive && State != EWriterState::Canceled) {
+        if (Nodes[node]->IsAlive) {
             auto onSuccess = FromMethod(
-                &TRemoteChunkWriter::OnFlushedBlock, 
+                &TRemoteChunkWriter::OnBlockFlushed, 
                 TPtr(this), 
                 node,
                 lastFlushableBlock);
@@ -517,7 +515,7 @@ TRemoteChunkWriter::FlushBlock(int node, int blockIndex)
     return req->Invoke(Config.RpcTimeout);
 }
 
-void TRemoteChunkWriter::OnFlushedBlock(int node, int blockIndex)
+void TRemoteChunkWriter::OnBlockFlushed(int node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -554,7 +552,7 @@ void TRemoteChunkWriter::OnWindowShifted(int lastFlushedBlock)
         Window.pop_front();
     }
 
-    if (State == EWriterState::Writing && IsCloseRequested) {
+    if (State.IsActive() && IsCloseRequested) {
         CloseSession();
     }
 }
@@ -577,8 +575,10 @@ void TRemoteChunkWriter::DoClose()
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
 
-    if (!State.IsActive())
+    if (!State.IsActive()) {
+        State.FinishOperation();
         return;
+    }
 
     LOG_DEBUG("Writer close requested (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -597,14 +597,12 @@ void TRemoteChunkWriter::Shutdown()
     // Drop the references to ensure proper resource disposal.
     Window.clear();
     CancelAllPings();
-
-    // ToDo: use rpc error here.
-    State.Cancel("");
 }
 
-void TRemoteChunkWriter::DoCancel()
+void TRemoteChunkWriter::DoCancel(const Stroka& errorMessage)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
+    State.Cancel(errorMessage);
     Shutdown();
 
     LOG_DEBUG("Writer canceled (ChunkId: %s)",
@@ -626,7 +624,7 @@ void TRemoteChunkWriter::AddGroup(TGroupPtr group)
 
     Window.push_back(group);
 
-    if (State == EWriterState::Writing) {
+    if (IsInitComplete) {
         group->Process();
     }
 }
@@ -638,12 +636,6 @@ void TRemoteChunkWriter::OnNodeDied(int node)
     if (!Nodes[node]->IsAlive)
         return;
 
-    if (State == EWriterState::Canceled || 
-        State == EWriterState::Closed)
-    {
-        return;
-    }
-
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
@@ -652,10 +644,9 @@ void TRemoteChunkWriter::OnNodeDied(int node)
         ~Nodes[node]->Address,
         AliveNodeCount);
 
-    if (State != EWriterState::Canceled && AliveNodeCount == 0) {
-        YASSERT(State != EWriterState::Closed);
-
-        Shutdown();
+    if (State.IsActive() && AliveNodeCount == 0) {
+        // ToDo: use error codes from rpc here.
+        DoCancel("All nodes died.");
 
         LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
@@ -693,7 +684,7 @@ void TRemoteChunkWriter::StartSession()
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
         auto onSuccess = FromMethod(
-            &TRemoteChunkWriter::OnStartedChunk, 
+            &TRemoteChunkWriter::OnChunkStarted, 
             TPtr(this), 
             node);
         auto onResponse = FromMethod(
@@ -721,7 +712,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartChunk(int node
     return req->Invoke(Config.RpcTimeout);
 }
 
-void TRemoteChunkWriter::OnStartedChunk(int node)
+void TRemoteChunkWriter::OnChunkStarted(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -737,13 +728,14 @@ void TRemoteChunkWriter::OnSessionStarted()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     // Check if the session is not canceled yet.
-    if (State == EWriterState::Canceled)
+    if (!State.IsActive()) {
         return;
+    }
 
     LOG_DEBUG("Writer ready (ChunkId: %s)", 
         ~ChunkId.ToString());
 
-    State = EWriterState::Writing;
+    IsInitComplete = true;
     FOREACH(auto& group, Window) {
         group->Process();
     }
@@ -759,7 +751,6 @@ void TRemoteChunkWriter::CloseSession()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     YASSERT(IsCloseRequested);
-    YASSERT(State == EWriterState::Writing);
 
     LOG_DEBUG("Closing writer (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -768,7 +759,7 @@ void TRemoteChunkWriter::CloseSession()
     for (int node = 0; node < Nodes.ysize(); ++node) {
         if (Nodes[node]->IsAlive) {
             auto onSuccess = FromMethod(
-                &TRemoteChunkWriter::OnFinishedChunk, 
+                &TRemoteChunkWriter::OnChunkFinished, 
                 TPtr(this), 
                 node);
             auto onResponse = FromMethod(
@@ -780,7 +771,7 @@ void TRemoteChunkWriter::CloseSession()
             awaiter->Await(FinishChunk(node), onResponse);
         }
     }
-    awaiter->Complete(FromMethod(&TRemoteChunkWriter::OnFinishedSession, TPtr(this)));
+    awaiter->Complete(FromMethod(&TRemoteChunkWriter::OnSessionFinished, TPtr(this)));
 }
 
 TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int node)
@@ -796,7 +787,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
     return req->Invoke(Config.RpcTimeout);
 }
 
-void TRemoteChunkWriter::OnFinishedChunk(int node)
+void TRemoteChunkWriter::OnChunkFinished(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -805,24 +796,24 @@ void TRemoteChunkWriter::OnFinishedChunk(int node)
         ~Nodes[node]->Address);
 }
 
-void TRemoteChunkWriter::OnFinishedSession()
+void TRemoteChunkWriter::OnSessionFinished()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
-    if (State != EWriterState::Writing)
-        return;
 
     // Check that we're not holding any references to groups.
     YASSERT(~CurrentGroup == NULL);
     YASSERT(Window.empty());
 
+    if (State.IsActive()) {
+        State.Close();
+    }
 
-    State = EWriterState::Closed;
     CancelAllPings();
-    Result->Set(EResult::OK);
 
     LOG_DEBUG("Writer closed (ChunkId: %s)",
         ~ChunkId.ToString());
+
+    State.FinishOperation();
 }
 
 void TRemoteChunkWriter::PingSession(int node)
@@ -844,9 +835,7 @@ void TRemoteChunkWriter::SchedulePing(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (State == EWriterState::Closed ||
-        State == EWriterState::Canceled)
-    {
+    if (State.IsActive()) {
         return;
     }
 
@@ -854,6 +843,7 @@ void TRemoteChunkWriter::SchedulePing(int node)
     if (cookie != TDelayedInvoker::TCookie()) {
         TDelayedInvoker::Get()->Cancel(cookie);
     }
+
     Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
         FromMethod(
             &TRemoteChunkWriter::PingSession,
@@ -914,8 +904,9 @@ void TRemoteChunkWriter::AddBlock(TVoid, const TSharedRef& data)
                 &TRemoteChunkWriter::AddGroup,
                 TPtr(this),
                 CurrentGroup));
-        // Construct a new (empty) group.
-        CurrentGroup = New<TGroup>(Nodes.ysize(), BlockCount, this);
+            // Construct a new (empty) group.
+            CurrentGroup = New<TGroup>(Nodes.ysize(), BlockCount, this);
+        }
     }
 
     State.FinishOperation();
@@ -951,11 +942,10 @@ TAsyncStreamState::TAsyncResult::TPtr TRemoteChunkWriter::AsyncClose()
     return State.GetOperationResult();
 }
 
-void TRemoteChunkWriter::Cancel()
+void TRemoteChunkWriter::Cancel(const Stroka& errorMessage)
 {
     // Just a quick check.
-    if (State == EWriterState::Canceled ||
-        State == EWriterState::Closed)
+    if (!State.IsActive())
         return;
 
     LOG_DEBUG("Requesting cancel (ChunkId: %s)",
@@ -966,7 +956,8 @@ void TRemoteChunkWriter::Cancel()
 
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteChunkWriter::DoCancel,
-        TPtr(this)));
+        TPtr(this),
+        errorMessage));
 }
 
 Stroka TRemoteChunkWriter::GetDebugInfo()
