@@ -988,7 +988,9 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
 
             FollowerCommitter
                 ->CommitFollower(version, request->Attachments())
-                ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
+                ->Subscribe(
+                    FromMethod(&TThis::OnFollowerCommit, TPtr(this), context)
+                    ->Via(~EpochControlInvoker));
             break;
         }
 
