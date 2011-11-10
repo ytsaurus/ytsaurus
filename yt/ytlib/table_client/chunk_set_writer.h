@@ -41,7 +41,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
-    TAsyncStreamState::TAsyncResult::TPtr Init();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
     void Write(const TColumn& column, TValue value);
     TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
     TAsyncStreamState::TAsyncResult::TPtr AsyncClose();

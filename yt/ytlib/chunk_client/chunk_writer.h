@@ -34,8 +34,8 @@ struct IChunkWriter
      *  chunk-holders are considered down).
      *  The client shouldn't retry writing the same block again.
      */
-    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncWriteBlock(
-        const TSharedRef& data) = 0;
+    virtual TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncWriteBlock(const TSharedRef& data) = 0;
 
     //! Called when the client has added all the blocks and is 
     //! willing to finalize the upload.
@@ -56,7 +56,7 @@ struct IChunkWriter
      */
     virtual void Cancel(const Stroka& errorMessage) = 0;
 
-    const TChunkId& GetChunkId() const;
+    virtual const TChunkId& GetChunkId() const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

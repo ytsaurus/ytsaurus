@@ -202,7 +202,7 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
         TPtr(this)));
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::Init()
+TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncInit()
 {
     // Stub to implement IWriter interface.
     auto result = New<TAsyncStreamState::TAsyncResult>();

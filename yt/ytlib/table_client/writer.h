@@ -15,7 +15,7 @@ namespace NTableClient {
 struct IWriter
     : public virtual TRefCountedBase
 {
-    virtual TAsyncStreamState::TAsyncResult::TPtr Init() = 0;
+    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncInit() = 0;
 
     virtual void Write(const TColumn& column, TValue value) = 0;
 

@@ -105,19 +105,27 @@ void TJob::OnGotMeta(TChunkMeta::TPtr meta)
         Chunk->GetId(),
         TargetAddresses);
 
-    ReplicateBlock(0);
+    ReplicateBlock(TAsyncStreamState::TResult(), 0);
 }
 
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
     if (~Writer != NULL) {
-        Writer->Cancel();
+        Writer->Cancel("Job stopped.");
     }
 }
 
-void TJob::ReplicateBlock(int blockIndex)
+void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
 {
+    if (!result.IsOK) {
+        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d)",
+            ~JobId.ToString(),
+            blockIndex);
+
+        State = EJobState::Failed;
+    }
+
     if (blockIndex >= Meta->GetBlockCount()) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
@@ -141,7 +149,7 @@ void TJob::ReplicateBlock(int blockIndex)
             &TJob::OnBlockLoaded,
             TPtr(this),
             blockIndex)
-        ->Via(~CancelableInvoker));;
+        ->Via(~CancelableInvoker));
 }
 
 void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
@@ -155,68 +163,24 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
         return;
     } 
 
-    TFuture<TVoid>::TPtr ready;
-    auto result = Writer->AsyncWriteBlock(cachedBlock->GetData(), &ready);
-    switch (result) {
-        case IChunkWriter::EResult::OK:
-            LOG_DEBUG("Block is enqueued to replication writer (JobId: %s, BlockIndex: %d)",
-                    ~JobId.ToString(),
-                    blockIndex);
-
-            ReplicateBlock(blockIndex + 1);
-            break;
-
-        case IChunkWriter::EResult::TryLater:
-            LOG_DEBUG("Replication writer window overflow (JobId: %s, BlockIndex: %d)",
-                ~JobId.ToString(),
-                blockIndex);
-
-            YASSERT(~ready != NULL);
-            ready->Subscribe(
-                FromMethod(
-                    &TJob::OnBlockLoaded,
-                    TPtr(this),
-                    cachedBlock,
-                    blockIndex)
-                ->ToParamAction<TVoid>()
-                ->Via(~CancelableInvoker));
-            break;
-
-        case IChunkWriter::EResult::Failed:
-            LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d)",
-                ~JobId.ToString(),
-                blockIndex);
-
-            State = EJobState::Failed;
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
+    Writer->AsyncWriteBlock(cachedBlock->GetData())->Subscribe(
+        FromMethod(&TJob::ReplicateBlock, TPtr(this), blockIndex + 1));
 }
 
-void TJob::OnWriterClosed(IChunkWriter::EResult result)
+void TJob::OnWriterClosed(TAsyncStreamState::TResult result)
 {
-    switch (result) {
-        case IChunkWriter::EResult::OK:
-            LOG_DEBUG("Replication job completed (JobId: %s)",
-                ~JobId.ToString());
+    if (result.IsOK) {
+        LOG_DEBUG("Replication job completed (JobId: %s)",
+            ~JobId.ToString());
 
-            Writer.Reset();
-            State = EJobState::Completed;
-            break;
+        Writer.Reset();
+        State = EJobState::Completed;
+    } else {
+        LOG_WARNING("Replication job failed (JobId: %s)",
+            ~JobId.ToString());
 
-        case IChunkWriter::EResult::Failed:
-            LOG_WARNING("Replication job failed (JobId: %s)",
-                ~JobId.ToString());
-
-            Writer->Cancel();
-            Writer.Reset();
-            State = EJobState::Failed;
-            break;
-
-        default:
-            YUNREACHABLE();
+        Writer.Reset();
+        State = EJobState::Failed;
     }
 }
 

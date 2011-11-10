@@ -21,24 +21,21 @@ public:
     //! Creates a new writer.
     TFileChunkWriter(Stroka fileName);
 
-    //! A synchronous version of #AsyncAddBlock.
-    void WriteBlock(const TSharedRef& data);
-
     //! Implements IChunkWriter and calls #AddBlock.
-    virtual EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncWriteBlock(const TSharedRef& data);
 
-
-    //! A synchronous version of #Close.
-    void Close();
     //! Implements IChunkWriter and calls #Close.
-    virtual TFuture<EResult>::TPtr AsyncClose();
-    virtual void Cancel();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
+    void Cancel(const Stroka& errorMessage);
+
+    const TChunkId& GetChunkId();
 
 private:
     Stroka FileName;
     THolder<TFile> File;
     NChunkClient::NProto::TChunkMeta Meta;
-
+    TAsyncStreamState::TAsyncResult::TPtr Result;
 };
 
 
