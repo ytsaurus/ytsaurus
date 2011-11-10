@@ -1,45 +1,53 @@
-﻿#pragma once
+#pragma once
 
 #include "common.h"
 #include "channel.h"
 #include "client.h"
+
+#include "../misc/property.h"
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Implements simple retry politic. If remote call fails on the RPC 
-//! level, it is retried #RetryCount times with given backoff time.
-//! If request finally fails, the EErrorCode::Unavailable is returned.
+//! Implements a simple retry policy.
+/*!
+ *  If a remote call fails at RPC level (see #NRpc::EErrorCode::IsRpcError)
+ *  it is retried a given number of times with a given back off time.
+ *  
+ *  If the request is still failing, then EErrorCode::Unavailable is returned.
+ */  
 class TRetriableChannel
     : public IChannel
 {
+    //! An underlying channel.
+    DECLARE_BYVAL_RO_PROPERTY(UnderlyingChannel, IChannel::TPtr);
+
+    //! A interval between successive attempts.
+    DECLARE_BYVAL_RO_PROPERTY(BackoffTime, TDuration);
+
+    //! Maximum number of retry attempts.
+    DECLARE_BYVAL_RO_PROPERTY(RetryCount, int);
+
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;
 
-    // TODO: doxygen here
+    //! Initializes an instance.
+    /*!
+     *  For more information about parameters see public properties.
+     */
     TRetriableChannel(
-        IChannel::TPtr channel, 
+        IChannel* underlyingChannel, 
         TDuration backoffTime, 
         int retryCount);
 
-    TFuture<EErrorCode>::TPtr Send(
+    TFuture<TError>::TPtr Send(
         IClientRequest::TPtr request, 
         IClientResponseHandler::TPtr responseHandler, 
         TDuration timeout);
 
     void Terminate();
-
-    // TODO: -> GetUnderlyingChannel
-    IChannel::TPtr GetChannel() const;
-    int GetRetryCount() const;
-    TDuration GetBackoffTime() const;
-
-private:
-    IChannel::TPtr Channel;
-    const int RetryCount;
-    const TDuration BackoffTime;
 
 };
 

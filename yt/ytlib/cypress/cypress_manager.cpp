@@ -18,7 +18,7 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger& Logger = CypressLogger;
+static NLog::TLogger& Logger = CypressLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +56,13 @@ TCypressManager::TCypressManager(
     RegisterMethod(this, &TThis::LockYPath);
     RegisterMethod(this, &TThis::CreateWorld);
 
+    metaState->RegisterLoader(
+        "Cypress.1",
+        FromMethod(&TCypressManager::Load, TPtr(this)));
+    metaState->RegisterSaver(
+        "Cypress.1",
+        FromMethod(&TCypressManager::Save, TPtr(this)));
+
     metaState->RegisterPart(this);
 }
 
@@ -69,13 +76,19 @@ bool TCypressManager::IsWorldInitialized()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return NodeMap.GetSize() > 1;
+    return NodeMap.GetSize() > 0;
 }
 
-INodeTypeHandler::TPtr TCypressManager::GetNodeHandler(const ICypressNode& node)
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
 {
-    int type = static_cast<int>(node.GetRuntimeType());
-    return RuntimeTypeToHandler[type];
+    return GetTypeHandler(node.GetRuntimeType());
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
+{
+    auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
+    YASSERT(~handler != NULL);
+    return handler;
 }
 
 const ICypressNode* TCypressManager::FindTransactionNode(
@@ -161,7 +174,7 @@ ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
 
     YASSERT(nodeId != NullNodeId);
     const auto& impl = GetTransactionNode(nodeId, transactionId);
-    return GetNodeHandler(impl)->GetProxy(impl, transactionId);
+    return GetTypeHandler(impl)->GetProxy(impl, transactionId);
 }
 
 bool TCypressManager::IsTransactionNodeLocked(
@@ -186,7 +199,7 @@ bool TCypressManager::IsTransactionNodeLocked(
     while (currentNodeId != NullNodeId) {
         const auto& currentImpl = GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
         // Check the locks assigned to the current node.
-        FOREACH (const auto& lockId, currentImpl.Locks()) {
+        FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
             if (lock.GetTransactionId() == transactionId) {
                 return true;
@@ -217,7 +230,7 @@ TLockId TCypressManager::LockTransactionNode(
     }
 
     // Make sure that the node is not locked by another transaction.
-    FOREACH (const auto& lockId, impl.Locks()) {
+    FOREACH (const auto& lockId, impl.LockIds()) {
         const auto& lock = GetLock(lockId);
         if (lock.GetTransactionId() != transactionId) {
             throw TYTreeException() << Sprintf("Node is already locked by another transaction (TransactionId: %s)",
@@ -232,7 +245,7 @@ TLockId TCypressManager::LockTransactionNode(
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
         auto& impl = GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-        impl.Locks().insert(lock.GetId());
+        impl.LockIds().insert(lock.GetId());
         currentNodeId = impl.GetParentId();
     }
 
@@ -470,7 +483,7 @@ INode::TPtr TCypressManager::CreateDynamicNode(
         transaction.CreatedNodes().push_back(nodeId);
     }
 
-    auto proxy = GetNodeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
+    auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
 
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -488,7 +501,7 @@ TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
     auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
     LockMap.Insert(id, lock);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-    transaction.Locks().push_back(lock->GetId());
+    transaction.LockIds().push_back(lock->GetId());
 
     LOG_INFO_IF(!IsRecovery(), "Lock created (LockId: %s, NodeId: %s, TransactionId: %s)",
         ~id.ToString(),
@@ -506,7 +519,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     auto nodeId = node.GetId().NodeId;
 
     // Create a branched node and initialize its state.
-    auto branchedNode = GetNodeHandler(node)->Branch(node, transactionId);
+    auto branchedNode = GetTypeHandler(node)->Branch(node, transactionId);
     branchedNode->SetState(ENodeState::Branched);
     auto* branchedNodePtr = branchedNode.Release();
     NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr);
@@ -546,7 +559,7 @@ INode::TPtr TCypressManager::NavigateYPath(
     return NYTree::NavigateYPath(IYPathService::FromNode(~root), path);
 }
 
-TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
+TMetaChange<TNodeId>::TPtr TCypressManager::InitiateSetYPath(
     const TTransactionId& transactionId,
     TYPath path,
     const Stroka& value)
@@ -564,7 +577,7 @@ TMetaChange<TVoid>::TPtr TCypressManager::InitiateSetYPath(
         ECommitMode::MayFail);
 }
 
-TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
+TNodeId TCypressManager::SetYPath(const NProto::TMsgSet& message)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -573,8 +586,9 @@ TVoid TCypressManager::SetYPath(const NProto::TMsgSet& message)
     TStringInput inputStream(message.GetValue());
     auto producer = TYsonReader::GetProducer(&inputStream);
     auto root = GetNodeProxy(RootNodeId, transactionId);
-    NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
-    return TVoid();
+    auto node = NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
+    auto* typedNode = dynamic_cast<ICypressNodeProxy*>(~node);
+    return typedNode == NULL ? NullNodeId : typedNode->GetNodeId();
 }
 
 TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
@@ -662,8 +676,24 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("sys").BeginMap()
+                        // TODO: use named constants instead of literals
                         .Item("chunks").WithAttributes().Entity().BeginAttributes()
                             .Item("type").Scalar("chunk_map")
+                        .EndAttributes()
+                        .Item("chunk_lists").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("chunk_list_map")
+                        .EndAttributes()
+                        .Item("transactions").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("transaction_map")
+                        .EndAttributes()
+                        .Item("nodes").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("node_map")
+                        .EndAttributes()
+                        .Item("locks").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("lock_map")
+                        .EndAttributes()
+                        .Item("monitoring").WithAttributes().Entity().BeginAttributes()
+                            .Item("type").Scalar("monitoring")
                         .EndAttributes()
                     .EndMap()
                     .Item("home").BeginMap()
@@ -676,14 +706,12 @@ TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
     return TVoid();
 }
 
-Stroka TCypressManager::GetPartName() const
-{
-    return "Cypress";
-}
-
-TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* output, IInvoker::TPtr invoker)
+TFuture<TVoid>::TPtr TCypressManager::Save(const TCompositeMetaState::TSaveContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* output = context.Output;
+    auto invoker = context.Invoker;
 
     auto nodeIdGenerator = NodeIdGenerator;
     auto lockIdGenerator = LockIdGenerator;
@@ -697,19 +725,15 @@ TFuture<TVoid>::TPtr TCypressManager::Save(TOutputStream* output, IInvoker::TPtr
     return LockMap.Save(invoker, output);
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Load(TInputStream* input, IInvoker::TPtr invoker)
+void TCypressManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TPtr thisPtr = this;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Load(input, thisPtr->NodeIdGenerator);
-            ::Load(input, thisPtr->LockIdGenerator);
-        }));
-
-    NodeMap.Load(invoker, input);
-    return LockMap.Load(invoker, input);
+    ::Load(input, NodeIdGenerator);
+    ::Load(input, LockIdGenerator);
+    
+    NodeMap.Load(input);
+    LockMap.Load(input);
 }
 
 void TCypressManager::Clear()
@@ -770,7 +794,7 @@ void TCypressManager::UnrefNode(ICypressNode& node)
     if (refCounter == 0) {
         LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
 
-        GetNodeHandler(node)->Destroy(node);
+        GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(nodeId);
     }
 }
@@ -805,14 +829,14 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
 void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 {
     // Iterate over all locks created by the transaction.
-    FOREACH (const auto& lockId, transaction.Locks()) {
+    FOREACH (const auto& lockId, transaction.LockIds()) {
         const auto& lock = LockMap.Get(lockId);
 
         // Walk up to the root and remove the locks.
         auto currentNodeId = lock.GetNodeId();
         while (currentNodeId != NullNodeId) {
             auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
-            YVERIFY(node.Locks().erase(lockId) == 1);
+            YVERIFY(node.LockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();
         }
 
@@ -834,7 +858,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        GetNodeHandler(node)->Merge(node, branchedNode);
+        GetTypeHandler(node)->Merge(node, branchedNode);
 
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
@@ -857,7 +881,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
-        GetNodeHandler(node)->Destroy(node);
+        GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
@@ -895,21 +919,17 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
-    // TODO: enum serialization
-    ::Save(output, static_cast<i32>(value->GetRuntimeType()));
-    ::Save(output, value->GetId());
+    ::Save(output, value->GetRuntimeType());
+    //::Save(output, value->GetId());
     value->Save(output);
 }
 
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(TInputStream* input) const
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TBranchedNodeId& id, TInputStream* input) const
 {
-    // TODO: enum serialization
-    i32 type;
-    TBranchedNodeId id;
+    ERuntimeNodeType type;
     ::Load(input, type);
-    ::Load(input, id);
-
-    auto value = CypressManager->RuntimeTypeToHandler[type]->Create(id);
+    
+    auto value = CypressManager->GetTypeHandler(type)->Create(id);
     value->Load(input);
 
     return value;

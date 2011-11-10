@@ -10,41 +10,32 @@ namespace NCypress {
 using namespace NRpc;
 using namespace NYTree;
 using namespace NMetaState;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& Logger = CypressLogger;
+using namespace NTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressService::TCypressService(
+    TMetaStateManager* metaStateManager,
     TCypressManager* cypressManager,
     TTransactionManager* transactionManager,
-    IInvoker* serviceInvoker,
     NRpc::TServer* server)
     : TMetaStateServiceBase(
-        serviceInvoker,
+        metaStateManager,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
-    YASSERT(serviceInvoker != NULL);
-    YASSERT(server!= NULL);
+    YASSERT(transactionManager != NULL);
+    YASSERT(server != NULL);
 
-    RegisterMethods();
-
-    server->RegisterService(this);
-}
-
-void TCypressService::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
+    server->RegisterService(this);
 }
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
@@ -116,8 +107,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
             {
                 Stroka output;
                 TStringOutput outputStream(output);
-                // TODO: use binary
-                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Pretty);
+                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary);
 
                 CypressManager->GetYPath(transactionId, path, &writer);
 
@@ -140,13 +130,21 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
         ~transactionId.ToString(),
         ~path);
 
+    ValidateLeader();
+
+    auto onSuccess = FromFunctor([=] (TNodeId nodeId)
+        {
+            response->SetNodeId(nodeId.ToProto());
+            context->Reply();
+        });
+
     ExecuteUnrecoverable(
         transactionId,
         ~FromFunctor([=] ()
             {
                 CypressManager
                     ->InitiateSetYPath(transactionId, path, value)
-                    ->OnSuccess(this->CreateSuccessHandler(context))
+                    ->OnSuccess(onSuccess)
                     ->OnError(this->CreateErrorHandler(context))
                     ->Commit();
             }));
@@ -162,6 +160,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
     context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
         ~path);
+
+    ValidateLeader();
 
     ExecuteRecoverable(
         transactionId,
@@ -185,6 +185,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
     context->SetRequestInfo("TransactionId: %s, Path: %s",
         ~transactionId.ToString(),
         ~path);
+
+    ValidateLeader();
 
     ExecuteRecoverable(
         transactionId,

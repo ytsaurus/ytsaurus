@@ -27,9 +27,6 @@ public:
      *  \param period An interval between consequent invocations.
      */
     TPeriodicInvoker(IAction::TPtr action, TDuration period);
-    ~TPeriodicInvoker();
-
-    bool IsActive() const;
 
     //! Starts invocations.
     /*!
@@ -40,6 +37,9 @@ public:
 
     //! Stops invocations.
     void Stop();
+
+    //! Returns if the invoker is active.
+    bool IsActive() const;
 
 private:
     IAction::TPtr Action;

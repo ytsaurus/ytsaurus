@@ -12,6 +12,8 @@ namespace NUnitTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+    typedef Stroka TKey;
+    
     struct TMyInt
     {
         static THolder<Event> SaveEvent;
@@ -40,7 +42,7 @@ namespace {
             Write(*output, Value);
         }
 
-        static TAutoPtr<TMyInt> Load(TInputStream* input)
+        static TAutoPtr<TMyInt> Load(const TKey& /* fake */, TInputStream* input)
         {
             int value;
             Read(*input, &value);
@@ -53,7 +55,6 @@ namespace {
     class TMetaStateMapTest: public ::testing::Test
     { };
 
-    typedef Stroka TKey;
     typedef TMyInt TValue;
 } // namespace <anonymous>
 
@@ -185,7 +186,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
         TStringInput input(snapshotData);
-        map.Load(invoker, &input)->Get();
+        map.Load(&input);
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {

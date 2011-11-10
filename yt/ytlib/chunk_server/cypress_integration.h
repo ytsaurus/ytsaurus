@@ -12,10 +12,11 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::IYPathService::TPtr CreateChunkMapService(
+NCypress::INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
+    NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 
-NCypress::INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
+NCypress::INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 

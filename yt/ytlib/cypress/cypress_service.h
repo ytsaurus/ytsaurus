@@ -6,7 +6,7 @@
 
 #include "../rpc/server.h"
 #include "../meta_state/meta_state_service.h"
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 
 namespace NYT {
 namespace NCypress {
@@ -21,9 +21,9 @@ public:
 
     //! Creates an instance.
     TCypressService(
+        NMetaState::TMetaStateManager* metaStateManager,
         TCypressManager* cypressManager,
-        TTransactionManager* transactionManager,
-        IInvoker* serviceInvoker,
+        NTransaction::TTransactionManager* transactionManager,
         NRpc::TServer* server);
 
 private:
@@ -32,9 +32,7 @@ private:
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TCypressManager::TPtr CypressManager;
-    TTransactionManager::TPtr TransactionManager;
-
-    void RegisterMethods();
+    NTransaction::TTransactionManager::TPtr TransactionManager;
 
     void ValidateTransactionId(const TTransactionId& transactionId);
     

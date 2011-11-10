@@ -106,6 +106,8 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 return New<TAsyncResult>(EResult::Failed);
             }
 
+            SnapshotStore->UpdateMaxSnapshotId(snapshotId);
+
             snapshotReader = SnapshotStore->GetReader(snapshotId);
             if (~snapshotReader == NULL) {
                 LOG_FATAL("Snapshot %d has vanished", snapshotId);
@@ -115,17 +117,12 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         snapshotReader->Open();
         auto* stream = &snapshotReader->GetStream();
 
+        MetaState->Load(snapshotId, stream);
+
         // The reader reference is being held by the closure action.
-        return MetaState
-            ->Load(snapshotId, stream)
-            ->Apply(
-                FromMethod(
-                    &TRecovery::RecoverFromChangeLog,
-                    TPtr(this),
-                    snapshotReader,
-                    targetVersion,
-                    snapshotReader->GetPrevRecordCount())
-                ->AsyncVia(~CancelableStateInvoker));
+        return RecoverFromChangeLog(
+            targetVersion,
+            snapshotReader->GetPrevRecordCount());
     } else {
         // Recovery using changelogs only.
         LOG_DEBUG("No snapshot is used for recovery");
@@ -136,16 +133,12 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
             : UnknownPrevRecordCount;
 
         return RecoverFromChangeLog(
-            TVoid(),
-            TSnapshotReader::TPtr(),
             targetVersion,
             prevRecordCount);
     }
 }
 
 TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
-    TVoid,
-    TSnapshotReader::TPtr,
     TMetaVersion targetVersion,
     i32 expectedPrevRecordCount)
 {
@@ -213,18 +206,20 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             if (localRecordCount > remoteRecordCount) {
                 changeLog->Truncate(remoteRecordCount);
                 changeLog->Finalize();
-                LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
-                    segmentId,
-                    remoteRecordCount);
+                LOG_INFO("Local changelog is longer than expected, truncated to %d records (ChangeLogId: %d)",
+                    remoteRecordCount,
+                    segmentId);
 
-                auto version = MetaState->GetVersion();
-                if (version.SegmentId == segmentId && version.RecordCount > remoteRecordCount) {
-                    LOG_INFO("Current state contains uncommitted changes, restarting recovery",
-                        segmentId,
-                        remoteRecordCount);
+                auto currentVersion = MetaState->GetVersion();
+                YASSERT(currentVersion.SegmentId <= segmentId);
+
+                if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
+                    LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
 
                     MetaState->Clear();
-                    return Run();
+                    return FromMethod(&TRecovery::Run, TPtr(this))
+                           ->AsyncVia(~CancelableControlInvoker)
+                           ->Do();
                 }
             }
 
@@ -297,7 +292,7 @@ void TRecovery::ApplyChangeLog(
     yvector<TSharedRef> records;
     changeLog.Read(startRecordId, recordCount, &records);
     if (records.ysize() < recordCount) {
-        LOG_FATAL("Not enough records in the changelog"
+        LOG_FATAL("Not enough records in changelog"
             "(ChangeLogId: %d, StartRecordId: %d, ExpectedRecordCount: %d, ActualRecordCount: %d)",
             changeLog.GetId(),
             startRecordId,
@@ -421,8 +416,8 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!response->IsOK()) {
-        LOG_ERROR("Error synchronizing with the leader (ErrorCode: %s)",
-            ~response->GetErrorCode().ToString());
+        LOG_ERROR("Error synchronizing with leader (Error: %s)",
+            ~response->GetError().ToString());
         Result->Set(EResult::Failed);
         return;
     }
@@ -437,7 +432,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     i32 maxSnapshotId = response->GetMaxSnapshotId();
 
     if (epoch != Epoch) {
-        LOG_ERROR("Invalid epoch (expected: %s, got %s)",
+        LOG_ERROR("Invalid epoch (expected: %s, received: %s)",
             ~Epoch.ToString(),
             ~epoch.ToString());
         Result->Set(EResult::Failed);
@@ -450,7 +445,7 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
         maxSnapshotId);
 
     PostponedVersion = version;
-    YASSERT(PostponedChanges.ysize() == 0);
+    YASSERT(PostponedChanges.empty());
 
     i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
 
@@ -488,7 +483,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // TODO: use threshold?
-    if (PostponedChanges.ysize() == 0) {
+    if (PostponedChanges.empty()) {
         LOG_INFO("No postponed changes left");
         return New<TAsyncResult>(EResult::OK);
     }
@@ -496,7 +491,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
-    LOG_INFO("Captured %d postponed changes", changes->ysize());
+    LOG_INFO("Captured postponed changes (ChangeCount: %d)", changes->ysize());
 
     return FromMethod(
                &TFollowerRecovery::ApplyPostponedChanges,
@@ -511,7 +506,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying %d postponed changes", changes->ysize());
+    LOG_INFO("Applying postponed changes (ChangeCount: %d)", changes->ysize());
     
     FOREACH(const auto& change, *changes) {
         switch (change.Type) {
@@ -546,12 +541,19 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!SyncReceived) {
-        LOG_DEBUG("Postponed segment advance received before sync, ignored");
+        LOG_DEBUG("Segment advance received before sync, ignored");
         return EResult::OK;
     }
 
-    if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order postponed segment advance received (ExpectedVersion: %s, Version: %s)",
+    if (PostponedVersion > version) {
+        LOG_DEBUG("Late segment advance received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
+        return EResult::OK;
+    }
+
+    if (PostponedVersion < version) {
+        LOG_WARNING("Out-of-order segment advance received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
@@ -559,8 +561,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
     
-    LOG_DEBUG("Enqueued postponed segment advance %s",
-        ~PostponedVersion.ToString());
+    LOG_DEBUG("Postponing segment advance (Version: %s)", ~PostponedVersion.ToString());
 
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
@@ -568,30 +569,40 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     return EResult::OK;
 }
 
-TRecovery::EResult TFollowerRecovery::PostponeChange(
+TRecovery::EResult TFollowerRecovery::PostponeChanges(
     const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!SyncReceived) {
-        LOG_DEBUG("Postponed change received before sync, ignored");
+        LOG_DEBUG("Changes received before sync, ignored");
         return EResult::OK;
     }
 
-    if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order postponed change received (ExpectedVersion: %s, Version: %s)",
+    if (PostponedVersion > version) {
+        LOG_WARNING("Late changes received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
-    PostponedChanges.push_back(TPostponedChange::CreateChange(changeData));
-    
-    LOG_DEBUG("Enqueued postponed change %s",
-        ~PostponedVersion.ToString());
+    if (PostponedVersion != version) {
+        LOG_WARNING("Out-of-order changes received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~PostponedVersion.ToString(),
+            ~version.ToString());
+        return EResult::Failed;
+    }
 
-    ++PostponedVersion.RecordCount;
+    LOG_DEBUG("Postponing changes (Version: %s, ChangeCount: %d)",
+        ~PostponedVersion.ToString(),
+        changes.ysize());
+
+    FOREACH (const auto& change, changes) {
+        PostponedChanges.push_back(TPostponedChange::CreateChange(change));
+    }
+    
+    PostponedVersion.RecordCount += changes.ysize();
 
     return EResult::OK;
 }

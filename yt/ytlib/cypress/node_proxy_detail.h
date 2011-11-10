@@ -284,7 +284,7 @@ public: \
     { \
         auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
         NYTree::SetNodeFromProducer<NYTree::I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(); \
+        return TSetResult::CreateDone(this); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,7 +349,7 @@ protected:
 public:
     virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
     {
-        return const_cast<TCompositeNodeProxyBase*>(this);
+        return this;
     }
 
     virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()

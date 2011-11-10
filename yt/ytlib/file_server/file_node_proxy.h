@@ -17,10 +17,10 @@ public:
     typedef TIntrusivePtr<TFileNodeProxy> TPtr;
 
     TFileNodeProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId);
+        NCypress::INodeTypeHandler* typeHandler,
+        NCypress::TCypressManager* cypressManager,
+        const NTransaction::TTransactionId& transactionId,
+        const NCypress::TNodeId& nodeId);
 
 };
 

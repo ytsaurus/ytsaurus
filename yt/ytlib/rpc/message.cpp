@@ -26,9 +26,9 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data)
 ////////////////////////////////////////////////////////////////////////////////
 
 TRpcRequestMessage::TRpcRequestMessage(
-    const TRequestId requestId,
-    const Stroka serviceName,
-    const Stroka methodName,
+    const TRequestId& requestId,
+    const Stroka& serviceName,
+    const Stroka& methodName,
     TBlob* body,
     const yvector<TSharedRef>& attachments)
 {
@@ -58,21 +58,23 @@ const yvector<TSharedRef>& TRpcRequestMessage::GetParts()
 ////////////////////////////////////////////////////////////////////////////////
 
 TRpcResponseMessage::TRpcResponseMessage(
-    TRequestId requestId,
-    EErrorCode errorCode,
+    const TRequestId& requestId,
+    const TError& error,
     TBlob* body,
     const yvector<TSharedRef>& attachments)
 {
-    TResponseHeader responseHeader;
-    responseHeader.SetRequestId(requestId.ToProto());
-    responseHeader.SetErrorCode(errorCode);
+    TResponseHeader header;
+    header.SetRequestId(requestId.ToProto());
+    header.SetErrorCode(error.GetCode());
+    header.SetErrorCodeString(error.GetCode().ToString());
+    header.SetErrorMessage(error.GetMessage());
 
-    TBlob header;
-    if (!SerializeMessage(&responseHeader, &header)) {
+    TBlob headerBlob;
+    if (!SerializeMessage(&header, &headerBlob)) {
         LOG_FATAL("Error serializing response header");
     }
 
-    Parts.push_back(TSharedRef(header));
+    Parts.push_back(TSharedRef(headerBlob));
     Parts.push_back(TSharedRef(*body));
 
     FOREACH(const auto& attachment, attachments) {
@@ -87,13 +89,18 @@ const yvector<TSharedRef>& TRpcResponseMessage::GetParts()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcErrorResponseMessage::TRpcErrorResponseMessage(TRequestId requestId, EErrorCode errorCode)
+TRpcErrorResponseMessage::TRpcErrorResponseMessage(
+    const TRequestId& requestId,
+    const TError& error)
 {
-    TResponseHeader responseHeader;
-    responseHeader.SetRequestId(requestId.ToProto());
-    responseHeader.SetErrorCode(errorCode);
+    TResponseHeader header;
+    header.SetRequestId(requestId.ToProto());
+    header.SetErrorCode(error.GetCode());
+    header.SetErrorCodeString(error.GetCode().ToString());
+    header.SetErrorMessage(error.GetMessage());
+
     TBlob body;
-    if (!SerializeMessage(&responseHeader, &body)) {
+    if (!SerializeMessage(&header, &body)) {
         LOG_FATAL("Error serializing error response header");
     }
     Parts.push_back(TSharedRef(body));

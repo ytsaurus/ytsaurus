@@ -4,6 +4,7 @@
 #include "../cypress/virtual.h"
 #include "../ytree/virtual.h"
 #include "../ytree/fluent.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -26,13 +27,7 @@ private:
 
     virtual yvector<Stroka> GetKeys()
     {
-        auto ids = ChunkManager->GetChunkIds();
-        yvector<Stroka> keys;
-        keys.reserve(ids.ysize());
-        FOREACH(const auto& id, ids) {
-            keys.push_back(id.ToString());
-        }
-        return keys;
+        return ConvertToStrings(ChunkManager->GetChunkIds());
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key)
@@ -53,15 +48,7 @@ private:
                     .EndMap();
             }));
     }
-
 };
-
-IYPathService::TPtr CreateChunkMapService(TChunkManager* chunkManager)
-{
-    YASSERT(chunkManager != NULL);
-    
-    return New<TVirtualChunkMap>(chunkManager);
-}
 
 INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     TCypressManager* cypressManager,
@@ -73,8 +60,61 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         ERuntimeNodeType::ChunkMap,
+        // TODO: extract type name
         "chunk_map",
-        ~CreateChunkMapService(chunkManager));
+        ~New<TVirtualChunkMap>(chunkManager));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualChunkListMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualChunkListMap(TChunkManager* chunkManager)
+        : ChunkManager(chunkManager)
+    { }
+
+private:
+    TChunkManager::TPtr ChunkManager;
+
+    virtual yvector<Stroka> GetKeys()
+    {
+        return ConvertToStrings(ChunkManager->GetChunkListIds());
+    }
+
+    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    {
+        auto id = TChunkListId::FromString(key);
+        auto* chunkList = ChunkManager->FindChunkList(id);
+        if (chunkList == NULL) {
+            return NULL;
+        }
+
+        return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
+            {
+                // TODO: ChunkIds
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("replica_count").Scalar(chunkList->GetReplicaCount())
+                    .EndMap();
+            }));
+    }
+};
+
+INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager != NULL);
+    YASSERT(chunkManager != NULL);
+
+    return CreateVirtualTypeHandler(
+        cypressManager,
+        ERuntimeNodeType::ChunkListMap,
+        // TODO: extract type name
+        "chunk_list_map",
+        ~New<TVirtualChunkListMap>(chunkManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

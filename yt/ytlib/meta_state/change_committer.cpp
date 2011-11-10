@@ -32,13 +32,6 @@ void TCommitterBase::Stop()
     CancelableControlInvoker->Cancel();
 }
 
-TCommitterBase::EResult TCommitterBase::OnAppend(TVoid)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return EResult::Committed;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
@@ -92,24 +85,21 @@ public:
 
         auto cellManager = Committer->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id != cellManager->GetSelfId() &&
-                Committer->FollowerTracker->IsFollowerActive(id))
-            {
+            if (id == cellManager->GetSelfId()) continue;
 
-                auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-                auto request = proxy->ApplyChanges();
-                request->SetSegmentId(Version.SegmentId);
-                request->SetRecordCount(Version.RecordCount);
-                request->SetEpoch(Committer->Epoch.ToProto());
-                FOREACH(const auto& change, BatchedChanges) {
-                    request->Attachments().push_back(change);
-                }
-
-                Awaiter->Await(
-                    request->Invoke(Committer->Config.RpcTimeout),
-                    FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
-                LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
+            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+            auto request = proxy->ApplyChanges();
+            request->SetSegmentId(Version.SegmentId);
+            request->SetRecordCount(Version.RecordCount);
+            request->SetEpoch(Committer->Epoch.ToProto());
+            FOREACH(const auto& change, BatchedChanges) {
+                request->Attachments().push_back(change);
             }
+
+            Awaiter->Await(
+                request->Invoke(Committer->Config.RpcTimeout),
+                FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
+            LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
@@ -151,7 +141,7 @@ private:
                 ~Version.ToString(),
                 BatchedChanges.ysize(),
                 peerId,
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
             return;
         }
 
@@ -251,7 +241,7 @@ void TLeaderCommitter::Flush()
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
+TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     IAction::TPtr changeAction,
     const TSharedRef& changeData,
     ECommitMode mode)
@@ -270,7 +260,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
+                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s): %s",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());
@@ -283,7 +273,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::CommitLeader(
             try {
                 MetaState->ApplyChange(changeAction);
             } catch (...) {
-                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s, Error: %s)",
+                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s): %s",
                     ~mode.ToString(),
                     ~MetaState->GetVersion().ToString(),
                     ~CurrentExceptionMessage());
@@ -383,39 +373,61 @@ TFollowerCommitter::TFollowerCommitter(
     YASSERT(~controlInvoker != NULL);
 }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::CommitFollower(
-    const TMetaVersion& version,
-    const TSharedRef& changeData)
+TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
+    const TMetaVersion& expectedVersion,
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+    YASSERT(!changes.empty());
 
     return
         FromMethod(
-            &TFollowerCommitter::DoCommitFollower,
+            &TFollowerCommitter::DoCommit,
             TPtr(this),
-            version,
-            changeData)
+            expectedVersion,
+            changes)
         ->AsyncVia(MetaState->GetStateInvoker())
         ->Do();
 }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommitFollower(
-    const TMetaVersion& version,
-    const TSharedRef& changeData)
+TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
+    const TMetaVersion& expectedVersion,
+    const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (MetaState->GetVersion() != version) {
-        return New<TResult>(EResult::InvalidVersion);
+    auto currentVersion = MetaState->GetVersion();
+    if (currentVersion > expectedVersion) {
+        LOG_WARNING("Late changes received by follower, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~expectedVersion.ToString(),
+            ~currentVersion.ToString());
+        return New<TResult>(EResult::LateChanges);
     }
 
-    auto appendResult = MetaState
-        ->LogChange(version, changeData)
-        ->Apply(FromMethod(&TFollowerCommitter::OnAppend));
+    if (currentVersion != expectedVersion) {
+        LOG_WARNING("Out-of-order changes received by follower, restarting (ExpectedVersion: %s, ReceivedVersion: %s)",
+            ~expectedVersion.ToString(),
+            ~currentVersion.ToString());
+        return New<TResult>(EResult::OutOfOrderChanges);
+    }
 
-    MetaState->ApplyChange(changeData);
+    LOG_DEBUG("Applying changes at follower (Version: %s, ChangeCount: %d)",
+        ~currentVersion.ToString(),
+        changes.ysize());
 
-    return appendResult;
+    TResult::TPtr result;
+    FOREACH (const auto& change, changes) {
+        result = MetaState
+            ->LogChange(currentVersion, change)
+            ->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
+                {
+                    return TCommitterBase::EResult::Committed;
+                }));
+        MetaState->ApplyChange(change);
+        ++currentVersion.RecordCount;
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

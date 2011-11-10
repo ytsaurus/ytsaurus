@@ -35,6 +35,10 @@ SET(YT_SOURCE_FILES
     codec.h
     async_stream_state.cpp
     cyclic_buffer.h
+    mpl.h
+    new_config.h
+    new_config-inl.h
+
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

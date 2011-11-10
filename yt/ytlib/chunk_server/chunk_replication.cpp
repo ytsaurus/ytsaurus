@@ -59,7 +59,7 @@ void TChunkReplication::AddHolder(const THolder& holder)
 
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).Second());
 
-    FOREACH(const auto& chunk, holder.Chunks()) {
+    FOREACH(const auto& chunk, holder.ChunkIds()) {
         ScheduleRefresh(chunk);
     }
 }
@@ -87,10 +87,9 @@ void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk
     ScheduleRefresh(chunk.GetId());
 }
 
-void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
-    auto chunkId = chunk.GetId();
     holderInfo.ChunksToReplicate.erase(chunkId);
     holderInfo.ChunksToRemove.insert(chunkId);
 }
@@ -113,7 +112,7 @@ void TChunkReplication::ProcessExistingJobs(
         auto jobState = EJobState(jobInfo.GetState());
         switch (jobState) {
             case EJobState::Running:
-                switch (job.Type) {
+                switch (job.GetType()) {
                     case EJobType::Replicate:
                         ++*replicationJobCount;
                         break;
@@ -132,7 +131,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Completed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.ChunkId);
+                ScheduleRefresh(job.GetChunkId());
                 LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -140,7 +139,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Failed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.ChunkId);
+                ScheduleRefresh(job.GetChunkId());
                 LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -164,7 +163,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (chunk == NULL) {
-        LOG_INFO("Chunk for replication is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -172,7 +171,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk for replication is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -193,7 +192,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     int requestedCount = desiredCount - (realCount + plusCount);
     if (requestedCount <= 0) {
         // TODO: is this possible?
-        LOG_INFO("Chunk for replication has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -409,11 +408,11 @@ void TChunkReplication::GetReplicaStatistics(
             realAddresses.insert(holder.GetAddress());
         }
 
-        FOREACH(const auto& jobId, jobList->Jobs) {
+        FOREACH(const auto& jobId, jobList->JobIds()) {
             const auto& job = ChunkManager->GetJob(jobId);
-            switch (job.Type) {
+            switch (job.GetType()) {
                 case EJobType::Replicate: {
-                    FOREACH(const auto& address, job.TargetAddresses) {
+                    FOREACH(const auto& address, job.TargetAddresses()) {
                         if (realAddresses.find(address) == realAddresses.end()) {
                             ++*plusCount;
                         }
@@ -422,7 +421,7 @@ void TChunkReplication::GetReplicaStatistics(
                 }
 
                 case EJobType::Remove:
-                    if (realAddresses.find(job.RunnerAddress) != realAddresses.end()) {
+                    if (realAddresses.find(job.GetRunnerAddress()) != realAddresses.end()) {
                         ++*minusCount;
                     }
                     break;

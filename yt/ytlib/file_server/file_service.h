@@ -6,13 +6,11 @@
 
 #include "../rpc/server.h"
 #include "../meta_state/meta_state_service.h"
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../chunk_server/chunk_manager.h"
 
 namespace NYT {
 namespace NFileServer {
-
-using NChunkServer::TChunkManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +22,9 @@ public:
 
     //! Creates an instance.
     TFileService(
-        TChunkManager* chunkManager,
+        NMetaState::TMetaStateManager* metaStateManager,
+        NChunkServer::TChunkManager* chunkManager,
         TFileManager* fileManager,
-        IInvoker* serviceInvoker,
         NRpc::TServer* server);
 
 private:
@@ -34,7 +32,7 @@ private:
     typedef TFileServiceProxy::EErrorCode EErrorCode;
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
-    TChunkManager::TPtr ChunkManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
     TFileManager::TPtr FileManager;
 
     RPC_SERVICE_METHOD_DECL(NProto, SetFileChunk);

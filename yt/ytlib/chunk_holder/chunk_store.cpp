@@ -130,7 +130,7 @@ public:
                     ChunkStore->GetChunkFileName(chunk));
                 cookie.EndInsert(file);
             } catch (...) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s, What: %s)",
+                LOG_FATAL("Error opening chunk (ChunkId: %s): %s",
                     ~chunk->GetId().ToString(),
                     ~CurrentExceptionMessage());
             }
@@ -332,7 +332,7 @@ TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 
 TFileChunkReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
 {
-    return ~ReaderCache->Get(chunk);
+    return ReaderCache->Get(chunk);
 }
 
 TParamSignal<TChunk::TPtr>& TChunkStore::ChunkAdded()

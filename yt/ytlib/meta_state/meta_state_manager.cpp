@@ -104,7 +104,7 @@ private:
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
 
-    // Per epoch, service thread
+    // Per epoch, control (service) thread
     TEpoch Epoch;
     TCancelableInvoker::TPtr EpochControlInvoker;
     TCancelableInvoker::TPtr EpochStateInvoker;
@@ -127,11 +127,113 @@ private:
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment);
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader);
 
-    void RegisterMethods();
     void SendSync(const TEpoch& epoch, TCtxSync::TPtr context);
 
-    void OnLeaderRecoveryComplete(TRecovery::EResult result);
-    void OnFollowerRecoveryComplete(TRecovery::EResult result);
+    void OnLeaderRecoveryComplete(TRecovery::EResult result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YASSERT(result == TRecovery::EResult::OK ||
+                result == TRecovery::EResult::Failed);
+
+        YASSERT(~LeaderRecovery != NULL);
+        LeaderRecovery->Stop();
+        LeaderRecovery.Reset();
+
+        if (result != TRecovery::EResult::OK) {
+            LOG_WARNING("Leader recovery failed, restarting");
+            Restart();
+            return;
+        }
+
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoLeaderRecoveryComplete,
+            TPtr(this),
+            Epoch));
+
+        YASSERT(~FollowerTracker == NULL);
+        FollowerTracker = New<TFollowerTracker>(
+            TFollowerTracker::TConfig(),
+            CellManager,
+            ControlInvoker);
+
+        YASSERT(~LeaderCommitter == NULL);
+        LeaderCommitter = New<TLeaderCommitter>(
+            TLeaderCommitter::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            FollowerTracker,
+            ControlInvoker,
+            Epoch);
+        LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
+            &TThis::OnApplyChange,
+            TPtr(this)));
+
+        YASSERT(~SnapshotCreator == NULL);
+        SnapshotCreator = New<TSnapshotCreator>(
+            TSnapshotCreator::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            ControlInvoker);
+
+        ControlStatus = EPeerStatus::Leading;
+
+        LOG_INFO("Leader recovery complete");
+    }
+
+    void OnFollowerRecoveryComplete(TRecovery::EResult result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YASSERT(result == TRecovery::EResult::OK ||
+                result == TRecovery::EResult::Failed);
+
+        YASSERT(~FollowerRecovery != NULL);
+        FollowerRecovery->Stop();
+        FollowerRecovery.Reset();
+
+        if (result != TRecovery::EResult::OK) {
+            LOG_INFO("Follower recovery failed, restarting");
+            Restart();
+            return;
+        }
+
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoFollowerRecoveryComplete,
+            TPtr(this)));
+
+        YASSERT(~FollowerCommitter == NULL);
+        FollowerCommitter = New<TFollowerCommitter>(
+            MetaState,
+            ControlInvoker);
+
+        YASSERT(~LeaderPinger == NULL);
+        LeaderPinger = New<TLeaderPinger>(
+            TLeaderPinger::TConfig(),
+            Owner,
+            CellManager,
+            LeaderId,
+            Epoch,
+            ControlInvoker);
+
+        YASSERT(~SnapshotCreator == NULL);
+        SnapshotCreator = New<TSnapshotCreator>(
+            TSnapshotCreator::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            ControlInvoker);
+
+        ControlStatus = EPeerStatus::Following;
+
+        LOG_INFO("Follower recovery complete");
+    }
+
 
     void DoLeaderRecoveryComplete(const TEpoch& epoch)
     {
@@ -140,17 +242,19 @@ private:
         YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
-        // Propagating AdvanceSegment
+        // Switch to a new changelog unless the current one is empty.
+        // This enables changelog truncation for those followers that are down and have uncommitted changes.
         auto version = MetaState->GetVersion();
         if (version.RecordCount > 0) {
-            MetaState->RotateChangeLog();
+            LOG_INFO("Switching to a new changelog for a new epoch (Version: %s)",
+                ~version.ToString());
 
-            for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-                if (peerId == CellManager->GetSelfId()) continue;
+            for (TPeerId followerId = 0; followerId < CellManager->GetPeerCount(); ++followerId) {
+                if (followerId == CellManager->GetSelfId()) continue;
                 LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
-                    peerId);
+                    followerId);
 
-                auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+                auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
                 auto request = proxy->AdvanceSegment();
                 request->SetSegmentId(version.SegmentId);
                 request->SetRecordCount(version.RecordCount);
@@ -159,9 +263,11 @@ private:
                 request->Invoke()->Subscribe(FromMethod(
                     &TImpl::OnRemoteAdvanceSegment,
                     TPtr(this),
-                    peerId,
+                    followerId,
                     version));
             }
+
+            MetaState->RotateChangeLog();
         }
     
         OnMyLeaderRecoveryComplete_.Fire();
@@ -169,18 +275,18 @@ private:
 
     void OnRemoteAdvanceSegment(
         TProxy::TRspAdvanceSegment::TPtr response,
-        TPeerId peerId,
+        TPeerId followerId,
         TMetaVersion version)
     {
         if (response->IsOK()) {
             LOG_DEBUG("Follower advanced segment successfully (FollowerId: %d, Version: %s)",
-                peerId,
+                followerId,
                 ~version.ToString());
         } else {
             LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
-                peerId,
+                followerId,
                 ~version.ToString(),
-                ~response->GetErrorCode().ToString());
+                ~response->GetError().ToString());
         }
     }
 
@@ -201,7 +307,7 @@ private:
         context->Reply();
     }
 
-    void OnLocalCommit(
+    void OnFollowerCommit(
         TLeaderCommitter::EResult result,
         TCtxApplyChanges::TPtr context);
 
@@ -216,20 +322,210 @@ private:
     ECommitResult OnChangeCommit(TLeaderCommitter::EResult result);
 
     // IElectionCallbacks implementation.
-    virtual void OnStartLeading(const TEpoch& epoch);
-    virtual void OnStopLeading();
-    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& myEpoch);
-    virtual void OnStopFollowing();
+    virtual void OnStartLeading(const TEpoch& epoch)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Starting leader recovery");
+
+        GetControlStatus() = EPeerStatus::LeaderRecovery;
+        LeaderId = CellManager->GetSelfId();    
+
+        StartControlEpoch(epoch);
+    
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoStartLeading,
+            TPtr(this)));
+
+        YASSERT(~LeaderRecovery == NULL);
+        LeaderRecovery = New<TLeaderRecovery>(
+            Config,
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            LeaderId,
+            ControlInvoker);
+        LeaderRecovery->Run()->Subscribe(
+            FromMethod(&TThis::OnLeaderRecoveryComplete, TPtr(this))
+            ->Via(~EpochControlInvoker));
+    }
+
+    virtual void OnStopLeading()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Stopped leading");
+    
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoStopLeading,
+            TPtr(this)));
+
+        ControlStatus = EPeerStatus::Elections;
+
+        StopControlEpoch();
+
+        if (~LeaderRecovery != NULL) {
+            LeaderRecovery->Stop();
+            LeaderRecovery.Reset();
+        }
+
+        if (~LeaderCommitter != NULL) {
+            LeaderCommitter->Stop();
+            LeaderCommitter.Reset();
+        }
+
+        if (~FollowerTracker != NULL) {
+            FollowerTracker->Stop();
+            FollowerTracker.Reset();
+        }
+
+        if (~SnapshotCreator != NULL) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
+            SnapshotCreator.Reset();
+        }
+    }
+
+    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& epoch)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Starting follower state recovery");
+    
+        ControlStatus = EPeerStatus::FollowerRecovery;
+        LeaderId = leaderId;
+
+        StartControlEpoch(epoch);
+
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoStartFollowing,
+            TPtr(this)));
+
+        YASSERT(~FollowerRecovery == NULL);
+        FollowerRecovery = New<TFollowerRecovery>(
+            Config,
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            LeaderId,
+            ControlInvoker);
+
+        FollowerRecovery->Run()->Subscribe(
+            FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
+            ->Via(~EpochControlInvoker));
+    }
+
+    virtual void OnStopFollowing()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Stopped following");
+    
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoStopFollowing,
+            TPtr(this)));
+
+        ControlStatus = EPeerStatus::Elections;
+    
+        StopControlEpoch();
+
+        if (~FollowerRecovery != NULL) {
+            // This may happen if the recovery gets interrupted.
+            FollowerRecovery->Stop();
+            FollowerRecovery.Reset();
+        }
+
+        if (~FollowerCommitter != NULL) {
+            FollowerCommitter->Stop();
+            FollowerCommitter.Reset();
+        }
+
+        if (~LeaderPinger != NULL) {
+            LeaderPinger->Stop();
+            LeaderPinger.Reset();
+        }
+
+        if (~SnapshotCreator != NULL) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
+            SnapshotCreator.Reset();
+        }
+    }
+
     virtual TPeerPriority GetPriority();
     virtual Stroka FormatPriority(TPeerPriority priority);
 
+    // Blocks state thread until snapshot creation is finished
+    void WaitSnapshotCreation(TSnapshotCreator::TPtr snapshotCreator)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
 
-    void DoStartLeading();
-    void DoStopLeading();
+        snapshotCreator->GetLocalProgress()->Get();
+    }
 
-    void DoStartFollowing();
-    void DoFollowerRecoveryComplete();
-    void DoStopFollowing();
+    void DoStartLeading()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::Stopped);
+        StateStatus = EPeerStatus::LeaderRecovery;
+
+        StartStateEpoch();
+
+        OnMyStartLeading_.Fire();
+    }
+
+    void DoStopLeading()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
+        StateStatus = EPeerStatus::Stopped;
+
+        StopStateEpoch();
+
+        OnMyStopLeading_.Fire();
+    }
+
+
+    void DoStartFollowing()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::Stopped);
+        StateStatus = EPeerStatus::FollowerRecovery;
+
+        StartStateEpoch();
+
+        OnMyStartFollowing_.Fire();
+    }
+
+    void DoFollowerRecoveryComplete()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
+        StateStatus = EPeerStatus::Following;
+
+        OnMyFollowerRecoveryComplete_.Fire();
+    }
+
+    void DoStopFollowing()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        YASSERT(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
+        StateStatus = EPeerStatus::Stopped;
+
+        StopStateEpoch();
+
+        OnMyStopFollowing_.Fire();
+    }
+
 
     void StartControlEpoch(const TEpoch& epoch);
     void StopControlEpoch();
@@ -264,7 +560,14 @@ TMetaStateManager::TImpl::TImpl(
     YASSERT(~metaState != NULL);
     YASSERT(~server != NULL);
 
-    RegisterMethods();
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
 
     NFS::CleanTempFiles(config.LogLocation);
     ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
@@ -293,25 +596,21 @@ TMetaStateManager::TImpl::TImpl(
     server->RegisterService(this);
 }
 
-void TMetaStateManager::TImpl::RegisterMethods()
-{
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
-}
-
 void TMetaStateManager::TImpl::Restart()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     // To prevent multiple restarts.
-    EpochControlInvoker->Cancel();
+    auto epochControlInvoker = EpochControlInvoker;
+    if (~epochControlInvoker != NULL) {
+        epochControlInvoker->Cancel();
+    }
 
+    auto epochStateInvoker = EpochStateInvoker;
+    if (~epochStateInvoker != NULL) {
+        epochStateInvoker->Cancel();
+    }
+    
     ElectionManager->Restart();
 }
 
@@ -390,7 +689,7 @@ TMetaStateManager::TImpl::CommitChangeSync(
 
     return
         LeaderCommitter
-        ->CommitLeader(changeAction, changeData, mode)
+        ->Commit(changeAction, changeData, mode)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
@@ -462,8 +761,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, Sync)
     
     if (GetControlStatus() != EPeerStatus::Leading && GetControlStatus() != EPeerStatus::LeaderRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
-            Sprintf("Invalid status (Status: %s)",
-                ~GetControlStatus().ToString());
+            Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
     }
 
     GetStateInvoker()->Invoke(FromMethod(
@@ -529,7 +827,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetSnapshotInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting snapshot info (SnapshotId: %d, Error: %s)",
+            Sprintf("IO error while getting snapshot info (SnapshotId: %d): %s",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -555,7 +853,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
         auto reader = SnapshotStore->GetReader(snapshotId);
         if (~reader == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid snapshot id %d", snapshotId);
+                Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
         }
 
         reader->Open(offset);
@@ -573,7 +871,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-            Sprintf("IO error while reading snapshot (SnapshotId: %d, Error: %s)",
+            Sprintf("IO error while reading snapshot (SnapshotId: %d): %s",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -604,7 +902,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting changelog info (ChangeLogId: %d, Error: %s)",
+            Sprintf("IO error while getting changelog info (ChangeLogId: %d): %s",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -647,7 +945,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while reading changelog (ChangeLogId: %d, Error: %s)",
+            Sprintf("IO error while reading changelog (ChangeLogId: %d): %s",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -687,20 +985,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
                 changeCount);
 
             YASSERT(~FollowerCommitter != NULL);
-            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(GetControlStatus() == EPeerStatus::Following);
-                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
-                const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                auto asyncResult = FollowerCommitter->CommitFollower(commitVersion, changeData);
-                // Subscribe to the last change
-                if (changeIndex == changeCount - 1) {
-                    asyncResult->Subscribe(FromMethod(
-                            &TThis::OnLocalCommit,
-                            TPtr(this),
-                            context)
-                        ->Via(ControlInvoker));
-                }
-            }
+
+            FollowerCommitter
+                ->Commit(version, request->Attachments())
+                ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
             break;
         }
 
@@ -710,15 +998,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
                 changeCount);
 
             YASSERT(~FollowerRecovery != NULL);
-            for (int changeIndex = 0; changeIndex < changeCount; ++changeIndex) {
-                YASSERT(GetControlStatus() == EPeerStatus::FollowerRecovery);
-                TMetaVersion commitVersion(segmentId, recordCount + changeIndex);
-                const TSharedRef& changeData = request->Attachments().at(changeIndex);
-                auto result = FollowerRecovery->PostponeChange(commitVersion, changeData);
-                if (result != TRecovery::EResult::OK) {
-                    Restart();
-                    break;
-                }
+
+            auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
+            if (result != TRecovery::EResult::OK) {
+                Restart();
             }
 
             response->SetCommitted(false);
@@ -731,29 +1014,27 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
     }
 }
 
-void TMetaStateManager::TImpl::OnLocalCommit(
+void TMetaStateManager::TImpl::OnFollowerCommit(
     TLeaderCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto& request = context->Request();
     auto& response = context->Response();
 
-    TMetaVersion version(request.GetSegmentId(), request.GetRecordCount());
-
     switch (result) {
-        case TLeaderCommitter::EResult::Committed:
+        case TCommitterBase::EResult::Committed:
             response.SetCommitted(true);
             context->Reply();
             break;
 
-        case TLeaderCommitter::EResult::InvalidVersion:
+        case TCommitterBase::EResult::LateChanges:
+            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            break;
+
+        case TCommitterBase::EResult::OutOfOrderChanges:
             context->Reply(TProxy::EErrorCode::InvalidVersion);
             Restart();
-
-            LOG_WARNING("ApplyChange: unexpected change version, restarting (Version: %s)",
-                ~version.ToString());
             break;
 
         default:
@@ -766,7 +1047,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
+    auto epoch = TEpoch::FromProto(request->GetEpoch());
     i32 segmentId = request->GetSegmentId();
     i32 recordCount = request->GetRecordCount();
     TMetaVersion version(segmentId, recordCount);
@@ -775,7 +1056,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
         ~epoch.ToString(),
         ~version.ToString(),
-        createSnapshot ? "True" : "False");
+        ~ToString(createSnapshot));
 
     if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
         ythrow TServiceException(EErrorCode::InvalidStatus) <<
@@ -793,7 +1074,8 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
     switch (GetControlStatus()) {
         case EPeerStatus::Following:
             if (createSnapshot) {
-                LOG_DEBUG("AdvanceSegment: creating snapshot");
+                LOG_DEBUG("AdvanceSegment: starting snapshot creation (Version: %s)",
+                    ~version.ToString());
     
                 FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
                     ->AsyncVia(GetStateInvoker())
@@ -803,17 +1085,17 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                         TPtr(this),
                         context));
             } else {
-                LOG_DEBUG("AdvanceSegment: advancing segment (SegmentId: %d)", segmentId);
+                LOG_DEBUG("AdvanceSegment: advancing segment (Version: %s)",
+                    ~version.ToString());
 
-                GetStateInvoker()->Invoke(
-                    FromMethod(&TImpl::DoAdvanceSegment, TPtr(this), context, version));
+                GetStateInvoker()->Invoke(context->Wrap(FromMethod(
+                    &TImpl::DoAdvanceSegment,
+                    TPtr(this),
+                    version)));
             }
             break;
             
         case EPeerStatus::FollowerRecovery: {
-            LOG_DEBUG("CreateSnapshot: keeping postponed segment advance (SegmentId: %d)",
-                segmentId);
-
             YASSERT(~FollowerRecovery != NULL);
             auto result = FollowerRecovery->PostponeSegmentAdvance(version);
             if (result != TRecovery::EResult::OK) {
@@ -821,13 +1103,10 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             }
 
             if (createSnapshot) {
-                LOG_INFO("Could not create snapshot during recovery (SegmentId: %d)",
-                    segmentId);
                 context->Reply(EErrorCode::InvalidStatus);
             } else {
                 context->Reply();
             }
-
             break;
         }
 
@@ -930,150 +1209,6 @@ void TMetaStateManager::TImpl::StopStateEpoch()
     EpochStateInvoker.Reset();
 }
 
-void TMetaStateManager::TImpl::OnStartLeading(const TEpoch& epoch)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Starting leader recovery");
-
-    GetControlStatus() = EPeerStatus::LeaderRecovery;
-    LeaderId = CellManager->GetSelfId();    
-
-    StartControlEpoch(epoch);
-    
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoStartLeading,
-        TPtr(this)));
-
-    YASSERT(~LeaderRecovery == NULL);
-    LeaderRecovery = New<TLeaderRecovery>(
-        Config,
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        SnapshotStore,
-        Epoch,
-        LeaderId,
-        ControlInvoker);
-
-    LeaderRecovery->Run()->Subscribe(
-        FromMethod(&TThis::OnLeaderRecoveryComplete, TPtr(this))
-        ->Via(~EpochControlInvoker));
-}
-
-void TMetaStateManager::TImpl::DoStartLeading()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::Stopped);
-    StateStatus = EPeerStatus::LeaderRecovery;
-
-    StartStateEpoch();
-
-    OnMyStartLeading_.Fire();
-}
-
-void TMetaStateManager::TImpl::OnLeaderRecoveryComplete(TRecovery::EResult result)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(result == TRecovery::EResult::OK ||
-            result == TRecovery::EResult::Failed);
-
-    YASSERT(~LeaderRecovery != NULL);
-    LeaderRecovery->Stop();
-    LeaderRecovery.Reset();
-
-    if (result != TRecovery::EResult::OK) {
-        LOG_WARNING("Leader recovery failed, restarting");
-        Restart();
-        return;
-    }
-
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoLeaderRecoveryComplete,
-        TPtr(this),
-        Epoch));
-
-    YASSERT(~FollowerTracker == NULL);
-    FollowerTracker = New<TFollowerTracker>(
-        TFollowerTracker::TConfig(),
-        CellManager,
-        ControlInvoker);
-
-    YASSERT(~LeaderCommitter == NULL);
-    LeaderCommitter = New<TLeaderCommitter>(
-        TLeaderCommitter::TConfig(),
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        FollowerTracker,
-        ControlInvoker,
-        Epoch);
-    LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
-        &TThis::OnApplyChange,
-        TPtr(this)));
-
-    YASSERT(~SnapshotCreator == NULL);
-    SnapshotCreator = New<TSnapshotCreator>(
-        TSnapshotCreator::TConfig(),
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        SnapshotStore,
-        Epoch,
-        ControlInvoker);
-
-    ControlStatus = EPeerStatus::Leading;
-
-    LOG_INFO("Leader recovery complete");
-}
-
-void TMetaStateManager::TImpl::OnStopLeading()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Stopped leading");
-    
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoStopLeading,
-        TPtr(this)));
-
-    ControlStatus = EPeerStatus::Elections;
-
-    StopControlEpoch();
-
-    if (~LeaderRecovery != NULL) {
-        LeaderRecovery->Stop();
-        LeaderRecovery.Reset();
-    }
-
-    if (~LeaderCommitter != NULL) {
-        LeaderCommitter->Stop();
-        LeaderCommitter.Reset();
-    }
-
-    if (~FollowerTracker != NULL) {
-        FollowerTracker->Stop();
-        FollowerTracker.Reset();
-    }
-
-    if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Reset();
-    }
-}
-
-void TMetaStateManager::TImpl::DoStopLeading()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
-    StateStatus = EPeerStatus::Stopped;
-
-    StopStateEpoch();
-
-    OnMyStopLeading_.Fire();
-}
-
 void TMetaStateManager::TImpl::OnApplyChange()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -1085,155 +1220,6 @@ void TMetaStateManager::TImpl::OnApplyChange()
         LeaderCommitter->Flush();
         SnapshotCreator->CreateDistributed();
     }
-}
-
-void TMetaStateManager::TImpl::OnStartFollowing(TPeerId leaderId, const TEpoch& epoch)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Starting follower state recovery");
-    
-    ControlStatus = EPeerStatus::FollowerRecovery;
-    LeaderId = leaderId;
-
-    StartControlEpoch(epoch);
-
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoStartFollowing,
-        TPtr(this)));
-
-    YASSERT(~FollowerRecovery == NULL);
-    FollowerRecovery = New<TFollowerRecovery>(
-        Config,
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        SnapshotStore,
-        Epoch,
-        LeaderId,
-        ControlInvoker);
-
-    FollowerRecovery->Run()->Subscribe(
-        FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
-        ->Via(~EpochControlInvoker));
-}
-
-void TMetaStateManager::TImpl::DoStartFollowing()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::Stopped);
-    StateStatus = EPeerStatus::FollowerRecovery;
-
-    StartStateEpoch();
-
-    OnMyStartFollowing_.Fire();
-}
-
-void TMetaStateManager::TImpl::OnFollowerRecoveryComplete(TRecovery::EResult result)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(result == TRecovery::EResult::OK ||
-            result == TRecovery::EResult::Failed);
-
-    YASSERT(~FollowerRecovery != NULL);
-    FollowerRecovery->Stop();
-    FollowerRecovery.Reset();
-
-    if (result != TRecovery::EResult::OK) {
-        LOG_INFO("Follower recovery failed, restarting");
-        Restart();
-        return;
-    }
-
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoFollowerRecoveryComplete,
-        TPtr(this)));
-
-    YASSERT(~FollowerCommitter == NULL);
-    FollowerCommitter = New<TFollowerCommitter>(
-        MetaState,
-        ControlInvoker);
-
-    YASSERT(~LeaderPinger == NULL);
-    LeaderPinger = New<TLeaderPinger>(
-        TLeaderPinger::TConfig(),
-        Owner,
-        CellManager,
-        LeaderId,
-        Epoch,
-        ControlInvoker);
-
-    YASSERT(~SnapshotCreator == NULL);
-    SnapshotCreator = New<TSnapshotCreator>(
-        TSnapshotCreator::TConfig(),
-        CellManager,
-        MetaState,
-        ChangeLogCache,
-        SnapshotStore,
-        Epoch,
-        ControlInvoker);
-
-    ControlStatus = EPeerStatus::Following;
-
-    LOG_INFO("Follower recovery complete");
-}
-
-void TMetaStateManager::TImpl::DoFollowerRecoveryComplete()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
-    StateStatus = EPeerStatus::Following;
-
-    OnMyFollowerRecoveryComplete_.Fire();
-}
-
-void TMetaStateManager::TImpl::OnStopFollowing()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Stopped following");
-    
-    GetStateInvoker()->Invoke(FromMethod(
-        &TThis::DoStopFollowing,
-        TPtr(this)));
-
-    ControlStatus = EPeerStatus::Elections;
-    
-    StopControlEpoch();
-
-    if (~FollowerRecovery != NULL) {
-        // This may happen if the recovery gets interrupted.
-        FollowerRecovery->Stop();
-        FollowerRecovery.Reset();
-    }
-
-    if (~FollowerCommitter != NULL) {
-        FollowerCommitter->Stop();
-        FollowerCommitter.Reset();
-    }
-
-    if (~LeaderPinger != NULL) {
-        LeaderPinger->Stop();
-        LeaderPinger.Reset();
-    }
-
-    if (~SnapshotCreator != NULL) {
-        SnapshotCreator.Reset();
-    }
-}
-
-void TMetaStateManager::TImpl::DoStopFollowing()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    
-    YASSERT(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
-    StateStatus = EPeerStatus::Stopped;
-
-    StopStateEpoch();
-
-    OnMyStopFollowing_.Fire();
 }
 
 TPeerPriority TMetaStateManager::TImpl::GetPriority()

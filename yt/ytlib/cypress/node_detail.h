@@ -195,7 +195,7 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(Locks, yhash_set<TLockId>);
+    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
     DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);

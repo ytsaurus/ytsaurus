@@ -29,7 +29,7 @@ struct IChannel
      *  \param timeout Request processing timeout.
      *  \return An asynchronous result of an RPC call.
      */
-    virtual TFuture<EErrorCode>::TPtr Send(
+    virtual TFuture<TError>::TPtr Send(
         TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout) = 0;
@@ -55,7 +55,7 @@ public:
     TChannel(NBus::TBusClient::TPtr client);
     TChannel(Stroka address);
 
-    virtual TFuture<EErrorCode>::TPtr Send(
+    virtual TFuture<TError>::TPtr Send(
         TIntrusivePtr<IClientRequest> request,
         TIntrusivePtr<IClientResponseHandler> responseHandler,
         TDuration timeout);
@@ -70,7 +70,7 @@ private:
     {
         TRequestId RequestId;
         TIntrusivePtr<IClientResponseHandler> ResponseHandler;
-        TFuture<EErrorCode>::TPtr Ready;
+        TFuture<TError>::TPtr Ready;
         TDelayedInvoker::TCookie TimeoutCookie;
     };
 
@@ -94,43 +94,6 @@ private:
 
     void UnregisterRequest(TRequestMap::iterator it);
 };          
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-// TODO: move to channel_cache.h/cpp
-// 
-//! Caches TChannel instances by address.
-/*!
- *  \note Thread affinity: any.
- */
-class TChannelCache
-    : private TNonCopyable
-{
-public:
-    //! Creates a new instance.
-    TChannelCache();
-
-    //! Constructs new or gets an earlier created channel for a given address.
-    TChannel::TPtr GetChannel(Stroka address);
-
-    //! Shuts down all channels.
-    /*!
-     *  It is safe to call this method multiple times.
-     *  After the first call the instance is no longer usable.
-     */
-    void Shutdown();
-
-private:
-    typedef yhash_map<Stroka, TChannel::TPtr> TChannelMap;
-
-    bool IsTerminated;
-    TChannelMap ChannelMap;
-    //! Protects #IsTerminated and #ChannelMap.
-    TSpinLock SpinLock;
-
-};
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

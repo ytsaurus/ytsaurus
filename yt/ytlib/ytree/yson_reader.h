@@ -47,6 +47,10 @@ private:
     void SkipWhitespaces();
 
     Stroka ReadString();
+    Stroka ReadQuoteStartingString();
+    Stroka ReadLetterStartingString();
+    Stroka ReadBinaryString();
+
     Stroka ReadNumeric();
 
     void ParseAny();
@@ -65,7 +69,6 @@ private:
 
     void ParseString();
 
-    void ParseBinaryString();
     void ParseBinaryInt64();
     void ParseBinaryDouble();
 

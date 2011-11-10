@@ -93,8 +93,6 @@ protected:
      *  \note Thread affinity: StateThread.
      */
     TAsyncResult::TPtr RecoverFromChangeLog(
-        TVoid,
-        TSnapshotReader::TPtr,
         TMetaVersion targetVersion,
         i32 expectedPrevRecordCount);
 
@@ -195,23 +193,24 @@ public:
 
     //! Postpones an incoming request for advancing the current segment.
     /*!
-     * \param version State in which the segment should be changed.
-     * \returns True when applicable request is coherent with the postponed state
-     * and postponing succeeded.
+     * \param version Version at which the segment should be changed.
+     * \returns True when applicable request is coherent with the postponed version.
+     * 
      * \note Thread affinity: ControlThread.
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
 
-    //! Postpones an incoming change.
+    //! Postpones incoming changes.
     /*!
-     * \param change Incoming change.
-     * \param version State in which the change should be applied.
-     * \returns True when the change is coherent with the postponed state
-     * and postponing succeeded.
+     * \param changes Incoming changes.
+     * \param version Version at which the changes should be applied.
+     * \returns True when the change is coherent with the postponed version.
      * 
      * \note Thread affinity: ControlThread.
      */
-    EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
+    EResult PostponeChanges(
+        const TMetaVersion& version,
+        const yvector<TSharedRef>& changes);
 
 private:
     struct TPostponedChange

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../rpc/client.h"
+#include "../rpc/channel_cache.h"
 #include "../misc/lazy_ptr.h"
 
 namespace NYT {

@@ -6,6 +6,7 @@
 
 #include "../misc/common.h"
 #include "../misc/enum.h"
+#include "../misc/cyclic_buffer.h"
 #include "../misc/thread_affinity.h"
 #include "../actions/future.h"
 

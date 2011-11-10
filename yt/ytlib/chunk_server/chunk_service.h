@@ -20,10 +20,10 @@ public:
 
     //! Creates an instance.
     TChunkService(
-        TChunkManager::TPtr chunkManager,
-        TTransactionManager::TPtr transactionManager,
-        IInvoker::TPtr serviceInvoker,
-        NRpc::TServer::TPtr server);
+        NMetaState::TMetaStateManager* metaStateManager,
+        TChunkManager* chunkManager,
+        NTransaction::TTransactionManager* transactionManager,
+        NRpc::TServer* server);
 
 private:
     typedef TChunkService TThis;
@@ -32,8 +32,6 @@ private:
 
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
-
-    void RegisterMethods();
 
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);

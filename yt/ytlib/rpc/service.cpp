@@ -18,7 +18,7 @@ static NLog::TLogger& Logger = RpcLogger;
 TServiceContext::TServiceContext(
     IService::TPtr service,
     TRequestId requestId,
-    Stroka methodName,
+    const Stroka& methodName,
     IMessage::TPtr message,
     IBus::TPtr replyBus)
     : State(EState::Received)
@@ -39,13 +39,18 @@ TServiceContext::TServiceContext(
 
 void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
 {
+    Reply(TError(errorCode));
+}
+
+void TServiceContext::Reply(const TError& error)
+{
     // Failure here means that #Reply is called twice.
     YASSERT(!Replied);
 
     Replied = true;
-    LogResponseInfo(errorCode);
+    LogResponseInfo(error);
     Service->OnEndRequest(this);
-    DoReply(errorCode);
+    DoReply(error);
 }
 
 bool TServiceContext::IsReplied() const
@@ -53,21 +58,21 @@ bool TServiceContext::IsReplied() const
     return Replied;
 }
 
-void TServiceContext::DoReply(EErrorCode errorCode /* = EErrorCode::OK */)
+void TServiceContext::DoReply(const TError& error)
 {
     YASSERT(State == EState::Received);
 
     IMessage::TPtr message;
-    if (errorCode.IsOK()) {
+    if (error.IsOK()) {
         message = New<TRpcResponseMessage>(
             RequestId,
-            errorCode,
+            error,
             &ResponseBody,
             ResponseAttachments);
     } else {
         message = New<TRpcErrorResponseMessage>(
             RequestId,
-            errorCode);
+            error);
     }
 
     ReplyBus->Send(message);
@@ -145,30 +150,26 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
     try {
         action->Do();
     } catch (const TServiceException& ex) {
-        DoReply(ex.GetErrorCode());
+        DoReply(ex.GetError());
         LogException(
             NLog::ELogLevel::Debug,
-            ex.GetErrorCode(),
-            ex.what());
+            ex.GetError());
     } catch (...) {
-        DoReply(EErrorCode::ServiceError);
+        DoReply(TError(EErrorCode::ServiceError));
         LogException(
             NLog::ELogLevel::Fatal,
-            EErrorCode::ServiceError,
-            CurrentExceptionMessage());
+            TError(EErrorCode::ServiceError, CurrentExceptionMessage()));
     }
 }
 
 void TServiceContext::LogException(
     NLog::ELogLevel level,
-    EErrorCode errorCode,
-    Stroka what)
+    const TError& error)
 {
     Stroka str;
     AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
     AppendInfo(str, ResponseInfo);
-    AppendInfo(str, Sprintf("What: %s", what.c_str()));
+    AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
     LOG_EVENT(
         ServiceLogger,
         level,
@@ -190,11 +191,11 @@ void TServiceContext::LogRequestInfo()
         ~str);
 }
 
-void TServiceContext::LogResponseInfo(EErrorCode errorCode)
+void TServiceContext::LogResponseInfo(const TError& error)
 {
     Stroka str;
     AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-    AppendInfo(str, Sprintf("ErrorCode: %s", ~errorCode.ToString()));
+    AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
     AppendInfo(str, ResponseInfo);
     LOG_EVENT(
         ServiceLogger,
@@ -204,7 +205,7 @@ void TServiceContext::LogResponseInfo(EErrorCode errorCode)
         ~str);
 }
 
-void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
+void TServiceContext::AppendInfo(Stroka& lhs, const Stroka& rhs)
 {
     if (!rhs.Empty()) {
         if (!lhs.Empty()) {
@@ -218,8 +219,8 @@ void TServiceContext::AppendInfo(Stroka& lhs, Stroka rhs)
 
 TServiceBase::TServiceBase(
     IInvoker::TPtr defaultServiceInvoker,
-    Stroka serviceName,
-    Stroka loggingCategory)
+    const Stroka& serviceName,
+    const Stroka& loggingCategory)
     : DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
     , ServiceLogger(loggingCategory)
@@ -261,9 +262,9 @@ void TServiceBase::OnBeginRequest(TServiceContext::TPtr context)
         LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
             ~ServiceName,
             ~methodName);
-        IMessage::TPtr errorMessage(New<TRpcErrorResponseMessage>(
+        auto errorMessage = New<TRpcErrorResponseMessage>(
             context->GetRequestId(),
-            EErrorCode::NoMethod));
+            TError(EErrorCode::NoMethod));
         context->GetReplyBus()->Send(errorMessage);
         return;
     }

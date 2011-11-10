@@ -74,7 +74,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TFuture<TVoid>::TPtr Load(i32 segmentId, TInputStream* input);
+    void Load(i32 segmentId, TInputStream* input);
     
     //! Delegates the call to IMetaState::ApplyChange and updates the version.
     /*!
@@ -114,12 +114,10 @@ private:
     void UpdateVersion(const TMetaVersion& newVersion);
     TCachedAsyncChangeLog::TPtr GetCurrentChangeLog();
 
-    TVoid OnSave(TVoid, TInstant started);
-    TVoid OnLoad(TVoid, TInstant started);
-
     IMetaState::TPtr State;
     TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
+    TCachedAsyncChangeLog::TPtr CurrentChangeLog;
 
     TActionQueue::TPtr StateQueue;
     TActionQueue::TPtr SnapshotQueue;

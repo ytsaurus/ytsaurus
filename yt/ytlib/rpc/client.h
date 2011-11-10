@@ -16,8 +16,7 @@ class TClientRequest;
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode = EErrorCode
+    class TResponseMessage
 >
 class TTypedClientRequest;
 
@@ -25,8 +24,7 @@ class TClientResponse;
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode = EErrorCode
+    class TResponseMessage
 >
 class TTypedClientResponse;
 
@@ -44,7 +42,7 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel::TPtr channel, Stroka serviceName);
+    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;
@@ -81,11 +79,11 @@ protected:
 
     TClientRequest(
         IChannel::TPtr channel,
-        Stroka serviceName,
-        Stroka methodName);
+        const Stroka& serviceName,
+        const Stroka& methodName);
 
     virtual bool SerializeBody(TBlob* data) const = 0;
-    TFuture<EErrorCode>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
+    TFuture<TError>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
 
     Stroka GetServiceName() const;
     Stroka GetMethodName() const;
@@ -104,21 +102,23 @@ private:
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode
+    class TResponseMessage
 >
 class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
 {
 private:
-    typedef TTypedClientResponse<TRequestMessage, TResponseMessage, TErrorCode> TTypedResponse;
+    typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
     typedef TFuture<typename TTypedResponse::TPtr> TInvokeResult;
 
-    TTypedClientRequest(IChannel::TPtr channel, Stroka serviceName, Stroka methodName)
+    TTypedClientRequest(
+        IChannel::TPtr channel,
+        const Stroka& serviceName,
+        const Stroka& methodName)
         : TClientRequest(channel, serviceName, methodName)
     {
         YASSERT(~channel != NULL);
@@ -144,14 +144,14 @@ private:
     }
 
     static void OnReady(
-        EErrorCode errorCode,
+        TError error,
         typename TInvokeResult::TPtr asyncResult,
         typename TTypedResponse::TPtr response)
     {
         YASSERT(~asyncResult != NULL);
         YASSERT(~response != NULL);
 
-        UNUSED(errorCode);
+        UNUSED(error);
         asyncResult->Set(response);
     }
 };
@@ -163,10 +163,11 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
+    virtual void OnAcknowledgement(
+        NBus::IBus::ESendResult sendResult) = 0;
 
     virtual void OnResponse(
-        EErrorCode errorCode,
+        const TError& error,
         NBus::IMessage::TPtr message) = 0;
 
     virtual void OnTimeout() = 0;
@@ -182,15 +183,13 @@ public:
 
     yvector<TSharedRef>& Attachments();
 
-    TRequestId GetRequestId();
-
+    TRequestId GetRequestId() const;
+    TError GetError() const;
     EErrorCode GetErrorCode() const;
 
     bool IsOK() const;
-    bool IsRpcError() const;
-    bool IsServiceError() const;
 
-    TInstant GetInvokeInstant() const;
+    TInstant GetStartTime() const;
 
 protected:
     TClientResponse(
@@ -208,30 +207,29 @@ private:
         (Done)
     );
 
-    //! Protects state.
+    // Protects state.
     TSpinLock SpinLock;
     TRequestId RequestId;
     IChannel::TPtr Channel;
     EState State;
-    EErrorCode ErrorCode;
+    TError Error;
     yvector<TSharedRef> MyAttachments;
-    TInstant InvokeInstant;
+    TInstant StartTime;
 
-    //! IClientResponseHandler implementation.
+    // IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
-    virtual void OnResponse(EErrorCode errorCode, NBus::IMessage::TPtr message);
+    virtual void OnResponse(const TError& error, NBus::IMessage::TPtr message);
     virtual void OnTimeout();
 
     void Deserialize(NBus::IMessage::TPtr message);
-    void Complete(EErrorCode errorCode);
+    void Complete(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template<
     class TRequestMessage,
-    class TResponseMessage,
-    class TErrorCode
+    class TResponseMessage
 >
 class TTypedClientResponse
     : public TClientResponse
@@ -248,11 +246,6 @@ public:
             channel)
     {
         YASSERT(~channel != NULL);
-    }
-
-    TErrorCode GetErrorCode() const
-    {
-        return TClientResponse::GetErrorCode();
     }
 
 private:
@@ -272,18 +265,18 @@ private:
         return PP_STRINGIZE(serviceName); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##serviceName##ErrorCode, NRpc::EErrorCode, \
+    DECLARE_POLY_ENUM2(E##serviceName##Error, NRpc::EErrorCode, \
         errorCodes \
     ); \
     \
-    typedef E##serviceName##ErrorCode EErrorCode;
+    typedef E##serviceName##Error EErrorCode;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method, EErrorCode> TReq##method; \
-    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method, EErrorCode> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
+    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \

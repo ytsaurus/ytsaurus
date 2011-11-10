@@ -57,7 +57,7 @@ IYPathService::TGetResult TNodeBase::Get(
 
             auto child = attributes->FindChild(prefix);
             if (~child == NULL) {
-                throw TYTreeException() << Sprintf("Attribute %s it not found",
+                throw TYTreeException() << Sprintf("Attribute %s is not found",
                     ~prefix.Quote());
             }
 
@@ -178,7 +178,7 @@ IYPathService::TRemoveResult TNodeBase::RemoveSelf()
     return TRemoveResult::CreateDone();
 }
 
-IYPathService::TRemoveResult TNodeBase::RemoveRecursive( TYPath path )
+IYPathService::TRemoveResult TNodeBase::RemoveRecursive(TYPath path)
 {
     return Navigate(path);
 }
@@ -228,7 +228,7 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path)
 
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        throw TYTreeException() << Sprintf("Key %s it not found",
+        throw TYTreeException() << Sprintf("Key %s is not found",
             ~prefix.Quote());
     }
 
@@ -254,7 +254,7 @@ IYPathService::TSetResult TMapNodeMixin::SetRecursive(
         producer->Do(builder);
         auto newChild = builder->EndTree();
         AddChild(newChild, prefix);
-        return IYPathService::TSetResult::CreateDone();
+        return IYPathService::TSetResult::CreateDone(newChild);
     } else {
         auto newChild = GetFactory()->CreateMap();
         AddChild(newChild, prefix);
@@ -336,9 +336,9 @@ IYPathService::TSetResult TListNodeMixin::CreateYPathChild(
         producer->Do(builder);
         auto newChild = builder->EndTree();
         AddChild(newChild, beforeIndex);
-        return IYPathService::TSetResult::CreateDone();
+        return IYPathService::TSetResult::CreateDone(newChild);
     } else {
-        INode::TPtr newChild = ~GetFactory()->CreateMap();
+        auto newChild = GetFactory()->CreateMap();
         AddChild(newChild, beforeIndex);
         return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~newChild), tailPath);
     }
