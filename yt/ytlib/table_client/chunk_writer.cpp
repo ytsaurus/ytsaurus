@@ -197,7 +197,10 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
         return;
     }
 
-    ChunkWriter->AsyncClose()->Subscribe(FromMethod(
+    // ToDo: create real master meta!!!
+    // At least: number of rows (required for job distribution in maps).
+    TSharedRef masterMeta;
+    ChunkWriter->AsyncClose(masterMeta)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,
         TPtr(this)));
 }

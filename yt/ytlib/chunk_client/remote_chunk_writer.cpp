@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "remote_chunk_writer.h"
 #include "holder_channel_cache.h"
+#include "writer_thread.h"
 #include "chunk_holder.pb.h"
 
 #include "../misc/serialize.h"
@@ -221,7 +222,7 @@ void TRemoteChunkWriter::TGroup::PutGroup()
         YASSERT(node < Writer->Nodes.ysize());
     }
 
-    auto awaiter = New<TParallelAwaiter>(Writer->WriterThread->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     auto onSuccess = FromMethod(
         &TGroup::OnPutBlocks, 
         TGroupPtr(this), 
@@ -278,7 +279,7 @@ void TRemoteChunkWriter::TGroup::SendGroup(int srcNode)
 
     for (int node = 0; node < IsSent.ysize(); ++node) {
         if (Writer->Nodes[node]->IsAlive && !IsSent[node]) {
-            auto awaiter = New<TParallelAwaiter>(TRemoteChunkWriter::WriterThread->GetInvoker());
+            auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
             auto onResponse = FromMethod(
                 &TGroup::CheckSendResponse,
                 TGroupPtr(this),
@@ -402,8 +403,6 @@ void TRemoteChunkWriter::TGroup::Process()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
-TLazyPtr<TActionQueue> TRemoteChunkWriter::WriterThread; 
 
 TRemoteChunkWriter::TRemoteChunkWriter(
     const TRemoteChunkWriter::TConfig& config, 
@@ -570,7 +569,7 @@ void TRemoteChunkWriter::ReleaseSlots(int count)
     }
 }
 
-void TRemoteChunkWriter::DoClose()
+void TRemoteChunkWriter::DoClose(const TSharedRef& masterMeta)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -584,6 +583,8 @@ void TRemoteChunkWriter::DoClose()
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
+    MasterMeta = masterMeta;
+
     if (Window.empty() && IsInitComplete) {
         CloseSession();
     }
@@ -774,7 +775,8 @@ void TRemoteChunkWriter::CloseSession()
     awaiter->Complete(FromMethod(&TRemoteChunkWriter::OnSessionFinished, TPtr(this)));
 }
 
-TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int node)
+TRemoteChunkWriter::TInvFinishChunk::TPtr 
+TRemoteChunkWriter::FinishChunk(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -784,6 +786,7 @@ TRemoteChunkWriter::TInvFinishChunk::TPtr TRemoteChunkWriter::FinishChunk(int no
 
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
+    req->SetMeta(MasterMeta.Begin(), MasterMeta.Size());
     return req->Invoke(Config.RpcTimeout);
 }
 
@@ -912,7 +915,8 @@ void TRemoteChunkWriter::AddBlock(TVoid, const TSharedRef& data)
     State.FinishOperation();
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TRemoteChunkWriter::AsyncClose()
+TAsyncStreamState::TAsyncResult::TPtr 
+TRemoteChunkWriter::AsyncClose(const TSharedRef& masterMeta)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -937,7 +941,8 @@ TAsyncStreamState::TAsyncResult::TPtr TRemoteChunkWriter::AsyncClose()
     // (i.e. the flag will be set when all appended blocks are processed).
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteChunkWriter::DoClose, 
-        TPtr(this)));
+        TPtr(this),
+        masterMeta));
 
     return State.GetOperationResult();
 }

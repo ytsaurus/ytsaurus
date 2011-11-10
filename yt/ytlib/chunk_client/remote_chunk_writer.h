@@ -3,7 +3,6 @@
 #include "common.h"
 #include "chunk_writer.h"
 
-#include "../misc/lazy_ptr.h"
 #include "../misc/config.h"
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
@@ -76,7 +75,8 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
+    TAsyncStreamState::TAsyncResult::TPtr
+    AsyncClose(const TSharedRef& masterMeta);
 
 
     /*!
@@ -112,10 +112,6 @@ private:
     USE_RPC_PROXY_METHOD(TProxy, PingSession);
 
 private:
-    //! Manages all internal upload functionality, 
-    //! sends out RPC requests, and handles responses.
-    static TLazyPtr<TActionQueue> WriterThread;
-
     TChunkId ChunkId;
     const TConfig Config;
 
@@ -126,6 +122,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
+    TSharedRef MasterMeta;
 
     // ToDo: replace by cyclic buffer
     TWindow Window;
@@ -155,7 +152,7 @@ private:
      * \note Thread affinity: WriterThread
      * Sets #IsCloseRequested.
      */
-    void DoClose();
+    void DoClose(const TSharedRef& masterMeta);
     
     /*!
      * Invoked from #Cancel

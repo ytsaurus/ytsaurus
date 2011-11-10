@@ -15,7 +15,7 @@ namespace NTableClient {
 struct IReader
     : public virtual TRefCountedBase
 {
-    virtual bool HasRow() = 0;
+    virtual bool HasNextRow() = 0;
     virtual TAsyncStreamState::TAsyncResult::TPtr AsyncNextRow() = 0;
 
     virtual bool NextColumn() = 0;

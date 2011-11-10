@@ -21,12 +21,12 @@ public:
     //! Creates a new writer.
     TFileChunkWriter(Stroka fileName);
 
-    //! Implements IChunkWriter and calls #AddBlock.
     TAsyncStreamState::TAsyncResult::TPtr 
     AsyncWriteBlock(const TSharedRef& data);
 
-    //! Implements IChunkWriter and calls #Close.
-    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncClose(const TSharedRef& masterMeta);
+
     void Cancel(const Stroka& errorMessage);
 
     const TChunkId& GetChunkId();

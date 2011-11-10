@@ -22,6 +22,7 @@ namespace NYT
  */
 struct IChunkWriter
     : virtual public TRefCountedBase
+    , public ISyncInterface
 {
     typedef TIntrusivePtr<IChunkWriter> TPtr;
 
@@ -46,7 +47,8 @@ struct IChunkWriter
      *  Should be called only once.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
-    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncClose() = 0;
+    virtual TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncClose(const TSharedRef& masterMeta) = 0;
 
     //! Cancels the current upload. 
     //! This method is safe to call at any time.

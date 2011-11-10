@@ -29,6 +29,7 @@ public:
     {
         YASSERT(~reader != NULL);
         BlockCount = reader->GetBlockCount();
+        MasterMeta = reader->GetMasterMeta();
     }
 
     i32 GetBlockCount() const
@@ -36,11 +37,16 @@ public:
         return BlockCount;
     }
 
+    const TSharedRef& GetMasterMeta() const
+    {
+        return MasterMeta;
+    }
+
 private:
     friend class TChunkStore;
 
+    TSharedRef MasterMeta;
     i32 BlockCount;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

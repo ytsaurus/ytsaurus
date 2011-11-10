@@ -130,7 +130,7 @@ void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
 
-        Writer->AsyncClose()->Subscribe(
+        Writer->AsyncClose(Meta->GetMasterMeta())->Subscribe(
             FromMethod(
                 &TJob::OnWriterClosed,
                 TPtr(this))

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "table_chunk_reader.h"
+#include "chunk_reader.h"
 
 #include "chunk_meta.pb.h"
 

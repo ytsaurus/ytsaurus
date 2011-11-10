@@ -28,8 +28,10 @@ TFileChunkWriter::AsyncWriteBlock(const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TFileChunkWriter::AsyncClose()
+TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
 {
+    Meta.SetMasterMeta(masterMeta.Begin(), masterMeta.Size());
+
     TBlob metaBlob(Meta.ByteSize());
     if (!Meta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
         ythrow yexception() << Sprintf("Failed to serialize chunk meta in %s",
@@ -56,6 +58,8 @@ void TFileChunkWriter::Cancel(const Stroka& errorMessage)
 
 const TChunkId& TFileChunkWriter::GetChunkId()
 {
+    // ToDo: consider using ChunkId instead of file name
+    // and implementing this.
     YUNIMPLEMENTED();
 }
 

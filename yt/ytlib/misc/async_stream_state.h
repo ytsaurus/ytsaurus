@@ -121,4 +121,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISyncInterface
+{
+    template<class TUnderlying>
+    void Sync(
+        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)()) 
+    {
+        auto result = this->*method();
+        if (!result.IsOK) {
+            ythrow yexception() << result.ErrorMessage;
+        }
+    }
+
+    template<class TUnderlying, class TArg1>
+    void Sync(
+        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)(const TArg1&), 
+        const TArg1& arg1) 
+    {
+        auto result = (static_cast<TUnderlying*>(this)->*method)(arg1)->Get();
+        if (!result.IsOK) {
+            ythrow yexception() << result.ErrorMessage;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT
