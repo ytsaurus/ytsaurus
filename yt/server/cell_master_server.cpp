@@ -36,6 +36,7 @@ using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
+using NChunkServer::CreateChunkListMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
@@ -172,6 +173,9 @@ void TCellMasterServer::Run()
     monitoringManager->Start();
 
     cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(

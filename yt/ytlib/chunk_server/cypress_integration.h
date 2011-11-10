@@ -16,6 +16,10 @@ NCypress::INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 
+NCypress::INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
+    NCypress::TCypressManager* cypressManager,
+    TChunkManager* chunkManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
