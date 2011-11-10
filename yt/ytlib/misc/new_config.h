@@ -20,6 +20,8 @@ struct IParameter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConfigBase;
+
 template <class T, bool TIsConfig = NYT::NDetail::TIsConvertible<T, TConfigBase>::Value>
 class TParameter;
 
