@@ -10,6 +10,7 @@
 #include "../actions/invoker.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"
+#include "../misc/config.h"
 
 namespace NYT {
 namespace NElection {
@@ -39,13 +40,27 @@ public:
     typedef TIntrusivePtr<TElectionManager> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
-        static const TDuration RpcTimeout;
-        static const TDuration FollowerPingInterval;
-        static const TDuration FollowerPingTimeout;
-        static const TDuration ReadyToFollowTimeout;
-        static const TDuration PotentialFollowerTimeout;
-        static const TDuration VotingPeriod;
+        TDuration RpcTimeout;
+        TDuration FollowerPingInterval;
+        TDuration FollowerPingTimeout;
+        TDuration ReadyToFollowTimeout;
+        TDuration PotentialFollowerTimeout;
+        
+        TConfig()
+            : RpcTimeout(TDuration::MilliSeconds(1000))
+            , FollowerPingInterval(TDuration::MilliSeconds(1000))
+            , FollowerPingTimeout(TDuration::MilliSeconds(5000))
+            , ReadyToFollowTimeout(TDuration::MilliSeconds(5000))
+            , PotentialFollowerTimeout(TDuration::MilliSeconds(5000))
+        {
+            Register("rpc_timeout", RpcTimeout).GreaterThan(TDuration());
+            Register("follower_ping_interval", FollowerPingInterval).GreaterThan(TDuration());
+            Register("follower_ping_timeout", FollowerPingTimeout).GreaterThan(TDuration());
+            Register("ready_to_follow_timeout", ReadyToFollowTimeout).GreaterThan(TDuration());
+            Register("potential_follower_timeout", PotentialFollowerTimeout).GreaterThan(TDuration());
+        }
     };
 
     TElectionManager(
