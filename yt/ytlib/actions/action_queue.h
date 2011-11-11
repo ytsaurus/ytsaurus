@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common.h"
 #include "action.h"
 
 #include "../misc/common.h"

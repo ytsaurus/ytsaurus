@@ -1,8 +1,8 @@
 #pragma once
 
+#include "common.h"
 #include "invoker.h"
 
-#include "../misc/common.h"
 #include "../misc/new.h"
 
 namespace NYT {
@@ -173,14 +173,6 @@ struct TFunctorTraits<TFunctor, TResult (TFunctor::*)(TParam) const>
             functor);
     }
 };
-
-//! Constructs a delegate from functor.
-template <class TFunctor>
-auto FromFunctor(const TFunctor& functor) ->
-decltype (TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor))
-{
-    return TFunctorTraits<TFunctor, decltype(&TFunctor::operator ())>::Construct(functor);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

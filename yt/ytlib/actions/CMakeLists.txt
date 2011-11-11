@@ -1,7 +1,7 @@
 SET(YT_SOURCE_FILES
     action.cpp
     action-inl.h
-    action_util.h
+
     action_queue.cpp
     invoker.h
     invoker_util.cpp
@@ -11,13 +11,16 @@ SET(YT_SOURCE_FILES
     parallel_awaiter-inl.h
     signal.h
 
-    ${SRCDIR}/action_util.h
+    common.h
+
+    action_util.h
+    ${SRCDIR}/action_util-gen.h
 )
 
 ADD_CUSTOM_COMMAND(
-    OUTPUT  ${SRCDIR}/action_util.h
-    COMMAND ${PYTHON} ${ARCADIA_ROOT}/scripts/pump.py ${SRCDIR}/action_util.h.pump > ${SRCDIR}/action_util.h
-    DEPENDS ${SRCDIR}/action_util.h.pump
-    COMMENT "Regenerating action_util.h..."
+    OUTPUT  ${SRCDIR}/action_util-gen.h
+    COMMAND ${PYTHON} ${ARCADIA_ROOT}/scripts/pump.py ${SRCDIR}/action_util-gen.h.pump > ${SRCDIR}/action_util-gen.h
+    DEPENDS ${SRCDIR}/action_util-gen.h.pump
+    COMMENT "Regenerating action_util-gen.h..."
 )
 
