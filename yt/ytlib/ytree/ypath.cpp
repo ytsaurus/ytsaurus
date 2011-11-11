@@ -10,63 +10,32 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYPathServiceFromProducer
-    : public IYPathService
+IYPathService2::TPtr IYPathService2::FromNode(INode* node)
 {
-public:
-    TYPathServiceFromProducer(TYsonProducer* producer)
-    {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        builder->BeginTree();
-        producer->Do(~builder);
-        Root = FromNode(~builder->EndTree());
+    YASSERT(node != NULL);
+    auto* service = dynamic_cast<IYPathService2*>(node);
+    if (service == NULL) {
+        throw TYTreeException() << "Node does not support YPath";
     }
-
-    virtual TNavigateResult Navigate(TYPath path)
-    {
-        return Root->Navigate(path);
-    }
-
-    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
-    {
-        return Root->Get(path, consumer);
-    }
-
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) 
-    {
-        return Root->Set(path, producer);
-    }
-
-    virtual TRemoveResult Remove(TYPath path)
-    {
-        return Root->Remove(path);
-    }
-
-    virtual TLockResult Lock(TYPath path)
-    {
-        return Root->Lock(path);
-    }
-
-private:
-    IYPathService::TPtr Root;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+    return service;
+}
 
 IYPathService::TPtr IYPathService::FromNode(INode* node)
 {
     YASSERT(node != NULL);
     auto* service = dynamic_cast<IYPathService*>(node);
     if (service == NULL) {
-        throw TYTreeException() << "YPath is not supported by the node";
+        throw TYTreeException() << "Node does not support YPath";
     }
     return service;
 }
 
 IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
 {
-    return New<TYPathServiceFromProducer>(producer);
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    producer->Do(~builder);
+    return FromNode(~builder->EndTree());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +53,10 @@ void ChopYPathPrefix(
         switch (path[index]) {
             case '/':
                 *prefix = Stroka(path.begin(), index);
-                *tailPath = TYPath(path.begin() + index + 1, path.end());
+                *tailPath =
+                    index == path.length() - 1
+                    ? TYPath(path.begin() + index, path.end())
+                    : TYPath(path.begin() + index + 1, path.end());
                 break;
 
             case '@':
@@ -198,12 +170,12 @@ void GetYPath(
         "get");
 }
 
-void SetYPath(
+INode::TPtr SetYPath(
     IYPathService::TPtr rootService,
     TYPath path,
     TYsonProducer::TPtr producer)
 {
-    ExecuteYPathVerb<TVoid>(
+    return ExecuteYPathVerb<INode::TPtr>(
         rootService,
         path,
         FromFunctor([&] (TYPathOperationState state) -> IYPathService::TSetResult

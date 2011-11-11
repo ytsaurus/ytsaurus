@@ -53,7 +53,7 @@ public:
      *  #NextColumn to fetch its first column.
      *  - ECode::Finished: the table has no more rows.
      *  - ECode::TryLater: no data is currently available, the client
-     *  must wait for #event.
+     *  must wait for #ready.
      *  - ECode::Failed: something went wrong.
      */
     TResult AsyncNextRow(TFuture<TVoid>::TPtr* ready);

@@ -26,17 +26,11 @@ TTransactionService::TTransactionService(
     YASSERT(transactionManager != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethods();
-
-    server->RegisterService(this);
-}
-
-void TTransactionService::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
+    server->RegisterService(this);
 }
 
 void TTransactionService::ValidateTransactionId(const TTransactionId& id)

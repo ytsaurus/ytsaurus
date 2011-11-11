@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
+TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
 {
@@ -25,8 +25,8 @@ TProxyBase::TProxyBase(IChannel::TPtr channel, Stroka serviceName)
 
 TClientRequest::TClientRequest(
     IChannel::TPtr channel,
-    Stroka serviceName,
-    Stroka methodName)
+    const Stroka& serviceName,
+    const Stroka& methodName)
     : Channel(channel)
     , ServiceName(serviceName)
     , MethodName(methodName)
@@ -50,7 +50,7 @@ IMessage::TPtr TClientRequest::Serialize() const
         Attachments_);
 }
 
-TFuture<EErrorCode>::TPtr TClientRequest::DoInvoke(
+TFuture<TError>::TPtr TClientRequest::DoInvoke(
     TClientResponse::TPtr response,
     TDuration timeout)
 {
@@ -85,8 +85,7 @@ TClientResponse::TClientResponse(
     : RequestId(requestId)
     , Channel(channel)
     , State(EState::Sent)
-    , ErrorCode(EErrorCode::OK)
-    , InvokeInstant(TInstant::Now())
+    , StartTime(TInstant::Now())
 {
     YASSERT(~channel != NULL);
 }
@@ -119,7 +118,7 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
                 break;
 
             case IBus::ESendResult::Failed:
-                Complete(EErrorCode::TransportError);
+                Complete(TError(EErrorCode::TransportError));
                 break;
 
             default:
@@ -135,48 +134,38 @@ void TClientResponse::OnTimeout()
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
-        Complete(EErrorCode::Timeout);
+        Complete(TError(EErrorCode::Timeout));
     }
 }
 
-void TClientResponse::OnResponse(EErrorCode errorCode, IMessage::TPtr message)
+void TClientResponse::OnResponse(const TError& error, IMessage::TPtr message)
 {
     LOG_DEBUG("Response received (RequestId: %s)",
         ~RequestId.ToString());
 
-    if (errorCode.IsOK()) {
+    if (error.GetCode() == EErrorCode::OK) {
         Deserialize(message);
     }
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
-        Complete(errorCode);
+        Complete(error);
     }
 }
 
-void TClientResponse::Complete(EErrorCode errorCode)
+void TClientResponse::Complete(const TError& error)
 {
-    LOG_DEBUG("Request complete (RequestId: %s, ErrorCode: %s)",
+    LOG_DEBUG("Request complete (RequestId: %s, Error: %s)",
         ~RequestId.ToString(),
-        ~errorCode.ToString());
+        ~error.ToString());
 
-    ErrorCode = errorCode;
+    Error = error;
     State = EState::Done;
 }
 
 bool TClientResponse::IsOK() const
 {
-    return ErrorCode == EErrorCode::OK;
-}
-
-bool TClientResponse::IsRpcError() const
-{
-    return ErrorCode < 0;
-}
-
-bool TClientResponse::IsServiceError() const
-{
-    return ErrorCode > 0;
+    return Error.GetCode() == EErrorCode::OK;
 }
 
 yvector<TSharedRef>& TClientResponse::Attachments()
@@ -184,14 +173,19 @@ yvector<TSharedRef>& TClientResponse::Attachments()
     return MyAttachments;
 }
 
-EErrorCode TClientResponse::GetErrorCode() const
+TError TClientResponse::GetError() const
 {
-    return ErrorCode;
+    return Error;
 }
 
-TInstant TClientResponse::GetInvokeInstant() const
+EErrorCode TClientResponse::GetErrorCode() const
 {
-    return InvokeInstant;
+    return Error.GetCode();
+}
+
+TInstant TClientResponse::GetStartTime() const
+{
+    return StartTime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

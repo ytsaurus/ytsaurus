@@ -9,7 +9,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+//! Represents a result of an asynchronous computation.
+/*!
+ *  Thread-affinity: any.
+ */
+template <class T>
 class TFuture
     : public TRefCountedBase
 {
@@ -23,27 +27,63 @@ class TFuture
 public:
     typedef TIntrusivePtr<TFuture> TPtr;
 
+    //! Initializes a non-set instance.
     TFuture();
+    //! Initializes an instance carrying a synchronously computed value.
     explicit TFuture(T value);
 
+    // TODO: T& -> const T&
+    //! Sets the value.
+    /*!
+     *  Calling this method also invokes all the subscribers.
+     */
     void Set(T value);
 
+    //! Gets the value.
+    /*!
+     *  This call will block until the value is set.
+     */
     T Get() const;
 
+    //! Returns an already set value, if any.
+    /*
+     *  \param value The value.
+     *  \return True iff the value is set.
+     */
     bool TryGet(T* value) const;
 
+    //! Checks if the value is set.
     bool IsSet() const;
-
+    
+    //! Attaches a listener.
+    /*!
+     *  \param action An action to call when the value gets set.
+     *  
+     *  \note
+     *  If the value is set before the call to #Subscribe the
+     *  #action gets called synchronously.
+     */
     void Subscribe(typename IParamAction<T>::TPtr action);
 
+    //! Chains the asynchronous computation by chaining it with another synchronous function.
     template<class TOther>
     TIntrusivePtr< TFuture<TOther> > Apply(
         TIntrusivePtr< IParamFunc<T, TOther> > func);
 
+    //! Chains the asynchronous computation by chaining it with another asynchronous function.
     template<class TOther>
     TIntrusivePtr< TFuture<TOther> > Apply(
         TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther>  > > > func);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Constructs a synchronously set future.
+template <class T>
+typename TFuture<T>::TPtr ToFuture(const T& value)
+{
+    return New< TFuture<T> >(value);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

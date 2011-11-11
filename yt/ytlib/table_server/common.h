@@ -1,0 +1,18 @@
+#pragma once
+
+#include "../misc/common.h"
+#include "../logging/log.h"
+
+namespace NYT {
+namespace NTableServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern NLog::TLogger TableServerLogger;
+extern Stroka TableTypeName;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableServer
+} // namespace NYT
+

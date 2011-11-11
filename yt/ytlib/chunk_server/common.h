@@ -7,9 +7,9 @@
 #include "../chunk_holder/common.h"
 #include "../chunk_holder/replicator.h"
 
-#include "../transaction_manager/common.h"
-#include "../transaction_manager/transaction.h"
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/common.h"
+#include "../transaction_server/transaction.h"
+#include "../transaction_server/transaction_manager.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -20,13 +20,14 @@ extern NLog::TLogger ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: get rid
 using NChunkHolder::THolderStatistics;
 using NChunkHolder::EJobState;
 using NChunkHolder::EJobType;
 using NChunkHolder::TJobId;
 
-typedef int THolderId;
-const int InvalidHolderId = -1;
+typedef i32 THolderId;
+const i32 InvalidHolderId = -1;
 
 typedef TGuid TChunkListId;
 extern TChunkListId NullChunkListId;

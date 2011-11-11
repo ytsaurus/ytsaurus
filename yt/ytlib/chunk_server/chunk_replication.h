@@ -30,7 +30,7 @@ public:
     void AddReplica(const THolder& holder, const TChunk& chunk);
     void RemoveReplica(const THolder& holder, const TChunk& chunk);
 
-    void ScheduleChunkRemoval(const THolder& holder, const TChunk& chunk);
+    void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
     void RunJobControl(
         const THolder& holder,

@@ -643,7 +643,7 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
                 NYT::Write(*IndexFile, header);
                 IndexFile->Flush();
             } catch (...) {
-                LOG_FATAL("Error appending to index (SegmentId: %d, What: %s)",
+                LOG_FATAL("Error appending to index (SegmentId: %d): %s",
                     Id,
                     ~CurrentExceptionMessage());
             }

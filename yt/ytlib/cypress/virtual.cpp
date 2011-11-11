@@ -4,6 +4,9 @@
 #include "../cypress/node_detail.h"
 #include "../cypress/node_proxy_detail.h"
 
+#include "../ytree/yson_writer.h"
+#include "../ytree/tree_visitor.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -14,43 +17,65 @@ using namespace NYTree;
 class TVirtualNode
     : public TCypressNodeBase
 {
+    DECLARE_BYVAL_RO_PROPERTY(RuntimeType, ERuntimeNodeType);
+    DECLARE_BYVAL_RO_PROPERTY(Manifest, Stroka);
+
 public:
     explicit TVirtualNode(
         const TBranchedNodeId& id,
-        ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid)
+        ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid,
+        Stroka manifest = "")
         : TCypressNodeBase(id)
-        , RuntimeType(runtimeType)
+        , RuntimeType_(runtimeType)
+        , Manifest_(manifest)
+    { }
+
+    explicit TVirtualNode(
+        const TBranchedNodeId& id,
+        const TVirtualNode& other)
+        : TCypressNodeBase(id)
+        , RuntimeType_(other.RuntimeType_)
+        , Manifest_(other.Manifest_)
     { }
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TVirtualNode(Id, RuntimeType);
-    }
-
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return RuntimeType;
+        return new TVirtualNode(Id, RuntimeType_);
     }
 
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
-        // TODO: enum serialization
-        ::Save(output, static_cast<i32>(RuntimeType));
+        ::Save(output, RuntimeType_);
+        ::Save(output, Manifest_);
     }
 
     virtual void Load(TInputStream* input)
     {
         TCypressNodeBase::Load(input);
-        // TODO: enum serialization
-        i32 type;
-        ::Load(input, type);
-        RuntimeType = ERuntimeNodeType(type);
+        ::Load(input, RuntimeType_);
+        ::Load(input, Manifest_);
     }
 
-private:
-    ERuntimeNodeType RuntimeType;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNodeFallbackProxy
+    : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
+{
+public:
+    TVirtualNodeFallbackProxy(
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId)
+        : TCypressNodeProxyBase<IEntityNode, TVirtualNode>(
+            typeHandler,
+            cypressManager,
+            transactionId,
+            nodeId)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,38 +99,60 @@ public:
     { }
 
 private:
+    typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
+
     IYPathService::TPtr Service;
 
     virtual TNavigateResult Navigate(TYPath path)
     {
-        return Service->Navigate(path);
+        if (~Service == NULL) {
+            return TBase::Navigate(path);
+        } else {
+            return Service->Navigate(path);
+        }
     }
 
     virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
     {
-        return Service->Get(path, consumer);
+        if (~Service == NULL) {
+            return TBase::Get(path, consumer);
+        } else {
+            return Service->Get(path, consumer);
+        }
     }
 
     virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer)
     {
-        return Service->Set(path, producer);
+        if (~Service == NULL) {
+            return TBase::Set(path, producer);
+        } else {
+            return Service->Set(path, producer);
+        }
     }
 
     virtual TRemoveResult Remove(TYPath path)
     {
-        return Service->Remove(path);
+        if (~Service == NULL) {
+            return TBase::Remove(path);
+        } else {
+            return Service->Remove(path);
+        }
     }
 
     virtual TLockResult Lock(TYPath path)
     {
-        return Service->Lock(path);
+        if (~Service == NULL) {
+            return TBase::Lock(path);
+        } else {
+            return Service->Lock(path);
+        }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNodeTypeHandler
-    : public INodeTypeHandler
+    : public TCypressNodeTypeHandlerBase<TVirtualNode>
 {
 public:
     TVirtualNodeTypeHandler(
@@ -113,7 +160,7 @@ public:
         TYPathServiceBuilder* serviceBuilder,
         ERuntimeNodeType runtimeType,
         const Stroka& typeName)
-        : CypressManager(cypressManager)
+        : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
         , ServiceBuilder(serviceBuilder)
         , RuntimeType(runtimeType)
         , TypeName(typeName)
@@ -123,10 +170,20 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId)
     {
-        TCreateServiceParam param;
-        param.Node = &node;
-        param.TransactionId = transactionId;
-        auto service = ServiceBuilder->Do(param);
+        auto typedNode = dynamic_cast<const TVirtualNode&>(node);
+
+        TVirtualYPathContext context;
+        context.NodeId = node.GetId().NodeId;
+        context.TransactionId = transactionId;
+        context.Manifest = typedNode.GetManifest();
+        context.Fallback = New<TVirtualNodeProxy>(
+            this,
+            ~CypressManager,
+            transactionId,
+            node.GetId().NodeId,
+            static_cast<IYPathService*>(NULL));
+
+        auto service = ServiceBuilder->Do(context);
 
         return New<TVirtualNodeProxy>(
             this,
@@ -143,7 +200,6 @@ public:
 
     virtual ENodeType GetNodeType()
     {
-        // TODO: is this always right?
         return ENodeType::Entity;
     }
 
@@ -157,12 +213,17 @@ public:
         const TTransactionId& transactionId,
         NYTree::IMapNode::TPtr manifest)
     {
-        // TODO: only system transaction may do this
         UNUSED(transactionId);
-        UNUSED(manifest);
+
+        TStringStream manifestStream;
+        TYsonWriter writer(&manifestStream, TYsonWriter::EFormat::Binary);
+        TTreeVisitor visitor(&writer);
+        visitor.Visit(~manifest);
+
         return new TVirtualNode(
             TBranchedNodeId(nodeId, NullTransactionId),
-            RuntimeType);
+            RuntimeType,
+            manifestStream.Str());
     }
 
     virtual TAutoPtr<ICypressNode> Create(
@@ -171,51 +232,7 @@ public:
         return new TVirtualNode(id);
     }
 
-    virtual void Destroy(ICypressNode& node)
-    {
-        UNUSED(node);
-    }
-
-    virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
-    {
-        UNUSED(node);
-        UNUSED(transactionId);
-        YUNREACHABLE();
-    }
-
-    virtual void Merge(
-        ICypressNode& committedNode,
-        ICypressNode& branchedNode)
-    {
-        UNUSED(committedNode);
-        UNUSED(branchedNode);
-        YUNREACHABLE();
-    }
-
-    virtual void GetAttributeNames(
-        const ICypressNode& node,
-        yvector<Stroka>* names)
-    {
-        UNUSED(node);
-        UNUSED(names);
-        YUNREACHABLE();
-    }
-
-    virtual bool GetAttribute(
-        const ICypressNode& node,
-        const Stroka& name,
-        NYTree::IYsonConsumer* consumer)
-    {
-        UNUSED(node);
-        UNUSED(name);
-        UNUSED(consumer);
-        YUNREACHABLE();
-    }
-
 private:
-    TCypressManager::TPtr CypressManager;
     TYPathServiceBuilder::TPtr ServiceBuilder;
     ERuntimeNodeType RuntimeType;
     Stroka TypeName;
@@ -244,9 +261,9 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     IYPathService::TPtr servicePtr = service;
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
-        ~FromFunctor([=] (const TCreateServiceParam& param) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
-                UNUSED(param);
+                UNUSED(context);
                 return servicePtr;
             }),
         runtypeType,

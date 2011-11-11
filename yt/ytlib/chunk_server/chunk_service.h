@@ -33,8 +33,6 @@ private:
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
 
-    void RegisterMethods();
-
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);
     void ValidateChunkId(const TChunkId& chunkId);

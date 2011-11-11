@@ -21,6 +21,48 @@ NLog::TLogger RpcLogger("Rpc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError::TError()
+{ }
+
+TError::TError(EErrorCode code, const Stroka& message)
+    : Code(code)
+    , Message(message)
+{ }
+
+EErrorCode TError::GetCode() const
+{
+    return Code;
+}
+
+Stroka TError::GetMessage() const
+{
+    return Message;
+}
+
+Stroka TError::ToString() const
+{
+    return Message.empty()
+        ? Code.ToString()
+        : Message + " (" + Code.ToString() + ")";
+}
+
+bool TError::IsOK() const
+{
+    return Code == EErrorCode::OK;
+}
+
+bool TError::IsRpcError() const
+{
+    return Code < EErrorCode::OK;
+}
+
+bool TError::IsServiceError() const
+{
+    return Code > EErrorCode::OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRpcManager::TRpcManager()
 { }
 

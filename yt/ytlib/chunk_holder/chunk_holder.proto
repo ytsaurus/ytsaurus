@@ -17,6 +17,8 @@ message TRspStartChunk
 message TReqFinishChunk
 {
     required bytes ChunkId = 1;
+    // TODO: make required
+    optional bytes Meta = 2;
 }
 
 message TRspFinishChunk

@@ -54,14 +54,14 @@ void SaveSet(TOutputStream* output, const TSet& set)
         [] (const TKey* lhs, const TKey* rhs) {
             return *lhs < *rhs;
         });
-    ::Save(output, keys.size());
+    ::SaveSize(output, keys.size());
     FOREACH(const auto* ptr, keys) {
         ::Save(output, *ptr);
     }
 }
 
 template<class TMap>
-void SaveMap(TOutputStream* output, const TMap& map)
+yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
 {
     typedef typename TMap::const_iterator TIterator;
     yvector<TIterator> iterators;
@@ -75,7 +75,14 @@ void SaveMap(TOutputStream* output, const TMap& map)
         [] (TIterator lhs, TIterator rhs) {
             return lhs->First() < rhs->First();
         });
-    ::Save(output, iterators.size());
+    return iterators;
+}
+
+template<class TMap>
+void SaveMap(TOutputStream* output, const TMap& map)
+{
+    auto iterators = GetSortedIterators(map);
+    ::SaveSize(output, iterators.size());
     FOREACH(const auto& it, iterators) {
         ::Save(output, it->First());
         ::Save(output, it->Second());
@@ -156,7 +163,7 @@ template<class TArrayItem, class TProtoItem>
 inline yvector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
 {
-    yvector<Stroka> array(proto.size());
+    yvector<TArrayItem> array(proto.size());
     for (int i = 0; i < proto.size(); ++i) {
         array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
     }

@@ -12,6 +12,10 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = MetaStateLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMetaStatePart::TMetaStatePart(
     TMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState)
@@ -30,26 +34,6 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->OnStopLeading().Subscribe(FromMethod(
         &TThis::OnStopLeading,
         TPtr(this)));
-}
-
-TFuture<TVoid>::TPtr TMetaStatePart::Load(TInputStream* input, IInvoker::TPtr invoker)
-{
-    UNUSED(input);
-    // NB: Need to pass a dummy action to the queue to ensure proper ordering of snapshot parts.
-    return 
-        FromFunctor([] () { return TVoid(); })
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
-TFuture<TVoid>::TPtr TMetaStatePart::Save(TOutputStream* output, IInvoker::TPtr invoker)
-{
-    UNUSED(output);
-    // NB: Same as in Load.
-    return 
-        FromFunctor([] () { return TVoid(); })
-        ->AsyncVia(invoker)
-        ->Do();
 }
 
 void TMetaStatePart::Clear()
@@ -84,30 +68,63 @@ void TMetaStatePart::OnStopLeading()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeMetaState::TSaveContext::TSaveContext(
+    TOutputStream* output,
+    IInvoker::TPtr invoker)
+    : Output(output)
+    , Invoker(invoker)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 {
     YASSERT(~part != NULL);
 
-    Stroka partName = part->GetPartName();
-    YVERIFY(Parts.insert(MakePair(partName, part)).Second());
+    Parts.push_back(part);
 }
 
 TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::TPtr invoker)
 {
+    i32 size = Savers.size();
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Save(output, size);
+        }));
+
+    yvector< TPair<Stroka, TSaver::TPtr> > savers(Savers.begin(), Savers.end());
+    std::sort(savers.begin(), savers.end());
+
     TFuture<TVoid>::TPtr result;
-    FOREACH(auto& pair, Parts) {
-        result = pair.Second()->Save(output, invoker);
+    FOREACH(auto pair, savers) {
+        Stroka name = pair.First();
+        invoker->Invoke(FromFunctor([=] ()
+            {
+                ::Save(output, name);
+            }));
+        auto saver = pair.Second();
+        TSaveContext context(output, invoker);
+        result = saver->Do(context);
     }
     return result;
 }
 
-TFuture<TVoid>::TPtr TCompositeMetaState::Load(TInputStream* input, IInvoker::TPtr invoker)
+void TCompositeMetaState::Load(TInputStream* input)
 {
-    TFuture<TVoid>::TPtr result;
-    FOREACH(auto& pair, Parts) {
-        result = pair.Second()->Load(input, invoker);
+    i32 size;
+    ::Load(input, size);
+    
+    for (i32 i = 0; i < size; ++i) {
+        Stroka name;
+        ::Load(input, name);
+        auto it = Loaders.find(name);
+        if (it == Loaders.end()) {
+            LOG_FATAL("No appropriate loader is registered (PartName: %s)",
+                ~name);
+        }
+        auto loader = it->Second();
+        loader->Do(input);
     }
-    return result;
 }
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
@@ -129,9 +146,23 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
 
 void TCompositeMetaState::Clear()
 {
-    FOREACH(auto& pair, Parts) {
-        pair.Second()->Clear();
+    FOREACH(auto& part, Parts) {
+        part->Clear();
     }
+}
+
+void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader::TPtr loader)
+{
+    YASSERT(~loader != NULL);
+
+    YVERIFY(Loaders.insert(MakePair(name, loader)).Second());
+}
+
+void TCompositeMetaState::RegisterSaver(const Stroka& name, TSaver::TPtr saver)
+{
+    YASSERT(~saver != NULL);
+
+    YVERIFY(Savers.insert(MakePair(name, saver)).Second());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

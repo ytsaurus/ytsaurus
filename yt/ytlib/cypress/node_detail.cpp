@@ -76,23 +76,19 @@ i32  TCypressNodeBase::Unref()
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
     ::Save(output, RefCounter);
-    SaveSet(output, Locks_);
+    SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
     ::Save(output, AttributesId_);
-    // TODO: enum serialization
-    ::Save(output, static_cast<i32>(State_));
+    ::Save(output, State_);
 }
 
 void TCypressNodeBase::Load(TInputStream* input)
 {
     ::Load(input, RefCounter);
-    ::Load(input, Locks_);
+    ::Load(input, LockIds_);
     ::Load(input, ParentId_);
     ::Load(input, AttributesId_);
-    // TODO: enum serialization
-    i32 state;
-    ::Load(input, state);
-    State_ = ENodeState(state);
+    ::Load(input, State_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

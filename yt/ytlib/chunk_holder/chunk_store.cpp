@@ -130,7 +130,7 @@ public:
                     ChunkStore->GetChunkFileName(chunk));
                 cookie.EndInsert(file);
             } catch (...) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s, What: %s)",
+                LOG_FATAL("Error opening chunk (ChunkId: %s): %s",
                     ~chunk->GetId().ToString(),
                     ~CurrentExceptionMessage());
             }

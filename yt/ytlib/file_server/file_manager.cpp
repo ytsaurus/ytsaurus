@@ -6,6 +6,9 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NMetaState;
+using namespace NCypress;
+using namespace NChunkServer;
+using namespace NTransaction;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,20 +17,32 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileManagerBase::TFileManagerBase(
+TFileManager::TFileManager(
+    TMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
     TCypressManager* cypressManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager)
-    : CypressManager(cypressManager)
+    : TMetaStatePart(metaStateManager, metaState)
+    , CypressManager(cypressManager)
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
     YASSERT(chunkManager != NULL);
     YASSERT(transactionManager != NULL);
+
+    RegisterMethod(this, &TThis::SetFileChunk);
+
+    cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(
+        cypressManager,
+        this,
+        chunkManager));
+
+    metaState->RegisterPart(this);
 }
 
-void TFileManagerBase::ValidateTransactionId(
+void TFileManager::ValidateTransactionId(
     const TTransactionId& transactionId,
     bool mayBeNull)
 {
@@ -39,7 +54,7 @@ void TFileManagerBase::ValidateTransactionId(
     }
 }
 
-TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId)
+TFileNode& TFileManager::GetFileNode(const TNodeId& nodeId, const TTransactionId& transactionId)
 {
     auto* impl = CypressManager->FindTransactionNodeForUpdate(nodeId, transactionId);
     if (impl == NULL) {
@@ -60,7 +75,7 @@ TFileNode& TFileManagerBase::GetFileNode(const TNodeId& nodeId, const TTransacti
     return *typedImpl;
 }
 
-TChunk& TFileManagerBase::GetChunk(const TChunkId& chunkId)
+TChunk& TFileManager::GetChunk(const TChunkId& chunkId)
 {
     auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
     if (chunk == NULL) {
@@ -68,34 +83,6 @@ TChunk& TFileManagerBase::GetChunk(const TChunkId& chunkId)
             Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
     }
     return *chunk;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFileManager::TFileManager(
-    TMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
-    TTransactionManager* transactionManager)
-    : TMetaStatePart(metaStateManager, metaState)
-    , TFileManagerBase(cypressManager, chunkManager, transactionManager)
-{
-    YASSERT(cypressManager != NULL);
-
-    RegisterMethod(this, &TThis::SetFileChunk);
-
-    cypressManager->RegisterNodeType(~New<TFileNodeTypeHandler>(
-        cypressManager,
-        this,
-        chunkManager));
-
-    metaState->RegisterPart(this);
-}
-
-Stroka TFileManager::GetPartName() const
-{
-    return "FileManager";
 }
 
 TMetaChange<TVoid>::TPtr
@@ -128,19 +115,25 @@ TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)
     ValidateTransactionId(transactionId, false);
 
     auto& chunk = GetChunk(chunkId);
+    if (chunk.GetChunkListId() != NullChunkListId) {
+        // TODO: exception type
+        ythrow yexception() << "Chunk is already assigned to another chunk list";
+    }
+
     auto& fileNode = GetFileNode(nodeId, transactionId);
 
     if (fileNode.GetChunkListId() != NullChunkListId) {
         // TODO: exception type
-        throw yexception() << "Chunk is already assigned to file node";
+        ythrow yexception() << "File already has a chunk";
     }
 
+    // Create a chunklist and couple it with the chunk.
     auto& chunkList = ChunkManager->CreateChunkList();
+    ChunkManager->AddChunkToChunkList(chunk, chunkList);
+
+    // Reference the chunklist from the file.
     fileNode.SetChunkListId(chunkList.GetId());
     ChunkManager->RefChunkList(chunkList);
-
-    chunkList.Chunks().push_back(chunkId);
-    ChunkManager->RefChunk(chunk);
 
     return TVoid();
 }
@@ -157,8 +150,8 @@ TChunkId TFileManager::GetFileChunk(
     }
 
     const auto& chunkList = ChunkManager->GetChunkList(fileNode.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
-    return chunkList.Chunks()[0];
+    YASSERT(chunkList.ChunkIds().ysize() == 1);
+    return chunkList.ChunkIds()[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

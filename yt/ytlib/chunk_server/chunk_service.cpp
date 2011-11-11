@@ -29,19 +29,14 @@ TChunkService::TChunkService(
     YASSERT(chunkManager != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethods();
-    server->RegisterService(this);
-}
-
-void TChunkService::RegisterMethods()
-{
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
+    server->RegisterService(this);
 }
 
-void TChunkService::ValidateHolderId(THolderId holderId)
+ void TChunkService::ValidateHolderId(THolderId holderId)
 {
     const auto* holder = ChunkManager->FindHolder(holderId);
     if (holder == NULL) {
@@ -107,17 +102,13 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     const auto& holder = ChunkManager->GetHolder(holderId);
 
-    context->SetRequestInfo("Address: %s, HolderId: %d",
-        ~holder.GetAddress(),
-        holderId);
-
     NProto::TMsgHeartbeatRequest requestMessage;
     requestMessage.SetHolderId(holderId);
     *requestMessage.MutableStatistics() = request->GetStatistics();
 
     FOREACH(const auto& chunkInfo, request->GetAddedChunks()) {
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
-        if (holder.Chunks().find(chunkId) == holder.Chunks().end()) {
+        if (holder.ChunkIds().find(chunkId) == holder.ChunkIds().end()) {
             *requestMessage.AddAddedChunks() = chunkInfo;
         } else {
             LOG_WARNING("Chunk replica is already added (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -129,7 +120,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     FOREACH(const auto& protoChunkId, request->GetRemovedChunks()) {
         auto chunkId = TChunkId::FromProto(protoChunkId);
-        if (holder.Chunks().find(chunkId) != holder.Chunks().end()) {
+        if (holder.ChunkIds().find(chunkId) != holder.ChunkIds().end()) {
             requestMessage.AddRemovedChunks(chunkId.ToProto());
         } else if (ChunkManager->FindChunk(chunkId) != NULL) {
             LOG_WARNING("Chunk replica is already removed (ChunkId: %s, Address: %s, HolderId: %d)",

@@ -6,6 +6,7 @@
 #include "../actions/future.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
+#include "../rpc/channel_cache.h"
 #include "../misc/config.h"
 
 namespace NYT {
