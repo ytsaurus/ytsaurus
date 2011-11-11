@@ -122,7 +122,7 @@ struct ISyncInterface
     void Sync(
         TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)()) 
     {
-        auto result = this->*method();
+        auto result = (static_cast<TUnderlying*>(this)->*method)()->Get();
         if (!result.IsOK) {
             ythrow yexception() << result.ErrorMessage;
         }
