@@ -208,6 +208,10 @@ DEFINE_VALIDATOR(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
+
+////////////////////////////////////////////////////////////////////////////////
+
 TConfigBase::~TConfigBase()
 { }
 
@@ -229,14 +233,14 @@ void TConfigBase::Validate(Stroka prefix) const
 }
 
 template <class T>
-TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
+NConfig::TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
 {
-    auto parameter = New< TParameter<T> >(&value);
-    YVERIFY(Parameters.insert(TPair<Stroka, IParameter::TPtr>(parameterName, parameter)).Second());
+    auto parameter = New< NConfig::TParameter<T> >(&value);
+    YVERIFY(Parameters.insert(
+        TPair<Stroka, NConfig::IParameter::TPtr>(parameterName, parameter)).Second());
     return *parameter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT

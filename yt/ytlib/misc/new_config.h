@@ -6,6 +6,7 @@
 #include "../ytree/ytree.h"
 
 namespace NYT {
+
 namespace NConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,8 +21,6 @@ struct IParameter
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TConfigBase;
 
 template <class T, bool TIsConfig = NYT::NDetail::TIsConvertible<T, TConfigBase>::Value>
 class TParameter;
@@ -78,6 +77,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConfigBase
 {
 public:
@@ -88,17 +91,16 @@ public:
 
 protected:
     template <class T>
-    TParameter<T>& Register(Stroka parameterName, T& value);
+    NConfig::TParameter<T>& Register(Stroka parameterName, T& value);
 
 private:
-    typedef yhash_map<Stroka, IParameter::TPtr> ParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> ParameterMap;
 
     ParameterMap Parameters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT
 
 #define NEW_CONFIG_INL_H_

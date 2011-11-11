@@ -8,7 +8,6 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NConfig {
 
 using namespace NYTree;
 
@@ -177,5 +176,4 @@ TEST(TConfigTest, Validate)
     EXPECT_THROW(config.Validate(), yexception);
 }
 
-} // namespace NConfig
 } // namespace NYT
