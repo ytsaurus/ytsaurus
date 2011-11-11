@@ -41,13 +41,6 @@ public:
      */
     TResult GetCurrentResult();
 
-    //! Sets current #AsyncResult with IsOK = true and drops it.
-    //! Used to notify client that the stream is ready.
-    /*! 
-     * Is used to unblock async stream, e.g. when new data arrives.
-     */
-    
-
     //! Moves stream to failed state if it is active.
     /*!
      *  Can be called multiple times.
@@ -112,15 +105,17 @@ private:
 
     TSpinLock SpinLock;
 
-    //! Result returned from #GetStaticResult
+    //! Result returned from #GetOperationResult when operation is
+    //! already completed, or stream has failed.
     TAsyncResult::TPtr StaticResult;
 
-    //! Last unset AsyncResult created via #CreateAsyncResult
+    //! Last unset AsyncResult created via #GetOperationResult
     TAsyncResult::TPtr CurrentResult;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo: codegen! Type traits.
 struct ISyncInterface
 {
     template<class TUnderlying>
@@ -146,6 +141,5 @@ struct ISyncInterface
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT
