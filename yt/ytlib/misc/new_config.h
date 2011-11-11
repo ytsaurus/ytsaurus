@@ -88,8 +88,8 @@ class TConfigBase
 public:
     virtual ~TConfigBase();
     
-    virtual void Load(NYTree::IMapNode* node, Stroka prefix = Stroka());
-    virtual void Validate(Stroka prefix = Stroka()) const;
+    virtual void Load(NYTree::IMapNode* node, Stroka path = Stroka());
+    virtual void Validate(Stroka path = Stroka()) const;
 
 protected:
     template <class T>

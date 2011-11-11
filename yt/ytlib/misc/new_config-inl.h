@@ -3,6 +3,8 @@
 #endif
 #undef NEW_CONFIG_INL_H_
 
+#include <util/datetime/base.h>
+
 namespace NYT {
 namespace NConfig {
 
@@ -48,6 +50,11 @@ inline void Read(bool* parameter, NYTree::INode* node)
                 : value.substr(0, 10) + "...")
             << ")";
     }
+}
+
+inline void Read(TDuration* parameter, NYTree::INode* node)
+{
+    *parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
 
 template <class T>
@@ -211,26 +218,6 @@ DEFINE_VALIDATOR(
 } // namespace NConfig
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TConfigBase::~TConfigBase()
-{ }
-
-void TConfigBase::Load(NYTree::IMapNode* node, Stroka prefix)
-{
-    FOREACH (auto pair, Parameters) {
-        auto name = pair.First();
-        Stroka childPath = prefix + "/" + name;
-        auto child = node != NULL ? node->FindChild(name) : NULL;
-        pair.Second()->Load(~child, childPath);
-    }
-}
-
-void TConfigBase::Validate(Stroka prefix) const
-{
-    FOREACH (auto pair, Parameters) {
-        pair.Second()->Validate(prefix + "/" + pair.First());
-    }
-}
 
 template <class T>
 NConfig::TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
