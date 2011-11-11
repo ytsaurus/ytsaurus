@@ -24,15 +24,15 @@ TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
-    IChannel::TPtr channel,
-    const Stroka& serviceName,
-    const Stroka& methodName)
+    IChannel* channel,
+    const Stroka& path,
+    const Stroka& verb)
     : Channel(channel)
-    , ServiceName(serviceName)
-    , MethodName(methodName)
+    , Path(path)
+    , Verb(verb)
     , RequestId(TRequestId::Create())
 {
-    YASSERT(~channel != NULL);
+    YASSERT(channel != NULL);
 }
 
 IMessage::TPtr TClientRequest::Serialize() const
@@ -44,17 +44,17 @@ IMessage::TPtr TClientRequest::Serialize() const
 
     return New<TRpcRequestMessage>(
         RequestId,
-        ServiceName,
-        MethodName,
+        Path,
+        Verb,
         &bodyData,
         Attachments_);
 }
 
 TFuture<TError>::TPtr TClientRequest::DoInvoke(
-    TClientResponse::TPtr response,
+    TClientResponse* response,
     TDuration timeout)
 {
-    return Channel->Send(this, ~response, timeout);
+    return Channel->Send(this, response, timeout);
 }
 
 yvector<TSharedRef>& TClientRequest::Attachments()
@@ -67,14 +67,14 @@ NYT::NRpc::TRequestId TClientRequest::GetRequestId() const
     return RequestId;
 }
 
-Stroka TClientRequest::GetMethodName() const
+Stroka TClientRequest::GetVerb() const
 {
-    return MethodName;
+    return Verb;
 }
 
-Stroka TClientRequest::GetServiceName() const
+Stroka TClientRequest::GetPath() const
 {
-    return ServiceName;
+    return Path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

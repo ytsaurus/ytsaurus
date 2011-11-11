@@ -57,8 +57,8 @@ RPC_SERVICE_METHOD_IMPL(TFileService, SetFileChunk)
 
     FileManager
         ->InitiateSetFileChunk(nodeId, transactionId, chunkId)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

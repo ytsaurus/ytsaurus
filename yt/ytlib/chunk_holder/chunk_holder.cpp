@@ -16,16 +16,16 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TChunkHolder::TChunkHolder(
     const TConfig& config,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    IInvoker* serviceInvoker,
+    NRpc::TServer* server)
     : NRpc::TServiceBase(
         serviceInvoker,
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
 {
-    YASSERT(~serviceInvoker != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(serviceInvoker != NULL);
+    YASSERT(server != NULL);
 
     ChunkStore = New<TChunkStore>(Config);
     BlockStore = New<TBlockStore>(Config, ChunkStore);
@@ -183,9 +183,9 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 
     auto session = GetSession(chunkId);
 
-    TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
+    auto startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(ChannelCache.GetChannel(address));
+    TProxy proxy(~ChannelCache.GetChannel(address));
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);

@@ -19,10 +19,10 @@ protected:
 
     TMetaStateServiceBase(
         TMetaStateManager* metaStateManager,
-        Stroka serviceName,
-        Stroka loggingCategory)
+        const Stroka& serviceName,
+        const Stroka& loggingCategory)
         : NRpc::TServiceBase(
-            metaStateManager->GetStateInvoker(),
+            ~metaStateManager->GetStateInvoker(),
             serviceName,
             loggingCategory)
         , MetaStateManager(metaStateManager)
@@ -31,7 +31,7 @@ protected:
     }
 
     template <class TContext>
-    IParamAction<TVoid>::TPtr CreateSuccessHandler(TIntrusivePtr<TContext> context)
+    IParamAction<TVoid>::TPtr CreateSuccessHandler(TContext* context)
     {
         return FromFunctor([=] (TVoid)
             {
@@ -40,7 +40,7 @@ protected:
     }
 
     template <class TContext>
-    IAction::TPtr CreateErrorHandler(TIntrusivePtr<TContext> context)
+    IAction::TPtr CreateErrorHandler(TContext* context)
     {
         return FromFunctor([=] ()
             {

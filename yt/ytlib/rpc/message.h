@@ -21,8 +21,8 @@ class TRpcRequestMessage
 public:
     TRpcRequestMessage(
         const TRequestId& requestId,
-        const Stroka& serviceName,
-        const Stroka& methodName,
+        const Stroka& path,
+        const Stroka& verb,
         TBlob* body,
         const yvector<TSharedRef>& attachments);
 

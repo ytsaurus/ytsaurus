@@ -41,22 +41,23 @@ IYPathService2::TNavigateResult2 TNodeBase::NavigateRecursive2(TYPath path)
     throw TYTreeException() << "Navigation is not supported";
 }
 
-void TNodeBase::Invoke2(TYPath path, NRpc::TServiceContext* context)
+void TNodeBase::Invoke2(NRpc::IServiceContext* context)
 {
-    Stroka methodName = context->GetMethodName();
-    if (methodName == "Get") {
-        Get2Thunk(path, context);
-    } else if (methodName == "Set") {
-        Set2Thunk(path, context);
-    } else if (methodName == "Remove") {
-        Remove2Thunk(path, context);
+    Stroka verb = context->GetVerb();
+    if (verb == "Get") {
+        Get2Thunk(context);
+    } else if (verb == "Set") {
+        Set2Thunk(context);
+    } else if (verb == "Remove") {
+        Remove2Thunk(context);
     } else {
-        context->Reply(EErrorCode::NoMethod);
+        context->Reply(TError(EErrorCode::NoSuchMethod));
     }
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Get2)
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Get2)
 {
+    Stroka path = context->GetPath();
     if (path.empty()) {
         GetSelf2(request, response, context);
     } else {
@@ -88,8 +89,9 @@ void TNodeBase::GetRecursive2(TYPath path, TReqGet2* request, TRspGet2* response
     ythrow yexception() << "Child is not found";
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Set2)
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Set2)
 {
+    Stroka path = context->GetPath();
     if (path.empty()) {
         SetSelf2(request, response, context);
     } else {
@@ -117,8 +119,9 @@ void TNodeBase::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response
     ythrow yexception() << "Child is not found";
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Remove2)
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove2)
 {
+    Stroka path = context->GetPath();
     if (path.empty()) {
         RemoveSelf2(request, response, context);
     } else {

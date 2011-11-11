@@ -43,7 +43,7 @@ struct TRemoteChunkWriter::TNode
     TProxy Proxy;
     TDelayedInvoker::TCookie Cookie;
 
-    TNode(Stroka address, NRpc::IChannel::TPtr channel)
+    TNode(Stroka address, NRpc::IChannel* channel)
         : IsAlive(true)
         , Address(address)
         , Proxy(channel)
@@ -446,7 +446,7 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     FOREACH(const auto& address, addresses) {
-        Nodes.push_back(New<TNode>(address, HolderChannelCache->GetChannel(address)));
+        Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
     }
 }
 

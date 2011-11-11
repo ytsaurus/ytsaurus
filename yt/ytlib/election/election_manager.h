@@ -50,10 +50,10 @@ public:
 
     TElectionManager(
         const TConfig& config,
-        NMetaState::TCellManager::TPtr cellManager,
-        IInvoker::TPtr controlInvoker,
-        IElectionCallbacks::TPtr electionCallbacks,
-        NRpc::TServer::TPtr server);
+        NMetaState::TCellManager* cellManager,
+        IInvoker* controlInvoker,
+        IElectionCallbacks* electionCallbacks,
+        NRpc::TServer* server);
 
     /*!
      * \note Thread affinity: any.

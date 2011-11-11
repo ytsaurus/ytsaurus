@@ -44,9 +44,9 @@ public:
     TImpl(
         TMetaStateManager::TPtr owner,
         const TConfig& config,
-        IInvoker::TPtr controlInvoker,
-        IMetaState::TPtr metaState,
-        TServer::TPtr server)
+        IInvoker* controlInvoker,
+        IMetaState* metaState,
+        TServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , Owner(owner)
         , ControlStatus(EPeerStatus::Stopped)
@@ -56,9 +56,9 @@ public:
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
     {
-        YASSERT(~controlInvoker != NULL);
-        YASSERT(~metaState != NULL);
-        YASSERT(~server != NULL);
+        YASSERT(controlInvoker != NULL);
+        YASSERT(metaState != NULL);
+        YASSERT(server != NULL);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
@@ -91,13 +91,14 @@ public:
         // TODO: fill config
         ElectionManager = New<TElectionManager>(
             NElection::TElectionManager::TConfig(),
-            CellManager,
+            ~CellManager,
             controlInvoker,
             this,
             server);
 
         server->RegisterService(this);
     }
+
     void Start();
 
     EPeerStatus GetControlStatus() const;
@@ -913,14 +914,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     }
 
     ReadQueue->GetInvoker()->Invoke(
-        context->Wrap(
-            FromMethod(
-                &TImpl::DoReadSnapshot,
-                TPtr(this),
-                snapshotId,
-                reader,
-                offset,
-                length)));
+        context->Wrap(~FromMethod(
+            &TImpl::DoReadSnapshot,
+            TPtr(this),
+            snapshotId,
+            reader,
+            offset,
+            length)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
@@ -978,14 +978,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
             Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
     }
 
-    ReadQueue->GetInvoker()->Invoke(
-        context->Wrap(FromMethod(
-            &TImpl::DoReadChangeLog,
-            TPtr(this),
-            changeLogId,
-            changeLog,
-            startRecordId,
-            recordCount)));
+    ReadQueue->GetInvoker()->Invoke(~context->Wrap(~FromMethod(
+        &TImpl::DoReadChangeLog,
+        TPtr(this),
+        changeLogId,
+        changeLog,
+        startRecordId,
+        recordCount)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
@@ -1125,7 +1124,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 LOG_DEBUG("AdvanceSegment: advancing segment (Version: %s)",
                     ~version.ToString());
 
-                GetStateInvoker()->Invoke(context->Wrap(FromMethod(
+                GetStateInvoker()->Invoke(context->Wrap(~FromMethod(
                     &TImpl::DoAdvanceSegment,
                     TPtr(this),
                     version)));
@@ -1280,9 +1279,9 @@ Stroka TMetaStateManager::TImpl::FormatPriority(TPeerPriority priority)
 
 TMetaStateManager::TMetaStateManager(
     const TConfig& config,
-    IInvoker::TPtr controlInvoker,
-    IMetaState::TPtr metaState,
-    TServer::TPtr server)
+    IInvoker* controlInvoker,
+    IMetaState* metaState,
+    TServer* server)
     : Impl(New<TImpl>(
         this,
         config,

@@ -145,7 +145,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
                 CypressManager
                     ->InitiateSetYPath(transactionId, path, value)
                     ->OnSuccess(onSuccess)
-                    ->OnError(this->CreateErrorHandler(context))
+                    ->OnError(~this->CreateErrorHandler(~context))
                     ->Commit();
             }));
 }
@@ -169,8 +169,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
             {
                 CypressManager
                     ->InitiateRemoveYPath(transactionId, path)
-                    ->OnSuccess(this->CreateSuccessHandler(context))
-                    ->OnError(this->CreateErrorHandler(context))
+                    ->OnSuccess(~this->CreateSuccessHandler(~context))
+                    ->OnError(~this->CreateErrorHandler(~context))
                     ->Commit();
             }));
 }
@@ -194,8 +194,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
             {
                 CypressManager
                     ->InitiateLockYPath(transactionId, path)
-                    ->OnSuccess(this->CreateSuccessHandler(context))
-                    ->OnError(this->CreateErrorHandler(context))
+                    ->OnSuccess(~this->CreateSuccessHandler(~context))
+                    ->OnError(~this->CreateErrorHandler(~context))
                     ->Commit();
             }));
 }

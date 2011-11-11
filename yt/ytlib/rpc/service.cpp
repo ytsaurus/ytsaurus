@@ -16,29 +16,25 @@ static NLog::TLogger& Logger = RpcLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContext::TServiceContext(
-    IService::TPtr service,
-    TRequestId requestId,
-    const Stroka& methodName,
-    IMessage::TPtr message,
-    IBus::TPtr replyBus)
+    IService* service,
+    const TRequestId& requestId,
+    const Stroka& path,
+    const Stroka& verb,
+    IMessage* requestMessage)
     : Service(service)
     , RequestId(requestId)
-    , MethodName(methodName)
-    , ReplyBus(replyBus)
+    , Path(path)
+    , Verb(verb)
     , ServiceLogger(service->GetLoggingCategory()) // TODO: move this to body
     , Replied(false)
 {
-    YASSERT(~service != NULL);
-    YASSERT(~message != NULL);
-    YASSERT(~replyBus != NULL);
+    YASSERT(service != NULL);
+    YASSERT(requestMessage != NULL);
 
-    RequestBody = message->GetParts().at(1);
-    RequestAttachments = yvector<TSharedRef>(message->GetParts().begin() + 2, message->GetParts().end());
-}
-
-void TServiceContext::Reply(EErrorCode errorCode /* = EErrorCode::OK */)
-{
-    Reply(TError(errorCode));
+    RequestBody = requestMessage->GetParts().at(1);
+    RequestAttachments = yvector<TSharedRef>(
+        requestMessage->GetParts().begin() + 2,
+        requestMessage->GetParts().end());
 }
 
 void TServiceContext::Reply(const TError& error)
@@ -48,7 +44,6 @@ void TServiceContext::Reply(const TError& error)
 
     Replied = true;
     LogResponseInfo(error);
-    Service->OnEndRequest(this);
 
     IMessage::TPtr message;
     if (error.IsOK()) {
@@ -63,8 +58,7 @@ void TServiceContext::Reply(const TError& error)
             error);
     }
 
-    ReplyBus->Send(message);
-    
+    Service->OnEndRequest(this, ~message);
 }
 
 bool TServiceContext::IsReplied() const
@@ -92,17 +86,17 @@ void TServiceContext::SetResponseAttachments(yvector<TSharedRef>* attachments)
     ResponseAttachments.swap(*attachments);
 }
 
-Stroka TServiceContext::GetServiceName() const
+Stroka TServiceContext::GetPath() const
 {
-    return Service->GetServiceName();
+    return Path;
 }
 
-Stroka TServiceContext::GetMethodName() const
+Stroka TServiceContext::GetVerb() const
 {
-    return MethodName;
+    return Verb;
 }
 
-const TRequestId& TServiceContext::GetRequestId() const
+TRequestId TServiceContext::GetRequestId() const
 {
     return RequestId;
 }
@@ -128,7 +122,7 @@ Stroka TServiceContext::GetResponseInfo()
     return ResponseInfo;
 }
 
-IAction::TPtr TServiceContext::Wrap(IAction::TPtr action)
+IAction::TPtr TServiceContext::Wrap(IAction* action)
 {
     return FromMethod(
         &TServiceContext::WrapThunk,
@@ -148,6 +142,8 @@ void TServiceContext::WrapThunk(IAction::TPtr action) throw()
 
         Stroka str;
         AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, Sprintf("Path: %s", ~Path));
+        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
         AppendInfo(str, ResponseInfo);
         LOG_FATAL("Unhandled exception in service method (%s): %s",
             ~str,
@@ -164,7 +160,7 @@ void TServiceContext::LogRequestInfo()
         ServiceLogger,
         NLog::ELogLevel::Debug,
         "%s <- %s",
-        ~MethodName,
+        ~Verb,
         ~str);
 }
 
@@ -178,7 +174,7 @@ void TServiceContext::LogResponseInfo(const TError& error)
         ServiceLogger,
         NLog::ELogLevel::Debug,
         "%s -> %s",
-        ~MethodName,
+        ~Verb,
         ~str);
 }
 
@@ -195,68 +191,70 @@ void TServiceContext::AppendInfo(Stroka& lhs, const Stroka& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IInvoker::TPtr defaultServiceInvoker,
+    IInvoker* defaultServiceInvoker,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : DefaultServiceInvoker(defaultServiceInvoker)
     , ServiceName(serviceName)
     , ServiceLogger(loggingCategory)
 {
-    YASSERT(~defaultServiceInvoker != NULL);
+    YASSERT(defaultServiceInvoker != NULL);
 }
 
 void TServiceBase::RegisterMethod(
     const TMethodDescriptor& descriptor,
-    IInvoker::TPtr invoker)
+    IInvoker* invoker)
 {
-    YASSERT(~invoker != NULL);
+    YASSERT(invoker != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
 
     if (!RuntimeMethodInfos.insert(MakePair(
-        descriptor.MethodName,
+        descriptor.Verb,
         TRuntimeMethodInfo(descriptor, invoker))).Second()) {
-        ythrow yexception() << Sprintf("Method is already registered (ServiceName: %s, MethodName: %s)",
+        ythrow yexception() << Sprintf("Verb is already registered (ServiceName: %s, Verb: %s)",
             ~ServiceName,
-            ~descriptor.MethodName);
+            ~descriptor.Verb);
     }
 }
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    RegisterMethod(descriptor, DefaultServiceInvoker);
+    RegisterMethod(descriptor, ~DefaultServiceInvoker);
 }
 
-void TServiceBase::OnBeginRequest(IServiceContext* context)
+void TServiceBase::OnBeginRequest(IServiceContext* context, IBus* replyBus)
 {
     YASSERT(context != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
 
-    Stroka methodName = context->GetMethodName();
-    auto methodIt = RuntimeMethodInfos.find(methodName);
+    Stroka verb = context->GetVerb();
+    auto methodIt = RuntimeMethodInfos.find(verb);
     TRuntimeMethodInfo* runtimeInfo =
         methodIt == RuntimeMethodInfos.end()
         ? NULL
         : &methodIt->Second();
 
-    YVERIFY(ActiveRequests.insert(MakePair(
-        context,
-        TActiveRequest(runtimeInfo, TInstant::Now()))).Second());
+    TActiveRequest activeRequest(
+        replyBus,
+        runtimeInfo,
+        TInstant::Now());
+    YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
 
     if (runtimeInfo == NULL) {
-        LOG_WARNING("Unknown method (ServiceName: %s, MethodName: %s)",
+        LOG_WARNING("Unknown method (ServiceName: %s, Verb: %s)",
             ~ServiceName,
-            ~methodName);
-        context->Reply(EErrorCode::NoMethod);
+            ~verb);
+        context->Reply(TError(EErrorCode::NoSuchMethod));
     } else {
         auto handler = runtimeInfo->Descriptor.Handler;
-        auto wrappedHandler = context->Wrap(handler->Bind(context));
+        auto wrappedHandler = context->Wrap(~handler->Bind(context));
         runtimeInfo->Invoker->Invoke(wrappedHandler);
     }
 }
 
-void TServiceBase::OnEndRequest(IServiceContext* context)
+void TServiceBase::OnEndRequest(IServiceContext* context, IMessage* responseMessage)
 {
     YASSERT(context != NULL);
 
@@ -264,6 +262,7 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
     auto it = ActiveRequests.find(context);
     YASSERT(it != ActiveRequests.end());
     auto& request = it->Second();
+    request.ReplyBus->Send(responseMessage);
     if (request.RuntimeInfo != NULL) {
         request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
     }

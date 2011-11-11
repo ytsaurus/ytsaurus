@@ -67,18 +67,18 @@ protected:
         SetNodeFromProducer(node, ~TYsonReader::GetProducer(&stream), builder);
     }
     
-    virtual void Invoke2(TYPath path, NRpc::TServiceContext* context);
+    virtual void Invoke2(NRpc::IServiceContext* context);
     virtual TNavigateResult2 NavigateRecursive2(TYPath path);
 
-    YPATH_SERVICE_METHOD_DECL(NProto, Get2);
+    RPC_SERVICE_METHOD_DECL(NProto, Get2);
     virtual void GetSelf2(TReqGet2* request, TRspGet2* response, TCtxGet2::TPtr context);
     virtual void GetRecursive2(TYPath path, TReqGet2* request, TRspGet2* response, TCtxGet2::TPtr context);
 
-    YPATH_SERVICE_METHOD_DECL(NProto, Set2);
+    RPC_SERVICE_METHOD_DECL(NProto, Set2);
     virtual void SetSelf2(TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
     virtual void SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
 
-    YPATH_SERVICE_METHOD_DECL(NProto, Remove2);
+    RPC_SERVICE_METHOD_DECL(NProto, Remove2);
     virtual void RemoveSelf2(TReqRemove2* request, TRspRemove2* response, TCtxRemove2::TPtr context);
     virtual void RemoveRecursive2(TYPath path, TReqRemove2* request, TRspRemove2* response, TCtxRemove2::TPtr context);
 

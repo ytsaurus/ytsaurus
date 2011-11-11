@@ -24,12 +24,12 @@ TServer::TServer(int port)
 TServer::~TServer()
 { }
 
-void TServer::RegisterService(IService::TPtr service)
+void TServer::RegisterService(IService* service)
 {
-    YASSERT(~service != NULL);
+    YASSERT(service != NULL);
 
     YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
-    LOG_INFO("Registered RPC service (ServiceName: %s)", ~service->GetServiceName());
+    LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());
 }
 
 void TServer::Start()
@@ -63,12 +63,12 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     }
 
     auto requestId = TRequestId::FromProto(requestHeader.GetRequestId());
-    Stroka serviceName = requestHeader.GetServiceName();
-    Stroka methodName = requestHeader.GetMethodName();
+    Stroka path = requestHeader.GetPath();
+    Stroka verb = requestHeader.GetVerb();
 
-    LOG_DEBUG("Request received (ServiceName: %s, MethodName: %s, RequestId: %s)",
-        ~serviceName,
-        ~methodName,
+    LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s)",
+        ~path,
+        ~verb,
         ~requestId.ToString());
 
     if (!Started) {
@@ -81,11 +81,14 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
         return;
     }
 
+    // TODO: anything smarter?
+    Stroka serviceName = path;
+
     auto service = GetService(serviceName);
     if (~service == NULL) {
         auto errorMessage = New<TRpcErrorResponseMessage>(
             requestId,
-            TError(EErrorCode::NoService));
+            TError(EErrorCode::NoSuchService));
         replyBus->Send(errorMessage);
 
         LOG_WARNING("Unknown service (ServiceName: %s)", ~serviceName);
@@ -93,22 +96,19 @@ void TServer::OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
     }
 
     auto context = New<TServiceContext>(
-        service,
+        ~service,
         requestId,
-        methodName,
-        message,
-        replyBus);
+        path,
+        verb,
+        ~message);
 
-    service->OnBeginRequest(context);
+    service->OnBeginRequest(~context, ~replyBus);
 }
 
-IService::TPtr TServer::GetService(Stroka serviceName)
+IService::TPtr TServer::GetService(const Stroka& serviceName)
 {
     auto it = Services.find(serviceName);
-    if (it == Services.end()) {
-        return NULL;
-    }
-    return it->Second();
+    return it == Services.end() ? NULL : it->Second();
 }
 
 Stroka TServer::GetDebugInfo()

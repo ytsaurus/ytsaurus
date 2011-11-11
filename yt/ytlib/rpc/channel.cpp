@@ -73,10 +73,10 @@ TFuture<TError>::TPtr TChannel::Send(
         TPtr(this),
         requestId));
     
-    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
+    LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s)",
         ~requestId.ToString(),
-        ~request->GetServiceName(),
-        ~request->GetMethodName());
+        ~request->GetPath(),
+        ~request->GetVerb());
 
     return activeRequest.Ready;
 }

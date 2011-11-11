@@ -18,7 +18,7 @@ public:
     TServer(int port);
     ~TServer();
 
-    void RegisterService(IService::TPtr service);
+    void RegisterService(IService* service);
     void Start();
     void Stop();
 
@@ -29,7 +29,7 @@ private:
     yhash_map<Stroka, IService::TPtr> Services;
     volatile bool Started;
 
-    IService::TPtr GetService(Stroka serviceName);
+    IService::TPtr GetService(const Stroka& serviceName);
     virtual void OnMessage(
         NBus::IMessage::TPtr message,
         NBus::IBus::TPtr replyBus);

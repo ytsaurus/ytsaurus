@@ -58,8 +58,8 @@ struct IClientRequest
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
     virtual TRequestId GetRequestId() const = 0;
-    virtual Stroka GetServiceName() const = 0;
-    virtual Stroka GetMethodName() const = 0;
+    virtual Stroka GetPath() const = 0;
+    virtual Stroka GetVerb() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,19 +78,19 @@ protected:
     IChannel::TPtr Channel;
 
     TClientRequest(
-        IChannel::TPtr channel,
-        const Stroka& serviceName,
-        const Stroka& methodName);
+        IChannel* channel,
+        const Stroka& path,
+        const Stroka& verb);
 
     virtual bool SerializeBody(TBlob* data) const = 0;
-    TFuture<TError>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
+    TFuture<TError>::TPtr DoInvoke(TClientResponse* response, TDuration timeout);
 
-    Stroka GetServiceName() const;
-    Stroka GetMethodName() const;
+    Stroka GetPath() const;
+    Stroka GetVerb() const;
 
 private:
-    Stroka ServiceName;
-    Stroka MethodName;
+    Stroka Path;
+    Stroka Verb;
     TRequestId RequestId;
 
     yvector<TSharedRef> Attachments_;
@@ -116,12 +116,12 @@ public:
     typedef TFuture<typename TTypedResponse::TPtr> TInvokeResult;
 
     TTypedClientRequest(
-        IChannel::TPtr channel,
-        const Stroka& serviceName,
-        const Stroka& methodName)
-        : TClientRequest(channel, serviceName, methodName)
+        IChannel* channel,
+        const Stroka& path,
+        const Stroka& verb)
+        : TClientRequest(channel, path, verb)
     {
-        YASSERT(~channel != NULL);
+        YASSERT(channel != NULL);
     }
 
     typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
@@ -129,7 +129,7 @@ public:
         typename TInvokeResult::TPtr asyncResult = NYT::New<TInvokeResult>();
         typename TTypedResponse::TPtr response = NYT::New<TTypedResponse>(
             GetRequestId(),
-            Channel);
+            ~Channel);
         DoInvoke(~response, timeout)->Subscribe(FromMethod(
             &TTypedClientRequest::OnReady,
             asyncResult,
@@ -259,17 +259,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_DECLARE_PROXY(serviceName, errorCodes) \
+#define RPC_DECLARE_PROXY(path, errorCodes) \
     static Stroka GetServiceName() \
     { \
-        return PP_STRINGIZE(serviceName); \
+        return PP_STRINGIZE(path); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##serviceName##Error, NRpc::EErrorCode, \
+    DECLARE_POLY_ENUM2(E##path##Error, NRpc::EErrorCode, \
         errorCodes \
     ); \
     \
-    typedef E##serviceName##Error EErrorCode;
+    typedef E##path##Error EErrorCode;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,15 +281,15 @@ private:
     \
     TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(Channel, ServiceName, #method); \
+        return New<TReq##method>(~Channel, ServiceName, #method); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define USE_RPC_PROXY_METHOD(TProxy, MethodName) \
-    typedef TProxy::TReq##MethodName TReq##MethodName; \
-    typedef TProxy::TRsp##MethodName TRsp##MethodName; \
-    typedef TProxy::TInv##MethodName TInv##MethodName;
+#define USE_RPC_PROXY_METHOD(TProxy, Verb) \
+    typedef TProxy::TReq##Verb TReq##Verb; \
+    typedef TProxy::TRsp##Verb TRsp##Verb; \
+    typedef TProxy::TInv##Verb TInv##Verb;
 
 ////////////////////////////////////////////////////////////////////////////////
 

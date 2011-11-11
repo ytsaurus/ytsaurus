@@ -63,7 +63,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 
                 context->Reply();
             }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -81,8 +81,8 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
 
     TransactionManager
         ->InitiateCommitTransaction(id)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -100,8 +100,8 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
 
     TransactionManager
         ->InitiateAbortTransaction(id)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

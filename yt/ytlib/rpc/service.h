@@ -72,7 +72,10 @@ struct IServiceContext
 {
     typedef TIntrusivePtr<IServiceContext> TPtr;
 
-    virtual void Reply(EErrorCode errorCode) = 0;
+    virtual Stroka GetPath() const = 0;
+    virtual Stroka GetVerb() const = 0;
+    virtual TRequestId GetRequestId() const = 0;
+
     virtual void Reply(const TError& error) = 0;
     virtual bool IsReplied() const = 0;
 
@@ -83,17 +86,13 @@ struct IServiceContext
     virtual const yvector<TSharedRef>& GetRequestAttachments() const = 0;
     virtual void SetResponseAttachments(yvector<TSharedRef>* attachments) = 0;
 
-    virtual Stroka GetServiceName() const = 0;
-    virtual Stroka GetMethodName() const = 0;
-    virtual const TRequestId& GetRequestId() const = 0;
-
     virtual void SetRequestInfo(const Stroka& info) = 0;
     virtual Stroka GetRequestInfo() const = 0;
 
     virtual void SetResponseInfo(const Stroka& info) = 0;
     virtual Stroka GetResponseInfo() = 0;
 
-    virtual IAction::TPtr Wrap(IAction::TPtr action) = 0;
+    virtual IAction::TPtr Wrap(IAction* action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +105,8 @@ struct IService
     virtual Stroka GetServiceName() const = 0;
     virtual Stroka GetLoggingCategory() const = 0;
 
-    virtual void OnBeginRequest(IServiceContext* context) = 0;
-    virtual void OnEndRequest(IServiceContext* context) = 0;
+    virtual void OnBeginRequest(IServiceContext* context, NBus::IBus* replyBus) = 0;
+    virtual void OnEndRequest(IServiceContext* context, NBus::IMessage* responseMessage) = 0;
 
     virtual Stroka GetDebugInfo() const = 0;
 };
@@ -121,13 +120,16 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        IService::TPtr service,
-        TRequestId requestId,
-        const Stroka& methodName,
-        NBus::IMessage::TPtr message,
-        NBus::IBus::TPtr replyBus);
+        IService* service,
+        const TRequestId& requestId,
+        const Stroka& path,
+        const Stroka& verb,
+        NBus::IMessage* requestMessage);
 
-    void Reply(EErrorCode errorCode);
+    Stroka GetPath() const;
+    Stroka GetVerb() const;
+    TRequestId GetRequestId() const;
+
     void Reply(const TError& error);
     bool IsReplied() const;
 
@@ -137,23 +139,19 @@ public:
     const yvector<TSharedRef>& GetRequestAttachments() const;
     void SetResponseAttachments(yvector<TSharedRef>* attachments);
 
-    Stroka GetServiceName() const;
-    Stroka GetMethodName() const;
-    const TRequestId& GetRequestId() const;
-
     void SetRequestInfo(const Stroka& info);
     Stroka GetRequestInfo() const;
 
     void SetResponseInfo(const Stroka& info);
     Stroka GetResponseInfo();
 
-    IAction::TPtr Wrap(IAction::TPtr action);
+    IAction::TPtr Wrap(IAction* action);
 
 protected:
     IService::TPtr Service;
     TRequestId RequestId;
-    Stroka MethodName;
-    NBus::IBus::TPtr ReplyBus;
+    Stroka Path;
+    Stroka Verb;
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments;
     NLog::TLogger ServiceLogger;
@@ -239,6 +237,16 @@ public:
         }
     }
 
+    Stroka GetPath() const
+    {
+        return Context->GetPath();
+    }
+
+    Stroka GetVerb() const
+    {
+        return Context->GetVerb();
+    }
+
     TTypedRequest& Request()
     {
         return Request_;
@@ -279,10 +287,10 @@ public:
         return Context->IsReplied();
     }
 
-    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
+    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
-        YASSERT(~paramAction != NULL);
-        return Context->Wrap(paramAction->Bind(TPtr(this)));
+        YASSERT(paramAction != NULL);
+        return Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
     
     void SetRequestInfo(const Stroka& info)
@@ -356,15 +364,15 @@ protected:
     struct TMethodDescriptor
     {
         //! Initializes the instance.
-        TMethodDescriptor(const Stroka& methodName, THandler::TPtr handler)
-            : MethodName(methodName)
+        TMethodDescriptor(const Stroka& verb, THandler* handler)
+            : Verb(verb)
             , Handler(handler)
         {
-            YASSERT(~handler != NULL);
+            YASSERT(handler != NULL);
         }
 
         //! Service method name.
-        Stroka MethodName;
+        Stroka Verb;
         //! A handler that will serve the requests.
         THandler::TPtr Handler;
     };
@@ -383,7 +391,7 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IInvoker::TPtr defaultServiceInvoker,
+        IInvoker* defaultServiceInvoker,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
@@ -391,7 +399,7 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
     //! Registers a method with a supplied custom invoker.
-    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker);
+    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
 
 private:
     struct TRuntimeMethodInfo
@@ -400,7 +408,7 @@ private:
         IInvoker::TPtr Invoker;
         TMetric ExecutionTime;
 
-        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker::TPtr invoker)
+        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
             : Descriptor(info)
             , Invoker(invoker)
             // TODO: configure properly
@@ -410,11 +418,16 @@ private:
 
     struct TActiveRequest
     {
-        TActiveRequest(TRuntimeMethodInfo* runtimeInfo, const TInstant& startTime)
-            : RuntimeInfo(runtimeInfo)
+        TActiveRequest(
+            NBus::IBus* replyBus,
+            TRuntimeMethodInfo* runtimeInfo,
+            const TInstant& startTime)
+            : ReplyBus(replyBus)
+            , RuntimeInfo(runtimeInfo)
             , StartTime(startTime)
         { }
 
+        NBus::IBus::TPtr ReplyBus;
         TRuntimeMethodInfo* RuntimeInfo;
         TInstant StartTime;
     };
@@ -428,8 +441,8 @@ private:
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
     yhash_map<IServiceContext::TPtr, TActiveRequest> ActiveRequests;
 
-    virtual void OnBeginRequest(IServiceContext* context);
-    virtual void OnEndRequest(IServiceContext* context);
+    virtual void OnBeginRequest(IServiceContext* context, NBus::IBus* replyBus);
+    virtual void OnEndRequest(IServiceContext* context, NBus::IMessage* responseMessage);
 
     virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;
@@ -466,7 +479,7 @@ private:
         TCtx##method::TPtr context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
-    TMethodDescriptor(#method, FromMethod(&TThis::method##Thunk, this)) \
+    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this)) \
 
 ////////////////////////////////////////////////////////////////////////////////
 

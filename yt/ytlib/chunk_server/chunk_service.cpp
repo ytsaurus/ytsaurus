@@ -85,7 +85,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
                 context->SetResponseInfo("HolderId: %d", id);
                 context->Reply();
             }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -174,7 +174,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
     ChunkManager
         ->InitiateHeartbeatResponse(responseMessage)
-        ->OnSuccess(FromFunctor([=] (TVoid)
+        ->OnSuccess(~FromFunctor([=] (TVoid)
             {
                 context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
                     static_cast<int>(response->JobsToStartSize()),
@@ -182,7 +182,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
                 context->Reply();
             }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -208,7 +208,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 
     ChunkManager
         ->InitiateCreateChunk(transactionId)
-        ->OnSuccess(FromFunctor([=] (TChunkId id)
+        ->OnSuccess(~FromFunctor([=] (TChunkId id)
             {
                 response->SetChunkId(id.ToProto());
 
@@ -218,7 +218,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 
                 context->Reply();
             }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

@@ -58,8 +58,8 @@ RPC_SERVICE_METHOD_IMPL(TTableService, AddTableChunks)
 
     TableManager
         ->InitiateAddTableChunks(nodeId, transactionId, chunkIds)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

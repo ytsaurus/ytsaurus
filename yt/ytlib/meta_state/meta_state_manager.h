@@ -22,9 +22,9 @@ public:
 
     TMetaStateManager(
         const TConfig& config,
-        IInvoker::TPtr controlInvoker,
-        IMetaState::TPtr metaState,
-        NRpc::TServer::TPtr server);
+        IInvoker* controlInvoker,
+        IMetaState* metaState,
+        NRpc::TServer* server);
 
     ~TMetaStateManager();
 

@@ -44,40 +44,12 @@ struct IYPathService2
 
     virtual TNavigateResult2 Navigate2(TYPath path) = 0;
 
-    virtual void Invoke2(TYPath path, NRpc::TServiceContext* context) = 0;
+    virtual void Invoke2(NRpc::IServiceContext* context) = 0;
 
 
     static IYPathService2::TPtr FromNode(INode* node);
 };
 
-
-#define YPATH_SERVICE_METHOD_DECL(ns, method) \
-    typedef ::NYT::NRpc::TTypedServiceRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
-    typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
-    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    \
-    void method##Thunk(TYPath path, ::NYT::NRpc::TServiceContext::TPtr context) \
-    { \
-        auto typedContext = New<TCtx##method>(context); \
-        method( \
-            path, \
-            &typedContext->Request(), \
-            &typedContext->Response(), \
-            typedContext); \
-    } \
-    \
-    void method( \
-        TYPath path, \
-        TReq##method* request, \
-        TRsp##method* response, \
-        TCtx##method::TPtr context)
-
-#define YPATH_SERVICE_METHOD_IMPL(type, method) \
-    void type::method( \
-        TYPath path, \
-        TReq##method* request, \
-        TRsp##method* response, \
-        TCtx##method::TPtr context)
 
 
 struct IYPathService

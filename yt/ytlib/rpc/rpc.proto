@@ -5,8 +5,8 @@ package NYT.NRpc;
 message TRequestHeader
 {
     required bytes RequestId = 1;
-    required string ServiceName = 2;
-    required string MethodName = 3;
+    required bytes Path = 2;
+    required bytes Verb = 3;
 }
 
 message TResponseHeader

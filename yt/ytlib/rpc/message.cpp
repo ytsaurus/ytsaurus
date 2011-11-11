@@ -27,15 +27,15 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data)
 
 TRpcRequestMessage::TRpcRequestMessage(
     const TRequestId& requestId,
-    const Stroka& serviceName,
-    const Stroka& methodName,
+    const Stroka& path,
+    const Stroka& verb,
     TBlob* body,
     const yvector<TSharedRef>& attachments)
 {
     TRequestHeader requestHeader;
     requestHeader.SetRequestId(requestId.ToProto());
-    requestHeader.SetServiceName(serviceName);
-    requestHeader.SetMethodName(methodName);
+    requestHeader.SetPath(path);
+    requestHeader.SetVerb(verb);
 
     TBlob header;
     if (!SerializeMessage(&requestHeader, &header)) {
