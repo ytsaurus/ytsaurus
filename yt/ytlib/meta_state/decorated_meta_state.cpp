@@ -60,6 +60,7 @@ void TDecoratedMetaState::Clear()
 
     State->Clear();
     Version = TMetaVersion();
+    CurrentChangeLog.Reset();
 }
 
 TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
@@ -69,22 +70,16 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 
     LOG_INFO("Started saving snapshot");
 
-    return State->Save(output, GetSnapshotInvoker())->Apply(FromMethod(
-        &TDecoratedMetaState::OnSave,
-        TPtr(this),
-        TInstant::Now()));
+    auto started = TInstant::Now();
+    return State->Save(output, GetSnapshotInvoker())->Apply(FromFunctor([=] (TVoid) -> TVoid
+        {
+            auto finished = TInstant::Now();
+            LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
+            return TVoid();
+        }));
 }
 
-TVoid TDecoratedMetaState::OnSave(TVoid, TInstant started)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto finished = TInstant::Now();
-    LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
-    return TVoid();
-}
-
-TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
+void TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
@@ -93,21 +88,14 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Load(
 
     LOG_INFO("Started loading snapshot %d", segmentId);
 
+    CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(segmentId, 0));
-    return State->Load(input, GetStateInvoker())->Apply(FromMethod(
-        &TDecoratedMetaState::OnLoad,
-        TPtr(this),
-        TInstant::Now()));
-}
 
-TVoid TDecoratedMetaState::OnLoad(TVoid, TInstant started)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
+    auto started = TInstant::Now();
+    State->Load(input);
     auto finished = TInstant::Now();
-    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 
-    return TVoid();
+    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 }
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
@@ -134,12 +122,16 @@ void TDecoratedMetaState::IncrementRecordCount()
 
 TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
 {
-    auto changeLog = ChangeLogCache->Get(Version.SegmentId);
-    if (~changeLog == NULL) {
-        LOG_FATAL("The current changelog %d is missing",
-            Version.SegmentId);
+    if (~CurrentChangeLog != NULL) {
+        return CurrentChangeLog;
     }
-    return changeLog;
+
+    CurrentChangeLog = ChangeLogCache->Get(Version.SegmentId);
+    if (~CurrentChangeLog == NULL) {
+        LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
+    }
+
+    return CurrentChangeLog;
 }
 
 TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
@@ -157,6 +149,7 @@ void TDecoratedMetaState::AdvanceSegment()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
     LOG_INFO("Switched to a new segment %d", Version.SegmentId);
@@ -186,7 +179,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
         LOG_INFO("Latest snapshot is %d", maxSnapshotId);
     }
 
-    TMetaVersion currentVersion = TMetaVersion(maxSnapshotId, 0);
+    auto currentVersion = TMetaVersion(maxSnapshotId, 0);
 
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
         auto changeLog = ChangeLogCache->Get(segmentId);

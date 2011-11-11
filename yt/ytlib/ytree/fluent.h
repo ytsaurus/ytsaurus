@@ -25,6 +25,47 @@ public:
     template<class TParent>
     class TFluentBase
     {
+    public:
+        template <class TFunc>
+        TParent Do(const TFunc& func)
+        {
+            func(this->Consumer);
+            return this->Parent;
+        }
+
+        TParent Do(TYsonProducer::TPtr producer)
+        {
+            producer->Do(this->Consumer);
+            return this->Parent;
+        }
+
+        template <class TFunc>
+        TParent DoIf(bool condition, const TFunc& func)
+        {
+            if (condition) {
+                func(this->Consumer);
+                return this->Parent;
+            }
+        }
+
+        template <class TFunc, class TIterator>
+        TParent DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            for (auto it = begin; it != end; ++it) {
+                func(it, this->Consumer);
+            }
+            return this->Parent;
+        }
+
+        template <class TFunc, class TCollection>
+        TParent DoFor(const TCollection& collection, const TFunc& func)
+        {
+            FOREACH (const auto& item, collection) {
+                func(item, this->Consumer);
+            }
+            return this->Parent;
+        }
+
     protected:
         TFluentBase(IYsonConsumer* consumer, const TParent& parent)
             : Consumer(consumer)
@@ -89,10 +130,10 @@ public:
 
         TParent Scalar(bool value)
         {
-            return Scalar(value ? Stroka("true") : Stroka("false"));
+            return Scalar(value ? Stroka("True") : Stroka("False"));
         }
 
-        TParent EntityScalar()
+        TParent Entity()
         {
             this->Consumer->OnEntity(HasAttributes);
             return this->Parent;
@@ -118,20 +159,6 @@ public:
                 true);
         }
 
-        TParent Do(TYsonProducer::TPtr producer)
-        {
-            producer->Do(this->Consumer);
-            return this->Parent;
-        }
-
-        template<class T>
-        TParent Do(const T& func)
-        {
-            func(this->Consumer);
-            return this->Parent;
-        }
-
-    private:
         bool HasAttributes;
 
     };

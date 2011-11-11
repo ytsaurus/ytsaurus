@@ -36,7 +36,9 @@ private:
 
     THolder<TFile> File;
     THolder<TBufferedFileInput> FileInput;
+    THolder<TInputStream> DecompressedInput;
     THolder<TChecksummableInput> ChecksummableInput;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,7 @@ private:
 
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
+    THolder<TOutputStream> CompressedOutput;
     THolder<TChecksummableOutput> ChecksummableOutput;
 };
 

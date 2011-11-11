@@ -1,38 +1,41 @@
 {
-  Cell: {
-    PeerAddresses : ["localhost:8000", "localhost:8001", "localhost:8002"]
-  },
-
-  MetaState: {
-    LogLocation: "logs",
-    SnapshotLocation: "snapshots"
-  },
-
-  Logging: {
-    Writers: [
-      {
-        Name : "StdErr",
-        Type : "StdErr",
-        Pattern : "$(datetime) $(level) $(category) $(message)"
-      },
-      {
-        Name : "File",
-        Type : "File",
-        FileName : "cell_master.log",
-        Pattern : "$(datetime) $(level) $(category) $(message)"
-      }
-    ],
-    Rules: [
-      {
-        Categories: [ "*" ], 
-        MinLevel : "Info", 
-        Writers: [ "StdErr" ] 
-      }, 
-      { 
-        Categories: [ "*" ], 
-        MinLevel : "Debug", 
-        Writers: [ "File" ] 
-      } 
-    ]
-  }
+    "MetaState": {
+        "Cell": {
+            "Addresses": [
+                "localhost:8000",
+                "localhost:8001",
+                "localhost:8002"
+            ]
+        },
+        "SnapshotLocation": ".",
+        "MaxChangesBetweenSnapshots": 1000000,
+        "LogLocation": "."
+    },
+    "Logging": {
+        "Rules": [
+            {
+                "Writers": [
+                    "File",
+                    "StdErr"
+                ],
+                "Categories": [
+                    "*"
+                ],
+                "MinLevel": "Debug"
+            }
+        ],
+        "Writers": [
+            {
+                "Pattern": "$(datetime) $(level) $(category) $(message)",
+                "Type": "File",
+                "Name": "File",
+                "FileName": "master.log"
+            },
+            {
+                Name : "StdErr",
+                Type : "StdErr",
+                Pattern : "$(datetime) $(level) $(category) $(message)"
+            }
+        ]
+    }
 }

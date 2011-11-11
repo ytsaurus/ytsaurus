@@ -4,11 +4,12 @@
 
 #include "../misc/property.h"
 #include "../ytree/ytree.h"
-#include "../transaction_manager/common.h"
+#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NCypress {
 
+// TODO: get rid
 using NTransaction::TTransactionId;
 using NTransaction::NullTransactionId;
 
@@ -34,6 +35,8 @@ struct TBranchedNodeId
 
     //! Formats the id to string (for debugging and logging purposes mainly).
     Stroka ToString() const;
+
+    static TBranchedNodeId FromString(const Stroka &s);
 };
 
 //! Compares TBranchedNodeId s for equality.
@@ -93,12 +96,13 @@ struct INodeTypeHandler
         const TTransactionId& transactionId) = 0;
 
     virtual ERuntimeNodeType GetRuntimeType() = 0;
+    virtual NYTree::ENodeType GetNodeType() = 0;
     virtual Stroka GetTypeName() = 0;
     
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr description) = 0;
+        NYTree::IMapNode::TPtr manifest) = 0;
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;
@@ -181,9 +185,9 @@ struct ICypressNode
     virtual void SetAttributesId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.
-    virtual const yhash_set<TLockId>& Locks() const = 0;
+    virtual const yhash_set<TLockId>& LockIds() const = 0;
     //! Gets an mutable reference to the node's locks.
-    virtual yhash_set<TLockId>& Locks() = 0;
+    virtual yhash_set<TLockId>& LockIds() = 0;
 
     //! Increments the reference counter, returns the incremented value.
     virtual int Ref() = 0;

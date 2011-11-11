@@ -78,6 +78,12 @@ public:
     }
 
 
+    virtual NYTree::ENodeType GetType() const
+    {
+        return TypeHandler->GetNodeType();
+    }
+
+
     virtual const ICypressNode& GetImpl() const
     {
         return this->GetTypedImpl();
@@ -123,16 +129,10 @@ public:
         }
     }
 
-    virtual Stroka GetTypeName() const
+    
+    virtual INodeTypeHandler::TPtr GetTypeHandler() const
     {
-        switch (GetType()) {
-            case NYTree::ENodeType::String: return "string";
-            case NYTree::ENodeType::Int64:  return "int64";
-            case NYTree::ENodeType::Double: return "double";
-            case NYTree::ENodeType::Map:    return "map";
-            case NYTree::ENodeType::List:   return "list";
-            default: YUNREACHABLE();
-        }
+        return TypeHandler;
     }
 
 
@@ -270,11 +270,6 @@ public:
 
 #define DECLARE_TYPE_OVERRIDES(name) \
 public: \
-    virtual NYTree::ENodeType GetType() const \
-    { \
-        return NYTree::ENodeType::name; \
-    } \
-    \
     virtual TIntrusivePtr<const NYTree::I##name##Node> As##name() const \
     { \
         return this; \
@@ -287,8 +282,9 @@ public: \
     \
     virtual TSetResult SetSelf(NYTree::TYsonProducer::TPtr producer) \
     { \
-        SetNodeFromProducer(TIntrusivePtr<NYTree::I##name##Node>(this), producer); \
-        return TSetResult::CreateDone(); \
+        auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
+        NYTree::SetNodeFromProducer<NYTree::I##name##Node>(this, ~producer, ~builder); \
+        return TSetResult::CreateDone(this); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,7 +349,7 @@ protected:
 public:
     virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
     {
-        return const_cast<TCompositeNodeProxyBase*>(this);
+        return this;
     }
 
     virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()

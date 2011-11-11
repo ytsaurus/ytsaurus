@@ -15,6 +15,8 @@ SET(YT_SOURCE_FILES
     json_adapter.cpp
     ypath_detail.cpp
     forwarding_yson_events.cpp
+    virtual.cpp
+    ytree_rpc.proto
 )
 
 include_directories(

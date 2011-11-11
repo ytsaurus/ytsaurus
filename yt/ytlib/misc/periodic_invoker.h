@@ -9,7 +9,8 @@ namespace NYT {
 
 //! Performs action periodically.
 /*!
- *  \note Uses TDelayedInvoker. Consider wrapping actions with #Via.
+ *  \note
+ *  Uses TDelayedInvoker. Consider wrapping actions with #IAction::Via.
  */
 class TPeriodicInvoker
     : public TRefCountedBase
@@ -17,16 +18,28 @@ class TPeriodicInvoker
 public:
     typedef TIntrusivePtr<TPeriodicInvoker> TPtr;
 
-    TPeriodicInvoker(IAction::TPtr action, TDuration period);
-    ~TPeriodicInvoker();
-
-    bool IsActive() const;
-
+    //! Initializes an instance.
     /*!
-     *  \note Performs action immediately.
+     *  \note
+     *  We must call #Start to activate the instance.
+     * 
+     *  \param action An action to call.
+     *  \param period An interval between consequent invocations.
+     */
+    TPeriodicInvoker(IAction::TPtr action, TDuration period);
+
+    //! Starts invocations.
+    /*!
+     *  \note
+     *  The first invocation of the action happens immediately.
      */
     void Start();
+
+    //! Stops invocations.
     void Stop();
+
+    //! Returns if the invoker is active.
+    bool IsActive() const;
 
 private:
     IAction::TPtr Action;
@@ -34,7 +47,7 @@ private:
     TDelayedInvoker::TCookie Cookie;
     TCancelableInvoker::TPtr CancelableInvoker;
 
-    void PerformAction();
+    void RunAction();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

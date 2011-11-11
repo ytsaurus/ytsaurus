@@ -21,16 +21,6 @@ TFileNodeProxy::TFileNodeProxy(
         nodeId)
 { }
 
-ENodeType TFileNodeProxy::GetType() const
-{
-    return ENodeType::Entity;
-}
-
-Stroka TFileNodeProxy::GetTypeName() const
-{
-    return FileTypeName;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileServer

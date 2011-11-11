@@ -10,58 +10,29 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Reconstructs a YTree from IYsonConsumer calls.
-class TTreeBuilder
-    : public IYsonConsumer
+struct ITreeBuilder
+    : public virtual IYsonConsumer
 {
-public:
-    //! Initializes an instance.
-    /*!
-     *  \param factory A factory used for materializing the nodes.
-     */
-    TTreeBuilder(INodeFactory* factory);
+    //! Resets the instance.
+    virtual void BeginTree() = 0;
 
     //! Returns the root node of the constructed tree.
     /*!
      *  \note
      *  Must be called after the tree is constructed.
      */
-    INode::TPtr GetRoot() const;
+    virtual INode::TPtr EndTree() = 0;
 
-    //! Creates a YSON builder.
-    static TYsonBuilder::TPtr CreateYsonBuilder(INodeFactory* factory);
 
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
-
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
-
-    virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap(bool hasAttributes);
-
-    virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
-    virtual void OnEndAttributes();
-
-private:
-    INodeFactory* Factory;
-    yvector<INode::TPtr> Stack;
-
-    static INode::TPtr YsonBuilderThunk(
-        TYsonProducer::TPtr producer,
-        INodeFactory* factory);
-
-    void AddToList();
-    void AddToMap();
-
-    void Push(INode::TPtr node);
-    INode::TPtr Pop();
-    INode::TPtr Peek();
+    // TODO: document
+    virtual void OnNode(INode* node) = 0;
 };
+
+//! Creates a builder that makes explicit calls to the factory.
+/*!
+ *  \param factory A factory used for materializing the nodes.
+ */
+TAutoPtr<ITreeBuilder>CreateBuilderFromFactory(INodeFactory* factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -21,9 +21,9 @@ public:
 
     //! Creates an instance.
     TTransactionService(
-        TTransactionManager::TPtr transactionManager,
-        IInvoker::TPtr serviceInvoker,
-        NRpc::TServer::TPtr server);
+        NMetaState::TMetaStateManager* metaStateManager,
+        TTransactionManager* transactionManager,
+        NRpc::TServer* server);
 
 private:
     typedef TTransactionService TThis;
@@ -31,8 +31,6 @@ private:
     typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TTransactionManager::TPtr TransactionManager;
-
-    void RegisterMethods();
 
     void ValidateTransactionId(const TTransactionId& id);
 

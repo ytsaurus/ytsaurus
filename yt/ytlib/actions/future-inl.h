@@ -103,9 +103,6 @@ void ApplyFuncThunk(
     typename TFuture<TOther>::TPtr otherResult,
     typename IParamFunc<T, TOther>::TPtr func)
 {
-    YASSERT(~otherResult != NULL);
-    YASSERT(~func != NULL);
-
     otherResult->Set(func->Do(value));
 }
 
@@ -114,6 +111,8 @@ template <class TOther>
 TIntrusivePtr< TFuture<TOther> >
 TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
 {
+    YASSERT(~func != NULL);
+
     auto otherResult = New< TFuture<TOther> >();
     Subscribe(FromMethod(&ApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;
@@ -136,6 +135,8 @@ template <class TOther>
 TIntrusivePtr< TFuture<TOther> >
 TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther> > > > func)
 {
+    YASSERT(~func != NULL);
+
     auto otherResult = New< TFuture<TOther> >();
     Subscribe(FromMethod(&AsyncApplyFuncThunk<T, TOther>, otherResult, func));
     return otherResult;

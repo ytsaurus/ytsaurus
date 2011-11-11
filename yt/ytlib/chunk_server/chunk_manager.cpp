@@ -5,7 +5,7 @@
 #include "chunk_replication.h"
 #include "holder_expiration.h"
 
-#include "../transaction_manager/transaction_manager.h"
+#include "../transaction_server/transaction_manager.h"
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"
@@ -58,6 +58,13 @@ public:
         RegisterMethod(this, &TImpl::HeartbeatRequest);
         RegisterMethod(this, &TImpl::HeartbeatResponse);
 
+        metaState->RegisterLoader(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Load, TPtr(this)));
+        metaState->RegisterSaver(
+            "ChunkManager.1",
+            FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
+
         transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
             &TThis::OnTransactionCommitted,
             TPtr(this)));
@@ -97,7 +104,7 @@ public:
 
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId)
     {
-        YASSERT(transactionId != NullTransactionId);
+        YASSERT(transactionId != NTransaction::NullTransactionId);
 
         TMsgCreateChunk message;
         message.SetTransactionId(transactionId.ToProto());
@@ -119,6 +126,13 @@ public:
             ~chunkListId.ToString());
 
         return *chunkList;
+    }
+
+    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList) 
+    {
+        chunkList.ChunkIds().push_back(chunk.GetId());
+        chunk.SetChunkListId(chunkList.GetId());
+        RefChunk(chunk);
     }
 
 
@@ -295,10 +309,10 @@ private:
         // Unregister chunk replicas from all known locations.
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = GetHolderForUpdate(holderId);
-            YVERIFY(holder.Chunks().erase(chunkId) == 1);
+            YVERIFY(holder.ChunkIds().erase(chunkId) == 1);
 
             if (IsLeader()) {
-                ChunkReplication->ScheduleChunkRemoval(holder, chunk);
+                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
             }
         }
 
@@ -313,7 +327,7 @@ private:
         auto chunkListId = chunkList.GetId();
 
         // Drop references to chunks.
-        FOREACH (const auto& chunkId, chunkList.Chunks()) {
+        FOREACH (const auto& chunkId, chunkList.ChunkIds()) {
             UnrefChunk(chunkId);
         }
 
@@ -432,14 +446,11 @@ private:
         return TVoid();
     }
 
-    // TMetaStatePart overrides.
-    virtual Stroka GetPartName() const
+    TFuture<TVoid>::TPtr Save(const TCompositeMetaState::TSaveContext& context)
     {
-        return "ChunkManager";
-    }
+        auto* output = context.Output;
+        auto invoker = context.Invoker;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker)
-    {
         auto chunkIdGenerator = ChunkIdGenerator;
         auto chunkListIdGenerator = ChunkListIdGenerator;
         auto holderIdGenerator = HolderIdGenerator;
@@ -457,31 +468,20 @@ private:
         return JobListMap.Save(invoker, output);
     }
 
-    virtual TFuture<TVoid>::TPtr Load(TInputStream* input, IInvoker::TPtr invoker)
+    void Load(TInputStream* input)
     {
-        TPtr thisPtr = this;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Load(input, thisPtr->ChunkIdGenerator);
-                ::Load(input, thisPtr->ChunkListIdGenerator);
-                ::Load(input, thisPtr->HolderIdGenerator);
-            }));
+        ::Load(input, ChunkIdGenerator);
+        ::Load(input, ChunkListIdGenerator);
+        ::Load(input, HolderIdGenerator);
+        
+        ChunkMap.Load(input);
+        ChunkListMap.Load(input);
+        HolderMap.Load(input);
+        JobMap.Load(input);
+        JobListMap.Load(input);
 
-        ChunkMap.Load(invoker, input);
-        ChunkListMap.Load(invoker, input);
-        HolderMap.Load(invoker, input);
-        JobMap.Load(invoker, input);
-        JobListMap.Load(invoker, input);
-
-        return
-            FromMethod(&TThis::OnLoaded, thisPtr)
-            ->AsyncVia(invoker)
-            ->Do();
-    }
-
-    TVoid OnLoaded()
-    {
         // Reconstruct HolderAddressMap.
+        HolderAddressMap.clear();
         FOREACH(const auto& pair, HolderMap) {
             const auto* holder = pair.Second();
             YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
@@ -492,8 +492,6 @@ private:
         FOREACH (const auto& pair, JobMap) {
             RegisterReplicationSinks(*pair.Second());
         }
-
-        return TVoid();
     }
 
     virtual void Clear()
@@ -514,7 +512,7 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(ChunkManager);
         ChunkReplication = New<TChunkReplication>(
             ~ChunkManager,
             ~ChunkPlacement,
@@ -550,7 +548,7 @@ private:
     void ReleaseTransactionChunkRefs(const TTransaction& transaction)
     {
         // Release the references to every chunk created by the transaction.
-        // For those chunks created but not assigned to any Cypress nodes
+        // For those chunks created but not assigned to any Cypress node
         // this also destroys them.
         FOREACH(const auto& chunkId, transaction.RegisteredChunks()) {
             UnrefChunk(chunkId);
@@ -581,12 +579,12 @@ private:
             StopHolderTracking(holder);
         }
 
-        FOREACH(const auto& chunkId, holder.Chunks()) {
+        FOREACH(const auto& chunkId, holder.ChunkIds()) {
             auto& chunk = GetChunkForUpdate(chunkId);
             DoRemovedChunkReplicaAtDeadHolder(holder, chunk);
         }
 
-        FOREACH(const auto& jobId, holder.Jobs()) {
+        FOREACH(const auto& jobId, holder.JobIds()) {
             const auto& job = GetJob(jobId);
             DoRemoveJobAtDeadHolder(holder, job);
         }
@@ -602,7 +600,7 @@ private:
 
     void DoAddChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks().insert(chunk.GetId()).Second());
+        YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
@@ -618,7 +616,7 @@ private:
 
     void DoRemoveChunkReplica(THolder& holder, TChunk& chunk)
     {
-        YVERIFY(holder.Chunks().erase(chunk.GetId()) == 1);
+        YVERIFY(holder.ChunkIds().erase(chunk.GetId()) == 1);
         chunk.RemoveLocation(holder.GetId());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -635,7 +633,7 @@ private:
     {
         chunk.RemoveLocation(holder.GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed due to holder's death (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
              ~holder.GetAddress(),
              holder.GetId());
@@ -678,9 +676,9 @@ private:
 
     void DoRemoveJob(THolder& holder, const TJob& job)
     {
-        auto jobId = job.JobId;
+        auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
@@ -688,7 +686,7 @@ private:
 
         UnregisterReplicationSinks(job);
 
-        JobMap.Remove(job.JobId);
+        JobMap.Remove(job.GetJobId());
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -698,17 +696,17 @@ private:
 
     void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
     {
-        auto jobId = job.JobId;
+        auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.ChunkId);
+        auto& list = GetJobListForUpdate(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
         UnregisterReplicationSinks(job);
 
-        JobMap.Remove(job.JobId);
+        JobMap.Remove(job.GetJobId());
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed due to holder's death (JobId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Job removed since holder is dead (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId());
@@ -723,13 +721,16 @@ private:
         auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
         i64 size = chunkInfo.GetSize();
 
-        TChunk* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_ERROR_IF(!IsRecovery(), "Unknown chunk added at holder (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
                 size);
+            if (IsLeader()) {
+                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+            }
             return;
         }
 
@@ -756,7 +757,7 @@ private:
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~holder.GetAddress(),
                  holderId);
@@ -779,19 +780,19 @@ private:
 
     void MaybeDropJobList(const TJobList& list)
     {
-        if (list.Jobs.empty()) {
-            JobListMap.Remove(list.ChunkId);
+        if (list.JobIds().empty()) {
+            JobListMap.Remove(list.GetChunkId());
         }
     }
 
 
     void RegisterReplicationSinks(const TJob& job)
     {
-        switch (job.Type) {
+        switch (job.GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses) {
+                FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds.insert(job.JobId).Second());
+                    YASSERT(sink.JobIds.insert(job.GetJobId()).Second());
                 }
                 break;
             }
@@ -806,11 +807,11 @@ private:
 
     void UnregisterReplicationSinks(const TJob& job)
     {
-        switch (job.Type) {
+        switch (job.GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses) {
+                FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds.erase(job.JobId) == 1);
+                    YASSERT(sink.JobIds.erase(job.GetJobId()) == 1);
                     MaybeDropReplicationSink(sink);
                 }
                 break;
@@ -844,6 +845,7 @@ private:
             YVERIFY(ReplicationSinkMap.erase(address) == 1);
         }
     }
+
 };
 
 METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
@@ -867,7 +869,7 @@ TChunkManager::TChunkManager(
         metaState,
         transactionManager))
 {
-    metaState->RegisterPart(~Impl);
+    metaState->RegisterPart(Impl);
 }
 
 const THolder* TChunkManager::FindHolder(const Stroka& address)
@@ -893,6 +895,11 @@ TMetaChange<TChunkId>::TPtr TChunkManager::InitiateCreateChunk(const TTransactio
 TChunkList& TChunkManager::CreateChunkList()
 {
     return Impl->CreateChunkList();
+}
+
+void TChunkManager::AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList)
+{
+    return Impl->AddChunkToChunkList(chunk, chunkList);
 }
 
 void TChunkManager::RefChunk(const TChunkId& chunkId)

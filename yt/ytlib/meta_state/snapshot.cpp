@@ -6,9 +6,19 @@
 #include "../misc/serialize.h"
 
 #include <util/folder/dirut.h>
+#include <util/stream/lz.h>
 
 namespace NYT {
 namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+typedef TSnappyCompress TCompressedOutput;
+typedef TSnappyDecompress TDecompressedInput;
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +95,8 @@ void TSnapshotReader::Open(i64 offset)
 
     File->Seek(offset + sizeof(header), sSet);
     FileInput.Reset(new TBufferedFileInput(*File));
-    ChecksummableInput.Reset(new TChecksummableInput(*FileInput));
+    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
+    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
 }
 
 TInputStream& TSnapshotReader::GetStream() const
@@ -105,8 +116,9 @@ void TSnapshotReader::Close()
         return;
 
     LOG_DEBUG("Closing snapshot reader %s", ~FileName);
-    FileInput.Reset(NULL);
     ChecksummableInput.Reset(NULL);
+    DecompressedInput.Reset(NULL);
+    FileInput.Reset(NULL);
 }
 
 TChecksum TSnapshotReader::GetChecksum() const
@@ -138,7 +150,8 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     LOG_DEBUG("Opening snapshot writer %s", ~TempFileName);
     File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
     FileOutput.Reset(new TBufferedFileOutput(*File));
-    ChecksummableOutput.Reset(new TChecksummableOutput(*FileOutput));
+    CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
+    ChecksummableOutput.Reset(new TChecksummableOutput(*CompressedOutput));
 
     TSnapshotHeader header(SegmentId, PrevRecordCount);
     Write(*FileOutput, header);
@@ -162,6 +175,9 @@ void TSnapshotWriter::Close()
     LOG_DEBUG("Closing snapshot writer %s", ~TempFileName);
     ChecksummableOutput->Flush();
     ChecksummableOutput.Reset(NULL);
+    CompressedOutput->Flush(); // in fact, this is called automatically by the previous stream...
+    CompressedOutput.Reset(NULL);
+    FileOutput->Flush(); // ...but this is not!
     FileOutput.Reset(NULL);
 
     TSnapshotHeader header(SegmentId, PrevRecordCount);

@@ -13,13 +13,6 @@ TPeriodicInvoker::TPeriodicInvoker(IAction::TPtr action, TDuration period)
     , CancelableInvoker(New<TCancelableInvoker>(TSyncInvoker::Get()))
 { }
 
-TPeriodicInvoker::~TPeriodicInvoker()
-{
-    if (IsActive()) {
-        Stop();
-    }
-}
-
 bool TPeriodicInvoker::IsActive() const
 {
     return CancelableInvoker->IsCanceled();
@@ -27,22 +20,25 @@ bool TPeriodicInvoker::IsActive() const
 
 void TPeriodicInvoker::Start()
 {
-    PerformAction();
+    YASSERT(!IsActive());
+    RunAction();
 }
 
 void TPeriodicInvoker::Stop()
 {
-    YASSERT(IsActive());
     CancelableInvoker->Cancel();
-    TDelayedInvoker::Get()->Cancel(Cookie);
-    Cookie = NULL;
+    auto cookie = Cookie;
+    if (~cookie != NULL) {
+        TDelayedInvoker::Get()->Cancel(cookie);
+        Cookie.Reset();
+    }
 }
 
-void TPeriodicInvoker::PerformAction()
+void TPeriodicInvoker::RunAction()
 {
     Action->Do();
     Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TPeriodicInvoker::PerformAction, TPtr(this))
+        FromMethod(&TPeriodicInvoker::RunAction, TPtr(this))
         ->Via(~CancelableInvoker),
         Period);
 }

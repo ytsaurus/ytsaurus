@@ -40,7 +40,7 @@ void TRemoteChunkReader::DoReadBlocks(
     TFuture<TReadResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    TProxy proxy(HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
     auto req = proxy.GetBlocks();
     req->SetChunkId(ChunkId.ToProto());
 
@@ -63,7 +63,7 @@ void TRemoteChunkReader::OnBlocksRead(
     VERIFY_THREAD_AFFINITY(Response);
 
     if (rsp->IsOK()) {
-        ExecutionTime.AddDelta(rsp->GetInvokeInstant());
+        ExecutionTime.AddDelta(rsp->GetStartTime());
 
         TReadResult readResult;
         for (int i = 0; i < rsp->Attachments().ysize(); i++) {
@@ -85,8 +85,9 @@ void TRemoteChunkReader::OnBlocksRead(
 
 bool TRemoteChunkReader::ChangeCurrentHolder()
 {
-    // Thread affinity important here to ensure no race conditions on #CurrentHolder 
+    // Thread affinity is important here to ensure no race conditions on #CurrentHolder 
     VERIFY_THREAD_AFFINITY(Response);
+
     ++CurrentHolder;
     if (CurrentHolder < HolderAddresses.ysize()) {
         return true;

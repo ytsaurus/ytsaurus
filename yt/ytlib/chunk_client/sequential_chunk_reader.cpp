@@ -7,20 +7,17 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TLazyPtr<TActionQueue> TSequentialChunkReader::ReaderThread;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TSequentialChunkReader::TSequentialChunkReader(
     const TConfig& config, 
     const yvector<int>& blockIndexes, 
     IChunkReader::TPtr chunkReader)
-    : Config(config)
-    , BlockIndexSequence(blockIndexes)
+    : BlockIndexSequence(blockIndexes)
+    , FirstUnfetchedIndex(0)
+    , Config(config)
     , ChunkReader(chunkReader)
     , Window(config.WindowSize)
     , FreeSlots(config.WindowSize)
-    , FirstUnfetchedIndex(0)
+    , PendingResult(NULL)
     , HasFailed(false)
     , NextSequenceIndex(0)
 {

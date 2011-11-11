@@ -10,6 +10,7 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NYTree;
+using namespace NCypress;
 using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,9 +92,9 @@ const NChunkServer::TChunk* TFileNodeTypeHandler::GetChunk(const TFileNode& node
     }
 
     const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
-    YASSERT(chunkList.Chunks().ysize() == 1);
+    YASSERT(chunkList.ChunkIds().ysize() == 1);
 
-    return &ChunkManager->GetChunk(chunkList.Chunks()[0]);
+    return &ChunkManager->GetChunk(chunkList.ChunkIds()[0]);
 }
 
 void TFileNodeTypeHandler::DoDestroy(TFileNode& node)
@@ -107,10 +108,13 @@ void TFileNodeTypeHandler::DoBranch(
     const TFileNode& committedNode,
     TFileNode& branchedNode)
 {
-    UNUSED(branchedNode);
+    UNUSED(committedNode);
 
-    if (committedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->RefChunkList(committedNode.GetChunkListId());
+    // branchedNode is a copy of committedNode.
+
+    // Reference the list chunk from branchedNode.
+    if (branchedNode.GetChunkListId() != NullChunkListId) {
+        ChunkManager->RefChunkList(branchedNode.GetChunkListId());
     }
 }
 
@@ -118,10 +122,12 @@ void TFileNodeTypeHandler::DoMerge(
     TFileNode& committedNode,
     TFileNode& branchedNode)
 {
+    // Drop the reference from committedNode.
     if (committedNode.GetChunkListId() != NullChunkListId) {
         ChunkManager->UnrefChunkList(committedNode.GetChunkListId());
     }
 
+    // Transfer the chunklist from branchedNode to committedNode.
     committedNode.SetChunkListId(branchedNode.GetChunkListId());
 }
 
@@ -141,12 +147,17 @@ ERuntimeNodeType TFileNodeTypeHandler::GetRuntimeType()
     return ERuntimeNodeType::File;
 }
 
+ENodeType TFileNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Entity;
+}
+
 Stroka TFileNodeTypeHandler::GetTypeName()
 {
     return FileTypeName;
 }
 
-TAutoPtr<ICypressNode> TFileNodeTypeHandler::Create(
+TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     IMapNode::TPtr manifest)

@@ -6,8 +6,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeSetterBase::TNodeSetterBase(INode::TPtr node)
+TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
+    , Builder(builder)
 { }
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
@@ -91,14 +92,15 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 {
     YASSERT(~AttributeBuilder == NULL);
     AttributeName = name;
-    AttributeBuilder.Reset(new TTreeBuilder(Node->GetFactory()));
+    AttributeBuilder = CreateBuilderFromFactory(Node->GetFactory());
+    AttributeBuilder->BeginTree();
     ForwardNode(~AttributeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
 {
     YASSERT(~AttributeBuilder != NULL);
-    Node->GetAttributes()->AddChild(AttributeBuilder->GetRoot(), AttributeName);
+    Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName);
     AttributeBuilder.Destroy();
     AttributeName.clear();
 }

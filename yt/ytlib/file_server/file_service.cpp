@@ -6,6 +6,7 @@
 namespace NYT {
 namespace NFileServer {
 
+using namespace NChunkServer;
 using namespace NMetaState;
 using namespace NProto;
 
@@ -16,19 +17,20 @@ static NLog::TLogger& Logger = FileServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileService::TFileService(
+    TMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TFileManager* fileManager,
-    IInvoker* serviceInvoker,
     NRpc::TServer* server)
     : TMetaStateServiceBase(
-        serviceInvoker,
+        metaStateManager,
         TFileServiceProxy::GetServiceName(),
-        CypressLogger.GetCategory())
+        FileServerLogger.GetCategory())
     , ChunkManager(chunkManager)
     , FileManager(fileManager)
 {
-    YASSERT(serviceInvoker != NULL);
-    YASSERT(server!= NULL);
+    YASSERT(chunkManager != NULL);
+    YASSERT(fileManager != NULL);
+    YASSERT(server != NULL);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SetFileChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileChunk));
@@ -50,6 +52,8 @@ RPC_SERVICE_METHOD_IMPL(TFileService, SetFileChunk)
         ~transactionId.ToString(),
         ~nodeId.ToString(),
         ~chunkId.ToString());
+
+    ValidateLeader();
 
     FileManager
         ->InitiateSetFileChunk(nodeId, transactionId, chunkId)

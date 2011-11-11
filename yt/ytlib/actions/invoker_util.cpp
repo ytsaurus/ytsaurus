@@ -16,7 +16,7 @@ void TSyncInvoker::Invoke(IAction::TPtr action)
 
 IInvoker::TPtr TSyncInvoker::Get()
 {
-    return ~RefCountedSingleton<TSyncInvoker>();
+    return RefCountedSingleton<TSyncInvoker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@
 namespace NYT {
 namespace NMetaState {
 
+// TODO: get rid
 using NElection::TLeaderLookup;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,7 @@ public:
 
     TCellChannel(const TLeaderLookup::TConfig& config);
     
-    virtual TFuture<NRpc::EErrorCode>::TPtr Send(
+    virtual TFuture<NRpc::TError>::TPtr Send(
         NRpc::IClientRequest::TPtr request,
         NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
@@ -34,13 +35,13 @@ private:
         (Terminated)
     );
 
-    TFuture<NRpc::EErrorCode>::TPtr OnGotChannel(
+    TFuture<NRpc::TError>::TPtr OnGotChannel(
         NRpc::IChannel::TPtr channel,
         NRpc::IClientRequest::TPtr request,
         NRpc::IClientResponseHandler::TPtr responseHandler,
         TDuration timeout);
 
-    NRpc::EErrorCode OnResponseReady(NRpc::EErrorCode errorCode);
+    NRpc::TError OnResponseReady(NRpc::TError error);
   
     TFuture<NRpc::IChannel::TPtr>::TPtr GetChannel();
 

@@ -108,8 +108,6 @@ struct IYsonConsumer
 //! methods for its IYsonConsumer argument.
 typedef IParamAction<IYsonConsumer*> TYsonProducer;
 
-//! A callback capable of generating YTree DOM from a producer.
-typedef IParamFunc<TYsonProducer::TPtr, TIntrusivePtr<INode> > TYsonBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 

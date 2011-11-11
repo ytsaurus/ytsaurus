@@ -3,27 +3,29 @@
 #endif
 #undef MAP_INL_H_
 
+#include "../misc/rvalue.h"
+
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Clone(TValue* value) const
+template <class TKey, class TValue>
+TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Clone(TValue* value) const
 {
     return value->Clone();
 }
 
-template <class TValue>
-void TDefaultMetaMapTraits<TValue>::Save(TValue* value, TOutputStream* output) const
+template <class TKey, class TValue>
+void TDefaultMetaMapTraits<TKey, TValue>::Save(TValue* value, TOutputStream* output) const
 {
     value->Save(output);
 }
 
-template <class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Load(TInputStream* input) const
+template <class TKey, class TValue>
+TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Load(const TKey& key, TInputStream* input) const
 {
-    return TValue::Load(input);
+    return TValue::Load(key, input);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +33,7 @@ TAutoPtr<TValue> TDefaultMetaMapTraits<TValue>::Load(TInputStream* input) const
 template <class TKey, class TValue, class TTraits, class THash >
 TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(TTraits traits)
     : Traits(traits)
+    , Size(0)
 { }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -85,6 +88,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
         default:
             YUNREACHABLE();
     }
+    ++Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -201,6 +205,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
         default:
             YUNREACHABLE();
     }
+    --Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -216,7 +221,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-     switch (State) {
+    switch (State) {
         case EState::HasPendingChanges:
         case EState::Normal: {
             MergeTempTablesIfNeeded();
@@ -242,6 +247,57 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
         default:
             YUNREACHABLE();
     }
+    Size = 0;
+}
+
+template <class TKey, class TValue, class TTraits, class THash >
+int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    return Size;
+}
+
+template <class TKey, class TValue, class TTraits, class THash >
+yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    yvector<TKey> keys;
+    keys.reserve(Size);
+
+    switch (State) {
+        case EState::HasPendingChanges:
+        case EState::Normal: {
+            const_cast<TThis*>(this)->MergeTempTablesIfNeeded();
+            FOREACH(const auto& pair, PrimaryMap) {
+                keys.push_back(pair.First());
+            }
+            break;
+        }
+        case EState::SavingSnapshot: {
+            FOREACH(const auto& pair, PrimaryMap) {
+                auto patchIt = PatchMap.find(pair.First());
+                if (patchIt == PatchMap.end() || patchIt->Second() != NULL) {
+                    keys.push_back(pair.First());
+                }
+            }
+            FOREACH(const auto& pair, PatchMap) {
+                if (pair.Second() != NULL) {
+                    auto primaryIt = PrimaryMap.find(pair.First());
+                    if (primaryIt == PrimaryMap.end()) {
+                        keys.push_back(pair.First());
+                    }
+                }
+            }
+            break;
+        }
+        default:
+            YUNREACHABLE();
+    }
+
+    YASSERT(keys.ysize() == Size);
+    return MoveRV(keys);
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -250,7 +306,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.begin();
 }
 
@@ -260,7 +318,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.end();
 }
 
@@ -270,7 +330,9 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.begin();
 }
 
@@ -280,8 +342,33 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    YASSERT(State == EState::Normal);
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+    MergeTempTablesIfNeeded();
+
     return PrimaryMap.end();
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::Load(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
+
+    PrimaryMap.clear();
+    PatchMap.clear();
+    State = EState::LoadingSnapshot;
+
+    Size = ::LoadSize(input);
+    
+    for (i32 index = 0; index < Size; ++index) {
+        TKey key;
+        ::Load(input, key);
+        auto value = Traits.Load(key, input);
+        PrimaryMap.insert(MakePair(key, value.Release()));
+    }
+
+    State = EState::Normal;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -304,28 +391,9 @@ TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Save(
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
-TFuture<TVoid>::TPtr TMetaStateMap<TKey, TValue, TTraits, THash>::Load(
-    IInvoker::TPtr invoker,
-    TInputStream* input)
-{
-    VERIFY_THREAD_AFFINITY(UserThread);
-
-    YASSERT(State == EState::Normal || State == EState::HasPendingChanges);
-
-    PrimaryMap.clear();
-    PatchMap.clear();
-    State = EState::LoadingSnapshot;
-
-    return
-        FromMethod(&TMetaStateMap::DoLoad, this, input)
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
-template <class TKey, class TValue, class TTraits, class THash >
 TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
 {
-    ::Save(output, static_cast<i32>(PrimaryMap.size()));
+    ::SaveSize(output, PrimaryMap.size());
 
     yvector<TItem> items(PrimaryMap.begin(), PrimaryMap.end());
     Sort(
@@ -341,25 +409,6 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
     }
 
     State = EState::HasPendingChanges;
-    return TVoid();
-}
-
-template <class TKey, class TValue, class TTraits, class THash >
-TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoLoad(TInputStream* input)
-{
-    i32 size;
-    ::Load(input, size);
-    YASSERT(size >= 0);
-
-    for (i32 index = 0; index < size; ++index) {
-        TKey key;
-        ::Load(input, key);
-        TValue* value = Traits.Load(input).Release();
-        PrimaryMap.insert(MakePair(key, value));
-    }
-
-    State = EState::Normal;
-
     return TVoid();
 }
 

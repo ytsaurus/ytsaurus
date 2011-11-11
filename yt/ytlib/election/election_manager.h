@@ -56,23 +56,23 @@ public:
         NRpc::TServer::TPtr server);
 
     /*!
-     * \note Thread affinity: any
+     * \note Thread affinity: any.
      */
     void Start();
 
     /*!
-     * \note Thread affinity: any
+     * \note Thread affinity: any.
      */
     void Stop();
 
     /*!
-     * \note Thread affinity: any
+     * \note Thread affinity: any.
      */
     void Restart();
 
-    //! Gets info for monitoring in YSON format
+    //! Gets info for monitoring in YSON format.
     /*!
-     * \note Thread affinity: any
+     * \note Thread affinity: any.
      */
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
     
@@ -114,8 +114,6 @@ private:
 
     RPC_SERVICE_METHOD_DECL(NElection::NProto, PingFollower);
     RPC_SERVICE_METHOD_DECL(NElection::NProto, GetStatus);
-
-    void RegisterMethods();
 
     void Reset();
     void OnLeaderPingTimeout();

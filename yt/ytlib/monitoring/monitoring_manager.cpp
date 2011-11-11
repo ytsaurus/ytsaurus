@@ -68,14 +68,14 @@ void TMonitoringManager::Stop()
 void TMonitoringManager::Update()
 {
     try {
-        INode::TPtr newRoot = GetEphemeralNodeFactory()->CreateMap();
-        auto newRootService = AsYPath(newRoot);
+        auto newRoot = GetEphemeralNodeFactory()->CreateMap();
+        auto newRootService = IYPathService::FromNode(~newRoot);
         FOREACH(const auto& pair, MonitoringMap) {
             SetYPath(newRootService, pair.first, pair.second);
         }
 
         if (IsStarted) {
-            Root = ~newRoot;
+            Root = newRoot;
         }
     } catch (...) {
         LOG_FATAL("Error collecting monitoring data: %s",

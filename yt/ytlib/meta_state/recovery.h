@@ -33,7 +33,7 @@ public:
         (Failed)
     );
 
-    typedef TFuture<EResult> TResult;
+    typedef TFuture<EResult> TAsyncResult;
 
     //! Constructs an instance.
     /*!
@@ -53,6 +53,8 @@ public:
      * \note Thread affinity: Any.
      */
     void Stop();
+
+    virtual TAsyncResult::TPtr Run() = 0;
 
 protected:
     friend class TLeaderRecovery;
@@ -75,7 +77,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread.
      */
-    TResult::TPtr RecoverFromSnapshotAndChangeLog(
+    TAsyncResult::TPtr RecoverFromSnapshotAndChangeLog(
         TMetaVersion targetVersion,
         i32 snapshotId);
 
@@ -90,9 +92,7 @@ protected:
      * 
      *  \note Thread affinity: StateThread.
      */
-    TResult::TPtr RecoverFromChangeLog(
-        TVoid,
-        TSnapshotReader::TPtr,
+    TAsyncResult::TPtr RecoverFromChangeLog(
         TMetaVersion targetVersion,
         i32 expectedPrevRecordCount);
 
@@ -155,7 +155,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread.
      */
-    TResult::TPtr Run();
+    virtual TAsyncResult::TPtr Run();
 
 private:
     virtual bool IsLeader() const;
@@ -189,27 +189,28 @@ public:
     /*!
      * \note Thread affinity: ControlThread.
      */
-    TResult::TPtr Run();
+    virtual TAsyncResult::TPtr Run();
 
     //! Postpones an incoming request for advancing the current segment.
     /*!
-     * \param version State in which the segment should be changed.
-     * \returns True when applicable request is coherent with the postponed state
-     * and postponing succeeded.
+     * \param version Version at which the segment should be changed.
+     * \returns True when applicable request is coherent with the postponed version.
+     * 
      * \note Thread affinity: ControlThread.
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
 
-    //! Postpones an incoming change.
+    //! Postpones incoming changes.
     /*!
-     * \param change Incoming change.
-     * \param version State in which the change should be applied.
-     * \returns True when the change is coherent with the postponed state
-     * and postponing succeeded.
+     * \param changes Incoming changes.
+     * \param version Version at which the changes should be applied.
+     * \returns True when the change is coherent with the postponed version.
      * 
      * \note Thread affinity: ControlThread.
      */
-    EResult PostponeChange(const TMetaVersion& version, const TSharedRef& change);
+    EResult PostponeChanges(
+        const TMetaVersion& version,
+        const yvector<TSharedRef>& changes);
 
 private:
     struct TPostponedChange
@@ -242,18 +243,18 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Any thread.
-    TResult::TPtr Result;
+    TAsyncResult::TPtr Result;
 
     // Control thread
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     bool SyncReceived;
 
-    TResult::TPtr CapturePostponedChanges();
-    TResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    TAsyncResult::TPtr CapturePostponedChanges();
+    TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
     void OnSync(TProxy::TRspSync::TPtr response);
-    TResult::TPtr OnSyncReached(EResult result);
+    TAsyncResult::TPtr OnSyncReached(EResult result);
 
     virtual bool IsLeader() const;
 

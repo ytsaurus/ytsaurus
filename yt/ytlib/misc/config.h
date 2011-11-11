@@ -7,7 +7,7 @@
 
 namespace NYT {
 
-// TOOD: code review pending
+// TOOD: deprecate. Use new_config.h instead
 
 ////////////////////////////////////////////////////////////////////////////////
 // JSON configs helper

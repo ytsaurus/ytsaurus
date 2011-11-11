@@ -32,15 +32,15 @@ public:
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr description)
+        NYTree::IMapNode::TPtr manifest)
     {
         UNUSED(nodeId);
         UNUSED(transactionId);
-        UNUSED(description);
-        throw NYTree::TYTreeException() << Sprintf("Cannot create a node of type %s via dynamic interface",
+        UNUSED(manifest);
+        throw NYTree::TYTreeException() << Sprintf("Nodes of type %s cannot be created from a manifest",
             ~GetTypeName().Quote());
     }
 
@@ -195,7 +195,7 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(Locks, yhash_set<TLockId>);
+    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
     DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
     DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
@@ -316,6 +316,11 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
+    virtual NYTree::ENodeType GetNodeType()
+    {
+        return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
+    }
+
     virtual Stroka GetTypeName()
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::TypeName;
@@ -373,6 +378,7 @@ public:
     TMapNodeTypeHandler(TCypressManager::TPtr cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
+    virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
@@ -428,6 +434,7 @@ public:
     TListNodeTypeHandler(TCypressManager::TPtr cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
+    virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

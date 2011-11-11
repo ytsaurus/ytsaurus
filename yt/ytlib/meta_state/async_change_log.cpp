@@ -210,6 +210,9 @@ public:
             queue->Flush();
         }
         changeLog->Flush();
+
+        LOG_DEBUG("Changelog flushed (ChangeLogId: %d)", changeLog->GetId());
+
         return TVoid();
     }
 
@@ -293,8 +296,6 @@ void TAsyncChangeLog::Finalize()
         ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
-
-    LOG_INFO("Changelog %d is finalized", ChangeLog->GetId());
 }
 
 void TAsyncChangeLog::Flush()
@@ -303,8 +304,6 @@ void TAsyncChangeLog::Flush()
         ->AsyncVia(Impl->GetInvoker())
         ->Do()
         ->Get();
-
-    LOG_INFO("Changelog %d is flushed", ChangeLog->GetId());
 }
 
 void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)

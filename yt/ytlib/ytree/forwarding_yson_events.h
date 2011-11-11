@@ -9,7 +9,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TForwardingYsonConsumer
-    : public IYsonConsumer
+    : public virtual IYsonConsumer
 {
 protected:
     TForwardingYsonConsumer();

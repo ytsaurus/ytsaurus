@@ -446,7 +446,7 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     FOREACH(const auto& address, addresses) {
-        Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
+        Nodes.push_back(New<TNode>(address, HolderChannelCache->GetChannel(address)));
     }
 }
 
@@ -695,16 +695,16 @@ void TRemoteChunkWriter::CheckResponse(
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (rsp->IsOK()) {
-        metric->AddDelta(rsp->GetInvokeInstant());
+        metric->AddDelta(rsp->GetStartTime());
         onSuccess->Do();
         return;
     } 
 
     // TODO: retry?
-    LOG_ERROR("Error reported by node (ChunkId: %s, Address: %s, ErrorCode: %s)", 
+    LOG_ERROR("Error reported by node (ChunkId: %s, Address: %s, Error: %s)", 
         ~ChunkId.ToString(),
         ~Nodes[node]->Address, 
-        ~rsp->GetErrorCode().ToString());
+        ~rsp->GetError().ToString());
 
     OnNodeDied(node);
 }

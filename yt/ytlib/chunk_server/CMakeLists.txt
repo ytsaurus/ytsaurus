@@ -16,4 +16,6 @@ SET(YT_SOURCE_FILES
     chunk_placement.cpp
     chunk_replication.cpp
     holder_expiration.cpp
+
+    cypress_integration.cpp
 )

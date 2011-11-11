@@ -9,4 +9,6 @@ SET(YT_SOURCE_FILES
 
     transaction_manager.cpp
     transaction_manager.proto
+
+    cypress_integration.cpp
 )

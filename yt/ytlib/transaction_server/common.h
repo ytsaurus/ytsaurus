@@ -18,6 +18,14 @@ typedef TGuid TTransactionId;
 
 //! Means "no transaction".
 extern TTransactionId NullTransactionId;
+//! Denotes a special "system" transaction
+/*!
+ *  This is the only transaction that may alter the state without
+ *  branching nodes, taking locks etc.
+ *  
+ *  Used by TWorldInitializer.
+ */
+extern TTransactionId SysTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,17 +1,17 @@
-#include "stdafx.h"
-#include "common.h"
+#pragma once
+
+#include "../misc/common.h"
+#include "../logging/log.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger TransactionLogger("Transaction");
-
-TTransactionId NullTransactionId(0, 0, 0, 0);
+extern NLog::TLogger OrchidLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NOrchid
 } // namespace NYT
 

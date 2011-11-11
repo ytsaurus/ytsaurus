@@ -140,6 +140,8 @@ struct IScalarNode
         typedef I##name##Node TNode; \
         typedef paramType TParamType; \
         \
+        static const ENodeType::EDomain NodeType = ENodeType::name; \
+        \
         static type GetValue(const INode* node) \
         { \
             return node->As##name()->GetValue(); \
@@ -194,33 +196,33 @@ struct IMapNode
      *  Map items are returned in unspecified order.
      */
     virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
-    //! Gets a child by its name.
+    //! Gets a child by its key.
     /*!
-     *  \param name A name.
-     *  \return A child with the given name or NULL if the index is not valid.
+     *  \param key A key.
+     *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INode::TPtr FindChild(const Stroka& name) const = 0;
-    //! Adds a new child with a given name.
+    virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+    //! Adds a new child with a given key.
     /*!
      *  \param child A child.
-     *  \param name A name.
-     *  \return True iff the name was not in the map already and thus the child is inserted.
+     *  \param key A key.
+     *  \return True iff the key was not in the map already and thus the child is inserted.
      *  
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INode::TPtr child, const Stroka& name) = 0;
+    virtual bool AddChild(INode::TPtr child, const Stroka& key) = 0;
     //! Removes a child by its index.
     /*!
-     *  \param index A name.
-     *  \return True iff there was a child with the given name.
+     *  \param index A key.
+     *  \return True iff there was a child with the given key.
      */
-    virtual bool RemoveChild(const Stroka& name) = 0;
+    virtual bool RemoveChild(const Stroka& key) = 0;
 
     //! Similar to #FindChild but fails if no child is found.
-    INode::TPtr GetChild(const Stroka& name) const
+    INode::TPtr GetChild(const Stroka& key) const
     {
-        auto child = FindChild(name);
+        auto child = FindChild(key);
         YASSERT(~child != NULL);
         return child;
     }

@@ -1,10 +1,42 @@
 #include "stdafx.h"
 #include "ypath.h"
+#include "tree_builder.h"
+#include "ephemeral.h"
 
 #include "../actions/action_util.h"
 
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathService2::TPtr IYPathService2::FromNode(INode* node)
+{
+    YASSERT(node != NULL);
+    auto* service = dynamic_cast<IYPathService2*>(node);
+    if (service == NULL) {
+        throw TYTreeException() << "Node does not support YPath";
+    }
+    return service;
+}
+
+IYPathService::TPtr IYPathService::FromNode(INode* node)
+{
+    YASSERT(node != NULL);
+    auto* service = dynamic_cast<IYPathService*>(node);
+    if (service == NULL) {
+        throw TYTreeException() << "Node does not support YPath";
+    }
+    return service;
+}
+
+IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    producer->Do(~builder);
+    return FromNode(~builder->EndTree());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +53,10 @@ void ChopYPathPrefix(
         switch (path[index]) {
             case '/':
                 *prefix = Stroka(path.begin(), index);
-                *tailPath = TYPath(path.begin() + index + 1, path.end());
+                *tailPath =
+                    index == path.length() - 1
+                    ? TYPath(path.begin() + index, path.end())
+                    : TYPath(path.begin() + index + 1, path.end());
                 break;
 
             case '@':
@@ -35,8 +70,6 @@ void ChopYPathPrefix(
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TYPath GetResolvedYPathPrefix(
     TYPath wholePath,
     TYPath unresolvedPath)
@@ -46,7 +79,6 @@ TYPath GetResolvedYPathPrefix(
     return TYPath(wholePath.begin(), wholePath.begin() + resolvedLength);
 }
 
-////////////////////////////////////////////////////////////////////////////////
 
 TYPath ParseYPathRoot(TYPath path)
 {
@@ -59,16 +91,6 @@ TYPath ParseYPathRoot(TYPath path)
     }
 
     return TYPath(path.begin() + 1, path.end());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-IYPathService::TPtr AsYPath(INode::TPtr node)
-{
-    YASSERT(~node != NULL);
-    auto* service = dynamic_cast<IYPathService*>(~node);
-    YASSERT(service != NULL);
-    return service;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,12 +170,12 @@ void GetYPath(
         "get");
 }
 
-void SetYPath(
+INode::TPtr SetYPath(
     IYPathService::TPtr rootService,
     TYPath path,
     TYsonProducer::TPtr producer)
 {
-    ExecuteYPathVerb<TVoid>(
+    return ExecuteYPathVerb<INode::TPtr>(
         rootService,
         path,
         FromFunctor([&] (TYPathOperationState state) -> IYPathService::TSetResult

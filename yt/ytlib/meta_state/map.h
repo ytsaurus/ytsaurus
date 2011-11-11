@@ -15,8 +15,6 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Create inl-file and move implementation there
-
 // TODO: DECLARE_ENUM cannot be used in a template class.
 class TMetaStateMapBase
     : private TNonCopyable
@@ -25,14 +23,14 @@ protected:
     /*!
      * Transitions
      * - Normal -> LoadingSnapshot,
+     * - LoadingSnapshot -> Normal,
      * - Normal -> SavingSnapshot,
      * - HasPendingChanges -> Normal
      * are performed from the user thread.
      *
-     * Transitions
-     * - LoadingSnapshot -> Normal,
+     * Transition
      * - SavingSnapshot -> HasPendingChanges
-     * are performed from the snapshot invoker.
+     * is performed from the snapshot invoker.
      */
     DECLARE_ENUM(EState,
         (Normal)
@@ -44,13 +42,18 @@ protected:
     EState State;
 };
 
-template <class TValue>
+//! Default traits for cloning, saving and loading values.
+template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
+    //! Clones the value
     TAutoPtr<TValue> Clone(TValue* value) const;
 
+    //! Saves the value to the output
     void Save(TValue* value, TOutputStream* output) const;
-    TAutoPtr<TValue> Load(TInputStream* input) const;
+
+    //! Loads a value from the input using the key
+    TAutoPtr<TValue> Load(const TKey& key, TInputStream* input) const;
 };
 
 //! Snapshottable map used to store various meta-state tables.
@@ -58,10 +61,10 @@ struct TDefaultMetaMapTraits
  *  \tparam TKey Key type.
  *  \tparam TValue Value type.
  *  \tparam THash Hash function for keys.
+ *  \tparam TTraits Traits for cloning, saving and loading values.
  * 
  *  \note
  *  All public methods must be called from a single thread.
- *  Exceptions are #Begin and #End, see below.
  * 
  *  TODO: this is not true, write about Traits
  *  TValue type must have the following methods:
@@ -72,7 +75,7 @@ struct TDefaultMetaMapTraits
 template <
     class TKey,
     class TValue,
-    class TTraits = TDefaultMetaMapTraits<TValue>,
+    class TTraits = TDefaultMetaMapTraits<TKey, TValue>,
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
@@ -147,6 +150,12 @@ public:
     //! Clears the map.
     void Clear();
 
+    //! Returns the size of the map.
+    int GetSize() const;
+
+    //! Returns all keys that are present in the map.
+    yvector<TKey> GetKeys() const;
+
     //! (Unordered) begin()-iterator.
     /*!
      *  \note
@@ -181,39 +190,47 @@ public:
      *  the invocation. All further updates are accepted but are kept in-memory.
      *  
      *  \param invoker Invoker used to perform the heavy lifting.
-     *  \param stream Output stream.
+     *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
     TFuture<TVoid>::TPtr Save(IInvoker::TPtr invoker, TOutputStream* output);
 
-    //! Asynchronously loads the map from the stream.
+    //! Synchronously loads the map from the stream.
     /*!
-     * This method loads the snapshot of the map in the background and at some
-     * moment in the future swaps current map with the loaded one.
-     * \param invoker Invoker for actual heavy work.
-     * \param stream Input stream.
-     * \return Callback on successful load.
+     * \param input Input stream.
      */
-    TFuture<TVoid>::TPtr Load(IInvoker::TPtr invoker, TInputStream* input);
+    void Load(TInputStream* input);
     
 private:
+    //! Slot for the thread in which all the public methods are called.
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
     
-    //! When no shapshot is being written this is the actual map we're working with.
-    //! When a snapshot is being created this map is kept read-only and
-    //! #PathMap is used to store the changes.
+    /*!
+     * When no snapshot is being written this is the actual map we're working with.
+     * When a snapshot is being created this map is kept read-only and
+     * #PatchMap is used to store the changes.
+     */
     TMap PrimaryMap;
 
     //! "(key, NULL)" indicates that the key should be deleted.
     TMap PatchMap;
 
+    //! Traits for cloning, saving and loading values.
     TTraits Traits;
+
+    //! Current map size.
+    int Size;
     
     typedef TPair<TKey, TValue*> TItem;
 
+    //! Save snapshot of the map in the thread of the invoker passed to #Save.
     TVoid DoSave(TOutputStream* output);
-    TVoid DoLoad(TInputStream* input);
-
+    
+    /*!
+     * When in #HasPendingChanges state, merges all the pending changes from
+     * #PatchMap into #PrimaryMap. Must be called only in #HasPendingChanges or
+     * #Normal states.
+     */
     void MergeTempTablesIfNeeded();
 };
 
@@ -250,7 +267,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName ## ForUpdate(const idType& id); \
-    yvector<const entityType*> Get ## entityName ## s();
+    yvector<idType> Get ## entityName ## Ids();
 
 #define METAMAP_ACCESSORS_IMPL(declaringType, entityName, entityType, idType, map) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
@@ -271,6 +288,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (map).GetForUpdate(id); \
+    } \
+    \
+    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    { \
+        return (map).GetKeys(); \
     }
 
 #define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
@@ -292,6 +314,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
         return (fwd).Get ## entityName ## ForUpdate(id); \
+    } \
+    \
+    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    { \
+        return (fwd).Get ## entityName ## Ids(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
