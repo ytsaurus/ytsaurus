@@ -79,7 +79,7 @@ void TMonitoringManager::Update()
             Root = newRoot;
         }
     } catch (...) {
-        LOG_FATAL("Error collecting monitoring data: %s",
+        LOG_FATAL("Error collecting monitoring data\n%s",
             ~CurrentExceptionMessage());
     }
 }

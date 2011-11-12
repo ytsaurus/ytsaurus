@@ -277,7 +277,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
     try {
         Writer->WriteBlock(block->GetData());
     } catch (...) {
-        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d): %s",
+        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
             blockIndex,
             ~CurrentExceptionMessage());

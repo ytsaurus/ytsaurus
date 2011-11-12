@@ -184,7 +184,7 @@ void ChopYPathPrefix(
     }
 }
 
-TYPath GetResolvedYPathPrefix(
+TYPath ComputeResolvedYPath(
     TYPath wholePath,
     TYPath unresolvedPath)
 {
@@ -264,7 +264,7 @@ protected:
         AppendInfo(str, Sprintf("Path: %s", ~Path));
         AppendInfo(str, Sprintf("Verb: %s", ~Verb));
         AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in YPath service method (%s): %s",
+        LOG_FATAL("Unhandled exception in YPath service method (%s)\n%s",
             ~str,
             ~message);
     }
@@ -305,9 +305,9 @@ void NavigateYPath(
         try {
             result = currentService->Navigate(currentPath, mustExist);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath navigation (Path: %s, ResolvedPath: %s): %s",
+            ythrow yexception() << Sprintf("Error during YPath navigation (Path: %s, ResolvedPath: %s)\n%s",
                 ~path,
-                ~GetResolvedYPathPrefix(path, currentPath),
+                ~ComputeResolvedYPath(path, currentPath),
                 ~CurrentExceptionMessage());
         }
 

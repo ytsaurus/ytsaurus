@@ -47,7 +47,7 @@ void TNodeBase::Invoke(NRpc::IServiceContext* context)
     try {
         DoInvoke(context);
     } catch (...) {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) << "\n" <<
             CurrentExceptionMessage();
     }
 }

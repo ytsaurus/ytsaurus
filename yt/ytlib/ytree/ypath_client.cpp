@@ -46,7 +46,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
     YASSERT(message != NULL);
 
     const auto& parts = message->GetParts();
-    YASSERT(parts.ysize() >= 2);
+    YASSERT(parts.ysize() >= 1);
 
     // Deserialize RPC header.
     TResponseHeader header;
@@ -58,15 +58,17 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
         EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
         header.GetErrorMessage());
 
-    // Deserialize body.
-    DeserializeBody(parts[1]);
+    if (Error_.IsOK()) {
+        // Deserialize body.
+        DeserializeBody(parts[1]);
 
-    // Load attachments.
-    Attachments_.clear();
-    NStl::copy(
-        parts.begin() + 2,
-        parts.end(),
-        NStl::back_inserter(Attachments_));
+        // Load attachments.
+        Attachments_.clear();
+        NStl::copy(
+            parts.begin() + 2,
+            parts.end(),
+            NStl::back_inserter(Attachments_));
+    }
 }
 
 EErrorCode TYPathResponse::GetErrorCode() const

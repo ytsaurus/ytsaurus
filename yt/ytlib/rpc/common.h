@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/common.h"
 #include "../misc/guid.h"
 #include "../misc/enum.h"
 
@@ -52,7 +51,6 @@ public:
 
 private:
     EErrorCode Code;
-    Stroka CodeString;
     Stroka Message;
 
 };

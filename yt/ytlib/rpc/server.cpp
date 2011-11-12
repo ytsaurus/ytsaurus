@@ -86,7 +86,7 @@ private:
         AppendInfo(str, Sprintf("Path: %s", ~Path));
         AppendInfo(str, Sprintf("Verb: %s", ~Verb));
         AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in RPC service method (%s): %s",
+        LOG_FATAL("Unhandled exception in RPC service method (%s)\n%s",
             ~str,
             ~message);
     }

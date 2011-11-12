@@ -247,6 +247,10 @@ void ChopYPathPrefix(
     Stroka* prefix,
     TYPath* tailPath);
 
+TYPath ComputeResolvedYPath(
+    TYPath wholePath,
+    TYPath unresolvedPath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void NavigateYPath(
@@ -296,10 +300,20 @@ void WrapYPathResponse(
 template <class TTypedRequest, class TTypedResponse>
 void OnYPathResponse(
     const TYPathResponseHandlerParam& param,
-    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse)
+    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse,
+    const Stroka& verb,
+    TYPath resolvedPath)
 {
     auto response = New<TTypedResponse>();
     response->Deserialize(~param.Message);
+    if (!response->IsOK()) {
+        auto error = response->GetError();
+        Stroka message = Sprintf("Error executing YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
+            ~verb,
+            ~resolvedPath,
+            ~error.GetMessage());
+        response->SetError(NRpc::TError(error.GetCode(), message));
+    }
     asyncResponse->Set(response);
 }
 
@@ -307,9 +321,12 @@ template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
 {
+    TYPath path = request->GetPath();
+    Stroka verb = request->GetVerb();
+
     IYPathService::TPtr tailService;
     TYPath tailPath;
-    NavigateYPath(rootService, request->GetPath(), false, &tailService, &tailPath);
+    NavigateYPath(rootService, path, false, &tailService, &tailPath);
 
     // TODO: can we avoid this?
     request->SetPath(tailPath);
@@ -320,13 +337,21 @@ ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
     auto context = CreateYPathRequest(
         ~requestMessage,
         tailPath,
-        request->GetVerb(),
+        verb,
         YTreeLogger.GetCategory(),
         ~FromMethod(
             &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
-            asyncResponse));
+            asyncResponse,
+            verb,
+            ComputeResolvedYPath(path, tailPath)));
 
-    tailService->Invoke(~context);
+    try {
+        tailService->Invoke(~context);
+    } catch (const NRpc::TServiceException& ex) {
+        context->Reply(NRpc::TError(
+            EYPathErrorCode(EYPathErrorCode::GenericError),
+            ex.what()));
+    }
 
     return asyncResponse;
 }
