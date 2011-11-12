@@ -15,8 +15,6 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Create inl-file and move implementation there
-
 // TODO: DECLARE_ENUM cannot be used in a template class.
 class TMetaStateMapBase
     : private TNonCopyable
@@ -44,12 +42,17 @@ protected:
     EState State;
 };
 
+//! Default traits for cloning, saving and loading values.
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
+    //! Clones the value
     TAutoPtr<TValue> Clone(TValue* value) const;
 
+    //! Saves the value to the output
     void Save(TValue* value, TOutputStream* output) const;
+
+    //! Loads a value from the input using the key
     TAutoPtr<TValue> Load(const TKey& key, TInputStream* input) const;
 };
 
@@ -58,6 +61,7 @@ struct TDefaultMetaMapTraits
  *  \tparam TKey Key type.
  *  \tparam TValue Value type.
  *  \tparam THash Hash function for keys.
+ *  \tparam TTraits Traits for cloning, saving and loading values.
  * 
  *  \note
  *  All public methods must be called from a single thread.
@@ -186,36 +190,47 @@ public:
      *  the invocation. All further updates are accepted but are kept in-memory.
      *  
      *  \param invoker Invoker used to perform the heavy lifting.
-     *  \param stream Output stream.
+     *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
     TFuture<TVoid>::TPtr Save(IInvoker::TPtr invoker, TOutputStream* output);
 
     //! Synchronously loads the map from the stream.
     /*!
-     * \param stream Input stream.
-     * \return Callback on successful load.
+     * \param input Input stream.
      */
     void Load(TInputStream* input);
     
 private:
+    //! Slot for the thread in which all the public methods are called.
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
     
-    //! When no snapshot is being written this is the actual map we're working with.
-    //! When a snapshot is being created this map is kept read-only and
-    //! #PathMap is used to store the changes.
+    /*!
+     * When no snapshot is being written this is the actual map we're working with.
+     * When a snapshot is being created this map is kept read-only and
+     * #PatchMap is used to store the changes.
+     */
     TMap PrimaryMap;
 
     //! "(key, NULL)" indicates that the key should be deleted.
     TMap PatchMap;
 
+    //! Traits for cloning, saving and loading values.
     TTraits Traits;
+
+    //! Current map size.
     int Size;
     
     typedef TPair<TKey, TValue*> TItem;
 
+    //! Save snapshot of the map in the thread of the invoker passed to #Save.
     TVoid DoSave(TOutputStream* output);
     
+    /*!
+     * When in #HasPendingChanges state, merges all the pending changes from
+     * #PatchMap into #PrimaryMap. Must be called only in #HasPendingChanges or
+     * #Normal states.
+     */
     void MergeTempTablesIfNeeded();
 };
 

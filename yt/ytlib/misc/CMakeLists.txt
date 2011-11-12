@@ -33,7 +33,7 @@ SET(YT_SOURCE_FILES
     singleton.h
     rvalue.h
     mpl.h
-    new_config.h
+    new_config.cpp
     new_config-inl.h
 
     ${SRCDIR}/preprocessor-gen.h

@@ -6,56 +6,14 @@ $var n = 5 $$ The maximum arity.
 
 /*! \internal */
 
-#include "../misc/common.h"
+#ifndef ACTION_UTIL_GEN_H_
+#error "Direct inclusion of this file is not allowed, include action_util.h"
+#endif
+#undef ACTION_UTIL_GEN_H_
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct TActionTargetTraits
-{ };
-
-template<class T>
-struct TActionTargetTraits< TIntrusivePtr<T> >
-{
-    typedef T TUnderlying;
-
-    static FORCED_INLINE TUnderlying* Get(const TIntrusivePtr<T>& ptr)
-    {
-        return ptr.Get();
-    }
-
-    static FORCED_INLINE TUnderlying* Get(const TIntrusivePtr<T>&& ptr)
-    {
-        return ptr.Get();
-    }
-};
-
-template<class T>
-struct TActionTargetTraits<T*>
-{
-    typedef T TUnderlying;
-
-    static FORCED_INLINE TUnderlying* Get(T* ptr)
-    {
-        return ptr;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct TActionArgTraits
-{
-    typedef T TCopy;
-};
-
-template<class T>
-struct TActionArgTraits<const T&>
-{
-    typedef T TCopy;
-};
 
 [[]]
 $$ Here comes the boilerplate part with 2^3 = 8 flavours.
