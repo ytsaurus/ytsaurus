@@ -30,7 +30,7 @@ struct TBranchedNodeId
     //! Initializes an instance by given node and transaction ids.
     TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId);
 
-    //! Checks that the id is branched, i.e. #TransactionId it not #NullTransactionId.
+    //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
     bool IsBranched() const;
 
     //! Formats the id to string (for debugging and logging purposes mainly).

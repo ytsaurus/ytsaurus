@@ -47,7 +47,8 @@ void TNodeBase::Invoke(NRpc::IServiceContext* context)
     try {
         DoInvoke(context);
     } catch (...) {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError);
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
+            CurrentExceptionMessage();
     }
 }
 
@@ -334,7 +335,7 @@ IYPathService::TNavigateResult TMapNodeMixin::GetYPathChild(TYPath path) const
     ChopYPathPrefix(path, &prefix, &tailPath);
     auto child = FindChild(prefix);
     if (~child == NULL) {
-        ythrow yexception() << Sprintf("Key %s it not found", ~prefix.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
 
     return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), tailPath);
