@@ -95,13 +95,13 @@ void TCellMasterServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto server = CreateRpcServer(port);
+    auto rpcServer = CreateRpcServer(port);
 
     auto metaStateManager = New<TMetaStateManager>(
         Config.MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
-        ~server);
+        ~rpcServer);
 
     auto transactionManager = New<TTransactionManager>(
         TTransactionManager::TConfig(),
@@ -111,7 +111,7 @@ void TCellMasterServer::Run()
     auto transactionService = New<TTransactionService>(
         ~metaStateManager,
         ~transactionManager,
-        ~server);
+        ~rpcServer);
 
     auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
@@ -123,7 +123,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~transactionManager,
-        ~server);
+        ~rpcServer);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
@@ -133,7 +133,7 @@ void TCellMasterServer::Run()
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
-        ~server);
+        ~rpcServer);
 
     auto fileManager = New<TFileManager>(
         ~metaStateManager,
@@ -146,7 +146,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~fileManager,
-        ~server);
+        ~rpcServer);
 
     auto tableManager = New<TTableManager>(
         ~metaStateManager,
@@ -159,7 +159,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~tableManager,
-        ~server);
+        ~rpcServer);
 
     auto worldIntializer = New<TWorldInitializer>(
         ~metaStateManager,
@@ -197,13 +197,13 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
 
-    MonitoringServer = new THttpTreeServer(
+    auto monitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),
         Config.MonitoringPort);
 
-    MonitoringServer->Start();
+    monitoringServer->Start();
     metaStateManager->Start();
-    server->Start();
+    rpcServer->Start();
 
     Sleep(TDuration::Max());
 }

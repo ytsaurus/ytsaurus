@@ -2,9 +2,10 @@
 #include "monitoring_manager.h"
 
 #include "../ytree/ephemeral.h"
+#include "../ytree/yson_writer.h"
 #include "../ytree/tree_visitor.h"
 #include "../ytree/ypath_client.h"
-#include "../ytree/ypath_service.h"
+#include "../ytree/ypath_detail.h"
 #include "../logging/log.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
@@ -71,8 +72,16 @@ void TMonitoringManager::Update()
     try {
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
         auto newRootService = IYPathService::FromNode(~newRoot);
+
         FOREACH(const auto& pair, MonitoringMap) {
-            //SetYPath(newRootService, pair.first, pair.second);
+            TStringStream output;
+            TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
+            pair.second->Do(&writer);
+
+            auto request = TYPathProxy::Set(pair.first);
+            request->SetValue(output.Str());
+
+            ExecuteYPath(~newRootService, ~request);
         }
 
         if (IsStarted) {

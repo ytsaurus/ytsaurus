@@ -23,7 +23,7 @@ public:
         int MonitoringPort;
 
         TConfig()
-            : MonitoringPort(10000)
+            : MonitoringPort(10001)
         { }
 
         //! Reads configuration from JSON.
@@ -36,7 +36,7 @@ public:
 
 private:
     TConfig Config;
-    THttpTreeServer* MonitoringServer;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,6 +80,56 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
     } else {
         GetRecursive(path, request, response, context);
     }
+
+    // TODO: attributes
+//    if (path[0] == '@') {
+//        auto attributes = GetAttributes();
+//
+//        if (path == "@") {
+//            // TODO: use fluent API
+//
+//            consumer->OnBeginMap();
+//            auto names = GetVirtualAttributeNames();
+//            FOREACH (const auto& name, names) {
+//                consumer->OnMapItem(name);
+//                YVERIFY(GetVirtualAttribute(name, consumer));
+//            }
+//            
+//            if (~attributes != NULL) {
+//                auto children = attributes->GetChildren();
+//                FOREACH (const auto& pair, children) {
+//                    consumer->OnMapItem(pair.First());
+//                    TTreeVisitor visitor(consumer);
+//                    visitor.Visit(pair.Second());
+//                }
+//            }
+//
+//            consumer->OnEndMap(false);
+//
+//            return TGetResult::CreateDone();
+//        } else {
+//            Stroka prefix;
+//            TYPath tailPath;
+//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &tailPath);
+//
+//            if (GetVirtualAttribute(prefix, consumer))
+//                return TGetResult::CreateDone();
+//
+//            if (~attributes == NULL) {
+//                throw yexception() << "Node has no custom attributes";
+//            }
+//
+//            auto child = attributes->FindChild(prefix);
+//            if (~child == NULL) {
+//                throw yexception() << Sprintf("Attribute %s is not found",
+//                    ~prefix.Quote());
+//            }
+//
+//            TTreeVisitor visitor(consumer);
+//            visitor.Visit(child);
+//            return TGetResult::CreateDone();
+//        }
+//    } else {
 }
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
@@ -132,6 +182,21 @@ void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
     UNUSED(context);
 
     ThrowNonEmptySuffixPath(path);
+
+    // TODO: attributes
+//    if (path[0] == '@') {
+//        auto attributes = GetAttributes();
+//        if (~attributes == NULL) {
+//            attributes = ~GetFactory()->CreateMap();
+//            SetAttributes(attributes);
+//        }
+//
+//        // TODO: should not be able to override a virtual attribute
+//
+//        return IYPathService::TSetResult::CreateRecurse(
+//            IYPathService::FromNode(~attributes),
+//            TYPath(path.begin() + 1, path.end()));
+//    } else {
 }
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
@@ -166,129 +231,7 @@ void TNodeBase::RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* re
     UNUSED(response);
     UNUSED(context);
 
-    ThrowNonEmptySuffixPath(path);
-}
-
-
-
-
-//IYPathService::TGetResult TNodeBase::Get(
-//    TYPath path,
-//    IYsonConsumer* consumer)
-//{
-//    if (path.empty()) {
-//        return GetSelf(consumer);
-//    }
-//
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//
-//        if (path == "@") {
-//            // TODO: use fluent API
-//
-//            consumer->OnBeginMap();
-//            auto names = GetVirtualAttributeNames();
-//            FOREACH (const auto& name, names) {
-//                consumer->OnMapItem(name);
-//                YVERIFY(GetVirtualAttribute(name, consumer));
-//            }
-//            
-//            if (~attributes != NULL) {
-//                auto children = attributes->GetChildren();
-//                FOREACH (const auto& pair, children) {
-//                    consumer->OnMapItem(pair.First());
-//                    TTreeVisitor visitor(consumer);
-//                    visitor.Visit(pair.Second());
-//                }
-//            }
-//
-//            consumer->OnEndMap(false);
-//
-//            return TGetResult::CreateDone();
-//        } else {
-//            Stroka prefix;
-//            TYPath tailPath;
-//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &tailPath);
-//
-//            if (GetVirtualAttribute(prefix, consumer))
-//                return TGetResult::CreateDone();
-//
-//            if (~attributes == NULL) {
-//                throw yexception() << "Node has no custom attributes";
-//            }
-//
-//            auto child = attributes->FindChild(prefix);
-//            if (~child == NULL) {
-//                throw yexception() << Sprintf("Attribute %s is not found",
-//                    ~prefix.Quote());
-//            }
-//
-//            TTreeVisitor visitor(consumer);
-//            visitor.Visit(child);
-//            return TGetResult::CreateDone();
-//        }
-//    } else {
-//        return GetRecursive(path, consumer);
-//    }
-//}
-//
-//IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path)
-//{
-//    if (path.empty()) {
-//        return TNavigateResult::CreateDone(this);
-//    }
-//
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//        if (~attributes == NULL) {
-//            throw yexception() << "Node has no custom attributes";
-//        }
-//
-//        return TNavigateResult::CreateRecurse(
-//            IYPathService::FromNode(~attributes),
-//            TYPath(path.begin() + 1, path.end()));
-//    }
-//
-//    return NavigateRecursive(path);
-//}
-//
-//IYPathService::TNavigateResult TNodeBase::NavigateRecursive(TYPath path)
-//{
-//    UNUSED(path);
-//    throw yexception() << "Navigation is not supported";
-//}
-//
-//IYPathService::TSetResult TNodeBase::Set(
-//    TYPath path, 
-//    TYsonProducer::TPtr producer)
-//{
-//    if (path.empty()) {
-//        return SetSelf(producer);
-//    }
-//
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//        if (~attributes == NULL) {
-//            attributes = ~GetFactory()->CreateMap();
-//            SetAttributes(attributes);
-//        }
-//
-//        // TODO: should not be able to override a virtual attribute
-//
-//        return IYPathService::TSetResult::CreateRecurse(
-//            IYPathService::FromNode(~attributes),
-//            TYPath(path.begin() + 1, path.end()));
-//    } else {
-//        return SetRecursive(path, producer);
-//    }
-//}
-//
-//IYPathService::TRemoveResult TNodeBase::Remove(TYPath path)
-//{
-//    if (path.empty()) {
-//        return RemoveSelf();
-//    }
-//
+    // TODO: attributes
 //    if (path[0] == '@') {
 //        auto attributes = GetAttributes();
 //        if (~attributes == NULL) {
@@ -298,10 +241,9 @@ void TNodeBase::RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* re
 //        return IYPathService::TRemoveResult::CreateRecurse(
 //            IYPathService::FromNode(~attributes),
 //            TYPath(path.begin() + 1, path.end()));
-//    } else {
-//        return RemoveRecursive(path);
-//    }
-//}
+
+    ThrowNonEmptySuffixPath(path);
+}
 
 yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
 {
