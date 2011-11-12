@@ -2,10 +2,11 @@
 
 #include "channel.h"
 
-#include "../bus/bus_client.h"
-#include "../actions/future.h"
+#include "../misc/property.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/metric.h"
+#include "../bus/bus_client.h"
+#include "../actions/future.h"
 
 namespace NYT {
 namespace NRpc {
@@ -14,18 +15,12 @@ namespace NRpc {
 
 class TClientRequest;
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template <class TRequestMessage, class TResponseMessage>
 class TTypedClientRequest;
 
 class TClientResponse;
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template<class TRequestMessage, class TResponseMessage>
 class TTypedClientResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,12 +62,13 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
+    DECLARE_BYVAL_RO_PROPERTY(Path, Stroka);
+    DECLARE_BYVAL_RO_PROPERTY(Verb, Stroka);
+    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
+    DECLARE_BYVAL_RO_PROPERTY(RequestId, TRequestId);
+
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
-
-    TRequestId GetRequestId() const;
-
-    yvector<TSharedRef>& Attachments();
 
 protected:
     IChannel::TPtr Channel;
@@ -85,17 +81,9 @@ protected:
     virtual bool SerializeBody(TBlob* data) const = 0;
     TFuture<TError>::TPtr DoInvoke(TClientResponse* response, TDuration timeout);
 
-    Stroka GetPath() const;
-    Stroka GetVerb() const;
-
 private:
-    Stroka Path;
-    Stroka Verb;
-    TRequestId RequestId;
-
-    yvector<TSharedRef> Attachments_;
-
     NBus::IMessage::TPtr Serialize() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,12 +151,9 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    virtual void OnAcknowledgement(
-        NBus::IBus::ESendResult sendResult) = 0;
+    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
 
-    virtual void OnResponse(
-        const TError& error,
-        NBus::IMessage::TPtr message) = 0;
+    virtual void OnResponse(const TError& error, NBus::IMessage* message) = 0;
 
     virtual void OnTimeout() = 0;
 };
@@ -178,23 +163,19 @@ struct IClientResponseHandler
 class TClientResponse
     : public IClientResponseHandler
 {
+    DECLARE_BYREF_RW_PROPERTY(RequestId, TRequestId);
+    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
+    DECLARE_BYVAL_RO_PROPERTY(Error, NRpc::TError);
+    DECLARE_BYVAL_RO_PROPERTY(StartTime, TInstant);
+
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
 
-    yvector<TSharedRef>& Attachments();
-
-    TRequestId GetRequestId() const;
-    TError GetError() const;
     EErrorCode GetErrorCode() const;
-
     bool IsOK() const;
 
-    TInstant GetStartTime() const;
-
 protected:
-    TClientResponse(
-        const TRequestId& requestId,
-        IChannel::TPtr channel);
+    TClientResponse(const TRequestId& requestId);
 
     virtual bool DeserializeBody(TRef data) = 0;
 
@@ -209,19 +190,14 @@ private:
 
     // Protects state.
     TSpinLock SpinLock;
-    TRequestId RequestId;
-    IChannel::TPtr Channel;
     EState State;
-    TError Error;
-    yvector<TSharedRef> MyAttachments;
-    TInstant StartTime;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
-    virtual void OnResponse(const TError& error, NBus::IMessage::TPtr message);
+    virtual void OnResponse(const TError& error, NBus::IMessage* message);
     virtual void OnTimeout();
 
-    void Deserialize(NBus::IMessage::TPtr message);
+    void Deserialize(NBus::IMessage* message);
     void Complete(const TError& error);
 };
 
@@ -240,12 +216,10 @@ public:
 
     TTypedClientResponse(
         const TRequestId& requestId,
-        IChannel::TPtr channel)
-        : TClientResponse(
-            requestId,
-            channel)
+        IChannel* channel)
+        : TClientResponse(requestId)
     {
-        YASSERT(~channel != NULL);
+        YASSERT(channel != NULL);
     }
 
 private:
@@ -286,10 +260,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define USE_RPC_PROXY_METHOD(TProxy, Verb) \
-    typedef TProxy::TReq##Verb TReq##Verb; \
-    typedef TProxy::TRsp##Verb TRsp##Verb; \
-    typedef TProxy::TInv##Verb TInv##Verb;
+#define USE_RPC_PROXY_METHOD(TProxy, method) \
+    typedef TProxy::TReq##method TReq##method; \
+    typedef TProxy::TRsp##method TRsp##method; \
+    typedef TProxy::TInv##method TInv##method;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NMetaState;
 using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +41,7 @@ TMasterConnector::TMasterConnector(
     YASSERT(~replicator != NULL);
     YASSERT(~serviceInvoker != NULL);
 
-    auto channel = New<NMetaState::TCellChannel>(Config.Masters);
+    auto channel = CreateCellChannel(Config.Masters);
     Proxy.Reset(new TProxy(channel));
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);

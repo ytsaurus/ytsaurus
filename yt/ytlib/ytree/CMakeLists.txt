@@ -1,5 +1,5 @@
 SET(YT_SOURCE_FILES
-    common.h
+    common.cpp
     ytree_fwd.h
     ytree.h
     yson_format.h
@@ -8,7 +8,8 @@ SET(YT_SOURCE_FILES
     yson_writer.cpp
     tree_builder.cpp
     tree_visitor.cpp
-    ypath.cpp
+    ypath_client.cpp
+    ypath_service.cpp
     node_detail.cpp
     ephemeral.cpp
     fluent.h

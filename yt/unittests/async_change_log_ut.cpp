@@ -65,7 +65,7 @@ TSharedRef CreateSharedRef(ui32 data)
 {
     TBlob blob(sizeof(ui32));
     *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(data);
-    return TSharedRef(blob);
+    return TSharedRef(MoveRV(blob));
 }
 
 TEST_F(TAsyncChangeLogTest, ReadLastOnes)

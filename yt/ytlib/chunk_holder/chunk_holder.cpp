@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolder::TChunkHolder(
     const TConfig& config,
     IInvoker* serviceInvoker,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : NRpc::TServiceBase(
         serviceInvoker,
         TProxy::GetServiceName(),
@@ -155,11 +155,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    FOREACH(const auto& it, request->Attachments()) {
+    FOREACH(const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        TBlob data = it.ToBlob();
-        session->PutBlock(blockIndex, TSharedRef(data));
+        auto data = attachment.ToBlob();
+        session->PutBlock(blockIndex, MoveRV(data));
         ++blockIndex;
     }
     

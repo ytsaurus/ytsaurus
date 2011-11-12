@@ -4,6 +4,7 @@
 #include "client.h"
 #include "message.h"
 
+#include "../misc/property.h"
 #include "../misc/hash.h"
 #include "../misc/metric.h"
 #include "../logging/log.h"
@@ -74,17 +75,15 @@ struct IServiceContext
 
     virtual Stroka GetPath() const = 0;
     virtual Stroka GetVerb() const = 0;
-    virtual TRequestId GetRequestId() const = 0;
 
     virtual void Reply(const TError& error) = 0;
     virtual bool IsReplied() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
-    // TODO: TSharedRef?
-    virtual void SetResponseBody(TBlob* responseBody) = 0;
+    virtual void SetResponseBody(TBlob&& responseBody) = 0;
 
     virtual const yvector<TSharedRef>& GetRequestAttachments() const = 0;
-    virtual void SetResponseAttachments(yvector<TSharedRef>* attachments) = 0;
+    virtual void SetResponseAttachments(const yvector<TSharedRef>& attachments) = 0;
 
     virtual void SetRequestInfo(const Stroka& info) = 0;
     virtual Stroka GetRequestInfo() const = 0;
@@ -105,72 +104,13 @@ struct IService
     virtual Stroka GetServiceName() const = 0;
     virtual Stroka GetLoggingCategory() const = 0;
 
-    virtual void OnBeginRequest(IServiceContext* context, NBus::IBus* replyBus) = 0;
-    virtual void OnEndRequest(IServiceContext* context, NBus::IMessage* responseMessage) = 0;
+    virtual void OnBeginRequest(IServiceContext* context) = 0;
+    virtual void OnEndRequest(IServiceContext* context) = 0;
 
     virtual Stroka GetDebugInfo() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TServiceContext
-    : public IServiceContext
-{
-public:
-    typedef TIntrusivePtr<TServiceContext> TPtr;
-
-    TServiceContext(
-        IService* service,
-        const TRequestId& requestId,
-        const Stroka& path,
-        const Stroka& verb,
-        NBus::IMessage* requestMessage);
-
-    Stroka GetPath() const;
-    Stroka GetVerb() const;
-    TRequestId GetRequestId() const;
-
-    void Reply(const TError& error);
-    bool IsReplied() const;
-
-    TSharedRef GetRequestBody() const;
-    void SetResponseBody(TBlob* responseBody);
-
-    const yvector<TSharedRef>& GetRequestAttachments() const;
-    void SetResponseAttachments(yvector<TSharedRef>* attachments);
-
-    void SetRequestInfo(const Stroka& info);
-    Stroka GetRequestInfo() const;
-
-    void SetResponseInfo(const Stroka& info);
-    Stroka GetResponseInfo();
-
-    IAction::TPtr Wrap(IAction* action);
-
-protected:
-    IService::TPtr Service;
-    TRequestId RequestId;
-    Stroka Path;
-    Stroka Verb;
-    TSharedRef RequestBody;
-    yvector<TSharedRef> RequestAttachments;
-    NLog::TLogger ServiceLogger;
-    bool Replied;
-
-    TBlob ResponseBody;
-    yvector<TSharedRef> ResponseAttachments;
-
-    Stroka RequestInfo;
-    Stroka ResponseInfo;
-
-private:
-    void WrapThunk(IAction::TPtr action) throw();
-
-    void LogRequestInfo();
-    void LogResponseInfo(const TError& error);
-
-    static void AppendInfo(Stroka& lhs, const Stroka& rhs);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,6 +164,10 @@ public:
     typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
+    DECLARE_BYREF_RW_PROPERTY(Request, TTypedRequest);
+    DECLARE_BYREF_RW_PROPERTY(Response, TTypedResponse);
+
+public:
     TTypedServiceContext(IServiceContext* context)
         : Logger(RpcLogger)
         , Context(context)
@@ -247,16 +191,6 @@ public:
         return Context->GetVerb();
     }
 
-    TTypedRequest& Request()
-    {
-        return Request_;
-    }
-
-    TTypedResponse& Response()
-    {
-        return Response_;
-    }
-
     // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
     void Reply()
     {
@@ -271,13 +205,13 @@ public:
     void Reply(const TError& error)
     {
         if (error.IsOK()) {
-            TBlob responseData;
-            if (!SerializeMessage(&Response_, &responseData)) {
+            TBlob responseBlob;
+            if (!SerializeMessage(&Response_, &responseBlob)) {
                 ythrow TServiceException(EErrorCode::ProtocolError) <<
                     "Error serializing response";
             }
-            Context->SetResponseBody(&responseData);
-            Context->SetResponseAttachments(&Response_.Attachments());
+            Context->SetResponseBody(MoveRV(responseBlob));
+            Context->SetResponseAttachments(Response_.Attachments());
         }
         Context->Reply(error);
     }
@@ -333,7 +267,7 @@ public:
         return Context->GetResponseInfo();
     }
 
-    TServiceContext::TPtr GetUntypedContext() const
+    IServiceContext::TPtr GetUntypedContext() const
     {
         return Context;
     }
@@ -341,8 +275,6 @@ public:
 private:
     NLog::TLogger& Logger;
     IServiceContext::TPtr Context;
-    TTypedRequest Request_;
-    TTypedResponse Response_;
 
 };
 
@@ -419,15 +351,12 @@ private:
     struct TActiveRequest
     {
         TActiveRequest(
-            NBus::IBus* replyBus,
             TRuntimeMethodInfo* runtimeInfo,
             const TInstant& startTime)
-            : ReplyBus(replyBus)
-            , RuntimeInfo(runtimeInfo)
+            : RuntimeInfo(runtimeInfo)
             , StartTime(startTime)
         { }
 
-        NBus::IBus::TPtr ReplyBus;
         TRuntimeMethodInfo* RuntimeInfo;
         TInstant StartTime;
     };
@@ -441,8 +370,8 @@ private:
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
     yhash_map<IServiceContext::TPtr, TActiveRequest> ActiveRequests;
 
-    virtual void OnBeginRequest(IServiceContext* context, NBus::IBus* replyBus);
-    virtual void OnEndRequest(IServiceContext* context, NBus::IMessage* responseMessage);
+    virtual void OnBeginRequest(IServiceContext* context);
+    virtual void OnEndRequest(IServiceContext* context);
 
     virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;

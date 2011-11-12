@@ -89,7 +89,7 @@ void TTableChunkWriter::Close()
     TBlob metaBlock(ChunkMeta.ByteSize());
     YASSERT(ChunkMeta.SerializeToArray(metaBlock.begin(), static_cast<int>(metaBlock.size())));
 
-    ChunkWriter->WriteBlock(TSharedRef(metaBlock));
+    ChunkWriter->WriteBlock(TSharedRef(MoveRV(metaBlock)));
     ChunkWriter->Close();
     IsClosed = true;
 }

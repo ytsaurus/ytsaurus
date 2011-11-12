@@ -98,21 +98,19 @@ private:
 class TSharedRef
 {
 public:
-    typedef TSharedPtr<TBlob, TAtomicCounter> TBlobPtr;
+    TSharedRef()
+    { }
 
-    explicit TSharedRef(TBlob& blob)
+    TSharedRef(TBlob&& blob)
         : Blob(new TBlob())
     {
         Blob->swap(blob);
         Ref = *Blob;
     }
 
-    TSharedRef(TBlobPtr blob, TRef ref)
-        : Blob(blob)
+    TSharedRef(const TSharedRef& sharedRef, const TRef& ref)
+        : Blob(sharedRef.Blob)
         , Ref(ref)
-    { }
-
-    TSharedRef()
     { }
 
     operator TRef() const
@@ -167,6 +165,8 @@ public:
     }
 
 private:
+    typedef TSharedPtr<TBlob, TAtomicCounter> TBlobPtr;
+
     TBlobPtr Blob;
     TRef Ref;
 

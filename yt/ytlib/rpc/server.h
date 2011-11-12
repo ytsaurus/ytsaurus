@@ -2,38 +2,26 @@
 
 #include "common.h"
 #include "service.h"
-#include "../bus/bus_server.h"
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServer
-    : public NBus::IMessageHandler
+struct IServer
+    : public virtual TRefCountedBase
 {
-public:
-    typedef TIntrusivePtr<TServer> TPtr;
+    typedef TIntrusivePtr<IServer> TPtr;
 
-    TServer(int port);
-    ~TServer();
+    virtual void RegisterService(IService* service) = 0;
+    
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    void RegisterService(IService* service);
-    void Start();
-    void Stop();
-
-    Stroka GetDebugInfo();
-
-private:
-    NBus::TBusServer::TPtr BusServer;
-    yhash_map<Stroka, IService::TPtr> Services;
-    volatile bool Started;
-
-    IService::TPtr GetService(const Stroka& serviceName);
-    virtual void OnMessage(
-        NBus::IMessage::TPtr message,
-        NBus::IBus::TPtr replyBus);
+    virtual Stroka GetDebugInfo() = 0;
 };
+
+IServer::TPtr CreateRpcServer(int port);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -110,10 +110,10 @@ public:
         message.SetTransactionId(transactionId.ToProto());
 
         return CreateMetaChange(
-            MetaStateManager,
+            ~MetaStateManager,
             message,
             &TThis::CreateChunk,
-            TPtr(this));
+            this);
     }
 
     TChunkList& CreateChunkList()
@@ -208,10 +208,10 @@ public:
         *message.MutableStatistics() = statistics.ToProto();
 
         return CreateMetaChange(
-            MetaStateManager,
+            ~MetaStateManager,
             message,
             &TThis::RegisterHolder,
-            TPtr(this));
+            this);
     }
 
     TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId)
@@ -220,29 +220,29 @@ public:
         message.SetHolderId(holderId);
 
         return CreateMetaChange(
-            MetaStateManager,
+            ~MetaStateManager,
             message,
             &TThis::UnregisterHolder,
-            TPtr(this));
+            this);
     }
 
 
     TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(const TMsgHeartbeatRequest& message)
     {
         return CreateMetaChange(
-            MetaStateManager,
+            ~MetaStateManager,
             message,
             &TThis::HeartbeatRequest,
-            TPtr(this));
+            this);
     }
 
     TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(const TMsgHeartbeatResponse& message)
     {
         return CreateMetaChange(
-            MetaStateManager,
+            ~MetaStateManager,
             message,
             &TThis::HeartbeatResponse,
-            TPtr(this));
+            this);
     }
 
 

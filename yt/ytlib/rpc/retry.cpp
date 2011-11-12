@@ -146,7 +146,7 @@ private:
         }
     }
 
-    virtual void OnResponse(const TError& error, IMessage::TPtr message)
+    virtual void OnResponse(const TError& error, IMessage* message)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Sent) {

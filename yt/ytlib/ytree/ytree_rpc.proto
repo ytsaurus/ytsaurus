@@ -2,33 +2,33 @@ package NYT.NYTree.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGet2
+message TReqGet
 {
 }
 
-message TRspGet2
+message TRspGet
 {
     required bytes Value = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSet2
+message TReqSet
 {
     required bytes Value = 1;
 }
 
-message TRspSet2
+message TRspSet
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRemove2
+message TReqRemove
 {
 }
 
-message TRspRemove2
+message TRspRemove
 {
 }
 

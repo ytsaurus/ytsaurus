@@ -23,7 +23,7 @@ public:
         NMetaState::TMetaStateManager* metaStateManager,
         TChunkManager* chunkManager,
         NTransaction::TTransactionManager* transactionManager,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
 private:
     typedef TChunkService TThis;

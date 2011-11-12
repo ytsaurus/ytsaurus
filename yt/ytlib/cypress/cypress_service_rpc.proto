@@ -2,52 +2,14 @@ package NYT.NCypress.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGet
+message TReqExecute
 {
     required bytes TransactionId = 1;
     required bytes Path = 2;
+    required bytes Verb = 3;
 }
 
-message TRspGet
-{
-    required bytes Value = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqSet
-{
-    required bytes TransactionId = 1;
-    required bytes Path = 2;
-    required bytes Value = 3;
-}
-
-message TRspSet
-{
-    required bytes NodeId = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemove
-{
-    required bytes TransactionId = 1;
-    required bytes Path = 2;
-}
-
-message TRspRemove
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqLock
-{
-    required bytes TransactionId = 1;
-    required bytes Path = 2;
-}
-
-message TRspLock
+message TRspExecute
 {
 }
 

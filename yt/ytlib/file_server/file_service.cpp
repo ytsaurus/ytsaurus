@@ -20,7 +20,7 @@ TFileService::TFileService(
     TMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TFileManager* fileManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TFileServiceProxy::GetServiceName(),

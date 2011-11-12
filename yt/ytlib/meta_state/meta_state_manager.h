@@ -24,7 +24,7 @@ public:
         const TConfig& config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
     ~TMetaStateManager();
 

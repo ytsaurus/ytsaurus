@@ -28,9 +28,9 @@ TClientRequest::TClientRequest(
     const Stroka& path,
     const Stroka& verb)
     : Channel(channel)
-    , Path(path)
-    , Verb(verb)
-    , RequestId(TRequestId::Create())
+    , Path_(path)
+    , Verb_(verb)
+    , RequestId_(TRequestId::Create())
 {
     YASSERT(channel != NULL);
 }
@@ -42,11 +42,11 @@ IMessage::TPtr TClientRequest::Serialize() const
         LOG_FATAL("Error serializing request body");
     }
 
-    return New<TRpcRequestMessage>(
-        RequestId,
-        Path,
-        Verb,
-        &bodyData,
+    return CreateRequestMessage(
+        RequestId_,
+        Path_,
+        Verb_,
+        MoveRV(bodyData),
         Attachments_);
 }
 
@@ -57,57 +57,32 @@ TFuture<TError>::TPtr TClientRequest::DoInvoke(
     return Channel->Send(this, response, timeout);
 }
 
-yvector<TSharedRef>& TClientRequest::Attachments()
-{
-    return Attachments_;
-}
-
-NYT::NRpc::TRequestId TClientRequest::GetRequestId() const
-{
-    return RequestId;
-}
-
-Stroka TClientRequest::GetVerb() const
-{
-    return Verb;
-}
-
-Stroka TClientRequest::GetPath() const
-{
-    return Path;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(
-    const TRequestId& requestId,
-    IChannel::TPtr channel)
-    : RequestId(requestId)
-    , Channel(channel)
+TClientResponse::TClientResponse(const TRequestId& requestId)
+    : RequestId_(requestId)
+    , StartTime_(TInstant::Now())
     , State(EState::Sent)
-    , StartTime(TInstant::Now())
-{
-    YASSERT(~channel != NULL);
-}
+{ }
 
-void TClientResponse::Deserialize(IMessage::TPtr message)
+void TClientResponse::Deserialize(IMessage* message)
 {
-    YASSERT(~message != NULL);
-    const yvector<TSharedRef>& parts = message->GetParts();
-    if (parts.ysize() > 1) {
-        DeserializeBody(parts[1]);
-        MyAttachments.clear();
-        NStl::copy(
-            parts.begin() + 2,
-            parts.end(),
-            NStl::back_inserter(MyAttachments));
-    }
+    YASSERT(message != NULL);
+
+    const auto& parts = message->GetParts();
+    YASSERT(parts.ysize() >= 2);
+    DeserializeBody(parts[1]);
+    Attachments_.clear();
+    NStl::copy(
+        parts.begin() + 2,
+        parts.end(),
+        NStl::back_inserter(Attachments_));
 }
 
 void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
 {
     LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
-        ~RequestId.ToString(),
+        ~RequestId_.ToString(),
         ~sendResult.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
@@ -130,7 +105,7 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
 void TClientResponse::OnTimeout()
 {
     LOG_DEBUG("Request timed out (RequestId: %s)",
-        ~RequestId.ToString());
+        ~RequestId_.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
@@ -138,10 +113,10 @@ void TClientResponse::OnTimeout()
     }
 }
 
-void TClientResponse::OnResponse(const TError& error, IMessage::TPtr message)
+void TClientResponse::OnResponse(const TError& error, IMessage* message)
 {
     LOG_DEBUG("Response received (RequestId: %s)",
-        ~RequestId.ToString());
+        ~RequestId_.ToString());
 
     if (error.GetCode() == EErrorCode::OK) {
         Deserialize(message);
@@ -156,36 +131,21 @@ void TClientResponse::OnResponse(const TError& error, IMessage::TPtr message)
 void TClientResponse::Complete(const TError& error)
 {
     LOG_DEBUG("Request complete (RequestId: %s, Error: %s)",
-        ~RequestId.ToString(),
+        ~RequestId_.ToString(),
         ~error.ToString());
 
-    Error = error;
+    Error_ = error;
     State = EState::Done;
 }
 
 bool TClientResponse::IsOK() const
 {
-    return Error.GetCode() == EErrorCode::OK;
-}
-
-yvector<TSharedRef>& TClientResponse::Attachments()
-{
-    return MyAttachments;
-}
-
-TError TClientResponse::GetError() const
-{
-    return Error;
+    return Error_.GetCode() == EErrorCode::OK;
 }
 
 EErrorCode TClientResponse::GetErrorCode() const
 {
-    return Error.GetCode();
-}
-
-TInstant TClientResponse::GetStartTime() const
-{
-    return StartTime;
+    return Error_.GetCode();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

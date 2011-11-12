@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../ytree/ypath.h"
 #include "../cypress/virtual.h"
 
 namespace NYT {

@@ -4,7 +4,6 @@
 
 #include "../cypress/cypress_manager.h"
 #include "../cypress/node.h"
-#include "../ytree/ypath.h"
 
 namespace NYT {
 namespace NCypress {
@@ -16,7 +15,6 @@ NCypress::INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
 
 NCypress::INodeTypeHandler::TPtr CreateLockMapTypeHandler(
     NCypress::TCypressManager* cypressManager);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

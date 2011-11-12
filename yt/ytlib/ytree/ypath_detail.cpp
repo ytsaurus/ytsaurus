@@ -13,7 +13,7 @@ TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    throw TYTreeException() << Sprintf("Cannot change node type from %s to %s",
+    ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)",
         ~GetExpectedType().ToString().Quote(),
         ~actualType.ToString().Quote());
 }

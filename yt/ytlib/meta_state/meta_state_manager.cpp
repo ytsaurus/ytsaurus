@@ -46,7 +46,7 @@ public:
         const TConfig& config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
-        TServer* server)
+        IServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , Owner(owner)
         , ControlStatus(EPeerStatus::Stopped)
@@ -191,7 +191,7 @@ private:
             i32 bytesRead = reader->GetStream().Read(data.begin(), length);
             data.erase(data.begin() + bytesRead, data.end());
 
-            context->Response().Attachments().push_back(TSharedRef(data));
+            context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
             context->SetResponseInfo("BytesRead: %d", bytesRead);
 
             context->Reply();
@@ -1281,7 +1281,7 @@ TMetaStateManager::TMetaStateManager(
     const TConfig& config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
-    TServer* server)
+    IServer* server)
     : Impl(New<TImpl>(
         this,
         config,

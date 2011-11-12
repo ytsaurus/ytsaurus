@@ -5,7 +5,7 @@
 #include "node_detail.h"
 
 #include "../ytree/ytree.h"
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_service.h"
 #include "../ytree/ypath_detail.h"
 #include "../ytree/node_detail.h"
 
@@ -210,14 +210,12 @@ protected:
         LockSelf();
     }
 
-    TLockResult LockSelf()
+    void LockSelf()
     {
         CypressManager->LockTransactionNode(NodeId, TransactionId);
 
         // Set the flag to speedup further checks.
         Locked = true;
-
-        return TLockResult::CreateDone();
     }
 
 
@@ -280,11 +278,12 @@ public: \
         return this; \
     } \
     \
-    virtual TSetResult SetSelf(NYTree::TYsonProducer::TPtr producer) \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
     { \
+        UNUSED(response); \
         auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
-        NYTree::SetNodeFromProducer<NYTree::I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(this); \
+        DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
+        context->Reply(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,8 +382,9 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
-    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
+    virtual IYPathService::TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
+    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
 
@@ -413,8 +413,9 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
-    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
+    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
+    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
 

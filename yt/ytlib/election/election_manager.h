@@ -68,7 +68,7 @@ public:
         NMetaState::TCellManager* cellManager,
         IInvoker* controlInvoker,
         IElectionCallbacks* electionCallbacks,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
     /*!
      * \note Thread affinity: any.

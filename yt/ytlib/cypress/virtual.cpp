@@ -103,50 +103,50 @@ private:
 
     IYPathService::TPtr Service;
 
-    virtual TNavigateResult Navigate(TYPath path)
-    {
-        if (~Service == NULL) {
-            return TBase::Navigate(path);
-        } else {
-            return Service->Navigate(path);
-        }
-    }
+    //virtual TNavigateResult Navigate(TYPath path)
+    //{
+    //    if (~Service == NULL) {
+    //        return TBase::Navigate(path);
+    //    } else {
+    //        return Service->Navigate(path);
+    //    }
+    //}
 
-    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
-    {
-        if (~Service == NULL) {
-            return TBase::Get(path, consumer);
-        } else {
-            return Service->Get(path, consumer);
-        }
-    }
+    //virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
+    //{
+    //    if (~Service == NULL) {
+    //        return TBase::Get(path, consumer);
+    //    } else {
+    //        return Service->Get(path, consumer);
+    //    }
+    //}
 
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer)
-    {
-        if (~Service == NULL) {
-            return TBase::Set(path, producer);
-        } else {
-            return Service->Set(path, producer);
-        }
-    }
+    //virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer)
+    //{
+    //    if (~Service == NULL) {
+    //        return TBase::Set(path, producer);
+    //    } else {
+    //        return Service->Set(path, producer);
+    //    }
+    //}
 
-    virtual TRemoveResult Remove(TYPath path)
-    {
-        if (~Service == NULL) {
-            return TBase::Remove(path);
-        } else {
-            return Service->Remove(path);
-        }
-    }
+    //virtual TRemoveResult Remove(TYPath path)
+    //{
+    //    if (~Service == NULL) {
+    //        return TBase::Remove(path);
+    //    } else {
+    //        return Service->Remove(path);
+    //    }
+    //}
 
-    virtual TLockResult Lock(TYPath path)
-    {
-        if (~Service == NULL) {
-            return TBase::Lock(path);
-        } else {
-            return Service->Lock(path);
-        }
-    }
+    //virtual TLockResult Lock(TYPath path)
+    //{
+    //    if (~Service == NULL) {
+    //        return TBase::Lock(path);
+    //    } else {
+    //        return Service->Lock(path);
+    //    }
+    //}
 };
 
 ////////////////////////////////////////////////////////////////////////////////

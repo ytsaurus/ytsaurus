@@ -13,8 +13,8 @@ namespace NMetaState {
 
 template <class TResult>
 TMetaChange<TResult>::TMetaChange(
-    TMetaStateManager::TPtr metaStateManager,
-    TIntrusivePtr<TChangeFunc> func,
+    TMetaStateManager* metaStateManager,
+    TChangeFunc* func,
     const TSharedRef& changeData,
     ECommitMode mode)
     : MetaStateManager(metaStateManager)
@@ -23,7 +23,6 @@ TMetaChange<TResult>::TMetaChange(
     , CommitMode(mode)
     , Started(false)
 { }
-
 
 template <class TResult>
 typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
@@ -88,15 +87,15 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 
 template <class TTarget, class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    TMetaStateManager::TPtr metaStateManager,
+    TMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
-    TIntrusivePtr<TTarget> target,
+    TTarget* target,
     ECommitMode mode)
 {
-    YASSERT(~metaStateManager != NULL);
+    YASSERT(metaStateManager != NULL);
     YASSERT(func != NULL);
-    YASSERT(~target != NULL);
+    YASSERT(target != NULL);
 
     NProto::TMsgChangeHeader header;
     header.SetChangeType(message.GetTypeName());
@@ -107,8 +106,8 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
 
     return New< TMetaChange<TResult> >(
         metaStateManager,
-        changeFunc,
-        TSharedRef(changeData),
+        ~changeFunc,
+        TSharedRef(MoveRV(changeData)),
         mode);
 }
 

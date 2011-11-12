@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ypath.h"
+#include "ypath_service.h"
 #include "yson_events.h"
 #include "tree_builder.h"
 #include "forwarding_yson_events.h"

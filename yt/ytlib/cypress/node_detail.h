@@ -40,7 +40,7 @@ public:
         UNUSED(nodeId);
         UNUSED(transactionId);
         UNUSED(manifest);
-        throw NYTree::TYTreeException() << Sprintf("Nodes of type %s cannot be created from a manifest",
+        ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
             ~GetTypeName().Quote());
     }
 

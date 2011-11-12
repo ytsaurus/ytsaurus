@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../ytree/ypath.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
@@ -37,13 +36,13 @@ public:
         // TODO: refactor using new API
         auto remoteAddressNode = manifestRoot->FindChild("remote_address");
         if (~remoteAddressNode == NULL) {
-            ythrow TYTreeException() << "Missing remote_address";
+            ythrow yexception() << "Missing remote_address";
         }
         RemoteAddress = remoteAddressNode->GetValue<Stroka>();
 
         auto remoteRootNode = manifestRoot->FindChild("remote_root");
         if (~remoteRootNode == NULL) {
-            ythrow TYTreeException() << "Missing remote_root";
+            ythrow yexception() << "Missing remote_root";
         }
         RemoteRoot = remoteRootNode->GetValue<Stroka>();
 
@@ -51,6 +50,18 @@ public:
         Proxy = new TOrchidServiceProxy(~channel);
     }
 
+    IYPathService::TNavigateResult Navigate(TYPath path, bool mustExist)
+    {
+        UNUSED(path);
+        UNUSED(mustExist);
+        ythrow yexception() << "Navigation is not supported";
+    }
+
+    void Invoke(NRpc::IServiceContext* context)
+    {
+        UNUSED(context);
+    }
+    /*
     virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
     {
         if (!ShouldForward(path)) {
@@ -134,6 +145,7 @@ public:
         UNUSED(path);
         ythrow TYTreeException() << "Locking is not supported for an Orchid path";
     }
+    */
 
 private:
     static bool ShouldForward(TYPath path)

@@ -97,10 +97,10 @@ TTableManager::InitiateAddTableChunks(
     ToProto<TChunkId, Stroka>(*message.MutableChunkIds(), chunkIds);
 
     return CreateMetaChange(
-        MetaStateManager,
+        ~MetaStateManager,
         message,
         &TThis::AddTableChunks,
-        TPtr(this),
+        this,
         ECommitMode::MayFail);
 }
 

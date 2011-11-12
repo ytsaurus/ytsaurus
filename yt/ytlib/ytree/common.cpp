@@ -1,20 +1,14 @@
-#pragma once
-
-#include "../misc/common.h"
-#include "../misc/assert.h"
-#include "../misc/enum.h"
-#include "../misc/common.h"
-#include "../logging/log.h"
+#include "stdafx.h"
+#include "common.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger YTreeLogger;
+NLog::TLogger YTreeLogger("YTree");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT
-

@@ -22,7 +22,7 @@ TTableService::TTableService(
     TMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTableManager* tableManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TTableServiceProxy::GetServiceName(),

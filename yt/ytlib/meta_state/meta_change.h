@@ -18,8 +18,8 @@ public:
     typedef IFunc<TResult> TChangeFunc;
 
     TMetaChange(
-        TMetaStateManager::TPtr metaStateManager,
-        TIntrusivePtr<TChangeFunc> func,
+        TMetaStateManager* metaStateManager,
+        TChangeFunc* func,
         const TSharedRef& changeData,
         ECommitMode mode);
 
@@ -50,10 +50,10 @@ private:
 
 template <class TTarget, class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    TMetaStateManager::TPtr metaStateManager,
+    TMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
-    TIntrusivePtr<TTarget> target,
+    TTarget* target,
     ECommitMode mode = ECommitMode::NeverFails);
 
 ////////////////////////////////////////////////////////////////////////////////

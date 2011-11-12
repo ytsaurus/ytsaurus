@@ -9,7 +9,7 @@
 #include "../misc/thread_affinity.h"
 #include "../transaction_server/transaction.h"
 #include "../transaction_server/transaction_manager.h"
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_service.h"
 #include "../ytree/tree_builder.h"
 #include "../misc/id_generator.h"
 #include "../meta_state/meta_state_manager.h"
@@ -93,27 +93,27 @@ public:
 
     ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
-    void GetYPath(
-        const TTransactionId& transactionId,
-        NYTree::TYPath path,
-        NYTree::IYsonConsumer* consumer);
+    //void GetYPath(
+    //    const TTransactionId& transactionId,
+    //    NYTree::TYPath path,
+    //    NYTree::IYsonConsumer* consumer);
 
-    NYTree::INode::TPtr NavigateYPath(
-        const NTransaction::TTransactionId& transactionId,
-        NYTree::TYPath path);
+    //NYTree::INode::TPtr NavigateYPath(
+    //    const NTransaction::TTransactionId& transactionId,
+    //    NYTree::TYPath path);
 
-    NMetaState::TMetaChange<TNodeId>::TPtr InitiateSetYPath(
-        const NTransaction::TTransactionId& transactionId,
-        NYTree::TYPath path,
-        const Stroka& value);
+    //NMetaState::TMetaChange<TNodeId>::TPtr InitiateSetYPath(
+    //    const NTransaction::TTransactionId& transactionId,
+    //    NYTree::TYPath path,
+    //    const Stroka& value);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
-        const NTransaction::TTransactionId& transactionId,
-        NYTree::TYPath path);
+    //NMetaState::TMetaChange<TVoid>::TPtr InitiateRemoveYPath(
+    //    const NTransaction::TTransactionId& transactionId,
+    //    NYTree::TYPath path);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateLockYPath(
-        const NTransaction::TTransactionId& transactionId,
-        NYTree::TYPath path);
+    //NMetaState::TMetaChange<TVoid>::TPtr InitiateLockYPath(
+    //    const NTransaction::TTransactionId& transactionId,
+    //    NYTree::TYPath path);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateCreateWorld();
 
@@ -143,9 +143,9 @@ private:
     yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
-    TNodeId SetYPath(const NProto::TMsgSet& message);
-    TVoid RemoveYPath(const NProto::TMsgRemove& message);
-    TVoid LockYPath(const NProto::TMsgLock& message);
+    //TNodeId SetYPath(const NProto::TMsgSet& message);
+    //TVoid RemoveYPath(const NProto::TMsgRemove& message);
+    //TVoid LockYPath(const NProto::TMsgLock& message);
     TVoid CreateWorld(const NProto::TMsgCreateWorld& message);
 
     // TMetaStatePart overrides.

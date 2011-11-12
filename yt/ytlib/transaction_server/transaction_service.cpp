@@ -16,7 +16,7 @@ static NLog::TLogger& Logger = TransactionLogger;
 TTransactionService::TTransactionService(
     TMetaStateManager* metaStateManager,
     TTransactionManager* transactionManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TTransactionServiceProxy::GetServiceName(),

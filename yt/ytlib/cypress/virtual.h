@@ -5,7 +5,7 @@
 #include "node.h"
 #include "node_proxy.h"
 
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_service.h"
 
 namespace NYT {
 namespace NCypress {

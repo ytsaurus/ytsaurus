@@ -27,7 +27,7 @@ public:
     TChunkHolder(
         const TConfig& config,
         IInvoker* serviceInvoker,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
     ~TChunkHolder();
 
 private:

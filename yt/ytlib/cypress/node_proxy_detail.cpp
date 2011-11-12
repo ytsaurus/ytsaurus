@@ -188,18 +188,27 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path)
+IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
 {
-    return TMapNodeMixin::NavigateRecursive(path);
+    return TMapNodeMixin::NavigateRecursive(path, mustExist);
 }
 
-IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
+void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
+    UNUSED(response);
+
     auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
-    return TMapNodeMixin::SetRecursive(
+    TMapNodeMixin::SetRecursive(
         path,
-        ~producer,
+        request->GetValue(),
         ~builder);
+
+    context->Reply();
+}
+
+void TMapNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TMapNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,18 +348,27 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path)
+IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
 {
-    return TListNodeMixin::NavigateRecursive(path);
+    return TListNodeMixin::NavigateRecursive(path, mustExist);
 }
 
-IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
+void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
+    UNUSED(response);
+
     auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
-    return TListNodeMixin::SetRecursive(
+    TListNodeMixin::SetRecursive(
         path,
-        ~producer,
+        request->GetValue(),
         ~builder);
+
+    context->Reply();
+}
+
+void TListNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TListNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

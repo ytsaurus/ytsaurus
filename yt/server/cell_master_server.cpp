@@ -31,6 +31,8 @@ namespace NYT {
 
 static NLog::TLogger Logger("Server");
 
+using NRpc::CreateRpcServer;
+
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
 using NTransaction::CreateTransactionMapTypeHandler;
@@ -93,13 +95,13 @@ void TCellMasterServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto server = New<NRpc::TServer>(port);
+    auto server = CreateRpcServer(port);
 
     auto metaStateManager = New<TMetaStateManager>(
         Config.MetaState,
-        controlQueue->GetInvoker(),
-        metaState,
-        server);
+        ~controlQueue->GetInvoker(),
+        ~metaState,
+        ~server);
 
     auto transactionManager = New<TTransactionManager>(
         TTransactionManager::TConfig(),
@@ -129,9 +131,8 @@ void TCellMasterServer::Run()
         ~transactionManager);
 
     auto cypressService = New<TCypressService>(
-        ~metaStateManager,
+        ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
-        ~transactionManager,
         ~server);
 
     auto fileManager = New<TFileManager>(

@@ -2,39 +2,36 @@
 #include "cypress_service.h"
 #include "node_proxy.h"
 
-#include "../ytree/yson_writer.h"
-
 namespace NYT {
 namespace NCypress {
 
-using namespace NRpc;
+using namespace NBus;
 using namespace NYTree;
 using namespace NMetaState;
 using namespace NTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = CypressLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressService::TCypressService(
-    TMetaStateManager* metaStateManager,
+    IInvoker* invoker,
     TCypressManager* cypressManager,
-    TTransactionManager* transactionManager,
-    NRpc::TServer* server)
-    : TMetaStateServiceBase(
-        metaStateManager,
+    NRpc::IServer* server)
+    : NRpc::TServiceBase(
+        invoker,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
-    , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
-    YASSERT(transactionManager != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Lock));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
+
     server->RegisterService(this);
 }
 
@@ -46,164 +43,72 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
     }
 }
 
-void TCypressService::ExecuteRecoverable(
-    const TTransactionId& transactionId,
-    IAction* action)
-{
-    if (transactionId != NullTransactionId) {
-        ValidateTransactionId(transactionId);
-    }
-
-    try {
-        action->Do();
-    } catch (const TServiceException&) {
-        throw;
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::RecoverableError)
-            << CurrentExceptionMessage();
-    }
-}
-
-void TCypressService::ExecuteUnrecoverable(
-    const TTransactionId& transactionId,
-    IAction* action)
-{
-    if (transactionId != NullTransactionId) {
-        ValidateTransactionId(transactionId);
-    }
-
-    try {
-        action->Do();
-    } catch (const TServiceException&) {
-        throw;
-    } catch (...) {
-        if (transactionId != NullTransactionId) {
-            TransactionManager
-                ->InitiateAbortTransaction(transactionId)
-                ->Commit();
-        }
-
-        ythrow TServiceException(EErrorCode::UnrecoverableError)
-            << CurrentExceptionMessage();
-    }
-}
+//void TCypressService::ExecuteUnrecoverable(
+//    const TTransactionId& transactionId,
+//    IAction* action)
+//{
+//    if (transactionId != NullTransactionId) {
+//        ValidateTransactionId(transactionId);
+//    }
+//
+//    try {
+//        action->Do();
+//    } catch (const TServiceException&) {
+//        throw;
+//    } catch (...) {
+//        if (transactionId != NullTransactionId) {
+//            TransactionManager
+//                ->InitiateAbortTransaction(transactionId)
+//                ->Commit();
+//        }
+//
+//        ythrow TServiceException(EErrorCode::UnrecoverableError)
+//            << CurrentExceptionMessage();
+//    }
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TCypressService, Get)
+RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 {
     UNUSED(response);
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
+    Stroka verb = request->GetVerb();
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
+    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
         ~transactionId.ToString(),
-        ~path);
+        ~path,
+        ~verb);
 
-    ExecuteRecoverable(
-        transactionId,
-        ~FromFunctor([=] ()
+    ValidateTransactionId(transactionId);
+
+    auto rootProxy = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootService = IYPathService::FromNode(~rootProxy);
+
+    IYPathService::TPtr tailService;
+    TYPath tailPath;
+    NavigateYPath(~rootService, path, false, &tailService, &tailPath);
+
+    InvokeYPathVerb(
+        ~tailService,
+        tailPath,
+        verb,
+        ~context->GetUntypedContext(),
+        Logger.GetCategory(),
+        ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
             {
-                Stroka output;
-                TStringOutput outputStream(output);
-                TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary);
-
-                CypressManager->GetYPath(transactionId, path, &writer);
-
-                auto* response = &context->Response();
-                response->SetValue(output);
-
-                context->Reply();
-            }));
-}
-
-RPC_SERVICE_METHOD_IMPL(TCypressService, Set)
-{
-    UNUSED(response);
-
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-    Stroka value = request->GetValue();
-
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
-        ~transactionId.ToString(),
-        ~path);
-
-    ValidateLeader();
-
-    auto onSuccess = FromFunctor([=] (TNodeId nodeId)
-        {
-            response->SetNodeId(nodeId.ToProto());
-            context->Reply();
-        });
-
-    ExecuteUnrecoverable(
-        transactionId,
-        ~FromFunctor([=] ()
-            {
-                CypressManager
-                    ->InitiateSetYPath(transactionId, path, value)
-                    ->OnSuccess(onSuccess)
-                    ->OnError(~this->CreateErrorHandler(~context))
-                    ->Commit();
-            }));
-}
-
-RPC_SERVICE_METHOD_IMPL(TCypressService, Remove)
-{
-    UNUSED(response);
-
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
-        ~transactionId.ToString(),
-        ~path);
-
-    ValidateLeader();
-
-    ExecuteRecoverable(
-        transactionId,
-        ~FromFunctor([=] ()
-            {
-                CypressManager
-                    ->InitiateRemoveYPath(transactionId, path)
-                    ->OnSuccess(~this->CreateSuccessHandler(~context))
-                    ->OnError(~this->CreateErrorHandler(~context))
-                    ->Commit();
-            }));
-}
-
-RPC_SERVICE_METHOD_IMPL(TCypressService, Lock)
-{
-    UNUSED(response);
-
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
-        ~transactionId.ToString(),
-        ~path);
-
-    ValidateLeader();
-
-    ExecuteRecoverable(
-        transactionId,
-        ~FromFunctor([=] ()
-            {
-                CypressManager
-                    ->InitiateLockYPath(transactionId, path)
-                    ->OnSuccess(~this->CreateSuccessHandler(~context))
-                    ->OnError(~this->CreateErrorHandler(~context))
-                    ->Commit();
+                WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
+                context->Reply(
+                    param.Error.IsOK()
+                    ? NRpc::EErrorCode::OK
+                    : TCypressServiceProxy::EErrorCode::VerbError);
             }));
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
 {
-    UNUSED(response);
-
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     Stroka path = request->GetPath();
 
@@ -211,20 +116,22 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
         ~transactionId.ToString(),
         ~path);
 
-    ExecuteRecoverable(
-        transactionId,
-        ~FromFunctor([=] ()
-            {
-                auto node = CypressManager->NavigateYPath(transactionId, path);
-                
-                ICypressNodeProxy* cypressNode(dynamic_cast<ICypressNodeProxy*>(~node));
-                if (cypressNode == NULL) {
-                    throw yexception() << "Node has no id";
-                }
+    ValidateTransactionId(transactionId);
 
-                response->SetNodeId(cypressNode->GetNodeId().ToProto());
-                context->Reply();
-            }));
+    auto rootProxy = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootService = IYPathService::FromNode(~rootProxy);
+
+    IYPathService::TPtr targetService;
+    try {
+        targetService = NavigateYPath(~rootService, path);
+    } catch (...) {
+        ythrow TServiceException(EErrorCode::NavigationError) << CurrentExceptionMessage();
+    }
+
+    auto* targetNode = dynamic_cast<ICypressNodeProxy*>(~targetService);
+    auto id = targetNode == NULL ? NullNodeId : targetNode->GetNodeId();
+    response->SetNodeId(id.ToProto());
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
