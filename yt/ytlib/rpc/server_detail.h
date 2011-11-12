@@ -25,8 +25,8 @@ public:
     virtual TSharedRef GetRequestBody() const;
     virtual void SetResponseBody(TBlob&& responseBody);
 
-    virtual const yvector<TSharedRef>& GetRequestAttachments() const;
-    virtual void SetResponseAttachments(const yvector<TSharedRef>& attachments);
+    virtual const yvector<TSharedRef>& RequestAttachments() const;
+    virtual yvector<TSharedRef>& ResponseAttachments();
 
     virtual void SetRequestInfo(const Stroka& info);
     virtual Stroka GetRequestInfo() const;
@@ -49,11 +49,11 @@ protected:
     IParamAction<NBus::IMessage*>::TPtr ResponseHandler;
 
     TSharedRef RequestBody;
-    yvector<TSharedRef> RequestAttachments;
+    yvector<TSharedRef> RequestAttachments_;
     bool Replied;
 
     TBlob ResponseBody;
-    yvector<TSharedRef> ResponseAttachments;
+    yvector<TSharedRef> ResponseAttachments_;
 
     Stroka RequestInfo;
     Stroka ResponseInfo;

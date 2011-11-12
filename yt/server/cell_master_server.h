@@ -23,7 +23,7 @@ public:
         int MonitoringPort;
 
         TConfig()
-            : MonitoringPort(10001)
+            : MonitoringPort(10000)
         { }
 
         //! Reads configuration from JSON.

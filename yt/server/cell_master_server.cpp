@@ -133,6 +133,7 @@ void TCellMasterServer::Run()
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
+        ~transactionManager,
         ~rpcServer);
 
     auto fileManager = New<TFileManager>(

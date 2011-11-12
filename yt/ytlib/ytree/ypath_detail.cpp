@@ -281,7 +281,7 @@ void ParseYPathRequestHeader(
     TYPath* path,
     Stroka* verb)
 {
-    const auto& attachments = outerContext->GetRequestAttachments();
+    const auto& attachments = outerContext->RequestAttachments();
     YASSERT(!attachments.empty());
     
     TRequestHeader header;
@@ -342,7 +342,7 @@ NRpc::IServiceContext::TPtr UnwrapYPathRequest(
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler)
 {
-    const auto& attachments = outerContext->GetRequestAttachments();
+    const auto& attachments = outerContext->RequestAttachments();
     YASSERT(attachments.ysize() >= 2);
 
     yvector<TSharedRef> parts;
@@ -350,6 +350,7 @@ NRpc::IServiceContext::TPtr UnwrapYPathRequest(
 
     // Put RPC header part.
     TRequestHeader header;
+    header.SetRequestId(TRequestId().ToProto());
     header.SetPath(path);
     header.SetVerb(verb);
     TBlob headerBlob;
@@ -393,7 +394,7 @@ void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage)
 {
-    outerContext->SetResponseAttachments(responseMessage->GetParts());
+    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

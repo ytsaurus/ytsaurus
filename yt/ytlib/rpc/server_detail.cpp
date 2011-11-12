@@ -23,7 +23,7 @@ TServiceContextBase::TServiceContextBase(
     YASSERT(requestMessage != NULL);
 
     RequestBody = requestMessage->GetParts().at(1);
-    RequestAttachments = yvector<TSharedRef>(
+    RequestAttachments_ = yvector<TSharedRef>(
         requestMessage->GetParts().begin() + 2,
         requestMessage->GetParts().end());
 }
@@ -47,7 +47,7 @@ void TServiceContextBase::Reply(const TError& error)
             RequestId,
             error,
             MoveRV(ResponseBody),
-            ResponseAttachments);
+            ResponseAttachments_);
     } else {
         responseMessage = CreateErrorResponseMessage(
             RequestId,
@@ -62,9 +62,9 @@ TSharedRef TServiceContextBase::GetRequestBody() const
     return RequestBody;
 }
 
-const yvector<TSharedRef>& TServiceContextBase::GetRequestAttachments() const
+const yvector<TSharedRef>& TServiceContextBase::RequestAttachments() const
 {
-    return RequestAttachments;
+    return RequestAttachments_;
 }
 
 void TServiceContextBase::SetResponseBody(TBlob&& responseBody)
@@ -74,9 +74,9 @@ void TServiceContextBase::SetResponseBody(TBlob&& responseBody)
     ResponseBody.swap(responseBody);
 }
 
-void TServiceContextBase::SetResponseAttachments(const yvector<TSharedRef>& attachments)
+yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
-    ResponseAttachments = MoveRV(attachments);
+    return ResponseAttachments_;
 }
 
 Stroka TServiceContextBase::GetPath() const

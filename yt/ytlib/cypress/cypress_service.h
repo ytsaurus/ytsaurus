@@ -21,6 +21,7 @@ public:
     TCypressService(
         IInvoker* invoker,
         TCypressManager* cypressManager,
+        NTransaction::TTransactionManager* transactionManager,
         NRpc::IServer* server);
 
 private:

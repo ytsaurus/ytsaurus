@@ -82,8 +82,8 @@ struct IServiceContext
     virtual TSharedRef GetRequestBody() const = 0;
     virtual void SetResponseBody(TBlob&& responseBody) = 0;
 
-    virtual const yvector<TSharedRef>& GetRequestAttachments() const = 0;
-    virtual void SetResponseAttachments(const yvector<TSharedRef>& attachments) = 0;
+    virtual const yvector<TSharedRef>& RequestAttachments() const = 0;
+    virtual yvector<TSharedRef>& ResponseAttachments() = 0;
 
     virtual void SetRequestInfo(const Stroka& info) = 0;
     virtual Stroka GetRequestInfo() const = 0;
@@ -120,17 +120,17 @@ class TTypedServiceRequest
     , private TNonCopyable
 {
 public:
-    TTypedServiceRequest(const yvector<TSharedRef>& attachments)
-        : Attachments_(attachments)
+    TTypedServiceRequest(IServiceContext* context)
+        : Context(context)
     { }
 
-    yvector<TSharedRef>& Attachments()
+    const yvector<TSharedRef>& Attachments()
     {
-        return Attachments_;
+        return Context->RequestAttachments();
     }
 
 private:
-    yvector<TSharedRef> Attachments_;
+    IServiceContext::TPtr Context;
 
 };
 
@@ -142,13 +142,17 @@ class TTypedServiceResponse
     , private TNonCopyable
 {
 public:
+    TTypedServiceResponse(IServiceContext* context)
+        : Context(context)
+    { }
+
     yvector<TSharedRef>& Attachments()
     {
-        return Attachments_;
+        return Context->ResponseAttachments();
     }
 
 private:
-    yvector<TSharedRef> Attachments_;
+    IServiceContext::TPtr Context;
 
 };
 
@@ -171,7 +175,8 @@ public:
     TTypedServiceContext(IServiceContext* context)
         : Logger(RpcLogger)
         , Context(context)
-        , Request_(context->GetRequestAttachments())
+        , Request_(context)
+        , Response_(context)
     {
         YASSERT(context != NULL);
 
@@ -207,11 +212,9 @@ public:
         if (error.IsOK()) {
             TBlob responseBlob;
             if (!SerializeMessage(&Response_, &responseBlob)) {
-                ythrow TServiceException(EErrorCode::ProtocolError) <<
-                    "Error serializing response";
+                LOG_FATAL("Error serializing response");
             }
             Context->SetResponseBody(MoveRV(responseBlob));
-            Context->SetResponseAttachments(Response_.Attachments());
         }
         Context->Reply(error);
     }

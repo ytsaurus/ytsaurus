@@ -61,25 +61,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualNodeFallbackProxy
-    : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
-{
-public:
-    TVirtualNodeFallbackProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-        : TCypressNodeProxyBase<IEntityNode, TVirtualNode>(
-            typeHandler,
-            cypressManager,
-            transactionId,
-            nodeId)
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVirtualNodeProxy
     : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
 {

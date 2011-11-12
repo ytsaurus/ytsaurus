@@ -21,12 +21,14 @@ static NLog::TLogger& Logger = CypressLogger;
 TCypressService::TCypressService(
     IInvoker* invoker,
     TCypressManager* cypressManager,
+    TTransactionManager* transactionManager,
     NRpc::IServer* server)
     : NRpc::TServiceBase(
         invoker,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
+    , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager != NULL);
     YASSERT(server != NULL);
@@ -39,7 +41,9 @@ TCypressService::TCypressService(
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    if (TransactionManager->FindTransaction(transactionId) == NULL) {
+    if (transactionId != NullTransactionId &&
+        TransactionManager->FindTransaction(transactionId) == NULL)
+    {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
     }

@@ -56,16 +56,22 @@ private:
             [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
             {
                 auto innerResponse = New<TTypedResponse>();
-                auto errorCode = outerResponse->GetErrorCode();
-                if (errorCode == NRpc::EErrorCode::OK ||
-                    errorCode == TCypressServiceProxy::EErrorCode::VerbError)
-                {
-                    UnwrapYPathResponse(~outerResponse, ~innerResponse);
-                } else {
-                    TError error(
-                        NYTree::EYPathErrorCode::GenericError,
-                        outerResponse->GetError().GetMessage());
+                auto error = outerResponse->GetError();
+                if (error.IsRpcError()) {
                     SetYPathErrorResponse(error, ~innerResponse);    
+                } else {
+                    auto errorCode = outerResponse->GetErrorCode();
+                    if (errorCode == NRpc::EErrorCode::OK ||
+                        errorCode == TCypressServiceProxy::EErrorCode::VerbError)
+                    {
+                        UnwrapYPathResponse(~outerResponse, ~innerResponse);
+                    } else {
+                        SetYPathErrorResponse(
+                            NRpc::TError(
+                                NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
+                                outerResponse->GetError().GetMessage()),
+                            ~innerResponse);
+                    }
                 }
                 return innerResponse;
             }));
