@@ -11,7 +11,7 @@ IYPathService::TNavigateResult TVirtualMapBase::Navigate(TYPath path, bool mustE
 {
     UNUSED(path);
     UNUSED(mustExist);
-    ythrow yexception() << "Navigation is not supported";
+    ythrow yexception() << "Further navigation is not supported";
 }
 
 void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)

@@ -110,12 +110,11 @@ private:
     IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
     IYPathService::TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
 
-    //IYPathService::TSetResult CreateYPathChild(
-    //    int beforeIndex,
-    //    TYPath tailPath,
-    //    TYsonProducer* producer,
-    //    ITreeBuilder* builder);
-
+    void CreateYPathChild(
+        int beforeIndex,
+        TYPath tailPath,
+        const TYson& value,
+        ITreeBuilder* builder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

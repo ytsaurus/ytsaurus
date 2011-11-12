@@ -54,7 +54,7 @@ public:
     {
         UNUSED(path);
         UNUSED(mustExist);
-        ythrow yexception() << "Navigation is not supported";
+        ythrow yexception() << "Further navigation is not supported";
     }
 
     void Invoke(NRpc::IServiceContext* context)

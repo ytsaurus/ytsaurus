@@ -191,8 +191,11 @@ TYPath ComputeResolvedYPath(
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
     YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
     YASSERT(wholePath.substr(resolvedLength) == unresolvedPath);
-    // TODO: trim trailing slash
-    return wholePath.substr(0, resolvedLength);
+    // Take care of trailing slash but don't reduce / to empty string.
+    return
+        resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
+        ? wholePath.substr(0, resolvedLength - 1)
+        : wholePath.substr(0, resolvedLength);
 }
 
 TYPath ParseYPathRoot(TYPath path)
