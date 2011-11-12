@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ypath_service.h"
+#include "ypath_client.h"
 #include "yson_events.h"
 #include "tree_builder.h"
 #include "forwarding_yson_events.h"
@@ -224,6 +224,111 @@ void SetNodeFromProducer(
 
     TNodeSetter<TNode> setter(node, builder);
     producer->Do(&setter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WrapYPathRequest(
+    NRpc::TClientRequest* outerRequest,
+    TYPathRequest* innerRequest);
+
+void UnwrapYPathResponse(
+    NRpc::TClientResponse* outerResponse,
+    TYPathResponse* innerResponse);
+
+void SetYPathErrorResponse(
+    const NRpc::TError& error,
+    TYPathResponse* innerResponse);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ChopYPathPrefix(
+    TYPath path,
+    Stroka* prefix,
+    TYPath* tailPath);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void NavigateYPath(
+    IYPathService* rootService,
+    TYPath path,
+    bool mustExist,
+    IYPathService::TPtr* tailService,
+    TYPath* tailPath);
+
+IYPathService::TPtr NavigateYPath(
+    IYPathService* rootService,
+    TYPath path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYPathResponseHandlerParam
+{
+    NRpc::TError Error;
+    NBus::IMessage::TPtr Message;
+};
+
+typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
+
+void ParseYPathRequestHeader(
+    NRpc::IServiceContext* outerContext,
+    TYPath* path,
+    Stroka* verb);
+
+NRpc::IServiceContext::TPtr UnwrapYPathRequest(
+    NRpc::IServiceContext* outerContext,
+    TYPath path,
+    const Stroka& verb,
+    const Stroka& loggingCategory,
+    TYPathResponseHandler* responseHandler);
+
+NRpc::IServiceContext::TPtr CreateYPathRequest(
+    NBus::IMessage* requestMessage,
+    TYPath path,
+    const Stroka& verb,
+    const Stroka& loggingCategory,
+    TYPathResponseHandler* responseHandler);
+
+void WrapYPathResponse(
+    NRpc::IServiceContext* outerContext,
+    NBus::IMessage* responseMessage);
+
+template <class TTypedRequest, class TTypedResponse>
+void OnYPathResponse(
+    const TYPathResponseHandlerParam& param,
+    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse)
+{
+    auto response = New<TTypedResponse>();
+    response->Deserialize(~param.Message);
+    asyncResponse->Set(response);
+}
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
+{
+    IYPathService::TPtr tailService;
+    TYPath tailPath;
+    NavigateYPath(rootService, request->GetPath(), false, &tailService, &tailPath);
+
+    // TODO: can we avoid this?
+    request->SetPath(tailPath);
+
+    auto requestMessage = request->Serialize();
+    auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
+
+    auto context = CreateYPathRequest(
+        ~requestMessage,
+        tailPath,
+        request->GetVerb(),
+        YTreeLogger.GetCategory(),
+        ~FromMethod(
+            &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
+            asyncResponse));
+
+    tailService->Invoke(~context);
+
+    return asyncResponse;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

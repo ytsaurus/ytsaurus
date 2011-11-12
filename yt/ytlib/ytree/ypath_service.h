@@ -28,9 +28,11 @@ struct IYPathService
         DECLARE_BYVAL_RO_PROPERTY(Path, TYPath);
 
     public:
-        static TNavigateResult Here()
+        static TNavigateResult Here(TYPath path)
         {
-            return TNavigateResult();
+            TNavigateResult result;
+            result.Path_ = path;
+            return result;
         }
 
         static TNavigateResult There(IYPathService* service, TYPath path)
@@ -57,77 +59,6 @@ struct IYPathService
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathPrefix(
-    TYPath path,
-    Stroka* prefix,
-    TYPath* tailPath);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void NavigateYPath(
-    IYPathService* rootService,
-    TYPath path,
-    bool mustExist,
-    IYPathService::TPtr* tailService,
-    TYPath* tailPath);
-
-IYPathService::TPtr NavigateYPath(
-    IYPathService* rootService,
-    TYPath path);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TYPathResponseHandlerParam
-{
-    NRpc::TError Error;
-    NBus::IMessage::TPtr Message;
-};
-
-typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
-
-void InvokeYPathVerb(
-    IYPathService* service,
-    TYPath path,
-    const Stroka& verb,
-    NRpc::IServiceContext* outerContext,
-    const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler);
-
-NRpc::IServiceContext::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext,
-    TYPath path,
-    const Stroka& verb,
-    const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler);
-
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage);
-
-//INode::TPtr NavigateYPath(
-//    IYPathService::TPtr rootService,
-//    TYPath path);
-//
-//void GetYPath(
-//    IYPathService::TPtr rootService,
-//    TYPath path,
-//    IYsonConsumer* consumer);
-//
-//INode::TPtr SetYPath(
-//    IYPathService::TPtr rootService,
-//    TYPath path,
-//    TYsonProducer::TPtr producer);
-//
-//void RemoveYPath(
-//    IYPathService::TPtr rootService,
-//    TYPath path);
-//
-//void LockYPath(
-//    IYPathService::TPtr rootService,
-//    TYPath path);
-//
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

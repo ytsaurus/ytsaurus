@@ -16,7 +16,7 @@ using namespace NRpc;
 IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path, bool mustExist)
 {
     if (path.empty()) {
-        return TNavigateResult::Here();
+        return TNavigateResult::Here("");
     }
 
     if (path[0] == '@') {
@@ -29,7 +29,7 @@ IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path, bool mustExist)
 
         return TNavigateResult::There(
             ~IYPathService::FromNode(~attributes),
-            TYPath(path.begin() + 1, path.end()));
+            path.substr(1));
     }
 
     return NavigateRecursive(path, mustExist);
@@ -323,7 +323,7 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path, boo
     } catch (...) {
         if (mustExist)
             throw;
-        return IYPathService::TNavigateResult::Here();
+        return IYPathService::TNavigateResult::Here(path);
     }
 }
 
@@ -383,7 +383,7 @@ IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path, bo
     } catch (...) {
         if (mustExist)
             throw;
-        return IYPathService::TNavigateResult::Here();
+        return IYPathService::TNavigateResult::Here(path);
     }
 }
 

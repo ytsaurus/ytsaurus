@@ -5,8 +5,6 @@ package NYT.NCypress.NProto;
 message TReqExecute
 {
     required bytes TransactionId = 1;
-    required bytes Path = 2;
-    required bytes Verb = 3;
 }
 
 message TRspExecute

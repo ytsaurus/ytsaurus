@@ -201,7 +201,7 @@ void TChannel::OnMessage(
         guard.Release();
 
         TError error(
-            EErrorCode(header.GetErrorCode(), Stroka(header.GetErrorCodeString())),
+            EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
             header.GetErrorMessage());
         responseHandler->OnResponse(error, ~message);
         ready->Set(error);

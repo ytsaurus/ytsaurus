@@ -6,7 +6,7 @@
 #include "../rpc/service.h"
 #include "../rpc/client.h"
 #include "../ytree/ypath_client.h"
-#include "../ytree/ypath_service.h"
+#include "../ytree/ypath_detail.h"
 #include "../transaction_server/common.h"
 
 namespace NYT {
@@ -37,13 +37,10 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         const NTransaction::TTransactionId& transactionId,
-        NYTree::TYPath path,
         TIntrusivePtr<TTypedRequest> innerRequest)
     {
         auto outerRequest = Execute();
         outerRequest->SetTransactionId(transactionId.ToProto());
-        outerRequest->SetPath(path);
-        outerRequest->SetVerb(innerRequest->GetVerb());
         return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(outerRequest, innerRequest);
     }
 

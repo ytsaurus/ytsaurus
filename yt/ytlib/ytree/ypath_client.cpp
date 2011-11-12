@@ -17,8 +17,9 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb)
+TYPathRequest::TYPathRequest(const Stroka& verb, TYPath path)
     : Verb_(verb)
+    , Path_(path)
 { }
 
 IMessage::TPtr TYPathRequest::Serialize()
@@ -32,7 +33,7 @@ IMessage::TPtr TYPathRequest::Serialize()
     // Compose message.
     return CreateRequestMessage(
         TRequestId(),
-        "",
+        Path_,
         Verb_,
         MoveRV(bodyData),
         Attachments_);
@@ -48,10 +49,14 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
     YASSERT(parts.ysize() >= 2);
 
     // Deserialize RPC header.
-    TRequestHeader header;
+    TResponseHeader header;
     if (!DeserializeMessage(&header, parts[0])) {
         LOG_FATAL("Error deserializing response header");
     }
+
+    Error_ = TError(
+        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
+        header.GetErrorMessage());
 
     // Deserialize body.
     DeserializeBody(parts[1]);
@@ -72,32 +77,6 @@ EErrorCode TYPathResponse::GetErrorCode() const
 bool TYPathResponse::IsOK() const
 {
     return Error_.IsOK();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void WrapYPathRequest(TClientRequest* outerRequest, TYPathRequest* innerRequest)
-{
-    auto message = innerRequest->Serialize();
-    auto parts = message->GetParts();
-    auto& attachments = outerRequest->Attachments();
-    attachments.clear();
-    NStl::copy(
-        parts.begin(),
-        parts.end(),
-        NStl::back_inserter(attachments));
-}
-
-void UnwrapYPathResponse(TClientResponse* outerResponse, TYPathResponse* innerResponse)
-{
-    auto parts = outerResponse->Attachments();
-    auto message = CreateMessageFromParts(parts);
-    innerResponse->Deserialize(~message);
-}
-
-void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
-{
-    innerResponse->SetError(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

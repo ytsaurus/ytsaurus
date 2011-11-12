@@ -2,6 +2,8 @@
 #include "cypress_service.h"
 #include "node_proxy.h"
 
+#include "../ytree/ypath_detail.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -43,30 +45,6 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
     }
 }
 
-//void TCypressService::ExecuteUnrecoverable(
-//    const TTransactionId& transactionId,
-//    IAction* action)
-//{
-//    if (transactionId != NullTransactionId) {
-//        ValidateTransactionId(transactionId);
-//    }
-//
-//    try {
-//        action->Do();
-//    } catch (const TServiceException&) {
-//        throw;
-//    } catch (...) {
-//        if (transactionId != NullTransactionId) {
-//            TransactionManager
-//                ->InitiateAbortTransaction(transactionId)
-//                ->Commit();
-//        }
-//
-//        ythrow TServiceException(EErrorCode::UnrecoverableError)
-//            << CurrentExceptionMessage();
-//    }
-//}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
@@ -74,8 +52,13 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     UNUSED(response);
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-    Stroka verb = request->GetVerb();
+
+    TYPath path;
+    Stroka verb;
+    ParseYPathRequestHeader(
+        ~context->GetUntypedContext(),
+        &path,
+        &verb);
 
     context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
         ~transactionId.ToString(),
@@ -91,11 +74,10 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     TYPath tailPath;
     NavigateYPath(~rootService, path, false, &tailService, &tailPath);
 
-    InvokeYPathVerb(
-        ~tailService,
+    auto innerContext = UnwrapYPathRequest(
+        ~context->GetUntypedContext(),
         tailPath,
         verb,
-        ~context->GetUntypedContext(),
         Logger.GetCategory(),
         ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
             {
@@ -105,6 +87,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
                     ? NRpc::EErrorCode::OK
                     : TCypressServiceProxy::EErrorCode::VerbError);
             }));
+
+    tailService->Invoke(~innerContext);
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
