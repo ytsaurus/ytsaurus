@@ -62,38 +62,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_TYPE_OVERRIDES(name) \
-public: \
-    virtual ENodeType GetType() const \
-    { \
-        return ENodeType::name; \
-    } \
-    \
-    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
-    { \
-        return this; \
-    } \
-    \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
-    { \
-        return this; \
-    } \
-    \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
-    { \
-        UNUSED(response); \
-        auto builder = CreateBuilderFromFactory(GetFactory()); \
-        DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
-        context->Reply(); \
-    }
-
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
     { \
-        DECLARE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(name) \
     };
-
 
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
@@ -126,7 +100,7 @@ class TMapNode
     : public TCompositeNodeBase<IMapNode>
     , public TMapNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
     virtual void Clear();
@@ -155,7 +129,7 @@ class TListNode
     : public TCompositeNodeBase<IListNode>
     , public TListNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
     virtual void Clear();
@@ -182,12 +156,12 @@ class TEntityNode
     : public TEphemeralNodeBase
     , public virtual IEntityNode
 {
-    DECLARE_TYPE_OVERRIDES(Entity)
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#undef DECLARE_TYPE_OVERRIDES
+#undef YTREE_NODE_TYPE_OVERRIDES
 
 ////////////////////////////////////////////////////////////////////////////////
 

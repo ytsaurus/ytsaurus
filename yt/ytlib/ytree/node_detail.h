@@ -49,13 +49,11 @@ public:
 
 protected:
     template <class TNode>
-    static void DoSet(
-        TNode* node,
-        const Stroka& value,
-        ITreeBuilder* builder)
+    void DoSetSelf(TNode* node, const Stroka& value)
     {
+        auto builder = CreateBuilderFromFactory(GetFactory());
         TStringInput stream(value);
-        SetNodeFromProducer(node, ~TYsonReader::GetProducer(&stream), builder);
+        SetNodeFromProducer(node, ~TYsonReader::GetProducer(&stream), ~builder);
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
@@ -116,6 +114,32 @@ private:
 
     void CreateYPathChild(int beforeIndex, TYPath path, INode* value);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YTREE_NODE_TYPE_OVERRIDES(name) \
+public: \
+    virtual ::NYT::NYTree::ENodeType GetType() const \
+    { \
+        return ::NYT::NYTree::ENodeType::name; \
+    } \
+    \
+    virtual TIntrusivePtr<const ::NYT::NYTree::I ## name ## Node> As ## name() const \
+    { \
+        return this; \
+    } \
+    \
+    virtual TIntrusivePtr<::NYT::NYTree::I ## name ## Node> As ## name() \
+    { \
+        return this; \
+    } \
+    \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
+    { \
+        UNUSED(response); \
+        DoSetSelf<::NYT::NYTree::I##name##Node>(this, request->GetValue()); \
+        context->Reply(); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

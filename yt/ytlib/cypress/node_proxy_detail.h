@@ -302,33 +302,11 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-#define DECLARE_TYPE_OVERRIDES(name) \
-public: \
-    virtual TIntrusivePtr<const NYTree::I##name##Node> As##name() const \
-    { \
-        return this; \
-    } \
-    \
-    virtual TIntrusivePtr<NYTree::I##name##Node> As##name() \
-    { \
-        return this; \
-    } \
-    \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
-    { \
-        UNUSED(response); \
-        auto builder = NYTree::CreateBuilderFromFactory(GetFactory()); \
-        DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
-        context->Reply(); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T##name##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node> \
     { \
-        DECLARE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(name) \
     \
     public: \
         T##name##NodeProxy( \
@@ -441,7 +419,7 @@ class TMapNodeProxy
     : public TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
     TMapNodeProxy(
@@ -474,7 +452,7 @@ class TListNodeProxy
     : public TCompositeNodeProxyBase<NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
     TListNodeProxy(
@@ -499,10 +477,6 @@ private:
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-#undef DECLARE_TYPE_OVERRIDES
 
 ////////////////////////////////////////////////////////////////////////////////
 
