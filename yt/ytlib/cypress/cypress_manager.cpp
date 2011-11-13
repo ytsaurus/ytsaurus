@@ -3,6 +3,7 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
+#include "../misc/config.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
@@ -307,139 +308,20 @@ IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& trans
     return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
 }
 
-class TCypressManager::TDeserializationBuilder
-    : public TForwardingYsonConsumer
-    , public virtual ITreeBuilder
+struct TManifest
+    : public TConfigBase
 {
-public:
-    TDeserializationBuilder(
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId)
-        : CypressManager(cypressManager)
-        , TransactionId(transactionId)
-        , Factory(cypressManager, transactionId)
-        , StaticBuilder(CreateBuilderFromFactory(&Factory))
-        , DynamicBuilder(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
-    { }
+    Stroka Type;
 
-    virtual void BeginTree()
+    TManifest()
     {
-        StaticBuilder->BeginTree();
-    }
-
-    virtual INode::TPtr EndTree()
-    {
-        return StaticBuilder->EndTree();
-    }
-
-private:
-    typedef TDeserializationBuilder TThis;
-
-    TCypressManager::TPtr CypressManager;
-    TTransactionId TransactionId;
-    TNodeFactory Factory;
-    TAutoPtr<ITreeBuilder> StaticBuilder;
-    TAutoPtr<ITreeBuilder> DynamicBuilder;
-
-    virtual void OnNode(INode* node)
-    {
-        UNUSED(node);
-        YUNREACHABLE();
-    }
-
-
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes)
-    {
-        StaticBuilder->OnStringScalar(value, hasAttributes);
-    }
-
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes)
-    {
-        StaticBuilder->OnInt64Scalar(value, hasAttributes);
-    }
-
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes)
-    {
-        StaticBuilder->OnDoubleScalar(value, hasAttributes);
-    }
-
-
-    virtual void OnMyBeginList()
-    {
-        StaticBuilder->OnBeginList();
-    }
-
-    virtual void OnMyListItem()
-    {
-        StaticBuilder->OnListItem();
-    }
-
-    virtual void OnMyEndList(bool hasAttributes)
-    {
-        StaticBuilder->OnEndList(hasAttributes);
-    }
-
-
-    virtual void OnMyBeginMap()
-    {
-        StaticBuilder->OnBeginMap();
-    }
-
-    virtual void OnMyMapItem(const Stroka& name)
-    {
-        StaticBuilder->OnMapItem(name);
-    }
-
-    virtual void OnMyEndMap(bool hasAttributes)
-    {
-        StaticBuilder->OnEndMap(hasAttributes);
-    }
-
-    virtual void OnMyBeginAttributes()
-    {
-        StaticBuilder->OnBeginAttributes();
-    }
-
-    virtual void OnMyAttributesItem(const Stroka& name)
-    {
-        StaticBuilder->OnAttributesItem(name);
-    }
-
-    virtual void OnMyEndAttributes()
-    {
-        StaticBuilder->OnEndAttributes();
-    }
-
-
-    virtual void OnMyEntity(bool hasAttributes)
-    {
-        if (!hasAttributes) {
-            ythrow yexception() << "Must specify a manifest in attributes";
-        }
-
-        DynamicBuilder->BeginTree();
-        DynamicBuilder->OnEntity(true);
-        ForwardAttributes(~DynamicBuilder, FromMethod(&TThis::OnForwardingFinished, this));
-    }
-
-    void OnForwardingFinished()
-    {
-        auto manifest = DynamicBuilder->EndTree()->GetAttributes();
-        YASSERT(~manifest != NULL);
-        auto node = CypressManager->CreateDynamicNode(TransactionId, ~manifest);
-        StaticBuilder->OnNode(~node);
+        Register("type", Type).NonEmpty();
     }
 };
 
-TAutoPtr<ITreeBuilder> TCypressManager::GetDeserializationBuilder(const TTransactionId& transactionId)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    return new TDeserializationBuilder(this, transactionId);
-}
-
-INode::TPtr TCypressManager::CreateDynamicNode(
+ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
-    IMapNode* manifest)
+    INode* manifestNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -447,16 +329,18 @@ INode::TPtr TCypressManager::CreateDynamicNode(
         ythrow yexception() << "Cannot create a node outside of a transaction";
     }
 
-    // TODO: refactor using upcoming YSON configuration API
-    auto typeNode = manifest->FindChild("type");
-    if (~typeNode == NULL) {
-        ythrow yexception() << "Must specify a valid \"type\" attribute to create a dynamic node";
+    if (manifestNode->GetType() != ENodeType::Map) {
+        ythrow yexception() << "Dynamic node manifest must be a map";
     }
+    auto manifestMapNode = manifestNode->AsMap();
 
-    Stroka typeName = typeNode->GetValue<Stroka>();
-    auto it = TypeNameToHandler.find(typeName);
+    TManifest manifest;
+    manifest.Load(~manifestMapNode);
+
+    Stroka type = manifest.Type;
+    auto it = TypeNameToHandler.find(type);
     if (it == TypeNameToHandler.end()) {
-        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~typeName.Quote());
+        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~type.Quote());
     }
 
     auto handler = it->Second();
@@ -466,7 +350,7 @@ INode::TPtr TCypressManager::CreateDynamicNode(
     TAutoPtr<ICypressNode> nodeImpl(handler->CreateFromManifest(
         nodeId,
         transactionId,
-        manifest));
+        manifestMapNode));
     auto* nodePtr = nodeImpl.Get();
     NodeMap.Insert(branchedNodeId, nodeImpl.Release());
 
@@ -477,10 +361,10 @@ INode::TPtr TCypressManager::CreateDynamicNode(
 
     auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
 
-    LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TypeName: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TransactionId: %s, Type: %s)",
         ~nodeId.ToString(),
-        ~typeName,
-        ~transactionId.ToString());
+        ~transactionId.ToString(),
+        ~type);
 
     return ~proxy;
 }

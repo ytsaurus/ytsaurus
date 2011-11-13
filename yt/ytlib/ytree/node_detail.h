@@ -88,7 +88,8 @@ class TMapNodeMixin
 protected:
     bool DoInvoke(NRpc::IServiceContext* context);
     IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
-    void SetRecursive(TYPath path, const TYson& value, ITreeBuilder* builder);
+    void SetRecursive(TYPath path, NProto::TReqSet* request);
+    void SetRecursive(TYPath path, INode* value);
     void ThrowNonEmptySuffixPath(TYPath path);
 
 private:
@@ -105,18 +106,15 @@ class TListNodeMixin
 {
 protected:
     IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
-    void SetRecursive(TYPath path, const TYson& value, ITreeBuilder* builder);
+    void SetRecursive(TYPath path, NProto::TReqSet* request);
+    void SetRecursive(TYPath path, INode* value);
     void ThrowNonEmptySuffixPath(TYPath path);
 
 private:
     IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
     IYPathService::TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
 
-    void CreateYPathChild(
-        int beforeIndex,
-        TYPath tailPath,
-        const TYson& value,
-        ITreeBuilder* builder);
+    void CreateYPathChild(int beforeIndex, TYPath path, INode* value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

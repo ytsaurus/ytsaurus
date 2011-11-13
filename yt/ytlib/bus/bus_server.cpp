@@ -171,7 +171,7 @@ TBusServer::TBusServer(int port, IMessageHandler::TPtr handler)
 
     Requester = CreateHttpUdpRequester(port);
     if (~Requester == NULL) {
-        throw yexception() << Sprintf("Failed to create a bus server on port %d",
+        ythrow yexception() << Sprintf("Failed to create a bus server on port %d",
             port);
     }
 

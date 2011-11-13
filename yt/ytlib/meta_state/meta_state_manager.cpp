@@ -406,7 +406,7 @@ private:
 
         if (MetaState->GetVersion() != version) {
             Restart();
-            throw TServiceException(EErrorCode::InvalidVersion) <<
+            ythrow TServiceException(EErrorCode::InvalidVersion) <<
                 Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
                     ~version.ToString(),
                     ~MetaState->GetVersion().ToString());

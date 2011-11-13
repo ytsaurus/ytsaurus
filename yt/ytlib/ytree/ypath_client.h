@@ -140,6 +140,28 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TYPathResponseHandlerParam;
+
+template <class TTypedRequest, class TTypedResponse>
+void OnYPathResponse(
+    const TYPathResponseHandlerParam& param,
+    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse,
+    const Stroka& verb,
+    TYPath resolvedPath)
+{
+    auto response = New<TTypedResponse>();
+    response->Deserialize(~param.Message);
+    if (!response->IsOK()) {
+        auto error = response->GetError();
+        Stroka message = Sprintf("Error executing YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
+            ~verb,
+            ~resolvedPath,
+            ~error.GetMessage());
+        response->SetError(NRpc::TError(error.GetCode(), message));
+    }
+    asyncResponse->Set(response);
+}
+
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteYPath(IYPathService* rootService, TTypedRequest* request)

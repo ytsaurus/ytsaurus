@@ -325,12 +325,7 @@ void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TC
 {
     UNUSED(response);
 
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    TMapNodeMixin::SetRecursive(
-        path,
-        request->GetValue(),
-        ~builder);
-
+    TMapNodeMixin::SetRecursive(path, request);
     context->Reply();
 }
 
@@ -410,12 +405,7 @@ void TListNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
 {
     UNUSED(response);
 
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    TListNodeMixin::SetRecursive(
-        path,
-        request->GetValue(),
-        ~builder);
-
+    TListNodeMixin::SetRecursive(path, request);
     context->Reply();
 }
 

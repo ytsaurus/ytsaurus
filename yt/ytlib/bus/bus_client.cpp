@@ -435,7 +435,7 @@ public:
     {
         Requester = CreateHttpUdpRequester(0);
         if (~Requester == NULL) {
-            throw yexception() << "Failed to create a client NetLiba requester";
+            ythrow yexception() << "Failed to create a client NetLiba requester";
         }
 
         Thread.Start();
@@ -473,7 +473,7 @@ public:
 
         TBlob data;
         if (!EncodeMessagePacket(message, bus->SessionId, sequenceId, &data))
-            throw yexception() << "Failed to encode a message";
+            ythrow yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
         auto request = New<TRequest>(bus->SessionId, &data);
@@ -595,7 +595,7 @@ TBusClient::TBusClient(Stroka address)
 
     ServerAddress = CreateAddress(address, 0);
     if (ServerAddress == TUdpAddress()) {
-        throw yexception() << Sprintf("Failed to resolve the address %s",
+        ythrow yexception() << Sprintf("Failed to resolve the address %s",
             ~address.Quote());
     }
 }

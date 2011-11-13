@@ -125,7 +125,7 @@ i64 GetAvailableSpace(const Stroka& path)
 #else
     if (result == 0) {
 #endif
-        throw yexception() <<
+        ythrow yexception() <<
             Sprintf("Failed to get available disk space at %s.", ~path.Quote());
     }
     return availableSpace;
@@ -151,7 +151,7 @@ i64 GetFileSize(const Stroka& path)
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        throw yexception() << Sprintf("Failed to get the size of file %s",
+        ythrow yexception() << Sprintf("Failed to get the size of file %s",
             ~path.Quote());
     }
 

@@ -9,6 +9,8 @@
 #include "../ytree/ypath_service.h"
 #include "../ytree/ypath_detail.h"
 #include "../ytree/node_detail.h"
+#include "../ytree/yson_reader.h"
+#include "../ytree/ephemeral.h"
 
 namespace NYT {
 namespace NCypress {
@@ -315,7 +317,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
     { \
         UNUSED(response); \
-        auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
+        auto builder = NYTree::CreateBuilderFromFactory(GetFactory()); \
         DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
         context->Reply(); \
     }
@@ -366,7 +368,20 @@ template <class IBase, class TImpl>
 class TCompositeNodeProxyBase
     : public TCypressNodeProxyBase<IBase, TImpl>
 {
+public:
+    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
+    {
+        return this;
+    }
+
+    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()
+    {
+        return this;
+    }
+
 protected:
+    typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
+
     TCompositeNodeProxyBase(
         INodeTypeHandler* typeHandler,
         TCypressManager* cypressManager,
@@ -379,16 +394,45 @@ protected:
             nodeId)
     { }
 
-public:
-    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
+    virtual void CreateRecursive(NYTree::TYPath path, INode* value) = 0;
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        return this;
+        Stroka verb = context->GetVerb();
+        if (verb == "Create") {
+            CreateThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
     }
 
-    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()
+    virtual bool IsVerbLogged(const Stroka& verb) const
     {
-        return this;
+        if (verb == "Create")
+        {
+            return true;
+        }
+        return TBase::IsVerbLogged(verb);
     }
+
+private:
+    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    {
+        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+        builder->BeginTree();
+        TStringInput input(request->GetManifest());
+        NYTree::TYsonReader reader(~builder);
+        reader.Read(&input);
+        auto manifest = builder->EndTree();
+
+        auto value = CypressManager->CreateDynamicNode(TransactionId, ~manifest);
+        CreateRecursive(context->GetPath(), ~value);
+
+        response->SetNodeId(value->GetNodeId().ToProto());
+
+        context->Reply();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,6 +461,7 @@ public:
 
 private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
     virtual IYPathService::TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
@@ -448,6 +493,7 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
+    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
     virtual TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);

@@ -79,11 +79,9 @@ public:
     NYTree::IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
     NYTree::IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
 
-    TAutoPtr<NYTree::ITreeBuilder> GetDeserializationBuilder(const TTransactionId& transactionId);
-
-    NYTree::INode::TPtr CreateDynamicNode(
+    TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
         const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest);
+        NYTree::INode* manifest);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
 
