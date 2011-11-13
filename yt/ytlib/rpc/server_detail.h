@@ -16,6 +16,8 @@ class TServiceContextBase
 public:
     typedef TIntrusivePtr<TServiceContextBase> TPtr;
 
+    virtual NBus::IMessage::TPtr GetRequestMessage() const;
+
     virtual Stroka GetPath() const;
     virtual Stroka GetVerb() const;
 
@@ -46,7 +48,7 @@ protected:
     TRequestId RequestId;
     Stroka Path;
     Stroka Verb;
-    IParamAction<NBus::IMessage*>::TPtr ResponseHandler;
+    NBus::IMessage::TPtr RequestMessage;
 
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments_;

@@ -18,6 +18,7 @@ TServiceContextBase::TServiceContextBase(
     : RequestId(requestId)
     , Path(path)
     , Verb(verb)
+    , RequestMessage(requestMessage)
     , Replied(false)
 {
     YASSERT(requestMessage != NULL);
@@ -77,6 +78,11 @@ void TServiceContextBase::SetResponseBody(TBlob&& responseBody)
 yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     return ResponseAttachments_;
+}
+
+IMessage::TPtr TServiceContextBase::GetRequestMessage() const
+{
+    return RequestMessage;
 }
 
 Stroka TServiceContextBase::GetPath() const

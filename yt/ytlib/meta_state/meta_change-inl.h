@@ -18,7 +18,7 @@ TMetaChange<TResult>::TMetaChange(
     const TSharedRef& changeData,
     ECommitMode mode)
     : MetaStateManager(metaStateManager)
-    , ChangeFunc(func)
+    , Func(func)
     , ChangeData(changeData)
     , CommitMode(mode)
     , Started(false)
@@ -33,10 +33,10 @@ typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
     AsyncResult = New< TFuture<TResult> >();
 
     MetaStateManager
-        ->CommitChangeSync(
-            FromMethod(&TThis::ChangeFuncThunk, TPtr(this)),
+        ->CommitChange(
             ChangeData,
-            CommitMode)
+            CommitMode,
+            ~FromMethod(&TThis::ChangeFuncThunk, TPtr(this)))
          ->Subscribe(
             FromMethod(&TThis::OnCommitted, TPtr(this)));
 
@@ -45,7 +45,7 @@ typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnSuccess(typename IParamAction<TResult>::TPtr onSuccess)
+TMetaChange<TResult>::OnSuccess(IParamAction<TResult>* onSuccess)
 {
     YASSERT(~OnSuccess_ == NULL);
     OnSuccess_ = onSuccess;
@@ -54,7 +54,7 @@ TMetaChange<TResult>::OnSuccess(typename IParamAction<TResult>::TPtr onSuccess)
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(IAction::TPtr onError)
+TMetaChange<TResult>::OnError(IAction* onError)
 {
     YASSERT(~OnError_ == NULL);
     OnError_ = onError;
@@ -64,7 +64,7 @@ TMetaChange<TResult>::OnError(IAction::TPtr onError)
 template <class TResult>
 void TMetaChange<TResult>::ChangeFuncThunk()
 {
-    Result = ChangeFunc->Do();
+    Result = Func->Do();
 }
 
 template <class TResult>
@@ -107,6 +107,28 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     return New< TMetaChange<TResult> >(
         metaStateManager,
         ~changeFunc,
+        TSharedRef(MoveRV(changeData)),
+        mode);
+}
+
+template <class TMessage, class TResult>
+typename TMetaChange<TResult>::TPtr CreateMetaChange(
+    TMetaStateManager* metaStateManager,
+    const TMessage& message,
+    IFunc<TResult>* func,
+    ECommitMode mode)
+{
+    YASSERT(metaStateManager != NULL);
+    YASSERT(func != NULL);
+
+    NProto::TMsgChangeHeader header;
+    header.SetChangeType(message.GetTypeName());
+
+    auto changeData = SerializeChange(header, message);
+
+    return New< TMetaChange<TResult> >(
+        metaStateManager,
+        func,
         TSharedRef(MoveRV(changeData)),
         mode);
 }

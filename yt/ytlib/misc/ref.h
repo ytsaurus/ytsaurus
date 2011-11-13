@@ -101,6 +101,11 @@ public:
     TSharedRef()
     { }
 
+    explicit TSharedRef(const TRef& ref)
+        : Blob(NULL)
+        , Ref(ref)
+    { }
+
     TSharedRef(TBlob&& blob)
         : Blob(new TBlob())
     {

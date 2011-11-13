@@ -228,20 +228,6 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WrapYPathRequest(
-    NRpc::TClientRequest* outerRequest,
-    TYPathRequest* innerRequest);
-
-void UnwrapYPathResponse(
-    NRpc::TClientResponse* outerResponse,
-    TYPathResponse* innerResponse);
-
-void SetYPathErrorResponse(
-    const NRpc::TError& error,
-    TYPathResponse* innerResponse);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
@@ -275,18 +261,22 @@ struct TYPathResponseHandlerParam
 typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
 
 void ParseYPathRequestHeader(
-    NRpc::IServiceContext* outerContext,
+    TRef headerData,
     TYPath* path,
     Stroka* verb);
 
-NRpc::IServiceContext::TPtr UnwrapYPathRequest(
+void WrapYPathRequest(
+    NRpc::TClientRequest* outerRequest,
+    TYPathRequest* innerRequest);
+
+NRpc::IServiceContext::TPtr CreateYPathContext(
     NRpc::IServiceContext* outerContext,
     TYPath path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
 
-NRpc::IServiceContext::TPtr CreateYPathRequest(
+NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     TYPath path,
     const Stroka& verb,
@@ -296,6 +286,14 @@ NRpc::IServiceContext::TPtr CreateYPathRequest(
 void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage);
+
+void UnwrapYPathResponse(
+    NRpc::TClientResponse* outerResponse,
+    TYPathResponse* innerResponse);
+
+void SetYPathErrorResponse(
+    const NRpc::TError& error,
+    TYPathResponse* innerResponse);
 
 template <class TTypedRequest, class TTypedResponse>
 void OnYPathResponse(
@@ -334,7 +332,7 @@ ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
     auto requestMessage = request->Serialize();
     auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
 
-    auto context = CreateYPathRequest(
+    auto context = CreateYPathContext(
         ~requestMessage,
         tailPath,
         verb,

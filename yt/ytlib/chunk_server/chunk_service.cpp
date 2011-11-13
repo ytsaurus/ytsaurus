@@ -79,7 +79,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
 
     ChunkManager
         ->InitiateRegisterHolder(address, statistics)
-        ->OnSuccess(FromFunctor([=] (THolderId id)
+        ->OnSuccess(~FromFunctor([=] (THolderId id)
             {
                 response->SetHolderId(id);
                 context->SetResponseInfo("HolderId: %d", id);

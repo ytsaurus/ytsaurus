@@ -34,12 +34,40 @@ void TWorldInitializer::CheckWorldInitialized()
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading)
         return;
 
-    if (CypressManager->IsWorldInitialized())
-        return;
-
-    CypressManager
-        ->InitiateCreateWorld()
-        ->Commit();
+    // Create the other stuff around it.
+    //auto root = GetNodeProxy(RootNodeId, SysTransactionId);
+    //NYTree::SetYPath(
+    //    IYPathService::FromNode(~root),
+    //    "/",
+    //    FromFunctor([] (IYsonConsumer* consumer)
+    //    {
+    //        BuildYsonFluently(consumer)
+    //            .BeginMap()
+    //                .Item("sys").BeginMap()
+    //                    // TODO: use named constants instead of literals
+    //                    .Item("chunks").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("chunk_map")
+    //                    .EndAttributes()
+    //                    .Item("chunk_lists").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("chunk_list_map")
+    //                    .EndAttributes()
+    //                    .Item("transactions").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("transaction_map")
+    //                    .EndAttributes()
+    //                    .Item("nodes").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("node_map")
+    //                    .EndAttributes()
+    //                    .Item("locks").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("lock_map")
+    //                    .EndAttributes()
+    //                    .Item("monitoring").WithAttributes().Entity().BeginAttributes()
+    //                        .Item("type").Scalar("monitoring")
+    //                    .EndAttributes()
+    //                .EndMap()
+    //                .Item("home").BeginMap()
+    //                .EndMap()
+    //            .EndMap();
+    //    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

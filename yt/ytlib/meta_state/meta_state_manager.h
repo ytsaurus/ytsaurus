@@ -70,17 +70,10 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
-
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    TAsyncCommitResult::TPtr CommitChangeSync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
+        ECommitMode mode = ECommitMode::NeverFails,
+        IAction* changeAction = NULL);
 
     /*!
      * \note Thread affinity: any

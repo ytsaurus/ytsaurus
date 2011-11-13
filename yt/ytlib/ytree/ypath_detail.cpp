@@ -128,32 +128,6 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WrapYPathRequest(TClientRequest* outerRequest, TYPathRequest* innerRequest)
-{
-    auto message = innerRequest->Serialize();
-    auto parts = message->GetParts();
-    auto& attachments = outerRequest->Attachments();
-    attachments.clear();
-    NStl::copy(
-        parts.begin(),
-        parts.end(),
-        NStl::back_inserter(attachments));
-}
-
-void UnwrapYPathResponse(TClientResponse* outerResponse, TYPathResponse* innerResponse)
-{
-    auto parts = outerResponse->Attachments();
-    auto message = CreateMessageFromParts(parts);
-    innerResponse->Deserialize(~message);
-}
-
-void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
-{
-    innerResponse->SetError(error);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
@@ -234,10 +208,12 @@ protected:
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
-        TYPathResponseHandlerParam response;
-        response.Message = responseMessage;
-        response.Error = error;
-        ResponseHandler->Do(response);
+        if (~ResponseHandler != NULL) {
+            TYPathResponseHandlerParam response;
+            response.Message = responseMessage;
+            response.Error = error;
+            ResponseHandler->Do(response);
+        }
     }
 
     virtual void LogRequest()
@@ -276,16 +252,48 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void WrapYPathRequest(TClientRequest* outerRequest, TYPathRequest* innerRequest)
+{
+    YASSERT(outerRequest != NULL);
+    YASSERT(innerRequest != NULL);
+
+    auto message = innerRequest->Serialize();
+    auto parts = message->GetParts();
+    auto& attachments = outerRequest->Attachments();
+    attachments.clear();
+    NStl::copy(
+        parts.begin(),
+        parts.end(),
+        NStl::back_inserter(attachments));
+}
+
+void UnwrapYPathResponse(TClientResponse* outerResponse, TYPathResponse* innerResponse)
+{
+    YASSERT(outerResponse != NULL);
+    YASSERT(innerResponse != NULL);
+
+    auto parts = outerResponse->Attachments();
+    auto message = CreateMessageFromParts(parts);
+    innerResponse->Deserialize(~message);
+}
+
+void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
+{
+    YASSERT(innerResponse != NULL);
+
+    innerResponse->SetError(error);
+}
+
 void ParseYPathRequestHeader(
-    IServiceContext* outerContext,
+    TRef headerData,
     TYPath* path,
     Stroka* verb)
 {
-    const auto& attachments = outerContext->RequestAttachments();
-    YASSERT(!attachments.empty());
-    
+    YASSERT(path != NULL);
+    YASSERT(verb != NULL);
+
     TRequestHeader header;
-    if (!DeserializeMessage(&header, attachments[0])) {
+    if (!DeserializeMessage(&header, headerData)) {
         LOG_FATAL("Error deserializing YPath request header");
     }
 
@@ -300,6 +308,10 @@ void NavigateYPath(
     IYPathService::TPtr* tailService,
     TYPath* tailPath)
 {
+    YASSERT(rootService != NULL);
+    YASSERT(tailService != NULL);
+    YASSERT(tailPath != NULL);
+
     IYPathService::TPtr currentService = rootService;
     auto currentPath = ParseYPathRoot(path);
 
@@ -329,19 +341,23 @@ IYPathService::TPtr NavigateYPath(
     IYPathService* rootService,
     TYPath path)
 {
+    YASSERT(rootService != NULL);
+
     IYPathService::TPtr tailService;
     TYPath tailPath;
     NavigateYPath(rootService, path, true, &tailService, &tailPath);
     return tailService;
 }
 
-NRpc::IServiceContext::TPtr UnwrapYPathRequest(
+NRpc::IServiceContext::TPtr CreateYPathContext(
     NRpc::IServiceContext* outerContext,
     TYPath path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler)
 {
+    YASSERT(outerContext != NULL);
+
     const auto& attachments = outerContext->RequestAttachments();
     YASSERT(attachments.ysize() >= 2);
 
@@ -375,13 +391,15 @@ NRpc::IServiceContext::TPtr UnwrapYPathRequest(
         loggingCategory);
 }
 
-NRpc::IServiceContext::TPtr CreateYPathRequest(
+NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     TYPath path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler)
 {
+    YASSERT(requestMessage != NULL);
+
     return New<TServiceContext>(
         path,
         verb,
@@ -394,6 +412,9 @@ void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage)
 {
+    YASSERT(outerContext != NULL);
+    YASSERT(responseMessage != NULL);
+
     outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
 }
 

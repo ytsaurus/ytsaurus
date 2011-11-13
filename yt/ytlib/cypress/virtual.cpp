@@ -79,55 +79,36 @@ public:
         , Service(service)
     { }
 
+    bool IsVerbLogged(const Stroka& verb) const
+    {
+        // Don't log anything for virtual nodes.
+        // TODO: fixme
+        UNUSED(verb);
+        return false;
+    }
+
 private:
     typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
 
     IYPathService::TPtr Service;
 
-    //virtual TNavigateResult Navigate(TYPath path)
-    //{
-    //    if (~Service == NULL) {
-    //        return TBase::Navigate(path);
-    //    } else {
-    //        return Service->Navigate(path);
-    //    }
-    //}
+    virtual TNavigateResult Navigate(TYPath path, bool mustExist)
+    {
+        if (~Service == NULL) {
+            return TBase::Navigate(path, mustExist);
+        } else {
+            return Service->Navigate(path, mustExist);
+        }
+    }
 
-    //virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
-    //{
-    //    if (~Service == NULL) {
-    //        return TBase::Get(path, consumer);
-    //    } else {
-    //        return Service->Get(path, consumer);
-    //    }
-    //}
-
-    //virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer)
-    //{
-    //    if (~Service == NULL) {
-    //        return TBase::Set(path, producer);
-    //    } else {
-    //        return Service->Set(path, producer);
-    //    }
-    //}
-
-    //virtual TRemoveResult Remove(TYPath path)
-    //{
-    //    if (~Service == NULL) {
-    //        return TBase::Remove(path);
-    //    } else {
-    //        return Service->Remove(path);
-    //    }
-    //}
-
-    //virtual TLockResult Lock(TYPath path)
-    //{
-    //    if (~Service == NULL) {
-    //        return TBase::Lock(path);
-    //    } else {
-    //        return Service->Lock(path);
-    //    }
-    //}
+    virtual void Invoke(NRpc::IServiceContext* context)
+    {
+        if (~Service == NULL) {
+            TBase::Invoke(context);
+        } else {
+            Service->Invoke(context);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,13 +220,13 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     const Stroka& typeName,
     IYPathService* service)
 {
-    IYPathService::TPtr servicePtr = service;
+    IYPathService::TPtr service_ = service;
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);
-                return servicePtr;
+                return service_;
             }),
         runtypeType,
         typeName);

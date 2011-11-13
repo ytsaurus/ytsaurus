@@ -30,6 +30,7 @@ TTransactionService::TTransactionService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
+
     server->RegisterService(this);
 }
 
@@ -54,7 +55,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 
     TransactionManager
         ->InitiateStartTransaction()
-        ->OnSuccess(FromFunctor([=] (TTransactionId id)
+        ->OnSuccess(~FromFunctor([=] (TTransactionId id)
             {
                 response->SetTransactionId(id.ToProto());
 

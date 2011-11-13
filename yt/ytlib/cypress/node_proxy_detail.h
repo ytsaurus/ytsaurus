@@ -30,8 +30,8 @@ public:
     virtual NYTree::IEntityNode::TPtr CreateEntity();
 
 private:
-    TCypressManager::TPtr CypressManager;
-    TTransactionId TransactionId;
+    const TCypressManager::TPtr CypressManager;
+    const TTransactionId TransactionId;
 
 };
 
@@ -43,6 +43,8 @@ class TCypressNodeProxyBase
     , public ICypressNodeProxy
     , public virtual IBase
 {
+    DECLARE_BYVAL_RW_PROPERTY(MetaLogging, bool);
+
 public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
@@ -136,11 +138,20 @@ public:
     }
 
 
+    virtual bool IsVerbLogged(const Stroka& verb) const
+    {
+        if (verb == "Get")
+            return false;
+        return true;
+    }
+
+
 protected:
-    INodeTypeHandler::TPtr TypeHandler;
-    TCypressManager::TPtr CypressManager;
-    TTransactionId TransactionId;
-    TNodeId NodeId;
+    const INodeTypeHandler::TPtr TypeHandler;
+    const TCypressManager::TPtr CypressManager;
+    const TTransactionId TransactionId;
+    const TNodeId NodeId;
+
     mutable TNodeFactory NodeFactory;
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;

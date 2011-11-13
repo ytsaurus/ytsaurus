@@ -73,6 +73,8 @@ struct IServiceContext
 {
     typedef TIntrusivePtr<IServiceContext> TPtr;
 
+    virtual NBus::IMessage::TPtr GetRequestMessage() const = 0;
+
     virtual Stroka GetPath() const = 0;
     virtual Stroka GetVerb() const = 0;
 

@@ -108,14 +108,10 @@ public:
     IInvoker::TPtr GetEpochStateInvoker();
     IInvoker::TPtr GetSnapshotInvoker();
 
-    TAsyncCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
-
-    TAsyncCommitResult::TPtr CommitChangeSync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
+        ECommitMode mode,
+        IAction* changeAction);
 
     void SetReadOnly(bool readOnly)
     {
@@ -706,26 +702,10 @@ IInvoker::TPtr TMetaStateManager::TImpl::GetSnapshotInvoker()
 }
 
 TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeSync(
+TMetaStateManager::TImpl::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    return CommitChangeSync(
-        FromMethod(
-            &IMetaState::ApplyChange,
-            MetaState->GetState(),
-            changeData),
-        changeData,
-        mode);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeSync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData,
-    ECommitMode mode)
+    ECommitMode mode,
+    IAction* changeAction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -735,6 +715,16 @@ TMetaStateManager::TImpl::CommitChangeSync(
 
     if (ReadOnly) {
         return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
+    }
+
+    IAction::TPtr changeAction_;
+    if (changeAction == NULL) {
+        changeAction_ = FromMethod(
+            &IMetaState::ApplyChange,
+            MetaState->GetState(),
+            changeData);
+    } else {
+        changeAction_ = changeAction;
     }
 
     // FollowerTracker is modified concurrently from the ControlThread.
@@ -1319,20 +1309,12 @@ IInvoker::TPtr TMetaStateManager::GetSnapshotInvoker()
 }
 
 TMetaStateManager::TAsyncCommitResult::TPtr
-    TMetaStateManager::CommitChangeSync(
+TMetaStateManager::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode)
+    ECommitMode mode,
+    IAction* changeAction)
 {
-    return Impl->CommitChangeSync(changeData, mode);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeSync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData,
-    ECommitMode mode)
-{
-    return Impl->CommitChangeSync(changeAction, changeData, mode);
+    return Impl->CommitChange(changeData, mode, changeAction);
 }
 
 void TMetaStateManager::SetReadOnly(bool readOnly)

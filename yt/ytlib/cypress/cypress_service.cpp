@@ -57,10 +57,13 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
 
+    const auto& attachments = request->Attachments();
+    YASSERT(attachments.ysize() >= 2);
+
     TYPath path;
     Stroka verb;
     ParseYPathRequestHeader(
-        ~context->GetUntypedContext(),
+        attachments[0],
         &path,
         &verb);
 
@@ -71,14 +74,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 
     ValidateTransactionId(transactionId);
 
-    auto rootProxy = CypressManager->GetNodeProxy(RootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~rootProxy);
+    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootService = IYPathService::FromNode(~root);
 
     IYPathService::TPtr tailService;
     TYPath tailPath;
     NavigateYPath(~rootService, path, false, &tailService, &tailPath);
 
-    auto innerContext = UnwrapYPathRequest(
+    auto innerContext = CreateYPathContext(
         ~context->GetUntypedContext(),
         tailPath,
         verb,
@@ -92,7 +95,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
                     : TCypressServiceProxy::EErrorCode::VerbError);
             }));
 
-    tailService->Invoke(~innerContext);
+    CypressManager->ExecuteVerb(~tailService, ~innerContext);
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
@@ -106,8 +109,8 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
 
     ValidateTransactionId(transactionId);
 
-    auto rootProxy = CypressManager->GetNodeProxy(RootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~rootProxy);
+    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootService = IYPathService::FromNode(~root);
 
     IYPathService::TPtr targetService;
     try {

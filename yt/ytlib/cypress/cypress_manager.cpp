@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NBus;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NTransaction;
 using namespace NMetaState;
@@ -51,10 +53,7 @@ TCypressManager::TCypressManager(
     RegisterNodeType(~New<TMapNodeTypeHandler>(this));
     RegisterNodeType(~New<TListNodeTypeHandler>(this));
 
-    //RegisterMethod(this, &TThis::SetYPath);
-    //RegisterMethod(this, &TThis::RemoveYPath);
-    //RegisterMethod(this, &TThis::LockYPath);
-    RegisterMethod(this, &TThis::CreateWorld);
+    RegisterMethod(this, &TThis::DoExecuteVerb);
 
     metaState->RegisterLoader(
         "Cypress.1",
@@ -70,13 +69,6 @@ void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
 {
     RuntimeTypeToHandler.at(static_cast<int>(handler->GetRuntimeType())) = handler;
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
-}
-
-bool TCypressManager::IsWorldInitialized()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    return NodeMap.GetSize() > 0;
 }
 
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
@@ -538,171 +530,89 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     return *branchedNodePtr;
 }
 
-//void TCypressManager::GetYPath(
-//    const TTransactionId& transactionId,
-//    TYPath path,
-//    IYsonConsumer* consumer)
-//{
-//    VERIFY_THREAD_AFFINITY(StateThread);
-//
-//    auto root = GetNodeProxy(RootNodeId, transactionId);
-//    NYTree::GetYPath(IYPathService::FromNode(~root), path, consumer);
-//}
-//
-//INode::TPtr TCypressManager::NavigateYPath(
-//    const TTransactionId& transactionId,
-//    TYPath path)
-//{
-//    VERIFY_THREAD_AFFINITY(StateThread);
-//
-//    auto root = GetNodeProxy(RootNodeId, transactionId);
-//    return NYTree::NavigateYPath(IYPathService::FromNode(~root), path);
-//}
-//
-//TMetaChange<TNodeId>::TPtr TCypressManager::InitiateSetYPath(
-//    const TTransactionId& transactionId,
-//    TYPath path,
-//    const Stroka& value)
-//{
-//    TMsgSet message;
-//    message.SetTransactionId(transactionId.ToProto());
-//    message.SetPath(~path);
-//    message.SetValue(value);
-//
-//    return CreateMetaChange(
-//        MetaStateManager,
-//        message,
-//        &TThis::SetYPath,
-//        TPtr(this),
-//        ECommitMode::MayFail);
-//}
-//
-//TNodeId TCypressManager::SetYPath(const NProto::TMsgSet& message)
-//{
-//    VERIFY_THREAD_AFFINITY(StateThread);
-//
-//    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-//    auto path = message.GetPath();
-//    TStringInput inputStream(message.GetValue());
-//    auto producer = TYsonReader::GetProducer(&inputStream);
-//    auto root = GetNodeProxy(RootNodeId, transactionId);
-//    auto node = NYTree::SetYPath(IYPathService::FromNode(~root), path, producer);
-//    auto* typedNode = dynamic_cast<ICypressNodeProxy*>(~node);
-//    return typedNode == NULL ? NullNodeId : typedNode->GetNodeId();
-//}
-//
-//TMetaChange<TVoid>::TPtr TCypressManager::InitiateRemoveYPath(
-//    const TTransactionId& transactionId,
-//    TYPath path)
-//{
-//    TMsgRemove message;
-//    message.SetTransactionId(transactionId.ToProto());
-//    message.SetPath(~path);
-//
-//    return CreateMetaChange(
-//        MetaStateManager,
-//        message,
-//        &TThis::RemoveYPath,
-//        TPtr(this),
-//        ECommitMode::MayFail);
-//}
-//
-//TVoid TCypressManager::RemoveYPath(const NProto::TMsgRemove& message)
-//{
-//    VERIFY_THREAD_AFFINITY(StateThread);
-//
-//    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-//    auto path = message.GetPath();
-//    auto root = GetNodeProxy(RootNodeId, transactionId);
-//    NYTree::RemoveYPath(IYPathService::FromNode(~root), path);
-//    return TVoid();
-//}
-//
-//TMetaChange<TVoid>::TPtr TCypressManager::InitiateLockYPath(
-//    const TTransactionId& transactionId,
-//    TYPath path)
-//{
-//    TMsgLock message;
-//    message.SetTransactionId(transactionId.ToProto());
-//    message.SetPath(~path);
-//
-//    return CreateMetaChange(
-//        MetaStateManager,
-//        message,
-//        &TThis::LockYPath,
-//        TPtr(this),
-//        ECommitMode::MayFail);
-//}
-//
-//NYT::TVoid TCypressManager::LockYPath(const NProto::TMsgLock& message)
-//{
-//    VERIFY_THREAD_AFFINITY(StateThread);
-//
-//    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-//    auto path = message.GetPath();
-//    auto root = GetNodeProxy(RootNodeId, transactionId);
-//    NYTree::LockYPath(IYPathService::FromNode(~root), path);
-//    return TVoid();
-//}
-
-TMetaChange<TVoid>::TPtr TCypressManager::InitiateCreateWorld()
+void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* context)
 {
-    return CreateMetaChange(
+    auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
+    YASSERT(proxy != NULL);
+
+    if (!proxy->IsVerbLogged(context->GetVerb())) {
+        service->Invoke(context);
+        return;
+    }
+
+    IYPathService::TPtr service_ = service;
+    IServiceContext::TPtr context_ = context;
+
+    TMsgExecuteVerb message;
+    message.SetNodeId(proxy->GetNodeId().ToProto());
+    message.SetTransactionId(proxy->GetTransactionId().ToProto());
+
+    auto requestMessage = context->GetRequestMessage();
+    FOREACH (const auto& part, requestMessage->GetParts()) {
+        message.AddRequestParts(part.Begin(), part.Size());
+    }
+
+    auto change = CreateMetaChange(
         ~MetaStateManager,
-        TMsgCreateWorld(),
-        &TThis::CreateWorld,
-        this,
+        message,
+        ~FromMethod(&TCypressManager::DoExecuteVerbFast, TPtr(this), service, context),
         ECommitMode::MayFail);
+
+    change
+        ->OnError(~FromFunctor([=] ()
+            {
+                context_->Reply(TError(EYPathErrorCode(EYPathErrorCode::GenericError)));
+            }))
+        ->Commit();
 }
 
-TVoid TCypressManager::CreateWorld(const TMsgCreateWorld& message)
+TVoid TCypressManager::DoExecuteVerb(const TMsgExecuteVerb& message)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-    UNUSED(message);
+    auto nodeId = TNodeId::FromProto(message.GetNodeId());
+    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
 
-    // Create the root.
-    auto* rootImpl = new TMapNode(TBranchedNodeId(RootNodeId, NullTransactionId));
-    rootImpl->SetState(ENodeState::Committed);
-    RefNode(*rootImpl);
-    NodeMap.Insert(rootImpl->GetId(), rootImpl);
+    yvector<TSharedRef> parts(message.RequestPartsSize());
+    for (int partIndex = 0; partIndex < static_cast<int>(message.RequestPartsSize()); ++partIndex) {
+        // NB: This constructs a non-owning TSharedRef to avoid copying.
+        // This is feasible since message will outlive the request.
+        const auto& part = message.GetRequestParts(partIndex);
+        parts[partIndex] = TSharedRef(TRef(const_cast<char*>(part.begin()), part.size()));
+    }
 
-    
-    // Create the other stuff around it.
-    //auto root = GetNodeProxy(RootNodeId, SysTransactionId);
-    //NYTree::SetYPath(
-    //    IYPathService::FromNode(~root),
-    //    "/",
-    //    FromFunctor([] (IYsonConsumer* consumer)
-    //    {
-    //        BuildYsonFluently(consumer)
-    //            .BeginMap()
-    //                .Item("sys").BeginMap()
-    //                    // TODO: use named constants instead of literals
-    //                    .Item("chunks").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("chunk_map")
-    //                    .EndAttributes()
-    //                    .Item("chunk_lists").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("chunk_list_map")
-    //                    .EndAttributes()
-    //                    .Item("transactions").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("transaction_map")
-    //                    .EndAttributes()
-    //                    .Item("nodes").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("node_map")
-    //                    .EndAttributes()
-    //                    .Item("locks").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("lock_map")
-    //                    .EndAttributes()
-    //                    .Item("monitoring").WithAttributes().Entity().BeginAttributes()
-    //                        .Item("type").Scalar("monitoring")
-    //                    .EndAttributes()
-    //                .EndMap()
-    //                .Item("home").BeginMap()
-    //                .EndMap()
-    //            .EndMap();
-    //    }));
-    
-    LOG_INFO_IF(!IsRecovery(), "World created");
+    YASSERT(parts.ysize() >= 2);
+
+    TYPath path;
+    Stroka verb;
+    ParseYPathRequestHeader(
+        parts[0],
+        &path,
+        &verb);
+
+    auto requestMessage = CreateMessageFromParts(MoveRV(parts));
+
+    auto context = CreateYPathContext(
+        ~requestMessage,
+        path,
+        verb,
+        Logger.GetCategory(),
+        NULL);
+
+    auto proxy = GetNodeProxy(nodeId, transactionId);
+    auto service = IYPathService::FromNode(~proxy);
+    service->Invoke(~context);
+
+    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
+
+    return TVoid();
+}
+
+TVoid TCypressManager::DoExecuteVerbFast(
+    NYTree::IYPathService::TPtr service,
+    NRpc::IServiceContext::TPtr context)
+{
+    service->Invoke(~context);
+
+    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
 
     return TVoid();
 }
@@ -746,6 +656,12 @@ void TCypressManager::Clear()
 
     LockIdGenerator.Reset();
     LockMap.Clear();
+
+    // Create the root.
+    auto* rootImpl = new TMapNode(TBranchedNodeId(RootNodeId, NullTransactionId));
+    rootImpl->SetState(ENodeState::Committed);
+    RefNode(*rootImpl);
+    NodeMap.Insert(rootImpl->GetId(), rootImpl);
 }
 
 void TCypressManager::RefNode(ICypressNode& node)
