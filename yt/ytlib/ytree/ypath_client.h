@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "ypath_service.h"
-#include "ytree_rpc.pb.h"
 
 #include "../misc/ref.h"
 #include "../misc/property.h"
@@ -114,22 +113,10 @@ protected:
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \
-    static TReq##method::TPtr method(TYPath path) \
+    static TReq##method::TPtr method(::NYT::NYTree::TYPath path) \
     { \
         return New<TReq##method>(#method, path); \
     }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYPathProxy
-{
-public:
-    YPATH_PROXY_METHOD(NProto, Get);
-    YPATH_PROXY_METHOD(NProto, Set);
-    YPATH_PROXY_METHOD(NProto, Remove);
-    YPATH_PROXY_METHOD(NProto, List);
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +124,60 @@ public:
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteYPath(IYPathService* rootService, TTypedRequest* request);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT
+
+
+// TODO: move to ypath_client-inl.h
+
+#include "ypath_detail.h"
+
+namespace NYT {
+namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
+{
+    TYPath path = request->GetPath();
+    Stroka verb = request->GetVerb();
+
+    IYPathService::TPtr tailService;
+    TYPath tailPath;
+    NavigateYPath(rootService, path, false, &tailService, &tailPath);
+
+    // TODO: can we avoid this?
+    request->SetPath(tailPath);
+
+    auto requestMessage = request->Serialize();
+    auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
+
+    auto context = CreateYPathContext(
+        ~requestMessage,
+        tailPath,
+        verb,
+        YTreeLogger.GetCategory(),
+        ~FromMethod(
+            &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
+            asyncResponse,
+            verb,
+            ComputeResolvedYPath(path, tailPath)));
+
+    try {
+        tailService->Invoke(~context);
+    } catch (const NRpc::TServiceException& ex) {
+        context->Reply(NRpc::TError(
+            EYPathErrorCode(EYPathErrorCode::GenericError),
+            ex.what()));
+    }
+
+    return asyncResponse;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

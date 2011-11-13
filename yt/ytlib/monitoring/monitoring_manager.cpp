@@ -4,9 +4,7 @@
 #include "../ytree/ephemeral.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/tree_visitor.h"
-#include "../ytree/ypath_client.h"
-#include "../ytree/ypath_detail.h"
-#include "../logging/log.h"
+#include "../ytree/ypath_rpc.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
 
@@ -17,7 +15,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger Logger("Monitoring");
+static NLog::TLogger Logger("Monitoring");
 const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +23,7 @@ const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
 { 
-    PeriodicInvoker = new TPeriodicInvoker(
+    PeriodicInvoker = New<TPeriodicInvoker>(
         FromMethod(&TMonitoringManager::Update, TPtr(this)),
         Period);
 }

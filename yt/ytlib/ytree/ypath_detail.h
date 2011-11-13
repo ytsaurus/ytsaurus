@@ -315,44 +315,6 @@ void OnYPathResponse(
     asyncResponse->Set(response);
 }
 
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
-{
-    TYPath path = request->GetPath();
-    Stroka verb = request->GetVerb();
-
-    IYPathService::TPtr tailService;
-    TYPath tailPath;
-    NavigateYPath(rootService, path, false, &tailService, &tailPath);
-
-    // TODO: can we avoid this?
-    request->SetPath(tailPath);
-
-    auto requestMessage = request->Serialize();
-    auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
-
-    auto context = CreateYPathContext(
-        ~requestMessage,
-        tailPath,
-        verb,
-        YTreeLogger.GetCategory(),
-        ~FromMethod(
-            &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
-            asyncResponse,
-            verb,
-            ComputeResolvedYPath(path, tailPath)));
-
-    try {
-        tailService->Invoke(~context);
-    } catch (const NRpc::TServiceException& ex) {
-        context->Reply(NRpc::TError(
-            EYPathErrorCode(EYPathErrorCode::GenericError),
-            ex.what()));
-    }
-
-    return asyncResponse;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

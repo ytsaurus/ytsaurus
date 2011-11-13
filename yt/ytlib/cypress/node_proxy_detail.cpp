@@ -196,14 +196,6 @@ void TMapNodeProxy::Invoke(NRpc::IServiceContext* context)
     }
 }
 
-bool TMapNodeProxy::IsVerbLogged(const Stroka& verb) const
-{
-    if (verb == "List") {
-        return false;
-    }
-    return TCypressNodeProxyBase::IsVerbLogged(verb);
-}
-
 IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
 {
     return TMapNodeMixin::NavigateRecursive(path, mustExist);
