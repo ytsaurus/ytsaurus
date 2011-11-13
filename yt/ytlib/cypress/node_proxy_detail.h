@@ -177,7 +177,7 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        LockSelf();
+        DoLock();
         context->Reply();
     }
     
@@ -243,10 +243,10 @@ protected:
         if (CypressManager->IsTransactionNodeLocked(NodeId, TransactionId))
             return;
 
-        LockSelf();
+        DoLock();
     }
 
-    void LockSelf()
+    void DoLock()
     {
         CypressManager->LockTransactionNode(NodeId, TransactionId);
 
