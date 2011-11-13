@@ -390,15 +390,7 @@ private:
     typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
     \
-    void method##Thunk(::NYT::NRpc::IServiceContext* context); \
-    \
-    void method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        TCtx##method::TPtr context)
-
-#define RPC_SERVICE_METHOD_IMPL(type, method) \
-    void type::method##Thunk(::NYT::NRpc::IServiceContext* context) \
+    void method##Thunk(::NYT::NRpc::IServiceContext* context) \
     { \
         auto typedContext = New<TCtx##method>(context); \
         method( \
@@ -407,6 +399,12 @@ private:
             typedContext); \
     } \
     \
+    void method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        TCtx##method::TPtr context)
+
+#define RPC_SERVICE_METHOD_IMPL(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \

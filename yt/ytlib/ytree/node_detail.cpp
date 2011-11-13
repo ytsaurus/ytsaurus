@@ -260,7 +260,7 @@ bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TMapNodeMixin::Invoke(NRpc::IServiceContext* context)
+bool TMapNodeMixin::DoInvoke(NRpc::IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
     if (verb == "List") {

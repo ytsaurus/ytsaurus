@@ -189,10 +189,12 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-void TMapNodeProxy::Invoke(NRpc::IServiceContext* context)
+void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 {
-    if (!TMapNodeMixin::Invoke(context)) {
-        TCypressNodeProxyBase::Invoke(context);
+    if (TMapNodeMixin::DoInvoke(context)) {
+        // The verb is already handled.
+    } else {
+        TCypressNodeProxyBase::DoInvoke(context);
     }
 }
 

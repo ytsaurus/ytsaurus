@@ -3,6 +3,7 @@
 #include "common.h"
 #include "node_proxy.h"
 #include "node_detail.h"
+#include "cypress_ypath_rpc.pb.h"
 
 #include "../ytree/ytree.h"
 #include "../ytree/ypath_service.h"
@@ -43,8 +44,6 @@ class TCypressNodeProxyBase
     , public ICypressNodeProxy
     , public virtual IBase
 {
-    DECLARE_BYVAL_RW_PROPERTY(MetaLogging, bool);
-
 public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
@@ -141,7 +140,8 @@ public:
     virtual bool IsVerbLogged(const Stroka& verb) const
     {
         if (verb == "Set" ||
-            verb == "Remove")
+            verb == "Remove" ||
+            verb == "Lock")
         {
             return true;
         }
@@ -159,6 +159,26 @@ protected:
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
 
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Lock") {
+            LockThunk(context);
+        } else {
+            TNodeBase::DoInvoke(context);
+        }
+    }
+
+    RPC_SERVICE_METHOD_DECL(NProto, Lock)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        LockSelf();
+        context->Reply();
+    }
+    
 
     virtual yvector<Stroka> GetVirtualAttributeNames()
     {
@@ -396,7 +416,7 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual IYPathService::TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);

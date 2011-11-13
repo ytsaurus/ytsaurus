@@ -51,7 +51,6 @@ struct IYPathService
     };
 
     virtual TNavigateResult Navigate(TYPath path, bool mustExist) = 0;
-
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
 
     static IYPathService::TPtr FromNode(INode* node);

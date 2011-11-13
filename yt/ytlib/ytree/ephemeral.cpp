@@ -142,7 +142,7 @@ private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
-    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
     virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(TYPath path);
@@ -307,10 +307,12 @@ void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
-void TMapNode::Invoke(NRpc::IServiceContext* context)
+void TMapNode::DoInvoke(NRpc::IServiceContext* context)
 {
-    if (!TMapNodeMixin::Invoke(context)) {
-        TEphemeralNodeBase::Invoke(context);
+    if (TMapNodeMixin::DoInvoke(context)) {
+        // Do nothing, the verb is already handled.
+    } else {
+        TEphemeralNodeBase::DoInvoke(context);
     }
 }
 
