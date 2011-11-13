@@ -189,6 +189,21 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
+void TMapNodeProxy::Invoke(NRpc::IServiceContext* context)
+{
+    if (!TMapNodeMixin::Invoke(context)) {
+        TCypressNodeProxyBase::Invoke(context);
+    }
+}
+
+bool TMapNodeProxy::IsVerbLogged(const Stroka& verb) const
+{
+    if (verb == "List") {
+        return false;
+    }
+    return TCypressNodeProxyBase::IsVerbLogged(verb);
+}
+
 IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
 {
     return TMapNodeMixin::NavigateRecursive(path, mustExist);

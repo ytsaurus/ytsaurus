@@ -89,10 +89,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
         ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
             {
                 WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
-                context->Reply(
-                    param.Error.IsOK()
-                    ? NRpc::EErrorCode::OK
-                    : TCypressServiceProxy::EErrorCode::VerbError);
+                context->Reply();
             }));
 
     CypressManager->ExecuteVerb(~tailService, ~innerContext);

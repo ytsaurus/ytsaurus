@@ -63,7 +63,8 @@ void TNodeBase::DoInvoke(NRpc::IServiceContext* context)
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
-        context->Reply(TError(EErrorCode::NoSuchMethod));
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) << Sprintf("Unknown verb %s",
+            ~verb.Quote());
     }
 }
 
@@ -258,6 +259,27 @@ bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TMapNodeMixin::Invoke(NRpc::IServiceContext* context)
+{
+    Stroka verb = context->GetVerb();
+    if (verb == "List") {
+        ListThunk(context);
+        return true;
+    }
+    return false;
+}
+
+RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
+{
+    UNUSED(request);
+
+    FOREACH (const auto& pair, GetChildren()) {
+        response->AddKeys(pair.first);
+    }
+
+    context->Reply();
+}
 
 IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path, bool mustExist)
 {

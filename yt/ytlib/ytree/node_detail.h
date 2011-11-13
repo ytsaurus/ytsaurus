@@ -86,12 +86,15 @@ class TMapNodeMixin
     : public virtual IMapNode
 {
 protected:
+    bool Invoke(NRpc::IServiceContext* context);
     IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
     void SetRecursive(TYPath path, const TYson& value, ITreeBuilder* builder);
     void ThrowNonEmptySuffixPath(TYPath path);
 
 private:
     IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
+
+    RPC_SERVICE_METHOD_DECL(NProto, List);
 
 };
 

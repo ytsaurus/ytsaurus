@@ -392,6 +392,9 @@ public:
     virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
+    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual bool IsVerbLogged(const Stroka& verb) const;
+
 private:
     virtual IYPathService::TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);

@@ -127,6 +127,7 @@ public:
     YPATH_PROXY_METHOD(NProto, Get);
     YPATH_PROXY_METHOD(NProto, Set);
     YPATH_PROXY_METHOD(NProto, Remove);
+    YPATH_PROXY_METHOD(NProto, List);
 
 };
 
