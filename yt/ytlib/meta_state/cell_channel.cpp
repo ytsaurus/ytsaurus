@@ -129,7 +129,7 @@ TError TCellChannel::OnResponseReady(TError error)
         code == EErrorCode::Unavailable)
     {
         TGuard<TSpinLock> guard(SpinLock);
-            if (State != EState::Terminated) {
+        if (State != EState::Terminated) {
             State = EState::Failed;
             LookupResult.Reset();
             Channel.Reset();

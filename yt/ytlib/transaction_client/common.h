@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../misc/common.h"
 #include "../misc/new.h"
