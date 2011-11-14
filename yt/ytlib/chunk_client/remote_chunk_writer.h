@@ -3,7 +3,6 @@
 #include "common.h"
 #include "chunk_writer.h"
 
-#include "../misc/lazy_ptr.h"
 #include "../misc/config.h"
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
@@ -70,18 +69,20 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncWriteBlock(const TSharedRef& data);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TFuture<EResult>::TPtr AsyncClose();
+    TAsyncStreamState::TAsyncResult::TPtr
+    AsyncClose(const TSharedRef& masterMeta);
 
 
     /*!
      * \note Thread affinity: any.
      */
-    void Cancel();
+    void Cancel(const Stroka& errorMessage);
 
     ~TRemoteChunkWriter();
 
@@ -89,6 +90,8 @@ public:
      * \note Thread affinity: any.
      */
     Stroka GetDebugInfo();
+
+    const TChunkId& GetChunkId() const;
 
 private:
 
@@ -111,33 +114,21 @@ private:
     USE_RPC_PROXY_METHOD(TProxy, PingSession);
 
 private:
-    //! Manages all internal upload functionality, 
-    //! sends out RPC requests, and handles responses.
-    static TLazyPtr<TActionQueue> WriterThread;
-
     TChunkId ChunkId;
     const TConfig Config;
 
-    DECLARE_ENUM(EWriterState,
-        (Initializing)
-        (Writing)
-        (Closed)
-        (Canceled)
-    );
+    TAsyncStreamState State;
 
-    //! Set in #WriterThread, read from client and writer threads
-    EWriterState State;
+    bool IsInitComplete;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
+    TSharedRef MasterMeta;
 
-    // Result of write session, set when session is completed.
-    // Is returned from #AsyncClose
-    TFuture<EResult>::TPtr Result;
-
+    // ToDo: replace by cyclic buffer
     TWindow Window;
-    TSemaphore WindowSlots;
+    TAsyncSemaphore WindowSlots;
 
     yvector<TNodePtr> Nodes;
 
@@ -151,8 +142,6 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    TFuture<TVoid>::TPtr WindowReady;
-
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
     TMetric SendBlocksTiming;
@@ -165,13 +154,13 @@ private:
      * \note Thread affinity: WriterThread
      * Sets #IsCloseRequested.
      */
-    void DoClose();
+    void DoClose(const TSharedRef& masterMeta);
     
     /*!
      * Invoked from #Cancel
      * \note Thread affinity: WriterThread.
      */
-    void DoCancel();
+    void DoCancel(const Stroka& errorMessage);
 
     /*!
      * \note Thread affinity: WriterThread
@@ -206,13 +195,13 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFlushedBlock(int node, int blockIndex);
+    void OnBlockFlushed(int node, int blockIndex);
 
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnWindowShifted(int blockIndex);
 
+    void OnWindowShifted(int blockIndex);
     /*!
      * \note Thread affinity: ClientThread
      */
@@ -231,7 +220,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnStartedChunk(int node);
+    void OnChunkStarted(int node);
 
     /*!
      * \note Thread affinity: WriterThread
@@ -251,12 +240,12 @@ private:
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFinishedChunk(int node);
+    void OnChunkFinished(int node);
 
     /*!
      * \note Thread affinity: WriterThread
      */
-    void OnFinishedSession();
+    void OnSessionFinished();
 
     /*!
      * \note Thread affinity: WriterThread
@@ -292,6 +281,8 @@ private:
         int node, 
         IAction::TPtr onSuccess,
         TMetric* metric);
+
+    void AddBlock(TVoid, const TSharedRef& data);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

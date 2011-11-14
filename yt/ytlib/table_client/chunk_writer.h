@@ -1,37 +1,30 @@
 ﻿#pragma once
 
 #include "common.h"
-#include "../chunk_client/chunk_writer.h"
+
+#include "writer.h"
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
+
+#include "../chunk_client/chunk_writer.h"
+#include "../misc/codec.h"
+#include "../misc/async_stream_state.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef int TCodecId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ICodec
-{
-    virtual TSharedRef Encode(const TSharedRef& block) = 0;
-
-    //! Globally identifies codec type within YT.
-    virtual TCodecId GetId() const = 0;
-    virtual ~ICodec() { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
 //! Single-threaded
-class  TTableChunkWriter
-    : public TNonCopyable
+class  TChunkWriter
+    : public IWriter
 {
 public:
+    typedef TIntrusivePtr<TChunkWriter> TPtr;
+
     struct TConfig
     {
         int BlockSize;
@@ -42,22 +35,40 @@ public:
         { }
     };
 
-    TTableChunkWriter(
+    TChunkWriter(
         const TConfig& config, 
         IChunkWriter::TPtr chunkWriter, 
         const TSchema& schema,
         ICodec* codec);
-    ~TTableChunkWriter();
+    ~TChunkWriter();
 
+    TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
     void Write(const TColumn& column, TValue value);
-    void EndRow();
-    void Close();
+
+    TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
+
+    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
+
+    void Cancel(const Stroka& errorMessage);
+
+    i64 GetCurrentSize() const;
+
+    const TChunkId& GetChunkId() const;
 
 private:
-    void AddBlock(int channelIndex); 
+    TSharedRef PrepareBlock(int channelIndex);
+    void ContinueEndRow(
+        TAsyncStreamState::TResult result,
+        int nextChannel);
+
+    void ContinueClose(
+        TAsyncStreamState::TResult result, 
+        int channelIndex);
+    void FinishClose(TAsyncStreamState::TResult result);
+    void OnClosed(TAsyncStreamState::TResult result);
 
 private:
-    bool IsClosed;
+    TAsyncStreamState State;
 
     TConfig Config;
     IChunkWriter::TPtr ChunkWriter;
@@ -73,7 +84,15 @@ private:
 
     ICodec* Codec;
 
+    //! Sum size of completed and sent blocks
+    i64 SentSize;
+
+    //! Current size of written data
+    i64 CurrentSize;
+
     NProto::TChunkMeta ChunkMeta;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
