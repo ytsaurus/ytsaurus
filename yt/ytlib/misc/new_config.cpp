@@ -6,7 +6,7 @@ namespace NYT {
 TConfigBase::~TConfigBase()
 { }
 
-void TConfigBase::Load(NYTree::INode* node, Stroka path)
+void TConfigBase::Load(NYTree::INode* node, const Stroka& path)
 {
     NYTree::IMapNode::TPtr mapNode;
     if (node != NULL) {
@@ -26,7 +26,7 @@ void TConfigBase::Load(NYTree::INode* node, Stroka path)
     }
 }
 
-void TConfigBase::Validate(Stroka path) const
+void TConfigBase::Validate(const Stroka& path) const
 {
     FOREACH (auto pair, Parameters) {
         pair.Second()->Validate(path + "/" + pair.First());
