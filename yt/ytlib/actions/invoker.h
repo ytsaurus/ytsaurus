@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../misc/common.h"
+#include "common.h"
+
 #include "../misc/ref_counted_base.h"
 
 namespace NYT {

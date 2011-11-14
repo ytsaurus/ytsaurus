@@ -1,4 +1,4 @@
-#include "../ytlib/misc/new_config.h"
+#include "../ytlib/misc/config.h"
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/ephemeral.h"
 #include "../ytlib/ytree/fluent.h"
@@ -8,7 +8,6 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NConfig {
 
 using namespace NYTree;
 
@@ -177,5 +176,4 @@ TEST(TConfigTest, Validate)
     EXPECT_THROW(config.Validate(), yexception);
 }
 
-} // namespace NConfig
 } // namespace NYT
