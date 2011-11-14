@@ -51,16 +51,16 @@ TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
     return Result;
 }
 
-void TFileChunkWriter::Cancel(const Stroka& errorMessage)
+void TFileChunkWriter::Cancel(const Stroka& /*errorMessage*/)
 {
     File.Destroy();
 }
 
-const TChunkId& TFileChunkWriter::GetChunkId()
+const TChunkId& TFileChunkWriter::GetChunkId() const
 {
     // ToDo: consider using ChunkId instead of file name
     // and implementing this.
-    YUNIMPLEMENTED();
+    return TChunkId();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

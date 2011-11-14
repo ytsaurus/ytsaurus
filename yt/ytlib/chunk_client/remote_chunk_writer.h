@@ -91,6 +91,8 @@ public:
      */
     Stroka GetDebugInfo();
 
+    const TChunkId& GetChunkId() const;
+
 private:
 
     //! A group is a bunch of blocks that is sent in a single RPC request.

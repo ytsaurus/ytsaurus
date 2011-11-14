@@ -15,12 +15,19 @@ namespace NTableClient {
 //! Used only on client-side for writing to table.
 //! Synchronous API only.
 class TTableWriter
-    : public TNonCopyable
+    : public ISyncWriter
 {
 public:
+    typedef TIntrusivePtr<TTableWriter> TPtr;
+
     struct TConfig {
         TDuration RpcTimeout;
         TChunkSetWriter::TConfig ChunkSetConfig;
+
+        TConfig(const TChunkSetWriter::TConfig& config)
+            : RpcTimeout(TDuration::Seconds(5))
+            , ChunkSetConfig(config)
+        { }
     };
 
     TTableWriter(
@@ -31,14 +38,15 @@ public:
         const TSchema& schema,
         const Stroka& ypath);
 
+    void Init();
     void Write(const TColumn& column, TValue value);
     void EndRow();
     void Close();
-    void Cancel();
 
 private:
     bool NodeExists(const Stroka& nodePath);
     void CreateTableNode(const Stroka& nodePath);
+    void OnTransactionAborted();
 
     typedef NCypress::TCypressServiceProxy TCypressProxy;
     typedef NTableServer::TTableServiceProxy TTableProxy;
@@ -49,6 +57,7 @@ private:
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
     TChunkSetWriter::TPtr Writer;
+    IAction::TPtr OnAborted;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

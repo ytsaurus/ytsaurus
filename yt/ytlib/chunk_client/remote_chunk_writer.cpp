@@ -982,6 +982,11 @@ Stroka TRemoteChunkWriter::GetDebugInfo()
         ~FlushBlockTiming.GetDebugInfo());
 }
 
+const TChunkId& TRemoteChunkWriter::GetChunkId() const
+{
+    return ChunkId;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -58,7 +58,7 @@ struct IChunkWriter
      */
     virtual void Cancel(const Stroka& errorMessage) = 0;
 
-    virtual const TChunkId& GetChunkId() const;
+    virtual const TChunkId& GetChunkId() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

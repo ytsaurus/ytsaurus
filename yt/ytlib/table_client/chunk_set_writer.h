@@ -32,6 +32,17 @@ public:
 
         TChunkWriter::TConfig TableChunkConfig;
         TRemoteChunkWriter::TConfig ChunkWriterConfig;
+
+        TConfig(
+            i64 chunkSize, 
+            double threshold,
+            int repFactor, 
+            const TRemoteChunkWriter::TConfig& chunkWriterConfig)
+            : MaxChunkSize(chunkSize)
+            , NextChunkThreshold(threshold)
+            , ReplicationFactor(repFactor)
+            , ChunkWriterConfig(chunkWriterConfig)
+        { }
     };
 
     TChunkSetWriter(

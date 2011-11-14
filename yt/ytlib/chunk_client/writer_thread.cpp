@@ -3,6 +3,6 @@
 
 namespace NYT {
 
-TLazyPtr<TActionQueue> ReaderThread;
+TLazyPtr<TActionQueue> WriterThread;
 
 } // namespace NYT

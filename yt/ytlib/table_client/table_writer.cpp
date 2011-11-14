@@ -30,10 +30,18 @@ TTableWriter::TTableWriter(
     YASSERT(~masterChannel != NULL);
     YASSERT(~transaction != NULL);
 
+    OnAborted = FromMethod(
+        &TTableWriter::OnTransactionAborted,
+        TPtr(this));
+    Transaction->OnAborted().Subscribe(OnAborted);
+
     if (!NodeExists(ypath)) {
         CreateTableNode(ypath);
     }
+}
 
+void TTableWriter::Init()
+{
     Writer->Sync(&TChunkSetWriter::AsyncInit);
 }
 
@@ -112,13 +120,14 @@ void TTableWriter::Close()
             Sprintf("Failed to add chunks to table (Error: %s).",
                 ~error.ToString());
     }
+
+    Transaction->OnAborted().Unsubscribe(OnAborted);
 }
 
-void TTableWriter::Cancel()
+void TTableWriter::OnTransactionAborted()
 {
-    Writer->Cancel("Writing canceled by client.");
+    Writer->Cancel("Transaction aborted.");
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
