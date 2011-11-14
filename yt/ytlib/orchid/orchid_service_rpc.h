@@ -18,16 +18,14 @@ public:
     typedef TIntrusivePtr<TOrchidServiceProxy> TPtr;
 
     RPC_DECLARE_PROXY(OrchidService,
-        ((YPathError)(1))
+        ((NavigationError)(1))
     );
 
     TOrchidServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, Get);
-    RPC_PROXY_METHOD(NProto, Set);
-    RPC_PROXY_METHOD(NProto, Remove);
+    RPC_PROXY_METHOD(NProto, Execute);
 
 };
 

@@ -110,8 +110,8 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 //            return TGetResult::CreateDone();
 //        } else {
 //            Stroka prefix;
-//            TYPath tailPath;
-//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &tailPath);
+//            TYPath suffixPath;
+//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &suffixPath);
 //
 //            if (GetVirtualAttribute(prefix, consumer))
 //                return TGetResult::CreateDone();
@@ -295,14 +295,14 @@ IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path, boo
 IYPathService::TNavigateResult TMapNodeMixin::GetYPathChild(TYPath path) const
 {
     Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
+    TYPath suffixPath;
+    ChopYPathPrefix(path, &prefix, &suffixPath);
     auto child = FindChild(prefix);
     if (~child == NULL) {
         ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
 
-    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), tailPath);
+    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), suffixPath);
 }
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
@@ -324,10 +324,10 @@ void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
 
     while (true) {
         Stroka prefix;
-        TYPath tailPath;
-        ChopYPathPrefix(currentPath, &prefix, &tailPath);
+        TYPath suffixPath;
+        ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
-        if (tailPath.empty()) {
+        if (suffixPath.empty()) {
             if (!currentNode->AddChild(value, prefix)) {
                 ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
             }
@@ -340,7 +340,7 @@ void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
         }
 
         currentNode = intermediateNode;
-        currentPath = tailPath;
+        currentPath = suffixPath;
     }
 }
 
@@ -367,15 +367,15 @@ IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path, bo
 IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(TYPath path) const
 {
     Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
+    TYPath suffixPath;
+    ChopYPathPrefix(path, &prefix, &suffixPath);
     int index = FromString<int>(prefix);
-    return GetYPathChild(index, tailPath);
+    return GetYPathChild(index, suffixPath);
 }
 
 IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
     int index,
-    TYPath tailPath) const
+    TYPath suffixPath) const
 {
     int count = GetChildCount();
     if (count == 0) {
@@ -389,7 +389,7 @@ IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
     }
 
     auto child = FindChild(index);
-    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), tailPath);
+    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), suffixPath);
 }
 
 void TListNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
@@ -417,17 +417,17 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
     TYPath currentPath = path;
 
     Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(currentPath, &prefix, &tailPath);
+    TYPath suffixPath;
+    ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
     if (prefix.empty()) {
         ythrow yexception() << "Child index is empty";
     }
 
     if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), tailPath, value);
+        return CreateYPathChild(GetChildCount(), suffixPath, value);
     } else if (prefix == "-") {
-        return CreateYPathChild(0, tailPath, value);
+        return CreateYPathChild(0, suffixPath, value);
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
@@ -446,13 +446,13 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
     }
 
     if (lastPrefixCh == '+') {
-        CreateYPathChild(index + 1, tailPath, value);
+        CreateYPathChild(index + 1, suffixPath, value);
     } else if (lastPrefixCh == '-') {
-        CreateYPathChild(index, tailPath, value);
+        CreateYPathChild(index, suffixPath, value);
     } else {
         // Looks like an out-of-range child index.
         // This should throw.
-        GetYPathChild(index, tailPath);
+        GetYPathChild(index, suffixPath);
         YUNREACHABLE();
     }
 }
@@ -468,8 +468,8 @@ void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value
 
         while (true) {
             Stroka prefix;
-            TYPath tailPath;
-            ChopYPathPrefix(currentPath, &prefix, &tailPath);
+            TYPath suffixPath;
+            ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
             if (path.empty()) {
                 currentNode->AddChild(value, prefix);
@@ -480,7 +480,7 @@ void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value
             currentNode->AddChild(intermediateNode, prefix);
 
             currentNode = intermediateNode;
-            currentPath = tailPath;
+            currentPath = suffixPath;
         }
     }
 }

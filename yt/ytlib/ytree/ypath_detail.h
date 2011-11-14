@@ -231,7 +231,7 @@ void SetNodeFromProducer(
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
-    TYPath* tailPath);
+    TYPath* suffixPath);
 
 TYPath ComputeResolvedYPath(
     TYPath wholePath,
@@ -243,8 +243,8 @@ void NavigateYPath(
     IYPathService* rootService,
     TYPath path,
     bool mustExist,
-    IYPathService::TPtr* tailService,
-    TYPath* tailPath);
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
 
 IYPathService::TPtr NavigateYPath(
     IYPathService* rootService,

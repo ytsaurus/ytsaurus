@@ -131,17 +131,17 @@ void TNodeSetterBase::OnMyEndAttributes()
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
-    TYPath* tailPath)
+    TYPath* suffixPath)
 {
     size_t index = path.find_first_of("/@");
     if (index == TYPath::npos) {
         *prefix = path;
-        *tailPath = TYPath(path.end(), static_cast<size_t>(0));
+        *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
             case '/':
                 *prefix = path.substr(0, index);
-                *tailPath =
+                *suffixPath =
                     index == path.length() - 1
                     ? path.substr(index)
                     : path.substr(index + 1);
@@ -149,7 +149,7 @@ void ChopYPathPrefix(
 
             case '@':
                 *prefix = path.substr(0, index);
-                *tailPath = path.substr(index);
+                *suffixPath = path.substr(index);
                 break;
 
             default:
@@ -305,12 +305,12 @@ void NavigateYPath(
     IYPathService* rootService,
     TYPath path,
     bool mustExist,
-    IYPathService::TPtr* tailService,
-    TYPath* tailPath)
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath)
 {
     YASSERT(rootService != NULL);
-    YASSERT(tailService != NULL);
-    YASSERT(tailPath != NULL);
+    YASSERT(suffixService != NULL);
+    YASSERT(suffixPath != NULL);
 
     IYPathService::TPtr currentService = rootService;
     auto currentPath = ParseYPathRoot(path);
@@ -327,8 +327,8 @@ void NavigateYPath(
         }
 
         if (result.IsHere()) {
-            *tailService = currentService;
-            *tailPath = result.GetPath();
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
             break;
         }
 
@@ -343,10 +343,10 @@ IYPathService::TPtr NavigateYPath(
 {
     YASSERT(rootService != NULL);
 
-    IYPathService::TPtr tailService;
-    TYPath tailPath;
-    NavigateYPath(rootService, path, true, &tailService, &tailPath);
-    return tailService;
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
+    NavigateYPath(rootService, path, true, &suffixService, &suffixPath);
+    return suffixService;
 }
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
