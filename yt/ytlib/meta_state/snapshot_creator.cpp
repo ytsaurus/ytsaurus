@@ -74,6 +74,7 @@ private:
                 if (checksum1.Second() && checksum2.Second() && 
                     checksum1.First() != checksum2.First())
                 {
+                    // TODO: consider killing followers
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
