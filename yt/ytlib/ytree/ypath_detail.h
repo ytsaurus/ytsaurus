@@ -267,15 +267,13 @@ void ParseYPathRequestHeader(
 
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
-    TYPathRequest* innerRequest);
+    NBus::IMessage* innerRequestMessage);
 
-NRpc::IServiceContext::TPtr CreateYPathContext(
+NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext,
     TYPath path,
-    const Stroka& verb,
-    const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler);
-
+    const Stroka& verb);
+    
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     TYPath path,
@@ -287,9 +285,8 @@ void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage);
 
-void UnwrapYPathResponse(
-    NRpc::TClientResponse* outerResponse,
-    TYPathResponse* innerResponse);
+NBus::IMessage::TPtr UnwrapYPathResponse(
+    NRpc::TClientResponse* outerResponse);
 
 void SetYPathErrorResponse(
     const NRpc::TError& error,

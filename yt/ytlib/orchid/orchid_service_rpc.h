@@ -27,6 +27,44 @@ public:
 
     RPC_PROXY_METHOD(NProto, Execute);
 
+
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(TTypedRequest* innerRequest)
+    {
+        auto outerRequest = Execute();
+        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+            ~outerRequest,
+            innerRequest);
+    }
+
+private:
+    // TODO: copypaste
+    template <class TTypedRequest, class TTypedResponse>
+    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
+    DoExecute(TReqExecute* outerRequest, TTypedRequest* innerRequest)
+    {
+        WrapYPathRequest(outerRequest, innerRequest);
+        return outerRequest->Invoke()->Apply(FromFunctor(
+            [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
+            {
+                auto innerResponse = New<TTypedResponse>();
+                auto error = outerResponse->GetError();
+                if (error.IsOK()) {
+                    UnwrapYPathResponse(~outerResponse, ~innerResponse);
+                } else if (error.IsRpcError()) {
+                    SetYPathErrorResponse(error, ~innerResponse);    
+                } else {
+                    SetYPathErrorResponse(
+                        NRpc::TError(
+                            NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
+                            outerResponse->GetError().GetMessage()),
+                        ~innerResponse);
+                }
+                return innerResponse;
+            }));
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

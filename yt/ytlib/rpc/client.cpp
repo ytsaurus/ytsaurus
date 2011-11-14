@@ -65,13 +65,32 @@ TClientResponse::TClientResponse(const TRequestId& requestId)
     , State(EState::Sent)
 { }
 
-void TClientResponse::Deserialize(IMessage* message)
+IMessage::TPtr TClientResponse::GetResponseMessage() const
 {
-    YASSERT(message != NULL);
+    return ResponseMessage;
+}
 
-    const auto& parts = message->GetParts();
+bool TClientResponse::IsOK() const
+{
+    return Error_.GetCode() == EErrorCode::OK;
+}
+
+EErrorCode TClientResponse::GetErrorCode() const
+{
+    return Error_.GetCode();
+}
+
+void TClientResponse::Deserialize(IMessage* responseMessage)
+{
+    YASSERT(responseMessage != NULL);
+
+    ResponseMessage = responseMessage;
+
+    const auto& parts = responseMessage->GetParts();
     YASSERT(parts.ysize() >= 2);
+
     DeserializeBody(parts[1]);
+    
     Attachments_.clear();
     NStl::copy(
         parts.begin() + 2,
@@ -136,16 +155,6 @@ void TClientResponse::Complete(const TError& error)
 
     Error_ = error;
     State = EState::Done;
-}
-
-bool TClientResponse::IsOK() const
-{
-    return Error_.GetCode() == EErrorCode::OK;
-}
-
-EErrorCode TClientResponse::GetErrorCode() const
-{
-    return Error_.GetCode();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

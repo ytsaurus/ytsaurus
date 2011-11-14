@@ -60,8 +60,13 @@ RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
     TYPath suffixPath;
     NavigateYPath(~rootService, path, false, &suffixService, &suffixPath);
 
-    auto innerContext = CreateYPathContext(
+    auto requestMessage = UnwrapYPathRequest(
         ~context->GetUntypedContext(),
+        path,
+        verb);
+
+    auto innerContext = CreateYPathContext(
+        ~requestMessage,
         suffixPath,
         verb,
         Logger.GetCategory(),

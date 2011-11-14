@@ -36,28 +36,30 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         const NTransaction::TTransactionId& transactionId,
-        TIntrusivePtr<TTypedRequest> innerRequest)
+        TTypedRequest* innerRequest)
     {
         auto outerRequest = Execute();
         outerRequest->SetTransactionId(transactionId.ToProto());
-        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(outerRequest, innerRequest);
+        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+            ~outerRequest,
+            innerRequest);
     }
 
 private:
     template <class TTypedRequest, class TTypedResponse>
     TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
-    DoExecute(
-        TReqExecute::TPtr outerRequest,
-        TIntrusivePtr<TTypedRequest> innerRequest)
+    DoExecute(TReqExecute* outerRequest, TTypedRequest* innerRequest)
     {
-        WrapYPathRequest(~outerRequest, ~innerRequest);
+        auto innerRequestMessage = innerRequest->Serialize();
+        WrapYPathRequest(outerRequest, ~innerRequestMessage);
         return outerRequest->Invoke()->Apply(FromFunctor(
             [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
             {
                 auto innerResponse = New<TTypedResponse>();
                 auto error = outerResponse->GetError();
                 if (error.IsOK()) {
-                    UnwrapYPathResponse(~outerResponse, ~innerResponse);
+                    auto innerResponseMessage = UnwrapYPathResponse(~outerResponse);
+                    innerResponse->Deserialize(~innerResponseMessage);
                 } else if (error.IsRpcError()) {
                     SetYPathErrorResponse(error, ~innerResponse);    
                 } else {

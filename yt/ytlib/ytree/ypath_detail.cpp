@@ -252,55 +252,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WrapYPathRequest(TClientRequest* outerRequest, TYPathRequest* innerRequest)
-{
-    YASSERT(outerRequest != NULL);
-    YASSERT(innerRequest != NULL);
-
-    auto message = innerRequest->Serialize();
-    auto parts = message->GetParts();
-    auto& attachments = outerRequest->Attachments();
-    attachments.clear();
-    NStl::copy(
-        parts.begin(),
-        parts.end(),
-        NStl::back_inserter(attachments));
-}
-
-void UnwrapYPathResponse(TClientResponse* outerResponse, TYPathResponse* innerResponse)
-{
-    YASSERT(outerResponse != NULL);
-    YASSERT(innerResponse != NULL);
-
-    auto parts = outerResponse->Attachments();
-    auto message = CreateMessageFromParts(parts);
-    innerResponse->Deserialize(~message);
-}
-
-void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
-{
-    YASSERT(innerResponse != NULL);
-
-    innerResponse->SetError(error);
-}
-
-void ParseYPathRequestHeader(
-    TRef headerData,
-    TYPath* path,
-    Stroka* verb)
-{
-    YASSERT(path != NULL);
-    YASSERT(verb != NULL);
-
-    TRequestHeader header;
-    if (!DeserializeMessage(&header, headerData)) {
-        LOG_FATAL("Error deserializing YPath request header");
-    }
-
-    *path = header.GetPath();
-    *verb = header.GetVerb();
-}
-
 void NavigateYPath(
     IYPathService* rootService,
     TYPath path,
@@ -349,12 +300,45 @@ IYPathService::TPtr NavigateYPath(
     return suffixService;
 }
 
-NRpc::IServiceContext::TPtr CreateYPathContext(
+////////////////////////////////////////////////////////////////////////////////
+
+void ParseYPathRequestHeader(
+    TRef headerData,
+    TYPath* path,
+    Stroka* verb)
+{
+    YASSERT(path != NULL);
+    YASSERT(verb != NULL);
+
+    TRequestHeader header;
+    if (!DeserializeMessage(&header, headerData)) {
+        LOG_FATAL("Error deserializing YPath request header");
+    }
+
+    *path = header.GetPath();
+    *verb = header.GetVerb();
+}
+
+void WrapYPathRequest(
+    NRpc::TClientRequest* outerRequest,
+    NBus::IMessage* innerRequestMessage)
+{
+    YASSERT(outerRequest != NULL);
+    YASSERT(innerRequestMessage != NULL);
+
+    auto parts = innerRequestMessage->GetParts();
+    auto& attachments = outerRequest->Attachments();
+    attachments.clear();
+    NStl::copy(
+        parts.begin(),
+        parts.end(),
+        NStl::back_inserter(attachments));
+}
+
+NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext,
     TYPath path,
-    const Stroka& verb,
-    const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler)
+    const Stroka& verb)
 {
     YASSERT(outerContext != NULL);
 
@@ -381,14 +365,24 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         attachments.end(),
         NStl::back_inserter(parts));
 
-    auto innerMessage = CreateMessageFromParts(parts);
+    return CreateMessageFromParts(parts);
+}
 
-    return New<TServiceContext>(
-        path,
-        verb,
-        ~innerMessage,
-        responseHandler,
-        loggingCategory);
+void WrapYPathResponse(
+    NRpc::IServiceContext* outerContext,
+    NBus::IMessage* responseMessage)
+{
+    YASSERT(outerContext != NULL);
+    YASSERT(responseMessage != NULL);
+
+    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
+}
+
+void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
+{
+    YASSERT(innerResponse != NULL);
+
+    innerResponse->SetError(error);
 }
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
@@ -408,14 +402,12 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         loggingCategory);
 }
 
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage)
+NBus::IMessage::TPtr UnwrapYPathResponse(TClientResponse* outerResponse)
 {
-    YASSERT(outerContext != NULL);
-    YASSERT(responseMessage != NULL);
+    YASSERT(outerResponse != NULL);
 
-    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
+    auto parts = outerResponse->Attachments();
+    return CreateMessageFromParts(parts);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
