@@ -63,8 +63,8 @@ void TNodeBase::DoInvoke(NRpc::IServiceContext* context)
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) << Sprintf("Unknown verb %s",
-            ~verb.Quote());
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+            Sprintf("Unknown verb %s", ~verb.Quote());
     }
 }
 
