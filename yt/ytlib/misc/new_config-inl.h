@@ -3,6 +3,8 @@
 #endif
 #undef NEW_CONFIG_INL_H_
 
+#include <util/datetime/base.h>
+
 namespace NYT {
 namespace NConfig {
 
@@ -41,13 +43,18 @@ inline void Read(bool* parameter, NYTree::INode* node)
     } else if (value == "False") {
         *parameter = false;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Could not load bool parameter (Value: "
             << (value.length() <= 10
                 ? value
                 : value.substr(0, 10) + "...")
             << ")";
     }
+}
+
+inline void Read(TDuration* parameter, NYTree::INode* node)
+{
+    *parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
 
 template <class T>
@@ -80,13 +87,13 @@ TParameter<T, true>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, true>::Load(NYTree::INode* node, Stroka path)
+void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
 {
-    Parameter->Load(node != NULL ? ~node->AsMap() : NULL, path);
+    Parameter->Load(node, path);
 }
 
 template <class T>
-void TParameter<T, true>::Validate(Stroka path) const
+void TParameter<T, true>::Validate(const Stroka& path) const
 {
     Parameter->Validate(path);   
 }
@@ -100,34 +107,34 @@ TParameter<T, false>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
+void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
 {
     if (node != NULL) {
         try {
             Read(Parameter, node);
-        } catch (const yexception& ex) {
-            throw yexception()
+        } catch (...) {
+            ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
-                    ~path, ex.what());
+                    ~path, ~CurrentExceptionMessage());
         }
     } else if (HasDefaultValue) {
         *Parameter = DefaultValue;
     } else {
-        throw yexception()
+        ythrow yexception()
             << "Required parameter is missing (Path: " << path << ")";
     }
 }
 
 template <class T>
-void TParameter<T, false>::Validate(Stroka path) const
+void TParameter<T, false>::Validate(const Stroka& path) const
 {
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(*Parameter);
-        } catch (const yexception& ex) {
-            throw yexception()
+        } catch (...) {
+            ythrow yexception()
                 << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
-                    ~path, ex.what());
+                    ~path, ~CurrentExceptionMessage());
         }
     }
 }
@@ -157,7 +164,7 @@ TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr vali
         Check(FromFunctor([=] (T parameter) \
             { \
                 if (!(condition)) { \
-                    throw (ex); \
+                    ythrow (ex); \
                 } \
             })); \
         return *this; \
@@ -208,35 +215,19 @@ DEFINE_VALIDATOR(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConfigBase::~TConfigBase()
-{ }
+} // namespace NConfig
 
-void TConfigBase::Load(NYTree::IMapNode* node, Stroka prefix)
-{
-    FOREACH (auto pair, Parameters) {
-        auto name = pair.First();
-        Stroka childPath = prefix + "/" + name;
-        auto child = node != NULL ? node->FindChild(name) : NULL;
-        pair.Second()->Load(~child, childPath);
-    }
-}
-
-void TConfigBase::Validate(Stroka prefix) const
-{
-    FOREACH (auto pair, Parameters) {
-        pair.Second()->Validate(prefix + "/" + pair.First());
-    }
-}
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
+NConfig::TParameter<T>& TConfigBase::Register(const Stroka& parameterName, T& value)
 {
-    auto parameter = New< TParameter<T> >(&value);
-    YVERIFY(Parameters.insert(TPair<Stroka, IParameter::TPtr>(parameterName, parameter)).Second());
+    auto parameter = New< NConfig::TParameter<T> >(&value);
+    YVERIFY(Parameters.insert(
+        TPair<Stroka, NConfig::IParameter::TPtr>(parameterName, parameter)).Second());
     return *parameter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT

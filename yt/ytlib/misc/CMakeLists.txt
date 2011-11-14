@@ -36,7 +36,7 @@ SET(YT_SOURCE_FILES
     async_stream_state.cpp
     cyclic_buffer.h
     mpl.h
-    new_config.h
+    new_config.cpp
     new_config-inl.h
 
 

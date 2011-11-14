@@ -4,10 +4,81 @@
 #include "ytree.h"
 #include "yson_events.h"
 
+#include "../misc/property.h"
+#include "../rpc/service.h"
+
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct IYPathService2
+    : virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IYPathService2> TPtr;
+
+    class TNavigateResult2
+    {
+        DECLARE_BYVAL_RO_PROPERTY(Service, IYPathService2::TPtr);
+        DECLARE_BYVAL_RO_PROPERTY(Path, TYPath);
+
+    public:
+        static TNavigateResult2 Here()
+        {
+            return TNavigateResult2();
+        }
+
+        static TNavigateResult2 There(IYPathService2* service, TYPath path)
+        {
+            TNavigateResult2 result;
+            result.Service_ = service;
+            result.Path_ = path;
+            return result;
+        }
+
+        bool IsHere() const
+        {
+            return ~Service_ == NULL;
+        }
+    };
+
+    virtual TNavigateResult2 Navigate2(TYPath path) = 0;
+
+    virtual void Invoke2(TYPath path, NRpc::TServiceContext* context) = 0;
+
+
+    static IYPathService2::TPtr FromNode(INode* node);
+};
+
+
+#define YPATH_SERVICE_METHOD_DECL(ns, method) \
+    typedef ::NYT::NRpc::TTypedServiceRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
+    typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    \
+    void method##Thunk(TYPath path, ::NYT::NRpc::TServiceContext::TPtr context) \
+    { \
+        auto typedContext = New<TCtx##method>(context); \
+        method( \
+            path, \
+            &typedContext->Request(), \
+            &typedContext->Response(), \
+            typedContext); \
+    } \
+    \
+    void method( \
+        TYPath path, \
+        TReq##method* request, \
+        TRsp##method* response, \
+        TCtx##method::TPtr context)
+
+#define YPATH_SERVICE_METHOD_IMPL(type, method) \
+    void type::method( \
+        TYPath path, \
+        TReq##method* request, \
+        TRsp##method* response, \
+        TCtx##method::TPtr context)
+
 
 struct IYPathService
     : virtual TRefCountedBase

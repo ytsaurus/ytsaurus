@@ -1,5 +1,10 @@
 #pragma once
 
+// TOOD: deprecate. Use new_config.h instead
+
+#include "new_config.h"
+
+
 #include <dict/json/json.h>
 #include <util/generic/vector.h>
 #include <util/charset/wide.h>
@@ -7,7 +12,6 @@
 
 namespace NYT {
 
-// TOOD: deprecate. Use new_config.h instead
 
 ////////////////////////////////////////////////////////////////////////////////
 // JSON configs helper

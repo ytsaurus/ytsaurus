@@ -6,6 +6,9 @@
 #include "../ytree/ytree.h"
 
 namespace NYT {
+
+class TConfigBase;
+
 namespace NConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,13 +18,11 @@ struct IParameter
 {
     typedef TIntrusivePtr<IParameter> TPtr;
 
-    virtual void Load(NYTree::INode* node, Stroka path) = 0;
-    virtual void Validate(Stroka path) const = 0;
+    virtual void Load(NYTree::INode* node, const Stroka& path) = 0;
+    virtual void Validate(const Stroka& path) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TConfigBase;
 
 template <class T, bool TIsConfig = NYT::NDetail::TIsConvertible<T, TConfigBase>::Value>
 class TParameter;
@@ -35,8 +36,8 @@ class TParameter<T, true>
 public:
     explicit TParameter(T* parameter);
 
-    virtual void Load(NYTree::INode* node, Stroka path);
-    virtual void Validate(Stroka path) const;
+    virtual void Load(NYTree::INode* node, const Stroka& path);
+    virtual void Validate(const Stroka& path) const;
 
 private:
     T* Parameter;
@@ -56,8 +57,8 @@ public:
 
     explicit TParameter(T* parameter);
 
-    virtual void Load(NYTree::INode* node, Stroka path);
-    virtual void Validate(Stroka path) const;
+    virtual void Load(NYTree::INode* node, const Stroka& path);
+    virtual void Validate(const Stroka& path) const;
 
 public: // for users
     TParameter& Default(T defaultValue = T());
@@ -78,27 +79,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConfigBase
 {
 public:
     virtual ~TConfigBase();
     
-    virtual void Load(NYTree::IMapNode* node, Stroka prefix = Stroka());
-    virtual void Validate(Stroka prefix = Stroka()) const;
+    virtual void Load(NYTree::INode* node, const Stroka& path = Stroka());
+    virtual void Validate(const Stroka& path = Stroka()) const;
 
 protected:
     template <class T>
-    TParameter<T>& Register(Stroka parameterName, T& value);
+    NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
 
 private:
-    typedef yhash_map<Stroka, IParameter::TPtr> ParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> ParameterMap;
 
     ParameterMap Parameters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT
 
 #define NEW_CONFIG_INL_H_

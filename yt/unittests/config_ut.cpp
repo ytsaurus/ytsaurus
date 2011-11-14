@@ -1,4 +1,4 @@
-#include "../ytlib/misc/new_config.h"
+#include "../ytlib/misc/config.h"
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/ephemeral.h"
 #include "../ytlib/ytree/fluent.h"
@@ -8,7 +8,6 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NConfig {
 
 using namespace NYTree;
 
@@ -144,6 +143,20 @@ TEST(TConfigTest, MissingRequiredParameter)
     EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
 }
 
+TEST(TConfigTest, IncorrectNodeType)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(~builder)
+        .BeginMap()
+            .Item("s1").Scalar(1) // incorrect type
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    TTestConfig config;
+    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+}
+
 TEST(TConfigTest, Validate)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
@@ -163,5 +176,4 @@ TEST(TConfigTest, Validate)
     EXPECT_THROW(config.Validate(), yexception);
 }
 
-} // namespace NConfig
 } // namespace NYT

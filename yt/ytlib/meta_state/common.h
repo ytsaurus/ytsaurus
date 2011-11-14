@@ -70,14 +70,30 @@ DECLARE_ENUM(ECommitMode,
 // TODO: refactor
 
 struct TCellConfig
+    : public TConfigBase
 {
     yvector<Stroka> Addresses;
     TPeerId Id;
 
     TCellConfig()
         : Id(NElection::InvalidPeerId)
-    { }
+    {
+        Register("Id", Id).GreaterThanOrEqual(0); // TODO: rename to "id" or "self_id"
+        Register("Addresses", Addresses).NonEmpty(); // TODO: rename to "masters"
+    }
 
+    virtual void Validate(Stroka path = Stroka()) const
+    {
+        TConfigBase::Validate(path);
+
+        if (Id >= Addresses.ysize()) {
+            ythrow yexception()
+                << Sprintf("Id must be less than size of Addresses (Path: %s, Id: %d, Addresses.size(): %d)",
+                    ~path, Id, Addresses.ysize());
+        }
+    }
+
+    // TODO: deprecate
     void Read(TJsonObject* json)
     {
         NYT::TryRead(json, L"Id", &Id);
@@ -89,6 +105,7 @@ struct TCellConfig
 
 //! Describes a configuration of TMetaStateManager.
 struct TMetaStateManagerConfig
+    : public TConfigBase
 {
     //! A path where changelogs are stored.
     Stroka LogLocation;
@@ -123,7 +140,15 @@ struct TMetaStateManagerConfig
         , MaxChangesBetweenSnapshots(-1)
         , SyncTimeout(TDuration::MilliSeconds(5000))
         , RpcTimeout(TDuration::MilliSeconds(3000))
-    { }
+    {
+        // TODO: rename
+        Register("LogLocation", LogLocation).Default(".").NonEmpty();
+        Register("SnapshotLocation", SnapshotLocation).Default(".").NonEmpty();
+        Register("MaxChangesBetweenSnapshots", MaxChangesBetweenSnapshots).GreaterThanOrEqual(-1);
+        Register("SyncTimeout", SyncTimeout).Default(TDuration::MilliSeconds(5000));
+        Register("RpcTimeout", RpcTimeout).Default(TDuration::MilliSeconds(3000));
+        Register("Cell", Cell);
+    }
 
     void Read(TJsonObject* json)
     {
