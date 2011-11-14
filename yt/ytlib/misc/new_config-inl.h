@@ -89,7 +89,7 @@ TParameter<T, true>::TParameter(T* parameter)
 template <class T>
 void TParameter<T, true>::Load(NYTree::INode* node, Stroka path)
 {
-    Parameter->Load(node != NULL ? ~node->AsMap() : NULL, path);
+    Parameter->Load(node, path);
 }
 
 template <class T>
