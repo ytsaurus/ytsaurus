@@ -12,6 +12,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IChunkWriter.
+// TODO -> TChunkWriter
 class TFileChunkWriter
     : public IChunkWriter
 {

@@ -15,17 +15,19 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: rename to TChunkSequenceWriter
 class TChunkSetWriter
     : public IWriter
 {
 public:
     typedef TIntrusivePtr<TChunkSetWriter> TPtr;
 
-    struct TConfig {
+    struct TConfig
+    {
         i64 MaxChunkSize;
 
         //! When current chunk size relative to #MaxChunkSize
-        //! overcomes this threshold, it's time to prepare next chunk.
+        //! overcomes this threshold, it's time to prepare the next chunk.
         double NextChunkThreshold;
 
         int ReplicationFactor;
@@ -52,6 +54,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
+    // TODO: -> Open
     TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
     void Write(const TColumn& column, TValue value);
     TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();

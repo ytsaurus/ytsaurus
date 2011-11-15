@@ -105,6 +105,10 @@ public:
         LOG_DEBUG("Transaction committed (TransactionId: %s)", ~Id.ToString());
 
         OnCommitted_.Fire();
+
+        // TODO: consider extracting a method
+        OnAborted_.Clear();
+        OnCommitted_.Clear();
     }
 
     void Abort()
@@ -119,6 +123,9 @@ public:
         req->Invoke(TransactionManager->Config.RpcTimeout);
 
         OnAborted_.Fire();
+
+        OnAborted_.Clear();
+        OnCommitted_.Clear();
     }
 
     void AsyncAbort()
@@ -131,6 +138,9 @@ public:
             guard.Release();
 
             OnAborted_.Fire();
+            
+            OnAborted_.Clear();
+            OnCommitted_.Clear();
         }
     }
 

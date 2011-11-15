@@ -17,8 +17,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! For a given schema and input data creates a sequence of blocks and feeds them to chunkWriter.
-//! Single-threaded
+//! Given a schema and input data creates a sequence of blocks and feeds them to
+//! NChunkClient::IWriter.
 class  TChunkWriter
     : public IWriter
 {
@@ -42,6 +42,7 @@ public:
         ICodec* codec);
     ~TChunkWriter();
 
+    // TODO: -> Open
     TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
     void Write(const TColumn& column, TValue value);
 
