@@ -209,10 +209,6 @@ void TCellMasterServer::Run()
         ~cypressManager));
     cypressManager->RegisterNodeType(~CreateLockMapTypeHandler(
         ~cypressManager));
-
-    cypressManager->RegisterNodeType(~CreateMonitoringTypeHandler(
-        ~cypressManager,
-        ~monitoringManager));
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
 

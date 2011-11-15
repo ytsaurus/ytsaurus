@@ -13,10 +13,6 @@ namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateMonitoringTypeHandler(
-    NCypress::TCypressManager* cypressManager,
-    TMonitoringManager* monitoringManager);
-
 NYTree::TYPathServiceProducer::TPtr CreateMonitoringProducer(
     TMonitoringManager* monitoringManager);
 
