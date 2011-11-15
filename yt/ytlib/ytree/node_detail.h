@@ -110,7 +110,7 @@ protected:
 
 private:
     IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
-    IYPathService::TNavigateResult GetYPathChild(int index, TYPath tailPath) const;
+    IYPathService::TNavigateResult GetYPathChild(int index, TYPath suffixPath) const;
 
     void CreateYPathChild(int beforeIndex, TYPath path, INode* value);
 };

@@ -131,17 +131,17 @@ void TNodeSetterBase::OnMyEndAttributes()
 void ChopYPathPrefix(
     TYPath path,
     Stroka* prefix,
-    TYPath* tailPath)
+    TYPath* suffixPath)
 {
     size_t index = path.find_first_of("/@");
     if (index == TYPath::npos) {
         *prefix = path;
-        *tailPath = TYPath(path.end(), static_cast<size_t>(0));
+        *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
             case '/':
                 *prefix = path.substr(0, index);
-                *tailPath =
+                *suffixPath =
                     index == path.length() - 1
                     ? path.substr(index)
                     : path.substr(index + 1);
@@ -149,7 +149,7 @@ void ChopYPathPrefix(
 
             case '@':
                 *prefix = path.substr(0, index);
-                *tailPath = path.substr(index);
+                *suffixPath = path.substr(index);
                 break;
 
             default:
@@ -252,37 +252,55 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WrapYPathRequest(TClientRequest* outerRequest, TYPathRequest* innerRequest)
+void NavigateYPath(
+    IYPathService* rootService,
+    TYPath path,
+    bool mustExist,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath)
 {
-    YASSERT(outerRequest != NULL);
-    YASSERT(innerRequest != NULL);
+    YASSERT(rootService != NULL);
+    YASSERT(suffixService != NULL);
+    YASSERT(suffixPath != NULL);
 
-    auto message = innerRequest->Serialize();
-    auto parts = message->GetParts();
-    auto& attachments = outerRequest->Attachments();
-    attachments.clear();
-    NStl::copy(
-        parts.begin(),
-        parts.end(),
-        NStl::back_inserter(attachments));
+    IYPathService::TPtr currentService = rootService;
+    auto currentPath = ParseYPathRoot(path);
+
+    while (true) {
+        IYPathService::TNavigateResult result;
+        try {
+            result = currentService->Navigate(currentPath, mustExist);
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error during YPath navigation (Path: %s, ResolvedPath: %s)\n%s",
+                ~path,
+                ~ComputeResolvedYPath(path, currentPath),
+                ~CurrentExceptionMessage());
+        }
+
+        if (result.IsHere()) {
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
+            break;
+        }
+
+        currentService = result.GetService();
+        currentPath = result.GetPath();
+    }
 }
 
-void UnwrapYPathResponse(TClientResponse* outerResponse, TYPathResponse* innerResponse)
+IYPathService::TPtr NavigateYPath(
+    IYPathService* rootService,
+    TYPath path)
 {
-    YASSERT(outerResponse != NULL);
-    YASSERT(innerResponse != NULL);
+    YASSERT(rootService != NULL);
 
-    auto parts = outerResponse->Attachments();
-    auto message = CreateMessageFromParts(parts);
-    innerResponse->Deserialize(~message);
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
+    NavigateYPath(rootService, path, true, &suffixService, &suffixPath);
+    return suffixService;
 }
 
-void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
-{
-    YASSERT(innerResponse != NULL);
-
-    innerResponse->SetError(error);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 void ParseYPathRequestHeader(
     TRef headerData,
@@ -301,60 +319,26 @@ void ParseYPathRequestHeader(
     *verb = header.GetVerb();
 }
 
-void NavigateYPath(
-    IYPathService* rootService,
-    TYPath path,
-    bool mustExist,
-    IYPathService::TPtr* tailService,
-    TYPath* tailPath)
+void WrapYPathRequest(
+    NRpc::TClientRequest* outerRequest,
+    NBus::IMessage* innerRequestMessage)
 {
-    YASSERT(rootService != NULL);
-    YASSERT(tailService != NULL);
-    YASSERT(tailPath != NULL);
+    YASSERT(outerRequest != NULL);
+    YASSERT(innerRequestMessage != NULL);
 
-    IYPathService::TPtr currentService = rootService;
-    auto currentPath = ParseYPathRoot(path);
-
-    while (true) {
-        IYPathService::TNavigateResult result;
-        try {
-            result = currentService->Navigate(currentPath, mustExist);
-        } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath navigation (Path: %s, ResolvedPath: %s)\n%s",
-                ~path,
-                ~ComputeResolvedYPath(path, currentPath),
-                ~CurrentExceptionMessage());
-        }
-
-        if (result.IsHere()) {
-            *tailService = currentService;
-            *tailPath = result.GetPath();
-            break;
-        }
-
-        currentService = result.GetService();
-        currentPath = result.GetPath();
-    }
+    auto parts = innerRequestMessage->GetParts();
+    auto& attachments = outerRequest->Attachments();
+    attachments.clear();
+    NStl::copy(
+        parts.begin(),
+        parts.end(),
+        NStl::back_inserter(attachments));
 }
 
-IYPathService::TPtr NavigateYPath(
-    IYPathService* rootService,
-    TYPath path)
-{
-    YASSERT(rootService != NULL);
-
-    IYPathService::TPtr tailService;
-    TYPath tailPath;
-    NavigateYPath(rootService, path, true, &tailService, &tailPath);
-    return tailService;
-}
-
-NRpc::IServiceContext::TPtr CreateYPathContext(
+NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext,
     TYPath path,
-    const Stroka& verb,
-    const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler)
+    const Stroka& verb)
 {
     YASSERT(outerContext != NULL);
 
@@ -381,14 +365,24 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         attachments.end(),
         NStl::back_inserter(parts));
 
-    auto innerMessage = CreateMessageFromParts(parts);
+    return CreateMessageFromParts(parts);
+}
 
-    return New<TServiceContext>(
-        path,
-        verb,
-        ~innerMessage,
-        responseHandler,
-        loggingCategory);
+void WrapYPathResponse(
+    NRpc::IServiceContext* outerContext,
+    NBus::IMessage* responseMessage)
+{
+    YASSERT(outerContext != NULL);
+    YASSERT(responseMessage != NULL);
+
+    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
+}
+
+void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
+{
+    YASSERT(innerResponse != NULL);
+
+    innerResponse->SetError(error);
 }
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
@@ -408,14 +402,12 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         loggingCategory);
 }
 
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage)
+NBus::IMessage::TPtr UnwrapYPathResponse(TClientResponse* outerResponse)
 {
-    YASSERT(outerContext != NULL);
-    YASSERT(responseMessage != NULL);
+    YASSERT(outerResponse != NULL);
 
-    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
+    auto parts = outerResponse->Attachments();
+    return CreateMessageFromParts(parts);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

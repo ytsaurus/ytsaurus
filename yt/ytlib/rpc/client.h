@@ -171,6 +171,8 @@ class TClientResponse
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
 
+    NBus::IMessage::TPtr GetResponseMessage() const;
+
     EErrorCode GetErrorCode() const;
     bool IsOK() const;
 
@@ -191,13 +193,14 @@ private:
     // Protects state.
     TSpinLock SpinLock;
     EState State;
+    NBus::IMessage::TPtr ResponseMessage;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
     virtual void OnResponse(const TError& error, NBus::IMessage* message);
     virtual void OnTimeout();
 
-    void Deserialize(NBus::IMessage* message);
+    void Deserialize(NBus::IMessage* responseMessage);
     void Complete(const TError& error);
 };
 

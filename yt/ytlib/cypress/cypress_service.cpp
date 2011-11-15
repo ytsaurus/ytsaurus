@@ -77,13 +77,18 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
     auto rootService = IYPathService::FromNode(~root);
 
-    IYPathService::TPtr tailService;
-    TYPath tailPath;
-    NavigateYPath(~rootService, path, false, &tailService, &tailPath);
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
+    NavigateYPath(~rootService, path, false, &suffixService, &suffixPath);
+
+    auto requestMessage = UnwrapYPathRequest(
+        ~context->GetUntypedContext(),
+        path,
+        verb);
 
     auto innerContext = CreateYPathContext(
-        ~context->GetUntypedContext(),
-        tailPath,
+        ~requestMessage,
+        suffixPath,
         verb,
         Logger.GetCategory(),
         ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
@@ -92,7 +97,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
                 context->Reply();
             }));
 
-    CypressManager->ExecuteVerb(~tailService, ~innerContext);
+    CypressManager->ExecuteVerb(~suffixService, ~innerContext);
 }
 
 RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)

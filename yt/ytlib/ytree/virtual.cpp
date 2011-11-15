@@ -37,8 +37,8 @@ void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
 //        consumer->OnEndMap(false);
 //    } else {
 //        Stroka prefix;
-//        TYPath tailPath;
-//        ChopYPathPrefix(path, &prefix, &tailPath);
+//        TYPath suffixPath;
+//        ChopYPathPrefix(path, &prefix, &suffixPath);
 //
 //        auto service = GetItemService(prefix);
 //        if (~service == NULL) {
@@ -46,7 +46,7 @@ void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
 //                ~prefix.Quote());
 //        }
 //
-//        return TGetResult::CreateRecurse(service, tailPath);
+//        return TGetResult::CreateRecurse(service, suffixPath);
 //    }
 //    return TGetResult::CreateDone();
 //}

@@ -169,29 +169,29 @@ ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
     TYPath path = request->GetPath();
     Stroka verb = request->GetVerb();
 
-    IYPathService::TPtr tailService;
-    TYPath tailPath;
-    NavigateYPath(rootService, path, false, &tailService, &tailPath);
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
+    NavigateYPath(rootService, path, false, &suffixService, &suffixPath);
 
     // TODO: can we avoid this?
-    request->SetPath(tailPath);
+    request->SetPath(suffixPath);
 
     auto requestMessage = request->Serialize();
     auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
 
     auto context = CreateYPathContext(
         ~requestMessage,
-        tailPath,
+        suffixPath,
         verb,
         YTreeLogger.GetCategory(),
         ~FromMethod(
             &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
             asyncResponse,
             verb,
-            ComputeResolvedYPath(path, tailPath)));
+            ComputeResolvedYPath(path, suffixPath)));
 
     try {
-        tailService->Invoke(~context);
+        suffixService->Invoke(~context);
     } catch (const NRpc::TServiceException& ex) {
         context->Reply(NRpc::TError(
             EYPathErrorCode(EYPathErrorCode::GenericError),
