@@ -79,12 +79,13 @@ private:
     void Stop();
 
     void OnGotMeta(TChunkMeta::TPtr meta);
-    void ReplicateBlock(int blockIndex);
+    void ReplicateBlock(
+        TAsyncStreamState::TResult result, 
+        int blockIndex);
     void OnBlockLoaded(
         TCachedBlock::TPtr cachedBlock,
         int blockIndex);
-    void OnWriterClosed(IChunkWriter::EResult result);
-
+    void OnWriterClosed(TAsyncStreamState::TResult result);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

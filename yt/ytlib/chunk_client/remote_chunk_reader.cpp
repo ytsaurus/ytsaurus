@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "remote_chunk_reader.h"
 #include "holder_channel_cache.h"
+#include "reader_thread.h"
 
 #include "../misc/foreach.h"
 #include "../actions/action_util.h"
@@ -52,7 +53,7 @@ void TRemoteChunkReader::DoReadBlocks(
         &TRemoteChunkReader::OnBlocksRead, 
         TPtr(this), 
         result,
-        blockIndexes));
+        blockIndexes)->Via(ReaderThread->GetInvoker()));
 }
 
 void TRemoteChunkReader::OnBlocksRead(

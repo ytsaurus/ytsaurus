@@ -3,10 +3,16 @@ SET(YT_SOURCE_FILES
     value.cpp
     schema.cpp
     channel_writer.cpp
-    table_chunk_writer.cpp
-    common.h
-    table_chunk_reader.cpp
     channel_reader.cpp
+    chunk_writer.cpp
+    chunk_reader.cpp
+    chunk_set_writer.cpp
+    chunk_set_reader.cpp
+    table_writer.cpp
+    table_reader.cpp
+    common.h
+    reader.h
+    writer.h 
 )
 
 

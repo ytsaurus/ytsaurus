@@ -1,60 +1,54 @@
 #include "stdafx.h"
 #include "semaphore.h"
 
-#include <util/system/yield.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
-TSemaphore::TSemaphore(int maxFreeSlots)
+
+TAsyncSemaphore::TAsyncSemaphore(int maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
-    , FreeSlotExists(Event::rAuto)
-{ }
+    , AcquireEvent(NULL)
+    , StaticResult(New< TFuture<TVoid> >())
 
-bool TSemaphore::Release()
 {
-    while (true) {
-        if (FreeSlotCount < MaxFreeSlots) {
-            if (AtomicCas(&FreeSlotCount, FreeSlotCount + 1, FreeSlotCount)) {
-                FreeSlotExists.Signal();
-                return true;
-            }
-        } else {
-            return false;
-        }
-        SpinLockPause();
-    }
+    StaticResult->Set(TVoid());
 }
 
-void TSemaphore::Acquire()
+bool TAsyncSemaphore::Release()
 {
-    while (true) {
-        if (!TryAcquire()) {
-            FreeSlotExists.Wait();
-        }
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (~AcquireEvent != NULL) {
+        YASSERT(FreeSlotCount == 0);
+        auto event = AcquireEvent;
+        AcquireEvent.Reset();
+
+        guard.Release();
+        event->Set(TVoid());
+    } else if (FreeSlotCount < MaxFreeSlots) {
+         ++FreeSlotCount;
+    } else {
+        return false;
     }
+
+    return true;
 }
 
-bool TSemaphore::TryAcquire()
+TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire()
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
+    TGuard<TSpinLock> guard(SpinLock);
     YASSERT(FreeSlotCount >= 0);
-    while (true) {
-        if (FreeSlotCount == 0) {
-            return false;
-        }
-
-        if (AtomicCas(&FreeSlotCount, FreeSlotCount - 1, FreeSlotCount)) {
-            return true;
-        }
-        SpinLockPause();
+    if (FreeSlotCount > 0) {
+        --FreeSlotCount;
+        return StaticResult;
     }
-}
 
-int TSemaphore::GetFreeSlotCount() const
-{
-    return FreeSlotCount;
+    YASSERT(~AcquireEvent == NULL);
+    AcquireEvent = New< TFuture<TVoid> >();
+    return AcquireEvent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,7 @@ SET(YT_SOURCE_FILES
     holder_channel_cache.cpp
     sequential_chunk_reader.cpp
     reader_thread.cpp
+    writer_thread.cpp
 )
 
 

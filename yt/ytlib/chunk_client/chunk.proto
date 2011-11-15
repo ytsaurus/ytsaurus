@@ -11,6 +11,7 @@ message TBlockInfo
 message TChunkMeta
 {
     repeated TBlockInfo Blocks = 1;
+    required bytes MasterMeta = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

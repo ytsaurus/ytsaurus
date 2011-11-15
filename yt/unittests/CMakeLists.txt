@@ -24,6 +24,7 @@ SRCS(
     intrusive_ptr_ut.cpp
     tree_builder_ut.cpp
     config_ut.cpp
+    bus_ut.cpp
 )
 
 PEERDIR(

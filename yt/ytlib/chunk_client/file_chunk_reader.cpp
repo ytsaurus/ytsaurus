@@ -33,6 +33,9 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
             ~FileName.Quote());
     }
 
+    TBlob masterMeta(Meta.GetMasterMeta().begin(), Meta.GetMasterMeta().end());
+    MasterMeta = TSharedRef(masterMeta);
+
     TChunkOffset currentOffset = 0;
     BlockOffsets.reserve(GetBlockCount());
     for (int blockIndex = 0; blockIndex < GetBlockCount(); ++blockIndex) {
@@ -91,6 +94,12 @@ TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
 
     return result;
 }
+
+TSharedRef TFileChunkReader::GetMasterMeta() const
+{
+    return MasterMeta;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 

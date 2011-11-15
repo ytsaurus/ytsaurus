@@ -87,13 +87,13 @@ TParameter<T, true>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, true>::Load(NYTree::INode* node, Stroka path)
+void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
 {
-    Parameter->Load(node != NULL ? ~node->AsMap() : NULL, path);
+    Parameter->Load(node, path);
 }
 
 template <class T>
-void TParameter<T, true>::Validate(Stroka path) const
+void TParameter<T, true>::Validate(const Stroka& path) const
 {
     Parameter->Validate(path);   
 }
@@ -107,7 +107,7 @@ TParameter<T, false>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
+void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
 {
     if (node != NULL) {
         try {
@@ -126,7 +126,7 @@ void TParameter<T, false>::Load(NYTree::INode* node, Stroka path)
 }
 
 template <class T>
-void TParameter<T, false>::Validate(Stroka path) const
+void TParameter<T, false>::Validate(const Stroka& path) const
 {
     FOREACH (auto validator, Validators) {
         try {
@@ -220,7 +220,7 @@ DEFINE_VALIDATOR(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NConfig::TParameter<T>& TConfigBase::Register(Stroka parameterName, T& value)
+NConfig::TParameter<T>& TConfigBase::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(&value);
     YVERIFY(Parameters.insert(

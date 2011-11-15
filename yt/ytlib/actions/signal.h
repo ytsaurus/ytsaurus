@@ -44,7 +44,7 @@ public:
         YASSERT(~action != NULL);
 
         TGuard<TSpinLock> guard(SpinLock);
-        auto it = Find(Actions.begin(), Actions.end(), action);
+        auto it = std::find(Actions.begin(), Actions.end(), action);
         if (it == Actions.end())
             return false;
         Actions.erase(it);

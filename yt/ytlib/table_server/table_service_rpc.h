@@ -24,7 +24,7 @@ public:
         ((NotATable)(4))
     );
 
-    TTableServiceProxy(NRpc::IChannel* channel)
+    TTableServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
