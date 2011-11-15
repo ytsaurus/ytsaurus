@@ -14,44 +14,6 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Wraps an original request and provides a fresh request id.
-class TRequestWrapper
-    : public IClientRequest
-{
-public:
-    TRequestWrapper(IClientRequest* originalRequest)
-        : RequestId(TRequestId::Create())
-        , OriginalRequest(originalRequest)
-    { }
-
-    virtual TRequestId GetRequestId() const
-    {
-        return RequestId;
-    }
-
-    IMessage::TPtr Serialize() const
-    {
-        return OriginalRequest->Serialize();
-    }
-
-    Stroka GetPath() const
-    {
-        return OriginalRequest->GetPath();
-    }
-
-    virtual Stroka GetVerb() const
-    {
-        return OriginalRequest->GetVerb();
-    }
-
-private:
-    const TRequestId RequestId;
-    IClientRequest::TPtr OriginalRequest;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRetriableRequest
     : public IClientResponseHandler
 {
@@ -60,19 +22,19 @@ public:
 
     TRetriableRequest(
         TRetriableChannel* channel,
-        IClientRequest* originalRequest,
-        IClientResponseHandler* originalResponseHandler,
+        IClientRequest* request,
+        IClientResponseHandler* originalHandler,
         TDuration timeout)
         : CurrentAttempt(0)
         , Channel(channel)
-        , OriginalRequest(originalRequest)
-        , OriginalResponseHandler(originalResponseHandler)
+        , Request(request)
+        , OriginalHandler(originalHandler)
         , Timeout(timeout)
         , SendResult(New< TFuture<TError> >())
     {
         YASSERT(channel != NULL);
-        YASSERT(originalRequest != NULL);
-        YASSERT(originalResponseHandler != NULL);
+        YASSERT(request != NULL);
+        YASSERT(originalHandler != NULL);
     }
 
     TFuture<TError>::TPtr Send() 
@@ -85,8 +47,8 @@ private:
     //! The current attempt number (starting from 0).
     TAtomic CurrentAttempt;
     TRetriableChannel::TPtr Channel;
-    IClientRequest::TPtr OriginalRequest;
-    IClientResponseHandler::TPtr OriginalResponseHandler;
+    IClientRequest::TPtr Request;
+    IClientResponseHandler::TPtr OriginalHandler;
     TDuration Timeout;
     //! Result returned by #IChannel::Send
     TFuture<TError>::TPtr SendResult;
@@ -103,9 +65,8 @@ private:
 
     void DoSend()
     {
-        //auto request = New<TRequestWrapper>(~OriginalRequest);
         Channel->GetUnderlyingChannel()->Send(
-            OriginalRequest, //request,
+            Request,
             this,
             Timeout);
     }
@@ -119,7 +80,7 @@ private:
                     State = EState::Acked;
                     guard.Release();
 
-                    OriginalResponseHandler->OnAcknowledgement(sendResult);
+                    OriginalHandler->OnAcknowledgement(sendResult);
                     break;
 
                 case IBus::ESendResult::Failed:
@@ -154,7 +115,7 @@ private:
             guard.Release();
 
             if (!error.IsRpcError()) {
-                OriginalResponseHandler->OnResponse(error, message);
+                OriginalHandler->OnResponse(error, message);
                 SendResult->Set(error);
             } else {
                 OnAttemptFailed();
@@ -173,7 +134,7 @@ private:
         } else {
             // TODO: provide better diagnostics
             TError error(EErrorCode::Unavailable);
-            OriginalResponseHandler->OnResponse(error, NULL);
+            OriginalHandler->OnResponse(error, NULL);
             SendResult->Set(error);
         }
     }
