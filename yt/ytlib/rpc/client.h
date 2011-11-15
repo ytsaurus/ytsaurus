@@ -39,6 +39,8 @@ protected:
 
     TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
+    DECLARE_BYVAL_RW_PROPERTY(Timeout, TDuration);
+
     IChannel::TPtr Channel;
     Stroka ServiceName;
 };          
@@ -98,6 +100,7 @@ class TTypedClientRequest
 {
 private:
     typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
+    TDuration Timeout;
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
@@ -106,23 +109,31 @@ public:
     TTypedClientRequest(
         IChannel* channel,
         const Stroka& path,
-        const Stroka& verb)
+        const Stroka& verb,
+        TDuration timeout)
         : TClientRequest(channel, path, verb)
+        , Timeout(timeout)
     {
         YASSERT(channel != NULL);
     }
 
-    typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
+    typename TInvokeResult::TPtr Invoke()
     {
         typename TInvokeResult::TPtr asyncResult = NYT::New<TInvokeResult>();
         typename TTypedResponse::TPtr response = NYT::New<TTypedResponse>(
             GetRequestId(),
             ~Channel);
-        DoInvoke(~response, timeout)->Subscribe(FromMethod(
+        DoInvoke(~response, Timeout)->Subscribe(FromMethod(
             &TTypedClientRequest::OnReady,
             asyncResult,
             response));
         return asyncResult;
+    }
+
+    TTypedClientRequest& SetTimeout(TDuration timeout)
+    {
+        Timeout = timeout;
+        return *this;
     }
 
 private:
@@ -258,7 +269,7 @@ private:
     \
     TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(~Channel, ServiceName, #method); \
+        return New<TReq##method>(~Channel, ServiceName, #method, GetTimeout()); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

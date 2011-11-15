@@ -179,11 +179,12 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
 
         if (!IsLeader()) {
             auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-            
+            proxy->SetTimeout(Config.RpcTimeout);
+
             auto request = proxy->GetChangeLogInfo();
             request->SetChangeLogId(segmentId);
 
-            auto response = request->Invoke(Config.RpcTimeout)->Get();
+            auto response = request->Invoke()->Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Could not get changelog %d info from leader", segmentId);
                 return New<TAsyncResult>(EResult::Failed);
@@ -402,9 +403,11 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
 
     LOG_INFO("Synchronizing with leader");
 
-    TAutoPtr<TProxy> leaderProxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
-    auto request = leaderProxy->Sync();
-    request->Invoke(Config.SyncTimeout)->Subscribe(
+    TAutoPtr<TProxy> proxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
+    proxy->SetTimeout(Config.SyncTimeout);
+
+    auto request = proxy->Sync();
+    request->Invoke()->Subscribe(
         FromMethod(&TFollowerRecovery::OnSync, TPtr(this))
         ->Via(~CancelableControlInvoker));
 

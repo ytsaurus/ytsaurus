@@ -55,11 +55,13 @@ void TLeaderPinger::SendPing()
 {
     auto status = MetaStateManager->GetControlStatus();
     auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
+    proxy->SetTimeout(Config.RpcTimeout);
+
     auto request = proxy->PingLeader();
     request->SetEpoch(Epoch.ToProto());
     request->SetFollowerId(CellManager->GetSelfId());
     request->SetStatus(status);
-    request->Invoke(Config.RpcTimeout)->Subscribe(
+    request->Invoke()->Subscribe(
         FromMethod(
         &TLeaderPinger::OnSendPing, TPtr(this))
         ->Via(~CancelableInvoker));

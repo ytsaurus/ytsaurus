@@ -31,8 +31,9 @@ TFuture<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
         LOG_DEBUG("Requesting leader from master %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
+        proxy.SetTimeout(Config.RpcTimeout);
         auto request = proxy.GetStatus();
-        awaiter->Await(request->Invoke(Config.RpcTimeout), FromMethod(
+        awaiter->Await(request->Invoke(), FromMethod(
             &TLeaderLookup::OnResponse,
             TPtr(this),
             awaiter,
