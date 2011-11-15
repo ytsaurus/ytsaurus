@@ -110,6 +110,8 @@ RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
 
 RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
 {
+    UNUSED(request);
+    UNUSED(response);
     context->Reply();
 }
 
@@ -125,13 +127,24 @@ RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
 }
 
 RPC_SERVICE_METHOD_IMPL(TMyService, EmptyCall)
-{ }
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+}
 
 RPC_SERVICE_METHOD_IMPL(TMyService, NotRegistredCall)
-{ }
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+}
 
 RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
 {
+
+    UNUSED(request);
+    UNUSED(response);
     context->Reply(TError(42, "Some Error"));
 }
 
@@ -171,7 +184,7 @@ TEST_F(TRpcTest, Send)
 
 TEST_F(TRpcTest, Attachments)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
     auto request = proxy->ModifyAttachments();
 
     request->Attachments().push_back(SharedRefFromString("Hello"));
@@ -192,7 +205,7 @@ TEST_F(TRpcTest, Attachments)
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
     auto request = proxy->ReplyingCall();
     auto result = request->Invoke();
     auto response = result->Get();
