@@ -45,16 +45,22 @@ struct ITransaction
     virtual TTransactionId GetId() const  = 0;
 
 
-    //! TODO: discuss semantics and write doxygen
+    //! Raised when the transaction is committed successfully.
     /*!
      *  \note
-     *  Thread affinity: ClientThread.
+     *  Raised from an unspecified thread.
+     *  
+     *  Thread affinity: any.
      */
     virtual TSignal& OnCommitted() = 0;
-    //! TODO: discuss semantics and write doxygen
+
+    //! Raised when the transaction is either aborted by the client
+    //! or a ping has failed.
     /*!
     *   \note
-    *   Thread affinity: ClientThread.
+    *   Raised from an unspecified thread.
+    *   
+    *   Thread affinity: any.
      */
     virtual TSignal& OnAborted() = 0;
 };

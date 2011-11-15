@@ -25,13 +25,16 @@ struct TChunkFooter
     static const ui32 ExpectedSignature = 0x46435459; // YTCF
 
     //! Signature, must be #ExpectedSignature for valid chunks.
+    // TODO: -> Signature
     ui32 Singature;
     
     //! The size of the meta, in bytes.
     i32 MetaSize;
 
-    //! The offset of the meta inside the file.
+    //! The offset of the holder meta inside the file.
     TChunkOffset MetaOffset;
+
+    // TODO: add MetaChecksum
 };
 
 ////////////////////////////////////////////////////////////////////////////////

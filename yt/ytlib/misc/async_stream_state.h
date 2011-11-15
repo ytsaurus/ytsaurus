@@ -6,12 +6,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Handles the internal state of async input and output streams, e.g.
+//! Manages the internal state of async input and output streams, e.g.
 //! #TRemoteChunkWriter, #TSequentialChunkReader and many #NTableClient classes.
 class TAsyncStreamState
     : public TNonCopyable
 {
 public:
+    // TODO: replace with TError
     struct TResult
     {
         /*! True means that stream is ready (if set through #Signal)
@@ -50,6 +51,7 @@ public:
      * 
      *  \param errorMessage - reason of cancellation.
      */
+    // TODO: errorMessage -> TError
     void Cancel(const Stroka& errorMessage);
 
     //! Moves stream to failed state. Stream should be active.
@@ -59,6 +61,7 @@ public:
      * 
      * \param errorMessage - reason of cancellation.
      */
+    // TODO: errorMessage -> TError
     void Fail(const Stroka& errorMessage);
 
     //! Moves stream to closed state.
@@ -68,10 +71,20 @@ public:
      */
     void Close();
 
-    //! Acts like #Close or #Fail depending on #result.
+    //! Invokes #Close or #Fail depending on #result.
+    // TODO: TResult -> TError
     void Finish(TResult result);
 
+    //! Returns if the stream is active.
     bool IsActive() const;
+    /*!
+     *  \note
+     *  A stream is considered active if it is neither closed nor failed.
+     */
+    //! Returns if the stream is closed.
+    /*!
+     *  A stream must be closed by explicitly calling #Close.
+     */
     bool IsClosed() const;
 
     //! The following calls are used to support async operations
@@ -94,8 +107,8 @@ public:
     TAsyncResult::TPtr GetOperationResult();
 
     //! Complete operations.
+    // TODO: TResult -> TError
     void FinishOperation(TResult result = TResult());
-    // void FinishOperation(const Stroka& errorMessage);
 
 private:
     void DoFail(const Stroka& errorMessage);
@@ -114,6 +127,20 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+// TODO: write a couple of overloads manually, switch to Pump later
+template <class TTarget>
+void Sync(
+    TTarget* target,
+    TAsyncStreamState::TAsyncResult::TPtr (TTarget::*method)())
+{
+    auto result = (target->*method)()->Get();
+    if (!result.IsOK()) {
+        // TODO: ToString()
+        ythrow yexception() << result.ErrorMessage;
+    }
+}
 
 // ToDo: codegen! Type traits.
 struct ISyncInterface
