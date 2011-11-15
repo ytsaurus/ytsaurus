@@ -1,0 +1,21 @@
+package NMyRpc;
+
+message TReqSomeCall
+{
+    required int32 A = 1;
+}
+
+message TRspSomeCall
+{
+    required int32 B = 1;
+}
+
+message TReqEmptyCall { }
+message TRspEmptyCall { }
+
+message TReqCustomMessageError { }
+message TRspCustomMessageError { }
+
+message TReqNotRegistredCall { }
+message TRspNotRegistredCall { }
+
