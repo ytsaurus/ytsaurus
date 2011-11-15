@@ -140,8 +140,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYPathResponseHandlerParam;
-
 template <class TTypedRequest, class TTypedResponse>
 void OnYPathResponse(
     const TYPathResponseHandlerParam& param,

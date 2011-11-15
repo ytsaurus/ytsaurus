@@ -61,15 +61,11 @@ private:
                     auto innerResponseMessage = UnwrapYPathResponse(~outerResponse);
                     innerResponse->Deserialize(~innerResponseMessage);
                 } else if (error.IsRpcError()) {
-                    SetYPathErrorResponse(
-                        ~innerResponse,
-                        error);    
+                    innerResponse->SetError(error);    
                 } else {
-                    SetYPathErrorResponse(
-                        ~innerResponse,
-                        NRpc::TError(
-                            NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
-                            outerResponse->GetError().GetMessage()));
+                    innerResponse->SetError(NRpc::TError(
+                        NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
+                        outerResponse->GetError().GetMessage()));
                 }
                 return innerResponse;
             }));

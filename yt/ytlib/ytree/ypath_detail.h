@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ypath_client.h"
+#include "ypath_service.h"
 #include "yson_events.h"
 #include "tree_builder.h"
 #include "forwarding_yson_events.h"
@@ -290,10 +290,6 @@ void WrapYPathResponse(
 
 NBus::IMessage::TPtr UnwrapYPathResponse(
     NRpc::TClientResponse* outerResponse);
-
-void SetYPathErrorResponse(
-    TYPathResponse* response,
-    const NRpc::TError& error);
 
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,

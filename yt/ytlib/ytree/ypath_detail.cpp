@@ -406,15 +406,6 @@ NBus::IMessage::TPtr UnwrapYPathResponse(
     return CreateMessageFromParts(parts);
 }
 
-void SetYPathErrorResponse(
-    TYPathResponse* response,
-    const NRpc::TError& error)
-{
-    YASSERT(response != NULL);
-
-    response->SetError(error);
-}
-
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,
     NBus::IMessage* responseMessage)
