@@ -246,8 +246,10 @@ TEST_F(TRpcTest, NoMethod)
 TEST_F(TRpcTest, Timeout)
 {
     auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    proxy->SetTimeout(TDuration::Seconds(1));
+
     auto request = proxy->EmptyCall();
-    auto result = request->Invoke(TDuration::Seconds(1));
+    auto result = request->Invoke();
     auto response = result->Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());

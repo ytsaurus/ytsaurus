@@ -189,6 +189,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     auto startBlock = session->GetBlock(startBlockIndex);
 
     TProxy proxy(~ChannelCache.GetChannel(address));
+    proxy.SetTimeout(Config.RpcTimeout);
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
@@ -198,7 +199,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke(Config.RpcTimeout)->Subscribe(FromMethod(
+    putRequest->Invoke()->Subscribe(FromMethod(
         &TChunkHolder::OnSentBlocks,
         TPtr(this),
         context));

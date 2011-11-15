@@ -88,6 +88,8 @@ public:
             if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+            proxy->SetTimeout(Committer->Config.RpcTimeout);
+
             auto request = proxy->ApplyChanges();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
@@ -97,7 +99,7 @@ public:
             }
 
             Awaiter->Await(
-                request->Invoke(Committer->Config.RpcTimeout),
+                request->Invoke(),
                 FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
             LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
         }

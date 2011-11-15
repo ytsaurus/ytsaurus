@@ -38,8 +38,10 @@ public:
 
         LOG_INFO("Starting transaction");
 
+        Proxy.SetTimeout(TransactionManager->Config.RpcTimeout);
+
         auto req = Proxy.StartTransaction();
-        auto rsp = req->Invoke(TransactionManager->Config.RpcTimeout)->Get();
+        auto rsp = req->Invoke()->Get();
 
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
@@ -91,7 +93,7 @@ public:
         
         auto req = Proxy.CommitTransaction();
         req->SetTransactionId(Id.ToProto());
-        auto rsp = req->Invoke(TransactionManager->Config.RpcTimeout)->Get();
+        auto rsp = req->Invoke()->Get();
 
         if (!rsp->IsOK()) {
             OnAborted_.Fire();
@@ -120,7 +122,7 @@ public:
         LOG_INFO("Aborting transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = Proxy.AbortTransaction();
-        req->Invoke(TransactionManager->Config.RpcTimeout);
+        req->Invoke();
 
         OnAborted_.Fire();
 
@@ -207,12 +209,14 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
     }
 
     TProxy proxy(Channel);
+    proxy.SetTimeout(Config.RpcTimeout);
+
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
     auto req = proxy.RenewTransactionLease();
     req->SetTransactionId(id.ToProto());
 
-    req->Invoke(Config.RpcTimeout)->Subscribe(FromMethod(
+    req->Invoke()->Subscribe(FromMethod(
         &TTransactionManager::OnPingResponse,
         TPtr(this), 
         id));

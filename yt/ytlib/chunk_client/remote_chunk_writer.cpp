@@ -255,7 +255,7 @@ TRemoteChunkWriter::TGroup::PutBlocks(int node)
         GetEndBlockIndex(),
         ~Writer->Nodes[node]->Address);
 
-    return req->Invoke(Writer->Config.RpcTimeout);
+    return req->Invoke();
 }
 
 void TRemoteChunkWriter::TGroup::OnPutBlocks(int node)
@@ -309,7 +309,7 @@ TRemoteChunkWriter::TGroup::SendBlocks(int srcNode, int dstNode)
     req->SetStartBlockIndex(StartBlockIndex);
     req->SetBlockCount(Blocks.ysize());
     req->SetAddress(Writer->Nodes[dstNode]->Address);
-    return req->Invoke(Writer->Config.RpcTimeout);
+    return req->Invoke();
 }
 
 void TRemoteChunkWriter::TGroup::CheckSendResponse(
@@ -441,6 +441,7 @@ void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
 
     FOREACH(const auto& address, addresses) {
         Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
+        Nodes.back()->Proxy.SetTimeout(Config.RpcTimeout);
     }
 }
 
@@ -511,7 +512,7 @@ TRemoteChunkWriter::FlushBlock(int node, int blockIndex)
     auto req = Nodes[node]->Proxy.FlushBlock();
     req->SetChunkId(ChunkId.ToProto());
     req->SetBlockIndex(blockIndex);
-    return req->Invoke(Config.RpcTimeout);
+    return req->Invoke();
 }
 
 void TRemoteChunkWriter::OnBlockFlushed(int node, int blockIndex)
@@ -710,7 +711,7 @@ TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartChunk(int node
     auto req = Nodes[node]->Proxy.StartChunk();
     req->SetChunkId(ChunkId.ToProto());
     req->SetWindowSize(Config.WindowSize);
-    return req->Invoke(Config.RpcTimeout);
+    return req->Invoke();
 }
 
 void TRemoteChunkWriter::OnChunkStarted(int node)
@@ -787,7 +788,7 @@ TRemoteChunkWriter::FinishChunk(int node)
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
     req->SetMeta(MasterMeta.Begin(), MasterMeta.Size());
-    return req->Invoke(Config.RpcTimeout);
+    return req->Invoke();
 }
 
 void TRemoteChunkWriter::OnChunkFinished(int node)
@@ -829,7 +830,7 @@ void TRemoteChunkWriter::PingSession(int node)
 
     auto req = Nodes[node]->Proxy.PingSession();
     req->SetChunkId(ChunkId.ToProto());
-    req->Invoke(Config.RpcTimeout);
+    req->Invoke();
 
     SchedulePing(node);
 }

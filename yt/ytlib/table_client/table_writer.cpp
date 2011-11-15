@@ -51,10 +51,12 @@ void TTableWriter::Init()
 bool TTableWriter::NodeExists(const Stroka& nodePath)
 {
     TCypressProxy proxy(MasterChannel);
+    proxy.SetTimeout(Config.RpcTimeout);
+
     auto req = proxy.GetNodeId();
     req->SetTransactionId(Transaction->GetId().ToProto());
     req->SetPath(nodePath);
-    auto rsp = req->Invoke(Config.RpcTimeout)->Get();
+    auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
         if (!error.IsServiceError() || 
@@ -106,6 +108,8 @@ void TTableWriter::Close()
     Writer->Sync(&TChunkSetWriter::AsyncClose);
 
     TTableProxy proxy(MasterChannel);
+    proxy.SetTimeout(Config.RpcTimeout);
+
     auto req = proxy.AddTableChunks();
     req->SetTransactionId(Transaction->GetId().ToProto());
     req->SetNodeId(NodeId);
@@ -113,7 +117,7 @@ void TTableWriter::Close()
         req->AddChunkIds(chunkId.ToProto());
     }
 
-    auto rsp = req->Invoke(Config.RpcTimeout)->Get();
+    auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
         ythrow yexception() << Sprintf("Error adding chunks to table\n%s",
