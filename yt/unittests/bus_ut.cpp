@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/bus/bus.h"
 #include "../ytlib/bus/bus_server.h"
 #include "../ytlib/bus/bus_client.h"
@@ -17,13 +19,13 @@ IMessage::TPtr CreateMessage(int numParts)
     for (int i = 0; i < numParts; ++i) {
         parts.push_back(TRef(data.begin() + i, 1));
     }
-    return New<TBlobMessage>(&data, parts);
+    return CreateMessageFromParts(MoveRV(data), parts);
 }
 
 IMessage::TPtr Serialize(Stroka str)
 {
     TBlob data(str.begin(), str.vend());
-    return New<TBlobMessage>(&data);
+    return CreateMessageFromPart(TSharedRef(MoveRV(data)));
 }
 
 Stroka Deserialize(IMessage::TPtr message)

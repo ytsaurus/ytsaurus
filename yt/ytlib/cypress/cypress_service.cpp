@@ -125,11 +125,13 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
     }
 
     auto* targetNode = dynamic_cast<ICypressNodeProxy*>(~targetService);
-    auto id = targetNode == NULL ? NullNodeId : targetNode->GetNodeId();
-    response->SetNodeId(id.ToProto());
+    if (targetNode == NULL) {
+        ythrow TServiceException(EErrorCode::ResolutionError) << "Path does not resolve to a physical node";
+    }
 
+    auto id = targetNode->GetNodeId();
+    response->SetNodeId(targetNode->GetNodeId().ToProto());
     context->SetResponseInfo("NodeId: %s", ~id.ToString());
-
     context->Reply();
 }
 

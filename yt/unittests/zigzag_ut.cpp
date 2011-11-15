@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/zigzag.h"
 
 #include <contrib/testing/framework.h>

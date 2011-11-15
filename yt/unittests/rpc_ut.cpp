@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "rpc_ut.pb.h"
 
 #include <yt/ytlib/bus/bus.h>
@@ -100,14 +102,14 @@ RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
 class TRpcTest
     : public ::testing::Test
 {
-    TServer::TPtr Server;
+    IServer::TPtr Server;
 
 public:
     virtual void SetUp()
     {
-        Server = New<TServer>(2000);
+        Server = CreateRpcServer(2000);
         auto queue = New<TActionQueue>();
-        Server->RegisterService(New<TMyService>(~queue->GetInvoker()));
+        Server->RegisterService(~New<TMyService>(~queue->GetInvoker()));
         Server->Start();
     }
 
@@ -121,7 +123,7 @@ public:
 
 TEST_F(TRpcTest, Send)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
     request->SetA(42);
     auto result = request->Invoke();
@@ -134,7 +136,7 @@ TEST_F(TRpcTest, Send)
 // Now test different types of errors
 TEST_F(TRpcTest, TransportError)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2001"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2001"));
     auto request = proxy->EmptyCall();
     auto result = request->Invoke();
     auto response = result->Get();
@@ -165,7 +167,7 @@ TEST_F(TRpcTest, TransportError)
 
 TEST_F(TRpcTest, Timeout)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
     auto request = proxy->EmptyCall();
     auto result = request->Invoke(TDuration::Seconds(1));
     auto response = result->Get();
@@ -175,7 +177,7 @@ TEST_F(TRpcTest, Timeout)
 
 TEST_F(TRpcTest, CustomMessage)
 {
-    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
     auto request = proxy->CustomMessageError();
     auto result = request->Invoke();
     auto response = result->Get();

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/ytree/yson_reader.h"
 #include <util/stream/mem.h>
 

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/meta_state/snapshot.h"
 
 #include <util/random/random.h>
