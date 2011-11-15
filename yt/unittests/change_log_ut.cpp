@@ -92,7 +92,7 @@ TEST_F(TChangeLogTest, Finalized)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
 
         changeLog->Flush();
@@ -122,7 +122,7 @@ TEST_F(TChangeLogTest, ReadWrite)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
 
         changeLog->Flush();
@@ -151,7 +151,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
 
         changeLog->Flush();
@@ -172,7 +172,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
 
         TBlob blob(sizeof(i32));
         *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-        changeLog->Append(logRecordCount - 1, TSharedRef(blob));
+        changeLog->Append(logRecordCount - 1, TSharedRef(MoveRV(blob)));
         changeLog->Flush();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
@@ -199,7 +199,7 @@ TEST_F(TChangeLogTest, Truncate)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
 
         changeLog->Flush();
@@ -235,7 +235,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
 
         changeLog->Flush();
@@ -261,7 +261,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
         for (i32 i = recordId; i < logRecordCount; ++i) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(i);
-            changeLog->Append(i, TSharedRef(blob));
+            changeLog->Append(i, TSharedRef(MoveRV(blob)));
         }
     }
     {
@@ -284,7 +284,7 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui8));
             *reinterpret_cast<ui8*>(blob.begin()) = static_cast<ui8>(recordId);
-            changeLog->Append(recordId, TSharedRef(blob));
+            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
         }
     }
     {

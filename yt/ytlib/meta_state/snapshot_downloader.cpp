@@ -117,7 +117,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     try {
         snapshotWriter->Open(snapshotInfo.PrevRecordCount);
     } catch (const yexception& ex) {
-        LOG_ERROR("Could not open snapshot writer: %s", ex.what());
+        LOG_ERROR("Could not open snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
@@ -130,7 +130,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     try {
         snapshotWriter->Close();
     } catch (const yexception& ex) {
-        LOG_ERROR("Could not close snapshot writer: %s", ex.what());
+        LOG_ERROR("Could not close snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
@@ -216,7 +216,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         try {
             output.Write(block.Begin(), block.Size());
         } catch (const yexception& ex) {
-            LOG_ERROR("Exception occurred while writing to output: %s",
+            LOG_ERROR("Exception occurred while writing to output\n%s",
                 ex.what());
             return EResult::IOError;
         }

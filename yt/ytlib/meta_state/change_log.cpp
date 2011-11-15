@@ -470,7 +470,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     if (RecordCount == 0)
         return;
 
-    TSharedRef::TBlobPtr data = new TBlob();
+    TBlob blob;
     result->clear();
 
     i32 lastRecordId;
@@ -493,26 +493,28 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 
         // Prepare the buffer.
         length = static_cast<size_t>(upperBound - lowerBound);
-        data->resize(length);
+        blob.resize(length);
 
         // Ensure that all buffers are flushed to disk so pread will succeed.
         FileOutput->Flush();
      
         // Do the actual read.
-        File->Pread(data->begin(), length, lowerBound);
+        File->Pread(blob.begin(), length, lowerBound);
     }
     
-    // TODO(sandello): Read this out and refactor with util/memory/*.
+    TSharedRef sharedBlob(MoveRV(blob));
+
+        // TODO(sandello): Read this out and refactor with util/memory/*.
     i32 currentRecordId = firstRecordId;
     size_t position = 0;
     while (position < length) {
         i64 filePosition = lowerBound + position;
-        if (position + sizeof(TRecordHeader) >= data->size()) {
+        if (position + sizeof(TRecordHeader) >= length) {
             LOG_DEBUG("Can't read record header at %" PRId64, filePosition);
             break;
         }
 
-        TRecordHeader* header = reinterpret_cast<TRecordHeader*>(&data->at(position));
+        auto* header = reinterpret_cast<TRecordHeader*>(sharedBlob.Begin() + position);
         if (header->RecordId > lastRecordId) {
             break;
         }
@@ -526,15 +528,15 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
                 break;
             }
 
-            if (position + sizeof(TRecordHeader) + header->DataLength > data->size()) {
+            if (position + sizeof(TRecordHeader) + header->DataLength > length) {
                 LOG_DEBUG("Can't read data of record %d at %" PRId64,
                     header->RecordId,
                     filePosition);
                 break;
             }
 
-            char* ptr = reinterpret_cast<char*>(&data->at(position + sizeof(TRecordHeader)));
-            TChecksum checksum = GetChecksum(TRef(ptr, header->DataLength));
+            char* ptr = sharedBlob.Begin() + position + sizeof(TRecordHeader);
+            auto checksum = GetChecksum(TRef(ptr, header->DataLength));
             if (checksum != header->Checksum) {
                 LOG_DEBUG("Invalid checksum of record %d at %" PRId64,
                     header->RecordId,
@@ -542,7 +544,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
                 break;
             }
 
-            result->push_back(TSharedRef(data, TRef(ptr, (size_t) header->DataLength)));
+            result->push_back(TSharedRef(sharedBlob, TRef(ptr, static_cast<size_t>(header->DataLength))));
             ++currentRecordId;
         }
 

@@ -4,6 +4,7 @@
 #include "node.h"
 
 #include "../ytree/ytree.h"
+#include "../ytree/ypath_service.h"
 
 namespace NYT {
 namespace NCypress {
@@ -26,6 +27,8 @@ struct ICypressNodeProxy
     virtual ICypressNode& GetImplForUpdate() = 0;
 
     virtual INodeTypeHandler::TPtr GetTypeHandler() const = 0;
+
+    virtual bool IsVerbLogged(const Stroka& verb) const = 0;;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

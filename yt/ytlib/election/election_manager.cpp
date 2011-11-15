@@ -19,10 +19,10 @@ static NLog::TLogger Logger("Election");
 
 TElectionManager::TElectionManager(
     const TConfig& config,
-    NMetaState::TCellManager::TPtr cellManager,
-    IInvoker::TPtr controlInvoker,
-    IElectionCallbacks::TPtr electionCallbacks,
-    NRpc::TServer::TPtr server)
+    NMetaState::TCellManager* cellManager,
+    IInvoker* controlInvoker,
+    IElectionCallbacks* electionCallbacks,
+    NRpc::IServer* server)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),
@@ -34,10 +34,10 @@ TElectionManager::TElectionManager(
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~controlInvoker != NULL);
-    YASSERT(~electionCallbacks != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(cellManager != NULL);
+    YASSERT(controlInvoker != NULL);
+    YASSERT(electionCallbacks != NULL);
+    YASSERT(server != NULL);
 
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 

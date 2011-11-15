@@ -18,21 +18,22 @@ public:
     typedef IFunc<TResult> TChangeFunc;
 
     TMetaChange(
-        TMetaStateManager::TPtr metaStateManager,
-        TIntrusivePtr<TChangeFunc> func,
+        TMetaStateManager* metaStateManager,
+        TChangeFunc* func,
         const TSharedRef& changeData,
         ECommitMode mode);
 
     typename TFuture<TResult>::TPtr Commit();
     
-    TPtr OnSuccess(typename IParamAction<TResult>::TPtr onSuccess);
-    TPtr OnError(IAction::TPtr onError);
+    TPtr OnSuccess(IParamAction<TResult>* onSuccess);
+    TPtr OnError(IAction* onError);
 
 private:
     typedef TMetaChange<TResult> TThis;
 
     TMetaStateManager::TPtr MetaStateManager;
-    typename TChangeFunc::TPtr ChangeFunc;
+    typename TChangeFunc::TPtr Func;
+    IAction::TPtr ChangeAction;
     TSharedRef ChangeData;
     ECommitMode CommitMode;
 
@@ -50,10 +51,17 @@ private:
 
 template <class TTarget, class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    TMetaStateManager::TPtr metaStateManager,
+    TMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
-    TIntrusivePtr<TTarget> target,
+    TTarget* target,
+    ECommitMode mode = ECommitMode::NeverFails);
+
+template <class TMessage, class TResult>
+typename TMetaChange<TResult>::TPtr CreateMetaChange(
+    TMetaStateManager* metaStateManager,
+    const TMessage& message,
+    IFunc<TResult>* func,
     ECommitMode mode = ECommitMode::NeverFails);
 
 ////////////////////////////////////////////////////////////////////////////////

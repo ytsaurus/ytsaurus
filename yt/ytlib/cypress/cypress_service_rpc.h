@@ -5,6 +5,9 @@
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
+#include "../ytree/ypath_client.h"
+#include "../ytree/ypath_detail.h"
+#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NCypress {
@@ -19,20 +22,54 @@ public:
 
     RPC_DECLARE_PROXY(CypressService,
         ((NoSuchTransaction)(1))
-        ((RecoverableError)(2))
-        ((UnrecoverableError)(3))
+        ((ResolutionError)(2))
     );
 
     TCypressServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, Get);
-    RPC_PROXY_METHOD(NProto, Set);
-    RPC_PROXY_METHOD(NProto, Remove);
-    RPC_PROXY_METHOD(NProto, Lock);
+    RPC_PROXY_METHOD(NProto, Execute);
     RPC_PROXY_METHOD(NProto, GetNodeId);
 
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(
+        const NTransaction::TTransactionId& transactionId,
+        TTypedRequest* innerRequest)
+    {
+        auto outerRequest = Execute();
+        outerRequest->SetTransactionId(transactionId.ToProto());
+        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+            ~outerRequest,
+            innerRequest);
+    }
+
+private:
+    template <class TTypedRequest, class TTypedResponse>
+    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
+    DoExecute(TReqExecute* outerRequest, TTypedRequest* innerRequest)
+    {
+        auto innerRequestMessage = innerRequest->Serialize();
+        NYTree::WrapYPathRequest(outerRequest, ~innerRequestMessage);
+        return outerRequest->Invoke()->Apply(FromFunctor(
+            [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
+            {
+                auto innerResponse = New<TTypedResponse>();
+                auto error = outerResponse->GetError();
+                if (error.IsOK()) {
+                    auto innerResponseMessage = NYTree::UnwrapYPathResponse(~outerResponse);
+                    innerResponse->Deserialize(~innerResponseMessage);
+                } else if (error.IsRpcError()) {
+                    innerResponse->SetError(error);    
+                } else {
+                    innerResponse->SetError(NRpc::TError(
+                        NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
+                        outerResponse->GetError().GetMessage()));
+                }
+                return innerResponse;
+            }));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,7 +16,7 @@ static NLog::TLogger& Logger = TransactionLogger;
 TTransactionService::TTransactionService(
     TMetaStateManager* metaStateManager,
     TTransactionManager* transactionManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TTransactionServiceProxy::GetServiceName(),
@@ -30,6 +30,7 @@ TTransactionService::TTransactionService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
+
     server->RegisterService(this);
 }
 
@@ -54,7 +55,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 
     TransactionManager
         ->InitiateStartTransaction()
-        ->OnSuccess(FromFunctor([=] (TTransactionId id)
+        ->OnSuccess(~FromFunctor([=] (TTransactionId id)
             {
                 response->SetTransactionId(id.ToProto());
 
@@ -63,7 +64,7 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
 
                 context->Reply();
             }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -81,8 +82,8 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
 
     TransactionManager
         ->InitiateCommitTransaction(id)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -100,8 +101,8 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
 
     TransactionManager
         ->InitiateAbortTransaction(id)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

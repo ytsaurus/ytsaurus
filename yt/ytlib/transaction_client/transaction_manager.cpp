@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "transaction_manager.h"
 
 #include "../transaction_server/transaction_service_rpc.h"

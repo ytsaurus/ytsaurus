@@ -84,7 +84,7 @@ TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
     TBlob data(blockInfo.GetSize());
     File->Pread(data.begin(), data.size(), BlockOffsets[blockIndex]); 
 
-    TSharedRef result(data);
+    TSharedRef result(MoveRV(data));
 
     if (blockInfo.GetChecksum() != GetChecksum(result)) {
         ythrow yexception() << Sprintf("Chunk footer signature mismatch (FileName: %s, BlockIndex: %d)",

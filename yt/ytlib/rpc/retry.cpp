@@ -34,14 +34,14 @@ public:
         return OriginalRequest->Serialize();
     }
 
-    Stroka GetServiceName() const
+    Stroka GetPath() const
     {
-        return OriginalRequest->GetServiceName();
+        return OriginalRequest->GetPath();
     }
 
-    virtual Stroka GetMethodName() const
+    virtual Stroka GetVerb() const
     {
-        return OriginalRequest->GetMethodName();
+        return OriginalRequest->GetVerb();
     }
 
 private:
@@ -146,7 +146,7 @@ private:
         }
     }
 
-    virtual void OnResponse(const TError& error, IMessage::TPtr message)
+    virtual void OnResponse(const TError& error, IMessage* message)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Sent) {

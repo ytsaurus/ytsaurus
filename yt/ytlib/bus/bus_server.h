@@ -68,7 +68,7 @@ private:
         TPacketHeader* header,
         const TGuid& requestId,
         const TUdpAddress& address,
-        TBlob& data,
+        TBlob&& data,
         bool isRequest);
 
     TIntrusivePtr<TSession> RegisterSession(

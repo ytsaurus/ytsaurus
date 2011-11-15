@@ -20,4 +20,7 @@ SET(YT_SOURCE_FILES
     world_initializer.cpp
 
     cypress_integration.cpp
+
+    cypress_ypath_rpc.proto
+    cypress_ypath_rpc.h
 )

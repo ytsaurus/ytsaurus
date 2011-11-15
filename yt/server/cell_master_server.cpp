@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "cell_master_server.h"
 
+#include <yt/ytlib/ytree/tree_builder.h>
+#include <yt/ytlib/ytree/ephemeral.h>
+#include <yt/ytlib/ytree/virtual.h>
+
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
 #include <yt/ytlib/transaction_server/transaction_manager.h>
@@ -26,10 +30,13 @@
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
+#include <yt/ytlib/orchid/orchid_service.h>
 
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
+
+using NRpc::CreateRpcServer;
 
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionService;
@@ -93,13 +100,13 @@ void TCellMasterServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto server = New<NRpc::TServer>(port);
+    auto rpcServer = CreateRpcServer(port);
 
     auto metaStateManager = New<TMetaStateManager>(
         Config.MetaState,
-        controlQueue->GetInvoker(),
-        metaState,
-        server);
+        ~controlQueue->GetInvoker(),
+        ~metaState,
+        ~rpcServer);
 
     auto transactionManager = New<TTransactionManager>(
         TTransactionManager::TConfig(),
@@ -109,7 +116,7 @@ void TCellMasterServer::Run()
     auto transactionService = New<TTransactionService>(
         ~metaStateManager,
         ~transactionManager,
-        ~server);
+        ~rpcServer);
 
     auto chunkManager = New<TChunkManager>(
         TChunkManagerConfig(),
@@ -121,7 +128,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~transactionManager,
-        ~server);
+        ~rpcServer);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
@@ -129,10 +136,10 @@ void TCellMasterServer::Run()
         ~transactionManager);
 
     auto cypressService = New<TCypressService>(
-        ~metaStateManager,
+        ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
         ~transactionManager,
-        ~server);
+        ~rpcServer);
 
     auto fileManager = New<TFileManager>(
         ~metaStateManager,
@@ -145,7 +152,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~fileManager,
-        ~server);
+        ~rpcServer);
 
     auto tableManager = New<TTableManager>(
         ~metaStateManager,
@@ -158,7 +165,7 @@ void TCellMasterServer::Run()
         ~metaStateManager,
         ~chunkManager,
         ~tableManager,
-        ~server);
+        ~rpcServer);
 
     auto worldIntializer = New<TWorldInitializer>(
         ~metaStateManager,
@@ -175,6 +182,19 @@ void TCellMasterServer::Run()
 
     // TODO: register more monitoring infos
     monitoringManager->Start();
+
+    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
+    auto orchidRoot = orchidFactory->CreateMap();
+    orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
+            orchidFactory),
+        "monitoring");
+
+    auto orchidService = New<NOrchid::TOrchidService>(
+        ~orchidRoot,
+        ~rpcServer,
+        ~controlQueue->GetInvoker());
 
     cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
         ~cypressManager,
@@ -196,13 +216,13 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
 
-    MonitoringServer = new THttpTreeServer(
+    auto monitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),
         Config.MonitoringPort);
 
-    MonitoringServer->Start();
+    monitoringServer->Start();
     metaStateManager->Start();
-    server->Start();
+    rpcServer->Start();
 
     Sleep(TDuration::Max());
 }

@@ -305,15 +305,15 @@ class TClientDispatcher
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
     {
-        DoProcessMessage(header, nlRequest->ReqId, nlRequest->Data, true);
+        DoProcessMessage(header, nlRequest->ReqId, MoveRV(nlRequest->Data), true);
     }
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
-        DoProcessMessage(header, nlResponse->ReqId, nlResponse->Data, false);
+        DoProcessMessage(header, nlResponse->ReqId, MoveRV(nlResponse->Data), false);
     }
 
-    void DoProcessMessage(TPacketHeader* header, const TGuid& requestId, TBlob& data, bool isRequest)
+    void DoProcessMessage(TPacketHeader* header, const TGuid& requestId, TBlob&& data, bool isRequest)
     {
         int dataSize = data.ysize();
 
@@ -328,7 +328,7 @@ class TClientDispatcher
 
         IMessage::TPtr message;
         TSequenceId sequenceId;;
-        if (!DecodeMessagePacket(data, &message, &sequenceId))
+        if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
             return;
 
         LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, PacketSize: %d)",
@@ -435,7 +435,7 @@ public:
     {
         Requester = CreateHttpUdpRequester(0);
         if (~Requester == NULL) {
-            throw yexception() << "Failed to create a client NetLiba requester";
+            ythrow yexception() << "Failed to create a client NetLiba requester";
         }
 
         Thread.Start();
@@ -467,13 +467,13 @@ public:
         // NB: cannot use log here
     }
 
-    IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage::TPtr message)
+    IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage* message)
     {
         auto sequenceId = bus->GenerateSequenceId();
 
         TBlob data;
         if (!EncodeMessagePacket(message, bus->SessionId, sequenceId, &data))
-            throw yexception() << "Failed to encode a message";
+            ythrow yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
         auto request = New<TRequest>(bus->SessionId, &data);
@@ -552,7 +552,7 @@ IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
     // since Terminate is used for debugging purposes mainly, we omit it.
     YASSERT(!Terminated);
 
-    return TClientDispatcher::Get()->EnqueueRequest(this, message);
+    return TClientDispatcher::Get()->EnqueueRequest(this, ~message);
 }
 
 void TBusClient::TBus::Terminate()
@@ -595,7 +595,7 @@ TBusClient::TBusClient(Stroka address)
 
     ServerAddress = CreateAddress(address, 0);
     if (ServerAddress == TUdpAddress()) {
-        throw yexception() << Sprintf("Failed to resolve the address %s",
+        ythrow yexception() << Sprintf("Failed to resolve the address %s",
             ~address.Quote());
     }
 }

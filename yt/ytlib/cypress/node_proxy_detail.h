@@ -3,11 +3,14 @@
 #include "common.h"
 #include "node_proxy.h"
 #include "node_detail.h"
+#include "cypress_ypath_rpc.pb.h"
 
 #include "../ytree/ytree.h"
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_service.h"
 #include "../ytree/ypath_detail.h"
 #include "../ytree/node_detail.h"
+#include "../ytree/yson_reader.h"
+#include "../ytree/ephemeral.h"
 
 namespace NYT {
 namespace NCypress {
@@ -30,8 +33,8 @@ public:
     virtual NYTree::IEntityNode::TPtr CreateEntity();
 
 private:
-    TCypressManager::TPtr CypressManager;
-    TTransactionId TransactionId;
+    const TCypressManager::TPtr CypressManager;
+    const TTransactionId TransactionId;
 
 };
 
@@ -136,15 +139,48 @@ public:
     }
 
 
+    virtual bool IsVerbLogged(const Stroka& verb) const
+    {
+        if (verb == "Set" ||
+            verb == "Remove" ||
+            verb == "Lock")
+        {
+            return true;
+        }
+        return false;
+    }
+
+
 protected:
-    INodeTypeHandler::TPtr TypeHandler;
-    TCypressManager::TPtr CypressManager;
-    TTransactionId TransactionId;
-    TNodeId NodeId;
+    const INodeTypeHandler::TPtr TypeHandler;
+    const TCypressManager::TPtr CypressManager;
+    const TTransactionId TransactionId;
+    const TNodeId NodeId;
+
     mutable TNodeFactory NodeFactory;
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
 
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Lock") {
+            LockThunk(context);
+        } else {
+            TNodeBase::DoInvoke(context);
+        }
+    }
+
+    RPC_SERVICE_METHOD_DECL(NProto, Lock)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        DoLock();
+        context->Reply();
+    }
+    
 
     virtual yvector<Stroka> GetVirtualAttributeNames()
     {
@@ -207,17 +243,15 @@ protected:
         if (CypressManager->IsTransactionNodeLocked(NodeId, TransactionId))
             return;
 
-        LockSelf();
+        DoLock();
     }
 
-    TLockResult LockSelf()
+    void DoLock()
     {
         CypressManager->LockTransactionNode(NodeId, TransactionId);
 
         // Set the flag to speedup further checks.
         Locked = true;
-
-        return TLockResult::CreateDone();
     }
 
 
@@ -268,32 +302,11 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-#define DECLARE_TYPE_OVERRIDES(name) \
-public: \
-    virtual TIntrusivePtr<const NYTree::I##name##Node> As##name() const \
-    { \
-        return this; \
-    } \
-    \
-    virtual TIntrusivePtr<NYTree::I##name##Node> As##name() \
-    { \
-        return this; \
-    } \
-    \
-    virtual TSetResult SetSelf(NYTree::TYsonProducer::TPtr producer) \
-    { \
-        auto builder = CypressManager->GetDeserializationBuilder(TransactionId); \
-        NYTree::SetNodeFromProducer<NYTree::I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(this); \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T##name##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node> \
     { \
-        DECLARE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(name) \
     \
     public: \
         T##name##NodeProxy( \
@@ -333,7 +346,20 @@ template <class IBase, class TImpl>
 class TCompositeNodeProxyBase
     : public TCypressNodeProxyBase<IBase, TImpl>
 {
+public:
+    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
+    {
+        return this;
+    }
+
+    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()
+    {
+        return this;
+    }
+
 protected:
+    typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
+
     TCompositeNodeProxyBase(
         INodeTypeHandler* typeHandler,
         TCypressManager* cypressManager,
@@ -346,16 +372,49 @@ protected:
             nodeId)
     { }
 
-public:
-    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const
+    virtual void CreateRecursive(
+        NYTree::TYPath path,
+        NYTree::INode* value) = 0;
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        return this;
+        Stroka verb = context->GetVerb();
+        if (verb == "Create") {
+            CreateThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
     }
 
-    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite()
+    virtual bool IsVerbLogged(const Stroka& verb) const
     {
-        return this;
+        if (verb == "Create")
+        {
+            return true;
+        }
+        return TBase::IsVerbLogged(verb);
     }
+
+private:
+    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    {
+        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+        builder->BeginTree();
+        TStringInput input(request->GetManifest());
+        NYTree::TYsonReader reader(~builder);
+        reader.Read(&input);
+        auto manifest = builder->EndTree();
+
+        auto value = this->CypressManager->CreateDynamicNode(
+            this->TransactionId,
+            ~manifest);
+        CreateRecursive(context->GetPath(), ~value);
+
+        response->SetNodeId(value->GetNodeId().ToProto());
+
+        context->Reply();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,7 +423,7 @@ class TMapNodeProxy
     : public TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
     TMapNodeProxy(
@@ -383,8 +442,11 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
-    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
+    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
+    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
 
@@ -394,7 +456,7 @@ class TListNodeProxy
     : public TCompositeNodeProxyBase<NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
     TListNodeProxy(
@@ -413,14 +475,12 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
 
 private:
-    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path);
-    virtual TSetResult SetRecursive(NYTree::TYPath path, NYTree::TYsonProducer::TPtr producer);
+    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
+    virtual TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
+    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-#undef DECLARE_TYPE_OVERRIDES
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -44,9 +44,9 @@ public:
     TImpl(
         TMetaStateManager::TPtr owner,
         const TConfig& config,
-        IInvoker::TPtr controlInvoker,
-        IMetaState::TPtr metaState,
-        TServer::TPtr server)
+        IInvoker* controlInvoker,
+        IMetaState* metaState,
+        IServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , Owner(owner)
         , ControlStatus(EPeerStatus::Stopped)
@@ -56,9 +56,9 @@ public:
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
     {
-        YASSERT(~controlInvoker != NULL);
-        YASSERT(~metaState != NULL);
-        YASSERT(~server != NULL);
+        YASSERT(controlInvoker != NULL);
+        YASSERT(metaState != NULL);
+        YASSERT(server != NULL);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
@@ -91,13 +91,14 @@ public:
         // TODO: fill config
         ElectionManager = New<TElectionManager>(
             NElection::TElectionManager::TConfig(),
-            CellManager,
+            ~CellManager,
             controlInvoker,
             this,
             server);
 
         server->RegisterService(this);
     }
+
     void Start();
 
     EPeerStatus GetControlStatus() const;
@@ -107,14 +108,10 @@ public:
     IInvoker::TPtr GetEpochStateInvoker();
     IInvoker::TPtr GetSnapshotInvoker();
 
-    TAsyncCommitResult::TPtr CommitChangeSync(
+    TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
-
-    TAsyncCommitResult::TPtr CommitChangeSync(
-        IAction::TPtr changeAction,
-        const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails);
+        ECommitMode mode,
+        IAction* changeAction);
 
     void SetReadOnly(bool readOnly)
     {
@@ -190,14 +187,14 @@ private:
             i32 bytesRead = reader->GetStream().Read(data.begin(), length);
             data.erase(data.begin() + bytesRead, data.end());
 
-            context->Response().Attachments().push_back(TSharedRef(data));
+            context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
             context->SetResponseInfo("BytesRead: %d", bytesRead);
 
             context->Reply();
         } catch (...) {
             // TODO: fail?
             ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-                Sprintf("IO error while reading snapshot (SnapshotId: %d): %s",
+                Sprintf("IO error while reading snapshot (SnapshotId: %d)\n%s",
                     snapshotId,
                     ~CurrentExceptionMessage());
         }
@@ -230,7 +227,7 @@ private:
         } catch (...) {
             // TODO: fail?
             ythrow TServiceException(EErrorCode::IOError) <<
-                Sprintf("IO error while reading changelog (ChangeLogId: %d): %s",
+                Sprintf("IO error while reading changelog (ChangeLogId: %d)\n%s",
                     changeLogId,
                     ~CurrentExceptionMessage());
         }
@@ -409,7 +406,7 @@ private:
 
         if (MetaState->GetVersion() != version) {
             Restart();
-            throw TServiceException(EErrorCode::InvalidVersion) <<
+            ythrow TServiceException(EErrorCode::InvalidVersion) <<
                 Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
                     ~version.ToString(),
                     ~MetaState->GetVersion().ToString());
@@ -705,26 +702,10 @@ IInvoker::TPtr TMetaStateManager::TImpl::GetSnapshotInvoker()
 }
 
 TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeSync(
+TMetaStateManager::TImpl::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    return CommitChangeSync(
-        FromMethod(
-            &IMetaState::ApplyChange,
-            MetaState->GetState(),
-            changeData),
-        changeData,
-        mode);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::TImpl::CommitChangeSync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData,
-    ECommitMode mode)
+    ECommitMode mode,
+    IAction* changeAction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -734,6 +715,16 @@ TMetaStateManager::TImpl::CommitChangeSync(
 
     if (ReadOnly) {
         return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
+    }
+
+    IAction::TPtr changeAction_;
+    if (changeAction == NULL) {
+        changeAction_ = FromMethod(
+            &IMetaState::ApplyChange,
+            MetaState->GetState(),
+            changeData);
+    } else {
+        changeAction_ = changeAction;
     }
 
     // FollowerTracker is modified concurrently from the ControlThread.
@@ -882,7 +873,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetSnapshotInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting snapshot info (SnapshotId: %d): %s",
+            Sprintf("IO error while getting snapshot info (SnapshotId: %d)\n%s",
                 snapshotId,
                 ~CurrentExceptionMessage());
     }
@@ -913,14 +904,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadSnapshot)
     }
 
     ReadQueue->GetInvoker()->Invoke(
-        context->Wrap(
-            FromMethod(
-                &TImpl::DoReadSnapshot,
-                TPtr(this),
-                snapshotId,
-                reader,
-                offset,
-                length)));
+        context->Wrap(~FromMethod(
+            &TImpl::DoReadSnapshot,
+            TPtr(this),
+            snapshotId,
+            reader,
+            offset,
+            length)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
@@ -948,7 +938,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, GetChangeLogInfo)
     } catch (...) {
         // TODO: fail?
         ythrow TServiceException(EErrorCode::IOError) <<
-            Sprintf("IO error while getting changelog info (ChangeLogId: %d): %s",
+            Sprintf("IO error while getting changelog info (ChangeLogId: %d)\n%s",
                 changeLogId,
                 ~CurrentExceptionMessage());
     }
@@ -978,14 +968,13 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ReadChangeLog)
             Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
     }
 
-    ReadQueue->GetInvoker()->Invoke(
-        context->Wrap(FromMethod(
-            &TImpl::DoReadChangeLog,
-            TPtr(this),
-            changeLogId,
-            changeLog,
-            startRecordId,
-            recordCount)));
+    ReadQueue->GetInvoker()->Invoke(~context->Wrap(~FromMethod(
+        &TImpl::DoReadChangeLog,
+        TPtr(this),
+        changeLogId,
+        changeLog,
+        startRecordId,
+        recordCount)));
 }
 
 RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, ApplyChanges)
@@ -1125,7 +1114,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 LOG_DEBUG("AdvanceSegment: advancing segment (Version: %s)",
                     ~version.ToString());
 
-                GetStateInvoker()->Invoke(context->Wrap(FromMethod(
+                GetStateInvoker()->Invoke(context->Wrap(~FromMethod(
                     &TImpl::DoAdvanceSegment,
                     TPtr(this),
                     version)));
@@ -1280,9 +1269,9 @@ Stroka TMetaStateManager::TImpl::FormatPriority(TPeerPriority priority)
 
 TMetaStateManager::TMetaStateManager(
     const TConfig& config,
-    IInvoker::TPtr controlInvoker,
-    IMetaState::TPtr metaState,
-    TServer::TPtr server)
+    IInvoker* controlInvoker,
+    IMetaState* metaState,
+    IServer* server)
     : Impl(New<TImpl>(
         this,
         config,
@@ -1320,20 +1309,12 @@ IInvoker::TPtr TMetaStateManager::GetSnapshotInvoker()
 }
 
 TMetaStateManager::TAsyncCommitResult::TPtr
-    TMetaStateManager::CommitChangeSync(
+TMetaStateManager::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode)
+    ECommitMode mode,
+    IAction* changeAction)
 {
-    return Impl->CommitChangeSync(changeData, mode);
-}
-
-TMetaStateManager::TAsyncCommitResult::TPtr
-TMetaStateManager::CommitChangeSync(
-    IAction::TPtr changeAction,
-    const TSharedRef& changeData,
-    ECommitMode mode)
-{
-    return Impl->CommitChangeSync(changeAction, changeData, mode);
+    return Impl->CommitChange(changeData, mode, changeAction);
 }
 
 void TMetaStateManager::SetReadOnly(bool readOnly)

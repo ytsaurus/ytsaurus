@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "node_detail.h"
 #include "ypath_detail.h"
-#include "ypath.h"
+#include "ypath_service.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "yson_writer.h"
@@ -13,58 +13,128 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService2::TNavigateResult2 TNodeBase::Navigate2(TYPath path)
+IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, bool mustExist)
 {
     if (path.empty()) {
-        return TNavigateResult2::Here();
+        return TResolveResult::Here("");
     }
 
     if (path[0] == '@') {
         auto attributes = GetAttributes();
         if (~attributes == NULL) {
-            throw TYTreeException() << "Node has no custom attributes";
+            ythrow yexception() << "Node has no custom attributes";
         }
 
         // TODO: virtual attributes
 
-        return TNavigateResult2::There(
-            ~IYPathService2::FromNode(~attributes),
-            TYPath(path.begin() + 1, path.end()));
+        return TResolveResult::There(
+            ~IYPathService::FromNode(~attributes),
+            path.substr(1));
     }
 
-    return NavigateRecursive2(path);
+    return ResolveRecursive(path, mustExist);
 }
 
-IYPathService2::TNavigateResult2 TNodeBase::NavigateRecursive2(TYPath path)
+IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, bool mustExist)
 {
     UNUSED(path);
-    throw TYTreeException() << "Navigation is not supported";
+    UNUSED(mustExist);
+    ythrow yexception() << "Further navigation is not supported";
 }
 
-void TNodeBase::Invoke2(TYPath path, NRpc::TServiceContext* context)
+void TNodeBase::Invoke(NRpc::IServiceContext* context)
 {
-    Stroka methodName = context->GetMethodName();
-    if (methodName == "Get") {
-        Get2Thunk(path, context);
-    } else if (methodName == "Set") {
-        Set2Thunk(path, context);
-    } else if (methodName == "Remove") {
-        Remove2Thunk(path, context);
-    } else {
-        context->Reply(EErrorCode::NoMethod);
+    try {
+        DoInvoke(context);
+    } catch (...) {
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
+            CurrentExceptionMessage();
     }
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Get2)
+void TNodeBase::DoInvoke(NRpc::IServiceContext* context)
 {
+    Stroka verb = context->GetVerb();
+    // TODO: use method table
+    if (verb == "Get") {
+        GetThunk(context);
+    } else if (verb == "Set") {
+        SetThunk(context);
+    } else if (verb == "Remove") {
+        RemoveThunk(context);
+    } else {
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+            Sprintf("Unknown verb %s", ~verb.Quote());
+    }
+}
+
+void TNodeBase::ThrowNonEmptySuffixPath(TYPath path)
+{
+    ythrow yexception() << Sprintf("Suffix path %s cannot be resolved",
+        ~path.Quote());
+}
+
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
+{
+    Stroka path = context->GetPath();
     if (path.empty()) {
-        GetSelf2(request, response, context);
+        GetSelf(request, response, context);
     } else {
-        GetRecursive2(path, request, response, context);
+        GetRecursive(path, request, response, context);
     }
+
+    // TODO: attributes
+//    if (path[0] == '@') {
+//        auto attributes = GetAttributes();
+//
+//        if (path == "@") {
+//            // TODO: use fluent API
+//
+//            consumer->OnBeginMap();
+//            auto names = GetVirtualAttributeNames();
+//            FOREACH (const auto& name, names) {
+//                consumer->OnMapItem(name);
+//                YVERIFY(GetVirtualAttribute(name, consumer));
+//            }
+//            
+//            if (~attributes != NULL) {
+//                auto children = attributes->GetChildren();
+//                FOREACH (const auto& pair, children) {
+//                    consumer->OnMapItem(pair.First());
+//                    TTreeVisitor visitor(consumer);
+//                    visitor.Visit(pair.Second());
+//                }
+//            }
+//
+//            consumer->OnEndMap(false);
+//
+//            return TGetResult::CreateDone();
+//        } else {
+//            Stroka prefix;
+//            TYPath suffixPath;
+//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &suffixPath);
+//
+//            if (GetVirtualAttribute(prefix, consumer))
+//                return TGetResult::CreateDone();
+//
+//            if (~attributes == NULL) {
+//                ythrow yexception() << "Node has no custom attributes";
+//            }
+//
+//            auto child = attributes->FindChild(prefix);
+//            if (~child == NULL) {
+//                ythrow yexception() << Sprintf("Attribute %s is not found",
+//                    ~prefix.Quote());
+//            }
+//
+//            TTreeVisitor visitor(consumer);
+//            visitor.Visit(child);
+//            return TGetResult::CreateDone();
+//        }
+//    } else {
 }
 
-void TNodeBase::GetSelf2(TReqGet2* request, TRspGet2* response, TCtxGet2::TPtr context)
+void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
 {
     UNUSED(request);
 
@@ -77,27 +147,27 @@ void TNodeBase::GetSelf2(TReqGet2* request, TRspGet2* response, TCtxGet2::TPtr c
     context->Reply();
 }
 
-void TNodeBase::GetRecursive2(TYPath path, TReqGet2* request, TRspGet2* response, TCtxGet2::TPtr context)
+void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 
-    // TODO:
-    ythrow yexception() << "Child is not found";
+    ThrowNonEmptySuffixPath(path);
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Set2)
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
 {
+    Stroka path = context->GetPath();
     if (path.empty()) {
-        SetSelf2(request, response, context);
+        SetSelf(request, response, context);
     } else {
-        SetRecursive2(path, request, response, context);
+        SetRecursive(path, request, response, context);
     }
 }
 
-void TNodeBase::SetSelf2(TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -106,27 +176,42 @@ void TNodeBase::SetSelf2(TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr c
     ythrow yexception() << "Cannot modify the node";
 }
 
-void TNodeBase::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 
-    // TODO:
-    ythrow yexception() << "Child is not found";
+    ThrowNonEmptySuffixPath(path);
+
+    // TODO: attributes
+//    if (path[0] == '@') {
+//        auto attributes = GetAttributes();
+//        if (~attributes == NULL) {
+//            attributes = ~GetFactory()->CreateMap();
+//            SetAttributes(attributes);
+//        }
+//
+//        // TODO: should not be able to override a virtual attribute
+//
+//        return IYPathService::TSetResult::CreateRecurse(
+//            IYPathService::FromNode(~attributes),
+//            TYPath(path.begin() + 1, path.end()));
+//    } else {
 }
 
-YPATH_SERVICE_METHOD_IMPL(TNodeBase, Remove2)
+RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
 {
+    Stroka path = context->GetPath();
     if (path.empty()) {
-        RemoveSelf2(request, response, context);
+        RemoveSelf(request, response, context);
     } else {
-        RemoveRecursive2(path, request, response, context);
+        RemoveRecursive(path, request, response, context);
     }
 }
 
-void TNodeBase::RemoveSelf2(TReqRemove2* request, TRspRemove2* response, TCtxRemove2::TPtr context)
+void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -134,221 +219,32 @@ void TNodeBase::RemoveSelf2(TReqRemove2* request, TRspRemove2* response, TCtxRem
     auto parent = GetParent();
 
     if (~parent == NULL) {
-        throw TYTreeException() << "Cannot remove the root";
+        ythrow yexception() << "Cannot remove the root";
     }
 
     parent->AsComposite()->RemoveChild(this);
     context->Reply();
 }
 
-void TNodeBase::RemoveRecursive2(TYPath path, TReqRemove2* request, TRspRemove2* response, TCtxRemove2::TPtr context)
+void TNodeBase::RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 
-    // TODO:
-    ythrow yexception() << "Child is not found";
-}
+    // TODO: attributes
+//    if (path[0] == '@') {
+//        auto attributes = GetAttributes();
+//        if (~attributes == NULL) {
+//            ythrow yexception() << "Node has no custom attributes";
+//        }
+//
+//        return IYPathService::TRemoveResult::CreateRecurse(
+//            IYPathService::FromNode(~attributes),
+//            TYPath(path.begin() + 1, path.end()));
 
-
-
-
-IYPathService::TGetResult TNodeBase::Get(
-    TYPath path,
-    IYsonConsumer* consumer)
-{
-    if (path.empty()) {
-        return GetSelf(consumer);
-    }
-
-    if (path[0] == '@') {
-        auto attributes = GetAttributes();
-
-        if (path == "@") {
-            // TODO: use fluent API
-
-            consumer->OnBeginMap();
-            auto names = GetVirtualAttributeNames();
-            FOREACH (const auto& name, names) {
-                consumer->OnMapItem(name);
-                YVERIFY(GetVirtualAttribute(name, consumer));
-            }
-            
-            if (~attributes != NULL) {
-                auto children = attributes->GetChildren();
-                FOREACH (const auto& pair, children) {
-                    consumer->OnMapItem(pair.First());
-                    TTreeVisitor visitor(consumer);
-                    visitor.Visit(pair.Second());
-                }
-            }
-
-            consumer->OnEndMap(false);
-
-            return TGetResult::CreateDone();
-        } else {
-            Stroka prefix;
-            TYPath tailPath;
-            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &tailPath);
-
-            if (GetVirtualAttribute(prefix, consumer))
-                return TGetResult::CreateDone();
-
-            if (~attributes == NULL) {
-                throw TYTreeException() << "Node has no custom attributes";
-            }
-
-            auto child = attributes->FindChild(prefix);
-            if (~child == NULL) {
-                throw TYTreeException() << Sprintf("Attribute %s is not found",
-                    ~prefix.Quote());
-            }
-
-            TTreeVisitor visitor(consumer);
-            visitor.Visit(child);
-            return TGetResult::CreateDone();
-        }
-    } else {
-        return GetRecursive(path, consumer);
-    }
-}
-
-IYPathService::TGetResult TNodeBase::GetSelf(IYsonConsumer* consumer)
-{
-    TTreeVisitor visitor(consumer, false);
-    visitor.Visit(this);
-    return TGetResult::CreateDone();
-}
-
-IYPathService::TGetResult TNodeBase::GetRecursive(TYPath path, IYsonConsumer* consumer)
-{
-    UNUSED(consumer);
-    return Navigate(path);
-}
-
-IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path)
-{
-    if (path.empty()) {
-        return TNavigateResult::CreateDone(this);
-    }
-
-    if (path[0] == '@') {
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            throw TYTreeException() << "Node has no custom attributes";
-        }
-
-        return TNavigateResult::CreateRecurse(
-            IYPathService::FromNode(~attributes),
-            TYPath(path.begin() + 1, path.end()));
-    }
-
-    return NavigateRecursive(path);
-}
-
-IYPathService::TNavigateResult TNodeBase::NavigateRecursive(TYPath path)
-{
-    UNUSED(path);
-    throw TYTreeException() << "Navigation is not supported";
-}
-
-IYPathService::TSetResult TNodeBase::Set(
-    TYPath path, 
-    TYsonProducer::TPtr producer)
-{
-    if (path.empty()) {
-        return SetSelf(producer);
-    }
-
-    if (path[0] == '@') {
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            attributes = ~GetFactory()->CreateMap();
-            SetAttributes(attributes);
-        }
-
-        // TODO: should not be able to override a virtual attribute
-
-        return IYPathService::TSetResult::CreateRecurse(
-            IYPathService::FromNode(~attributes),
-            TYPath(path.begin() + 1, path.end()));
-    } else {
-        return SetRecursive(path, producer);
-    }
-}
-
-IYPathService::TSetResult TNodeBase::SetSelf(TYsonProducer::TPtr producer)
-{
-    UNUSED(producer);
-    throw TYTreeException() << "Cannot modify the node";
-}
-
-IYPathService::TSetResult TNodeBase::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
-{
-    UNUSED(producer);
-    return Navigate(path);
-}
-
-IYPathService::TRemoveResult TNodeBase::Remove(TYPath path)
-{
-    if (path.empty()) {
-        return RemoveSelf();
-    }
-
-    if (path[0] == '@') {
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            throw TYTreeException() << "Node has no custom attributes";
-        }
-
-        return IYPathService::TRemoveResult::CreateRecurse(
-            IYPathService::FromNode(~attributes),
-            TYPath(path.begin() + 1, path.end()));
-    } else {
-        return RemoveRecursive(path);
-    }
-}
-
-IYPathService::TRemoveResult TNodeBase::RemoveSelf()
-{
-    auto parent = GetParent();
-
-    if (~parent == NULL) {
-        throw TYTreeException() << "Cannot remove the root";
-    }
-
-    parent->AsComposite()->RemoveChild(this);
-    return TRemoveResult::CreateDone();
-}
-
-IYPathService::TRemoveResult TNodeBase::RemoveRecursive(TYPath path)
-{
-    return Navigate(path);
-}
-
-IYPathService::TLockResult TNodeBase::Lock(TYPath path)
-{
-    if (path.empty()) {
-        return LockSelf();
-    }
-    
-    if (path[0] == '@') {
-        throw TYTreeException() << "Locking attributes is not supported";
-    }
-
-    return LockRecursive(path);
-}
-
-IYPathService::TLockResult TNodeBase::LockSelf()
-{
-    throw TYTreeException() << "Locking is not supported";
-}
-
-IYPathService::TLockResult TNodeBase::LockRecursive(TYPath path)
-{
-    return Navigate(path);
+    ThrowNonEmptySuffixPath(path);
 }
 
 yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
@@ -365,213 +261,174 @@ bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService2::TNavigateResult2 TMapNodeMixin::NavigateRecursive2(TYPath path)
+bool TMapNodeMixin::DoInvoke(NRpc::IServiceContext* context)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
+    Stroka verb = context->GetVerb();
+    if (verb == "List") {
+        ListThunk(context);
+        return true;
+    }
+    return false;
+}
 
-    auto child = FindChild(prefix);
-    if (~child == NULL) {
-        return IYPathService2::TNavigateResult2::Here();
-    } else {
-        return IYPathService2::TNavigateResult2::There(~IYPathService2::FromNode(~child), tailPath);
+RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
+{
+    UNUSED(request);
+
+    FOREACH (const auto& pair, GetChildren()) {
+        response->AddKeys(pair.first);
+    }
+
+    context->Reply();
+}
+
+IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
+{
+    try {
+        return GetYPathChild(path);
+    } catch (...) {
+        if (mustExist)
+            throw;
+        return IYPathService::TResolveResult::Here(path);
     }
 }
 
-void TMapNodeMixin::SetRecursive2(TYPath path, const TYson& value, ITreeBuilder* builder)
+IYPathService::TResolveResult TMapNodeMixin::GetYPathChild(TYPath path) const
+{
+    Stroka prefix;
+    TYPath suffixPath;
+    ChopYPathPrefix(path, &prefix, &suffixPath);
+    auto child = FindChild(prefix);
+    if (~child == NULL) {
+        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+    }
+
+    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
+}
+
+void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
+{
+    auto builder = CreateBuilderFromFactory(GetFactory());
+    builder->BeginTree();
+    TStringInput input(request->GetValue());
+    TYsonReader reader(~builder);
+    reader.Read(&input);
+    auto value = builder->EndTree();
+
+    TMapNodeMixin::SetRecursive(path, ~value);
+}
+
+void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
 {
     IMapNode::TPtr currentNode = this;
     TYPath currentPath = path;
 
     while (true) {
         Stroka prefix;
-        TYPath tailPath;
-        ChopYPathPrefix(currentPath, &prefix, &tailPath);
+        TYPath suffixPath;
+        ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
-        if (tailPath.empty()) {
-            builder->BeginTree();
-            TStringInput input(value);
-            TYsonReader reader(builder);
-            reader.Read(&input);
-            auto newChild = builder->EndTree();
-            currentNode->AddChild(newChild, prefix);
+        if (suffixPath.empty()) {
+            if (!currentNode->AddChild(value, prefix)) {
+                ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
+            }
             break;
         }
 
-        auto newChild = GetFactory()->CreateMap();
-        currentNode->AddChild(newChild, prefix);
-        currentNode = newChild;
-        currentPath = tailPath;
+        auto intermediateNode = GetFactory()->CreateMap();
+        if (!currentNode->AddChild(intermediateNode, prefix)) {
+            ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
+        }
+
+        currentNode = intermediateNode;
+        currentPath = suffixPath;
     }
 }
 
-
-IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path)
+void TMapNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child == NULL) {
-        throw TYTreeException() << Sprintf("Key %s is not found",
-            ~prefix.Quote());
-    }
-
-    return IYPathService::TNavigateResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
-}
-
-IYPathService::TSetResult TMapNodeMixin::SetRecursive(
-    TYPath path,
-    TYsonProducer* producer,
-    ITreeBuilder* builder)
-{
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    auto child = FindChild(prefix);
-    if (~child != NULL) {
-        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
-    }
-
-    if (tailPath.empty()) {
-        builder->BeginTree();
-        producer->Do(builder);
-        auto newChild = builder->EndTree();
-        AddChild(newChild, prefix);
-        return IYPathService::TSetResult::CreateDone(newChild);
-    } else {
-        auto newChild = GetFactory()->CreateMap();
-        AddChild(newChild, prefix);
-        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~newChild), tailPath);
-    }
+    // This should throw.
+    GetYPathChild(path);
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService2::TNavigateResult2 TListNodeMixin::NavigateRecursive2(TYPath path)
+IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
     try {
-        int index = FromString<int>(prefix);
-        return GetYPathChild2(index, tailPath);
+        return GetYPathChild(path);
     } catch (...) {
-        return IYPathService2::TNavigateResult2::Here();
+        if (mustExist)
+            throw;
+        return IYPathService::TResolveResult::Here(path);
     }
 }
 
-void TListNodeMixin::SetRecursive2(TYPath path, const TYson& value, ITreeBuilder* builder)
+IYPathService::TResolveResult TListNodeMixin::GetYPathChild(TYPath path) const
 {
-    YUNREACHABLE();
-
-    //IMapNode::TPtr currentNode = this;
-    //TYPath currentPath = path;
-
-    //while (true) {
-    //    Stroka prefix;
-    //    TYPath tailPath;
-    //    ChopYPathPrefix(currentPath, &prefix, &tailPath);
-
-    //    if (prefix.empty()) {
-    //        throw TYTreeException() << "Empty child index";
-    //    }
-
-    //    if (prefix == "+") {
-    //        return CreateYPathChild(GetChildCount(), tailPath, producer, builder);
-    //    } else if (prefix == "-") {
-    //        return CreateYPathChild(0, tailPath, producer, builder);
-    //    }
-
-    //    char lastPrefixCh = prefix[prefix.length() - 1];
-    //    TStringBuf indexString =
-    //        lastPrefixCh == '+' || lastPrefixCh == '-'
-    //        ? TStringBuf(prefix.begin() + 1, prefix.end())
-    //        : prefix;
-
-    //    int index;
-    //    try {
-    //        index = FromString<int>(indexString);
-    //    } catch (...) {
-    //        throw TYTreeException() << Sprintf("Failed to parse child index %s",
-    //            ~Stroka(indexString).Quote());
-    //    }
-
-    //    if (lastPrefixCh == '+') {
-    //        return CreateYPathChild(index + 1, tailPath, producer, builder);
-    //    } else if (lastPrefixCh == '-') {
-    //        return CreateYPathChild(index, tailPath, producer, builder);
-    //    } else {
-    //        auto navigateResult = GetYPathChild(index, tailPath);
-    //        YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
-    //        return IYPathService::TSetResult::CreateRecurse(navigateResult.RecurseService, navigateResult.RecursePath);
-    //    }
-
-    //    auto newChild = GetFactory()->CreateMap();
-    //    currentNode->AddChild(newChild, prefix);
-    //    currentNode = newChild;
-    //    currentPath = tailPath;
-    //}
+    Stroka prefix;
+    TYPath suffixPath;
+    ChopYPathPrefix(path, &prefix, &suffixPath);
+    int index = FromString<int>(prefix);
+    return GetYPathChild(index, suffixPath);
 }
 
-IYPathService2::TNavigateResult2 TListNodeMixin::GetYPathChild2(
+IYPathService::TResolveResult TListNodeMixin::GetYPathChild(
     int index,
-    TYPath tailPath) const
+    TYPath suffixPath) const
 {
     int count = GetChildCount();
     if (count == 0) {
-        throw TYTreeException() << "List is empty";
+        ythrow yexception() << "List is empty";
     }
 
     if (index < 0 || index >= count) {
-        throw TYTreeException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
+        ythrow yexception() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
             index,
             count - 1);
     }
 
     auto child = FindChild(index);
-    return IYPathService2::TNavigateResult2::There(~IYPathService2::FromNode(~child), tailPath);
+    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
 }
 
-
-IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path)
+void TListNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
 {
-    Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
-
-    int index;
-    try {
-        index = FromString<int>(prefix);
-    } catch (...) {
-        throw TYTreeException() << Sprintf("Failed to parse child index %s",
-            ~prefix.Quote());
-    }
-
-    return GetYPathChild(index, tailPath);
+    // This should throw.
+    GetYPathChild(path);
+    YUNREACHABLE();
 }
 
-IYPathService::TSetResult TListNodeMixin::SetRecursive(
-    TYPath path,
-    TYsonProducer* producer,
-    ITreeBuilder* builder)
+void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
+    auto builder = CreateBuilderFromFactory(GetFactory());
+    builder->BeginTree();
+    TStringInput input(request->GetValue());
+    TYsonReader reader(~builder);
+    reader.Read(&input);
+    auto value = builder->EndTree();
+
+    SetRecursive(path, ~value);
+}
+
+void TListNodeMixin::SetRecursive(TYPath path, INode* value)
+{
+    INode::TPtr currentNode = this;
+    TYPath currentPath = path;
+
     Stroka prefix;
-    TYPath tailPath;
-    ChopYPathPrefix(path, &prefix, &tailPath);
+    TYPath suffixPath;
+    ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
     if (prefix.empty()) {
-        throw TYTreeException() << "Empty child index";
+        ythrow yexception() << "Child index is empty";
     }
 
     if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), tailPath, producer, builder);
+        return CreateYPathChild(GetChildCount(), suffixPath, value);
     } else if (prefix == "-") {
-        return CreateYPathChild(0, tailPath, producer, builder);
+        return CreateYPathChild(0, suffixPath, value);
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
@@ -584,57 +441,49 @@ IYPathService::TSetResult TListNodeMixin::SetRecursive(
     try {
         index = FromString<int>(indexString);
     } catch (...) {
-        throw TYTreeException() << Sprintf("Failed to parse child index %s",
-            ~Stroka(indexString).Quote());
+        ythrow yexception() << Sprintf("Failed to parse child index %s\n%s",
+            ~Stroka(indexString).Quote(),
+            ~CurrentExceptionMessage());
     }
 
     if (lastPrefixCh == '+') {
-        return CreateYPathChild(index + 1, tailPath, producer, builder);
+        CreateYPathChild(index + 1, suffixPath, value);
     } else if (lastPrefixCh == '-') {
-        return CreateYPathChild(index, tailPath, producer, builder);
+        CreateYPathChild(index, suffixPath, value);
     } else {
-        auto navigateResult = GetYPathChild(index, tailPath);
-        YASSERT(navigateResult.Code == IYPathService::ECode::Recurse);
-        return IYPathService::TSetResult::CreateRecurse(navigateResult.RecurseService, navigateResult.RecursePath);
+        // Looks like an out-of-range child index.
+        // This should throw.
+        GetYPathChild(index, suffixPath);
+        YUNREACHABLE();
     }
 }
 
-IYPathService::TSetResult TListNodeMixin::CreateYPathChild(
-    int beforeIndex,
-    TYPath tailPath,
-    TYsonProducer* producer,
-    ITreeBuilder* builder)
+void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value)
 {
-    if (tailPath.empty()) {
-        builder->BeginTree();
-        producer->Do(builder);
-        auto newChild = builder->EndTree();
-        AddChild(newChild, beforeIndex);
-        return IYPathService::TSetResult::CreateDone(newChild);
+    if (path.empty()) {
+        AddChild(value, beforeIndex);
     } else {
-        auto newChild = GetFactory()->CreateMap();
-        AddChild(newChild, beforeIndex);
-        return IYPathService::TSetResult::CreateRecurse(IYPathService::FromNode(~newChild), tailPath);
-    }
-}
+        auto currentNode = GetFactory()->CreateMap();
+        auto currentPath = path;
+        AddChild(currentNode, beforeIndex);
 
-IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
-    int index,
-    TYPath tailPath) const
-{
-    int count = GetChildCount();
-    if (count == 0) {
-        throw TYTreeException() << "List is empty";
-    }
+        while (true) {
+            Stroka prefix;
+            TYPath suffixPath;
+            ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
-    if (index < 0 || index >= count) {
-        throw TYTreeException() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
-            index,
-            count - 1);
-    }
+            if (path.empty()) {
+                currentNode->AddChild(value, prefix);
+                break;
+            }
 
-    auto child = FindChild(index);
-    return IYPathService::TNavigateResult::CreateRecurse(IYPathService::FromNode(~child), tailPath);
+            auto intermediateNode = GetFactory()->CreateMap();
+            currentNode->AddChild(intermediateNode, prefix);
+
+            currentNode = intermediateNode;
+            currentPath = suffixPath;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

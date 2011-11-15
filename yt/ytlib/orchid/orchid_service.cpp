@@ -3,7 +3,7 @@
 
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_rpc.h"
 
 namespace NYT {
 namespace NOrchid {
@@ -12,9 +12,13 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger(OrchidLogger);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOrchidService::TOrchidService(
     NYTree::INode* root,
-    NRpc::TServer* server,
+    NRpc::IServer* server,
     IInvoker* invoker)
     : NRpc::TServiceBase(
         invoker,
@@ -25,71 +29,57 @@ TOrchidService::TOrchidService(
     YASSERT(root != NULL);
     YASSERT(server != NULL);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Get));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Set));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Remove));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 
     server->RegisterService(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TOrchidService, Get)
-{
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("Path: %s", ~path);
-
-    Stroka output;
-    TStringOutput outputStream(output);
-    TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Binary);
-
-    try {
-        GetYPath(IYPathService::FromNode(~Root), path, &writer);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::YPathError) << CurrentExceptionMessage();
-    }
-
-    response->SetValue(output);
-    context->Reply();
-}
-
-RPC_SERVICE_METHOD_IMPL(TOrchidService, Set)
+RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
 {
     UNUSED(response);
 
-    Stroka path = request->GetPath();
-    Stroka value = request->GetValue();
+    const auto& attachments = request->Attachments();
+    YASSERT(attachments.ysize() >= 2);
 
-    context->SetRequestInfo("Path: %s", ~path);
+    TYPath path;
+    Stroka verb;
+    ParseYPathRequestHeader(
+        attachments[0],
+        &path,
+        &verb);
 
-    TStringInput input(value);
-    auto producer = TYsonReader::GetProducer(&input);
+    context->SetRequestInfo("Path: %s, Verb: %s",
+        ~path,
+        ~verb);
 
+    auto rootService = IYPathService::FromNode(~Root);
+
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
     try {
-        SetYPath(IYPathService::FromNode(~Root), path, producer);
+        ResolveYPath(~rootService, path, false, &suffixService, &suffixPath);
     } catch (...) {
-        ythrow TServiceException(EErrorCode::YPathError) << CurrentExceptionMessage();
+        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
     }
 
-    context->Reply();
-}
+    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
 
-RPC_SERVICE_METHOD_IMPL(TOrchidService, Remove)
-{
-    UNUSED(response);
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
+    auto innerContext = CreateYPathContext(
+        ~updatedRequestMessage,
+        suffixPath,
+        verb,
+        Logger.GetCategory(),
+        ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
+            {
+                WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
+                context->Reply();
+            }));
 
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("Path: %s", ~path);
-
-    try {
-        RemoveYPath(IYPathService::FromNode(~Root), path);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::YPathError) << CurrentExceptionMessage();
-    }
-
-    context->Reply();
+    suffixService->Invoke(~innerContext);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

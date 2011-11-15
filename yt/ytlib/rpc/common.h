@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/common.h"
 #include "../misc/guid.h"
 #include "../misc/enum.h"
 
@@ -20,8 +19,8 @@ BEGIN_DECLARE_POLY_ENUM(EErrorCode, EErrorCode,
     ((OK)(0))
     ((TransportError)(-1))
     ((ProtocolError)(-2))
-    ((NoService)(-3))
-    ((NoMethod)(-4))
+    ((NoSuchService)(-3))
+    ((NoSuchMethod)(-4))
     ((Timeout)(-5))
     ((ServiceError)(-6))
     ((Unavailable)(-7))
@@ -52,7 +51,6 @@ public:
 
 private:
     EErrorCode Code;
-    Stroka CodeString;
     Stroka Message;
 
 };

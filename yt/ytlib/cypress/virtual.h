@@ -5,7 +5,7 @@
 #include "node.h"
 #include "node_proxy.h"
 
-#include "../ytree/ypath.h"
+#include "../ytree/ypath_service.h"
 
 namespace NYT {
 namespace NCypress {
@@ -25,13 +25,13 @@ typedef
         const TVirtualYPathContext&,
         NYTree::IYPathService::TPtr
     >
-    TYPathServiceBuilder;
+    TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     ERuntimeNodeType runtypeType,
     const Stroka& typeName,
-    TYPathServiceBuilder* serviceBuilder);
+    TYPathServiceProducer* producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,

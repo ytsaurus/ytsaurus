@@ -6,6 +6,60 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NRpc;
+using namespace NElection;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellChannel
+    : public IChannel
+{
+public:
+    typedef TIntrusivePtr<TCellChannel> TPtr;
+
+    TCellChannel(const TLeaderLookup::TConfig& config);
+    
+    virtual TFuture<TError>::TPtr Send(
+        IClientRequest::TPtr request,
+        IClientResponseHandler::TPtr responseHandler,
+        TDuration timeout);
+
+    virtual void Terminate();
+
+private:
+    DECLARE_ENUM(EState,
+        (NotConnected)
+        (Connecting)
+        (Connected)
+        (Failed)
+        (Terminated)
+    );
+
+    TFuture<TError>::TPtr OnGotChannel(
+        IChannel::TPtr channel,
+        IClientRequest::TPtr request,
+        IClientResponseHandler::TPtr responseHandler,
+        TDuration timeout);
+
+    TError OnResponseReady(TError error);
+  
+    TFuture<IChannel::TPtr>::TPtr GetChannel();
+
+    TFuture<IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
+    TFuture<IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
+
+
+    TSpinLock SpinLock;
+    TLeaderLookup::TPtr LeaderLookup;
+    EState State;
+    TFuture<TLeaderLookup::TResult>::TPtr LookupResult;
+    IChannel::TPtr Channel;
+
+};
+
+IChannel::TPtr CreateCellChannel(const TLeaderLookup::TConfig& config)
+{
+    return New<TCellChannel>(config);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +129,7 @@ TError TCellChannel::OnResponseReady(TError error)
         code == EErrorCode::Unavailable)
     {
         TGuard<TSpinLock> guard(SpinLock);
-            if (State != EState::Terminated) {
+        if (State != EState::Terminated) {
             State = EState::Failed;
             LookupResult.Reset();
             Channel.Reset();
@@ -141,7 +195,7 @@ TFuture<IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
     }
 
     State = EState::Connected;
-    Channel = New<TChannel>(result.Address);
+    Channel = CreateBusChannel(result.Address);
     LookupResult.Reset();
     return New< TFuture<IChannel::TPtr> >(~Channel);
 }

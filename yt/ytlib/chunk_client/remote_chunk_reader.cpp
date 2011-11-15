@@ -41,7 +41,7 @@ void TRemoteChunkReader::DoReadBlocks(
     TFuture<TReadResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    TProxy proxy(HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
     auto req = proxy.GetBlocks();
     req->SetChunkId(ChunkId.ToProto());
 

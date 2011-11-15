@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../ytree/ypath.h"
 #include "../cypress/virtual.h"
 
 namespace NYT {
@@ -27,6 +26,16 @@ INodeTypeHandler::TPtr CreateMonitoringTypeHandler(
                 UNUSED(context);
                 return IYPathService::FromNode(~monitoringManager_->GetRoot());
             }));
+}
+
+NYTree::TYPathServiceProducer::TPtr CreateMonitoringProducer(
+    TMonitoringManager* monitoringManager)
+{
+    TMonitoringManager::TPtr monitoringManager_ = monitoringManager;
+    return FromFunctor([=] ()
+        {
+            return IYPathService::FromNode(~monitoringManager_->GetRoot());
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

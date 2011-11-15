@@ -59,10 +59,10 @@ void TFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
-    } catch (yexception& e) {
-        LOG_ERROR("Error opening log file %s: %s",
-            ~FileName,
-            e.what());
+    } catch (...) {
+        LOG_ERROR("Error opening log file %s\n%s",
+            ~FileName.Quote(),
+            ~CurrentExceptionMessage());
         // Still let's pretend we're initialized to avoid subsequent attempts.
         Initialized = true;
         return;
