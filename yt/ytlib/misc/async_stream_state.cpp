@@ -93,7 +93,6 @@ bool TAsyncStreamState::HasRunningOperation() const
 
 void TAsyncStreamState::Finish(TResult result)
 {
-    TGuard<TSpinLock> guard(SpinLock);
     if (result.IsOK) {
         Close();
     } else {

@@ -113,7 +113,6 @@ void TSequentialChunkReader::DoShiftWindow()
 void TSequentialChunkReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
-    YASSERT(FreeSlots >= Config.GroupSize);
 
     auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
     auto groupEnd = BlockIndexSequence.end();

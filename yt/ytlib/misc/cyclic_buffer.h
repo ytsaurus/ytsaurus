@@ -64,10 +64,10 @@ public:
     void Shift()
     {
         TGuard<TSpinLock> guard(SpinLock);
+        Front() = T();
         ++CyclicStart;
         CyclicStart = (CyclicStart) % Window.size();
         ++WindowStart;
-        Front() = T();
     }
 
 private:
