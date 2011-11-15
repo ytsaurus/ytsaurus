@@ -185,6 +185,17 @@ TYPath ParseYPathRoot(TYPath path)
     return path.substr(1);
 }
 
+
+bool IsEmptyYPath(TYPath path)
+{
+    return path.empty();
+}
+
+bool IsFinalYPath(TYPath path)
+{
+    return path.empty() || path == "/";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContext

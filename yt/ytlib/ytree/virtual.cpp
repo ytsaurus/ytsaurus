@@ -95,18 +95,23 @@ public:
         Attributes = attributes;
     }
 
+    virtual void Invoke(IServiceContext* context)
+    {
+        TYPath path = context->GetPath();
+        if (IsEmptyYPath(path)) {
+            TNodeBase::Invoke(context);
+        } else {
+            auto service = Builder->Do();
+            service->Invoke(context);
+        }
+    }
+
 private:
     TYPathServiceProducer::TPtr Builder;
     INodeFactory* Factory;
 
     ICompositeNode* Parent;
     IMapNode::TPtr Attributes;
-
-    virtual void Invoke(IServiceContext* context)
-    {
-        auto service = Builder->Do();
-        return service->Invoke(context);
-    }
 
     TResolveResult ResolveRecursive(TYPath path, bool mustExist)
     {

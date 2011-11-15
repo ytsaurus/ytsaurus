@@ -62,7 +62,6 @@ using NTableServer::TTableManager;
 using NTableServer::TTableService;
 
 using NMonitoring::TMonitoringManager;
-using NMonitoring::CreateMonitoringTypeHandler;
 
 using NOrchid::CreateOrchidTypeHandler;
 

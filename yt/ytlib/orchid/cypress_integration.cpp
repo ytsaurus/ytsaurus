@@ -55,7 +55,7 @@ public:
     {
         UNUSED(mustExist);
 
-        if (path.empty()) {
+        if (IsEmptyYPath(path)) {
             return TResolveResult::There(~FallbackService, path);
         } else {
             return TResolveResult::Here(path);
@@ -66,11 +66,6 @@ public:
     {
         TYPath path = context->GetPath();
         Stroka verb = context->GetVerb();
-
-        if (!ShouldRedirect(path)) {
-            FallbackService->Invoke(context);
-            return;
-        }
 
         // TODO: logging
 
@@ -116,13 +111,9 @@ private:
         }
     }
 
-    static bool ShouldRedirect(TYPath path)
-    {
-        return !path.empty();
-    }
-
     Stroka GetRedirectPath(TYPath path)
     {
+        // TODO: use CombineYPath
         return path == "/" ? Manifest.RemoteRoot : Manifest.RemoteRoot + path;
     }
 

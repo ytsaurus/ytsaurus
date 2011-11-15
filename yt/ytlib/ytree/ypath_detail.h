@@ -237,6 +237,10 @@ TYPath ComputeResolvedYPath(
     TYPath wholePath,
     TYPath unresolvedPath);
 
+bool IsEmptyYPath(TYPath path);
+
+bool IsFinalYPath(TYPath path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ResolveYPath(

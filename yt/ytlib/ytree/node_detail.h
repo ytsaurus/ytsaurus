@@ -58,6 +58,7 @@ protected:
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual TResolveResult ResolveSelf(TYPath path, bool mustExist);
     virtual TResolveResult ResolveRecursive(TYPath path, bool mustExist);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);

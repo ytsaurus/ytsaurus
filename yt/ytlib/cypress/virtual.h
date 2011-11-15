@@ -16,7 +16,7 @@ struct TVirtualYPathContext
 {
     TNodeId NodeId;
     TTransactionId TransactionId;
-    Stroka Manifest;
+    NYTree::TYson Manifest;
     ICypressNodeProxy::TPtr Fallback; 
 };
 

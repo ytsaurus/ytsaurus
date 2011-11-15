@@ -11,6 +11,7 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,13 +19,13 @@ class TVirtualNode
     : public TCypressNodeBase
 {
     DECLARE_BYVAL_RO_PROPERTY(RuntimeType, ERuntimeNodeType);
-    DECLARE_BYVAL_RO_PROPERTY(Manifest, Stroka);
+    DECLARE_BYVAL_RO_PROPERTY(Manifest, TYson);
 
 public:
     explicit TVirtualNode(
         const TBranchedNodeId& id,
         ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid,
-        Stroka manifest = "")
+        TYson manifest = "")
         : TCypressNodeBase(id)
         , RuntimeType_(runtimeType)
         , Manifest_(manifest)
@@ -82,7 +83,6 @@ public:
     bool IsVerbLogged(const Stroka& verb) const
     {
         // Don't log anything for virtual nodes.
-        // TODO: fixme
         UNUSED(verb);
         return false;
     }
@@ -101,7 +101,7 @@ private:
         }
     }
 
-    virtual void Invoke(NRpc::IServiceContext* context)
+    virtual void Invoke(IServiceContext* context)
     {
         if (~Service == NULL) {
             TBase::Invoke(context);

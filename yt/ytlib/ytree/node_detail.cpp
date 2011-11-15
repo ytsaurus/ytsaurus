@@ -15,11 +15,9 @@ using namespace NRpc;
 
 IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, bool mustExist)
 {
-    if (path.empty()) {
-        return TResolveResult::Here("");
-    }
-
-    if (path[0] == '@') {
+    if (IsFinalYPath(path)) {
+        return ResolveSelf(path, mustExist);
+    } else if (path[0] == '@') {
         auto attributes = GetAttributes();
         if (~attributes == NULL) {
             ythrow yexception() << "Node has no custom attributes";
@@ -30,9 +28,15 @@ IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, bool mustExist)
         return TResolveResult::There(
             ~IYPathService::FromNode(~attributes),
             path.substr(1));
+    } else {
+        return ResolveRecursive(path, mustExist);
     }
+}
 
-    return ResolveRecursive(path, mustExist);
+IYPathService::TResolveResult TNodeBase::ResolveSelf(TYPath path, bool mustExist)
+{
+    UNUSED(mustExist);
+    return TResolveResult::Here(path);
 }
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, bool mustExist)
@@ -42,7 +46,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, bool must
     ythrow yexception() << "Further navigation is not supported";
 }
 
-void TNodeBase::Invoke(NRpc::IServiceContext* context)
+void TNodeBase::Invoke(IServiceContext* context)
 {
     try {
         DoInvoke(context);
@@ -52,7 +56,7 @@ void TNodeBase::Invoke(NRpc::IServiceContext* context)
     }
 }
 
-void TNodeBase::DoInvoke(NRpc::IServiceContext* context)
+void TNodeBase::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
     // TODO: use method table
@@ -76,8 +80,8 @@ void TNodeBase::ThrowNonEmptySuffixPath(TYPath path)
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 {
-    Stroka path = context->GetPath();
-    if (path.empty()) {
+    TYPath path = context->GetPath();
+    if (IsFinalYPath(path)) {
         GetSelf(request, response, context);
     } else {
         GetRecursive(path, request, response, context);
@@ -159,8 +163,8 @@ void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, T
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
 {
-    Stroka path = context->GetPath();
-    if (path.empty()) {
+    TYPath path = context->GetPath();
+    if (IsFinalYPath(path)) {
         SetSelf(request, response, context);
     } else {
         SetRecursive(path, request, response, context);
@@ -204,7 +208,7 @@ void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
 {
     Stroka path = context->GetPath();
-    if (path.empty()) {
+    if (IsFinalYPath(path)) {
         RemoveSelf(request, response, context);
     } else {
         RemoveRecursive(path, request, response, context);
@@ -261,7 +265,7 @@ bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TMapNodeMixin::DoInvoke(NRpc::IServiceContext* context)
+bool TMapNodeMixin::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
     if (verb == "List") {
@@ -460,7 +464,7 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
 
 void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value)
 {
-    if (path.empty()) {
+    if (IsFinalYPath(path)) {
         AddChild(value, beforeIndex);
     } else {
         auto currentNode = GetFactory()->CreateMap();
@@ -472,7 +476,7 @@ void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value
             TYPath suffixPath;
             ChopYPathPrefix(currentPath, &prefix, &suffixPath);
 
-            if (path.empty()) {
+            if (IsFinalYPath(suffixPath)) {
                 currentNode->AddChild(value, prefix);
                 break;
             }
