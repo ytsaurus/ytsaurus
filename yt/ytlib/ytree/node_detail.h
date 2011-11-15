@@ -125,12 +125,12 @@ public: \
         return ::NYT::NYTree::ENodeType::name; \
     } \
     \
-    virtual TIntrusivePtr<const ::NYT::NYTree::I ## name ## Node> As ## name() const \
+    virtual TIntrusivePtr<const ::NYT::NYTree::I##name##Node> As##name() const \
     { \
         return this; \
     } \
     \
-    virtual TIntrusivePtr<::NYT::NYTree::I ## name ## Node> As ## name() \
+    virtual TIntrusivePtr< ::NYT::NYTree::I##name##Node > As##name() \
     { \
         return this; \
     } \
@@ -138,7 +138,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
     { \
         UNUSED(response); \
-        DoSetSelf<::NYT::NYTree::I##name##Node>(this, request->GetValue()); \
+        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, request->GetValue()); \
         context->Reply(); \
     }
 

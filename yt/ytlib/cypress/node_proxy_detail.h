@@ -372,7 +372,9 @@ protected:
             nodeId)
     { }
 
-    virtual void CreateRecursive(NYTree::TYPath path, INode* value) = 0;
+    virtual void CreateRecursive(
+        NYTree::TYPath path,
+        NYTree::INode* value) = 0;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -403,7 +405,9 @@ private:
         reader.Read(&input);
         auto manifest = builder->EndTree();
 
-        auto value = CypressManager->CreateDynamicNode(TransactionId, ~manifest);
+        auto value = this->CypressManager->CreateDynamicNode(
+            this->TransactionId,
+            ~manifest);
         CreateRecursive(context->GetPath(), ~value);
 
         response->SetNodeId(value->GetNodeId().ToProto());

@@ -114,8 +114,6 @@ struct IService
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 template<class TRequestMessage, class TResponseMessage>
 class TTypedServiceRequest
     : public TRequestMessage
@@ -175,10 +173,10 @@ public:
 
 public:
     TTypedServiceContext(IServiceContext* context)
-        : Logger(RpcLogger)
-        , Context(context)
-        , Request_(context)
+        : Request_(context)
         , Response_(context)
+        , Logger(RpcLogger)
+        , Context(context)
     {
         YASSERT(context != NULL);
 

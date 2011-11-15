@@ -51,14 +51,14 @@ private:
     DoExecute(TReqExecute* outerRequest, TTypedRequest* innerRequest)
     {
         auto innerRequestMessage = innerRequest->Serialize();
-        WrapYPathRequest(outerRequest, ~innerRequestMessage);
+        NYTree::WrapYPathRequest(outerRequest, ~innerRequestMessage);
         return outerRequest->Invoke()->Apply(FromFunctor(
             [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
             {
                 auto innerResponse = New<TTypedResponse>();
                 auto error = outerResponse->GetError();
                 if (error.IsOK()) {
-                    auto innerResponseMessage = UnwrapYPathResponse(~outerResponse);
+                    auto innerResponseMessage = NYTree::UnwrapYPathResponse(~outerResponse);
                     innerResponse->Deserialize(~innerResponseMessage);
                 } else if (error.IsRpcError()) {
                     innerResponse->SetError(error);    

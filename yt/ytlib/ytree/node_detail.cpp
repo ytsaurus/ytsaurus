@@ -70,7 +70,8 @@ void TNodeBase::DoInvoke(NRpc::IServiceContext* context)
 
 void TNodeBase::ThrowNonEmptySuffixPath(TYPath path)
 {
-    ythrow yexception() << Sprintf("Suffix path %s cannot be resolved", path.Quote());
+    ythrow yexception() << Sprintf("Suffix path %s cannot be resolved",
+        ~path.Quote());
 }
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)

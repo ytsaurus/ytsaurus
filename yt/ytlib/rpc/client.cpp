@@ -27,10 +27,10 @@ TClientRequest::TClientRequest(
     IChannel* channel,
     const Stroka& path,
     const Stroka& verb)
-    : Channel(channel)
-    , Path_(path)
+    : Path_(path)
     , Verb_(verb)
     , RequestId_(TRequestId::Create())
+    , Channel(channel)
 {
     YASSERT(channel != NULL);
 }
