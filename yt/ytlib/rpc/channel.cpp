@@ -118,7 +118,6 @@ TFuture<TError>::TPtr TChannel::Send(
     auto requestMessage = request->Serialize();
 
     IBus::TPtr bus;
-
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -144,15 +143,17 @@ void TChannel::Terminate()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (Terminated)
+            return;
 
-    if (Terminated)
-        return;
+        Terminated = true;
+    }
 
     YASSERT(~Bus != NULL);
     Bus->Terminate();
     Bus.Reset();
-    Terminated = true;
 }
 
 void TChannel::OnMessage(
