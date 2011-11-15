@@ -170,7 +170,7 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(bus->SessionId, TPacketHeader::EType::Ack, &ackData);
 
-        FOREACH(const TGuid& requestId, bus->PingIds) {
+        FOREACH(const auto& requestId, bus->PingIds) {
             Requester->SendResponse((TGUID) requestId, &ackData);
         }
         bus->PingIds.clear();
@@ -214,6 +214,7 @@ class TClientDispatcher
                 break;
 
             case TPacketHeader::EType::Message:
+                ProcessAck(header, nlResponse);
                 ProcessMessage(header, nlResponse);
                 break;
 
@@ -542,7 +543,7 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    SessionId = TGuid::Create();
+    SessionId = TSessionId::Create();
 }
 
 IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)

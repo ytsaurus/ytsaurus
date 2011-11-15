@@ -383,7 +383,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         true);
 
     auto response = session->DequeueResponse();
-    if (false && ~response != NULL) {
+    if (~response != NULL) {
         Requester->SendResponse(nlRequest->ReqId, &response->Data);
 
         LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Response: %p)",
