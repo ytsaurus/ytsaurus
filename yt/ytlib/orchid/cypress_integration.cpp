@@ -2,6 +2,7 @@
 #include "cypress_integration.h"
 
 #include "../misc/config.h"
+#include "../misc/lazy_ptr.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
@@ -21,6 +22,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NRpc::TChannelCache ChannelCache;
+static TLazyPtr<TActionQueue> OrchidQueue;
 
 class TOrchidYPathService
     : public IYPathService
@@ -70,37 +72,50 @@ public:
             return;
         }
 
+        // TODO: logging
+
+        auto redirectPath = GetRedirectPath(path);
+
         auto outerRequestMesage = UpdateYPathRequestHeader(
             ~context->GetRequestMessage(),
-            GetRedirectPath(path),
+            redirectPath,
             verb);
 
         auto innerRequest = Proxy->Execute();
         WrapYPathRequest(~innerRequest, ~outerRequestMesage);
 
-        // TODO: logging
-        // TODO: use proper thread
-        NRpc::IServiceContext::TPtr context_ = context;
-        TOrchidYPathService::TPtr this_ = this;
-        innerRequest->Invoke()->Subscribe(~FromFunctor([=] (TOrchidServiceProxy::TRspExecute::TPtr response)
-            {
-                if (response->IsOK()) {
-                    auto innerResponseMessage = UnwrapYPathResponse(~response);
-                    ReplyYPathWithMessage(~context_, ~innerResponseMessage);
-                } else {
-                    context_->Reply(TError(
-                        EYPathErrorCode(EYPathErrorCode::GenericError),
-                        Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
-                            ~path,
-                            ~verb,
-                            ~this_->Manifest.RemoteAddress,
-                            ~this_->Manifest.RemoteRoot,
-                            ~response->GetError().ToString())));
-                }
-            }));
+        innerRequest->Invoke()->Subscribe(
+            ~FromMethod(
+                &TOrchidYPathService::OnResponse,
+                TPtr(this),
+                NRpc::IServiceContext::TPtr(context),
+                redirectPath,
+                verb)
+            ->Via(OrchidQueue->GetInvoker()));
     }
 
 private:
+    void OnResponse(
+        TOrchidServiceProxy::TRspExecute::TPtr response,
+        NRpc::IServiceContext::TPtr context,
+        TYPath path,
+        const Stroka& verb)
+    {
+        if (response->IsOK()) {
+            auto innerResponseMessage = UnwrapYPathResponse(~response);
+            ReplyYPathWithMessage(~context, ~innerResponseMessage);
+        } else {
+            context->Reply(TError(
+                EYPathErrorCode(EYPathErrorCode::GenericError),
+                Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+                    ~path,
+                    ~verb,
+                    ~Manifest.RemoteAddress,
+                    ~Manifest.RemoteRoot,
+                    ~response->GetError().ToString())));
+        }
+    }
+
     static bool ShouldRedirect(TYPath path)
     {
         return !path.empty();
