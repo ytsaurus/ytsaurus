@@ -72,6 +72,8 @@ class TClientRequest
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
 
+    NBus::IMessage::TPtr Serialize() const;
+
 protected:
     IChannel::TPtr Channel;
 
@@ -82,9 +84,6 @@ protected:
 
     virtual bool SerializeBody(TBlob* data) const = 0;
     TFuture<TError>::TPtr DoInvoke(TClientResponse* response, TDuration timeout);
-
-private:
-    NBus::IMessage::TPtr Serialize() const;
 
 };
 

@@ -103,9 +103,9 @@ private:
 
     void DoSend()
     {
-        auto request = New<TRequestWrapper>(~OriginalRequest);
+        //auto request = New<TRequestWrapper>(~OriginalRequest);
         Channel->GetUnderlyingChannel()->Send(
-            request,
+            OriginalRequest, //request,
             this,
             Timeout);
     }
@@ -149,7 +149,7 @@ private:
     virtual void OnResponse(const TError& error, IMessage* message)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Sent) {
+        if (State == EState::Sent || State == EState::Acked) {
             State = EState::Done;
             guard.Release();
 
