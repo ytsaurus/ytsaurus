@@ -20,6 +20,7 @@ Logging = {
     ]
 }
 
+
 Port = 9091
 MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) for i in xrange(1, 4)])
 
@@ -31,13 +32,20 @@ class Base(AggrBase):
         print >>fd, shebang
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
     
-class Server(Base):
+Yson = FileDescr('new_config', ('remote'), 'yson')
+class Server(Base, RemoteServer):
+    files = RemoteServer.files + [Yson]
     bin_path = '/home/yt/src/yt/server/server'
+
+    yson_data = 'some data'
+    def new_config(cls, fd):
+        print >>fd, cls.yson_data
+
     
-class Master(RemoteServer, Server):
+class Master(Server):
     base_dir = './'
     address = Subclass(MasterAddresses)
-    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
+    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s --yson_param %(new_config)s')
 
     config = Template({
         'MetaState' : {
@@ -64,7 +72,7 @@ class Master(RemoteServer, Server):
         print >>fd, 'rm %s/*' % cls.config['MetaState']['LogLocation']
     
     
-class Holder(RemoteServer, Server):
+class Holder(Server):
     groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(10))
     host = Template('n01-04%(groupid)d%(nodeid)dg')
