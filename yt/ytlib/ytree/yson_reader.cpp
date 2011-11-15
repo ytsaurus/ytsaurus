@@ -158,21 +158,21 @@ Stroka TYsonReader::ReadQuoteStartingString()
     ExpectChar('"');
 
     Stroka result;
-    bool ignoreNextQuote = false;
+    int trailingSlashesCount = 0;
     while (true) {
         int ch = ReadChar();
         if (ch == Eos) {
             ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
                 ~GetPositionInfo());
         }
-        if (ch == '"' && !ignoreNextQuote) {
+        if (ch == '"' && trailingSlashesCount % 2 == 0) {
             break;
         }
 
         if (ch == '\\') {
-            ignoreNextQuote = true;
+            ++trailingSlashesCount;
         } else {
-            ignoreNextQuote = false;
+            trailingSlashesCount = 0;
         }
 
         result.append(static_cast<char>(ch));

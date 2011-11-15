@@ -24,6 +24,9 @@ public:
     //! Returns the number of blocks in the chunk.
     i32 GetBlockCount() const;
 
+    //! Returns the number of blocks in the chunk.
+    TSharedRef GetMasterMeta() const;
+
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
@@ -38,6 +41,7 @@ private:
     THolder<TFile> File;
     NChunkClient::NProto::TChunkMeta Meta;
     yvector<TChunkOffset> BlockOffsets;
+    TSharedRef MasterMeta;
 
 };
 

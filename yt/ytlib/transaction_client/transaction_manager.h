@@ -35,6 +35,11 @@ public:
          *  since they are done synchronously.
          */
         TDuration RpcTimeout;
+
+        TConfig()
+            : PingPeriod(TDuration::Seconds(5))
+            , RpcTimeout(TDuration::Seconds(2))
+        { }
     };
 
     //! Initializes an instance.

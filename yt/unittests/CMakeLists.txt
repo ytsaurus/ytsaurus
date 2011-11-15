@@ -2,6 +2,7 @@ PROGRAM(unittester)
 
 SRCS(
     ${ARCADIA_ROOT}/contrib/testing/framework.cpp
+    stdafx.cpp
     utmain.cpp
     change_log_ut.cpp
     async_result_ut.cpp
@@ -24,10 +25,14 @@ SRCS(
     intrusive_ptr_ut.cpp
     tree_builder_ut.cpp
     config_ut.cpp
+    bus_ut.cpp
+
+    rpc_ut.cpp
+    rpc_ut.proto
 )
 
 PEERDIR(
-    yt/ytlib
+    ADDINCL yt/ytlib
 )
 
 END()

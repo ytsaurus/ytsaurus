@@ -6,72 +6,11 @@
 
 #include "../misc/common.h"
 #include "../misc/enum.h"
+#include "../misc/cyclic_buffer.h"
 #include "../misc/thread_affinity.h"
 #include "../actions/future.h"
 
 namespace NYT {
-
-///////////////////////////////////////////////////////////////////////////////
-
-// ToDo: move to misc
-// TODO: write doc
-//! Thread safe cyclic buffer
-template <class T>
-class TCyclicBuffer
-{
-public:
-    TCyclicBuffer(int size)
-        : Window(size)
-        , CyclicStart(0)
-        , WindowStart(0)
-    { }
-
-    T& operator[](int index)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(WindowStart <= index);
-        YASSERT(index < WindowStart + static_cast<int>(Window.size()));
-
-        return Window[(CyclicStart + (index - WindowStart)) % static_cast<int>(Window.size())];
-    }
-
-    const T& operator[](int index) const
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(WindowStart <= index);
-        YASSERT(index < WindowStart + Window.ysize());
-
-        return Window[CyclicStart + (index - WindowStart)];
-    }
-
-    T& First()
-    {
-        return Window[CyclicStart];
-    }
-
-    const T& First() const
-    {
-        return Window[CyclicStart];
-    }
-
-    void Shift()
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        ++CyclicStart;
-        CyclicStart = CyclicStart % Window.size();
-        ++WindowStart;
-    }
-
-private:
-    autoarray<T> Window;
-
-    //! Current index of the first slot in #Window
-    int CyclicStart;
-
-    int WindowStart;
-
-    TSpinLock SpinLock;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 

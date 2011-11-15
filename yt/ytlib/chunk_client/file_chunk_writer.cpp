@@ -10,30 +10,28 @@ using namespace NChunkClient::NProto;
 
 TFileChunkWriter::TFileChunkWriter(Stroka fileName)
     : FileName(fileName)
+    , Result(New<TAsyncStreamState::TAsyncResult>())
 {
     File.Reset(new TFile(fileName, CreateAlways|WrOnly|Seq));
+    Result->Set(TAsyncStreamState::TResult());
 }
 
-void TFileChunkWriter::WriteBlock(const TSharedRef& data)
+TAsyncStreamState::TAsyncResult::TPtr 
+TFileChunkWriter::AsyncWriteBlock(const TSharedRef& data)
 {
     TBlockInfo* blockInfo = Meta.AddBlocks();
     blockInfo->SetSize(static_cast<int>(data.Size()));
     blockInfo->SetChecksum(GetChecksum(data));
 
     File->Write(data.Begin(), data.Size());
+    return Result;
 }
 
-IChunkWriter::EResult TFileChunkWriter::AsyncWriteBlock(
-    const TSharedRef& data,
-    TFuture<TVoid>::TPtr* ready)
+TAsyncStreamState::TAsyncResult::TPtr 
+TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
 {
-    *ready = NULL;
-    WriteBlock(data);
-    return EResult::OK;
-}
+    Meta.SetMasterMeta(masterMeta.Begin(), masterMeta.Size());
 
-void TFileChunkWriter::Close()
-{
     TBlob metaBlob(Meta.ByteSize());
     if (!Meta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
         ythrow yexception() << Sprintf("Failed to serialize chunk meta in %s",
@@ -50,17 +48,19 @@ void TFileChunkWriter::Close()
 
     File->Close();
     File.Destroy();
+    return Result;
 }
 
-TFuture<IChunkWriter::EResult>::TPtr TFileChunkWriter::AsyncClose()
-{
-    Close();
-    return New< TFuture<EResult> >(EResult::OK);
-}
-
-void TFileChunkWriter::Cancel()
+void TFileChunkWriter::Cancel(const Stroka& /*errorMessage*/)
 {
     File.Destroy();
+}
+
+const TChunkId& TFileChunkWriter::GetChunkId() const
+{
+    // ToDo: consider using ChunkId instead of file name
+    // and implementing this.
+    return TChunkId();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
