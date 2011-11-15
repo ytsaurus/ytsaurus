@@ -60,7 +60,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
 NBus::IMessage::TPtr CreateResponseMessage(
     const TRequestId& requestId,
     const TError& error,
-    TBlob&& body,
+    const TSharedRef& body,
     const yvector<TSharedRef>& attachments)
 {
     yvector<TSharedRef> parts;
@@ -77,7 +77,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     }
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
-    parts.push_back(TSharedRef(MoveRV(body)));
+    parts.push_back(body);
 
     FOREACH(const auto& attachment, attachments) {
         parts.push_back(attachment);

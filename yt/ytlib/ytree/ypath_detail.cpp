@@ -252,7 +252,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void NavigateYPath(
+void ResolveYPath(
     IYPathService* rootService,
     TYPath path,
     bool mustExist,
@@ -267,11 +267,11 @@ void NavigateYPath(
     auto currentPath = ParseYPathRoot(path);
 
     while (true) {
-        IYPathService::TNavigateResult result;
+        IYPathService::TResolveResult result;
         try {
-            result = currentService->Navigate(currentPath, mustExist);
+            result = currentService->Resolve(currentPath, mustExist);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath navigation (Path: %s, ResolvedPath: %s)\n%s",
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, ResolvedPath: %s)\n%s",
                 ~path,
                 ~ComputeResolvedYPath(path, currentPath),
                 ~CurrentExceptionMessage());
@@ -288,7 +288,7 @@ void NavigateYPath(
     }
 }
 
-IYPathService::TPtr NavigateYPath(
+IYPathService::TPtr ResolveYPath(
     IYPathService* rootService,
     TYPath path)
 {
@@ -296,7 +296,7 @@ IYPathService::TPtr NavigateYPath(
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    NavigateYPath(rootService, path, true, &suffixService, &suffixPath);
+    ResolveYPath(rootService, path, true, &suffixService, &suffixPath);
     return suffixService;
 }
 
@@ -319,6 +319,30 @@ void ParseYPathRequestHeader(
     *verb = header.GetVerb();
 }
 
+IMessage::TPtr UpdateYPathRequestHeader(
+    IMessage* message,
+    TYPath path,
+    const Stroka& verb)
+{
+    YASSERT(message != NULL);
+
+    TRequestHeader header;
+    header.SetRequestId(TRequestId().ToProto());
+    header.SetPath(path);
+    header.SetVerb(verb);
+
+    TBlob headerData;
+    if (!SerializeMessage(&header, &headerData)) {
+        LOG_FATAL("Error serializing YPath request header");
+    }
+
+    auto parts = message->GetParts();
+    YASSERT(!parts.empty());
+    parts[0] = TSharedRef(MoveRV(headerData));
+
+    return CreateMessageFromParts(parts);
+}
+
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
     NBus::IMessage* innerRequestMessage)
@@ -336,34 +360,12 @@ void WrapYPathRequest(
 }
 
 NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext,
-    TYPath path,
-    const Stroka& verb)
+    NRpc::IServiceContext* outerContext)
 {
     YASSERT(outerContext != NULL);
 
-    const auto& attachments = outerContext->RequestAttachments();
-    YASSERT(attachments.ysize() >= 2);
-
-    yvector<TSharedRef> parts;
-    parts.reserve(1 + attachments.ysize());
-
-    // Put RPC header part.
-    TRequestHeader header;
-    header.SetRequestId(TRequestId().ToProto());
-    header.SetPath(path);
-    header.SetVerb(verb);
-    TBlob headerBlob;
-    if (!SerializeMessage(&header, &headerBlob)) {
-        LOG_FATAL("Error serializing YPath request header");
-    }
-    parts.push_back(TSharedRef(MoveRV(headerBlob)));
-
-    // Put the encapsulated message (skipping the old RPC header).
-    NStl::copy(
-        attachments.begin() + 1,
-        attachments.end(),
-        NStl::back_inserter(parts));
+    const auto& parts = outerContext->RequestAttachments();
+    YASSERT(parts.ysize() >= 2);
 
     return CreateMessageFromParts(parts);
 }
@@ -376,13 +378,6 @@ void WrapYPathResponse(
     YASSERT(responseMessage != NULL);
 
     outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
-}
-
-void SetYPathErrorResponse(const NRpc::TError& error, TYPathResponse* innerResponse)
-{
-    YASSERT(innerResponse != NULL);
-
-    innerResponse->SetError(error);
 }
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
@@ -402,12 +397,50 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         loggingCategory);
 }
 
-NBus::IMessage::TPtr UnwrapYPathResponse(TClientResponse* outerResponse)
+NBus::IMessage::TPtr UnwrapYPathResponse(
+    TClientResponse* outerResponse)
 {
     YASSERT(outerResponse != NULL);
 
     auto parts = outerResponse->Attachments();
     return CreateMessageFromParts(parts);
+}
+
+void SetYPathErrorResponse(
+    TYPathResponse* response,
+    const NRpc::TError& error)
+{
+    YASSERT(response != NULL);
+
+    response->SetError(error);
+}
+
+void ReplyYPathWithMessage(
+    NRpc::IServiceContext* context,
+    NBus::IMessage* responseMessage)
+{
+    auto parts = responseMessage->GetParts();
+    YASSERT(!parts.empty());
+
+    TResponseHeader header;
+    if (!DeserializeMessage(&header, parts[0])) {
+        LOG_FATAL("Error deserializing YPath response header");
+    }
+
+    TError error(
+        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
+        header.GetErrorMessage());
+
+    if (error.IsOK()) {
+        YASSERT(parts.ysize() >= 2);
+        
+        context->SetResponseBody(parts[1]);
+        
+        parts.erase(parts.begin(), parts.begin() + 2);
+        context->ResponseAttachments() = MoveRV(parts);
+    }
+
+    context->Reply(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -239,14 +239,14 @@ TYPath ComputeResolvedYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void NavigateYPath(
+void ResolveYPath(
     IYPathService* rootService,
     TYPath path,
     bool mustExist,
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath);
 
-IYPathService::TPtr NavigateYPath(
+IYPathService::TPtr ResolveYPath(
     IYPathService* rootService,
     TYPath path);
 
@@ -265,14 +265,17 @@ void ParseYPathRequestHeader(
     TYPath* path,
     Stroka* verb);
 
+NBus::IMessage::TPtr UpdateYPathRequestHeader(
+    NBus::IMessage* message,
+    NYTree::TYPath path,
+    const Stroka& verb);
+
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
     NBus::IMessage* innerRequestMessage);
 
 NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext,
-    TYPath path,
-    const Stroka& verb);
+    NRpc::IServiceContext* outerContext);
     
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
@@ -289,8 +292,12 @@ NBus::IMessage::TPtr UnwrapYPathResponse(
     NRpc::TClientResponse* outerResponse);
 
 void SetYPathErrorResponse(
-    const NRpc::TError& error,
-    TYPathResponse* innerResponse);
+    TYPathResponse* response,
+    const NRpc::TError& error);
+
+void ReplyYPathWithMessage(
+    NRpc::IServiceContext* context,
+    NBus::IMessage* responseMessage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

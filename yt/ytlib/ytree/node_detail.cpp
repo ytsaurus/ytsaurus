@@ -13,10 +13,10 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path, bool mustExist)
+IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, bool mustExist)
 {
     if (path.empty()) {
-        return TNavigateResult::Here("");
+        return TResolveResult::Here("");
     }
 
     if (path[0] == '@') {
@@ -27,15 +27,15 @@ IYPathService::TNavigateResult TNodeBase::Navigate(TYPath path, bool mustExist)
 
         // TODO: virtual attributes
 
-        return TNavigateResult::There(
+        return TResolveResult::There(
             ~IYPathService::FromNode(~attributes),
             path.substr(1));
     }
 
-    return NavigateRecursive(path, mustExist);
+    return ResolveRecursive(path, mustExist);
 }
 
-IYPathService::TNavigateResult TNodeBase::NavigateRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, bool mustExist)
 {
     UNUSED(path);
     UNUSED(mustExist);
@@ -281,18 +281,18 @@ RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
     context->Reply();
 }
 
-IYPathService::TNavigateResult TMapNodeMixin::NavigateRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
 {
     try {
         return GetYPathChild(path);
     } catch (...) {
         if (mustExist)
             throw;
-        return IYPathService::TNavigateResult::Here(path);
+        return IYPathService::TResolveResult::Here(path);
     }
 }
 
-IYPathService::TNavigateResult TMapNodeMixin::GetYPathChild(TYPath path) const
+IYPathService::TResolveResult TMapNodeMixin::GetYPathChild(TYPath path) const
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -302,7 +302,7 @@ IYPathService::TNavigateResult TMapNodeMixin::GetYPathChild(TYPath path) const
         ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
 
-    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), suffixPath);
+    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
 }
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
@@ -353,18 +353,18 @@ void TMapNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TNavigateResult TListNodeMixin::NavigateRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
 {
     try {
         return GetYPathChild(path);
     } catch (...) {
         if (mustExist)
             throw;
-        return IYPathService::TNavigateResult::Here(path);
+        return IYPathService::TResolveResult::Here(path);
     }
 }
 
-IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(TYPath path) const
+IYPathService::TResolveResult TListNodeMixin::GetYPathChild(TYPath path) const
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -373,7 +373,7 @@ IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(TYPath path) const
     return GetYPathChild(index, suffixPath);
 }
 
-IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
+IYPathService::TResolveResult TListNodeMixin::GetYPathChild(
     int index,
     TYPath suffixPath) const
 {
@@ -389,7 +389,7 @@ IYPathService::TNavigateResult TListNodeMixin::GetYPathChild(
     }
 
     auto child = FindChild(index);
-    return IYPathService::TNavigateResult::There(~IYPathService::FromNode(~child), suffixPath);
+    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
 }
 
 void TListNodeMixin::ThrowNonEmptySuffixPath(TYPath path)

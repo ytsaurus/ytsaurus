@@ -25,7 +25,7 @@ public:
     virtual bool IsReplied() const;
 
     virtual TSharedRef GetRequestBody() const;
-    virtual void SetResponseBody(TBlob&& responseBody);
+    virtual void SetResponseBody(const TSharedRef& responseBody);
 
     virtual const yvector<TSharedRef>& RequestAttachments() const;
     virtual yvector<TSharedRef>& ResponseAttachments();
@@ -54,7 +54,7 @@ protected:
     yvector<TSharedRef> RequestAttachments_;
     bool Replied;
 
-    TBlob ResponseBody;
+    TSharedRef ResponseBody;
     yvector<TSharedRef> ResponseAttachments_;
 
     Stroka RequestInfo;

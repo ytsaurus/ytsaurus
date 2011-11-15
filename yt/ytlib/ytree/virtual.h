@@ -16,7 +16,7 @@ protected:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) = 0;
 
 private:
-    virtual TNavigateResult Navigate(TYPath path, bool mustExist);
+    virtual TResolveResult Resolve(TYPath path, bool mustExist);
     virtual void Invoke(NRpc::IServiceContext* context);
 
 };

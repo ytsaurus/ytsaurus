@@ -440,7 +440,7 @@ public:
 private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual IYPathService::TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
+    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
@@ -472,7 +472,7 @@ public:
 
 private:
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual TNavigateResult NavigateRecursive(NYTree::TYPath path, bool mustExist);
+    virtual TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 

@@ -23,22 +23,22 @@ struct IYPathService
 {
     typedef TIntrusivePtr<IYPathService> TPtr;
 
-    class TNavigateResult
+    class TResolveResult
     {
         DECLARE_BYVAL_RO_PROPERTY(Service, IYPathService::TPtr);
         DECLARE_BYVAL_RO_PROPERTY(Path, TYPath);
 
     public:
-        static TNavigateResult Here(TYPath path)
+        static TResolveResult Here(TYPath path)
         {
-            TNavigateResult result;
+            TResolveResult result;
             result.Path_ = path;
             return result;
         }
 
-        static TNavigateResult There(IYPathService* service, TYPath path)
+        static TResolveResult There(IYPathService* service, TYPath path)
         {
-            TNavigateResult result;
+            TResolveResult result;
             result.Service_ = service;
             result.Path_ = path;
             return result;
@@ -50,7 +50,7 @@ struct IYPathService
         }
     };
 
-    virtual TNavigateResult Navigate(TYPath path, bool mustExist) = 0;
+    virtual TResolveResult Resolve(TYPath path, bool mustExist) = 0;
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
 
     static IYPathService::TPtr FromNode(INode* node);

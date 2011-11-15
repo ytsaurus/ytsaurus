@@ -82,7 +82,7 @@ struct IServiceContext
     virtual bool IsReplied() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
-    virtual void SetResponseBody(TBlob&& responseBody) = 0;
+    virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
 
     virtual const yvector<TSharedRef>& RequestAttachments() const = 0;
     virtual yvector<TSharedRef>& ResponseAttachments() = 0;

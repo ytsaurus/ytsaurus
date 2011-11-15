@@ -22,7 +22,7 @@ public:
 
     RPC_DECLARE_PROXY(CypressService,
         ((NoSuchTransaction)(1))
-        ((NavigationError)(2))
+        ((ResolutionError)(2))
     );
 
     TCypressServiceProxy(NRpc::IChannel::TPtr channel)
@@ -61,13 +61,15 @@ private:
                     auto innerResponseMessage = UnwrapYPathResponse(~outerResponse);
                     innerResponse->Deserialize(~innerResponseMessage);
                 } else if (error.IsRpcError()) {
-                    SetYPathErrorResponse(error, ~innerResponse);    
+                    SetYPathErrorResponse(
+                        ~innerResponse,
+                        error);    
                 } else {
                     SetYPathErrorResponse(
+                        ~innerResponse,
                         NRpc::TError(
                             NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
-                            outerResponse->GetError().GetMessage()),
-                        ~innerResponse);
+                            outerResponse->GetError().GetMessage()));
                 }
                 return innerResponse;
             }));

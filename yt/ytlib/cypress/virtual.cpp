@@ -92,12 +92,12 @@ private:
 
     IYPathService::TPtr Service;
 
-    virtual TNavigateResult Navigate(TYPath path, bool mustExist)
+    virtual TResolveResult Resolve(TYPath path, bool mustExist)
     {
         if (~Service == NULL) {
-            return TBase::Navigate(path, mustExist);
+            return TBase::Resolve(path, mustExist);
         } else {
-            return Service->Navigate(path, mustExist);
+            return Service->Resolve(path, mustExist);
         }
     }
 

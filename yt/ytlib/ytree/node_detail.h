@@ -45,7 +45,7 @@ public:
 #undef IMPLEMENT_AS_METHODS
 
     virtual void Invoke(NRpc::IServiceContext* context);
-    virtual TNavigateResult Navigate(TYPath path, bool mustExist);
+    virtual TResolveResult Resolve(TYPath path, bool mustExist);
 
 protected:
     template <class TNode>
@@ -57,7 +57,7 @@ protected:
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
+    virtual TResolveResult ResolveRecursive(TYPath path, bool mustExist);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
@@ -85,13 +85,13 @@ class TMapNodeMixin
 {
 protected:
     bool DoInvoke(NRpc::IServiceContext* context);
-    IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
+    IYPathService::TResolveResult ResolveRecursive(TYPath path, bool mustExist);
     void SetRecursive(TYPath path, NProto::TReqSet* request);
     void SetRecursive(TYPath path, INode* value);
     void ThrowNonEmptySuffixPath(TYPath path);
 
 private:
-    IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
+    IYPathService::TResolveResult GetYPathChild(TYPath path) const;
 
     RPC_SERVICE_METHOD_DECL(NProto, List);
 
@@ -103,14 +103,14 @@ class TListNodeMixin
     : public virtual IListNode
 {
 protected:
-    IYPathService::TNavigateResult NavigateRecursive(TYPath path, bool mustExist);
+    IYPathService::TResolveResult ResolveRecursive(TYPath path, bool mustExist);
     void SetRecursive(TYPath path, NProto::TReqSet* request);
     void SetRecursive(TYPath path, INode* value);
     void ThrowNonEmptySuffixPath(TYPath path);
 
 private:
-    IYPathService::TNavigateResult GetYPathChild(TYPath path) const;
-    IYPathService::TNavigateResult GetYPathChild(int index, TYPath suffixPath) const;
+    IYPathService::TResolveResult GetYPathChild(TYPath path) const;
+    IYPathService::TResolveResult GetYPathChild(int index, TYPath suffixPath) const;
 
     void CreateYPathChild(int beforeIndex, TYPath path, INode* value);
 };

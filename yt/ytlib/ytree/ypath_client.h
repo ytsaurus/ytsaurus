@@ -171,7 +171,7 @@ ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    NavigateYPath(rootService, path, false, &suffixService, &suffixPath);
+    ResolveYPath(rootService, path, false, &suffixService, &suffixPath);
 
     // TODO: can we avoid this?
     request->SetPath(suffixPath);

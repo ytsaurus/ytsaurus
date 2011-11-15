@@ -169,7 +169,9 @@ void TChannel::OnMessage(
     }
 
     TResponseHeader header;
-    DeserializeMessage(&header, parts[0]);
+    if (!DeserializeMessage(&header, parts[0])) {
+        LOG_FATAL("Error deserializing response header");
+    }
 
     auto requestId = TRequestId::FromProto(header.GetRequestId());
     

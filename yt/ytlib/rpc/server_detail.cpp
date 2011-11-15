@@ -38,8 +38,8 @@ void TServiceContextBase::Reply(const TError& error)
 {
     // Failure here means that #Reply is called twice.
     YASSERT(!Replied);
-
     Replied = true;
+
     LogResponse(error);
 
     IMessage::TPtr responseMessage;
@@ -68,11 +68,9 @@ const yvector<TSharedRef>& TServiceContextBase::RequestAttachments() const
     return RequestAttachments_;
 }
 
-void TServiceContextBase::SetResponseBody(TBlob&& responseBody)
+void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
-    // TODO: change when STL finally supports rv-refs
-    // ResponseBody = MoveRV(responseBody);
-    ResponseBody.swap(responseBody);
+    ResponseBody = responseBody;
 }
 
 yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()

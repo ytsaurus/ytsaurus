@@ -7,7 +7,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TNavigateResult TVirtualMapBase::Navigate(TYPath path, bool mustExist)
+IYPathService::TResolveResult TVirtualMapBase::Resolve(TYPath path, bool mustExist)
 {
     UNUSED(path);
     UNUSED(mustExist);

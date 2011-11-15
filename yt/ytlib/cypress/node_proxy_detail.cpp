@@ -104,6 +104,8 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 
 bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
+    YASSERT(!name.empty());
+
     EnsureLocked();
 
     auto& impl = GetTypedImplForUpdate();
@@ -203,9 +205,9 @@ void TMapNodeProxy::CreateRecursive(TYPath path, INode* value)
     TMapNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
 {
-    return TMapNodeMixin::NavigateRecursive(path, mustExist);
+    return TMapNodeMixin::ResolveRecursive(path, mustExist);
 }
 
 void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -363,9 +365,9 @@ void TListNodeProxy::CreateRecursive(TYPath path, INode* value)
     TListNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
 {
-    return TListNodeMixin::NavigateRecursive(path, mustExist);
+    return TListNodeMixin::ResolveRecursive(path, mustExist);
 }
 
 void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)

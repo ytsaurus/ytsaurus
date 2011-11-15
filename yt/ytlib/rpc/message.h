@@ -26,7 +26,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
 NBus::IMessage::TPtr CreateResponseMessage(
     const TRequestId& requestId,
     const TError& error,
-    TBlob&& body,
+    const TSharedRef& body,
     const yvector<TSharedRef>& attachments);
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(

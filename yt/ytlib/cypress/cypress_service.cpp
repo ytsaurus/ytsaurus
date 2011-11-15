@@ -79,15 +79,18 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    NavigateYPath(~rootService, path, false, &suffixService, &suffixPath);
+    try {
+        ResolveYPath(~rootService, path, false, &suffixService, &suffixPath);
+    } catch (...) {
+        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
+    }
 
-    auto requestMessage = UnwrapYPathRequest(
-        ~context->GetUntypedContext(),
-        path,
-        verb);
+    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
 
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
     auto innerContext = CreateYPathContext(
-        ~requestMessage,
+        ~updatedRequestMessage,
         suffixPath,
         verb,
         Logger.GetCategory(),
@@ -116,14 +119,17 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
 
     IYPathService::TPtr targetService;
     try {
-        targetService = NavigateYPath(~rootService, path);
+        targetService = ResolveYPath(~rootService, path);
     } catch (...) {
-        ythrow TServiceException(EErrorCode::NavigationError) << CurrentExceptionMessage();
+        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
     }
 
     auto* targetNode = dynamic_cast<ICypressNodeProxy*>(~targetService);
     auto id = targetNode == NULL ? NullNodeId : targetNode->GetNodeId();
     response->SetNodeId(id.ToProto());
+
+    context->SetResponseInfo("NodeId: %s", ~id.ToString());
+
     context->Reply();
 }
 

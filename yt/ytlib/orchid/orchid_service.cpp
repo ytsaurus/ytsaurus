@@ -58,15 +58,18 @@ RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    NavigateYPath(~rootService, path, false, &suffixService, &suffixPath);
+    try {
+        ResolveYPath(~rootService, path, false, &suffixService, &suffixPath);
+    } catch (...) {
+        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
+    }
 
-    auto requestMessage = UnwrapYPathRequest(
-        ~context->GetUntypedContext(),
-        path,
-        verb);
+    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
 
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
     auto innerContext = CreateYPathContext(
-        ~requestMessage,
+        ~updatedRequestMessage,
         suffixPath,
         verb,
         Logger.GetCategory(),
