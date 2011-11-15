@@ -46,6 +46,11 @@ int main(int argc, const char *argv[])
             .RequiredArgument("FILE")
             .StoreResult(&configFileName);
 
+        Stroka newConfigFileName;
+        opts.AddLongOption("new_config", "new configuration file")
+            .RequiredArgument("FILE")
+            .StoreResult(&newConfigFileName);
+
         TOptsParseResult results(&opts, argc, argv);
 
         bool isCellMaster = results.Has(&cellMasterOpt);
