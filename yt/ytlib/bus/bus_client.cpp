@@ -55,7 +55,7 @@ private:
     TSessionId SessionId;
     TRequestIdSet RequestIds;
     TRequestIdSet PingIds;
-    THolder<TMessageRearranger> MessageRearranger;
+    TMessageRearranger::TPtr MessageRearranger;
     //! Protects #Terminated.
     TSpinLock SpinLock;
 
@@ -537,7 +537,7 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
     , Handler(handler)
     , Terminated(false)
     , SequenceId(0)
-    , MessageRearranger(new TMessageRearranger(
+    , MessageRearranger(New<TMessageRearranger>(
         FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
 {
@@ -566,7 +566,7 @@ void TBusClient::TBus::Terminate()
         Terminated = true;
     }
 
-    MessageRearranger.Destroy();
+    MessageRearranger.Reset();
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
 }
 

@@ -11,9 +11,11 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMessageRearranger
-    : public TNonCopyable
+    : public TRefCountedBase
 {
 public:
+    typedef TIntrusivePtr<TMessageRearranger> TPtr;
+
     TMessageRearranger(
         IParamAction<IMessage::TPtr>::TPtr onDequeuedMessage,
         TDuration timeout);

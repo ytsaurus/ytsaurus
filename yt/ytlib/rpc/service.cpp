@@ -52,17 +52,21 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 {
     YASSERT(context != NULL);
 
-    TGuard<TSpinLock> guard(SpinLock);
-
     Stroka verb = context->GetVerb();
-    auto methodIt = RuntimeMethodInfos.find(verb);
-    TRuntimeMethodInfo* runtimeInfo =
-        methodIt == RuntimeMethodInfos.end()
-        ? NULL
-        : &methodIt->Second();
+    
+    TRuntimeMethodInfo* runtimeInfo;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
 
-    TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
-    YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
+        auto methodIt = RuntimeMethodInfos.find(verb);
+        runtimeInfo =
+            methodIt == RuntimeMethodInfos.end()
+            ? NULL
+            : &methodIt->Second();
+
+        TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
+        YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
+    }
 
     if (runtimeInfo == NULL) {
         LOG_WARNING("Unknown method (ServiceName: %s, Verb: %s)",

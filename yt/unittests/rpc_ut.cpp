@@ -34,7 +34,7 @@ public:
     RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
 };
 
-const Stroka TMyProxy::ServiceName = "RpcUT";
+const Stroka TMyProxy::ServiceName = "MyService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,25 +182,24 @@ TEST_F(TRpcTest, Send)
     EXPECT_EQ(142, response->GetB());
 }
 
-TEST_F(TRpcTest, Attachments)
-{
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
-    auto request = proxy->ModifyAttachments();
-
-    request->Attachments().push_back(SharedRefFromString("Hello"));
-    request->Attachments().push_back(SharedRefFromString("from"));
-    request->Attachments().push_back(SharedRefFromString("TMyProxy"));
-
-    auto result = request->Invoke();
-    auto response = result->Get();
-
-    const auto& attachments = response->Attachments();
-    EXPECT_EQ(3, attachments.ysize());
-    EXPECT_EQ("Hello_",     StringFromSharedRef(attachments[0]));
-    EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
-    EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
-}
-
+//TEST_F(TRpcTest, Attachments)
+//{
+//    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+//    auto request = proxy->ModifyAttachments();
+//
+//    request->Attachments().push_back(SharedRefFromString("Hello"));
+//    request->Attachments().push_back(SharedRefFromString("from"));
+//    request->Attachments().push_back(SharedRefFromString("TMyProxy"));
+//
+//    auto result = request->Invoke();
+//    auto response = result->Get();
+//
+//    const auto& attachments = response->Attachments();
+//    EXPECT_EQ(3, attachments.ysize());
+//    EXPECT_EQ("Hello_",     StringFromSharedRef(attachments[0]));
+//    EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
+//    EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
+//}
 
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
@@ -224,25 +223,25 @@ TEST_F(TRpcTest, TransportError)
 }
 
 // TODO: uncomment this when YT-276 is fixed
-//TEST_F(TRpcTest, NoService)
-//{
-//    auto proxy = new TNonExistingServiceProxy(New<TChannel>("localhost:2000"));
-//    auto request = proxy->EmptyCall();
-//    auto result = request->Invoke();
-//    auto response = result->Get();
+TEST_F(TRpcTest, NoService)
+{
+    auto proxy = new TNonExistingServiceProxy(CreateBusChannel("localhost:2000"));
+    auto request = proxy->EmptyCall();
+    auto result = request->Invoke();
+    auto response = result->Get();
 
-//    EXPECT_EQ(EErrorCode::NoService, response->GetErrorCode());
-//}
+    EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
+}
 
-//TEST_F(TRpcTest, NoMethod)
-//{
-//    auto proxy = new TMyProxy(New<TChannel>("localhost:2000"));
-//    auto request = proxy->NotRegistredCall();
-//    auto result = request->Invoke();
-//    auto response = result->Get();
+TEST_F(TRpcTest, NoMethod)
+{
+    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto request = proxy->NotRegistredCall();
+    auto result = request->Invoke();
+    auto response = result->Get();
 
-//    EXPECT_EQ(EErrorCode::NoMethod, response->GetErrorCode());
-//}
+    EXPECT_EQ(EErrorCode::NoSuchMethod, response->GetErrorCode());
+}
 
 TEST_F(TRpcTest, Timeout)
 {

@@ -58,7 +58,7 @@ public:
         , PingId(pingId)
         , Terminated(false)
         , SequenceId(0)
-        , MessageRearranger(new TMessageRearranger(
+        , MessageRearranger(New<TMessageRearranger>(
             FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             MessageRearrangeTimeout))
     { }
@@ -66,7 +66,7 @@ public:
     void Finalize()
     {
         // Drop the rearranger to kill the cyclic dependency.
-        MessageRearranger.Destroy();
+        MessageRearranger.Reset();
 
         // Also forget about the server.
         Server.Reset();
@@ -146,7 +146,7 @@ private:
     TGuid PingId;
     bool Terminated;
     TAtomic SequenceId;
-    THolder<TMessageRearranger> MessageRearranger;
+    TMessageRearranger::TPtr MessageRearranger;
     TLockFreeQueue<TOutcomingResponse::TPtr> PendingResponses;
 
     TSequenceId GenerateSequenceId()
