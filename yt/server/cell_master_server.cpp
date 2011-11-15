@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "cell_master_server.h"
 
+#include <yt/ytlib/ytree/tree_builder.h>
+#include <yt/ytlib/ytree/ephemeral.h>
+#include <yt/ytlib/ytree/virtual.h>
+
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 
 #include <yt/ytlib/transaction_server/transaction_manager.h>
@@ -26,6 +30,7 @@
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
+#include <yt/ytlib/orchid/orchid_service.h>
 
 namespace NYT {
 
@@ -177,6 +182,19 @@ void TCellMasterServer::Run()
 
     // TODO: register more monitoring infos
     monitoringManager->Start();
+
+    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
+    auto orchidRoot = orchidFactory->CreateMap();
+    orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
+            orchidFactory),
+        "monitoring");
+
+    auto orchidService = New<NOrchid::TOrchidService>(
+        ~orchidRoot,
+        ~rpcServer,
+        ~controlQueue->GetInvoker());
 
     cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
         ~cypressManager,

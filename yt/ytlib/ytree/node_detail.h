@@ -6,6 +6,7 @@
 #include "tree_builder.h"
 #include "yson_reader.h"
 #include "ypath_rpc.pb.h"
+#include "ypath_detail.h"
 
 namespace NYT {
 namespace NYTree {

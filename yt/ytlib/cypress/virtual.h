@@ -25,13 +25,13 @@ typedef
         const TVirtualYPathContext&,
         NYTree::IYPathService::TPtr
     >
-    TYPathServiceBuilder;
+    TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     ERuntimeNodeType runtypeType,
     const Stroka& typeName,
-    TYPathServiceBuilder* serviceBuilder);
+    TYPathServiceProducer* producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,

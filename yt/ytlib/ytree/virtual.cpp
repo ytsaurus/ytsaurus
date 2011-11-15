@@ -1,9 +1,12 @@
 #include "stdafx.h"
 #include "virtual.h"
 #include "fluent.h"
+#include "node_detail.h"
 
 namespace NYT {
 namespace NYTree {
+
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +53,75 @@ void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
 //    }
 //    return TGetResult::CreateDone();
 //}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualEntityNode
+    : public TNodeBase
+    , public IEntityNode
+{
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
+
+public:
+    TVirtualEntityNode(
+        TYPathServiceProducer* builder,
+        INodeFactory* factory)
+        : Builder(builder)
+        , Factory(factory)
+    { }
+
+    virtual INodeFactory* GetFactory() const
+    {
+        return Factory;
+    }
+
+    virtual ICompositeNode::TPtr GetParent() const
+    {
+        return Parent;
+    }
+
+    virtual void SetParent(ICompositeNode::TPtr parent)
+    {
+        Parent = ~parent;
+    }
+
+    virtual IMapNode::TPtr GetAttributes() const
+    {
+        return Attributes;
+    }
+
+    virtual void SetAttributes(IMapNode::TPtr attributes)
+    {
+        Attributes = attributes;
+    }
+
+private:
+    TYPathServiceProducer::TPtr Builder;
+    INodeFactory* Factory;
+
+    ICompositeNode* Parent;
+    IMapNode::TPtr Attributes;
+
+    virtual void Invoke(IServiceContext* context)
+    {
+        auto service = Builder->Do();
+        return service->Invoke(context);
+    }
+
+    TResolveResult ResolveRecursive(TYPath path, bool mustExist)
+    {
+        auto service = Builder->Do();
+        return service->Resolve(path, mustExist);
+    }
+
+};
+
+INode::TPtr CreateVirtualNode(
+    TYPathServiceProducer* builder,
+    INodeFactory* factory)
+{
+    return New<TVirtualEntityNode>(builder, factory);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

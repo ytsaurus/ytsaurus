@@ -119,11 +119,11 @@ class TVirtualNodeTypeHandler
 public:
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
-        TYPathServiceBuilder* serviceBuilder,
+        TYPathServiceProducer* producer,
         ERuntimeNodeType runtimeType,
         const Stroka& typeName)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
-        , ServiceBuilder(serviceBuilder)
+        , Producer(producer)
         , RuntimeType(runtimeType)
         , TypeName(typeName)
     { }
@@ -145,7 +145,7 @@ public:
             node.GetId().NodeId,
             static_cast<IYPathService*>(NULL));
 
-        auto service = ServiceBuilder->Do(context);
+        auto service = Producer->Do(context);
 
         return New<TVirtualNodeProxy>(
             this,
@@ -195,7 +195,7 @@ public:
     }
 
 private:
-    TYPathServiceBuilder::TPtr ServiceBuilder;
+    TYPathServiceProducer::TPtr Producer;
     ERuntimeNodeType RuntimeType;
     Stroka TypeName;
 
@@ -205,11 +205,11 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     ERuntimeNodeType runtypeType,
     const Stroka& typeName,
-    TYPathServiceBuilder* serviceBuilder)
+    TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
-        serviceBuilder,
+        producer,
         runtypeType,
         typeName);
 }

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "ypath_service.h"
+#include "ytree.h"
 
 namespace NYT {
 namespace NYTree {
@@ -20,6 +21,12 @@ private:
     virtual void Invoke(NRpc::IServiceContext* context);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+INode::TPtr CreateVirtualNode(
+    TYPathServiceProducer* builder,
+    INodeFactory* factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
