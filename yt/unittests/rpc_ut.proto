@@ -10,6 +10,12 @@ message TRspSomeCall
     required int32 B = 1;
 }
 
+message TReqModifyAttachments { }
+message TRspModifyAttachments { }
+
+message TReqReplyingCall { }
+message TRspReplyingCall { }
+
 message TReqEmptyCall { }
 message TRspEmptyCall { }
 
