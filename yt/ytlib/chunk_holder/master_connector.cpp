@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NMetaState;
 using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,8 +41,9 @@ TMasterConnector::TMasterConnector(
     YASSERT(~replicator != NULL);
     YASSERT(~serviceInvoker != NULL);
 
-    auto channel = New<NMetaState::TCellChannel>(Config.Masters);
+    auto channel = CreateCellChannel(Config.Masters);
     Proxy.Reset(new TProxy(channel));
+    Proxy->SetTimeout(Config.RpcTimeout);
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);
 
@@ -84,7 +86,7 @@ void TMasterConnector::SendRegister()
 
     request->SetAddress(Address);
 
-    request->Invoke(Config.RpcTimeout)->Subscribe(
+    request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
         ->Via(ServiceInvoker));
 
@@ -179,7 +181,7 @@ void TMasterConnector::SendHeartbeat()
         info->SetState(job->GetState());
     }
 
-    request->Invoke(Config.RpcTimeout)->Subscribe(
+    request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
         ->Via(ServiceInvoker));
 

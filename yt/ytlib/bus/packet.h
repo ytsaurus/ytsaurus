@@ -59,32 +59,36 @@ struct THeaderTraits<TMultipartPacketHeader>
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DecodeMessagePacket(
-    TBlob& data,
+    TBlob&& data,
     IMessage::TPtr* message,
     TSequenceId* sequenceId);
 
 bool EncodeMessagePacket(
-    IMessage::TPtr message,
+    IMessage* message,
     const TSessionId& sessionId,
     TSequenceId sequenceId,
     TBlob* data);
 
-void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob* data);
+void CreatePacket(
+    const TSessionId& sessionId,
+    TPacketHeader::EType type,
+    TBlob* data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TODO: fix logging
 template <class T>
 T* ParsePacketHeader(TBlob& data)
 {
+    static NLog::TLogger& Logger = BusLogger;
+
     if (data.ysize() < THeaderTraits<T>::FixedSize) {
-        //LOG_ERROR("Packet is too short (Size: %d)", data.ysize());
+        LOG_ERROR("Packet is too short (Size: %d)", data.ysize());
         return NULL;
     }
 
     T* header = reinterpret_cast<T*>(data.begin());
     if (header->Signature != TPacketHeader::ExpectedSignature) {
-        //LOG_ERROR("Invalid packet signature (Signature: %X)", header->Signature);
+        LOG_ERROR("Invalid packet signature (Signature: %X)", header->Signature);
         return NULL;
     }
 

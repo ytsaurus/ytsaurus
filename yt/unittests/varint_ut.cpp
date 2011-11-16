@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/serialize.h"
 
 #include <util/string/escape.h>

@@ -5,6 +5,7 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +45,7 @@ IListNode::TPtr TNodeFactory::CreateList()
 
 IEntityNode::TPtr TNodeFactory::CreateEntity()
 {
-    YUNIMPLEMENTED();
+    ythrow yexception() << "Entity nodes cannot be created inside Cypress";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +104,8 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 
 bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
+    YASSERT(!name.empty());
+
     EnsureLocked();
 
     auto& impl = GetTypedImplForUpdate();
@@ -188,18 +191,36 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-IYPathService::TNavigateResult TMapNodeProxy::NavigateRecursive(TYPath path)
+void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 {
-    return TMapNodeMixin::NavigateRecursive(path);
+    if (TMapNodeMixin::DoInvoke(context)) {
+        // The verb is already handled.
+    } else {
+        TCompositeNodeProxyBase::DoInvoke(context);
+    }
 }
 
-IYPathService::TSetResult TMapNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
+void TMapNodeProxy::CreateRecursive(TYPath path, INode* value)
 {
-    auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
-    return TMapNodeMixin::SetRecursive(
-        path,
-        ~producer,
-        ~builder);
+    TMapNodeMixin::SetRecursive(path, value);
+}
+
+IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
+{
+    return TMapNodeMixin::ResolveRecursive(path, mustExist);
+}
+
+void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+{
+    UNUSED(response);
+
+    TMapNodeMixin::SetRecursive(path, request);
+    context->Reply();
+}
+
+void TMapNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TMapNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,18 +360,27 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
-IYPathService::TNavigateResult TListNodeProxy::NavigateRecursive(TYPath path)
+void TListNodeProxy::CreateRecursive(TYPath path, INode* value)
 {
-    return TListNodeMixin::NavigateRecursive(path);
+    TListNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TSetResult TListNodeProxy::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
 {
-    auto builder = CypressManager->GetDeserializationBuilder(TransactionId);
-    return TListNodeMixin::SetRecursive(
-        path,
-        ~producer,
-        ~builder);
+    return TListNodeMixin::ResolveRecursive(path, mustExist);
+}
+
+void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+{
+    UNUSED(response);
+
+    TListNodeMixin::SetRecursive(path, request);
+    context->Reply();
+}
+
+void TListNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TListNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

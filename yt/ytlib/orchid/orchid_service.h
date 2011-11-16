@@ -22,7 +22,7 @@ public:
     //! Creates an instance.
     TOrchidService(
         NYTree::INode* root,
-        NRpc::TServer* server,
+        NRpc::IServer* server,
         IInvoker* invoker);
 
 private:
@@ -32,9 +32,7 @@ private:
 
     NYTree::INode::TPtr Root;
 
-    RPC_SERVICE_METHOD_DECL(NProto, Get);
-    RPC_SERVICE_METHOD_DECL(NProto, Set);
-    RPC_SERVICE_METHOD_DECL(NProto, Remove);
+    RPC_SERVICE_METHOD_DECL(NProto, Execute);
 
 };
 

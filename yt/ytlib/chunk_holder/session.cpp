@@ -64,25 +64,27 @@ TSession::TPtr TSessionManager::StartSession(
     return session;
 }
 
-void TSessionManager::CancelSession(TSession::TPtr session)
+void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorMessage)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    session->Cancel();
+    session->Cancel(errorMessage);
 
     LOG_INFO("Session canceled (ChunkId: %s)",
         ~chunkId.ToString());
 }
 
-TFuture<TVoid>::TPtr TSessionManager::FinishSession(TSession::TPtr session)
+TFuture<TVoid>::TPtr TSessionManager::FinishSession(
+    TSession::TPtr session, 
+    const TSharedRef& masterMeta)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish()->Apply(
+    return session->Finish(masterMeta)->Apply(
         FromMethod(
             &TSessionManager::OnSessionFinished,
             TPtr(this),
@@ -109,7 +111,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session);
+        CancelSession(session, "Session lease expired.");
     }
 }
 
@@ -275,9 +277,9 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Writer->WriteBlock(block->GetData());
+        Writer->Sync(&IChunkWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
-        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d): %s",
+        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
             blockIndex,
             ~CurrentExceptionMessage());
@@ -329,7 +331,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish()
+TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
 {
     CloseLease();
 
@@ -345,13 +347,13 @@ TFuture<TVoid>::TPtr TSession::Finish()
         }
     }
 
-    return CloseFile();
+    return CloseFile(masterMeta);
 }
 
-void TSession::Cancel()
+void TSession::Cancel(const Stroka& errorMessage)
 {
     CloseLease();
-    DeleteFile();
+    DeleteFile(errorMessage);
 }
 
 void TSession::OpenFile()
@@ -369,40 +371,43 @@ void TSession::DoOpenFile()
         ~ChunkId.ToString());
 }
 
-void TSession::DeleteFile()
+void TSession::DeleteFile(const Stroka& errorMessage)
 {
     GetInvoker()->Invoke(FromMethod(
         &TSession::DoDeleteFile,
-        TPtr(this)));
+        TPtr(this),
+        errorMessage));
 }
 
-void TSession::DoDeleteFile()
+void TSession::DoDeleteFile(const Stroka& errorMessage)
 {
-    Writer->Cancel();
+    Writer->Cancel(errorMessage);
 
     if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
         LOG_FATAL("Error deleting chunk file (ChunkId: %s)",
             ~ChunkId.ToString());
     }
 
-    LOG_DEBUG("Chunk file deleted (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Chunk file deleted (ChunkId: %s). Reason: %s",
+        ~ChunkId.ToString(),
+        ~errorMessage);
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile()
+TFuture<TVoid>::TPtr TSession::CloseFile(const TSharedRef& masterMeta)
 {
     return
         FromMethod(
             &TSession::DoCloseFile,
-            TPtr(this))
+            TPtr(this),
+            masterMeta)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
 
-TVoid TSession::DoCloseFile()
+NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
 {
     try {
-        Writer->Close();
+        Writer->Sync(&IChunkWriter::AsyncClose, masterMeta);
     } catch (...) {
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
             ~ChunkId.ToString());

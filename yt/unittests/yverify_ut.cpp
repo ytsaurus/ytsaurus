@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/assert.h"
 
 #include <util/generic/yexception.h>

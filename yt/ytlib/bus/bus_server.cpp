@@ -58,7 +58,7 @@ public:
         , PingId(pingId)
         , Terminated(false)
         , SequenceId(0)
-        , MessageRearranger(new TMessageRearranger(
+        , MessageRearranger(New<TMessageRearranger>(
             FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             MessageRearrangeTimeout))
     { }
@@ -66,7 +66,7 @@ public:
     void Finalize()
     {
         // Drop the rearranger to kill the cyclic dependency.
-        MessageRearranger.Destroy();
+        MessageRearranger.Reset();
 
         // Also forget about the server.
         Server.Reset();
@@ -105,7 +105,7 @@ public:
         TSequenceId sequenceId = GenerateSequenceId();
 
         TBlob data;
-        EncodeMessagePacket(message, SessionId, sequenceId, &data);
+        EncodeMessagePacket(~message, SessionId, sequenceId, &data);
         int dataSize = data.ysize();
 
         auto response = New<TOutcomingResponse>(&data);
@@ -146,7 +146,7 @@ private:
     TGuid PingId;
     bool Terminated;
     TAtomic SequenceId;
-    THolder<TMessageRearranger> MessageRearranger;
+    TMessageRearranger::TPtr MessageRearranger;
     TLockFreeQueue<TOutcomingResponse::TPtr> PendingResponses;
 
     TSequenceId GenerateSequenceId()
@@ -171,7 +171,7 @@ TBusServer::TBusServer(int port, IMessageHandler::TPtr handler)
 
     Requester = CreateHttpUdpRequester(port);
     if (~Requester == NULL) {
-        throw yexception() << Sprintf("Failed to create a bus server on port %d",
+        ythrow yexception() << Sprintf("Failed to create a bus server on port %d",
             port);
     }
 
@@ -379,7 +379,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         header,
         requestId,
         nlRequest->PeerAddress,
-        nlRequest->Data,
+        MoveRV(nlRequest->Data),
         true);
 
     auto response = session->DequeueResponse();
@@ -408,7 +408,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlRespo
         header,
         nlResponse->ReqId,
         nlResponse->PeerAddress,
-        nlResponse->Data,
+        MoveRV(nlResponse->Data),
         false);
 }
 
@@ -416,7 +416,7 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
     TPacketHeader* header,
     const TGuid& requestId,
     const TUdpAddress& address,
-    TBlob& data,
+    TBlob&& data,
     bool isRequest)
 {
     int dataSize = data.ysize();
@@ -439,7 +439,7 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
 
     IMessage::TPtr message;
     TSequenceId sequenceId;;
-    if (!DecodeMessagePacket(data, &message, &sequenceId))
+    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
         return session;
 
     LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",

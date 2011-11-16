@@ -41,7 +41,7 @@ void TBlobOutput::Clear()
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef(Blob);
+    return TSharedRef(MoveRV(Blob));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ public:
     TTransactionService(
         NMetaState::TMetaStateManager* metaStateManager,
         TTransactionManager* transactionManager,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
 private:
     typedef TTransactionService TThis;

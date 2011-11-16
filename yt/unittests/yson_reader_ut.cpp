@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/ytree/yson_reader.h"
 #include <util/stream/mem.h>
 
@@ -292,6 +294,19 @@ TEST_F(TYsonReaderTest, Unescaping)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar(output, false));
+
+    Run();
+}
+
+TEST_F(TYsonReaderTest, TrailingSlashes)
+{
+    Stroka slash = "\\";
+    Stroka escapedSlash = slash + slash;
+    Stroka quote = "\"";
+    Input = quote + escapedSlash + quote;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnStringScalar(slash, false));
 
     Run();
 }

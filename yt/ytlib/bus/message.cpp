@@ -1,11 +1,5 @@
 #include "stdafx.h"
 #include "message.h"
-#include "rpc.pb.h"
-
-#include "../misc/serialize.h"
-#include "../logging/log.h"
-
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {
 namespace NBus {
@@ -16,25 +10,80 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobMessage::TBlobMessage(TBlob* blob)
+class TMessage
+    : public IMessage
 {
-    Parts.push_back(TSharedRef(*blob));
-}
+public:
+    TMessage(const yvector<TSharedRef>& parts)
+        : Parts(parts)
+    { }
 
-TBlobMessage::TBlobMessage(TBlob* blob, const yvector<TRef>& parts)
-{
-    TSharedRef::TBlobPtr sharedBlob = new TBlob();
-    blob->swap(*sharedBlob);
-    FOREACH(const auto& it, parts) {
-        Parts.push_back(TSharedRef(sharedBlob, it));
+    TMessage(yvector<TSharedRef>&& parts)
+        : Parts(ForwardRV(parts))
+    { }
+
+    virtual const yvector<TSharedRef>& GetParts()
+    {
+        return Parts;
     }
-}
 
-const yvector<TSharedRef>& TBlobMessage::GetParts()
+private:
+    yvector<TSharedRef> Parts;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMessage::TPtr CreateMessageFromParts(const yvector<TSharedRef>& parts)
 {
-    return Parts;
+    return New<TMessage>(parts);
 }
 
+IMessage::TPtr CreateMessageFromParts(yvector<TSharedRef>&& parts)
+{
+    return New<TMessage>(parts);
+}
+
+IMessage::TPtr CreateMessageFromPart(const TSharedRef& part)
+{
+    yvector<TSharedRef> parts;
+    parts.push_back(part);
+    return New<TMessage>(parts);
+}
+
+IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs)
+{
+    TSharedRef sharedBlob(MoveRV(blob));
+    yvector<TSharedRef> parts(refs.ysize());
+    for (int i = 0; i < refs.ysize(); ++i) {
+        parts[i] = TSharedRef(sharedBlob, refs[i]);
+    }
+    return New<TMessage>(MoveRV(parts));
+}
+
+IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart, int sliceSize)
+{
+    YASSERT(message != NULL);
+    YASSERT(sliceStart >= 0 && sliceStart + sliceSize <= message->GetParts().ysize());
+
+    auto parts = message->GetParts();
+    yvector<TSharedRef> sliceParts(sliceSize);
+    for (int i = 0; i < sliceSize; ++i) {
+        sliceParts[i] = parts[i + sliceStart];
+    }
+    return New<TMessage>(MoveRV(sliceParts));
+}
+
+IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart)
+{
+    YASSERT(message != NULL);
+    YASSERT(sliceStart >= 0 && sliceStart <= message->GetParts().ysize());
+
+    return CreateMessageFromSlice(
+        message,
+        sliceStart,
+        message->GetParts().ysize() - sliceStart);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

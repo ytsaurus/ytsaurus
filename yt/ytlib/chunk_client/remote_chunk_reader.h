@@ -12,6 +12,7 @@ namespace NYT
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO: -> TRemoteReader
 class TRemoteChunkReader
     : public IChunkReader
 {

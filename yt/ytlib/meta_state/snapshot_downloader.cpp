@@ -55,9 +55,11 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         LOG_INFO("Requesting snapshot info from peer %d", i);
 
         auto proxy = CellManager->GetMasterProxy<TProxy>(i);
+        proxy->SetTimeout(Config.LookupTimeout);
+
         auto request = proxy->GetSnapshotInfo();
         request->SetSnapshotId(snapshotId);
-        awaiter->Await(request->Invoke(Config.LookupTimeout), FromMethod(
+        awaiter->Await(request->Invoke(), FromMethod(
             &TSnapshotDownloader::OnResponse,
             awaiter, asyncResult, i));
     }
@@ -117,7 +119,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     try {
         snapshotWriter->Open(snapshotInfo.PrevRecordCount);
     } catch (const yexception& ex) {
-        LOG_ERROR("Could not open snapshot writer: %s", ex.what());
+        LOG_ERROR("Could not open snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
@@ -130,7 +132,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     try {
         snapshotWriter->Close();
     } catch (const yexception& ex) {
-        LOG_ERROR("Could not close snapshot writer: %s", ex.what());
+        LOG_ERROR("Could not close snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
@@ -157,6 +159,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             sourceId);
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
+    proxy->SetTimeout(Config.ReadTimeout);
+
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
         auto request = proxy->ReadSnapshot();
@@ -164,7 +168,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         request->SetOffset(downloadedLength);
         i32 blockSize = Min(Config.BlockSize, (i32)(snapshotLength - downloadedLength));
         request->SetLength(blockSize);
-        auto response = request->Invoke(Config.ReadTimeout)->Get();
+        auto response = request->Invoke()->Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();
@@ -216,7 +220,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         try {
             output.Write(block.Begin(), block.Size());
         } catch (const yexception& ex) {
-            LOG_ERROR("Exception occurred while writing to output: %s",
+            LOG_ERROR("Exception occurred while writing to output\n%s",
                 ex.what());
             return EResult::IOError;
         }

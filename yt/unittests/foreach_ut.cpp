@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/foreach.h"
 #include "../ytlib/misc/common.h"
 

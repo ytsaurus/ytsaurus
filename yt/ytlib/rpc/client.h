@@ -2,10 +2,11 @@
 
 #include "channel.h"
 
-#include "../bus/bus_client.h"
-#include "../actions/future.h"
+#include "../misc/property.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/metric.h"
+#include "../bus/bus_client.h"
+#include "../actions/future.h"
 
 namespace NYT {
 namespace NRpc {
@@ -14,18 +15,12 @@ namespace NRpc {
 
 class TClientRequest;
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template <class TRequestMessage, class TResponseMessage>
 class TTypedClientRequest;
 
 class TClientResponse;
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template<class TRequestMessage, class TResponseMessage>
 class TTypedClientResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +39,8 @@ protected:
 
     TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
+    DECLARE_BYVAL_RW_PROPERTY(Timeout, TDuration);
+
     IChannel::TPtr Channel;
     Stroka ServiceName;
 };          
@@ -58,8 +55,8 @@ struct IClientRequest
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
     virtual TRequestId GetRequestId() const = 0;
-    virtual Stroka GetServiceName() const = 0;
-    virtual Stroka GetMethodName() const = 0;
+    virtual Stroka GetPath() const = 0;
+    virtual Stroka GetVerb() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,35 +64,27 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
+    DECLARE_BYVAL_RO_PROPERTY(Path, Stroka);
+    DECLARE_BYVAL_RO_PROPERTY(Verb, Stroka);
+    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
+    DECLARE_BYVAL_RO_PROPERTY(RequestId, TRequestId);
+
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
 
-    TRequestId GetRequestId() const;
-
-    yvector<TSharedRef>& Attachments();
+    NBus::IMessage::TPtr Serialize() const;
 
 protected:
     IChannel::TPtr Channel;
 
     TClientRequest(
-        IChannel::TPtr channel,
-        const Stroka& serviceName,
-        const Stroka& methodName);
+        IChannel* channel,
+        const Stroka& path,
+        const Stroka& verb);
 
     virtual bool SerializeBody(TBlob* data) const = 0;
-    TFuture<TError>::TPtr DoInvoke(TIntrusivePtr<TClientResponse> response, TDuration timeout);
+    TFuture<TError>::TPtr DoInvoke(TClientResponse* response, TDuration timeout);
 
-    Stroka GetServiceName() const;
-    Stroka GetMethodName() const;
-
-private:
-    Stroka ServiceName;
-    Stroka MethodName;
-    TRequestId RequestId;
-
-    yvector<TSharedRef> Attachments_;
-
-    NBus::IMessage::TPtr Serialize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,31 +99,40 @@ class TTypedClientRequest
 {
 private:
     typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
+    TDuration Timeout;
 
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
     typedef TFuture<typename TTypedResponse::TPtr> TInvokeResult;
 
     TTypedClientRequest(
-        IChannel::TPtr channel,
-        const Stroka& serviceName,
-        const Stroka& methodName)
-        : TClientRequest(channel, serviceName, methodName)
+        IChannel* channel,
+        const Stroka& path,
+        const Stroka& verb,
+        TDuration timeout)
+        : TClientRequest(channel, path, verb)
+        , Timeout(timeout)
     {
-        YASSERT(~channel != NULL);
+        YASSERT(channel != NULL);
     }
 
-    typename TInvokeResult::TPtr Invoke(TDuration timeout = TDuration::Zero())
+    typename TInvokeResult::TPtr Invoke()
     {
         typename TInvokeResult::TPtr asyncResult = NYT::New<TInvokeResult>();
         typename TTypedResponse::TPtr response = NYT::New<TTypedResponse>(
             GetRequestId(),
-            Channel);
-        DoInvoke(~response, timeout)->Subscribe(FromMethod(
+            ~Channel);
+        DoInvoke(~response, Timeout)->Subscribe(FromMethod(
             &TTypedClientRequest::OnReady,
             asyncResult,
             response));
         return asyncResult;
+    }
+
+    TTypedClientRequest& SetTimeout(TDuration timeout)
+    {
+        Timeout = timeout;
+        return *this;
     }
 
 private:
@@ -163,12 +161,9 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    virtual void OnAcknowledgement(
-        NBus::IBus::ESendResult sendResult) = 0;
+    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
 
-    virtual void OnResponse(
-        const TError& error,
-        NBus::IMessage::TPtr message) = 0;
+    virtual void OnResponse(const TError& error, NBus::IMessage* message) = 0;
 
     virtual void OnTimeout() = 0;
 };
@@ -178,23 +173,21 @@ struct IClientResponseHandler
 class TClientResponse
     : public IClientResponseHandler
 {
+    DECLARE_BYREF_RW_PROPERTY(RequestId, TRequestId);
+    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
+    DECLARE_BYVAL_RO_PROPERTY(Error, NRpc::TError);
+    DECLARE_BYVAL_RO_PROPERTY(StartTime, TInstant);
+
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
 
-    yvector<TSharedRef>& Attachments();
+    NBus::IMessage::TPtr GetResponseMessage() const;
 
-    TRequestId GetRequestId() const;
-    TError GetError() const;
     EErrorCode GetErrorCode() const;
-
     bool IsOK() const;
 
-    TInstant GetStartTime() const;
-
 protected:
-    TClientResponse(
-        const TRequestId& requestId,
-        IChannel::TPtr channel);
+    TClientResponse(const TRequestId& requestId);
 
     virtual bool DeserializeBody(TRef data) = 0;
 
@@ -209,19 +202,15 @@ private:
 
     // Protects state.
     TSpinLock SpinLock;
-    TRequestId RequestId;
-    IChannel::TPtr Channel;
     EState State;
-    TError Error;
-    yvector<TSharedRef> MyAttachments;
-    TInstant StartTime;
+    NBus::IMessage::TPtr ResponseMessage;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
-    virtual void OnResponse(const TError& error, NBus::IMessage::TPtr message);
+    virtual void OnResponse(const TError& error, NBus::IMessage* message);
     virtual void OnTimeout();
 
-    void Deserialize(NBus::IMessage::TPtr message);
+    void Deserialize(NBus::IMessage* responseMessage);
     void Complete(const TError& error);
 };
 
@@ -240,12 +229,10 @@ public:
 
     TTypedClientResponse(
         const TRequestId& requestId,
-        IChannel::TPtr channel)
-        : TClientResponse(
-            requestId,
-            channel)
+        IChannel* channel)
+        : TClientResponse(requestId)
     {
-        YASSERT(~channel != NULL);
+        YASSERT(channel != NULL);
     }
 
 private:
@@ -259,17 +246,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_DECLARE_PROXY(serviceName, errorCodes) \
+#define RPC_DECLARE_PROXY(path, errorCodes) \
     static Stroka GetServiceName() \
     { \
-        return PP_STRINGIZE(serviceName); \
+        return PP_STRINGIZE(path); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##serviceName##Error, NRpc::EErrorCode, \
+    DECLARE_POLY_ENUM2(E##path##Error, NRpc::EErrorCode, \
         errorCodes \
     ); \
     \
-    typedef E##serviceName##Error EErrorCode;
+    typedef E##path##Error EErrorCode;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,15 +268,15 @@ private:
     \
     TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(Channel, ServiceName, #method); \
+        return New<TReq##method>(~Channel, ServiceName, #method, GetTimeout()); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define USE_RPC_PROXY_METHOD(TProxy, MethodName) \
-    typedef TProxy::TReq##MethodName TReq##MethodName; \
-    typedef TProxy::TRsp##MethodName TRsp##MethodName; \
-    typedef TProxy::TInv##MethodName TInv##MethodName;
+#define USE_RPC_PROXY_METHOD(TProxy, method) \
+    typedef TProxy::TReq##method TReq##method; \
+    typedef TProxy::TRsp##method TRsp##method; \
+    typedef TProxy::TInv##method TInv##method;
 
 ////////////////////////////////////////////////////////////////////////////////
 

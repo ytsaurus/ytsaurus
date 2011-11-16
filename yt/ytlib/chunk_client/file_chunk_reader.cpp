@@ -33,6 +33,9 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
             ~FileName.Quote());
     }
 
+    TBlob masterMeta(Meta.GetMasterMeta().begin(), Meta.GetMasterMeta().end());
+    MasterMeta = TSharedRef(masterMeta);
+
     TChunkOffset currentOffset = 0;
     BlockOffsets.reserve(GetBlockCount());
     for (int blockIndex = 0; blockIndex < GetBlockCount(); ++blockIndex) {
@@ -81,7 +84,7 @@ TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
     TBlob data(blockInfo.GetSize());
     File->Pread(data.begin(), data.size(), BlockOffsets[blockIndex]); 
 
-    TSharedRef result(data);
+    TSharedRef result(MoveRV(data));
 
     if (blockInfo.GetChecksum() != GetChecksum(result)) {
         ythrow yexception() << Sprintf("Chunk footer signature mismatch (FileName: %s, BlockIndex: %d)",
@@ -91,6 +94,12 @@ TSharedRef TFileChunkReader::ReadBlock(int blockIndex)
 
     return result;
 }
+
+TSharedRef TFileChunkReader::GetMasterMeta() const
+{
+    return MasterMeta;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 

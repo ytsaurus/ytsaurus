@@ -113,7 +113,7 @@ void TActionQueue::ThreadMain()
             }
         }
     } catch (...) {
-        LOG_FATAL("Unhandled exception in the action queue: %s",
+        LOG_FATAL("Unhandled exception in the action queue\n%s",
             ~CurrentExceptionMessage());
     }
 
@@ -190,7 +190,7 @@ void TPrioritizedActionQueue::ThreadMain()
             }
         }
     } catch (...) {
-        LOG_FATAL("Unhandled exception in the action queue: %s",
+        LOG_FATAL("Unhandled exception in the action queue\n%s",
             ~CurrentExceptionMessage());
     }
 

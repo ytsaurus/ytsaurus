@@ -45,7 +45,7 @@ i64 TLocation::GetAvailableSpace()
     try {
         AvailableSpace = NFS::GetAvailableSpace(Path);
     } catch (...) {
-        LOG_FATAL("Failed to compute available space at %s: %s",
+        LOG_FATAL("Failed to compute available space at %s\n%s",
             ~Path.Quote(),
             ~CurrentExceptionMessage());
     }
@@ -130,7 +130,7 @@ public:
                     ChunkStore->GetChunkFileName(chunk));
                 cookie.EndInsert(file);
             } catch (...) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s): %s",
+                LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
                     ~chunk->GetId().ToString(),
                     ~CurrentExceptionMessage());
             }
@@ -183,7 +183,7 @@ void TChunkStore::ScanChunks()
             }
         }
     } catch (...) {
-        LOG_FATAL("Failed to initialize storage locations: %s", ~CurrentExceptionMessage());
+        LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
     }
 
     LOG_INFO("%d chunks found", ChunkMap.ysize());

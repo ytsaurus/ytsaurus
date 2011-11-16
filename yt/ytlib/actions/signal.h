@@ -11,12 +11,12 @@ namespace NYT {
 
 
 /*!
- * A signal represents a list of actions (either taking parameters or not).
- * A client may subscribe to a signal (adding a new handler to the list),
- * unsubscribe from a signal (removing an earlier added handler),
- * and fire a signal thus invoking the actions added so far.
+ *  A signal represents a list of actions (either taking parameters or not).
+ *  A client may subscribe to a signal (adding a new handler to the list),
+ *  unsubscribe from a signal (removing an earlier added handler),
+ *  and fire a signal thus invoking the actions added so far.
  *
- * Signals are thread-safe.
+ *  Signals are thread-safe.
  */
 template<class T>
 class TSignalBase
@@ -96,7 +96,7 @@ class TParamSignal
     : public TSignalBase< IParamAction<TParam> >
 {
 public:
-    //! Calls #IParamAction::Do passing the given #arg for all actions in the list.
+    //! Calls #IParamAction::Do passing the given #arg to all actions in the list.
     /*!
      * \param arg Argument to be passed to the handlers.
      */

@@ -11,7 +11,7 @@ namespace NYT {
 
 static NLog::TLogger Logger("Holder");
 
-using NRpc::TServer;
+using NRpc::CreateRpcServer;
 
 using NOrchid::TOrchidService;
 
@@ -28,7 +28,7 @@ void TChunkHolderServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto server = New<TServer>(Config.Port);
+    auto server = CreateRpcServer(Config.Port);
 
     auto orchidBuilder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
     orchidBuilder->BeginTree();
@@ -46,8 +46,8 @@ void TChunkHolderServer::Run()
 
     auto chunkHolder = New<TChunkHolder>(
         Config,
-        controlQueue->GetInvoker(),
-        server);
+        ~controlQueue->GetInvoker(),
+        ~server);
 
     server->Start();
 

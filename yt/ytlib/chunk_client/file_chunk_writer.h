@@ -12,6 +12,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IChunkWriter.
+// TODO -> TChunkWriter
 class TFileChunkWriter
     : public IChunkWriter
 {
@@ -21,24 +22,21 @@ public:
     //! Creates a new writer.
     TFileChunkWriter(Stroka fileName);
 
-    //! A synchronous version of #AsyncAddBlock.
-    void WriteBlock(const TSharedRef& data);
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncWriteBlock(const TSharedRef& data);
 
-    //! Implements IChunkWriter and calls #AddBlock.
-    virtual EResult AsyncWriteBlock(const TSharedRef& data, TFuture<TVoid>::TPtr* ready);
+    TAsyncStreamState::TAsyncResult::TPtr 
+    AsyncClose(const TSharedRef& masterMeta);
 
+    void Cancel(const Stroka& errorMessage);
 
-    //! A synchronous version of #Close.
-    void Close();
-    //! Implements IChunkWriter and calls #Close.
-    virtual TFuture<EResult>::TPtr AsyncClose();
-    virtual void Cancel();
+    const TChunkId& GetChunkId() const;
 
 private:
     Stroka FileName;
     THolder<TFile> File;
     NChunkClient::NProto::TChunkMeta Meta;
-
+    TAsyncStreamState::TAsyncResult::TPtr Result;
 };
 
 

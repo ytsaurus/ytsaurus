@@ -1,9 +1,10 @@
 #pragma once
 
 #include "common.h"
-#include "rpc.pb.h"
 
 #include "../bus/message.h"
+
+#include <contrib/libs/protobuf/message.h>
 
 namespace NYT {
 namespace NRpc {
@@ -15,59 +16,22 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcRequestMessage
-    : public NBus::IMessage
-{
-public:
-    TRpcRequestMessage(
-        const TRequestId& requestId,
-        const Stroka& serviceName,
-        const Stroka& methodName,
-        TBlob* body,
-        const yvector<TSharedRef>& attachments);
+NBus::IMessage::TPtr CreateRequestMessage(
+    const TRequestId& requestId,
+    const Stroka& path,
+    const Stroka& verb,
+    TBlob&& body,
+    const yvector<TSharedRef>& attachments);
 
-    virtual const yvector<TSharedRef>& GetParts();
+NBus::IMessage::TPtr CreateResponseMessage(
+    const TRequestId& requestId,
+    const TError& error,
+    const TSharedRef& body,
+    const yvector<TSharedRef>& attachments);
 
-private:
-    yvector<TSharedRef> Parts;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRpcResponseMessage
-    : public NBus::IMessage
-{
-public:
-    TRpcResponseMessage(
-        const TRequestId& requestId,
-        const TError& error,
-        TBlob* body,
-        const yvector<TSharedRef>& attachments);
-
-    virtual const yvector<TSharedRef>& GetParts();
-
-private:
-    yvector<TSharedRef> Parts;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRpcErrorResponseMessage
-    : public NBus::IMessage
-{
-public:
-    TRpcErrorResponseMessage(
-        const TRequestId& requestId,
-        const TError& error);
-
-    virtual const yvector<TSharedRef>& GetParts();
-
-private:
-    yvector<TSharedRef> Parts;
-
-};
+NBus::IMessage::TPtr CreateErrorResponseMessage(
+    const TRequestId& requestId,
+    const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

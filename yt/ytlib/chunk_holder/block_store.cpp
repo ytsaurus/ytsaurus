@@ -119,7 +119,7 @@ private:
                     ~blockId.ToString());
             }
         } catch (...) {
-            LOG_FATAL("Error loading block into cache (BlockId: %s): %s",
+            LOG_FATAL("Error loading block into cache (BlockId: %s)\n%s",
                 ~blockId.ToString(),
                 ~CurrentExceptionMessage());
         }

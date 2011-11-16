@@ -96,8 +96,8 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    TFuture<TVoid>::TPtr Finish();
-    void Cancel();
+    TFuture<TVoid>::TPtr Finish(const TSharedRef& masterMeta);
+    void Cancel(const Stroka& errorMessage);
 
     void SetLease(TLeaseManager::TLease lease);
     void CloseLease();
@@ -112,11 +112,11 @@ private:
     void OpenFile();
     void DoOpenFile();
 
-    void DeleteFile();
-    void DoDeleteFile();
+    void DeleteFile(const Stroka& errorMessage);
+    void DoDeleteFile(const Stroka& errorMessage);
 
-    TFuture<TVoid>::TPtr CloseFile();
-    TVoid DoCloseFile();
+    TFuture<TVoid>::TPtr CloseFile(const TSharedRef& masterMeta);
+    TVoid DoCloseFile(const TSharedRef& masterMeta);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
@@ -151,13 +151,13 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TVoid>::TPtr FinishSession(TSession::TPtr session);
+    TFuture<TVoid>::TPtr FinishSession(TSession::TPtr session, const TSharedRef& masterMeta);
 
     //! Cancels an earlier opened upload session.
     /*!
      * Chunk file is closed asynchronously, however the call returns immediately.
      */
-    void CancelSession(TSession::TPtr session);
+    void CancelSession(TSession::TPtr session, const Stroka& errorMessage);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const TChunkId& chunkId);

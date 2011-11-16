@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ypath.h"
+#include "ypath_service.h"
 #include "yson_events.h"
 #include "tree_builder.h"
 #include "forwarding_yson_events.h"
@@ -225,6 +225,75 @@ void SetNodeFromProducer(
     TNodeSetter<TNode> setter(node, builder);
     producer->Do(&setter);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ChopYPathPrefix(
+    TYPath path,
+    Stroka* prefix,
+    TYPath* suffixPath);
+
+TYPath ComputeResolvedYPath(
+    TYPath wholePath,
+    TYPath unresolvedPath);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ResolveYPath(
+    IYPathService* rootService,
+    TYPath path,
+    bool mustExist,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
+
+IYPathService::TPtr ResolveYPath(
+    IYPathService* rootService,
+    TYPath path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYPathResponseHandlerParam
+{
+    NRpc::TError Error;
+    NBus::IMessage::TPtr Message;
+};
+
+typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
+
+void ParseYPathRequestHeader(
+    TRef headerData,
+    TYPath* path,
+    Stroka* verb);
+
+NBus::IMessage::TPtr UpdateYPathRequestHeader(
+    NBus::IMessage* message,
+    NYTree::TYPath path,
+    const Stroka& verb);
+
+void WrapYPathRequest(
+    NRpc::TClientRequest* outerRequest,
+    NBus::IMessage* innerRequestMessage);
+
+NBus::IMessage::TPtr UnwrapYPathRequest(
+    NRpc::IServiceContext* outerContext);
+    
+NRpc::IServiceContext::TPtr CreateYPathContext(
+    NBus::IMessage* requestMessage,
+    TYPath path,
+    const Stroka& verb,
+    const Stroka& loggingCategory,
+    TYPathResponseHandler* responseHandler);
+
+void WrapYPathResponse(
+    NRpc::IServiceContext* outerContext,
+    NBus::IMessage* responseMessage);
+
+NBus::IMessage::TPtr UnwrapYPathResponse(
+    NRpc::TClientResponse* outerResponse);
+
+void ReplyYPathWithMessage(
+    NRpc::IServiceContext* context,
+    NBus::IMessage* responseMessage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

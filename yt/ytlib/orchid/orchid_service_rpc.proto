@@ -2,36 +2,11 @@ package NYT.NOrchid.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGet
-{
-    required bytes Path = 1;
-}
-
-message TRspGet
-{
-    required bytes Value = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqSet
-{
-    required bytes Path = 1;
-    required bytes Value = 2;
-}
-
-message TRspSet
+message TReqExecute
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemove
-{
-    required bytes Path = 1;
-}
-
-message TRspRemove
+message TRspExecute
 {
 }
 

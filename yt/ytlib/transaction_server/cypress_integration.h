@@ -5,7 +5,6 @@
 
 #include "../cypress/cypress_manager.h"
 #include "../cypress/node.h"
-#include "../ytree/ypath.h"
 
 namespace NYT {
 namespace NTransaction {

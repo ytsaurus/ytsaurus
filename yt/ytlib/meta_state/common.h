@@ -82,7 +82,7 @@ struct TCellConfig
         Register("Addresses", Addresses).NonEmpty(); // TODO: rename to "masters"
     }
 
-    virtual void Validate(Stroka path = Stroka()) const
+    virtual void Validate(const Stroka& path = "") const
     {
         TConfigBase::Validate(path);
 

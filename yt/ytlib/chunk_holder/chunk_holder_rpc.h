@@ -26,7 +26,7 @@ public:
         ((NoSuchBlock)(7))
     );
 
-    TChunkHolderProxy(NRpc::IChannel::TPtr channel)
+    TChunkHolderProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

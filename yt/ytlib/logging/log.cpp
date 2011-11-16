@@ -108,7 +108,7 @@ void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
         Stroka errorMessage;
         if (!ValidatePattern(pattern, & errorMessage)) {
             ythrow yexception() <<
-                Sprintf("Invalid pattern at writer %s: %s", ~name, ~errorMessage);
+                Sprintf("Invalid pattern at writer %s\n%s", ~name, ~errorMessage);
         }
 
         if (!TryRead(item, L"Type", &type)) {
@@ -360,7 +360,7 @@ void TLogManager::Configure(Stroka fileName, Stroka rootPath)
         TJsonObject* subTree = GetSubTree(root, rootPath);
         Configure(subTree);
     } catch (const yexception& e) {
-        LOG_ERROR("Error configuring logging: %s", e.what())
+        LOG_ERROR("Error configuring logging\n%s", e.what())
         return;
     }
 }

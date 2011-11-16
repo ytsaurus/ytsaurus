@@ -12,6 +12,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IChunkReader.
+// TODO -> TFileReader
 class TFileChunkReader
     : public IChunkReader
 {
@@ -23,6 +24,9 @@ public:
 
     //! Returns the number of blocks in the chunk.
     i32 GetBlockCount() const;
+
+    //! Returns the master meta.
+    TSharedRef GetMasterMeta() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
@@ -38,6 +42,7 @@ private:
     THolder<TFile> File;
     NChunkClient::NProto::TChunkMeta Meta;
     yvector<TChunkOffset> BlockOffsets;
+    TSharedRef MasterMeta;
 
 };
 

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/enum.h"
 
 #include <util/stream/buffer.h>

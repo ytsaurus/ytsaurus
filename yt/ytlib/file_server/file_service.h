@@ -25,7 +25,7 @@ public:
         NMetaState::TMetaStateManager* metaStateManager,
         NChunkServer::TChunkManager* chunkManager,
         TFileManager* fileManager,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
 private:
     typedef TFileService TThis;
