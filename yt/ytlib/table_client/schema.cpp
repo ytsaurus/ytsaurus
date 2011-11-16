@@ -245,7 +245,11 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
     yvector<TRange> rhsRanges(rhs.Ranges);
     FOREACH(auto column, rhs.Columns) {
         // Add single columns as ranges.
-        rhsRanges.push_back(TRange(column, column + "\0"));
+        TColumn rangeEnd;
+        rangeEnd.reserve(column.Size() + 1);
+        rangeEnd.append(column);
+        rangeEnd.append('\0');
+        rhsRanges.push_back(TRange(column, rangeEnd));
     }
 
     yvector<TRange> newRanges;

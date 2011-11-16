@@ -119,11 +119,13 @@ void TJob::Stop()
 void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
 {
     if (!result.IsOK) {
-        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d)",
+        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d): ",
             ~JobId.ToString(),
-            blockIndex);
+            blockIndex,
+            ~result.ErrorMessage);
 
         State = EJobState::Failed;
+        return;
     }
 
     if (blockIndex >= Meta->GetBlockCount()) {
@@ -164,7 +166,8 @@ void TJob::OnBlockLoaded(TCachedBlock::TPtr cachedBlock, int blockIndex)
     } 
 
     Writer->AsyncWriteBlock(cachedBlock->GetData())->Subscribe(
-        FromMethod(&TJob::ReplicateBlock, TPtr(this), blockIndex + 1));
+        FromMethod(&TJob::ReplicateBlock, TPtr(this), blockIndex + 1)
+            ->Via(CancelableInvoker));
 }
 
 void TJob::OnWriterClosed(TAsyncStreamState::TResult result)

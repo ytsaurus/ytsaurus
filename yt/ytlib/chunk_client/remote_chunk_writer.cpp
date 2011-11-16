@@ -172,8 +172,6 @@ TRemoteChunkWriter::TGroup::TGroup(
 
 void TRemoteChunkWriter::TGroup::AddBlock(const TSharedRef& block)
 {
-    VERIFY_THREAD_AFFINITY(Writer->ClientThread);
-
     Blocks.push_back(block);
     Size += block.Size();
 }
@@ -190,8 +188,6 @@ int TRemoteChunkWriter::TGroup::GetEndBlockIndex() const
 
 i64 TRemoteChunkWriter::TGroup::GetSize() const
 {
-    VERIFY_THREAD_AFFINITY(Writer->ClientThread);
-
     return Size;
 }
 

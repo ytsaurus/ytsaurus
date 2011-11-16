@@ -4,6 +4,8 @@
 from ytwin import *
 import opts
 
+build_dir = r'C:\Projects\yt-build'
+
 Logging = {
         'Writers' : [
                 {
@@ -39,7 +41,7 @@ class Base(AggrBase):
         path = opts.get_string('--name', 'control')
         
 class Server(Base):
-        bin_path = r'C:\Projects\yt-build\bin\Debug\server.exe'
+        bin_path = os.path.join(build_dir, r'bin\Debug\server.exe')
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
@@ -86,11 +88,11 @@ class Holder(WinNode, Server):
                         print >>fd, 'rmdir /S /Q   %s' % location
 
 class Client(WinNode, Base):
-    bin_path = r'C:\Projects\yt-build\bin\Debug\send_chunk.exe'
+    bin_path = os.path.join(build_dir, r'bin\Debug\send_chunk.exe') 
 
     params = Template('--config %(config_path)s')
 
-    config = Template({ 
+    config_base = { 
         'ReplicationFactor' : 2,
         'BlockSize' : 2 ** 20,
 
@@ -99,28 +101,42 @@ class Client(WinNode, Base):
             'TaskCount' : 1
         },
 
-        'YPath' : '/psushin/file1',
-
         'Logging' : Logging,
 
         'Masters' : { 
             'Addresses' : MasterAddresses 
         },
 
-        'Input' : {
-            'Type' : 'zero',
-            'Size' : (2 ** 20) * 256 
-        },
-
         'ChunkWriter' : {
             'WindowSize' : 40,
             'GroupSize' : 8 * (2 ** 20)
         } 
-    })
+    }
 
-    def do_clean(cls, fd):
-        print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
+    def clean(cls, fd):
+        print >>fd, 'del %s' % cls.log_path
 
+def client_config(d):
+    d.update(Client.config_base)
+    return d
+
+class PlainChunk(Client):
+    config = Template(client_config({
+        'YPath' : '/files/plain_chunk',
+        'Input' : {
+            'Type' : 'zero', # strean of zeros
+            'Size' : (2 ** 20) * 256 
+        }
+    }))
+
+class TableChunk(Client):
+    config = Template(client_config({ 
+        'Schema' : '[["abracadabra"; "a"; ["xxx"; "zzz"]]; ["a"; "column1"; ["b"; "m"]]]',
+        'YPath' : '/files/table_chunk',
+        'Input' : {
+            'Type' : 'random_table',
+            'Size' : (2 ** 20) * 256 
+        }
+    }))
 
 configure(Base)
