@@ -2,9 +2,9 @@
 #include "monitoring_manager.h"
 
 #include "../ytree/ephemeral.h"
+#include "../ytree/yson_writer.h"
 #include "../ytree/tree_visitor.h"
-#include "../ytree/ypath.h"
-#include "../logging/log.h"
+#include "../ytree/ypath_rpc.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
 
@@ -15,7 +15,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger Logger("Monitoring");
+static NLog::TLogger Logger("Monitoring");
 const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +23,7 @@ const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
 { 
-    PeriodicInvoker = new TPeriodicInvoker(
+    PeriodicInvoker = New<TPeriodicInvoker>(
         FromMethod(&TMonitoringManager::Update, TPtr(this)),
         Period);
 }
@@ -70,15 +70,23 @@ void TMonitoringManager::Update()
     try {
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
         auto newRootService = IYPathService::FromNode(~newRoot);
+
         FOREACH(const auto& pair, MonitoringMap) {
-            SetYPath(newRootService, pair.first, pair.second);
+            TStringStream output;
+            TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
+            pair.second->Do(&writer);
+
+            auto request = TYPathProxy::Set(pair.first);
+            request->SetValue(output.Str());
+
+            ExecuteYPath(~newRootService, ~request);
         }
 
         if (IsStarted) {
             Root = newRoot;
         }
     } catch (...) {
-        LOG_FATAL("Error collecting monitoring data: %s",
+        LOG_FATAL("Error collecting monitoring data\n%s",
             ~CurrentExceptionMessage());
     }
 }

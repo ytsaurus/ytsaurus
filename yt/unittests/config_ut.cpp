@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/config.h"
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/ephemeral.h"

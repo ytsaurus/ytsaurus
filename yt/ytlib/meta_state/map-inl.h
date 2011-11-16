@@ -3,8 +3,6 @@
 #endif
 #undef MAP_INL_H_
 
-#include "../misc/rvalue.h"
-
 namespace NYT {
 namespace NMetaState {
 

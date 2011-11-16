@@ -62,45 +62,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_TYPE_OVERRIDES(name) \
-public: \
-    virtual ENodeType GetType() const \
-    { \
-        return ENodeType::name; \
-    } \
-    \
-    virtual TIntrusivePtr<const I ## name ## Node> As ## name() const \
-    { \
-        return this; \
-    } \
-    \
-    virtual TIntrusivePtr<I ## name ## Node> As ## name() \
-    { \
-        return this; \
-    } \
-    \
-    virtual void SetSelf2(TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context) \
-    { \
-        UNUSED(response); \
-        auto builder = CreateBuilderFromFactory(GetFactory()); \
-        DoSet<I##name##Node>(this, request->GetValue(), ~builder); \
-        context->Reply(); \
-    } \
-    \
-    virtual TSetResult SetSelf(TYsonProducer::TPtr producer) \
-    { \
-        auto builder = CreateBuilderFromFactory(GetFactory()); \
-        SetNodeFromProducer<I##name##Node>(this, ~producer, ~builder); \
-        return TSetResult::CreateDone(this); \
-    }
-
 #define DECLARE_SCALAR_TYPE(name, type) \
     class T ## name ## Node \
         : public TScalarNode<type, I ## name ## Node> \
     { \
-        DECLARE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(name) \
     };
-
 
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
@@ -133,7 +100,7 @@ class TMapNode
     : public TCompositeNodeBase<IMapNode>
     , public TMapNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(Map)
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
     virtual void Clear();
@@ -149,11 +116,10 @@ private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
-    virtual IYPathService2::TNavigateResult2 NavigateRecursive2(TYPath path);
-    virtual void SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
-
-    virtual TNavigateResult NavigateRecursive(TYPath path);
-    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual IYPathService::TResolveResult ResolveRecursive(TYPath path, bool mustExist);
+    virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(TYPath path);
 
 };
 
@@ -163,7 +129,7 @@ class TListNode
     : public TCompositeNodeBase<IListNode>
     , public TListNodeMixin
 {
-    DECLARE_TYPE_OVERRIDES(List)
+    YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
     virtual void Clear();
@@ -178,11 +144,9 @@ public:
 private:
     yvector<INode::TPtr> List;
 
-    virtual TNavigateResult2 NavigateRecursive2(TYPath path);
-    virtual void SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context);
-
-    virtual TNavigateResult NavigateRecursive(TYPath path);
-    virtual TSetResult SetRecursive(TYPath path, TYsonProducer::TPtr producer);
+    virtual TResolveResult ResolveRecursive(TYPath path, bool mustExist);
+    virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void ThrowNonEmptySuffixPath(TYPath path);
 
 };
 
@@ -192,10 +156,12 @@ class TEntityNode
     : public TEphemeralNodeBase
     , public virtual IEntityNode
 {
-    DECLARE_TYPE_OVERRIDES(Entity)
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
 };
 
-#undef DECLARE_TYPE_OVERRIDES
+////////////////////////////////////////////////////////////////////////////////
+
+#undef YTREE_NODE_TYPE_OVERRIDES
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,6 +228,8 @@ INode::TPtr TMapNode::FindChild(const Stroka& name) const
 
 bool TMapNode::AddChild(INode::TPtr child, const Stroka& name)
 {
+    YASSERT(!name.empty());
+
     if (NameToChild.insert(MakePair(name, child)).Second()) {
         YVERIFY(ChildToName.insert(MakePair(child, name)).Second());
         child->SetParent(this);
@@ -315,36 +283,31 @@ void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
-IYPathService::TNavigateResult TMapNode::NavigateRecursive(TYPath path)
+void TMapNode::DoInvoke(NRpc::IServiceContext* context)
 {
-    return TMapNodeMixin::NavigateRecursive(path);
+    if (TMapNodeMixin::DoInvoke(context)) {
+        // Do nothing, the verb is already handled.
+    } else {
+        TEphemeralNodeBase::DoInvoke(context);
+    }
 }
 
-IYPathService::TSetResult TMapNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
+IYPathService::TResolveResult TMapNode::ResolveRecursive(TYPath path, bool mustExist)
 {
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    return TMapNodeMixin::SetRecursive(
-        path,
-        ~producer,
-        ~builder);
+    return TMapNodeMixin::ResolveRecursive(path, mustExist);
 }
 
-IYPathService2::TNavigateResult2 TMapNode::NavigateRecursive2(TYPath path)
-{
-    return TMapNodeMixin::NavigateRecursive2(path);
-}
-
-void TMapNode::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    TMapNodeMixin::SetRecursive2(
-        path,
-        request->GetValue(),
-        ~builder);
-
+    TMapNodeMixin::SetRecursive(path, request);
     context->Reply();
+}
+
+void TMapNode::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TMapNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,37 +372,22 @@ void TListNode::RemoveChild(INode::TPtr child)
     List.erase(it);
 }
 
-IYPathService::TNavigateResult TListNode::NavigateRecursive(TYPath path)
+IYPathService::TResolveResult TListNode::ResolveRecursive(TYPath path, bool mustExist)
 {
-    return TListNodeMixin::NavigateRecursive(path);
+    return TListNodeMixin::ResolveRecursive(path, mustExist);
 }
 
-IYPathService::TSetResult TListNode::SetRecursive(TYPath path, TYsonProducer::TPtr producer)
-{
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    return TListNodeMixin::SetRecursive(
-        path,
-        ~producer,
-        ~builder);
-}
-
-
-IYPathService2::TNavigateResult2 TListNode::NavigateRecursive2(TYPath path)
-{
-    return TListNodeMixin::NavigateRecursive2(path);
-}
-
-void TListNode::SetRecursive2(TYPath path, TReqSet2* request, TRspSet2* response, TCtxSet2::TPtr context)
+void TListNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    TListNodeMixin::SetRecursive2(
-        path,
-        request->GetValue(),
-        ~builder);
-
+    TListNodeMixin::SetRecursive(path, request);
     context->Reply();
+}
+
+void TListNode::ThrowNonEmptySuffixPath(TYPath path)
+{
+    TListNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

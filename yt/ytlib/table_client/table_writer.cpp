@@ -1,12 +1,15 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
 
+#include "../cypress/cypress_ypath_rpc.h"
+
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NTransactionClient;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,20 +51,21 @@ void TTableWriter::Init()
 bool TTableWriter::NodeExists(const Stroka& nodePath)
 {
     TCypressProxy proxy(MasterChannel);
+    proxy.SetTimeout(Config.RpcTimeout);
+
     auto req = proxy.GetNodeId();
     req->SetTransactionId(Transaction->GetId().ToProto());
     req->SetPath(nodePath);
-    auto rsp = req->Invoke(Config.RpcTimeout)->Get();
+    auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
-        const NRpc::TError& error = rsp->GetError();
-        if (!error.IsServiceError() ||
-            error.GetCode() != TCypressProxy::EErrorCode::RecoverableError) 
+        const auto& error = rsp->GetError();
+        if (!error.IsServiceError() || 
+            error.GetCode() != TCypressProxy::EErrorCode::ResolutionError) 
         {
             Writer->Cancel(error.ToString());
-            ythrow yexception() << 
-                Sprintf("Cypress call GetNodeId failed (Path: %s; Error: %s).",
-                    ~nodePath,
-                    ~error.ToString());
+            ythrow yexception() << Sprintf("Error checking for table existence (Path: %s)\n%s",
+                ~nodePath,
+                ~error.ToString());
         }
         return false;
     }
@@ -72,20 +76,18 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
 
 void TTableWriter::CreateTableNode(const Stroka& nodePath)
 {
-    TCypressProxy proxy(MasterChannel);
-    auto req = proxy.Set();
-    req->SetTransactionId(Transaction->GetId().ToProto());
-    req->SetPath(nodePath);
-    req->SetValue("<type=table>");
+    auto req = TCypressYPathProxy::Create(nodePath);
+    req->SetManifest("{type=table}");
 
-    auto rsp = req->Invoke(Config.RpcTimeout)->Get();
+    TCypressProxy proxy(MasterChannel);
+    auto rsp = proxy.Execute(Transaction->GetId(), ~req)->Get();
+
     if (!rsp->IsOK()) {
-        const NRpc::TError& error = rsp->GetError();
+        const auto& error = rsp->GetError();
         Writer->Cancel(error.ToString());
-        ythrow yexception() << 
-            Sprintf("Couldn't create table (Path: %s; Error: %s).",
-                ~nodePath,
-                ~error.ToString());
+        ythrow yexception() << Sprintf("Error creating table (Path: %s)\n%s",
+            ~nodePath,
+            ~error.ToString());
     }
 
     NodeId = rsp->GetNodeId();
@@ -106,6 +108,8 @@ void TTableWriter::Close()
     Writer->Sync(&TChunkSetWriter::AsyncClose);
 
     TTableProxy proxy(MasterChannel);
+    proxy.SetTimeout(Config.RpcTimeout);
+
     auto req = proxy.AddTableChunks();
     req->SetTransactionId(Transaction->GetId().ToProto());
     req->SetNodeId(NodeId);
@@ -113,12 +117,11 @@ void TTableWriter::Close()
         req->AddChunkIds(chunkId.ToProto());
     }
 
-    auto rsp = req->Invoke(Config.RpcTimeout)->Get();
+    auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
-        const NRpc::TError& error = rsp->GetError();
-        ythrow yexception() << 
-            Sprintf("Failed to add chunks to table (Error: %s).",
-                ~error.ToString());
+        const auto& error = rsp->GetError();
+        ythrow yexception() << Sprintf("Error adding chunks to table\n%s",
+            ~error.ToString());
     }
 
     Transaction->OnAborted().Unsubscribe(OnAborted);
@@ -126,7 +129,7 @@ void TTableWriter::Close()
 
 void TTableWriter::OnTransactionAborted()
 {
-    Writer->Cancel("Transaction aborted.");
+    Writer->Cancel("Transaction aborted");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

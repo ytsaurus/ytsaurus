@@ -19,10 +19,10 @@ static NLog::TLogger Logger("Election");
 
 TElectionManager::TElectionManager(
     const TConfig& config,
-    NMetaState::TCellManager::TPtr cellManager,
-    IInvoker::TPtr controlInvoker,
-    IElectionCallbacks::TPtr electionCallbacks,
-    NRpc::TServer::TPtr server)
+    NMetaState::TCellManager* cellManager,
+    IInvoker* controlInvoker,
+    IElectionCallbacks* electionCallbacks,
+    NRpc::IServer* server)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),
@@ -34,10 +34,10 @@ TElectionManager::TElectionManager(
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~controlInvoker != NULL);
-    YASSERT(~electionCallbacks != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(cellManager != NULL);
+    YASSERT(controlInvoker != NULL);
+    YASSERT(electionCallbacks != NULL);
+    YASSERT(server != NULL);
 
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
@@ -116,11 +116,12 @@ private:
         LOG_DEBUG("Sending ping to follower %d", id);
 
         auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
+        proxy->SetTimeout(ElectionManager->Config.RpcTimeout);
         auto request = proxy->PingFollower();
         request->SetLeaderId(ElectionManager->CellManager->GetSelfId());
         request->SetEpoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
-            request->Invoke(ElectionManager->Config.RpcTimeout),
+            request->Invoke(),
             FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id)
             ->Via(EpochInvoker));
     }
@@ -251,9 +252,10 @@ public:
             if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
+            proxy->SetTimeout(ElectionManager->Config.RpcTimeout);
             auto request = proxy->GetStatus();
             Awaiter->Await(
-                request->Invoke(ElectionManager->Config.RpcTimeout),
+                request->Invoke(),
                 FromMethod(&TThis::OnResponse, TPtr(this), id));
         }
 

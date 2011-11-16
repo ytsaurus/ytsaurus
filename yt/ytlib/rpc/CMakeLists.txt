@@ -5,6 +5,7 @@ SET(YT_SOURCE_FILES
     channel_cache.cpp
     service.cpp
     server.cpp
+    server_detail.cpp
     rpc.proto
     message.cpp
     retry.cpp

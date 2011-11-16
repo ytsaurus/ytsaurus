@@ -8,29 +8,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumn NextColumn(TColumn column)
-{
-    if (column.Empty()) {
-        return "\0";
-    }
-
-    // ToDo: need code review
-    TColumn result;
-    if (column.back() != 0xFF) {
-        result.reserve(column.Size());
-        result.append(~column, column.Size() - 1);
-        result.append(column.back() + 1);
-    } else {
-        result.reserve(column.Size() + 1);
-        result.append(column);
-        result.append('\0');
-    }
-
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TRange::TRange(const TColumn& begin, const TColumn& end)
     : IsInfinite_(false)
     , Begin_(begin)
@@ -267,8 +244,8 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 
     yvector<TRange> rhsRanges(rhs.Ranges);
     FOREACH(auto column, rhs.Columns) {
-        // add single columns as ranges
-        rhsRanges.push_back(TRange(column, NextColumn(column)));
+        // Add single columns as ranges.
+        rhsRanges.push_back(TRange(column, column + "\0"));
     }
 
     yvector<TRange> newRanges;
@@ -303,16 +280,18 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 TSchema::TSchema()
 {
     TChannel trashChannel;
-    trashChannel.AddRange(TRange(""));
 
-    // NB: this "trash" channel will be present in any chunk,
-    // cause this is how table writer works now. But if it's empty,
-    // its blocks will be successfully compressed
+    // Initially the schema consists of a single trash channel,
+    // i.e. [epsilon, infinity).
+    // This "trash" channel is expected to be present in any chunk
+    // (this is how table writer works now). 
+    trashChannel.AddRange(TRange(""));
     Channels.push_back(trashChannel);
 }
 
 void TSchema::AddChannel(const TChannel& channel)
 {
+    // Trash channel always goes first.
     Channels.front() -= channel; 
     Channels.push_back(channel);
 }

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/tree_visitor.h"
 #include "../ytlib/ytree/yson_writer.h"

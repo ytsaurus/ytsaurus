@@ -1,9 +1,10 @@
 #pragma once
 
 #include "common.h"
-
 #include "node.h"
 #include "cypress_manager.h"
+#include "ypath_rpc.pb.h"
+
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../ytree/fluent.h"
@@ -40,7 +41,7 @@ public:
         UNUSED(nodeId);
         UNUSED(transactionId);
         UNUSED(manifest);
-        throw NYTree::TYTreeException() << Sprintf("Nodes of type %s cannot be created from a manifest",
+        ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
             ~GetTypeName().Quote());
     }
 

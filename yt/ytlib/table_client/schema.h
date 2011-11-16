@@ -64,9 +64,9 @@ public:
 
     const yvector<TColumn>& GetColumns() const;
 
-    friend void operator-= (TChannel& lhs, const TChannel& rhs);
-
 private:
+    friend void operator -= (TChannel& lhs, const TChannel& rhs);
+
     yvector<TColumn> Columns;
     yvector<TRange> Ranges;
 };

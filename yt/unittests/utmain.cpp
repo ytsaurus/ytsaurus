@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include <util/datetime/base.h>
 #include <util/random/random.h>
 #include <util/string/printf.h>

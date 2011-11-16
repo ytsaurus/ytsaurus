@@ -3,8 +3,6 @@
 #include "common.h"
 
 #include "../bus/bus_client.h"
-#include "../actions/future.h"
-#include "../misc/delayed_invoker.h"
 
 namespace NYT {
 namespace NRpc {
@@ -42,58 +40,11 @@ struct IChannel
     virtual void Terminate() = 0;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//! Creates a channel implemented via NBus.
+IChannel::TPtr CreateBusChannel(NBus::TBusClient* client);
 
-//! Implements IChannel via NYT::NBus.
-class TChannel
-    : public IChannel
-    , public NBus::IMessageHandler
-{
-public:
-    typedef TIntrusivePtr<TChannel> TPtr;
-
-    TChannel(NBus::TBusClient::TPtr client);
-    TChannel(Stroka address);
-
-    virtual TFuture<TError>::TPtr Send(
-        TIntrusivePtr<IClientRequest> request,
-        TIntrusivePtr<IClientResponseHandler> responseHandler,
-        TDuration timeout);
-
-    virtual void Terminate();
-
-private:
-    friend class TClientRequest;
-    friend class TClientResponse;
-
-    struct TActiveRequest
-    {
-        TRequestId RequestId;
-        TIntrusivePtr<IClientResponseHandler> ResponseHandler;
-        TFuture<TError>::TPtr Ready;
-        TDelayedInvoker::TCookie TimeoutCookie;
-    };
-
-    typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
-
-    volatile bool Terminated;
-    NBus::IBus::TPtr Bus;
-    TRequestMap ActiveRequests;
-    //! Protects #ActiveRequests and #Terminated.
-    TSpinLock SpinLock;
-
-    void OnAcknowledgement(
-        NBus::IBus::ESendResult sendResult,
-        TRequestId requestId);
-
-    virtual void OnMessage(
-        NBus::IMessage::TPtr message,
-        NBus::IBus::TPtr replyBus);
-
-    void OnTimeout(TRequestId requestId);
-
-    void UnregisterRequest(TRequestMap::iterator it);
-};          
+//! Creates a channel implemented via NBus.
+IChannel::TPtr CreateBusChannel(const Stroka& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 

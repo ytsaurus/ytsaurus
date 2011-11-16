@@ -39,7 +39,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
             changeLog->Open();
             cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
         } catch (...) {
-            LOG_ERROR("Error opening changelog (SegmentId: %d): %s",
+            LOG_ERROR("Error opening changelog (SegmentId: %d)\n%s",
                 segmentId,
                 ~CurrentExceptionMessage());
             return NULL;
@@ -65,7 +65,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
         changeLog->Create(prevRecordCount);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
     } catch (...) {
-        LOG_ERROR("Error creating changelog (SegmentId: %d): %s",
+        LOG_ERROR("Error creating changelog (SegmentId: %d)\n%s",
             segmentId,
             ~CurrentExceptionMessage());
     }

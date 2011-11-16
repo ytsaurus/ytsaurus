@@ -1,12 +1,10 @@
 #pragma once
 
-#include "rvalue.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Defines a trivial public read-write property that is passed by reference.
 #define DECLARE_BYREF_RW_PROPERTY(name, type) \
-private: \
+protected: \
     type name##_; \
     \
 public: \
@@ -22,7 +20,7 @@ public: \
 
 //! Defines a trivial public read-only property that is passed by reference.
 #define DECLARE_BYREF_RO_PROPERTY(name, type) \
-private: \
+protected: \
     type name##_; \
     \
 public: \
@@ -33,7 +31,7 @@ public: \
 
 //! Defines a trivial public read-write property that is passed by value.
 #define DECLARE_BYVAL_RW_PROPERTY(name, type) \
-private: \
+protected: \
     type name##_; \
     \
 public: \
@@ -54,7 +52,7 @@ public: \
 
 //! Defines a trivial public read-only property that is passed by value.
 #define DECLARE_BYVAL_RO_PROPERTY(name, type) \
-private: \
+protected: \
     type name##_; \
     \
 public: \

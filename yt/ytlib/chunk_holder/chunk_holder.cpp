@@ -16,16 +16,16 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TChunkHolder::TChunkHolder(
     const TConfig& config,
-    IInvoker::TPtr serviceInvoker,
-    NRpc::TServer::TPtr server)
+    IInvoker* serviceInvoker,
+    NRpc::IServer* server)
     : NRpc::TServiceBase(
         serviceInvoker,
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
 {
-    YASSERT(~serviceInvoker != NULL);
-    YASSERT(~server != NULL);
+    YASSERT(serviceInvoker != NULL);
+    YASSERT(server != NULL);
 
     ChunkStore = New<TChunkStore>(Config);
     BlockStore = New<TBlockStore>(Config, ChunkStore);
@@ -158,11 +158,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    FOREACH(const auto& it, request->Attachments()) {
+    FOREACH(const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        TBlob data = it.ToBlob();
-        session->PutBlock(blockIndex, TSharedRef(data));
+        auto data = attachment.ToBlob();
+        session->PutBlock(blockIndex, MoveRV(data));
         ++blockIndex;
     }
     
@@ -186,9 +186,10 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 
     auto session = GetSession(chunkId);
 
-    TCachedBlock::TPtr startBlock = session->GetBlock(startBlockIndex);
+    auto startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(ChannelCache.GetChannel(address));
+    TProxy proxy(~ChannelCache.GetChannel(address));
+    proxy.SetTimeout(Config.RpcTimeout);
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);
@@ -198,7 +199,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke(Config.RpcTimeout)->Subscribe(FromMethod(
+    putRequest->Invoke()->Subscribe(FromMethod(
         &TChunkHolder::OnSentBlocks,
         TPtr(this),
         context));

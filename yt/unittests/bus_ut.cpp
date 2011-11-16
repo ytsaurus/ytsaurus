@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/bus/bus.h"
 #include "../ytlib/bus/bus_server.h"
 #include "../ytlib/bus/bus_client.h"
@@ -17,13 +19,13 @@ IMessage::TPtr CreateMessage(int numParts)
     for (int i = 0; i < numParts; ++i) {
         parts.push_back(TRef(data.begin() + i, 1));
     }
-    return New<TBlobMessage>(&data, parts);
+    return CreateMessageFromParts(MoveRV(data), parts);
 }
 
 IMessage::TPtr Serialize(Stroka str)
 {
     TBlob data(str.begin(), str.vend());
-    return New<TBlobMessage>(&data);
+    return CreateMessageFromPart(TSharedRef(MoveRV(data)));
 }
 
 Stroka Deserialize(IMessage::TPtr message)
@@ -77,10 +79,10 @@ public:
 
 TEST(TBusTest, OK)
 {
-    TBusServer::TPtr listener = New<TBusServer>(2000, New<TEmptyBusHandler>());
-    TBusClient::TPtr client = New<TBusClient>("localhost:2000");
-    IBus::TPtr bus = client->CreateBus(~New<TEmptyBusHandler>());
-    IMessage::TPtr message = CreateMessage(1);
+    auto listener = New<TBusServer>(2000, New<TEmptyBusHandler>());
+    auto client = New<TBusClient>("localhost:2000");
+    auto bus = client->CreateBus(~New<TEmptyBusHandler>());
+    auto message = CreateMessage(1);
     auto result = bus->Send(message)->Get();
     EXPECT_EQ(IBus::ESendResult::OK, result);
     listener->Terminate();
@@ -88,24 +90,24 @@ TEST(TBusTest, OK)
 
 TEST(TBusTest, Failed)
 {
-    TBusClient::TPtr client = New<TBusClient>("localhost:2000");
-    IBus::TPtr bus = client->CreateBus(~New<TEmptyBusHandler>());
-    IMessage::TPtr message = CreateMessage(1);
+    auto client = New<TBusClient>("localhost:2000");
+    auto bus = client->CreateBus(~New<TEmptyBusHandler>());
+    auto message = CreateMessage(1);
     auto result = bus->Send(message)->Get();
     EXPECT_EQ(IBus::ESendResult::Failed, result);
 }
 
 TEST(TBusTest, Reply)
 {
-    TBusServer::TPtr listener = New<TBusServer>(2000, ~New<TReplying42BusHandler>());
-    TBusClient::TPtr client = New<TBusClient>("localhost:2000");
-    TChecking42BusHandler::TPtr handler = New<TChecking42BusHandler>();
-    IBus::TPtr bus = client->CreateBus(~handler);
-    IMessage::TPtr message = CreateMessage(1);
-    bus->Send(message);
+    auto listener = New<TBusServer>(2000, ~New<TReplying42BusHandler>());
+    auto client = New<TBusClient>("localhost:2000");
+    auto handler = New<TChecking42BusHandler>();
+    auto bus = client->CreateBus(~handler);
+    auto message = CreateMessage(1);
+    bus->Send(message)->Get();
 
     if(!handler->Event_.Wait(2000)) {
-        EXPECT_TRUE(false);
+        EXPECT_IS_TRUE(false);
     }
 
     listener->Terminate();

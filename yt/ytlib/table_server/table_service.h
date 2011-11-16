@@ -25,7 +25,7 @@ public:
         NMetaState::TMetaStateManager* metaStateManager,
         NChunkServer::TChunkManager* chunkManager,
         TTableManager* tableManager,
-        NRpc::TServer* server);
+        NRpc::IServer* server);
 
 private:
     typedef TTableService TThis;

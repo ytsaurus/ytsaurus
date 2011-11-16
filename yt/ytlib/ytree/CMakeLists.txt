@@ -1,22 +1,35 @@
 SET(YT_SOURCE_FILES
-    common.h
+    common.cpp
+
     ytree_fwd.h
+
     ytree.h
+
     yson_format.h
+
     yson_events.h
+    forwarding_yson_events.cpp
+
     yson_reader.cpp
     yson_writer.cpp
+
     tree_builder.cpp
     tree_visitor.cpp
-    ypath.cpp
+
     node_detail.cpp
     ephemeral.cpp
+
     fluent.h
+
     json_adapter.cpp
-    ypath_detail.cpp
-    forwarding_yson_events.cpp
+
     virtual.cpp
-    ytree_rpc.proto
+
+    ypath_client.cpp
+    ypath_service.cpp
+    ypath_detail.cpp
+    ypath_rpc.h
+    ypath_rpc.proto
 )
 
 include_directories(

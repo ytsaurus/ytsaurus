@@ -41,7 +41,7 @@ T* operator ~ (const TLazyPtr<T>& ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Intrusive ptr with lazy creation and double-checked locking.
+// Non-intrusive ptr with lazy creation and double-checked locking.
 template<class T, class TLock = TSpinLock>
 class TLazyHolder
     : public TPointerCommon<TLazyHolder<T, TLock>, T>

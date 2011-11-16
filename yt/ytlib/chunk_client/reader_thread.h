@@ -7,6 +7,8 @@
 
 namespace NYT {
 
+// TODO: move to common
+
 /*!
  * This thread is used for background operations in #TRemoteChunkReader
  * #TSequentialChunkReader, #TTableChunkReader and #TableReader

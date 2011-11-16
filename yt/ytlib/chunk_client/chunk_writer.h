@@ -20,6 +20,7 @@ namespace NYT
  *  An implementation may provide a buffering window (queue) to enable concurrent upload to
  *  multiple destinations using torrent or chaining strategies.
  */
+// TODO: -> IAsyncWriter
 struct IChunkWriter
     : virtual public TRefCountedBase
     , public ISyncInterface
@@ -56,8 +57,10 @@ struct IChunkWriter
      *  It is safe to call this method at any time and possibly 
      *  multiple times.Calling #AsyncWriteBlock afterwards is an error.
      */
+    // TODO: Stroka -> TError
     virtual void Cancel(const Stroka& errorMessage) = 0;
 
+    //! Returns the id of the chunk being written.
     virtual const TChunkId& GetChunkId() const = 0;
 };
 

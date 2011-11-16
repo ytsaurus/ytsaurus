@@ -12,8 +12,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Used only on client-side for writing to table.
-//! Synchronous API only.
+//! Provides a synchronous API for writing tables.
 class TTableWriter
     : public ISyncWriter
 {
@@ -38,6 +37,7 @@ public:
         const TSchema& schema,
         const Stroka& ypath);
 
+    // TODO: -> Open
     void Init();
     void Write(const TColumn& column, TValue value);
     void EndRow();

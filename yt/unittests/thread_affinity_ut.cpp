@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/misc/thread_affinity.h"
 
 #include "../ytlib/actions/action_queue.h"

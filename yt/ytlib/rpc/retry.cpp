@@ -34,14 +34,14 @@ public:
         return OriginalRequest->Serialize();
     }
 
-    Stroka GetServiceName() const
+    Stroka GetPath() const
     {
-        return OriginalRequest->GetServiceName();
+        return OriginalRequest->GetPath();
     }
 
-    virtual Stroka GetMethodName() const
+    virtual Stroka GetVerb() const
     {
-        return OriginalRequest->GetMethodName();
+        return OriginalRequest->GetVerb();
     }
 
 private:
@@ -103,9 +103,9 @@ private:
 
     void DoSend()
     {
-        auto request = New<TRequestWrapper>(~OriginalRequest);
+        //auto request = New<TRequestWrapper>(~OriginalRequest);
         Channel->GetUnderlyingChannel()->Send(
-            request,
+            OriginalRequest, //request,
             this,
             Timeout);
     }
@@ -146,10 +146,10 @@ private:
         }
     }
 
-    virtual void OnResponse(const TError& error, IMessage::TPtr message)
+    virtual void OnResponse(const TError& error, IMessage* message)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Sent) {
+        if (State == EState::Sent || State == EState::Acked) {
             State = EState::Done;
             guard.Release();
 

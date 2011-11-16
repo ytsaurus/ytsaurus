@@ -1,10 +1,12 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../ytree/ypath.h"
+#include "../misc/config.h"
+#include "../misc/lazy_ptr.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
+#include "../ytree/ypath_detail.h"
 #include "../cypress/virtual.h"
 #include "../orchid/orchid_service_rpc.h"
 #include "../rpc/channel.h"
@@ -12,6 +14,7 @@
 namespace NYT {
 namespace NOrchid {
 
+using namespace NRpc;
 using namespace NYTree;
 using namespace NCypress;
 using namespace NProto;
@@ -19,136 +22,125 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NRpc::TChannelCache ChannelCache;
+static TLazyPtr<TActionQueue> OrchidQueue;
 
 class TOrchidYPathService
     : public IYPathService
 {
 public:
-    TOrchidYPathService(IYPathService* fallbackService, const Stroka& manifest)
+    typedef TIntrusivePtr<TOrchidYPathService> TPtr;
+
+    TOrchidYPathService(IYPathService* fallbackService, const TYson& manifestYson)
         : FallbackService(fallbackService)
     {
         auto manifestBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         TYsonReader reader(~manifestBuilder);
         manifestBuilder->BeginTree();
-        TStringInput manifestInput(manifest);
+        TStringInput manifestInput(manifestYson);
         reader.Read(&manifestInput);
-        auto manifestRoot = manifestBuilder->EndTree()->AsMap();
+        auto manifestRoot = manifestBuilder->EndTree();
 
-        // TODO: refactor using new API
-        auto remoteAddressNode = manifestRoot->FindChild("remote_address");
-        if (~remoteAddressNode == NULL) {
-            ythrow TYTreeException() << "Missing remote_address";
+        try {
+            Manifest.Load(~manifestRoot);
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
+                ~CurrentExceptionMessage());
         }
-        RemoteAddress = remoteAddressNode->GetValue<Stroka>();
 
-        auto remoteRootNode = manifestRoot->FindChild("remote_root");
-        if (~remoteRootNode == NULL) {
-            ythrow TYTreeException() << "Missing remote_root";
-        }
-        RemoteRoot = remoteRootNode->GetValue<Stroka>();
-
-        auto channel = ChannelCache.GetChannel(RemoteAddress);
+        auto channel = ChannelCache.GetChannel(Manifest.RemoteAddress);
         Proxy = new TOrchidServiceProxy(~channel);
     }
 
-    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
+    IYPathService::TResolveResult Resolve(TYPath path, bool mustExist)
     {
-        if (!ShouldForward(path)) {
-            return FallbackService->Get(path, consumer);
+        UNUSED(mustExist);
+
+        if (path.empty()) {
+            return TResolveResult::There(~FallbackService, path);
+        } else {
+            return TResolveResult::Here(path);
         }
-
-        auto request = Proxy->Get();
-        request->SetPath(GetForwardPath(path));
-        
-        auto response = request->Invoke()->Get();
-        if (!response->IsOK()) {
-            ythrow TYTreeException() << Sprintf("Error getting an Orchid path (RemoteAddress: %s, RemoteRoot: %s, Path: %s, Error: %s)",
-                ~RemoteAddress,
-                ~RemoteRoot,
-                ~path,
-                ~response->GetError().ToString());
-        }
-
-        TStringInput input(response->GetValue());
-        TYsonReader reader(consumer);
-        reader.Read(&input);
-
-        return TRemoveResult::CreateDone();
     }
 
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer) 
+    void Invoke(NRpc::IServiceContext* context)
     {
-        if (!ShouldForward(path)) {
-            return FallbackService->Set(path, producer);
+        TYPath path = context->GetPath();
+        Stroka verb = context->GetVerb();
+
+        if (!ShouldRedirect(path)) {
+            FallbackService->Invoke(context);
+            return;
         }
 
-        TStringStream stream;
-        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-        producer->Do(&writer);
+        // TODO: logging
 
-        auto request = Proxy->Set();
-        request->SetPath(GetForwardPath(path));
-        request->SetValue(stream.Str());
+        auto redirectPath = GetRedirectPath(path);
 
-        auto response = request->Invoke()->Get();
-        if (!response->IsOK()) {
-            ythrow TYTreeException() << Sprintf("Error setting an Orchid path (RemoteAddress: %s, RemoteRoot: %s, Path: %s, Error: %s)",
-                ~RemoteAddress,
-                ~RemoteRoot,
-                ~path,
-                ~response->GetError().ToString());
-        }
+        auto outerRequestMesage = UpdateYPathRequestHeader(
+            ~context->GetRequestMessage(),
+            redirectPath,
+            verb);
 
-        return TSetResult::CreateDone();
-    }
+        auto innerRequest = Proxy->Execute();
+        WrapYPathRequest(~innerRequest, ~outerRequestMesage);
 
-    virtual TRemoveResult Remove(TYPath path)
-    {
-        if (!ShouldForward(path)) {
-            return FallbackService->Remove(path);
-        }
-
-        auto request = Proxy->Remove();
-        request->SetPath(GetForwardPath(path));
-
-        auto response = request->Invoke()->Get();
-        if (!response->IsOK()) {
-            ythrow TYTreeException() << Sprintf("Error removing an Orchid path (RemoteAddress: %s, RemoteRoot: %s, Path: %s, Error: %s)",
-                ~RemoteAddress,
-                ~RemoteRoot,
-                ~path,
-                ~response->GetError().ToString());
-        }
-
-        return TRemoveResult::CreateDone();
-    }
-
-    virtual TNavigateResult Navigate(TYPath path)
-    {
-        UNUSED(path);
-        ythrow TYTreeException() << "Navigation is not supported for an Orchid path";
-    }
-
-    virtual TLockResult Lock(TYPath path)
-    {
-        UNUSED(path);
-        ythrow TYTreeException() << "Locking is not supported for an Orchid path";
+        innerRequest->Invoke()->Subscribe(
+            ~FromMethod(
+                &TOrchidYPathService::OnResponse,
+                TPtr(this),
+                NRpc::IServiceContext::TPtr(context),
+                redirectPath,
+                verb)
+            ->Via(OrchidQueue->GetInvoker()));
     }
 
 private:
-    static bool ShouldForward(TYPath path)
+    void OnResponse(
+        TOrchidServiceProxy::TRspExecute::TPtr response,
+        NRpc::IServiceContext::TPtr context,
+        TYPath path,
+        const Stroka& verb)
+    {
+        if (response->IsOK()) {
+            auto innerResponseMessage = UnwrapYPathResponse(~response);
+            ReplyYPathWithMessage(~context, ~innerResponseMessage);
+        } else {
+            context->Reply(TError(
+                EYPathErrorCode(EYPathErrorCode::GenericError),
+                Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+                    ~path,
+                    ~verb,
+                    ~Manifest.RemoteAddress,
+                    ~Manifest.RemoteRoot,
+                    ~response->GetError().ToString())));
+        }
+    }
+
+    static bool ShouldRedirect(TYPath path)
     {
         return !path.empty();
     }
 
-    Stroka GetForwardPath(TYPath path)
+    Stroka GetRedirectPath(TYPath path)
     {
-        return path == "/" ? RemoteRoot : RemoteRoot + path;
+        return path == "/" ? Manifest.RemoteRoot : Manifest.RemoteRoot + path;
     }
 
+    struct TManifest
+        : TConfigBase
+    {
+        Stroka RemoteAddress;
+        Stroka RemoteRoot;
+
+        TManifest()
+        {
+            Register("remote_address", RemoteAddress);
+            Register("remote_root", RemoteRoot).Default("/");
+        }
+    };
+
     IYPathService::TPtr FallbackService;
-    Stroka RemoteAddress;
-    Stroka RemoteRoot;
+    TManifest Manifest;
     TAutoPtr<TOrchidServiceProxy> Proxy;
 
 };
@@ -156,7 +148,7 @@ private:
 INodeTypeHandler::TPtr CreateOrchidTypeHandler(
     TCypressManager* cypressManager)
 {
-    TCypressManager::TPtr cypressManagerPtr = cypressManager;
+    TCypressManager::TPtr cypressManager_ = cypressManager;
     return CreateVirtualTypeHandler(
         cypressManager,
         ERuntimeNodeType::Orchid,

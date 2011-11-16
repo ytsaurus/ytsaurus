@@ -20,7 +20,7 @@ TFileService::TFileService(
     TMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TFileManager* fileManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TFileServiceProxy::GetServiceName(),
@@ -57,8 +57,8 @@ RPC_SERVICE_METHOD_IMPL(TFileService, SetFileChunk)
 
     FileManager
         ->InitiateSetFileChunk(nodeId, transactionId, chunkId)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

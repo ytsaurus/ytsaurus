@@ -18,6 +18,7 @@ namespace NYT
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO: -> TRemoteWriter
 class TRemoteChunkWriter
     : public IChunkWriter
 {

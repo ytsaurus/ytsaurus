@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/meta_state/map.h"
 
 #include "../ytlib/misc/serialize.h"

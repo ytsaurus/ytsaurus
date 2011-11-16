@@ -97,10 +97,10 @@ TFileManager::InitiateSetFileChunk(
     message.SetChunkId(chunkId.ToProto());
 
     return CreateMetaChange(
-        MetaStateManager,
+        ~MetaStateManager,
         message,
         &TThis::SetFileChunk,
-        TPtr(this),
+        this,
         ECommitMode::MayFail);
 }
 

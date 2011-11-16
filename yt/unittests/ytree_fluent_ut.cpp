@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "../ytlib/ytree/yson_events.h"
 #include "../ytlib/ytree/fluent.h"
 

@@ -22,7 +22,7 @@ TTableService::TTableService(
     TMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTableManager* tableManager,
-    NRpc::TServer* server)
+    NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TTableServiceProxy::GetServiceName(),
@@ -58,8 +58,8 @@ RPC_SERVICE_METHOD_IMPL(TTableService, AddTableChunks)
 
     TableManager
         ->InitiateAddTableChunks(nodeId, transactionId, chunkIds)
-        ->OnSuccess(CreateSuccessHandler(context))
-        ->OnError(CreateErrorHandler(context))
+        ->OnSuccess(~CreateSuccessHandler(~context))
+        ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
 

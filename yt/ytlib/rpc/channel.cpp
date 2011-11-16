@@ -2,14 +2,18 @@
 #include "channel.h"
 #include "client.h"
 #include "message.h"
+#include "rpc.pb.h"
 
+#include "../misc/delayed_invoker.h"
 #include "../misc/assert.h"
 #include "../misc/thread_affinity.h"
+#include "../actions/future.h"
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,18 +21,73 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannel::TChannel(TBusClient::TPtr client)
-    : Terminated(false)
+class TChannel
+    : public IChannel
+    , public NBus::IMessageHandler
 {
-    YASSERT(~client != NULL);
+public:
+    typedef TIntrusivePtr<TChannel> TPtr;
 
-    Bus = client->CreateBus(this);
+    TChannel(NBus::TBusClient* client);
+
+    virtual TFuture<TError>::TPtr Send(
+        TIntrusivePtr<IClientRequest> request,
+        TIntrusivePtr<IClientResponseHandler> responseHandler,
+        TDuration timeout);
+
+    virtual void Terminate();
+
+private:
+    friend class TClientRequest;
+    friend class TClientResponse;
+
+    struct TActiveRequest
+    {
+        TRequestId RequestId;
+        TIntrusivePtr<IClientResponseHandler> ResponseHandler;
+        TFuture<TError>::TPtr Ready;
+        TDelayedInvoker::TCookie TimeoutCookie;
+    };
+
+    typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
+
+    volatile bool Terminated;
+    NBus::IBus::TPtr Bus;
+    TRequestMap ActiveRequests;
+    //! Protects #ActiveRequests and #Terminated.
+    TSpinLock SpinLock;
+
+    void OnAcknowledgement(
+        NBus::IBus::ESendResult sendResult,
+        TRequestId requestId);
+
+    virtual void OnMessage(
+        NBus::IMessage::TPtr message,
+        NBus::IBus::TPtr replyBus);
+
+    void OnTimeout(TRequestId requestId);
+
+    void UnregisterRequest(TRequestMap::iterator it);
+};          
+
+IChannel::TPtr CreateBusChannel(NBus::TBusClient* client)
+{
+    YASSERT(client != NULL);
+
+    return New<TChannel>(client);
 }
 
-TChannel::TChannel(Stroka address)
+IChannel::TPtr CreateBusChannel(const Stroka& address)
+{
+    return New<TChannel>(~New<TBusClient>(address));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChannel::TChannel(TBusClient* client)
     : Terminated(false)
 {
-    Bus = New<TBusClient>(address)->CreateBus(this);
+    Bus = client->CreateBus(this);
 }
 
 TFuture<TError>::TPtr TChannel::Send(
@@ -73,10 +132,10 @@ TFuture<TError>::TPtr TChannel::Send(
         TPtr(this),
         requestId));
     
-    LOG_DEBUG("Request sent (RequestId: %s, ServiceName: %s, MethodName: %s)",
+    LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s)",
         ~requestId.ToString(),
-        ~request->GetServiceName(),
-        ~request->GetMethodName());
+        ~request->GetPath(),
+        ~request->GetVerb());
 
     return activeRequest.Ready;
 }
@@ -110,7 +169,9 @@ void TChannel::OnMessage(
     }
 
     TResponseHeader header;
-    DeserializeMessage(&header, parts[0]);
+    if (!DeserializeMessage(&header, parts[0])) {
+        LOG_FATAL("Error deserializing response header");
+    }
 
     auto requestId = TRequestId::FromProto(header.GetRequestId());
     
@@ -142,9 +203,9 @@ void TChannel::OnMessage(
         guard.Release();
 
         TError error(
-            EErrorCode(header.GetErrorCode(), Stroka(header.GetErrorCodeString())),
+            EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
             header.GetErrorMessage());
-        responseHandler->OnResponse(error, message);
+        responseHandler->OnResponse(error, ~message);
         ready->Set(error);
     }
 }

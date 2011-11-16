@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #define ENABLE_REF_COUNTED_TRACKING
 
 #include "../ytlib/misc/common.h"

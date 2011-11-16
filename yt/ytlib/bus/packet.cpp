@@ -18,11 +18,11 @@ const int THeaderTraits<TMultipartPacketHeader>::FixedSize =
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DecodeMessagePacket(
-    TBlob& data,
+    TBlob&& data,
     IMessage::TPtr* message,
     TSequenceId* sequenceId)
 {
-    TMultipartPacketHeader* header = ParsePacketHeader<TMultipartPacketHeader>(data);
+    auto* header = ParsePacketHeader<TMultipartPacketHeader>(data);
     if (header == NULL)
         return false;
 
@@ -35,38 +35,38 @@ bool DecodeMessagePacket(
 
     char* ptr = reinterpret_cast<char*>(&header->PartSizes[header->PartCount]);
     char* dataEnd = data.end();
-    for (int i = 0; i < header->PartCount; ++i) {
-        i32 partSize = header->PartSizes[i];
+    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
+        i32 partSize = header->PartSizes[partIndex];
         if (partSize < 0 || partSize > TMultipartPacketHeader::MaxPartSize) {
             LOG_ERROR("Invalid part size in a multipart packet (PartIndex: %d, PartSize: %d)",
-                i,
+                partIndex,
                 partSize);
             return false;
         }
         if (ptr + partSize > dataEnd) {
             LOG_ERROR("Buffer overrun in a multipart packet (PartIndex: %d)",
-                i);
+                partIndex);
             return false;
         }
-        parts[i] = TRef(ptr, partSize);
+        parts[partIndex] = TRef(ptr, partSize);
         ptr += partSize;
     }
 
-    *message = New<TBlobMessage>(&data, parts);
+    *message = CreateMessageFromParts(MoveRV(data), parts);
     *sequenceId = header->SequenceId;
 
     return true;
 }
 
 bool EncodeMessagePacket(
-    IMessage::TPtr message,
+    IMessage* message,
     const TSessionId& sessionId,
     TSequenceId sequenceId,
     TBlob* data)
 {
-    YASSERT(~message != NULL);
+    YASSERT(message != NULL);
 
-    const yvector<TSharedRef>& parts = message->GetParts();
+    const auto& parts = message->GetParts();
 
     if (parts.ysize() > TMultipartPacketHeader::MaxParts) {
         LOG_ERROR("Multipart message contains too many parts (PartCount: %d)",
@@ -77,13 +77,13 @@ bool EncodeMessagePacket(
     i64 dataSize = 0;
     dataSize += THeaderTraits<TMultipartPacketHeader>::FixedSize;
     dataSize += sizeof (i32) * parts.ysize();
-    for (int index = 0; index < parts.ysize(); ++index)
+    for (int partIndex = 0; partIndex < parts.ysize(); ++partIndex)
     {
-        const TSharedRef& part = parts[index];
+        const TSharedRef& part = parts[partIndex];
         i32 partSize = static_cast<i32>(part.Size());
         if (partSize > TMultipartPacketHeader::MaxPartSize) {
             LOG_ERROR("Multipart message part is too large (PartIndex: %d, PartSize: %d)",
-                index,
+                partIndex,
                 partSize);
             return false;
         }
@@ -92,19 +92,19 @@ bool EncodeMessagePacket(
 
     data->resize(static_cast<size_t>(dataSize));
 
-    TMultipartPacketHeader* header = reinterpret_cast<TMultipartPacketHeader*>(data->begin());
+    auto* header = reinterpret_cast<TMultipartPacketHeader*>(data->begin());
     header->Signature = TPacketHeader::ExpectedSignature;
     header->Type = TPacketHeader::EType::Message;
     header->SessionId = sessionId;
     header->PartCount = parts.ysize();
     header->SequenceId = sequenceId;
-    for (int i = 0; i < header->PartCount; ++i) {
-        header->PartSizes[i] = static_cast<i32>(parts[i].Size());
+    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
+        header->PartSizes[partIndex] = static_cast<i32>(parts[partIndex].Size());
     }
 
     char* current = reinterpret_cast<char*>(&header->PartSizes[parts.ysize()]);
-    for (int i = 0; i < header->PartCount; ++i) {
-        const TRef& part = parts[i];
+    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
+        const TRef& part = parts[partIndex];
         std::copy(part.Begin(), part.End(), current);
         current += part.Size();
     }
@@ -115,7 +115,7 @@ bool EncodeMessagePacket(
 void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob* data)
 {
     data->resize(THeaderTraits<TPacketHeader>::FixedSize);
-    TPacketHeader* header = reinterpret_cast<TPacketHeader*>(data->begin());
+    auto* header = reinterpret_cast<TPacketHeader*>(data->begin());
     header->Signature = TPacketHeader::ExpectedSignature;
     header->Type = type;
     header->SessionId = sessionId;

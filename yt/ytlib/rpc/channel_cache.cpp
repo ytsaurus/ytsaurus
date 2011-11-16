@@ -12,7 +12,7 @@ TChannelCache::TChannelCache()
     : IsTerminated(false)
 { }
 
-TChannel::TPtr TChannelCache::GetChannel(Stroka address)
+IChannel::TPtr TChannelCache::GetChannel(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -24,7 +24,7 @@ TChannel::TPtr TChannelCache::GetChannel(Stroka address)
     auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
         firstAttemptGuard.Release();
-        auto channel = New<TChannel>(address);
+        auto channel = CreateBusChannel(address);
 
         TGuard<TSpinLock> secondAttemptGuard(SpinLock);
         it = ChannelMap.find(address);

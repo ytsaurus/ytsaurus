@@ -5,6 +5,9 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NBus;
+using namespace NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
@@ -25,44 +28,43 @@ bool DeserializeMessage(google::protobuf::Message* message, TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcRequestMessage::TRpcRequestMessage(
+NBus::IMessage::TPtr CreateRequestMessage(
     const TRequestId& requestId,
-    const Stroka& serviceName,
-    const Stroka& methodName,
-    TBlob* body,
+    const Stroka& path,
+    const Stroka& verb,
+    TBlob&& body,
     const yvector<TSharedRef>& attachments)
 {
+    yvector<TSharedRef> parts;
+
     TRequestHeader requestHeader;
     requestHeader.SetRequestId(requestId.ToProto());
-    requestHeader.SetServiceName(serviceName);
-    requestHeader.SetMethodName(methodName);
+    requestHeader.SetPath(path);
+    requestHeader.SetVerb(verb);
 
     TBlob header;
     if (!SerializeMessage(&requestHeader, &header)) {
         LOG_FATAL("Could not serialize request header");
     }
 
-    Parts.push_back(TSharedRef(header));
-    Parts.push_back(TSharedRef(*body));
+    parts.push_back(TSharedRef(MoveRV(header)));
+    parts.push_back(TSharedRef(MoveRV(body)));
 
     FOREACH(const auto& attachment, attachments) {
-        Parts.push_back(TSharedRef(attachment));
+        parts.push_back(attachment);
     }
+
+    return CreateMessageFromParts(MoveRV(parts));
 }
 
-const yvector<TSharedRef>& TRpcRequestMessage::GetParts()
-{
-    return Parts;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRpcResponseMessage::TRpcResponseMessage(
+NBus::IMessage::TPtr CreateResponseMessage(
     const TRequestId& requestId,
     const TError& error,
-    TBlob* body,
+    const TSharedRef& body,
     const yvector<TSharedRef>& attachments)
 {
+    yvector<TSharedRef> parts;
+
     TResponseHeader header;
     header.SetRequestId(requestId.ToProto());
     header.SetErrorCode(error.GetCode());
@@ -74,22 +76,17 @@ TRpcResponseMessage::TRpcResponseMessage(
         LOG_FATAL("Error serializing response header");
     }
 
-    Parts.push_back(TSharedRef(headerBlob));
-    Parts.push_back(TSharedRef(*body));
+    parts.push_back(TSharedRef(MoveRV(headerBlob)));
+    parts.push_back(body);
 
     FOREACH(const auto& attachment, attachments) {
-        Parts.push_back(TSharedRef(attachment));
+        parts.push_back(attachment);
     }
+
+    return CreateMessageFromParts(MoveRV(parts));
 }
 
-const yvector<TSharedRef>& TRpcResponseMessage::GetParts()
-{
-    return Parts;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRpcErrorResponseMessage::TRpcErrorResponseMessage(
+NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
@@ -99,16 +96,12 @@ TRpcErrorResponseMessage::TRpcErrorResponseMessage(
     header.SetErrorCodeString(error.GetCode().ToString());
     header.SetErrorMessage(error.GetMessage());
 
-    TBlob body;
-    if (!SerializeMessage(&header, &body)) {
+    TBlob headerBlob;
+    if (!SerializeMessage(&header, &headerBlob)) {
         LOG_FATAL("Error serializing error response header");
     }
-    Parts.push_back(TSharedRef(body));
-}
 
-const yvector<TSharedRef>& TRpcErrorResponseMessage::GetParts()
-{
-    return Parts;
+    return CreateMessageFromPart(MoveRV(headerBlob));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

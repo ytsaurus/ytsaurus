@@ -11,6 +11,7 @@ namespace NYT
 ///////////////////////////////////////////////////////////////////////////////
 
 // TODO: error handling?
+// TODO: -> IAsyncReader
 //! Provides a basic interface for readings chunks from holders.
 struct IChunkReader
     : virtual public TRefCountedBase
@@ -23,6 +24,7 @@ struct IChunkReader
     {
         //! Blocks data.
         yvector<TSharedRef> Blocks;
+        // TODO: use TError
         bool IsOK;
     };
 

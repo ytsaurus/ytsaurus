@@ -61,25 +61,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualNodeFallbackProxy
-    : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
-{
-public:
-    TVirtualNodeFallbackProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId)
-        : TCypressNodeProxyBase<IEntityNode, TVirtualNode>(
-            typeHandler,
-            cypressManager,
-            transactionId,
-            nodeId)
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVirtualNodeProxy
     : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
 {
@@ -98,53 +79,34 @@ public:
         , Service(service)
     { }
 
+    bool IsVerbLogged(const Stroka& verb) const
+    {
+        // Don't log anything for virtual nodes.
+        // TODO: fixme
+        UNUSED(verb);
+        return false;
+    }
+
 private:
     typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
 
     IYPathService::TPtr Service;
 
-    virtual TNavigateResult Navigate(TYPath path)
+    virtual TResolveResult Resolve(TYPath path, bool mustExist)
     {
         if (~Service == NULL) {
-            return TBase::Navigate(path);
+            return TBase::Resolve(path, mustExist);
         } else {
-            return Service->Navigate(path);
+            return Service->Resolve(path, mustExist);
         }
     }
 
-    virtual TGetResult Get(TYPath path, IYsonConsumer* consumer)
+    virtual void Invoke(NRpc::IServiceContext* context)
     {
         if (~Service == NULL) {
-            return TBase::Get(path, consumer);
+            TBase::Invoke(context);
         } else {
-            return Service->Get(path, consumer);
-        }
-    }
-
-    virtual TSetResult Set(TYPath path, TYsonProducer::TPtr producer)
-    {
-        if (~Service == NULL) {
-            return TBase::Set(path, producer);
-        } else {
-            return Service->Set(path, producer);
-        }
-    }
-
-    virtual TRemoveResult Remove(TYPath path)
-    {
-        if (~Service == NULL) {
-            return TBase::Remove(path);
-        } else {
-            return Service->Remove(path);
-        }
-    }
-
-    virtual TLockResult Lock(TYPath path)
-    {
-        if (~Service == NULL) {
-            return TBase::Lock(path);
-        } else {
-            return Service->Lock(path);
+            Service->Invoke(context);
         }
     }
 };
@@ -157,11 +119,11 @@ class TVirtualNodeTypeHandler
 public:
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
-        TYPathServiceBuilder* serviceBuilder,
+        TYPathServiceProducer* producer,
         ERuntimeNodeType runtimeType,
         const Stroka& typeName)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
-        , ServiceBuilder(serviceBuilder)
+        , Producer(producer)
         , RuntimeType(runtimeType)
         , TypeName(typeName)
     { }
@@ -183,7 +145,7 @@ public:
             node.GetId().NodeId,
             static_cast<IYPathService*>(NULL));
 
-        auto service = ServiceBuilder->Do(context);
+        auto service = Producer->Do(context);
 
         return New<TVirtualNodeProxy>(
             this,
@@ -233,7 +195,7 @@ public:
     }
 
 private:
-    TYPathServiceBuilder::TPtr ServiceBuilder;
+    TYPathServiceProducer::TPtr Producer;
     ERuntimeNodeType RuntimeType;
     Stroka TypeName;
 
@@ -243,11 +205,11 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     ERuntimeNodeType runtypeType,
     const Stroka& typeName,
-    TYPathServiceBuilder* serviceBuilder)
+    TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
-        serviceBuilder,
+        producer,
         runtypeType,
         typeName);
 }
@@ -258,13 +220,13 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     const Stroka& typeName,
     IYPathService* service)
 {
-    IYPathService::TPtr servicePtr = service;
+    IYPathService::TPtr service_ = service;
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);
-                return servicePtr;
+                return service_;
             }),
         runtypeType,
         typeName);

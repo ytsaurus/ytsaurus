@@ -43,6 +43,7 @@ public:
                 followerId);
 
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
+            proxy->SetTimeout(config.Timeout);
             auto request = proxy->AdvanceSegment();
             request->SetSegmentId(Version.SegmentId);
             request->SetRecordCount(Version.RecordCount);
@@ -50,7 +51,7 @@ public:
             request->SetCreateSnapshot(true);
 
             Awaiter->Await(
-                request->Invoke(config.Timeout),
+                request->Invoke(),
                 FromMethod(
                     &TSession::OnRemote,
                     TPtr(this),

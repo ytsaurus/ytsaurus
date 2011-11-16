@@ -47,10 +47,10 @@ TTransactionManager::InitiateStartTransaction()
     TMsgStartTransaction message;
 
     return CreateMetaChange(
-        MetaStateManager,
+        ~MetaStateManager,
         message,
         &TThis::StartTransaction,
-        TPtr(this));
+        this);
 }
 
 TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction& message)
@@ -81,10 +81,10 @@ TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
     TMsgCommitTransaction message;
     message.SetTransactionId(id.ToProto());
     return CreateMetaChange(
-        MetaStateManager,
+        ~MetaStateManager,
         message,
         &TThis::CommitTransaction,
-        TPtr(this));
+        this);
 }
 
 TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& message)
@@ -115,10 +115,10 @@ TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
     TMsgAbortTransaction message;
     message.SetTransactionId(id.ToProto());
     return CreateMetaChange(
-        MetaStateManager,
+        ~MetaStateManager,
         message,
         &TThis::AbortTransaction,
-        TPtr(this));
+        this);
 }
 
 TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
