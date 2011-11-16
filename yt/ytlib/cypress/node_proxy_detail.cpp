@@ -205,9 +205,9 @@ void TMapNodeProxy::CreateRecursive(TYPath path, INode* value)
     TMapNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
 {
-    return TMapNodeMixin::ResolveRecursive(path, mustExist);
+    return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
 void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -216,11 +216,6 @@ void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* respons
 
     TMapNodeMixin::SetRecursive(path, request);
     context->Reply();
-}
-
-void TMapNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
-{
-    TMapNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,9 +360,9 @@ void TListNodeProxy::CreateRecursive(TYPath path, INode* value)
     TListNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
 {
-    return TListNodeMixin::ResolveRecursive(path, mustExist);
+    return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
 void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -376,11 +371,6 @@ void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* respon
 
     TListNodeMixin::SetRecursive(path, request);
     context->Reply();
-}
-
-void TListNodeProxy::ThrowNonEmptySuffixPath(TYPath path)
-{
-    TListNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

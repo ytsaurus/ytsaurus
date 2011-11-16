@@ -50,7 +50,7 @@ struct IYPathService
         }
     };
 
-    virtual TResolveResult Resolve(TYPath path, bool mustExist) = 0;
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb) = 0;
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
 
     static IYPathService::TPtr FromNode(INode* node);

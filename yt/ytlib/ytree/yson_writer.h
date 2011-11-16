@@ -54,6 +54,8 @@ public:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
+    void OnRaw(const TYson& yson);
+
 private:
     TOutputStream* Stream;
     bool IsFirstItem;

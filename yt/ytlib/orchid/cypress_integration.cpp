@@ -51,10 +51,8 @@ public:
         Proxy = new TOrchidServiceProxy(~channel);
     }
 
-    IYPathService::TResolveResult Resolve(TYPath path, bool mustExist)
+    IYPathService::TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
-        UNUSED(mustExist);
-
         if (IsEmptyYPath(path)) {
             return TResolveResult::There(~FallbackService, path);
         } else {

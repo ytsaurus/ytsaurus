@@ -184,6 +184,11 @@ void TYsonWriter::OnEndAttributes()
     EndCollection(EndAttributesSymbol);
 }
 
+void TYsonWriter::OnRaw(const TYson& yson)
+{
+    Stream->Write(yson);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

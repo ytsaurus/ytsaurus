@@ -80,7 +80,7 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
     try {
-        ResolveYPath(~rootService, path, false, &suffixService, &suffixPath);
+        ResolveYPath(~rootService, path, verb, &suffixService, &suffixPath);
     } catch (...) {
         ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
     }

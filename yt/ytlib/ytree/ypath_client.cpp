@@ -1,8 +1,10 @@
 #include "stdafx.h"
 #include "ypath_client.h"
-
-#include "../rpc/message.h"
+#include "ypath_rpc.h"
 #include "rpc.pb.h"
+
+#include "../misc/serialize.h"
+#include "../rpc/message.h"
 
 namespace NYT {
 namespace NYTree {
@@ -79,6 +81,46 @@ EErrorCode TYPathResponse::GetErrorCode() const
 bool TYPathResponse::IsOK() const
 {
     return Error_.IsOK();
+}
+
+void TYPathResponse::ThrowIfError() const
+{
+    if (!IsOK()) {
+        ythrow yexception() << Error_.ToString();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
+{
+    auto request = TYPathProxy::Get(path);
+    auto response = ExecuteYPath(rootService, ~request)->Get();
+    response->ThrowIfError();
+    return response->GetValue();
+}
+
+void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value)
+{
+    auto request = TYPathProxy::Set(path);
+    request->SetValue(value);
+    auto response = ExecuteYPath(rootService, ~request)->Get();
+    response->ThrowIfError();
+}
+
+void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
+{
+    auto request = TYPathProxy::Remove(path);
+    auto response = ExecuteYPath(rootService, ~request)->Get();
+    response->ThrowIfError();
+}
+
+yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
+{
+    auto request = TYPathProxy::List(path);
+    auto response = ExecuteYPath(rootService, ~request)->Get();
+    response->ThrowIfError();
+    return FromProto<Stroka>(response->GetKeys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -228,7 +228,7 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathPrefix(
+void ChopYPathToken(
     TYPath path,
     Stroka* prefix,
     TYPath* suffixPath);
@@ -241,12 +241,16 @@ bool IsEmptyYPath(TYPath path);
 
 bool IsFinalYPath(TYPath path);
 
+bool HasYPathAttributeMarker(TYPath path);
+
+TYPath ChopYPathAttributeMarker(TYPath path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ResolveYPath(
     IYPathService* rootService,
     TYPath path,
-    bool mustExist,
+    const Stroka& verb,
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath);
 

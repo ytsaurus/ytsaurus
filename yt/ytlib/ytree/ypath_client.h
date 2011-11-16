@@ -84,6 +84,8 @@ public:
     NRpc::EErrorCode GetErrorCode() const;
     bool IsOK() const;
 
+    void ThrowIfError() const;
+
 protected:
     virtual bool DeserializeBody(TRef data) = 0;
 
@@ -124,6 +126,18 @@ protected:
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteYPath(IYPathService* rootService, TTypedRequest* request);
+
+//! Executes "Get" verb synchronously. Throws if an error has occurred.
+TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
+
+//! Executes "Set" verb synchronously. Throws if an error has occurred.
+void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value);
+
+//! Executes "Remove" verb synchronously. Throws if an error has occurred.
+void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path);
+
+//! Executes "List" verb synchronously. Throws if an error has occurred.
+yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,7 +183,7 @@ ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    ResolveYPath(rootService, path, false, &suffixService, &suffixPath);
+    ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
 
     // TODO: can we avoid this?
     request->SetPath(suffixPath);

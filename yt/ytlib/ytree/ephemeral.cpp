@@ -117,9 +117,8 @@ private:
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual IYPathService::TResolveResult ResolveRecursive(TYPath path, bool mustExist);
+    virtual IYPathService::TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
     virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void ThrowNonEmptySuffixPath(TYPath path);
 
 };
 
@@ -144,9 +143,8 @@ public:
 private:
     yvector<INode::TPtr> List;
 
-    virtual TResolveResult ResolveRecursive(TYPath path, bool mustExist);
+    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
     virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void ThrowNonEmptySuffixPath(TYPath path);
 
 };
 
@@ -292,9 +290,9 @@ void TMapNode::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
-IYPathService::TResolveResult TMapNode::ResolveRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TMapNode::ResolveRecursive(TYPath path, const Stroka& verb)
 {
-    return TMapNodeMixin::ResolveRecursive(path, mustExist);
+    return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
 void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -303,11 +301,6 @@ void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TC
 
     TMapNodeMixin::SetRecursive(path, request);
     context->Reply();
-}
-
-void TMapNode::ThrowNonEmptySuffixPath(TYPath path)
-{
-    TMapNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -372,9 +365,9 @@ void TListNode::RemoveChild(INode::TPtr child)
     List.erase(it);
 }
 
-IYPathService::TResolveResult TListNode::ResolveRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TListNode::ResolveRecursive(TYPath path, const Stroka& verb)
 {
-    return TListNodeMixin::ResolveRecursive(path, mustExist);
+    return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
 void TListNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -383,11 +376,6 @@ void TListNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
 
     TListNodeMixin::SetRecursive(path, request);
     context->Reply();
-}
-
-void TListNode::ThrowNonEmptySuffixPath(TYPath path)
-{
-    TListNodeMixin::ThrowNonEmptySuffixPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

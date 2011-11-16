@@ -10,11 +10,11 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TVirtualMapBase::Resolve(TYPath path, bool mustExist)
+IYPathService::TResolveResult TVirtualMapBase::Resolve(TYPath path, const Stroka& verb)
 {
     UNUSED(path);
-    UNUSED(mustExist);
-    ythrow yexception() << "Further navigation is not supported";
+    UNUSED(verb);
+    ythrow yexception() << "Resolution is not supported";
 }
 
 void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
@@ -113,10 +113,10 @@ private:
     ICompositeNode* Parent;
     IMapNode::TPtr Attributes;
 
-    TResolveResult ResolveRecursive(TYPath path, bool mustExist)
+    TResolveResult ResolveRecursive(TYPath path, const Stroka& verb)
     {
         auto service = Builder->Do();
-        return service->Resolve(path, mustExist);
+        return service->Resolve(path, verb);
     }
 
 };

@@ -128,7 +128,7 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathPrefix(
+void ChopYPathToken(
     TYPath path,
     Stroka* prefix,
     TYPath* suffixPath)
@@ -194,6 +194,16 @@ bool IsEmptyYPath(TYPath path)
 bool IsFinalYPath(TYPath path)
 {
     return path.empty() || path == "/";
+}
+
+bool HasYPathAttributeMarker(TYPath path)
+{
+    return !path.empty() && path[0] == '@';
+}
+
+TYPath ChopYPathAttributeMarker(TYPath path)
+{
+    return path.substr(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,7 +276,7 @@ protected:
 void ResolveYPath(
     IYPathService* rootService,
     TYPath path,
-    bool mustExist,
+    const Stroka& verb,
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath)
 {
@@ -280,10 +290,11 @@ void ResolveYPath(
     while (true) {
         IYPathService::TResolveResult result;
         try {
-            result = currentService->Resolve(currentPath, mustExist);
+            result = currentService->Resolve(currentPath, verb);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, ResolvedPath: %s)\n%s",
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
                 ~path,
+                ~verb,
                 ~ComputeResolvedYPath(path, currentPath),
                 ~CurrentExceptionMessage());
         }
@@ -307,7 +318,8 @@ IYPathService::TPtr ResolveYPath(
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
-    ResolveYPath(rootService, path, true, &suffixService, &suffixPath);
+    // TODO: killme
+    ResolveYPath(rootService, path, "Get", &suffixService, &suffixPath);
     return suffixService;
 }
 

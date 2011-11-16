@@ -17,7 +17,7 @@ protected:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) = 0;
 
 private:
-    virtual TResolveResult Resolve(TYPath path, bool mustExist);
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
     virtual void Invoke(NRpc::IServiceContext* context);
 
 };

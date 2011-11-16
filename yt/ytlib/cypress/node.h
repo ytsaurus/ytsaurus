@@ -4,6 +4,7 @@
 
 #include "../misc/property.h"
 #include "../ytree/ytree.h"
+#include "../ytree/ypath_service.h"
 #include "../transaction_server/common.h"
 
 namespace NYT {
@@ -144,10 +145,9 @@ struct INodeTypeHandler
         const ICypressNode& node,
         yvector<Stroka>* names) = 0;
 
-    virtual bool GetAttribute(
+    virtual NYTree::IYPathService::TPtr GetAttributeService(
         const ICypressNode& node,
-        const Stroka& name,
-        NYTree::IYsonConsumer* consumer) = 0;
+        const Stroka& name) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,9 @@
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../ytree/fluent.h"
+// TODO: remove
+#include "../ytree/tree_builder.h"
+#include "../ytree/ephemeral.h"
 
 namespace NYT {
 namespace NCypress {
@@ -117,21 +120,25 @@ public:
         }
     }
 
-    virtual bool GetAttribute(
+    virtual NYTree::IYPathService::TPtr GetAttributeService(
         const ICypressNode& node,
-        const Stroka& name,
-        NYTree::IYsonConsumer* consumer)
+        const Stroka& name)
     {
         auto it = Getters.find(name);
         if (it == Getters.end())
             return false;
 
+        auto builder = CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+        builder->BeginTree();
+
         TGetAttributeParam param;
         param.Node = &dynamic_cast<const TImpl&>(node);
-        param.Consumer = consumer;
-
+        param.Consumer = builder.Get();
         it->Second()->Do(param);
-        return true;
+
+        auto result = builder->EndTree();
+
+        return NYTree::IYPathService::FromNode(~result);
     }
 
 protected:

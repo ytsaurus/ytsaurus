@@ -419,7 +419,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
     YASSERT(proxy != NULL);
 
-    if (!proxy->IsVerbLogged(context->GetVerb())) {
+    if (!proxy->IsOperationLogged(context->GetPath(), context->GetVerb())) {
         service->Invoke(context);
         return;
     }

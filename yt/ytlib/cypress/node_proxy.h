@@ -28,7 +28,7 @@ struct ICypressNodeProxy
 
     virtual INodeTypeHandler::TPtr GetTypeHandler() const = 0;
 
-    virtual bool IsVerbLogged(const Stroka& verb) const = 0;;
+    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const = 0;;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

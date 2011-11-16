@@ -139,7 +139,7 @@ public:
     }
 
 
-    virtual bool IsVerbLogged(const Stroka& verb) const
+    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
     {
         if (verb == "Set" ||
             verb == "Remove" ||
@@ -189,9 +189,9 @@ protected:
         return names;
     }
 
-    virtual bool GetVirtualAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual NYTree::IYPathService::TPtr GetVirtualAttributeService(const Stroka& name)
     {
-        return TypeHandler->GetAttribute(GetImpl(), name, consumer);
+        return TypeHandler->GetAttributeService(GetImpl(), name);
     }
 
 
@@ -386,13 +386,13 @@ protected:
         }
     }
 
-    virtual bool IsVerbLogged(const Stroka& verb) const
+    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
     {
-        if (verb == "Create")
-        {
+        if (verb == "Create") {
             return true;
+        } else {
+            return TBase::IsOperationLogged(path, verb);
         }
-        return TBase::IsVerbLogged(verb);
     }
 
 private:
@@ -444,9 +444,8 @@ public:
 private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
+    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
 
@@ -476,9 +475,8 @@ public:
 
 private:
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual TResolveResult ResolveRecursive(NYTree::TYPath path, bool mustExist);
+    virtual TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void ThrowNonEmptySuffixPath(NYTree::TYPath path);
 
 };
 

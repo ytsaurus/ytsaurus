@@ -5,6 +5,7 @@
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "yson_writer.h"
+#include "ypath_client.h"
 
 namespace NYT {
 namespace NYTree {
@@ -13,37 +14,37 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, bool mustExist)
+IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, const Stroka& verb)
 {
     if (IsFinalYPath(path)) {
-        return ResolveSelf(path, mustExist);
-    } else if (path[0] == '@') {
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            ythrow yexception() << "Node has no custom attributes";
+        return ResolveSelf(path, verb);
+    } else if (HasYPathAttributeMarker(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        if (IsFinalYPath(attributePath) &&
+            verb != "Get" &&
+            verb != "List" &&
+            verb != "Remove")
+        {
+            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+                "Verb is not supported for attribute lists";
         }
-
-        // TODO: virtual attributes
-
-        return TResolveResult::There(
-            ~IYPathService::FromNode(~attributes),
-            path.substr(1));
+        return TResolveResult::Here(path);
     } else {
-        return ResolveRecursive(path, mustExist);
+        return ResolveRecursive(path, verb);
     }
 }
 
-IYPathService::TResolveResult TNodeBase::ResolveSelf(TYPath path, bool mustExist)
+IYPathService::TResolveResult TNodeBase::ResolveSelf(TYPath path, const Stroka& verb)
 {
-    UNUSED(mustExist);
+    UNUSED(verb);
     return TResolveResult::Here(path);
 }
 
-IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, bool mustExist)
+IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, const Stroka& verb)
 {
     UNUSED(path);
-    UNUSED(mustExist);
-    ythrow yexception() << "Further navigation is not supported";
+    UNUSED(verb);
+    ythrow yexception() << "Node does not support YPath resolution";
 }
 
 void TNodeBase::Invoke(IServiceContext* context)
@@ -68,14 +69,8 @@ void TNodeBase::DoInvoke(IServiceContext* context)
         RemoveThunk(context);
     } else {
         ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-            Sprintf("Unknown verb %s", ~verb.Quote());
+            "Verb is not supported";
     }
-}
-
-void TNodeBase::ThrowNonEmptySuffixPath(TYPath path)
-{
-    ythrow yexception() << Sprintf("Suffix path %s cannot be resolved",
-        ~path.Quote());
 }
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
@@ -83,59 +78,57 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         GetSelf(request, response, context);
+    } else if (HasYPathAttributeMarker(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        if (IsFinalYPath(attributePath)) {
+            TStringStream stream;
+            TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+
+            writer.OnBeginMap();
+
+            FOREACH (const auto& attributeName, GetVirtualAttributeNames()) {
+                auto attributeService = GetVirtualAttributeService(attributeName);
+                auto attributeValue = SyncExecuteYPathGet(~attributeService, "/");
+                writer.OnMapItem(attributeName);
+                writer.OnRaw(attributeValue);
+            }
+
+            auto attributes = GetAttributes();
+            if (~attributes != NULL) {
+                FOREACH (const auto& pair, attributes->GetChildren()) {
+                    writer.OnMapItem(pair.first);
+                    TTreeVisitor visitor(&writer);
+                    visitor.Visit(pair.second);
+                }
+            }
+
+            writer.OnEndMap(false);
+
+            response->SetValue(stream.Str());
+            context->Reply();
+        } else {
+            Stroka prefix;
+            TYPath suffixPath;
+            ChopYPathToken(attributePath, &prefix, &suffixPath);
+
+            auto service = GetVirtualAttributeService(prefix);
+            if (~service != NULL) {
+                response->SetValue(SyncExecuteYPathGet(~service, "/" + suffixPath));
+                context->Reply();
+                return;
+            }
+
+            auto attributes = GetAttributes();
+            if (~attributes == NULL) {
+                ythrow yexception() << "Node has no attributes";
+            }
+
+            response->SetValue(SyncExecuteYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
+            context->Reply();
+        }
     } else {
         GetRecursive(path, request, response, context);
     }
-
-    // TODO: attributes
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//
-//        if (path == "@") {
-//            // TODO: use fluent API
-//
-//            consumer->OnBeginMap();
-//            auto names = GetVirtualAttributeNames();
-//            FOREACH (const auto& name, names) {
-//                consumer->OnMapItem(name);
-//                YVERIFY(GetVirtualAttribute(name, consumer));
-//            }
-//            
-//            if (~attributes != NULL) {
-//                auto children = attributes->GetChildren();
-//                FOREACH (const auto& pair, children) {
-//                    consumer->OnMapItem(pair.First());
-//                    TTreeVisitor visitor(consumer);
-//                    visitor.Visit(pair.Second());
-//                }
-//            }
-//
-//            consumer->OnEndMap(false);
-//
-//            return TGetResult::CreateDone();
-//        } else {
-//            Stroka prefix;
-//            TYPath suffixPath;
-//            ChopYPathPrefix(TYPath(path.begin() + 1, path.end()), &prefix, &suffixPath);
-//
-//            if (GetVirtualAttribute(prefix, consumer))
-//                return TGetResult::CreateDone();
-//
-//            if (~attributes == NULL) {
-//                ythrow yexception() << "Node has no custom attributes";
-//            }
-//
-//            auto child = attributes->FindChild(prefix);
-//            if (~child == NULL) {
-//                ythrow yexception() << Sprintf("Attribute %s is not found",
-//                    ~prefix.Quote());
-//            }
-//
-//            TTreeVisitor visitor(consumer);
-//            visitor.Visit(child);
-//            return TGetResult::CreateDone();
-//        }
-//    } else {
 }
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
@@ -158,7 +151,7 @@ void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, T
     UNUSED(response);
     UNUSED(context);
 
-    ThrowNonEmptySuffixPath(path);
+    ythrow yexception() << "Path must be final";
 }
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
@@ -166,6 +159,36 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         SetSelf(request, response, context);
+    } else if (HasYPathAttributeMarker(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        if (IsFinalYPath(attributePath)) {
+            ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
+        }
+
+        auto value = request->GetValue();
+
+        Stroka prefix;
+        TYPath suffixPath;
+        ChopYPathToken(attributePath, &prefix, &suffixPath);
+
+        auto service = GetVirtualAttributeService(prefix);
+        if (~service != NULL) {
+            SyncExecuteYPathSet(~service, "/" + suffixPath, value);
+            context->Reply();
+            return;
+        }
+
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            attributes = GetFactory()->CreateMap();
+            SetAttributes(attributes);
+        }
+
+        SyncExecuteYPathSet(
+            ~IYPathService::FromNode(~attributes),
+            "/" + attributePath,
+            value);
+        context->Reply();
     } else {
         SetRecursive(path, request, response, context);
     }
@@ -177,7 +200,8 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
     UNUSED(response);
     UNUSED(context);
 
-    ythrow yexception() << "Cannot modify the node";
+    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+        "Verb is not supported";
 }
 
 void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
@@ -187,22 +211,7 @@ void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
     UNUSED(response);
     UNUSED(context);
 
-    ThrowNonEmptySuffixPath(path);
-
-    // TODO: attributes
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//        if (~attributes == NULL) {
-//            attributes = ~GetFactory()->CreateMap();
-//            SetAttributes(attributes);
-//        }
-//
-//        // TODO: should not be able to override a virtual attribute
-//
-//        return IYPathService::TSetResult::CreateRecurse(
-//            IYPathService::FromNode(~attributes),
-//            TYPath(path.begin() + 1, path.end()));
-//    } else {
+    ythrow yexception() << "Path must be final";
 }
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
@@ -210,6 +219,27 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
     Stroka path = context->GetPath();
     if (IsFinalYPath(path)) {
         RemoveSelf(request, response, context);
+    } else if (HasYPathAttributeMarker(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        if (IsFinalYPath(attributePath)) {
+            SetAttributes(NULL);
+        } else {
+            Stroka prefix;
+            TYPath suffixPath;
+            ChopYPathToken(attributePath, &prefix, &suffixPath);
+
+            auto attributes = GetAttributes();
+            if (~attributes == NULL) {
+                ythrow yexception() << "Node has no attributes";
+            }
+
+            SyncExecuteYPathRemove(~IYPathService::FromNode(~attributes), "/" + attributePath);
+
+            if (attributes->GetChildCount() == 0) {
+                SetAttributes(NULL);
+            }
+        }
+        context->Reply();
     } else {
         RemoveRecursive(path, request, response, context);
     }
@@ -237,18 +267,7 @@ void TNodeBase::RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* re
     UNUSED(response);
     UNUSED(context);
 
-    // TODO: attributes
-//    if (path[0] == '@') {
-//        auto attributes = GetAttributes();
-//        if (~attributes == NULL) {
-//            ythrow yexception() << "Node has no custom attributes";
-//        }
-//
-//        return IYPathService::TRemoveResult::CreateRecurse(
-//            IYPathService::FromNode(~attributes),
-//            TYPath(path.begin() + 1, path.end()));
-
-    ThrowNonEmptySuffixPath(path);
+    ythrow yexception() << "Path must be final";
 }
 
 yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
@@ -256,11 +275,10 @@ yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
     return yvector<Stroka>();
 }
 
-bool TNodeBase::GetVirtualAttribute(const Stroka& name, IYsonConsumer* consumer)
+IYPathService::TPtr TNodeBase::GetVirtualAttributeService(const Stroka& name)
 {
     UNUSED(name);
-    UNUSED(consumer);
-    return false;
+    return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,28 +304,22 @@ RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
     context->Reply();
 }
 
-IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
-{
-    try {
-        return GetYPathChild(path);
-    } catch (...) {
-        if (mustExist)
-            throw;
-        return IYPathService::TResolveResult::Here(path);
-    }
-}
-
-IYPathService::TResolveResult TMapNodeMixin::GetYPathChild(TYPath path) const
+IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
-    ChopYPathPrefix(path, &prefix, &suffixPath);
+    ChopYPathToken(path, &prefix, &suffixPath);
+
     auto child = FindChild(prefix);
-    if (~child == NULL) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+    if (~child != NULL) {
+        return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
 
-    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
+    if (verb == "Set" || verb == "Create") {
+        return IYPathService::TResolveResult::Here(path);
+    }
+
+    ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
 }
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
@@ -330,7 +342,7 @@ void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
     while (true) {
         Stroka prefix;
         TYPath suffixPath;
-        ChopYPathPrefix(currentPath, &prefix, &suffixPath);
+        ChopYPathToken(currentPath, &prefix, &suffixPath);
 
         if (suffixPath.empty()) {
             if (!currentNode->AddChild(value, prefix)) {
@@ -349,59 +361,29 @@ void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
     }
 }
 
-void TMapNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
-{
-    // This should throw.
-    GetYPathChild(path);
-    YUNREACHABLE();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, bool mustExist)
-{
-    try {
-        return GetYPathChild(path);
-    } catch (...) {
-        if (mustExist)
-            throw;
-        return IYPathService::TResolveResult::Here(path);
-    }
-}
-
-IYPathService::TResolveResult TListNodeMixin::GetYPathChild(TYPath path) const
+IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
-    ChopYPathPrefix(path, &prefix, &suffixPath);
-    int index = FromString<int>(prefix);
-    return GetYPathChild(index, suffixPath);
-}
+    ChopYPathToken(path, &prefix, &suffixPath);
 
-IYPathService::TResolveResult TListNodeMixin::GetYPathChild(
-    int index,
-    TYPath suffixPath) const
-{
-    int count = GetChildCount();
-    if (count == 0) {
-        ythrow yexception() << "List is empty";
+    if (prefix.empty()) {
+        ythrow yexception() << "Child index is empty";
     }
 
-    if (index < 0 || index >= count) {
-        ythrow yexception() << Sprintf("Invalid child index %d, expecting value in range 0..%d",
-            index,
-            count - 1);
+    char lastPrefixCh = prefix[prefix.length() - 1];
+    if ((verb == "Set" || verb == "Create") &&
+        (lastPrefixCh != '+' || lastPrefixCh != '-'))
+    {
+        return IYPathService::TResolveResult::Here(path);
+    } else {
+        int index = ParseChildIndex(prefix);
+        auto child = FindChild(index);
+        YASSERT(~child != NULL);
+        return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
-
-    auto child = FindChild(index);
-    return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
-}
-
-void TListNodeMixin::ThrowNonEmptySuffixPath(TYPath path)
-{
-    // This should throw.
-    GetYPathChild(path);
-    YUNREACHABLE();
 }
 
 void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
@@ -423,46 +405,38 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
 
     Stroka prefix;
     TYPath suffixPath;
-    ChopYPathPrefix(currentPath, &prefix, &suffixPath);
+    ChopYPathToken(currentPath, &prefix, &suffixPath);
 
     if (prefix.empty()) {
-        ythrow yexception() << "Child index is empty";
+        ythrow yexception() << "Resolution error: child index is empty";
     }
 
     if (prefix == "+") {
-        return CreateYPathChild(GetChildCount(), suffixPath, value);
+        return CreateChild(GetChildCount(), suffixPath, value);
     } else if (prefix == "-") {
-        return CreateYPathChild(0, suffixPath, value);
+        return CreateChild(0, suffixPath, value);
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
-    TStringBuf indexString =
-        lastPrefixCh == '+' || lastPrefixCh == '-'
-        ? TStringBuf(prefix.begin() + 1, prefix.end())
-        : prefix;
-
-    int index;
-    try {
-        index = FromString<int>(indexString);
-    } catch (...) {
-        ythrow yexception() << Sprintf("Failed to parse child index %s\n%s",
-            ~Stroka(indexString).Quote(),
-            ~CurrentExceptionMessage());
+    if (lastPrefixCh != '+' && lastPrefixCh != '-') {
+        ythrow yexception() << "Resolution error: insertion point expected";
     }
 
-    if (lastPrefixCh == '+') {
-        CreateYPathChild(index + 1, suffixPath, value);
-    } else if (lastPrefixCh == '-') {
-        CreateYPathChild(index, suffixPath, value);
-    } else {
-        // Looks like an out-of-range child index.
-        // This should throw.
-        GetYPathChild(index, suffixPath);
-        YUNREACHABLE();
+    int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.end() - 1));
+    switch (lastPrefixCh) {
+        case '+':
+            CreateChild(index + 1, suffixPath, value);
+            break;
+        case '-':
+            CreateChild(index, suffixPath, value);
+            break;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
-void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value)
+void TListNodeMixin::CreateChild(int beforeIndex, TYPath path, INode* value)
 {
     if (IsFinalYPath(path)) {
         AddChild(value, beforeIndex);
@@ -474,7 +448,7 @@ void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value
         while (true) {
             Stroka prefix;
             TYPath suffixPath;
-            ChopYPathPrefix(currentPath, &prefix, &suffixPath);
+            ChopYPathToken(currentPath, &prefix, &suffixPath);
 
             if (IsFinalYPath(suffixPath)) {
                 currentNode->AddChild(value, prefix);
@@ -488,6 +462,33 @@ void TListNodeMixin::CreateYPathChild(int beforeIndex, TYPath path, INode* value
             currentPath = suffixPath;
         }
     }
+}
+
+int TListNodeMixin::ParseChildIndex(TStringBuf str)
+{
+    int index;
+    try {
+        index = FromString<int>(str);
+    } catch (...) {
+        ythrow yexception() << Sprintf("Failed to parse index %s\n%s",
+            ~Stroka(str).Quote(),
+            ~CurrentExceptionMessage());
+    }
+
+    int count = GetChildCount();
+    if (count == 0) {
+        ythrow yexception() << Sprintf("Invalid index %s: list is empty",
+            index);
+    }
+
+    if (index < 0 || index >= count) {
+        ythrow yexception() << Sprintf("Invalid index %d: expected value in range %d..%d",
+            index,
+            0,
+            count - 1);
+    }
+
+    return index;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

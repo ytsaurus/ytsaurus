@@ -80,11 +80,15 @@ public:
         , Service(service)
     { }
 
-    bool IsVerbLogged(const Stroka& verb) const
+    bool IsOperationLogged(TYPath path, const Stroka& verb) const
     {
-        // Don't log anything for virtual nodes.
-        UNUSED(verb);
-        return false;
+        // Don't log anything for virtual nodes expect when the path is
+        // empty and thus refers to the node itself.
+        if (IsEmptyYPath(path)) {
+            return TBase::IsOperationLogged(path, verb);
+        } else {
+            return false;
+        }
     }
 
 private:
@@ -92,12 +96,12 @@ private:
 
     IYPathService::TPtr Service;
 
-    virtual TResolveResult Resolve(TYPath path, bool mustExist)
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
         if (~Service == NULL) {
-            return TBase::Resolve(path, mustExist);
+            return TBase::Resolve(path, verb);
         } else {
-            return Service->Resolve(path, mustExist);
+            return Service->Resolve(path, verb);
         }
     }
 
