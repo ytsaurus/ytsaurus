@@ -92,10 +92,10 @@ void TClientResponse::Deserialize(IMessage* responseMessage)
     DeserializeBody(parts[1]);
     
     Attachments_.clear();
-    NStl::copy(
+    std::copy(
         parts.begin() + 2,
         parts.end(),
-        NStl::back_inserter(Attachments_));
+        std::back_inserter(Attachments_));
 }
 
 void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)

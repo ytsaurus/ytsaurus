@@ -66,10 +66,10 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 
         // Load attachments.
         Attachments_.clear();
-        NStl::copy(
+        std::copy(
             parts.begin() + 2,
             parts.end(),
-            NStl::back_inserter(Attachments_));
+            std::back_inserter(Attachments_));
     }
 }
 

@@ -8,7 +8,7 @@
 #include "../ytree/fluent.h"
 #include "../ytree/tree_builder.h"
 
-#include <util/generic/algorithm.h>
+#include <algorithm>
 
 namespace NYT {
 
@@ -42,7 +42,7 @@ void TRefCountedTracker::SortItems(yvector<TItem>& items, int sortByColumn)
 {
     switch (sortByColumn) {
         case 3:
-            Sort(
+            std::sort(
                 items.begin(),
                 items.end(),
                 [] (const TItem& lhs, const TItem& rhs) {
@@ -51,7 +51,7 @@ void TRefCountedTracker::SortItems(yvector<TItem>& items, int sortByColumn)
             break;
 
         case 2:
-            Sort(
+            std::sort(
                 items.begin(),
                 items.end(),
                 [] (const TItem& lhs, const TItem& rhs) {
@@ -61,7 +61,7 @@ void TRefCountedTracker::SortItems(yvector<TItem>& items, int sortByColumn)
 
         case 1:
         default:
-            Sort(
+            std::sort(
                 items.begin(),
                 items.end(),
                 [] (const TItem& lhs, const TItem& rhs) {

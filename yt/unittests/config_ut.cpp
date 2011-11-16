@@ -178,4 +178,30 @@ TEST(TConfigTest, Validate)
     EXPECT_THROW(config.Validate(), yexception);
 }
 
+TEST(TConfigTest, SetDefaults)
+{
+    {
+        TTestSubconfig subconfig;
+        subconfig.SetDefaults(false);
+        EXPECT_EQ(subconfig.I1, 100);
+        EXPECT_EQ(subconfig.B1, false);
+        EXPECT_EQ(subconfig.LS1.ysize(), 0);
+        EXPECT_EQ(subconfig.E1, ETestEnum::Value1);
+    }
+
+    {
+        TTestConfig config;
+        config.SetDefaults(true);
+        EXPECT_EQ(config.Subconfig.I1, 100);
+        EXPECT_EQ(config.Subconfig.B1, false);
+        EXPECT_EQ(config.Subconfig.LS1.ysize(), 0);
+        EXPECT_EQ(config.Subconfig.E1, ETestEnum::Value1);
+    }
+    
+    {
+        TTestConfig config;
+        EXPECT_THROW(config.SetDefaults(false), yexception);
+    }
+}
+
 } // namespace NYT

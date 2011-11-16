@@ -89,13 +89,23 @@ TParameter<T, true>::TParameter(T* parameter)
 template <class T>
 void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
 {
-    Parameter->Load(node, path);
+    if (node != NULL) {
+        Parameter->Load(node, path);
+    } else {
+        Parameter->SetDefaults(false, path);
+    }
 }
 
 template <class T>
 void TParameter<T, true>::Validate(const Stroka& path) const
 {
     Parameter->Validate(path);   
+}
+
+template <class T>
+void TParameter<T, true>::SetDefaults(bool skipRequiredParameters, const Stroka& path)
+{
+    Parameter->SetDefaults(skipRequiredParameters, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,11 +127,11 @@ void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
                 << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
                     ~path, ~CurrentExceptionMessage());
         }
-    } else if (HasDefaultValue) {
+    } else if (HasDefaultValue) { // same as SetDefaults(false, path), but another error message
         *Parameter = DefaultValue;
     } else {
         ythrow yexception()
-            << "Required parameter is missing (Path: " << path << ")";
+            << Sprintf("Required parameter is missing (Path: %s)", ~path);
     }
 }
 
@@ -136,6 +146,18 @@ void TParameter<T, false>::Validate(const Stroka& path) const
                 << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
                     ~path, ~CurrentExceptionMessage());
         }
+    }
+}
+
+template <class T>
+void TParameter<T, false>::SetDefaults(bool skipRequiredParameters, const Stroka& path)
+{
+    if (HasDefaultValue) {
+        *Parameter = DefaultValue;
+    } else if (!skipRequiredParameters) {
+        ythrow yexception()
+            << Sprintf("Parameter does not have default value (Path: %s)",
+                ~path);
     }
 }
 

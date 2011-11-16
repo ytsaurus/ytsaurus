@@ -376,10 +376,10 @@ void WrapYPathRequest(
     auto parts = innerRequestMessage->GetParts();
     auto& attachments = outerRequest->Attachments();
     attachments.clear();
-    NStl::copy(
+    std::copy(
         parts.begin(),
         parts.end(),
-        NStl::back_inserter(attachments));
+        std::back_inserter(attachments));
 }
 
 NBus::IMessage::TPtr UnwrapYPathRequest(

@@ -105,7 +105,7 @@ bool EncodeMessagePacket(
     char* current = reinterpret_cast<char*>(&header->PartSizes[parts.ysize()]);
     for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
         const TRef& part = parts[partIndex];
-        NStl::copy(part.Begin(), part.End(), current);
+        std::copy(part.Begin(), part.End(), current);
         current += part.Size();
     }
 

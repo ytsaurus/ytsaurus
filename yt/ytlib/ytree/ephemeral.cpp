@@ -6,7 +6,7 @@
 #include "../misc/hash.h"
 #include "../misc/assert.h"
 
-#include <util/generic/algorithm.h>
+#include <algorithm>
 
 namespace NYT {
 namespace NYTree {
@@ -350,7 +350,7 @@ bool TListNode::RemoveChild(int index)
 
 void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
-    auto it = Find(List.begin(), List.end(), ~oldChild);
+    auto it = std::find(List.begin(), List.end(), ~oldChild);
     YASSERT(it != List.end());
 
     oldChild->SetParent(NULL);
@@ -360,7 +360,7 @@ void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
 void TListNode::RemoveChild(INode::TPtr child)
 {
-    auto it = Find(List.begin(), List.end(), ~child);
+    auto it = std::find(List.begin(), List.end(), ~child);
     YASSERT(it != List.end());
     List.erase(it);
 }

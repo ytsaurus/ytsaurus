@@ -229,7 +229,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         ~chunkId.ToString(),
         blockCount);
 
-    response->Attachments().yresize(blockCount);
+    response->Attachments().resize(blockCount);
 
     auto awaiter = New<TParallelAwaiter>();
 

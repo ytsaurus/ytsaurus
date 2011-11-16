@@ -85,7 +85,7 @@ public:
 
     void RemoveJob(const TJobId& id)
     {
-        auto it = Find(JobIds_.begin(), JobIds_.end(), id);
+        auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
         if (it != JobIds_.end()) {
             JobIds_.erase(it);
         }

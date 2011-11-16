@@ -68,7 +68,7 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
         }
     }
 
-    Sort(holders.begin(), holders.end(),
+    std::sort(holders.begin(), holders.end(),
         [&] (const THolder* lhs, const THolder* rhs) {
             return GetSessionCount(*lhs) < GetSessionCount(*rhs);
         });
@@ -86,10 +86,10 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
         }
 
         int sampleCount = Min(count, groupSize);
-        NStl::random_sample_n(
+        std::random_sample_n(
             beginGroupIt,
             endGroupIt,
-            NStl::back_inserter(holdersSample),
+            std::back_inserter(holdersSample),
             sampleCount);
 
         beginGroupIt = endGroupIt;
@@ -146,7 +146,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     }
 
     // Sort by loadFactor in descending order.
-    Sort(candidates.begin(), candidates.end(),
+    std::sort(candidates.begin(), candidates.end(),
         [] (const TCandidatePair& lhs, const TCandidatePair& rhs)
         {
             return lhs.Second() > rhs.Second();

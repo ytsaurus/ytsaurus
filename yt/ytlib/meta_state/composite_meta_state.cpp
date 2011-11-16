@@ -93,7 +93,7 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::
         }));
 
     yvector< TPair<Stroka, TSaver::TPtr> > savers(Savers.begin(), Savers.end());
-    Sort(savers.begin(), savers.end());
+    std::sort(savers.begin(), savers.end());
 
     TFuture<TVoid>::TPtr result;
     FOREACH(auto pair, savers) {

@@ -138,7 +138,7 @@ public:
 
 private:
     typedef yvector<TGuid> TRequestIds;
-    typedef NStl::deque<IMessage::TPtr> TResponseMessages;
+    typedef std::deque<IMessage::TPtr> TResponseMessages;
 
     TBusServer::TPtr Server;
     TSessionId SessionId;

@@ -394,7 +394,7 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
     ::SaveSize(output, PrimaryMap.size());
 
     yvector<TItem> items(PrimaryMap.begin(), PrimaryMap.end());
-    Sort(
+    std::sort(
         items.begin(),
         items.end(),
         [] (const typename TMap::value_type& lhs, const typename TMap::value_type& rhs) {

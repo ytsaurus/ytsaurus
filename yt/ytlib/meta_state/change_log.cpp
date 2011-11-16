@@ -5,7 +5,7 @@
 #include "../misc/checksum.h"
 #include "../logging/log.h"
 
-#include <util/generic/algorithm.h>
+#include <algorithm>
 #include <util/generic/ptr.h>
 #include <util/generic/noncopyable.h>
 #include <util/digest/murmur.h>
@@ -668,7 +668,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetLowerBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    auto it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = std::upper_bound(Index.begin(), Index.end(), record);
     --it;
     return it;
 }
@@ -679,7 +679,7 @@ TChangeLog::TImpl::TIndex::iterator TChangeLog::TImpl::GetUpperBound(i32 recordI
     TLogIndexRecord record;
     record.RecordId = recordId;
     record.Offset = Max<i32>();
-    auto it = UpperBound(Index.begin(), Index.end(), record);
+    auto it = std::upper_bound(Index.begin(), Index.end(), record);
     return it;
 }
 

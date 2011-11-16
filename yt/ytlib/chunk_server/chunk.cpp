@@ -43,7 +43,7 @@ void TChunk::AddLocation(THolderId holderId)
 
 void TChunk::RemoveLocation(THolderId holderId)
 {
-    auto it = Find(Locations_.begin(), Locations_.end(), holderId);
+    auto it = std::find(Locations_.begin(), Locations_.end(), holderId);
     YASSERT(it != Locations_.end());
     Locations_.erase(it);
 }

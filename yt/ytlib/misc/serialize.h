@@ -48,7 +48,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
     FOREACH(const auto& item, set) {
         keys.push_back(&item);
     }
-    Sort(
+    std::sort(
         keys.begin(),
         keys.end(),
         [] (const TKey* lhs, const TKey* rhs) {
@@ -69,7 +69,7 @@ yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
     for (auto it = map.begin(); it != map.end(); ++it) {
         iterators.push_back(it);
     }
-    Sort(
+    std::sort(
         iterators.begin(),
         iterators.end(),
         [] (TIterator lhs, TIterator rhs) {
