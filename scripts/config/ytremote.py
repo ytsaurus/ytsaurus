@@ -14,6 +14,7 @@ Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test
 
 shebang = '#!/bin/bash'
 ulimit = 'ulimit -c unlimited'
+
 cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S -- %(params)s'
 cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
@@ -56,11 +57,19 @@ class RemoteNode(Node):
         
     prepare_dir = Template('ssh %(host)s mkdir -p %(remote_dir)s')
     prepare_bin = Template('rsync --copy-links %(bin_path)s %(host)s:%(remote_dir)s')
+    export_ld_path = Template('export LD_LIBRARY_PATH=%(remote_dir)s')
     
     def prepare(cls, fd):
         print >>fd, shebang
         print >>fd, wrap_cmd(cls.prepare_dir)
         print >>fd, wrap_cmd(cls.prepare_bin)
+
+        libs = getattr(cls, 'libs', None)
+        if (libs):
+            for lib in libs:
+                cmd = 'rsync --copy-links %s %s:%s' % (lib, cls.host, cls.remote_dir)
+                print >>fd, wrap_cmd(cmd)
+                
         
         for descr in cls.files:
             if 'remote' in descr.attrs:
@@ -76,6 +85,7 @@ class RemoteNode(Node):
     def do_run(cls, fd):
         print >>fd, shebang
         print >>fd, ulimit
+        print >>fd, cls.export_ld_path
         print >>fd, wrap_cmd(cls.run_tmpl)
     
     def run(cls, fd):

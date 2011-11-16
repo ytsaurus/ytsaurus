@@ -27,6 +27,7 @@ MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) fo
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
     base_dir = '/yt/disk1/'
+    libs = ['/home/yt/build/debug/extern/STLport/build/cmake/libstlport.so.5.2']
     
     def get_log(cls, fd):
         print >>fd, shebang
@@ -45,7 +46,7 @@ class Server(Base, RemoteServer):
 class Master(Server):
     base_dir = './'
     address = Subclass(MasterAddresses)
-    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s --yson_param %(new_config)s')
+    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s --new_config %(new_config_path)s')
 
     config = Template({
         'MetaState' : {
@@ -54,6 +55,7 @@ class Master(Server):
         	},
             'SnapshotLocation' : '%(work_dir)s/snapshots',
             'LogLocation' : '%(work_dir)s/logs',
+            'MaxChangesBetweenSnapshots' : 100000
         },            
         'Logging' : Logging
     })
@@ -63,6 +65,7 @@ class Master(Server):
         print >>fd, wrap_cmd('mkdir -p %s' % cls.config['MetaState']['SnapshotLocation'])
         print >>fd, wrap_cmd('mkdir -p %s' % cls.config['MetaState']['LogLocation'])
         print >>fd, ulimit
+        print >>fd, cls.export_ld_path
         print >>fd, wrap_cmd(cls.run_tmpl)
         
     def do_clean(cls, fd):
@@ -106,7 +109,7 @@ class Client(Base, RemoteNode):
 
         'ThreadPool' : {
             'PoolSize' : 1,
-            'TaskCount' : 1000 
+            'TaskCount' : 100 
         },
 
         'Logging' : Logging,
