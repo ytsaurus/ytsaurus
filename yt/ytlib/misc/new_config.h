@@ -18,8 +18,10 @@ struct IParameter
 {
     typedef TIntrusivePtr<IParameter> TPtr;
 
+    // node can be NULL
     virtual void Load(NYTree::INode* node, const Stroka& path) = 0;
     virtual void Validate(const Stroka& path) const = 0;
+    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +40,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const Stroka& path);
     virtual void Validate(const Stroka& path) const;
+    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path);
 
 private:
     T* Parameter;
@@ -59,6 +62,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const Stroka& path);
     virtual void Validate(const Stroka& path) const;
+    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path);
 
 public: // for users
     TParameter& Default(T defaultValue = T());
@@ -88,8 +92,9 @@ class TConfigBase
 public:
     virtual ~TConfigBase();
     
-    virtual void Load(NYTree::INode* node, const Stroka& path = Stroka());
-    virtual void Validate(const Stroka& path = Stroka()) const;
+    virtual void Load(NYTree::INode* node, const Stroka& path = "");
+    virtual void Validate(const Stroka& path = "") const;
+    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path = "");
 
 protected:
     template <class T>
