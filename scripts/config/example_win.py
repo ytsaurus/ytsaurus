@@ -39,7 +39,7 @@ class Base(AggrBase):
         path = opts.get_string('--name', 'control')
         
 class Server(Base):
-        bin_path = r'd:\Users\Max\Work\Yandex\YT.git\build\bin\Debug\server.exe'
+        bin_path = r'C:\Projects\yt-build\bin\Debug\server.exe'
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
@@ -85,5 +85,42 @@ class Holder(WinNode, Server):
                 for location in cls.config['Locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location
 
+class Client(WinNode, Base):
+    bin_path = r'C:\Projects\yt-build\bin\Debug\send_chunk.exe'
+
+    params = Template('--config %(config_path)s')
+
+    config = Template({ 
+        'ReplicationFactor' : 2,
+        'BlockSize' : 2 ** 20,
+
+        'ThreadPool' : {
+            'PoolSize' : 1,
+            'TaskCount' : 1
+        },
+
+        'YPath' : '/psushin/file1',
+
+        'Logging' : Logging,
+
+        'Masters' : { 
+            'Addresses' : MasterAddresses 
+        },
+
+        'Input' : {
+            'Type' : 'zero',
+            'Size' : (2 ** 20) * 256 
+        },
+
+        'ChunkWriter' : {
+            'WindowSize' : 40,
+            'GroupSize' : 8 * (2 ** 20)
+        } 
+    })
+
+    def do_clean(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'rm -f %s' % cls.log_path
+
+
 configure(Base)
-        

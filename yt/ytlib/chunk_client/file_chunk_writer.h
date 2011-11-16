@@ -30,7 +30,7 @@ public:
 
     void Cancel(const Stroka& errorMessage);
 
-    const TChunkId& GetChunkId() const;
+    TChunkId GetChunkId() const;
 
 private:
     Stroka FileName;

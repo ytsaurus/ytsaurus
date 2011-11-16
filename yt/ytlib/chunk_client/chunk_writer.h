@@ -61,7 +61,7 @@ struct IChunkWriter
     virtual void Cancel(const Stroka& errorMessage) = 0;
 
     //! Returns the id of the chunk being written.
-    virtual const TChunkId& GetChunkId() const = 0;
+    virtual TChunkId GetChunkId() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

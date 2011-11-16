@@ -92,7 +92,7 @@ public:
      */
     Stroka GetDebugInfo();
 
-    const TChunkId& GetChunkId() const;
+    TChunkId GetChunkId() const;
 
 private:
 
