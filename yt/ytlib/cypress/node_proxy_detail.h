@@ -141,6 +141,8 @@ public:
 
     virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
     {
+        UNUSED(path);
+
         if (verb == "Set" ||
             verb == "Remove" ||
             verb == "Lock")

@@ -126,7 +126,7 @@ public:
     {
         auto it = Getters.find(name);
         if (it == Getters.end())
-            return false;
+            return NULL;
 
         auto builder = CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
         builder->BeginTree();
