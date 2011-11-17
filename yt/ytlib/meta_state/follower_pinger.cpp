@@ -13,46 +13,49 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaderPinger::TLeaderPinger(
+TFollowerPinger::TFollowerPinger(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
+    TDecoratedMetaState::TPtr metaState,
     TCellManager::TPtr cellManager,
-    TPeerId leaderId,
-    TEpoch epoch,
-    IInvoker::TPtr controlInvoker)
+    TFollowerTracker::TPtr followerTracker,
+    TSnapshotStore::TPtr snapshotStore,
+    const TEpoch& epoch)
     : Config(config)
-    , MetaStateManager(metaStateManager)
+    , MetaState(metaState)
     , CellManager(cellManager)
-    , LeaderId(leaderId)
+    , FollowerTracker(followerTracker)
+    , SnapshotStore(snapshotStore)
     , Epoch(epoch)
-    , CancelableInvoker(New<TCancelableInvoker>(controlInvoker))
 {
-    YASSERT(~metaStateManager != NULL);
-    YASSERT(~cellManager != NULL);
-    YASSERT(~controlInvoker != NULL);
-
-    SchedulePing();
-}
-
-void TLeaderPinger::Stop()
-{
-    CancelableInvoker->Cancel();
-    CancelableInvoker.Reset();
-    MetaStateManager.Reset();
-}
-
-void TLeaderPinger::SchedulePing()
-{
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TLeaderPinger::SendPing, TPtr(this))
-        ->Via(~CancelableInvoker),
+    PeriodicInvoker = new TPeriodicInvoker(
+        FromMethod(&TFollowerPinger::SendPing, TPtr(this))
+        ->Via(MetaState->GetStateInvoker()),
         Config.PingInterval);
-
-    LOG_DEBUG("Leader ping scheduled");
+    PeriodicInvoker->Start();
 }
 
-void TLeaderPinger::SendPing()
+void TFollowerPinger::Stop()
 {
+    PeriodicInvoker->Stop();
+}
+
+void TFollowerPinger::SendPing()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto version = MetaState->GetReachableVersion();
+    for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
+        if (peerId == CellManager->GetSelfId()) continue;
+
+        auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+        auto request = proxy->PingFollower();
+        request->SetSegmentId(version.SegmentId);
+        request->SetRecordCount(version.RecordCount);
+        request->SetEpoch(Epoch);
+        request->SetMaxSnapshotId(SnapshotStore->GetMaxSnapshotId());
+        request->Invoke(Config.RpcTimeout)->Subscribe
+    }
+
     auto status = MetaStateManager->GetControlStatus();
     auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
     proxy->SetTimeout(Config.RpcTimeout);
@@ -71,7 +74,7 @@ void TLeaderPinger::SendPing()
         ~status.ToString());
 }
 
-void TLeaderPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response)
+void TFollowerPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response, TPeerId peerId)
 {
     if (response->IsOK()) {
         LOG_DEBUG("Leader ping succeeded (LeaderId: %d)",

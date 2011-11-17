@@ -37,7 +37,7 @@ public:
     RPC_PROXY_METHOD(NMetaState::NProto, GetChangeLogInfo);
     RPC_PROXY_METHOD(NMetaState::NProto, ApplyChanges);
     RPC_PROXY_METHOD(NMetaState::NProto, AdvanceSegment);
-    RPC_PROXY_METHOD(NMetaState::NProto, PingLeader);
+    RPC_PROXY_METHOD(NMetaState::NProto, PingFollower);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
