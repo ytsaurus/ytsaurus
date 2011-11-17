@@ -124,18 +124,29 @@ class PlainChunk(Client):
     config = Template(client_config({
         'YPath' : '/files/plain_chunk',
         'Input' : {
-            'Type' : 'zero', # strean of zeros
+            'Type' : 'zero', # stream of zeros
             'Size' : (2 ** 20) * 256 
         }
     }))
 
 class TableChunk(Client):
     config = Template(client_config({ 
-        'Schema' : '[["abracadabra"; "a"; ["xxx"; "zzz"]]; ["a"; "column1"; ["b"; "m"]]]',
+        'Schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
         'YPath' : '/files/table_chunk',
         'Input' : {
             'Type' : 'random_table',
-            'Size' : (2 ** 20) * 256 
+            'Size' : (2 ** 20) * 20 
+        }
+    }))
+
+class TableChunkSequence(Client):
+    config = Template(client_config({ 
+        'Schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
+        'ChunkSize' : (2 ** 20) * 7,
+        'YPath' : '/table',
+        'Input' : {
+            'Type' : 'random_table',
+            'Size' : (2 ** 20) * 20 
         }
     }))
 

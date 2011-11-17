@@ -56,7 +56,6 @@ public:
         void Read(TJsonObject* config);
     };
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
     /*!

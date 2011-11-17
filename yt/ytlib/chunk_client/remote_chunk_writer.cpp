@@ -62,24 +62,9 @@ public:
         int startBlockIndex, 
         TRemoteChunkWriter::TPtr writer);
 
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
     void AddBlock(const TSharedRef& block);
-
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
     void Process();
-
-    /*!
-     * \note Thread affinity: WriterThread.
-     */
     bool IsWritten() const;
-
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
     i64 GetSize() const;
 
     /*!
@@ -418,8 +403,6 @@ TRemoteChunkWriter::TRemoteChunkWriter(
     , FlushBlockTiming(0, 1000, 20)
     , FinishChunkTiming(0, 1000, 20)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     YASSERT(AliveNodeCount > 0);
 
     LOG_DEBUG("Writer created (ChunkId: %s, Addresses: [%s])",
@@ -433,8 +416,6 @@ TRemoteChunkWriter::TRemoteChunkWriter(
 
 void TRemoteChunkWriter::InitializeNodes(const yvector<Stroka>& addresses)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     FOREACH(const auto& address, addresses) {
         Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
         Nodes.back()->Proxy.SetTimeout(Config.RpcTimeout);
@@ -677,8 +658,6 @@ void TRemoteChunkWriter::CheckResponse(
 
 void TRemoteChunkWriter::StartSession()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
         auto onSuccess = FromMethod(
@@ -698,8 +677,6 @@ void TRemoteChunkWriter::StartSession()
 
 TRemoteChunkWriter::TInvStartChunk::TPtr TRemoteChunkWriter::StartChunk(int node)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     LOG_DEBUG("Starting chunk (ChunkId: %s, Address: %s)", 
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
@@ -835,7 +812,7 @@ void TRemoteChunkWriter::SchedulePing(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (State.IsActive()) {
+    if (!State.IsActive()) {
         return;
     }
 
@@ -876,7 +853,6 @@ void TRemoteChunkWriter::CancelAllPings()
 TAsyncStreamState::TAsyncResult::TPtr 
 TRemoteChunkWriter::AsyncWriteBlock(const TSharedRef& data)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
@@ -915,7 +891,6 @@ void TRemoteChunkWriter::AddBlock(TVoid, const TSharedRef& data)
 TAsyncStreamState::TAsyncResult::TPtr 
 TRemoteChunkWriter::AsyncClose(const TSharedRef& masterMeta)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 

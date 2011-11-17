@@ -2,6 +2,7 @@
 #include "chunk_writer.h"
 
 #include "../actions/action_util.h"
+#include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
 
 namespace NYT {
@@ -22,7 +23,6 @@ TChunkWriter::TChunkWriter(
     , SentSize(0)
     , CurrentSize(0)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(~chunkWriter != NULL);
     YASSERT(codec != NULL);
 
@@ -62,7 +62,7 @@ void TChunkWriter::ContinueEndRow(
                 ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
                     &TChunkWriter::ContinueEndRow,
                     TPtr(this),
-                    channelIndex + 1));
+                    channelIndex + 1)->Via(WriterThread->GetInvoker()));
 
                 return;
             } 
@@ -113,8 +113,6 @@ TChunkWriter::~TChunkWriter()
 
 i64 TChunkWriter::GetCurrentSize() const
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     return CurrentSize;
 }
 
@@ -208,9 +206,8 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
 TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncInit()
 {
     // Stub to implement IWriter interface.
-    auto result = New<TAsyncStreamState::TAsyncResult>();
-    result->Set(State.GetCurrentResult());
-    return result;
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    return State.GetOperationResult();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
