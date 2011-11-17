@@ -10,6 +10,16 @@ namespace NConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+T CheckedStaticCast(i64 value)
+{
+    if (value < Min<T>() || value > Max<T>()) {
+        ythrow yexception()
+            << "Argument is out of integral range (Value: " << value << ")";
+    }
+    return static_cast<T>(value);
+}
+
 inline void Read(i64* parameter, NYTree::INode* node)
 {
     *parameter = node->AsInt64()->GetValue();
@@ -17,12 +27,12 @@ inline void Read(i64* parameter, NYTree::INode* node)
 
 inline void Read(i32* parameter, NYTree::INode* node)
 {
-    *parameter = static_cast<i32>(node->AsInt64()->GetValue());
+    *parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
 }
 
 inline void Read(ui32* parameter, NYTree::INode* node)
 {
-    *parameter = static_cast<ui32>(node->AsInt64()->GetValue());
+    *parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
 }
 
 inline void Read(double* parameter, NYTree::INode* node)
@@ -44,7 +54,7 @@ inline void Read(bool* parameter, NYTree::INode* node)
         *parameter = false;
     } else {
         ythrow yexception()
-            << "Could not load bool parameter (Value: "
+            << "Could not load boolean parameter (Value: "
             << (value.length() <= 10
                 ? value
                 : value.substr(0, 10) + "...")
@@ -92,7 +102,7 @@ void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
     if (node != NULL) {
         Parameter->Load(node, path);
     } else {
-        Parameter->SetDefaults(false, path);
+        Parameter->DoSetDefaults(false, path);
     }
 }
 
@@ -105,7 +115,7 @@ void TParameter<T, true>::Validate(const Stroka& path) const
 template <class T>
 void TParameter<T, true>::SetDefaults(bool skipRequiredParameters, const Stroka& path)
 {
-    Parameter->SetDefaults(skipRequiredParameters, path);
+    Parameter->DoSetDefaults(skipRequiredParameters, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,8 +134,9 @@ void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
             Read(Parameter, node);
         } catch (...) {
             ythrow yexception()
-                << Sprintf("Could not read parameter (Path: %s, InnerException: %s)",
-                    ~path, ~CurrentExceptionMessage());
+                << Sprintf("Could not read parameter (Path: %s)\n%s",
+                    ~path,
+                    ~CurrentExceptionMessage());
         }
     } else if (HasDefaultValue) { // same as SetDefaults(false, path), but another error message
         *Parameter = DefaultValue;
@@ -143,8 +154,9 @@ void TParameter<T, false>::Validate(const Stroka& path) const
             validator->Do(*Parameter);
         } catch (...) {
             ythrow yexception()
-                << Sprintf("Config validation failed (Path: %s, InnerException: %s)",
-                    ~path, ~CurrentExceptionMessage());
+                << Sprintf("Config validation failed (Path: %s)\n%s",
+                    ~path,
+                    ~CurrentExceptionMessage());
         }
     }
 }
@@ -162,7 +174,7 @@ void TParameter<T, false>::SetDefaults(bool skipRequiredParameters, const Stroka
 }
 
 template <class T>
-TParameter<T, false>& TParameter<T, false>::Default(T defaultValue)
+TParameter<T, false>& TParameter<T, false>::Default(const T& defaultValue)
 {
     DefaultValue = defaultValue;
     HasDefaultValue = true;
@@ -170,7 +182,15 @@ TParameter<T, false>& TParameter<T, false>::Default(T defaultValue)
 }
 
 template <class T>
-TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr validator)
+TParameter<T, false>& TParameter<T, false>::Default(T&& defaultValue)
+{
+    DefaultValue = MoveRV(defaultValue);
+    HasDefaultValue = true;
+    return *this;
+}
+
+template <class T>
+TParameter<T, false>& TParameter<T, false>::CheckThat(TValidator* validator)
 {
     Validators.push_back(validator);
     return *this;
@@ -183,7 +203,7 @@ TParameter<T, false>& TParameter<T, false>::Check(typename TValidator::TPtr vali
     template <class T> \
     TParameter<T, false>& TParameter<T, false>::method \
     { \
-        Check(FromFunctor([=] (T parameter) \
+        CheckThat(~FromFunctor([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \
@@ -196,42 +216,42 @@ DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
     yexception()
-        << "Validation failure (Expected: > "
+        << "Validation failure (Expected: to be greater than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
     yexception()
-        << "Validation failure (Expected: >= "
+        << "Validation failure (Expected: to be greater than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
     yexception()
-        << "Validation failure (Expected: < "
+        << "Validation failure (Expected: to be less than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
     yexception()
-        << "Validation failure (Expected: <= "
+        << "Validation failure (Expected: to be less than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
     yexception()
-        << "Validation failure, parameter is not in range "
-        << "(Range: [" << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
+        << "Validation failure (Expected: to be in range ["
+        << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
     yexception()
-        << "Validation failure, parameter is empty")
+        << "Validation failure (Expected: to be non-empty)")
 
 #undef DEFINE_VALIDATOR
 

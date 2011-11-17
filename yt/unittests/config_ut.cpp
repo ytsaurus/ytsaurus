@@ -22,29 +22,29 @@ DECLARE_ENUM(ETestEnum,
 struct TTestSubconfig
     : public TConfigBase
 {
-    i32 I1;
-    bool B1;
-    yvector<Stroka> LS1;
-    ETestEnum E1;
+    int MyInt;
+    bool MyBool;
+    yvector<Stroka> MyStringList;
+    ETestEnum MyEnum;
 
     TTestSubconfig()
     {
-        Register("i1", I1).Default(100).InRange(95, 105);
-        Register("b1", B1).Default(false);
-        Register("ls1", LS1).Default();
-        Register("e1", E1).Default(ETestEnum::Value1);
+        Register("my_int", MyInt).Default(100).InRange(95, 105);
+        Register("my_bool", MyBool).Default(false);
+        Register("my_string_list", MyStringList).Default();
+        Register("my_enum", MyEnum).Default(ETestEnum::Value1);
     }
 };
 
 struct TTestConfig
     : public TConfigBase
 {
-    Stroka S1;
+    Stroka MyString;
     TTestSubconfig Subconfig;
 
     TTestConfig()
     {
-        Register("s1", S1).NonEmpty();
+        Register("my_string", MyString).NonEmpty();
         Register("sub", Subconfig);
     }
 };
@@ -55,12 +55,12 @@ TEST(TConfigTest, Complete)
     builder->BeginTree();
     BuildYsonFluently(~builder)
         .BeginMap()
-            .Item("s1").Scalar("TestString")
+            .Item("my_string").Scalar("TestString")
             .Item("sub").BeginMap()
-                .Item("i1").Scalar(99)
-                .Item("b1").Scalar(true)
-                .Item("e1").Scalar("Value2")
-                .Item("ls1").BeginList()
+                .Item("my_int").Scalar(99)
+                .Item("my_bool").Scalar(true)
+                .Item("my_enum").Scalar("Value2")
+                .Item("my_string_list").BeginList()
                     .Item().Scalar("ListItem0")
                     .Item().Scalar("ListItem1")
                     .Item().Scalar("ListItem2")
@@ -73,14 +73,14 @@ TEST(TConfigTest, Complete)
     config.Load(~configNode->AsMap());
     config.Validate();
 
-    EXPECT_EQ(config.S1, "TestString");
-    EXPECT_EQ(config.Subconfig.I1, 99);
-    EXPECT_EQ(config.Subconfig.B1, true);
-    EXPECT_EQ(config.Subconfig.LS1.ysize(), 3);
-    EXPECT_EQ(config.Subconfig.LS1[0], "ListItem0");
-    EXPECT_EQ(config.Subconfig.LS1[1], "ListItem1");
-    EXPECT_EQ(config.Subconfig.LS1[2], "ListItem2");
-    EXPECT_EQ(config.Subconfig.E1, ETestEnum::Value2);
+    EXPECT_EQ("TestString", config.MyString);
+    EXPECT_EQ(99, config.Subconfig.MyInt);
+    EXPECT_EQ(true, config.Subconfig.MyBool);
+    EXPECT_EQ(3, config.Subconfig.MyStringList.ysize());
+    EXPECT_EQ("ListItem0", config.Subconfig.MyStringList[0]);
+    EXPECT_EQ("ListItem1", config.Subconfig.MyStringList[1]);
+    EXPECT_EQ("ListItem2", config.Subconfig.MyStringList[2]);
+    EXPECT_EQ(ETestEnum::Value2, config.Subconfig.MyEnum);
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -89,9 +89,9 @@ TEST(TConfigTest, MissingParameter)
     builder->BeginTree();
     BuildYsonFluently(~builder)
         .BeginMap()
-            .Item("s1").Scalar("TestString")
+            .Item("my_string").Scalar("TestString")
             .Item("sub").BeginMap()
-                .Item("b1").Scalar(true)
+                .Item("my_bool").Scalar(true)
             .EndMap()
         .EndMap();
     auto configNode = builder->EndTree();
@@ -100,11 +100,11 @@ TEST(TConfigTest, MissingParameter)
     config.Load(~configNode->AsMap());
     config.Validate();
 
-    EXPECT_EQ(config.S1, "TestString");
-    EXPECT_EQ(config.Subconfig.I1, 100);
-    EXPECT_EQ(config.Subconfig.B1, true);
-    EXPECT_EQ(config.Subconfig.LS1.ysize(), 0);
-    EXPECT_EQ(config.Subconfig.E1, ETestEnum::Value1);
+    EXPECT_EQ("TestString", config.MyString);
+    EXPECT_EQ(100, config.Subconfig.MyInt);
+    EXPECT_EQ(true, config.Subconfig.MyBool);
+    EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
+    EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
 }
 
 TEST(TConfigTest, MissingSubconfig)
@@ -113,7 +113,7 @@ TEST(TConfigTest, MissingSubconfig)
     builder->BeginTree();
     BuildYsonFluently(~builder)
         .BeginMap()
-            .Item("s1").Scalar("TestString")
+            .Item("my_string").Scalar("TestString")
         .EndMap();
     auto configNode = builder->EndTree();
 
@@ -121,11 +121,11 @@ TEST(TConfigTest, MissingSubconfig)
     config.Load(~configNode->AsMap());
     config.Validate();
 
-    EXPECT_EQ(config.S1, "TestString");
-    EXPECT_EQ(config.Subconfig.I1, 100);
-    EXPECT_EQ(config.Subconfig.B1, false);
-    EXPECT_EQ(config.Subconfig.LS1.ysize(), 0);
-    EXPECT_EQ(config.Subconfig.E1, ETestEnum::Value1);
+    EXPECT_EQ("TestString", config.MyString);
+    EXPECT_EQ(100, config.Subconfig.MyInt);
+    EXPECT_EQ(false, config.Subconfig.MyBool);
+    EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
+    EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
 }
 
 TEST(TConfigTest, MissingRequiredParameter)
@@ -135,8 +135,8 @@ TEST(TConfigTest, MissingRequiredParameter)
     BuildYsonFluently(~builder)
         .BeginMap()
             .Item("sub").BeginMap()
-                .Item("i1").Scalar(99)
-                .Item("b1").Scalar(true)
+                .Item("my_int").Scalar(99)
+                .Item("my_bool").Scalar(true)
             .EndMap()
         .EndMap();
     auto configNode = builder->EndTree();
@@ -151,7 +151,31 @@ TEST(TConfigTest, IncorrectNodeType)
     builder->BeginTree();
     BuildYsonFluently(~builder)
         .BeginMap()
-            .Item("s1").Scalar(1) // incorrect type
+            .Item("my_string").Scalar(1) // incorrect type
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    TTestConfig config;
+    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+}
+
+TEST(TConfigTest, ArithmeticOverflow)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(~builder)
+        .BeginMap()
+            .Item("my_string").Scalar("TestString")
+            .Item("sub").BeginMap()
+                .Item("my_int").Scalar(Max<i64>())
+                .Item("my_bool").Scalar(true)
+                .Item("my_enum").Scalar("Value2")
+                .Item("my_string_list").BeginList()
+                    .Item().Scalar("ListItem0")
+                    .Item().Scalar("ListItem1")
+                    .Item().Scalar("ListItem2")
+                .EndList()
+            .EndMap()
         .EndMap();
     auto configNode = builder->EndTree();
 
@@ -165,10 +189,10 @@ TEST(TConfigTest, Validate)
     builder->BeginTree();
     BuildYsonFluently(~builder)
         .BeginMap()
-            .Item("s1").Scalar("TestString")
+            .Item("my_string").Scalar("TestString")
             .Item("sub").BeginMap()
-                .Item("i1").Scalar(110) // out of range
-                .Item("b1").Scalar(true)
+                .Item("my_int").Scalar(110) // out of range
+                .Item("my_bool").Scalar(true)
             .EndMap()
         .EndMap();
     auto configNode = builder->EndTree();
@@ -182,25 +206,21 @@ TEST(TConfigTest, SetDefaults)
 {
     {
         TTestSubconfig subconfig;
-        subconfig.SetDefaults(false);
-        EXPECT_EQ(subconfig.I1, 100);
-        EXPECT_EQ(subconfig.B1, false);
-        EXPECT_EQ(subconfig.LS1.ysize(), 0);
-        EXPECT_EQ(subconfig.E1, ETestEnum::Value1);
+        subconfig.SetDefaults();
+        EXPECT_EQ(100, subconfig.MyInt);
+        EXPECT_EQ(false, subconfig.MyBool);
+        EXPECT_EQ(0, subconfig.MyStringList.ysize());
+        EXPECT_EQ(ETestEnum::Value1, subconfig.MyEnum);
     }
-
     {
         TTestConfig config;
-        config.SetDefaults(true);
-        EXPECT_EQ(config.Subconfig.I1, 100);
-        EXPECT_EQ(config.Subconfig.B1, false);
-        EXPECT_EQ(config.Subconfig.LS1.ysize(), 0);
-        EXPECT_EQ(config.Subconfig.E1, ETestEnum::Value1);
-    }
-    
-    {
-        TTestConfig config;
-        EXPECT_THROW(config.SetDefaults(false), yexception);
+        config.MyString = "TestString";
+        config.SetDefaults();
+        EXPECT_EQ("TestString", config.MyString);
+        EXPECT_EQ(100, config.Subconfig.MyInt);
+        EXPECT_EQ(false, config.Subconfig.MyBool);
+        EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
+        EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
     }
 }
 

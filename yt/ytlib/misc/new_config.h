@@ -56,7 +56,7 @@ public:
     /*!
      * \note Must throw exception for incorrect data
      */
-    typedef IParamAction<T> TValidator;
+    typedef IParamAction<const T&> TValidator;
 
     explicit TParameter(T* parameter);
 
@@ -65,8 +65,9 @@ public:
     virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path);
 
 public: // for users
-    TParameter& Default(T defaultValue = T());
-    TParameter& Check(typename TValidator::TPtr validator);
+    TParameter& Default(const T& defaultValue = T());
+    TParameter& Default(T&& defaultValue);
+    TParameter& CheckThat(TValidator* validator);
     TParameter& GreaterThan(T value);
     TParameter& GreaterThanOrEqual(T value);
     TParameter& LessThan(T value);
@@ -94,14 +95,19 @@ public:
     
     virtual void Load(NYTree::INode* node, const Stroka& path = "");
     virtual void Validate(const Stroka& path = "") const;
-    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path = "");
+    virtual void SetDefaults(const Stroka& path = "");
 
 protected:
     template <class T>
     NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
 
 private:
+    template <class T, bool TIsConfig>
+    friend class NConfig::TParameter;
+
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> ParameterMap;
+
+    void DoSetDefaults(bool skipRequiredParameters, const Stroka& path);
 
     ParameterMap Parameters;
 };
