@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "leader_pinger.h"
+#include "follower_pinger.h"
 
 #include "../misc/serialize.h"
 #include "../bus/message.h"
@@ -19,14 +19,19 @@ TFollowerPinger::TFollowerPinger(
     TCellManager::TPtr cellManager,
     TFollowerTracker::TPtr followerTracker,
     TSnapshotStore::TPtr snapshotStore,
-    const TEpoch& epoch)
+    const TEpoch& epoch,
+    IInvoker::TPtr serviceInvoker)
     : Config(config)
     , MetaState(metaState)
     , CellManager(cellManager)
     , FollowerTracker(followerTracker)
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
+    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
 {
+    VERIFY_INVOKER_AFFINITY(serviceInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(MetaState->GetStateInvoker(), StateThread);
+
     PeriodicInvoker = new TPeriodicInvoker(
         FromMethod(&TFollowerPinger::SendPing, TPtr(this))
         ->Via(MetaState->GetStateInvoker()),
@@ -36,6 +41,9 @@ TFollowerPinger::TFollowerPinger(
 
 void TFollowerPinger::Stop()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    CancelableInvoker->Cancel();
     PeriodicInvoker->Stop();
 }
 
@@ -48,34 +56,30 @@ void TFollowerPinger::SendPing()
         if (peerId == CellManager->GetSelfId()) continue;
 
         auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
+        proxy->SetTimeout(Config.RpcTimeout);
         auto request = proxy->PingFollower();
         request->SetSegmentId(version.SegmentId);
         request->SetRecordCount(version.RecordCount);
         request->SetEpoch(Epoch);
-        request->SetMaxSnapshotId(SnapshotStore->GetMaxSnapshotId());
-        request->Invoke(Config.RpcTimeout)->Subscribe
+        i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
+        request->SetMaxSnapshotId(maxSnapshotId);
+        request->Invoke()->Subscribe(
+            FromMethod(&TFollowerPinger::OnSendPing, TPtr(this), peerId)
+            ->Via(CancelableInvoker));
+        
+        LOG_DEBUG("Follower ping sent (FollowerId: %d, Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+            peerId,
+            ~version.ToString(),
+            ~Epoch.ToString(),
+            maxSnapshotId);
     }
 
-    auto status = MetaStateManager->GetControlStatus();
-    auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-    proxy->SetTimeout(Config.RpcTimeout);
-
-    auto request = proxy->PingLeader();
-    request->SetEpoch(Epoch.ToProto());
-    request->SetFollowerId(CellManager->GetSelfId());
-    request->SetStatus(status);
-    request->Invoke()->Subscribe(
-        FromMethod(
-        &TLeaderPinger::OnSendPing, TPtr(this))
-        ->Via(~CancelableInvoker));
-
-    LOG_DEBUG("Leader ping sent (LeaderId: %d, State: %s)",
-        LeaderId,
-        ~status.ToString());
 }
 
 void TFollowerPinger::OnSendPing(TProxy::TRspPingLeader::TPtr response, TPeerId peerId)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (response->IsOK()) {
         LOG_DEBUG("Leader ping succeeded (LeaderId: %d)",
             LeaderId);

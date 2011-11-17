@@ -31,8 +31,12 @@ public:
             : PingInterval(TDuration::MilliSeconds(1000))
             , RpcTimeout(TDuration::MilliSeconds(1000))
         {
-            Register("ping_interval", PingInterval).GreaterThan(TDuration()).Default(TDuration::MilliSeconds(1000));
-            Register("rpc_timeout", PingInterval).GreaterThan(TDuration()).Default(TDuration::MilliSeconds(1000));
+            Register("ping_interval", PingInterval)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
+            Register("rpc_timeout", PingInterval)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
         }
     };
 
@@ -43,7 +47,7 @@ public:
         TFollowerTracker::TPtr followerTracker,
         TSnapshotStore::TPtr snapshotStore,
         const TEpoch& epoch,
-        IInvoker::TPtr );
+        IInvoker::TPtr serviceInvoker);
 
     void Stop();
 
@@ -60,7 +64,9 @@ private:
     TFollowerTracker::TPtr FollowerTracker;
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
+    TCancelableInvoker::TPtr CancelableInvoker;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };
 

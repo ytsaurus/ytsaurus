@@ -30,7 +30,6 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NMetaState::NProto, Sync);
     RPC_PROXY_METHOD(NMetaState::NProto, ReadSnapshot);
     RPC_PROXY_METHOD(NMetaState::NProto, ReadChangeLog);
     RPC_PROXY_METHOD(NMetaState::NProto, GetSnapshotInfo);
