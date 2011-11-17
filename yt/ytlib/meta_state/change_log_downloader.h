@@ -26,9 +26,9 @@ public:
         i32 RecordsPerRequest;
 
         TConfig()
-            : LookupTimeout(TDuration::Seconds(2))
-            , ReadTimeout(TDuration::Seconds(2))
-            , RecordsPerRequest(1024)
+            : LookupTimeout(TDuration::Seconds(5))
+            , ReadTimeout(TDuration::Seconds(5))
+            , RecordsPerRequest(1024 * 1024)
         { }
     };
 
