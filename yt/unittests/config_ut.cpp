@@ -75,7 +75,7 @@ TEST(TConfigTest, Complete)
 
     EXPECT_EQ("TestString", config.MyString);
     EXPECT_EQ(99, config.Subconfig.MyInt);
-    EXPECT_EQ(true, config.Subconfig.MyBool);
+    EXPECT_IS_TRUE(config.Subconfig.MyBool);
     EXPECT_EQ(3, config.Subconfig.MyStringList.ysize());
     EXPECT_EQ("ListItem0", config.Subconfig.MyStringList[0]);
     EXPECT_EQ("ListItem1", config.Subconfig.MyStringList[1]);
@@ -102,7 +102,7 @@ TEST(TConfigTest, MissingParameter)
 
     EXPECT_EQ("TestString", config.MyString);
     EXPECT_EQ(100, config.Subconfig.MyInt);
-    EXPECT_EQ(true, config.Subconfig.MyBool);
+    EXPECT_IS_TRUE(config.Subconfig.MyBool);
     EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
     EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
 }
@@ -123,7 +123,7 @@ TEST(TConfigTest, MissingSubconfig)
 
     EXPECT_EQ("TestString", config.MyString);
     EXPECT_EQ(100, config.Subconfig.MyInt);
-    EXPECT_EQ(false, config.Subconfig.MyBool);
+    EXPECT_IS_FALSE(config.Subconfig.MyBool);
     EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
     EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
 }
@@ -208,7 +208,7 @@ TEST(TConfigTest, SetDefaults)
         TTestSubconfig subconfig;
         subconfig.SetDefaults();
         EXPECT_EQ(100, subconfig.MyInt);
-        EXPECT_EQ(false, subconfig.MyBool);
+        EXPECT_IS_FALSE(subconfig.MyBool);
         EXPECT_EQ(0, subconfig.MyStringList.ysize());
         EXPECT_EQ(ETestEnum::Value1, subconfig.MyEnum);
     }
@@ -218,7 +218,7 @@ TEST(TConfigTest, SetDefaults)
         config.SetDefaults();
         EXPECT_EQ("TestString", config.MyString);
         EXPECT_EQ(100, config.Subconfig.MyInt);
-        EXPECT_EQ(false, config.Subconfig.MyBool);
+        EXPECT_IS_FALSE(config.Subconfig.MyBool);
         EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
         EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
     }
