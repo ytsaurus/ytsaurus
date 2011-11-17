@@ -254,10 +254,6 @@ void ResolveYPath(
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath);
 
-IYPathService::TPtr ResolveYPath(
-    IYPathService* rootService,
-    TYPath path);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TYPathResponseHandlerParam

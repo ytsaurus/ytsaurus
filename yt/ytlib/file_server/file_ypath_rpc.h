@@ -1,24 +1,23 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_ypath_rpc.pb.h"
+#include "file_ypath_rpc.pb.h"
 
 #include "../ytree/ypath_rpc.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressYPathProxy
+struct TFileYPathProxy
     : NYTree::TYPathProxy
 {
-    YPATH_PROXY_METHOD(NProto, Lock);
-    YPATH_PROXY_METHOD(NProto, Create);
-    YPATH_PROXY_METHOD(NProto, GetId);
+    YPATH_PROXY_METHOD(NProto, GetFileChunk);
+    YPATH_PROXY_METHOD(NProto, SetFileChunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NFileServer
 } // namespace NYT

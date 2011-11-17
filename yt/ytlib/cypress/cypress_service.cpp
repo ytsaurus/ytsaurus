@@ -34,7 +34,6 @@ TCypressService::TCypressService(
     YASSERT(server != NULL);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
 
     server->RegisterService(this);
 }
@@ -101,38 +100,6 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
             }));
 
     CypressManager->ExecuteVerb(~suffixService, ~innerContext);
-}
-
-RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
-{
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
-        ~transactionId.ToString(),
-        ~path);
-
-    ValidateTransactionId(transactionId);
-
-    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~root);
-
-    IYPathService::TPtr targetService;
-    try {
-        targetService = ResolveYPath(~rootService, path);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
-    }
-
-    auto* targetNode = dynamic_cast<ICypressNodeProxy*>(~targetService);
-    if (targetNode == NULL) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << "Path does not resolve to a physical node";
-    }
-
-    auto id = targetNode->GetNodeId();
-    response->SetNodeId(targetNode->GetNodeId().ToProto());
-    context->SetResponseInfo("NodeId: %s", ~id.ToString());
-    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

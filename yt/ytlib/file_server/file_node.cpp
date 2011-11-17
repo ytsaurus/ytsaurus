@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "file_node.h"
 #include "file_node_proxy.h"
-#include "file_manager.h"
 
 #include "../cypress/node_proxy.h"
 #include "../ytree/fluent.h"
@@ -49,12 +48,66 @@ void TFileNode::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFileNodeTypeHandler
+    : public NCypress::TCypressNodeTypeHandlerBase<TFileNode>
+{
+public:
+    TFileNodeTypeHandler(
+        NCypress::TCypressManager* cypressManager,
+        NChunkServer::TChunkManager* chunkManager);
+
+    NCypress::ERuntimeNodeType GetRuntimeType();
+    NYTree::ENodeType GetNodeType();
+    Stroka GetTypeName();
+
+    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
+        const NCypress::TNodeId& nodeId,
+        const NTransaction::TTransactionId& transactionId,
+        NYTree::IMapNode::TPtr manifest);
+
+    virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
+        const NCypress::ICypressNode& node,
+        const NTransaction::TTransactionId& transactionId);
+
+protected:
+    virtual void DoDestroy(TFileNode& node);
+
+    virtual void DoBranch(
+        const TFileNode& committedNode,
+        TFileNode& branchedNode);
+
+    virtual void DoMerge(
+        TFileNode& committedNode,
+        TFileNode& branchedNode);
+
+private:
+    typedef TFileNodeTypeHandler TThis;
+
+    TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
+
+    void GetSize(const TGetAttributeParam& param);
+    static void GetChunkListId(const TGetAttributeParam& param);
+    void GetChunkId(const TGetAttributeParam& param);
+
+    const NChunkServer::TChunk* GetChunk(const TFileNode& node);
+
+};
+
+NCypress::INodeTypeHandler::TPtr CreateFileTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    return New<TFileNodeTypeHandler>(
+        cypressManager,
+        chunkManager);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFileNodeTypeHandler::TFileNodeTypeHandler(
     TCypressManager* cypressManager,
-    TFileManager* fileManager,
     TChunkManager* chunkManager)
     : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
-    , FileManager(fileManager)
     , ChunkManager(chunkManager)
 {
     // NB: No smartpointer for this here.
@@ -138,6 +191,7 @@ TIntrusivePtr<ICypressNodeProxy> TFileNodeTypeHandler::GetProxy(
     return New<TFileNodeProxy>(
         this,
         ~CypressManager,
+        ~ChunkManager,
         transactionId,
         node.GetId().NodeId);
 }

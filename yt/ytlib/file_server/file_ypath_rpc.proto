@@ -3,10 +3,7 @@ package NYT.NFileServer.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetFileChunk
-{
-    required bytes TransactionId = 1;
-    required bytes NodeId = 2;
-}
+{ }
 
 message TRspGetFileChunk
 {
@@ -18,14 +15,10 @@ message TRspGetFileChunk
 
 message TReqSetFileChunk
 {
-    required bytes TransactionId = 1;
-    required bytes NodeId = 2;
     required bytes ChunkId = 3;
 }
 
 message TRspSetFileChunk
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
-

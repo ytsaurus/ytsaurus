@@ -52,8 +52,9 @@ void TNodeBase::Invoke(IServiceContext* context)
     try {
         DoInvoke(context);
     } catch (...) {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
-            CurrentExceptionMessage();
+        context->Reply(TError(
+            EYPathErrorCode::GenericError,
+            CurrentExceptionMessage()));
     }
 }
 
@@ -240,7 +241,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
             }
         }
         context->Reply();
-    } else {
+    } else {    
         RemoveRecursive(path, request, response, context);
     }
 }

@@ -185,7 +185,6 @@ TYPath ParseYPathRoot(TYPath path)
     return path.substr(1);
 }
 
-
 bool IsEmptyYPath(TYPath path)
 {
     return path.empty();
@@ -308,19 +307,6 @@ void ResolveYPath(
         currentService = result.GetService();
         currentPath = result.GetPath();
     }
-}
-
-IYPathService::TPtr ResolveYPath(
-    IYPathService* rootService,
-    TYPath path)
-{
-    YASSERT(rootService != NULL);
-
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    // TODO: killme
-    ResolveYPath(rootService, path, "Get", &suffixService, &suffixPath);
-    return suffixService;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

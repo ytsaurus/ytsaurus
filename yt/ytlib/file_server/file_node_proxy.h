@@ -2,8 +2,11 @@
 
 #include "common.h"
 #include "file_node.h"
+#include "file_ypath_rpc.pb.h"
 
+#include "../ytree/ypath_service.h"
 #include "../cypress/node_proxy_detail.h"
+#include "../chunk_server/chunk_manager.h"
 
 namespace NYT {
 namespace NFileServer {
@@ -19,8 +22,21 @@ public:
     TFileNodeProxy(
         NCypress::INodeTypeHandler* typeHandler,
         NCypress::TCypressManager* cypressManager,
+        NChunkServer::TChunkManager* chunkManager,
         const NTransaction::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
+
+    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const;
+
+private:
+    typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
+
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+
+    RPC_SERVICE_METHOD_DECL(NProto, GetFileChunk);
+    RPC_SERVICE_METHOD_DECL(NProto, SetFileChunk);
 
 };
 

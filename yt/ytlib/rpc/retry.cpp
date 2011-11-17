@@ -84,7 +84,6 @@ private:
                     break;
 
                 case IBus::ESendResult::Failed:
-                    State = EState::Done;
                     guard.Release();
 
                     OnAttemptFailed();

@@ -80,7 +80,7 @@ public:
         , Service(service)
     { }
 
-    bool IsOperationLogged(TYPath path, const Stroka& verb) const
+    virtual bool IsOperationLogged(TYPath path, const Stroka& verb) const
     {
         // Don't log anything for virtual nodes expect when the path is
         // empty and thus refers to the node itself.

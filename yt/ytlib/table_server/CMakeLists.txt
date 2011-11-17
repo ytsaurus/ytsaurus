@@ -4,10 +4,6 @@ SET(YT_SOURCE_FILES
     table_node.cpp
     table_node_proxy.cpp
 
-    table_manager.proto
-    table_manager.cpp
-
-    table_service_rpc.proto
-    table_service_rpc.h
-    table_service.cpp
+    table_ypath_rpc.proto
+    table_ypath_rpc.h
 )

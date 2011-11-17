@@ -90,11 +90,6 @@ const ICypressNode* TCypressManager::FindTransactionNode(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Handle sys transaction first.
-    if (transactionId == SysTransactionId) {
-        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    }
-
     // First try to fetch a branched copy.
     auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
     if (impl == NULL) {
@@ -119,30 +114,18 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Handle sys transaction first.
-    if (transactionId == SysTransactionId) {
-        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    }
-
-    // First fetch an unbranched copy and check if it is uncommitted.
-    auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    if (nonbranchedImpl != NULL && nonbranchedImpl->GetState() == ENodeState::Uncommitted) {
-        return nonbranchedImpl;
-    }
-
-    // Then try to fetch a branched copy.
+    // Try to fetch a branched copy.
     auto* branchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
     if (branchedImpl != NULL) {
+        YASSERT(branchedImpl->GetState() == ENodeState::Branched);
         return branchedImpl;
     }
 
-    // Now check if we have any copy at all.
+    // Then fetch an unbranched copy and check if we have a valid node at all.
+    auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
     if (nonbranchedImpl == NULL) {
-        return NULL;;
+        return NULL;
     }
-
-    // The non-branched copy must be committed.
-    YASSERT(nonbranchedImpl->GetState() == ENodeState::Committed);
 
     // Branch it!
     return &BranchNode(*nonbranchedImpl, transactionId);
@@ -176,11 +159,6 @@ bool TCypressManager::IsTransactionNodeLocked(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // No locking is need for sys transaction.
-    if (transactionId == SysTransactionId) {
-        return true;
-    }
-
     // Check if the node is created by the current transaction and is still uncommitted.
     const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
@@ -209,7 +187,6 @@ TLockId TCypressManager::LockTransactionNode(
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(transactionId != SysTransactionId);
 
     if (transactionId == NullTransactionId) {
         ythrow yexception() << "Cannot lock a node outside of a transaction";
@@ -262,11 +239,9 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(
     auto* nodeImpl = new TImpl(branchedNodeId);
     NodeMap.Insert(branchedNodeId, nodeImpl);
 
-    // Register the node with the transaction (unless this is a sys transaction).
-    if (transactionId != SysTransactionId) {
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.CreatedNodes().push_back(nodeId);
-    }
+    // Register the node with the transaction.
+    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    transaction.CreatedNodes().push_back(nodeId);
 
     // Create a proxy.
     auto proxy = New<TProxy>(
@@ -354,10 +329,8 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     auto* nodePtr = nodeImpl.Get();
     NodeMap.Insert(branchedNodeId, nodeImpl.Release());
 
-    if (transactionId != SysTransactionId) {
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.CreatedNodes().push_back(nodeId);
-    }
+    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    transaction.CreatedNodes().push_back(nodeId);
 
     auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
 
@@ -653,7 +626,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
     // Merge all branched nodes and remove them.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        YASSERT(node.GetState() == ENodeState::Committed);
+        YASSERT(node.GetState() != ENodeState::Branched);
 
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
@@ -670,7 +643,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
 
 void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
-    // Drop the implicit references from branched nodes to their originators.
+    // Drop implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         UnrefNode(nodeId);
     }

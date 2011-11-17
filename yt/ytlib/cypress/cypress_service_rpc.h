@@ -30,7 +30,6 @@ public:
     { }
 
     RPC_PROXY_METHOD(NProto, Execute);
-    RPC_PROXY_METHOD(NProto, GetNodeId);
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
