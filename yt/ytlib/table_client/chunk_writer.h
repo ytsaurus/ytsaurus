@@ -54,7 +54,7 @@ public:
 
     i64 GetCurrentSize() const;
 
-    const TChunkId& GetChunkId() const;
+    TChunkId GetChunkId() const;
 
 private:
     TSharedRef PrepareBlock(int channelIndex);

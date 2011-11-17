@@ -72,7 +72,6 @@ public:
      */
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        ECommitMode mode = ECommitMode::NeverFails,
         IAction* changeAction = NULL);
 
     /*!

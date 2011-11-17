@@ -183,7 +183,7 @@ void TChunkWriter::Cancel(const Stroka& errorMessage)
     ChunkWriter->Cancel(errorMessage);
 }
 
-const TChunkId& TChunkWriter::GetChunkId() const
+TChunkId TChunkWriter::GetChunkId() const
 {
     return ChunkWriter->GetChunkId();
 }

@@ -15,12 +15,10 @@ template <class TResult>
 TMetaChange<TResult>::TMetaChange(
     TMetaStateManager* metaStateManager,
     TChangeFunc* func,
-    const TSharedRef& changeData,
-    ECommitMode mode)
+    const TSharedRef& changeData)
     : MetaStateManager(metaStateManager)
     , Func(func)
     , ChangeData(changeData)
-    , CommitMode(mode)
     , Started(false)
 { }
 
@@ -35,7 +33,6 @@ typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            CommitMode,
             ~FromMethod(&TThis::ChangeFuncThunk, TPtr(this)))
          ->Subscribe(
             FromMethod(&TThis::OnCommitted, TPtr(this)));
@@ -90,8 +87,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     TMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
-    TTarget* target,
-    ECommitMode mode)
+    TTarget* target)
 {
     YASSERT(metaStateManager != NULL);
     YASSERT(func != NULL);
@@ -107,16 +103,14 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     return New< TMetaChange<TResult> >(
         metaStateManager,
         ~changeFunc,
-        TSharedRef(MoveRV(changeData)),
-        mode);
+        TSharedRef(MoveRV(changeData)));
 }
 
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     TMetaStateManager* metaStateManager,
     const TMessage& message,
-    IFunc<TResult>* func,
-    ECommitMode mode)
+    IFunc<TResult>* func)
 {
     YASSERT(metaStateManager != NULL);
     YASSERT(func != NULL);
@@ -129,8 +123,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     return New< TMetaChange<TResult> >(
         metaStateManager,
         func,
-        TSharedRef(MoveRV(changeData)),
-        mode);
+        TSharedRef(MoveRV(changeData)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

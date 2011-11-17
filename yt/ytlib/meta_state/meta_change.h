@@ -20,8 +20,7 @@ public:
     TMetaChange(
         TMetaStateManager* metaStateManager,
         TChangeFunc* func,
-        const TSharedRef& changeData,
-        ECommitMode mode);
+        const TSharedRef& changeData);
 
     typename TFuture<TResult>::TPtr Commit();
     
@@ -35,7 +34,6 @@ private:
     typename TChangeFunc::TPtr Func;
     IAction::TPtr ChangeAction;
     TSharedRef ChangeData;
-    ECommitMode CommitMode;
 
     typename IParamAction<TResult>::TPtr OnSuccess_;
     IAction::TPtr OnError_;
@@ -54,15 +52,13 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     TMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
-    TTarget* target,
-    ECommitMode mode = ECommitMode::NeverFails);
+    TTarget* target);
 
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     TMetaStateManager* metaStateManager,
     const TMessage& message,
-    IFunc<TResult>* func,
-    ECommitMode mode = ECommitMode::NeverFails);
+    IFunc<TResult>* func);
 
 ////////////////////////////////////////////////////////////////////////////////
 

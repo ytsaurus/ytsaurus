@@ -304,8 +304,15 @@ void TRecovery::ApplyChangeLog(
     // TODO: timing
     LOG_INFO("Applying changes to meta state");
 
-    for (i32 i = 0; i < recordCount; ++i)  {
-        MetaState->ApplyChange(records[i]);
+    FOREACH (const auto& changeData, records)  {
+        auto version = MetaState->GetVersion();
+        try {
+            MetaState->ApplyChange(changeData);
+        } catch (...) {
+            LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+                ~version.ToString(),
+                ~CurrentExceptionMessage());
+        }
     }
 
     LOG_INFO("Finished applying changes");
@@ -516,7 +523,13 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
             case TPostponedChange::EType::Change: {
                 auto version = MetaState->GetVersion();
                 MetaState->LogChange(version, change.ChangeData);
-                MetaState->ApplyChange(change.ChangeData);
+                try {
+                    MetaState->ApplyChange(change.ChangeData);
+                } catch (...) {
+                    LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+                        ~version.ToString(),
+                        ~CurrentExceptionMessage());
+                }
                 break;
             }
 

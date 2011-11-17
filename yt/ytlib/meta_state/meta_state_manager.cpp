@@ -110,7 +110,6 @@ public:
 
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        ECommitMode mode,
         IAction* changeAction);
 
     void SetReadOnly(bool readOnly)
@@ -704,7 +703,6 @@ IInvoker::TPtr TMetaStateManager::TImpl::GetSnapshotInvoker()
 TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::TImpl::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode,
     IAction* changeAction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -735,7 +733,7 @@ TMetaStateManager::TImpl::CommitChange(
 
     return
         LeaderCommitter
-        ->Commit(changeAction, changeData, mode)
+        ->Commit(changeAction, changeData)
         ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 }
 
@@ -1311,10 +1309,9 @@ IInvoker::TPtr TMetaStateManager::GetSnapshotInvoker()
 TMetaStateManager::TAsyncCommitResult::TPtr
 TMetaStateManager::CommitChange(
     const TSharedRef& changeData,
-    ECommitMode mode,
     IAction* changeAction)
 {
-    return Impl->CommitChange(changeData, mode, changeAction);
+    return Impl->CommitChange(changeData, changeAction);
 }
 
 void TMetaStateManager::SetReadOnly(bool readOnly)

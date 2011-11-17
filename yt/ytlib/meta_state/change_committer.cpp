@@ -245,8 +245,7 @@ void TLeaderCommitter::Flush()
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     IAction::TPtr changeAction,
-    const TSharedRef& changeData,
-    ECommitMode mode)
+    const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(~changeAction != NULL);
@@ -254,44 +253,24 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     auto version = MetaState->GetVersion();
     LOG_DEBUG("Starting commit (Version: %s)", ~version.ToString());
 
-    TResult::TPtr batchResult;
-    switch (mode) {
-        case ECommitMode::NeverFails: {
-            auto logResult = MetaState->LogChange(version, changeData);
-            batchResult = BatchChange(version, changeData, logResult);
-            try {
-                MetaState->ApplyChange(changeAction);
-            } catch (...) {
-                LOG_FATAL("Failed to apply the change (Mode: %s, Version: %s)\n%s",
-                    ~mode.ToString(),
-                    ~MetaState->GetVersion().ToString(),
-                    ~CurrentExceptionMessage());
-            }
-            OnApplyChange_.Fire();
-            break;
-        }
+    auto logResult = MetaState->LogChange(version, changeData);
+    auto batchResult = BatchChange(version, changeData, logResult);
 
-        case ECommitMode::MayFail: {
-            try {
-                MetaState->ApplyChange(changeAction);
-            } catch (...) {
-                LOG_INFO("Failed to apply the change (Mode: %s, Version: %s)\n%s",
-                    ~mode.ToString(),
-                    ~MetaState->GetVersion().ToString(),
-                    ~CurrentExceptionMessage());
-                throw;
-            }
-            auto logResult = MetaState->LogChange(version, changeData);
-            batchResult = BatchChange(version, changeData, logResult);
-            OnApplyChange_.Fire();
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-
+    try {
+        MetaState->ApplyChange(changeAction);
+    } catch (...) {
+        LOG_DEBUG("Failed to apply the change (Version: %s)\n%s",
+            ~version.ToString(),
+            ~CurrentExceptionMessage());
+    
+        // Need to fire it even here.
+        OnApplyChange_.Fire();
+        throw;
     }
+
     LOG_DEBUG("Change is applied locally (Version: %s)", ~version.ToString());
+
+    OnApplyChange_.Fire();
 
     return batchResult;
 }
@@ -425,7 +404,15 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
                 {
                     return TCommitterBase::EResult::Committed;
                 }));
-        MetaState->ApplyChange(change);
+
+        try {
+            MetaState->ApplyChange(change);
+        } catch (...) {
+            LOG_DEBUG("Failed to apply the change (Version: %s)\n%s",
+                ~currentVersion.ToString(),
+                ~CurrentExceptionMessage());
+        }
+
         ++currentVersion.RecordCount;
     }
 

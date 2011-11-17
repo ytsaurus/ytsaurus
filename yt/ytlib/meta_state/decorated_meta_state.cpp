@@ -102,16 +102,8 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    try {
-        State->ApplyChange(changeData);
-    } catch (...) {
-        // TODO: consider adjusting error level or hiding it from log during recovery
-        LOG_INFO("Failed to apply the change (Version: %s)\n%s",
-            ~GetVersion().ToString(),
-            ~CurrentExceptionMessage());
-    }
-
     IncrementRecordCount();
+    State->ApplyChange(changeData);
 }
 
 void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
@@ -119,16 +111,8 @@ void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
     YASSERT(~changeAction != NULL);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    try {
-        changeAction->Do();
-    } catch (...) {
-        // TODO: consider adjusting error level or hiding it from log during recovery
-        LOG_INFO("Failed to apply the change (Version: %s)\n%s",
-            ~GetVersion().ToString(),
-            ~CurrentExceptionMessage());
-    }
-
     IncrementRecordCount();
+    changeAction->Do();
 }
 
 void TDecoratedMetaState::IncrementRecordCount()

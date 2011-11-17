@@ -53,6 +53,8 @@ public:
 
     IYPathService::TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
+        UNUSED(verb);
+
         if (IsEmptyYPath(path)) {
             return TResolveResult::There(~FallbackService, path);
         } else {

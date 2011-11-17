@@ -101,8 +101,7 @@ public:
      */
     TResult::TPtr Commit(
         IAction::TPtr changeAction,
-        const TSharedRef& changeData,
-        ECommitMode mode);
+        const TSharedRef& changeData);
 
     //! Force to send all pending changes.
     /*!

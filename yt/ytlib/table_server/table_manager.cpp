@@ -100,8 +100,7 @@ TTableManager::InitiateAddTableChunks(
         ~MetaStateManager,
         message,
         &TThis::AddTableChunks,
-        this,
-        ECommitMode::MayFail);
+        this);
 }
 
 TVoid TTableManager::AddTableChunks(const NProto::TMsgAddTableChunks& message)

@@ -439,8 +439,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        ~FromMethod(&TCypressManager::DoExecuteVerbFast, TPtr(this), service, context),
-        ECommitMode::MayFail);
+        ~FromMethod(&TCypressManager::DoExecuteVerbFast, TPtr(this), service, context));
 
     change
         ->OnError(~FromFunctor([=] ()

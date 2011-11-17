@@ -100,8 +100,7 @@ TFileManager::InitiateSetFileChunk(
         ~MetaStateManager,
         message,
         &TThis::SetFileChunk,
-        this,
-        ECommitMode::MayFail);
+        this);
 }
 
 TVoid TFileManager::SetFileChunk(const NProto::TMsgSetFileChunk& message)

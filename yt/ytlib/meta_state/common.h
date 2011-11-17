@@ -61,11 +61,6 @@ DECLARE_ENUM(ECommitResult,
     (ReadOnly)
 );
 
-DECLARE_ENUM(ECommitMode,
-    (NeverFails)
-    (MayFail)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 // TODO: refactor
 
