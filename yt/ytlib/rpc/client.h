@@ -213,7 +213,10 @@ private:
 
     void Deserialize(NBus::IMessage* responseMessage);
     void Complete(const TError& error);
-    void Complete(int code, const Stroka& message);
+    void Complete(int code, const Stroka& message)
+    {
+        return Complete(TError(code, message));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
