@@ -121,9 +121,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->GetChunkId());
-
-    TBlob metaBlob(request->GetMeta().begin(), request->GetMeta().end());
-    TSharedRef masterMeta(metaBlob);
+    TSharedRef masterMeta(TBlob(request->GetMeta().begin(), request->GetMeta().end()));
 
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());

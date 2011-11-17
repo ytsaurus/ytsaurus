@@ -155,12 +155,12 @@ struct ISyncInterface
         }
     }
 
-    template<class TUnderlying, class TArg1>
+    template<class TUnderlying, class TArg1, class TArg1_>
     void Sync(
-        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)(const TArg1&), 
-        const TArg1& arg1) 
+        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)(TArg1), 
+        TArg1_&& arg1) 
     {
-        auto result = (static_cast<TUnderlying*>(this)->*method)(arg1)->Get();
+        auto result = (static_cast<TUnderlying*>(this)->*method)(ForwardRV(arg1))->Get();
         if (!result.IsOK) {
             ythrow yexception() << result.ErrorMessage;
         }

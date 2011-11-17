@@ -180,7 +180,7 @@ public:
     {
         YASSERT(context != NULL);
 
-        if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
+        if (!DeserializeProtobuf(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -211,7 +211,7 @@ public:
     {
         if (error.IsOK()) {
             TBlob responseBlob;
-            if (!SerializeMessage(&Response_, &responseBlob)) {
+            if (!SerializeProtobuf(&Response_, &responseBlob)) {
                 LOG_FATAL("Error serializing response");
             }
             Context->SetResponseBody(MoveRV(responseBlob));

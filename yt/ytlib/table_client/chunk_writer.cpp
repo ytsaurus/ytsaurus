@@ -3,9 +3,14 @@
 
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,10 +157,12 @@ void TChunkWriter::ContinueClose(
 
     ChunkMeta.SetCodecId(Codec->GetId());
 
-    TBlob metaBlock(ChunkMeta.ByteSize());
-    YVERIFY(ChunkMeta.SerializeToArray(metaBlock.begin(), static_cast<int>(metaBlock.size())));
-
-    ChunkWriter->AsyncWriteBlock(TSharedRef(metaBlock))->Subscribe(FromMethod(
+    TBlob metaBlob;
+    if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
+        LOG_FATAL("Failed to serialize table chunk meta");
+    }
+    
+    ChunkWriter->AsyncWriteBlock(MoveRV(metaBlob))->Subscribe(FromMethod(
         &TChunkWriter::FinishClose,
         TPtr(this)));
 }

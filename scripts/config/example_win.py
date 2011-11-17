@@ -4,7 +4,7 @@
 from ytwin import *
 import opts
 
-build_dir = r'C:\Projects\yt-build'
+build_dir = r'D:\Users\Max\Work\Yandex\YT.git\build'
 
 Logging = {
         'Writers' : [

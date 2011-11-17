@@ -108,5 +108,19 @@ int ReadVarInt64(TInputStream* input, i64* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool SerializeProtobuf(const google::protobuf::Message* message, TBlob* data)
+{
+    int size = message->ByteSize();
+    data->resize(size);
+    return message->SerializeToArray(data->begin(), size);
+}
+
+bool DeserializeProtobuf(google::protobuf::Message* message, TRef data)
+{
+    return message->ParseFromArray(data.Begin(), data.Size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 

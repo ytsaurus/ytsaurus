@@ -57,17 +57,17 @@ const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka StringFromSharedRef(TSharedRef sharedRef)
+Stroka StringFromSharedRef(const TSharedRef& sharedRef)
 {
-    TBlob blob = sharedRef.ToBlob();
+    auto blob = sharedRef.ToBlob();
     return Stroka(blob.begin(), blob.end());
 }
 
 
 TSharedRef SharedRefFromString(const Stroka& s)
 {
-    TBlob blob = TBlob(s.begin(), s.end());
-    return TSharedRef(blob);
+    TBlob blob(s.begin(), s.end());
+    return MoveRV(blob);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,10 +118,10 @@ RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
 RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
 {
     for (int i = 0; i < request->Attachments().ysize(); ++i) {
-        TBlob blob = request->Attachments()[i].ToBlob();
+        auto blob = request->Attachments()[i].ToBlob();
         blob.push_back('_');
 
-        response->Attachments().push_back(TSharedRef(blob));
+        response->Attachments().push_back(MoveRV(blob));
     }
     context->Reply();
 }

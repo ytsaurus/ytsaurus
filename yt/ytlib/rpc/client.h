@@ -5,6 +5,7 @@
 #include "../misc/property.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/metric.h"
+#include "../misc/serialize.h"
 #include "../bus/bus_client.h"
 #include "../actions/future.h"
 
@@ -138,7 +139,7 @@ public:
 private:
     virtual bool SerializeBody(TBlob* data) const
     {
-        return SerializeMessage(this, data);
+        return SerializeProtobuf(this, data);
     }
 
     static void OnReady(
@@ -240,7 +241,7 @@ private:
 
     virtual bool DeserializeBody(TRef data)
     {
-        return DeserializeMessage(this, data);
+        return DeserializeProtobuf(this, data);
     }
 };
 

@@ -457,9 +457,9 @@ TVoid TCypressManager::DoExecuteVerb(const TMsgExecuteVerb& message)
     yvector<TSharedRef> parts(message.RequestPartsSize());
     for (int partIndex = 0; partIndex < static_cast<int>(message.RequestPartsSize()); ++partIndex) {
         // NB: This constructs a non-owning TSharedRef to avoid copying.
-        // This is feasible since message will outlive the request.
+        // This is feasible since the message will outlive the request.
         const auto& part = message.GetRequestParts(partIndex);
-        parts[partIndex] = TSharedRef(TRef(const_cast<char*>(part.begin()), part.size()));
+        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 
     YASSERT(parts.ysize() >= 2);

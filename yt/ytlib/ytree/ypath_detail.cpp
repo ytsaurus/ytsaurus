@@ -334,7 +334,7 @@ void ParseYPathRequestHeader(
     YASSERT(verb != NULL);
 
     TRequestHeader header;
-    if (!DeserializeMessage(&header, headerData)) {
+    if (!DeserializeProtobuf(&header, headerData)) {
         LOG_FATAL("Error deserializing YPath request header");
     }
 
@@ -355,7 +355,7 @@ IMessage::TPtr UpdateYPathRequestHeader(
     header.SetVerb(verb);
 
     TBlob headerData;
-    if (!SerializeMessage(&header, &headerData)) {
+    if (!SerializeProtobuf(&header, &headerData)) {
         LOG_FATAL("Error serializing YPath request header");
     }
 
@@ -437,7 +437,7 @@ void ReplyYPathWithMessage(
     YASSERT(!parts.empty());
 
     TResponseHeader header;
-    if (!DeserializeMessage(&header, parts[0])) {
+    if (!DeserializeProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing YPath response header");
     }
 
