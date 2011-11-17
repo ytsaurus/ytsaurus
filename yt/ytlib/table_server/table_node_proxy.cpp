@@ -29,7 +29,11 @@ TTableNodeProxy::TTableNodeProxy(
 
 bool TTableNodeProxy::IsOperationLogged(TYPath path, const Stroka& verb) const
 {
-    return verb == "AddTableChunks";
+    if (verb == "AddTableChunks") {
+        return true;
+    } else {
+        return TBase::IsOperationLogged(path, verb);
+    }
 }
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)

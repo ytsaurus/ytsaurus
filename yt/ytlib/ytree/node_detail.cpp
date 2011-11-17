@@ -478,7 +478,7 @@ int TListNodeMixin::ParseChildIndex(TStringBuf str)
 
     int count = GetChildCount();
     if (count == 0) {
-        ythrow yexception() << Sprintf("Invalid index %s: list is empty",
+        ythrow yexception() << Sprintf("Invalid index %d: list is empty",
             index);
     }
 

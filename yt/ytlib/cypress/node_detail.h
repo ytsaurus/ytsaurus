@@ -8,6 +8,8 @@
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../ytree/fluent.h"
+#include "../ytree/ephemeral.h"
+#include "../ytree/tree_builder.h"
 
 namespace NYT {
 namespace NCypress {
