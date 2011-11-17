@@ -1,4 +1,5 @@
 SET(YT_SOURCE_FILES
+    common.cpp
     chunk_meta.proto
     value.cpp
     schema.cpp

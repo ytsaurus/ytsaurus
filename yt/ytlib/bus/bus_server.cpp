@@ -382,15 +382,15 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         MoveRV(nlRequest->Data),
         true);
 
-    auto response = session->DequeueResponse();
-    if (~response != NULL) {
-        Requester->SendResponse(nlRequest->ReqId, &response->Data);
+    //auto response = session->DequeueResponse();
+    //if (~response != NULL) {
+    //    Requester->SendResponse(nlRequest->ReqId, &response->Data);
 
-        LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Response: %p)",
-            ~session->GetSessionId().ToString(),
-            ~requestId.ToString(),
-            ~response);
-    } else {
+    //    LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Response: %p)",
+    //        ~session->GetSessionId().ToString(),
+    //        ~requestId.ToString(),
+    //        ~response);
+    //} else {
         TBlob ackData;
         CreatePacket(session->GetSessionId(), TPacketHeader::EType::Ack, &ackData);
 
@@ -399,7 +399,7 @@ void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlReques
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
             ~session->GetSessionId().ToString(),
             ~requestId.ToString());
-    }
+    //}
 }
 
 void TBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)

@@ -7,7 +7,6 @@
 #include "../misc/property.h"
 #include "../bus/message.h"
 #include "../rpc/client.h"
-#include "../rpc/message.h"
 #include "../actions/action_util.h"
 
 namespace NYT {
@@ -64,7 +63,7 @@ public:
 protected:
     virtual bool SerializeBody(TBlob* data) const
     {
-        return NRpc::SerializeMessage(this, data);
+        return SerializeProtobuf(this, data);
     }
 };
 
@@ -104,7 +103,7 @@ public:
 protected:
     virtual bool DeserializeBody(TRef data)
     {
-        return NRpc::DeserializeMessage(this, data);
+        return DeserializeProtobuf(this, data);
     }
 
 };

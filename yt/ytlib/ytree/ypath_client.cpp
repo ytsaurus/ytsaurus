@@ -52,7 +52,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 
     // Deserialize RPC header.
     TResponseHeader header;
-    if (!DeserializeMessage(&header, parts[0])) {
+    if (!DeserializeProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing response header");
     }
 

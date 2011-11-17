@@ -2,6 +2,7 @@
 #include "composite_meta_state_detail.h"
 
 #include "../misc/assert.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -15,9 +16,9 @@ void DeserializeChangeHeader(
     TMsgChangeHeader* header)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(header->ParseFromArray(
-        changeData.Begin() + sizeof (fixedHeader),
-        fixedHeader->HeaderSize));
+    YVERIFY(DeserializeProtobuf(
+        header,
+        TRef(changeData.Begin() + sizeof (fixedHeader), fixedHeader->HeaderSize)));
 }
 
 void DeserializeChange(
@@ -26,9 +27,11 @@ void DeserializeChange(
     TRef* messageData)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(header->ParseFromArray(
-        changeData.Begin() + sizeof (TFixedChangeHeader),
-        fixedHeader->HeaderSize));
+
+    YVERIFY(DeserializeProtobuf(
+        header,
+        TRef(changeData.Begin() + sizeof (TFixedChangeHeader), fixedHeader->HeaderSize)));
+
     *messageData = TRef(
         changeData.Begin() + sizeof (TFixedChangeHeader) + fixedHeader->HeaderSize,
         fixedHeader->MessageSize);

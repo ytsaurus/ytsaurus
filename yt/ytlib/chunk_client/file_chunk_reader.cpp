@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "file_chunk_reader.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT
 {
 
@@ -28,13 +30,14 @@ TFileChunkReader::TFileChunkReader(Stroka fileName)
     TBlob metaBlob(footer.MetaSize);
     File->Pread(metaBlob.begin(), footer.MetaSize, footer.MetaOffset);
 
-    if (!Meta.ParseFromArray(metaBlob.begin(), footer.MetaSize)) {
+    if (!DeserializeProtobuf(&Meta, metaBlob)) {
         ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
             ~FileName.Quote());
     }
 
-    TBlob masterMeta(Meta.GetMasterMeta().begin(), Meta.GetMasterMeta().end());
-    MasterMeta = TSharedRef(masterMeta);
+    MasterMeta = TSharedRef(TBlob(
+        Meta.GetMasterMeta().begin(),
+        Meta.GetMasterMeta().end()));
 
     TChunkOffset currentOffset = 0;
     BlockOffsets.reserve(GetBlockCount());
