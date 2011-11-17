@@ -134,7 +134,7 @@ private:
     typedef TImpl TThis;
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef TTypedServiceException<EErrorCode> TServiceException;
+    typedef NRpc::TServiceException TServiceException;
 
     TMetaStateManager::TPtr Owner;
     EPeerStatus ControlStatus;
@@ -1053,11 +1053,17 @@ void TMetaStateManager::TImpl::OnFollowerCommit(
             break;
 
         case TCommitterBase::EResult::LateChanges:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            // TODO(sandello): Meaningful error message?
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are late");
             break;
 
         case TCommitterBase::EResult::OutOfOrderChanges:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            // TODO(sandello): Meaningful error message?
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are late");
             Restart();
             break;
 
@@ -1126,8 +1132,11 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
                 Restart();
             }
 
+            // TODO(sandello): Meaningful error message?
             if (createSnapshot) {
-                context->Reply(EErrorCode::InvalidStatus);
+                context->Reply(
+                    EErrorCode::InvalidStatus,
+                    "AdvanceSegment: skipping snapshot creation, because follower is in recovery");
             } else {
                 context->Reply();
             }
@@ -1153,10 +1162,16 @@ void TMetaStateManager::TImpl::OnCreateLocalSnapshot(
             context->Reply();
             break;
         case TSnapshotCreator::EResultCode::InvalidVersion:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            // TODO(sandello): Meaningful error message?
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Received InvalidVersion during CreateLocalSnapshot invocation");
             break;
         case TSnapshotCreator::EResultCode::AlreadyInProgress:
-            context->Reply(TProxy::EErrorCode::Busy);
+            // TODO(sandello): Meaningful error message?
+            context->Reply(
+                TProxy::EErrorCode::Busy,
+                "Received AlreadyInProgress during CreateLocalSnapshot invocation");
             break;
         default:
             YUNREACHABLE();

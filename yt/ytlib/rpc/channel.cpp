@@ -203,9 +203,7 @@ void TChannel::OnMessage(
         // Don't need the guard anymore.
         guard.Release();
 
-        TError error(
-            EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-            header.GetErrorMessage());
+        TError error(header.GetErrorCode(), header.GetErrorMessage());
         responseHandler->OnResponse(error, ~message);
         ready->Set(error);
     }
@@ -239,7 +237,8 @@ void TChannel::OnAcknowledgement(
         guard.Release();
 
         responseHandler->OnAcknowledgement(sendResult);
-        ready->Set(TError(EErrorCode::TransportError));
+        // TODO(sandello): Meaningful error message?
+        ready->Set(TError(EErrorCode::TransportError, "Bus transport error while sending acknowledgment"));
     } else {
         // Don't need the guard anymore.
         guard.Release();
@@ -272,7 +271,7 @@ void TChannel::OnTimeout(TRequestId requestId)
     guard.Release();
 
     responseHandler->OnTimeout();
-    ready->Set(TError(EErrorCode::Timeout));
+    ready->Set(TError(EErrorCode::Timeout, "Request timed out"));
 }
 
 void TChannel::UnregisterRequest(TRequestMap::iterator it)

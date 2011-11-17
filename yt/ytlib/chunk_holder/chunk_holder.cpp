@@ -210,9 +210,10 @@ void TChunkHolder::OnSentBlocks(
     if (putResponse->IsOK()) {
         context->Reply();
     } else {
-        LOG_WARNING("SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
+        Stroka message = Sprintf(
+            "SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
             ~putResponse->GetError().ToString());
-        context->Reply(TProxy::EErrorCode::RemoteCallFailed);
+        context->Reply(TProxy::EErrorCode::RemoteCallFailed, message);
     }
 }
 
@@ -242,8 +243,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
             FromFunctor([=] (TCachedBlock::TPtr block)
                 {
                     if (~block == NULL) {
+                        // TODO: Meaningful error message
                         awaiter->Cancel();
-                        context->Reply(TChunkHolderProxy::EErrorCode::NoSuchBlock);
+                        context->Reply(
+                            TChunkHolderProxy::EErrorCode::NoSuchBlock,
+                            Sprintf("Block not found (Index: %d)", blockIndex));
                     } else {
                         context->Response().Attachments()[index] = block->GetData();
                     }

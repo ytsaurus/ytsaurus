@@ -43,9 +43,9 @@ public:
         const NTransaction::TTransactionId& transactionId);
 
 private:
-    typedef TFileServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef TFileManager TThis;
+    typedef TFileServiceProxy::EErrorCode EErrorCode;
+    typedef NRpc::TServiceException TServiceException;
 
     NCypress::TCypressManager::TPtr CypressManager;
     NChunkServer::TChunkManager::TPtr ChunkManager;

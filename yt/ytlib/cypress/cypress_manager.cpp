@@ -444,7 +444,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     change
         ->OnError(~FromFunctor([=] ()
             {
-                context_->Reply(TError(EYPathErrorCode(EYPathErrorCode::GenericError)));
+                context_->Reply(TError(EYPathErrorCode::GenericError, "Generic error :7"));
             }))
         ->Commit();
 }

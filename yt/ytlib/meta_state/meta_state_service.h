@@ -46,7 +46,8 @@ protected:
         TIntrusivePtr<TContext> context_ = context;
         return FromFunctor([=] ()
             {
-                context_->Reply(NRpc::EErrorCode::Unavailable);
+                // TODO(sandello): Meaningful error message?
+                context_->Reply(NRpc::EErrorCode::Unavailable, "Service unavailable");
             });
     }
 

@@ -95,7 +95,7 @@ private:
     typedef TElectionManager TThis;
     typedef TElectionManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
+    typedef NRpc::TServiceException TServiceException;
 
     class TVotingRound;
     class TFollowerPinger;

@@ -25,7 +25,7 @@ IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, const Stroka& verb
             verb != "List" &&
             verb != "Remove")
         {
-            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+            ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
                 "Verb is not supported for attribute lists";
         }
         return TResolveResult::Here(path);
@@ -52,7 +52,7 @@ void TNodeBase::Invoke(IServiceContext* context)
     try {
         DoInvoke(context);
     } catch (...) {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
+        ythrow TServiceException(EYPathErrorCode::GenericError) <<
             CurrentExceptionMessage();
     }
 }
@@ -68,7 +68,7 @@ void TNodeBase::DoInvoke(IServiceContext* context)
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+        ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
             "Verb is not supported";
     }
 }
@@ -200,7 +200,7 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
     UNUSED(response);
     UNUSED(context);
 
-    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+    ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
 
@@ -477,7 +477,7 @@ int TListNodeMixin::ParseChildIndex(TStringBuf str)
 
     int count = GetChildCount();
     if (count == 0) {
-        ythrow yexception() << Sprintf("Invalid index %s: list is empty",
+        ythrow yexception() << Sprintf("Invalid index %d: list is empty",
             index);
     }
 

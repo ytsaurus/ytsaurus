@@ -119,7 +119,7 @@ void TJob::Stop()
 void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
 {
     if (!result.IsOK) {
-        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d): ",
+        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d): %s",
             ~JobId.ToString(),
             blockIndex,
             ~result.ErrorMessage);

@@ -110,7 +110,8 @@ TFuture<TError>::TPtr TCellChannel::OnGotChannel(
 {
     if (~channel == NULL) {
         responseHandler->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return New< TFuture<TError> >(TError(EErrorCode::Unavailable));
+        // TODO(sandello): Meaningful error message?
+        return New< TFuture<TError> >(TError(EErrorCode::Unavailable, "Cell channel unavailable"));
     }
 
     return

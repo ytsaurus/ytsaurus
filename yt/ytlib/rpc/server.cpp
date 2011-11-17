@@ -173,13 +173,15 @@ private:
             ~requestId.ToString());
 
         if (!Started) {
+            Stroka message = Sprintf("Server is not started (RequestId: %s)",
+                ~requestId.ToString());
+
             auto errorMessage = CreateErrorResponseMessage(
                 requestId,
-                TError(EErrorCode::Unavailable));
+                TError(EErrorCode::Unavailable, message));
             replyBus->Send(errorMessage);
 
-            LOG_DEBUG("Server is not started (RequestId: %s)",
-                ~requestId.ToString());
+            LOG_DEBUG(~message);
             return;
         }
 
@@ -188,14 +190,16 @@ private:
 
         auto service = GetService(serviceName);
         if (~service == NULL) {
-            auto errorMessage = CreateErrorResponseMessage(
-                requestId,
-                TError(EErrorCode::NoSuchService));
-            replyBus->Send(errorMessage);
-
-            LOG_DEBUG("Unknown service name (RequestId: %s, ServiceName: %s)",
+            Stroka message = Sprintf("Unknown service name (RequestId: %s, ServiceName: %s)",
                 ~requestId.ToString(),
                 ~serviceName);
+
+            auto errorMessage = CreateErrorResponseMessage(
+                requestId,
+                TError(EErrorCode::NoSuchService, message));
+            replyBus->Send(errorMessage);
+
+            LOG_DEBUG(~message);
             return;
         }
 

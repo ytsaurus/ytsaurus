@@ -441,9 +441,7 @@ void ReplyYPathWithMessage(
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    TError error(
-        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-        header.GetErrorMessage());
+    TError error(header.GetErrorCode(), header.GetErrorMessage());
 
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);

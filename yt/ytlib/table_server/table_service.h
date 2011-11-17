@@ -30,7 +30,7 @@ public:
 private:
     typedef TTableService TThis;
     typedef TTableServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
+    typedef NRpc::TServiceException TServiceException;
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
     TTableManager::TPtr TableManager;

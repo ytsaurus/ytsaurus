@@ -28,7 +28,7 @@ public:
 private:
     typedef TOrchidService TThis;
     typedef TOrchidServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
+    typedef NRpc::TServiceException TServiceException;
 
     NYTree::INode::TPtr Root;
 

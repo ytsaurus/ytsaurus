@@ -39,9 +39,9 @@ public:
         const yvector<TChunkId>& chunkIds);
 
 private:
-    typedef TTableServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
     typedef TTableManager TThis;
+    typedef TTableServiceProxy::EErrorCode EErrorCode;
+    typedef NRpc::TServiceException TServiceException;
 
     NCypress::TCypressManager::TPtr CypressManager;
     NChunkServer::TChunkManager::TPtr ChunkManager;

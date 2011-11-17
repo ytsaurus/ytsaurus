@@ -80,7 +80,7 @@ public:
 
     void Deserialize(NBus::IMessage* message);
 
-    NRpc::EErrorCode GetErrorCode() const;
+    int GetErrorCode() const;
     bool IsOK() const;
 
     void ThrowIfError() const;

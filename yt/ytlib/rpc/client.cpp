@@ -72,10 +72,10 @@ IMessage::TPtr TClientResponse::GetResponseMessage() const
 
 bool TClientResponse::IsOK() const
 {
-    return Error_.GetCode() == EErrorCode::OK;
+    return Error_.IsOK();
 }
 
-EErrorCode TClientResponse::GetErrorCode() const
+int TClientResponse::GetErrorCode() const
 {
     return Error_.GetCode();
 }
@@ -112,7 +112,8 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
                 break;
 
             case IBus::ESendResult::Failed:
-                Complete(TError(EErrorCode::TransportError));
+                // TODO(sandello): Meaningful error message?
+                Complete(EErrorCode::TransportError, "Bus transport error while sending acknowledgment");
                 break;
 
             default:
@@ -128,7 +129,8 @@ void TClientResponse::OnTimeout()
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent || State == EState::Ack) {
-        Complete(TError(EErrorCode::Timeout));
+        // TODO(sandello): Meaningful error message?
+        Complete(EErrorCode::Timeout, "Request timed out");
     }
 }
 
@@ -149,7 +151,7 @@ void TClientResponse::OnResponse(const TError& error, IMessage* message)
 
 void TClientResponse::Complete(const TError& error)
 {
-    LOG_DEBUG("Request complete (RequestId: %s, Error: %s)",
+    LOG_DEBUG("Request completed (RequestId: %s, Error: %s)",
         ~RequestId_.ToString(),
         ~error.ToString());
 

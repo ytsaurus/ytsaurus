@@ -133,7 +133,8 @@ private:
                 TInstant::Now() + Channel->GetBackoffTime());
         } else {
             // TODO: provide better diagnostics
-            TError error(EErrorCode::Unavailable);
+            // TODO(sandello): We have to aggregate acquired errors and tell about them here.
+            TError error(EErrorCode::Unavailable, "Request retrial has failed");
             OriginalHandler->OnResponse(error, NULL);
             SendResult->Set(error);
         }

@@ -184,7 +184,7 @@ public:
 
     NBus::IMessage::TPtr GetResponseMessage() const;
 
-    EErrorCode GetErrorCode() const;
+    int GetErrorCode() const;
     bool IsOK() const;
 
 protected:
@@ -213,6 +213,7 @@ private:
 
     void Deserialize(NBus::IMessage* responseMessage);
     void Complete(const TError& error);
+    void Complete(int code, const Stroka& message);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +254,7 @@ private:
         return PP_STRINGIZE(path); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##path##Error, NRpc::EErrorCode, \
+    DECLARE_ENUM(E##path##Error, \
         errorCodes \
     ); \
     \
