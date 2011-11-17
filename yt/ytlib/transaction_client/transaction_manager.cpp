@@ -10,6 +10,7 @@
 
 namespace NYT {
 namespace NTransactionClient {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("TransactionClient");

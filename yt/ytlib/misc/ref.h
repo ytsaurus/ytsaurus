@@ -16,7 +16,7 @@ typedef yvector<char> TBlob;
 class TRef
 {
 public:
-    //! Creates a NULL reference.
+    //! Creates a NULL reference with zero size.
     TRef()
         : Data(NULL)
         , Size_(0)
@@ -25,25 +25,16 @@ public:
     //! Creates a reference for a given block of memory.
     TRef(void* data, size_t size)
     {
-        if (data != NULL && size != 0) {
-            Data = reinterpret_cast<char*>(data);
-            Size_ = size;
-        } else {
-            Data = NULL;
-            Size_ = 0;
-        }
+        YASSERT(data != NULL || size == 0);
+        Data = reinterpret_cast<char*>(data);
+        Size_ = size;
     }
 
     //! Creates a reference for a given blob.
     TRef(const TBlob& blob)
     {
-        if (!blob.empty()) {
-            Data = const_cast<char*>(blob.begin());
-            Size_ = blob.size();
-        } else {
-            Data = NULL;
-            Size_ = 0;
-        }
+        Data = const_cast<char*>(blob.begin());
+        Size_ = blob.size();
     }
 
     const char* Begin() const
@@ -94,9 +85,6 @@ public:
     }
 
     //! Compares the content for equality.
-    /*!
-     *  NULL references are considered equivalent to empty-sized ones.
-     */
     static inline bool CompareContent(const TRef& lhs, const TRef& rhs)
     {
         if (lhs.Size() != rhs.Size())

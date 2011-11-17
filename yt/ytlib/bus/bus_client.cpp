@@ -214,7 +214,7 @@ class TClientDispatcher
                 break;
 
             case TPacketHeader::EType::Message:
-                ProcessAck(header, nlResponse);
+                //ProcessAck(header, nlResponse);
                 ProcessMessage(header, nlResponse);
                 break;
 
