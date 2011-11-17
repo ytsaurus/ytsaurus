@@ -1,14 +1,12 @@
-﻿#pragma once
-
-#include "../misc/common.h"
-#include "../logging/log.h"
+#include "stdafx.h"
+#include "common.h"
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableClientLogger;
+NLog::TLogger TableClientLogger("TableClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

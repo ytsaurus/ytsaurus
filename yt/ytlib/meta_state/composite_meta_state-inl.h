@@ -3,6 +3,7 @@
 #endif
 
 #include "../misc/assert.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -31,7 +32,7 @@ void TMetaStatePart::MethodThunk(
     YASSERT(~changeMethod != NULL);
 
     TMessage message;
-    YVERIFY(message.ParseFromArray(changeData.Begin(), changeData.Size()));
+    YVERIFY(DeserializeProtobuf(&message, changeData));
 
     changeMethod->Do(message);
 }

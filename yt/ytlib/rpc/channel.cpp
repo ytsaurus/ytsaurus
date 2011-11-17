@@ -170,7 +170,7 @@ void TChannel::OnMessage(
     }
 
     TResponseHeader header;
-    if (!DeserializeMessage(&header, parts[0])) {
+    if (!DeserializeProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing response header");
     }
 

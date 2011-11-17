@@ -87,6 +87,7 @@ void TMessageRearranger::OnTimeout()
                 break;
 
             auto message = it->second;
+            flushedMessages.push_back(message);
             MessageMap.erase(it);
 
             ++ExpectedSequenceId;

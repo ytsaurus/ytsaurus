@@ -39,7 +39,7 @@ public:
         TDuration TransactionTimeout;
 
         TConfig()
-            : TransactionTimeout(TDuration::Seconds(60))
+            : TransactionTimeout(TDuration::Seconds(10))
         { }
     };
 

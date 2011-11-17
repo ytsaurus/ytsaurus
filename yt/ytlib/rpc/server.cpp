@@ -158,7 +158,7 @@ private:
         }
 
         TRequestHeader requestHeader;
-        if (!DeserializeMessage(&requestHeader, parts[0])) {
+        if (!DeserializeProtobuf(&requestHeader, parts[0])) {
             LOG_ERROR("Error deserializing request header");
             return;
         }
