@@ -142,15 +142,28 @@ ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
     return *impl;
 }
 
-ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(nodeId != NullNodeId);
-    const auto& impl = GetTransactionNode(nodeId, transactionId);
-    return GetTypeHandler(impl)->GetProxy(impl, transactionId);
+    const auto* impl = FindTransactionNode(nodeId, transactionId);
+    if (impl == NULL) {
+        return NULL;
+    }
+
+    return GetTypeHandler(*impl)->GetProxy(*impl, transactionId);
+}
+
+ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId)
+{
+    auto proxy = FindNodeProxy(nodeId, transactionId);
+    YASSERT(~proxy != NULL);
+    return proxy;
 }
 
 bool TCypressManager::IsTransactionNodeLocked(

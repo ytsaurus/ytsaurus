@@ -19,9 +19,8 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb, TYPath path)
+TYPathRequest::TYPathRequest(const Stroka& verb)
     : Verb_(verb)
-    , Path_(path)
 { }
 
 IMessage::TPtr TYPathRequest::Serialize()
@@ -94,31 +93,31 @@ void TYPathResponse::ThrowIfError() const
 
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::Get(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::Get();
+    auto response = ExecuteYPath(rootService, path, ~request)->Get();
     response->ThrowIfError();
     return response->GetValue();
 }
 
 void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value)
 {
-    auto request = TYPathProxy::Set(path);
+    auto request = TYPathProxy::Set();
     request->SetValue(value);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto response = ExecuteYPath(rootService, path, ~request)->Get();
     response->ThrowIfError();
 }
 
 void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::Remove(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::Remove();
+    auto response = ExecuteYPath(rootService, path, ~request)->Get();
     response->ThrowIfError();
 }
 
 yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::List(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::List();
+    auto response = ExecuteYPath(rootService, path, ~request)->Get();
     response->ThrowIfError();
     return FromProto<Stroka>(response->GetKeys());
 }

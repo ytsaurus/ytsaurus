@@ -55,25 +55,35 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     UNUSED(response);
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto rootNodeId =
+        request->HasRootNodeId()
+        ? TNodeId::FromProto(request->GetRootNodeId())
+        : RootNodeId;
 
     const auto& attachments = request->Attachments();
-    YASSERT(attachments.ysize() >= 2);
 
     TYPath path;
     Stroka verb;
+    YASSERT(!attachments.empty());
     ParseYPathRequestHeader(
         attachments[0],
         &path,
         &verb);
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
+    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s, RootNodeId: %s",
         ~transactionId.ToString(),
         ~path,
-        ~verb);
+        ~verb,
+        ~rootNodeId.ToString());
 
     ValidateTransactionId(transactionId);
 
-    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto root = CypressManager->FindNodeProxy(rootNodeId, transactionId);
+    if (~root == NULL) {
+        ythrow TServiceException(EErrorCode::ResolutionError) << Sprintf("Root node is not found (NodeId: %s)",
+            ~rootNodeId.ToString());
+    }
+
     auto rootService = IYPathService::FromNode(~root);
 
     IYPathService::TPtr suffixService;
