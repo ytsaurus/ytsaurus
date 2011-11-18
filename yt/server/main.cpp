@@ -46,6 +46,7 @@ int main(int argc, const char *argv[])
             .RequiredArgument("FILE")
             .StoreResult(&configFileName);
 
+        // TODO: killme
         Stroka newConfigFileName;
         opts.AddLongOption("new_config", "new configuration file")
             .RequiredArgument("FILE")
@@ -82,6 +83,10 @@ int main(int argc, const char *argv[])
             if (port >= 0) {
                 config.Port = port;
             }
+
+            // TODO: killme
+            config.NewConfigFileName = newConfigFileName;
+
             TChunkHolderServer chunkHolderServer(config);
             chunkHolderServer.Run();
         }
@@ -94,8 +99,11 @@ int main(int argc, const char *argv[])
                 // TODO: check id
                 config.MetaState.Cell.Id = peerId;
             }
-
+            
+            // TODO: killme
+            config.NewConfigFileName = newConfigFileName;
             // TODO: check that config.Cell.Id is initialized
+
             TCellMasterServer cellMasterServer(config);
             cellMasterServer.Run();
         }

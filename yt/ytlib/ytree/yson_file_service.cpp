@@ -20,9 +20,10 @@ public:
 
     virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
+        UNUSED(verb);
+
         auto node = LoadFile();
-        auto service = IYPathService::FromNode(~node);
-        return TResolveResult::There(~service, path);
+        return TResolveResult::There(~IYPathService::FromNode(~node), path);
     }
 
     virtual void Invoke(NRpc::IServiceContext* context)
