@@ -25,8 +25,8 @@ DECLARE_ENUM(EErrorCode,
 
 class TError
 {
-    DECLARE_BYVAL_RO_PROPERTY(Code, int);
-    DECLARE_BYVAL_RO_PROPERTY(Message, Stroka);
+    DECLARE_BYVAL_RO_PROPERTY(int, Code);
+    DECLARE_BYVAL_RO_PROPERTY(Stroka, Message);
 
 public:
     TError()
