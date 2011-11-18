@@ -36,7 +36,7 @@ class TYPathRequest
 public:
     typedef TIntrusivePtr<TYPathRequest> TPtr;
     
-    TYPathRequest(const Stroka& verb, TYPath path);
+    TYPathRequest(const Stroka& verb);
 
     NBus::IMessage::TPtr Serialize();
 
@@ -56,8 +56,8 @@ public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
     typedef TIntrusivePtr< TTypedYPathRequest<TRequestMessage, TResponseMessage> > TPtr;
 
-    TTypedYPathRequest(const Stroka& verb, TYPath path)
-        : TYPathRequest(verb, path)
+    TTypedYPathRequest(const Stroka& verb)
+        : TYPathRequest(verb)
     { }
 
 protected:
@@ -114,9 +114,9 @@ protected:
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \
-    static TReq##method::TPtr method(::NYT::NYTree::TYPath path) \
+    static TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(#method, path); \
+        return New<TReq##method>(#method); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +124,10 @@ protected:
 //! Executes a YPath verb against a local service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(IYPathService* rootService, TTypedRequest* request);
+ExecuteYPath(
+    IYPathService* rootService,
+    TYPath path,
+    TTypedRequest* request);
 
 //! Executes "Get" verb synchronously. Throws if an error has occurred.
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
@@ -175,9 +178,11 @@ void OnYPathResponse(
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
+ExecuteYPath(
+    IYPathService* rootService,
+    TYPath path,
+    TTypedRequest* request)
 {
-    TYPath path = request->GetPath();
     Stroka verb = request->GetVerb();
 
     IYPathService::TPtr suffixService;

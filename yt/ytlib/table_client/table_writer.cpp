@@ -55,9 +55,9 @@ void TTableWriter::Init()
 
 bool TTableWriter::NodeExists(const Stroka& nodePath)
 {
-    auto req = TCypressYPathProxy::GetId(nodePath);
+    auto req = TCypressYPathProxy::GetId();
 
-    auto rsp = Proxy.Execute(Transaction->GetId(), ~req)->Get();
+    auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
@@ -76,10 +76,10 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
 
 void TTableWriter::CreateTableNode(const Stroka& nodePath)
 {
-    auto req = TCypressYPathProxy::Create(nodePath);
+    auto req = TCypressYPathProxy::Create();
     req->SetManifest("{type=table}");
 
-    auto rsp = Proxy.Execute(Transaction->GetId(), ~req)->Get();
+    auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
@@ -107,12 +107,12 @@ void TTableWriter::Close()
     Writer->Sync(&TChunkSetWriter::AsyncClose);
 
     // TODO: use node id
-    auto req = TTableYPathProxy::AddTableChunks(Path);
+    auto req = TTableYPathProxy::AddTableChunks();
     FOREACH(const auto& chunkId, Writer->GetWrittenChunks()) {
         req->AddChunkIds(chunkId.ToProto());
     }
 
-    auto rsp = Proxy.Execute(Transaction->GetId(), ~req)->Get();
+    auto rsp = Proxy.Execute(Path, Transaction->GetId(), ~req)->Get();
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
