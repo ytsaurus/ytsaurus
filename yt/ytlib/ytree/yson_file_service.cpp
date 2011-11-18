@@ -22,7 +22,7 @@ public:
     {
         auto node = LoadFile();
         auto service = IYPathService::FromNode(~node);
-        return service->Resolve(path, verb);
+        return TResolveResult::There(~service, path);
     }
 
     virtual void Invoke(NRpc::IServiceContext* context)
