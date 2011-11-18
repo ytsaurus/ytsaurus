@@ -134,7 +134,6 @@ private:
     typedef TImpl TThis;
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     TMetaStateManager::TPtr Owner;
     EPeerStatus ControlStatus;

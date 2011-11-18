@@ -28,7 +28,6 @@ public:
 private:
     typedef TTransactionService TThis;
     typedef TTransactionServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     TTransactionManager::TPtr TransactionManager;
 

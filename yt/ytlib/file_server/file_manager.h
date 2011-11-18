@@ -45,7 +45,6 @@ public:
 private:
     typedef TFileManager TThis;
     typedef TFileServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     NCypress::TCypressManager::TPtr CypressManager;
     NChunkServer::TChunkManager::TPtr ChunkManager;

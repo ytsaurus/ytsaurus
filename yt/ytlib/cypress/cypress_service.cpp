@@ -7,6 +7,7 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NMetaState;

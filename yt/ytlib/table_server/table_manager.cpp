@@ -5,6 +5,7 @@
 namespace NYT {
 namespace NTableServer {
 
+using namespace NRpc;
 using namespace NMetaState;
 using namespace NCypress;
 using namespace NChunkServer;

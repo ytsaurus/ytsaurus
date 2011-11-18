@@ -27,7 +27,6 @@ public:
 private:
     typedef TCypressService TThis;
     typedef TCypressServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     TCypressManager::TPtr CypressManager;
     NTransaction::TTransactionManager::TPtr TransactionManager;

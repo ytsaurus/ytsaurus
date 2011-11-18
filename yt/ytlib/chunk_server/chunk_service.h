@@ -28,7 +28,6 @@ public:
 private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;

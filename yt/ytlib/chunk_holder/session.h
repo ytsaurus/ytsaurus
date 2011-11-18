@@ -59,7 +59,6 @@ private:
 
     typedef TChunkHolderProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)

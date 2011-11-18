@@ -30,7 +30,6 @@ public:
 private:
     typedef TFileService TThis;
     typedef TFileServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
     TFileManager::TPtr FileManager;

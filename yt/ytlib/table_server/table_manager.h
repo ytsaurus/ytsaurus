@@ -41,7 +41,6 @@ public:
 private:
     typedef TTableManager TThis;
     typedef TTableServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TServiceException TServiceException;
 
     NCypress::TCypressManager::TPtr CypressManager;
     NChunkServer::TChunkManager::TPtr ChunkManager;

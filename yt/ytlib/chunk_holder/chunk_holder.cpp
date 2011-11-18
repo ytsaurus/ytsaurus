@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
