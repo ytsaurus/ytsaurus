@@ -3,7 +3,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Defines a trivial public read-write property that is passed by reference.
-#define DECLARE_BYREF_RW_PROPERTY(name, type) \
+#define DECLARE_BYREF_RW_PROPERTY(type, name) \
 protected: \
     type name##_; \
     \
@@ -19,7 +19,7 @@ public: \
     }
 
 //! Defines a trivial public read-only property that is passed by reference.
-#define DECLARE_BYREF_RO_PROPERTY(name, type) \
+#define DECLARE_BYREF_RO_PROPERTY(type, name) \
 protected: \
     type name##_; \
     \
@@ -30,7 +30,7 @@ public: \
     }
 
 //! Defines a trivial public read-write property that is passed by value.
-#define DECLARE_BYVAL_RW_PROPERTY(name, type) \
+#define DECLARE_BYVAL_RW_PROPERTY(type, name) \
 protected: \
     type name##_; \
     \
@@ -51,7 +51,7 @@ public: \
     }
 
 //! Defines a trivial public read-only property that is passed by value.
-#define DECLARE_BYVAL_RO_PROPERTY(name, type) \
+#define DECLARE_BYVAL_RO_PROPERTY(type, name) \
 protected: \
     type name##_; \
     \
