@@ -195,7 +195,7 @@ bool IsFinalYPath(TYPath path)
     return path.empty() || path == "/";
 }
 
-bool HasYPathAttributeMarker(TYPath path)
+bool IsAttributeYPath(TYPath path)
 {
     return !path.empty() && path[0] == '@';
 }
@@ -203,6 +203,15 @@ bool HasYPathAttributeMarker(TYPath path)
 TYPath ChopYPathAttributeMarker(TYPath path)
 {
     return path.substr(1);
+}
+
+bool IsLocalYPath(TYPath path)
+{
+    // The empty path is handled by the virtual node itself.
+    // All other paths (including "/") are forwarded to the service.
+    // Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
+    // Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+    return IsEmptyYPath(path) || IsAttributeYPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

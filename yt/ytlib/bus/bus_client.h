@@ -32,7 +32,7 @@ public:
      *
      *  \param address An address where all buses will point to.
      */
-    TBusClient(Stroka address);
+    TBusClient(const Stroka& address);
 
     //! Creates a new bus.
     /*!

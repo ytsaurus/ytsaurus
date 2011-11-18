@@ -80,6 +80,7 @@ struct IServiceContext
 
     virtual void Reply(const TError& error) = 0;
     virtual bool IsReplied() const = 0;
+    virtual TError GetError() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;

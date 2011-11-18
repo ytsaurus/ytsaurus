@@ -26,7 +26,7 @@ public:
         const NTransaction::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const;
+    virtual bool IsLogged(NRpc::IServiceContext* context) const;
 
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;

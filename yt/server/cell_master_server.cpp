@@ -30,9 +30,11 @@
 
 #include <yt/ytlib/table_server/table_node.h>
 
+#include <yt/ytlib/ytree/yson_file_service.h>
+
 namespace NYT {
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("CellMaster");
 
 using NRpc::CreateRpcServer;
 
@@ -152,13 +154,21 @@ void TCellMasterServer::Run()
     // TODO: register more monitoring infos
     monitoringManager->Start();
 
+    // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
             orchidFactory),
         "monitoring");
+    if (!Config.NewConfigFileName.empty()) {
+        orchidRoot->AddChild(
+            NYTree::CreateVirtualNode(
+                ~NYTree::CreateYsonFileProducer(Config.NewConfigFileName),
+                orchidFactory),
+            "config");
+    }
 
     auto orchidService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

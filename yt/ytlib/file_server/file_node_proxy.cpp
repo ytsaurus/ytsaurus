@@ -25,12 +25,13 @@ TFileNodeProxy::TFileNodeProxy(
     , ChunkManager(chunkManager)
 { }
 
-bool TFileNodeProxy::IsOperationLogged(TYPath path, const Stroka& verb) const
+bool TFileNodeProxy::IsLogged(IServiceContext* context) const
 {
+    Stroka verb = context->GetVerb();
     if (verb == "SetFileChunk") {
         return true;
     } else {
-        return TBase::IsOperationLogged(path, verb);
+        return TBase::IsLogged(context);
     }
 }
 

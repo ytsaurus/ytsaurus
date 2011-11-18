@@ -6,7 +6,8 @@ message TMsgExecuteVerb
 {
     required bytes NodeId = 1;
     required bytes TransactionId = 2;
-    repeated bytes RequestParts = 3;
+    required bool StartAutoTransaction = 3;
+    repeated bytes RequestParts = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

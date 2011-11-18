@@ -18,7 +18,7 @@ IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, const Stroka& verb
 {
     if (IsFinalYPath(path)) {
         return ResolveSelf(path, verb);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath) &&
             verb != "Get" &&
@@ -79,7 +79,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         GetSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             TStringStream stream;
@@ -160,7 +160,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         SetSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
@@ -220,7 +220,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
     Stroka path = context->GetPath();
     if (IsFinalYPath(path)) {
         RemoveSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             SetAttributes(NULL);

@@ -66,7 +66,7 @@ public:
     TVirtualEntityNode(
         TYPathServiceProducer* builder,
         INodeFactory* factory)
-        : Builder(builder)
+        : Producer(builder)
         , Factory(factory)
     { }
 
@@ -95,41 +95,33 @@ public:
         Attributes = attributes;
     }
 
-    virtual void Invoke(IServiceContext* context)
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
-        TYPath path = context->GetPath();
-        if (IsEmptyYPath(path)) {
-            TNodeBase::Invoke(context);
+        if (IsLocalYPath(path)) {
+            return TNodeBase::Resolve(path, verb);
         } else {
-            auto service = Builder->Do();
-            service->Invoke(context);
+            auto service = Producer->Do();
+            return TResolveResult::There(~service, path);
         }
     }
 
 private:
-    TYPathServiceProducer::TPtr Builder;
+    TYPathServiceProducer::TPtr Producer;
     INodeFactory* Factory;
 
     ICompositeNode* Parent;
     IMapNode::TPtr Attributes;
 
-    TResolveResult ResolveRecursive(TYPath path, const Stroka& verb)
-    {
-        auto service = Builder->Do();
-        return service->Resolve(path, verb);
-    }
-
 };
 
 INode::TPtr CreateVirtualNode(
-    TYPathServiceProducer* builder,
+    TYPathServiceProducer* producer,
     INodeFactory* factory)
 {
-    return New<TVirtualEntityNode>(builder, factory);
+    return New<TVirtualEntityNode>(producer, factory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT
-
