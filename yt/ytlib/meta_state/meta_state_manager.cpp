@@ -408,20 +408,20 @@ private:
             }
 
             case EPeerStatus::FollowerRecovery: {
-                LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
-                    ~version.ToString(),
-                    changeCount);
+                if (~FollowerRecovery != NULL) {
+                    LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
+                        ~version.ToString(),
+                        changeCount);
 
-                YASSERT(~FollowerRecovery != NULL);
+                    auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
+                    if (result != TRecovery::EResult::OK) {
+                        Restart();
+                    }
 
-                auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
-                if (result != TRecovery::EResult::OK) {
-                    Restart();
+                    response->SetCommitted(false);
+                    context->Reply();
+                    break;
                 }
-
-                response->SetCommitted(false);
-                context->Reply();
-                break;
             }
 
             default:
@@ -483,18 +483,19 @@ private:
                 break;
             
             case EPeerStatus::FollowerRecovery: {
-                YASSERT(~FollowerRecovery != NULL);
-                auto result = FollowerRecovery->PostponeSegmentAdvance(version);
-                if (result != TRecovery::EResult::OK) {
-                    Restart();
-                }
+                if (~FollowerRecovery != NULL) {
+                    auto result = FollowerRecovery->PostponeSegmentAdvance(version);
+                    if (result != TRecovery::EResult::OK) {
+                        Restart();
+                    }
 
-                if (createSnapshot) {
-                    context->Reply(EErrorCode::InvalidStatus);
-                } else {
-                    context->Reply();
+                    if (createSnapshot) {
+                        context->Reply(EErrorCode::InvalidStatus);
+                    } else {
+                        context->Reply();
+                    }
+                    break;
                 }
-                break;
             }
 
             default:
