@@ -592,12 +592,6 @@ private:
             TPtr(this),
             Epoch));
 
-        YASSERT(~FollowerTracker == NULL);
-        FollowerTracker = New<TFollowerTracker>(
-            TFollowerTracker::TConfig(),
-            CellManager,
-            ControlInvoker);
-
         YASSERT(~LeaderCommitter == NULL);
         LeaderCommitter = New<TLeaderCommitter>(
             TLeaderCommitter::TConfig(),
@@ -768,6 +762,12 @@ private:
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartLeading,
             TPtr(this)));
+
+        YASSERT(~FollowerTracker == NULL);
+        FollowerTracker = New<TFollowerTracker>(
+            TFollowerTracker::TConfig(),
+            CellManager,
+            ControlInvoker);
 
         YASSERT(~FollowerPinger == NULL);
         FollowerPinger = New<TFollowerPinger>(
