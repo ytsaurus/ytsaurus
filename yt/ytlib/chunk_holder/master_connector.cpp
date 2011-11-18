@@ -261,6 +261,8 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
          jobIndex < static_cast<int>(response->JobsToStartSize());
          ++jobIndex)
     {
+        using NChunkClient::TChunkId;
+
         const TJobStartInfo& startInfo = response->GetJobsToStart(jobIndex);
         TChunkId chunkId = TChunkId::FromProto(startInfo.GetChunkId());
         TJobId jobId = TJobId::FromProto(startInfo.GetJobId());
