@@ -216,7 +216,7 @@ void TChunkHolder::OnSentBlocks(
             "OnSentBlocks: Cannot put blocks on the remote chunk holder:\n%s",
             ~putResponse->GetError().ToString());
 
-        LOG_WARNING(~message);
+        LOG_WARNING("%s", ~message);
         context->Reply(EErrorCode::RemoteCallFailed, message);
     }
 }

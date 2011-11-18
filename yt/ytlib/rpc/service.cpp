@@ -72,7 +72,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         Stroka message = Sprintf("Unknown method (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~verb);
-        LOG_WARNING(~message);
+        LOG_WARNING("%s", ~message);
         context->Reply(TError(EErrorCode::NoSuchMethod, message));
     } else {
         auto handler = runtimeInfo->Descriptor.Handler;

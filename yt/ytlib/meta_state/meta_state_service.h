@@ -46,8 +46,9 @@ protected:
         TIntrusivePtr<TContext> context_ = context;
         return FromFunctor([=] ()
             {
-                // TODO(sandello): Meaningful error message?
-                context_->Reply(NRpc::EErrorCode::Unavailable, "Service unavailable");
+                context_->Reply(
+                    NRpc::EErrorCode::Unavailable,
+                    "Error commiting meta state changes");
             });
     }
 

@@ -1052,17 +1052,15 @@ void TMetaStateManager::TImpl::OnFollowerCommit(
             break;
 
         case TCommitterBase::EResult::LateChanges:
-            // TODO(sandello): Meaningful error message?
             context->Reply(
                 TProxy::EErrorCode::InvalidVersion,
                 "Changes are late");
             break;
 
         case TCommitterBase::EResult::OutOfOrderChanges:
-            // TODO(sandello): Meaningful error message?
             context->Reply(
                 TProxy::EErrorCode::InvalidVersion,
-                "Changes are late");
+                "Changes are out of order");
             Restart();
             break;
 
@@ -1135,7 +1133,7 @@ RPC_SERVICE_METHOD_IMPL(TMetaStateManager::TImpl, AdvanceSegment)
             if (createSnapshot) {
                 context->Reply(
                     EErrorCode::InvalidStatus,
-                    "AdvanceSegment: skipping snapshot creation, because follower is in recovery");
+                    "Cannot create a snapshot during recovery");
             } else {
                 context->Reply();
             }
@@ -1161,16 +1159,14 @@ void TMetaStateManager::TImpl::OnCreateLocalSnapshot(
             context->Reply();
             break;
         case TSnapshotCreator::EResultCode::InvalidVersion:
-            // TODO(sandello): Meaningful error message?
             context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Received InvalidVersion during CreateLocalSnapshot invocation");
+                EErrorCode::InvalidVersion,
+                "Requested to create a snapshot for an invalid version");
             break;
         case TSnapshotCreator::EResultCode::AlreadyInProgress:
-            // TODO(sandello): Meaningful error message?
             context->Reply(
-                TProxy::EErrorCode::Busy,
-                "Received AlreadyInProgress during CreateLocalSnapshot invocation");
+                EErrorCode::Busy,
+                "Snapshot creation is already in progress");
             break;
         default:
             YUNREACHABLE();

@@ -176,12 +176,12 @@ private:
             Stroka message = Sprintf("Server is not started (RequestId: %s)",
                 ~requestId.ToString());
 
-            auto errorMessage = CreateErrorResponseMessage(
+            auto response = CreateErrorResponseMessage(
                 requestId,
                 TError(EErrorCode::Unavailable, message));
-            replyBus->Send(errorMessage);
+            replyBus->Send(response);
 
-            LOG_DEBUG(~message);
+            LOG_DEBUG("%s", ~message);
             return;
         }
 
@@ -194,12 +194,12 @@ private:
                 ~requestId.ToString(),
                 ~serviceName);
 
-            auto errorMessage = CreateErrorResponseMessage(
+            auto response = CreateErrorResponseMessage(
                 requestId,
                 TError(EErrorCode::NoSuchService, message));
-            replyBus->Send(errorMessage);
+            replyBus->Send(response);
 
-            LOG_DEBUG(~message);
+            LOG_DEBUG("%s", ~message);
             return;
         }
 

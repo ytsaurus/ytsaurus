@@ -112,8 +112,9 @@ void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
                 break;
 
             case IBus::ESendResult::Failed:
-                // TODO(sandello): Meaningful error message?
-                Complete(EErrorCode::TransportError, "Bus transport error while sending acknowledgment");
+                Complete(
+                    EErrorCode::TransportError,
+                    "Bus is unable to deliver the request");
                 break;
 
             default:

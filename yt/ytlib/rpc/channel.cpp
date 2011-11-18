@@ -237,8 +237,9 @@ void TChannel::OnAcknowledgement(
         guard.Release();
 
         responseHandler->OnAcknowledgement(sendResult);
-        // TODO(sandello): Meaningful error message?
-        ready->Set(TError(EErrorCode::TransportError, "Bus transport error while sending acknowledgment"));
+        ready->Set(TError(
+            EErrorCode::TransportError,
+            "Bus is unable to deliver the request"));
     } else {
         // Don't need the guard anymore.
         guard.Release();
