@@ -420,8 +420,13 @@ private:
 
                     response->SetCommitted(false);
                     context->Reply();
-                    break;
+                } else {
+                    LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
+                        ~version.ToString(),
+                        changeCount);
+                    context->Reply(EErrorCode::InvalidStatus);
                 }
+                break;
             }
 
             default:
@@ -483,6 +488,7 @@ private:
                 break;
             
             case EPeerStatus::FollowerRecovery: {
+                // TODO: Logging
                 if (~FollowerRecovery != NULL) {
                     auto result = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (result != TRecovery::EResult::OK) {
@@ -494,8 +500,10 @@ private:
                     } else {
                         context->Reply();
                     }
-                    break;
+                } else {
+                    context->Reply(EErrorCode::InvalidStatus);
                 }
+                break;
             }
 
             default:
