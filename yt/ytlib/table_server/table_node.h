@@ -14,7 +14,7 @@ namespace NTableServer {
 class TTableNode
     : public NCypress::TCypressNodeBase
 {
-    DECLARE_BYREF_RW_PROPERTY(ChunkListIds, yvector<NChunkServer::TChunkListId>);
+    DECLARE_BYREF_RW_PROPERTY(yvector<NChunkServer::TChunkListId>, ChunkListIds);
 
 public:
     explicit TTableNode(const NCypress::TBranchedNodeId& id);
@@ -31,48 +31,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableManager;
-
-class TTableNodeTypeHandler
-    : public NCypress::TCypressNodeTypeHandlerBase<TTableNode>
-{
-public:
-    TTableNodeTypeHandler(
-        NCypress::TCypressManager* cypressManager,
-        TTableManager* tableManager,
-        NChunkServer::TChunkManager* chunkManager);
-
-    NCypress::ERuntimeNodeType GetRuntimeType();
-    NYTree::ENodeType GetNodeType();
-    Stroka GetTypeName();
-
-    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
-        const NCypress::TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest);
-
-    virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
-        const NCypress::ICypressNode& node,
-        const NTransaction::TTransactionId& transactionId);
-
-protected:
-    virtual void DoDestroy(TTableNode& node);
-
-    virtual void DoBranch(
-        const TTableNode& committedNode,
-        TTableNode& branchedNode);
-
-    virtual void DoMerge(
-        TTableNode& committedNode,
-        TTableNode& branchedNode);
-
-private:
-    typedef TTableNodeTypeHandler TThis;
-
-    TIntrusivePtr<TTableManager> TableManager;
-    TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
-
-};
+NCypress::INodeTypeHandler::TPtr CreateTableTypeHandler(
+    NCypress::TCypressManager* cypressManager,
+    NChunkServer::TChunkManager* chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

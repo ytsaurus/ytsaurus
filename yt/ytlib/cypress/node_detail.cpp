@@ -63,13 +63,13 @@ TBranchedNodeId TCypressNodeBase::GetId() const
 
 i32 TCypressNodeBase::Ref()
 {
-    YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
+    YASSERT(State_ != ENodeState::Branched);
     return ++RefCounter;
 }
 
 i32  TCypressNodeBase::Unref()
 {
-    YASSERT(State_ == ENodeState::Committed || State_ == ENodeState::Uncommitted);
+    YASSERT(State_ != ENodeState::Branched);
     return --RefCounter;
 }
 

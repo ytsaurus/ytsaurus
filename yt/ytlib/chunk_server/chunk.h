@@ -13,10 +13,10 @@ namespace NChunkServer {
 
 class TChunk
 {
-    DECLARE_BYVAL_RO_PROPERTY(Id, TChunkId);
-    DECLARE_BYVAL_RW_PROPERTY(ChunkListId, TChunkListId);
-    DECLARE_BYVAL_RW_PROPERTY(Size, i64);
-    DECLARE_BYREF_RO_PROPERTY(Locations, yvector<THolderId>);
+    DECLARE_BYVAL_RO_PROPERTY(TChunkId, Id);
+    DECLARE_BYVAL_RW_PROPERTY(TChunkListId, ChunkListId);
+    DECLARE_BYVAL_RW_PROPERTY(i64, Size);
+    DECLARE_BYREF_RO_PROPERTY(yvector<THolderId>, Locations);
 
 public:
     static const i64 UnknownSize = -1;

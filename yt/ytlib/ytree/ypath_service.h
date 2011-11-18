@@ -14,6 +14,7 @@ namespace NYTree {
 DECLARE_POLY_ENUM2(EYPathErrorCode, NRpc::EErrorCode,
     ((NoSuchVerb)(100))
     ((GenericError)(101))
+    ((CommitError)(102))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +26,8 @@ struct IYPathService
 
     class TResolveResult
     {
-        DECLARE_BYVAL_RO_PROPERTY(Service, IYPathService::TPtr);
-        DECLARE_BYVAL_RO_PROPERTY(Path, TYPath);
+        DECLARE_BYVAL_RO_PROPERTY(IYPathService::TPtr, Service);
+        DECLARE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
         static TResolveResult Here(TYPath path)

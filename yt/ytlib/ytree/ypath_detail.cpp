@@ -185,7 +185,6 @@ TYPath ParseYPathRoot(TYPath path)
     return path.substr(1);
 }
 
-
 bool IsEmptyYPath(TYPath path)
 {
     return path.empty();
@@ -196,7 +195,7 @@ bool IsFinalYPath(TYPath path)
     return path.empty() || path == "/";
 }
 
-bool HasYPathAttributeMarker(TYPath path)
+bool IsAttributeYPath(TYPath path)
 {
     return !path.empty() && path[0] == '@';
 }
@@ -204,6 +203,15 @@ bool HasYPathAttributeMarker(TYPath path)
 TYPath ChopYPathAttributeMarker(TYPath path)
 {
     return path.substr(1);
+}
+
+bool IsLocalYPath(TYPath path)
+{
+    // The empty path is handled by the virtual node itself.
+    // All other paths (including "/") are forwarded to the service.
+    // Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
+    // Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+    return IsEmptyYPath(path) || IsAttributeYPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,19 +316,6 @@ void ResolveYPath(
         currentService = result.GetService();
         currentPath = result.GetPath();
     }
-}
-
-IYPathService::TPtr ResolveYPath(
-    IYPathService* rootService,
-    TYPath path)
-{
-    YASSERT(rootService != NULL);
-
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    // TODO: killme
-    ResolveYPath(rootService, path, "Get", &suffixService, &suffixPath);
-    return suffixService;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

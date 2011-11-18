@@ -80,6 +80,7 @@ struct IServiceContext
 
     virtual void Reply(const TError& error) = 0;
     virtual bool IsReplied() const = 0;
+    virtual TError GetError() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
@@ -168,8 +169,8 @@ public:
     typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
-    DECLARE_BYREF_RW_PROPERTY(Request, TTypedRequest);
-    DECLARE_BYREF_RW_PROPERTY(Response, TTypedResponse);
+    DECLARE_BYREF_RW_PROPERTY(TTypedRequest, Request);
+    DECLARE_BYREF_RW_PROPERTY(TTypedResponse, Response);
 
 public:
     TTypedServiceContext(IServiceContext* context)

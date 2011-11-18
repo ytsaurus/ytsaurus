@@ -54,6 +54,9 @@ struct TChunkHolderConfig
     //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
     i64 MaxChunksSpace;
 
+    // TODO: killme
+    Stroka NewConfigFileName;
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in

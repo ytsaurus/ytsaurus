@@ -1,12 +1,13 @@
-package NYT.NFileServer.NProto;
+package NYT.NTableServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgSetFileChunk
+message TReqAddTableChunks
 {
-    required bytes TransactionId = 1;
-    required bytes NodeId = 2;
-    required bytes ChunkId = 3;
+    repeated bytes ChunkIds = 3;
 }
+
+message TRspAddTableChunks
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

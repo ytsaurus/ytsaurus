@@ -22,6 +22,9 @@ public:
 
         int MonitoringPort;
 
+        // TODO: killme
+        Stroka NewConfigFileName;
+
         TConfig()
             : MonitoringPort(10000)
         { }

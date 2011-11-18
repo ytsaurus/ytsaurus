@@ -30,6 +30,8 @@ SET(YT_SOURCE_FILES
     ypath_detail.cpp
     ypath_rpc.h
     ypath_rpc.proto
+
+    yson_file_service.cpp
 )
 
 include_directories(

@@ -23,6 +23,7 @@ public:
 
     virtual void Reply(const TError& error);
     virtual bool IsReplied() const;
+    virtual TError GetError() const;
 
     virtual TSharedRef GetRequestBody() const;
     virtual void SetResponseBody(const TSharedRef& responseBody);
@@ -53,6 +54,7 @@ protected:
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments_;
     bool Replied;
+    TError Error;
 
     TSharedRef ResponseBody;
     yvector<TSharedRef> ResponseAttachments_;

@@ -25,9 +25,9 @@ TTransactionManager::TTransactionManager(
     YASSERT(~metaStateManager != NULL);
     YASSERT(~metaState != NULL);
 
-    RegisterMethod(this, &TThis::StartTransaction);
-    RegisterMethod(this, &TThis::CommitTransaction);
-    RegisterMethod(this, &TThis::AbortTransaction);
+    RegisterMethod(this, &TThis::DoStartTransaction);
+    RegisterMethod(this, &TThis::DoCommitTransaction);
+    RegisterMethod(this, &TThis::DoAbortTransaction);
 
     metaState->RegisterLoader(
         "TransactionManager.1",
@@ -49,13 +49,12 @@ TTransactionManager::InitiateStartTransaction()
     return CreateMetaChange(
         ~MetaStateManager,
         message,
-        &TThis::StartTransaction,
+        &TThis::DoStartTransaction,
         this);
 }
 
-TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction& message)
+TTransaction& TTransactionManager::StartTransaction()
 {
-    UNUSED(message);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto id = TransactionIdGenerator.Next();
@@ -72,7 +71,15 @@ TTransactionId TTransactionManager::StartTransaction(const TMsgStartTransaction&
     LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s)",
         ~id.ToString());
 
-    return id;
+    return *transaction;
+}
+
+TTransactionId TTransactionManager::DoStartTransaction(const TMsgStartTransaction& message)
+{
+    UNUSED(message);
+
+    auto& transaction = StartTransaction();
+    return transaction.GetId();
 }
 
 NMetaState::TMetaChange<TVoid>::TPtr
@@ -83,29 +90,33 @@ TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
     return CreateMetaChange(
         ~MetaStateManager,
         message,
-        &TThis::CommitTransaction,
+        &TThis::DoCommitTransaction,
         this);
 }
 
-TVoid TTransactionManager::CommitTransaction(const TMsgCommitTransaction& message)
+void TTransactionManager::CommitTransaction(TTransaction& transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto id = TTransactionId::FromProto(message.GetTransactionId());
-
-    auto& transaction = TransactionMap.GetForUpdate(id);
-
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
     OnTransactionCommitted_.Fire(transaction);
 
+    auto id = transaction.GetId();
     TransactionMap.Remove(id);
 
     LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)",
         ~id.ToString());
+}
 
+TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& message)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto id = TTransactionId::FromProto(message.GetTransactionId());
+
+    auto& transaction = TransactionMap.GetForUpdate(id);
+    CommitTransaction(transaction);
     return TVoid();
 }
 
@@ -117,29 +128,32 @@ TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
     return CreateMetaChange(
         ~MetaStateManager,
         message,
-        &TThis::AbortTransaction,
+        &TThis::DoAbortTransaction,
         this);
 }
 
-TVoid TTransactionManager::AbortTransaction(const TMsgAbortTransaction& message)
+void TTransactionManager::AbortTransaction(TTransaction& transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto id = TTransactionId::FromProto(message.GetTransactionId());
-
-    auto& transaction = TransactionMap.GetForUpdate(id);
-
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
     OnTransactionAborted_.Fire(transaction);
 
+    auto id = transaction.GetId();
     TransactionMap.Remove(id);
 
     LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)",
         ~id.ToString());
+}
 
+TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& message)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto id = TTransactionId::FromProto(message.GetTransactionId());
+    auto& transaction = TransactionMap.GetForUpdate(id);
+    AbortTransaction(transaction);
     return TVoid();
 }
 
@@ -222,6 +236,9 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 
     if (FindTransaction(id) == NULL)
         return;
+
+    LOG_INFO("Transaction expired (TransactionId: %s)",
+        ~id.ToString());
 
     InitiateAbortTransaction(id)->Commit();
 }

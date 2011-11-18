@@ -8,21 +8,6 @@ message TReqExecute
 }
 
 message TRspExecute
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TReqGetNodeId
-{
-    required bytes TransactionId = 1;
-    required bytes Path = 2;
-}
-
-message TRspGetNodeId
-{
-    required bytes NodeId = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-

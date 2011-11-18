@@ -35,7 +35,6 @@ private:
     void ValidateTransactionId(const TTransactionId& transactionId);
 
     RPC_SERVICE_METHOD_DECL(NProto, Execute);
-    RPC_SERVICE_METHOD_DECL(NProto, GetNodeId);
 
 };
 

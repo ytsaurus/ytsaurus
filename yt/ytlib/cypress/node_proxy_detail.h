@@ -139,10 +139,9 @@ public:
     }
 
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        UNUSED(path);
-
+        Stroka verb = context->GetVerb();
         if (verb == "Set" ||
             verb == "Remove" ||
             verb == "Lock")
@@ -152,6 +151,19 @@ public:
         return false;
     }
 
+    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const
+    {
+        if (TransactionId != NullTransactionId) {
+            return false;
+        }
+        
+        Stroka verb = context->GetVerb();
+        if (verb == "Lock") {
+            return false;
+        }
+
+        return IsLogged(context);
+    }
 
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
@@ -169,6 +181,8 @@ protected:
         Stroka verb = context->GetVerb();
         if (verb == "Lock") {
             LockThunk(context);
+        } else if (verb == "GetId") {
+            GetIdThunk(context);
         } else {
             TNodeBase::DoInvoke(context);
         }
@@ -183,6 +197,14 @@ protected:
         context->Reply();
     }
     
+    RPC_SERVICE_METHOD_DECL(NProto, GetId)
+    {
+        UNUSED(request);
+
+        response->SetNodeId(GetNodeId().ToProto());
+        context->Reply();
+    }
+
 
     virtual yvector<Stroka> GetVirtualAttributeNames()
     {
@@ -259,7 +281,6 @@ protected:
 
     void AttachChild(ICypressNode& child)
     {
-        YASSERT(child.GetState() == ENodeState::Uncommitted);
         child.SetParentId(NodeId);
         CypressManager->RefNode(child);
     }
@@ -388,18 +409,23 @@ protected:
         }
     }
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
+        Stroka verb = context->GetVerb();
         if (verb == "Create") {
             return true;
         } else {
-            return TBase::IsOperationLogged(path, verb);
+            return TBase::IsLogged(context);
         }
     }
 
 private:
     RPC_SERVICE_METHOD_DECL(NProto, Create)
     {
+        if (NYTree::IsFinalYPath(context->GetPath())) {
+            ythrow yexception() << "Node already exists";
+        }
+
         auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
         builder->BeginTree();
         TStringInput input(request->GetManifest());

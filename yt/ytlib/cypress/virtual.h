@@ -17,7 +17,6 @@ struct TVirtualYPathContext
     TNodeId NodeId;
     TTransactionId TransactionId;
     NYTree::TYson Manifest;
-    ICypressNodeProxy::TPtr Fallback; 
 };
 
 typedef

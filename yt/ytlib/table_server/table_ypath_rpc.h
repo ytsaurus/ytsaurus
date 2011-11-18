@@ -1,24 +1,22 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_ypath_rpc.pb.h"
+#include "table_ypath_rpc.pb.h"
 
 #include "../ytree/ypath_rpc.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressYPathProxy
+struct TTableYPathProxy
     : NYTree::TYPathProxy
 {
-    YPATH_PROXY_METHOD(NProto, Lock);
-    YPATH_PROXY_METHOD(NProto, Create);
-    YPATH_PROXY_METHOD(NProto, GetId);
+    YPATH_PROXY_METHOD(NProto, AddTableChunks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NTableServer
 } // namespace NYT

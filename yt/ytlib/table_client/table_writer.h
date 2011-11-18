@@ -5,7 +5,7 @@
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"
-#include "../table_server/table_service_rpc.h"
+#include "../table_server/table_ypath_rpc.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -35,7 +35,7 @@ public:
         NTransactionClient::ITransaction::TPtr transaction,
         ICodec* codec,
         const TSchema& schema,
-        const Stroka& ypath);
+        const Stroka& path);
 
     // TODO: -> Open
     void Init();
@@ -48,16 +48,15 @@ private:
     void CreateTableNode(const Stroka& nodePath);
     void OnTransactionAborted();
 
-    typedef NCypress::TCypressServiceProxy TCypressProxy;
-    typedef NTableServer::TTableServiceProxy TTableProxy;
-
     const TConfig Config;
-    const Stroka TablePath;
+    const Stroka Path;
     Stroka NodeId;
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
     TChunkSetWriter::TPtr Writer;
+    NCypress::TCypressServiceProxy Proxy;
     IAction::TPtr OnAborted;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,9 +8,8 @@
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../ytree/fluent.h"
-// TODO: remove
-#include "../ytree/tree_builder.h"
 #include "../ytree/ephemeral.h"
+#include "../ytree/tree_builder.h"
 
 namespace NYT {
 namespace NCypress {
@@ -26,6 +25,7 @@ public:
         : CypressManager(cypressManager)
     {
         RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
+        RegisterGetter("parent_id", FromMethod(&TThis::GetParentId));
         // NB: no smartpointer for this here
         RegisterGetter("type", FromMethod(&TThis::GetType, this));
     }
@@ -65,7 +65,7 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId)
     {
-        YASSERT(node.GetState() == ENodeState::Committed);
+        YASSERT(node.GetState() != ENodeState::Branched);
 
         const auto& typedNode = dynamic_cast<const TImpl&>(node);
 
@@ -89,25 +89,30 @@ public:
     }
 
     virtual void Merge(
-        ICypressNode& committedNode,
+        ICypressNode& originatingNode,
         ICypressNode& branchedNode)
     {
-       YASSERT(committedNode.GetState() == ENodeState::Committed);
-       YASSERT(branchedNode.GetState() == ENodeState::Branched);
+        YASSERT(originatingNode.GetState() != ENodeState::Branched);
+        YASSERT(branchedNode.GetState() == ENodeState::Branched);
+
+        // Set the parent of the originating node.
+        // Valid parents are first set for branched copies at TCypressNodeProxyBase::AttachChild
+        // and then propagates to their originators during transaction commit.
+        originatingNode.SetParentId(branchedNode.GetParentId());
 
         // Drop the reference to attributes, if any.
-        if (committedNode.GetAttributesId() != NullNodeId) {
+        if (originatingNode.GetAttributesId() != NullNodeId) {
             auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                committedNode.GetAttributesId(),
+                originatingNode.GetAttributesId(),
                 NullTransactionId));
             CypressManager->UnrefNode(attrImpl);
         }
 
         // Replace the attributes with the branched copy.
-        committedNode.SetAttributesId(branchedNode.GetAttributesId());
+        originatingNode.SetAttributesId(branchedNode.GetAttributesId());
 
         // Run custom merging.
-        DoMerge(dynamic_cast<TImpl&>(committedNode), dynamic_cast<TImpl&>(branchedNode));
+        DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
     virtual void GetAttributeNames(
@@ -148,18 +153,18 @@ protected:
     }
 
     virtual void DoBranch(
-        const TImpl& committedNode,
+        const TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
     virtual void DoMerge(
-        TImpl& committedNode,
+        TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
@@ -186,6 +191,12 @@ protected:
             .Scalar(param.Node->GetId().NodeId.ToString());
     }
 
+    static void GetParentId(const TGetAttributeParam& param)
+    {
+        NYTree::BuildYsonFluently(param.Consumer)
+            .Scalar(param.Node->GetParentId().ToString());
+    }
+
     void GetType(const TGetAttributeParam& param)
     {
         NYTree::BuildYsonFluently(param.Consumer)
@@ -203,10 +214,10 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
-    DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
-    DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
-    DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
+    DECLARE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
+    DECLARE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
+    DECLARE_BYVAL_RW_PROPERTY(TNodeId, AttributesId);
+    DECLARE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
     explicit TCypressNodeBase(const TBranchedNodeId& id);
@@ -269,7 +280,7 @@ class TScalarNode
 {
     typedef TScalarNode<TValue> TThis;
 
-    DECLARE_BYREF_RW_PROPERTY(Value, TValue)
+    DECLARE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
     explicit TScalarNode(const TBranchedNodeId& id)
@@ -340,10 +351,10 @@ public:
 
 protected:
     virtual void DoMerge(
-        TScalarNode<TValue>& committedNode,
+        TScalarNode<TValue>& originatingNode,
         TScalarNode<TValue>& branchedNode)
     {
-        committedNode.Value() = branchedNode.Value();
+        originatingNode.Value() = branchedNode.Value();
     }
 
 };
@@ -360,8 +371,8 @@ class TMapNode
     typedef yhash_map<Stroka, TNodeId> TNameToChild;
     typedef yhash_map<TNodeId, Stroka> TChildToName;
 
-    DECLARE_BYREF_RW_PROPERTY(NameToChild, TNameToChild);
-    DECLARE_BYREF_RW_PROPERTY(ChildToName, TChildToName);
+    DECLARE_BYREF_RW_PROPERTY(TNameToChild, NameToChild);
+    DECLARE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
     explicit TMapNode(const TBranchedNodeId& id);
@@ -399,10 +410,11 @@ private:
     virtual void DoDestroy(TMapNode& node);
 
     virtual void DoBranch(
-        const TMapNode& committedNode,
+        const TMapNode& originatingNode,
         TMapNode& branchedNode);
+
     virtual void DoMerge(
-        TMapNode& committedNode,
+        TMapNode& originatingNode,
         TMapNode& branchedNode);
 
     static void GetSize(const TGetAttributeParam& param);
@@ -417,8 +429,8 @@ class TListNode
     typedef yvector<TNodeId> TIndexToChild;
     typedef yhash_map<TNodeId, int> TChildToIndex;
 
-    DECLARE_BYREF_RW_PROPERTY(IndexToChild, TIndexToChild);
-    DECLARE_BYREF_RW_PROPERTY(ChildToIndex, TChildToIndex);
+    DECLARE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
+    DECLARE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
     explicit TListNode(const TBranchedNodeId& id);
@@ -455,10 +467,11 @@ private:
     virtual void DoDestroy(TListNode& node);
 
     virtual void DoBranch(
-        const TListNode& committedNode,
+        const TListNode& originatingNode,
         TListNode& branchedNode);
+
     virtual void DoMerge(
-        TListNode& committedNode,
+        TListNode& originatingNode,
         TListNode& branchedNode);
 
     static void GetSize(const TGetAttributeParam& param);

@@ -26,7 +26,7 @@ struct IBus
      *  \param message A message to send.
      *  \return An asynchronous flag indicating if the delivery (not the processing!) of the message
      *  was successful.
-     *  
+     * 
      *  \note Thread affinity: any
      */
     virtual TSendResult::TPtr Send(IMessage::TPtr message) = 0;

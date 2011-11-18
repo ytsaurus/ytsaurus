@@ -20,21 +20,21 @@
 #include <yt/ytlib/chunk_server/chunk_service.h>
 #include <yt/ytlib/chunk_server/cypress_integration.h>
 
-#include <yt/ytlib/file_server/file_manager.h>
-#include <yt/ytlib/file_server/file_service.h>
-
-#include <yt/ytlib/table_server/table_manager.h>
-#include <yt/ytlib/table_server/table_service.h>
-
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/cypress_integration.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/file_server/file_node.h>
+
+#include <yt/ytlib/table_server/table_node.h>
+
+#include <yt/ytlib/ytree/yson_file_service.h>
+
 namespace NYT {
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("CellMaster");
 
 using NRpc::CreateRpcServer;
 
@@ -55,15 +55,13 @@ using NCypress::TCypressService;
 using NCypress::TWorldInitializer;
 using NCypress::CreateLockMapTypeHandler;
 
-using NFileServer::TFileManager;
-using NFileServer::TFileService;
-
-using NTableServer::TTableManager;
-using NTableServer::TTableService;
-
 using NMonitoring::TMonitoringManager;
 
 using NOrchid::CreateOrchidTypeHandler;
+
+using NFileServer::CreateFileTypeHandler;
+
+using NTableServer::CreateTableTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,32 +138,6 @@ void TCellMasterServer::Run()
         ~transactionManager,
         ~rpcServer);
 
-    auto fileManager = New<TFileManager>(
-        ~metaStateManager,
-        ~metaState,
-        ~cypressManager,
-        ~chunkManager,
-        ~transactionManager);
-
-    auto fileService = New<TFileService>(
-        ~metaStateManager,
-        ~chunkManager,
-        ~fileManager,
-        ~rpcServer);
-
-    auto tableManager = New<TTableManager>(
-        ~metaStateManager,
-        ~metaState,
-        ~cypressManager,
-        ~chunkManager,
-        ~transactionManager);
-
-    auto tableService = New<TTableService>(
-        ~metaStateManager,
-        ~chunkManager,
-        ~tableManager,
-        ~rpcServer);
-
     auto worldIntializer = New<TWorldInitializer>(
         ~metaStateManager,
         ~cypressManager);
@@ -182,13 +154,21 @@ void TCellMasterServer::Run()
     // TODO: register more monitoring infos
     monitoringManager->Start();
 
+    // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
             orchidFactory),
         "monitoring");
+    if (!Config.NewConfigFileName.empty()) {
+        orchidRoot->AddChild(
+            NYTree::CreateVirtualNode(
+                ~NYTree::CreateYsonFileProducer(Config.NewConfigFileName),
+                orchidFactory),
+            "config");
+    }
 
     auto orchidService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
@@ -210,6 +190,12 @@ void TCellMasterServer::Run()
         ~cypressManager));
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
+    cypressManager->RegisterNodeType(~CreateFileTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateTableTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
 
     auto monitoringServer = new THttpTreeServer(
         monitoringManager->GetProducer(),

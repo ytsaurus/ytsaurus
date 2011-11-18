@@ -12,10 +12,10 @@ namespace NCypress {
 
 class TLock
 {
-    DECLARE_BYVAL_RO_PROPERTY(Id, TLockId);
-    DECLARE_BYVAL_RO_PROPERTY(NodeId, TNodeId);
-    DECLARE_BYVAL_RO_PROPERTY(TransactionId, NTransaction::TTransactionId);
-    DECLARE_BYVAL_RO_PROPERTY(Mode, ELockMode);
+    DECLARE_BYVAL_RO_PROPERTY(TLockId, Id);
+    DECLARE_BYVAL_RO_PROPERTY(TNodeId, NodeId);
+    DECLARE_BYVAL_RO_PROPERTY(NTransaction::TTransactionId, TransactionId);
+    DECLARE_BYVAL_RO_PROPERTY(ELockMode, Mode);
 
 public:
     TLock(

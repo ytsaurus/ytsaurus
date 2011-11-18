@@ -590,7 +590,7 @@ void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusClient::TBusClient(Stroka address)
+TBusClient::TBusClient(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
