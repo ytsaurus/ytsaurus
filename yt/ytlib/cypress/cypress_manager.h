@@ -56,6 +56,10 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
+    TIntrusivePtr<ICypressNodeProxy> FindNodeProxy(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
     TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);

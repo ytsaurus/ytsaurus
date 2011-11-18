@@ -7,6 +7,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NMetaState;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

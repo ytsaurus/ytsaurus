@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
 
+#include "../misc/string.h"
+
 namespace NYT {
 namespace NFileServer {
 
@@ -59,16 +61,27 @@ RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
     TChunkId chunkId;
     auto chunkListId = impl.GetChunkListId();
     if (chunkListId == NullChunkId) {
-        chunkId = NullChunkId;
+        response->SetChunkId(NullChunkId.ToProto());
+
+        context->SetResponseInfo("ChunkId: %s", ~NullChunkId.ToString());
     } else {
         const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
         YASSERT(chunkList.ChunkIds().ysize() == 1);
         chunkId = chunkList.ChunkIds()[0];
+
+        const auto& chunk = ChunkManager->GetChunk(chunkId);
+
+        response->SetChunkId(chunkId.ToProto());
+        FOREACH (auto holderId, chunk.Locations()) {
+            auto& holder = ChunkManager->GetHolder(holderId);
+            response->AddAddresses(holder.GetAddress());
+        }   
+
+        context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
+            ~chunkId.ToString(),
+            ~JoinToString(response->GetAddresses()));
     }
 
-    context->SetResponseInfo("ChunkId: %s", ~chunkId.ToString());
-
-    response->SetChunkId(NullChunkId.ToProto());
     context->Reply();
 }
 

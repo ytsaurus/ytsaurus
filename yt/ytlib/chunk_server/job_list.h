@@ -48,8 +48,8 @@ struct TJobList
         }
     }
     
-    DECLARE_BYVAL_RO_PROPERTY(ChunkId, NChunkClient::TChunkId);
-    DECLARE_BYREF_RO_PROPERTY(JobIds, yvector<TJobId>);
+    DECLARE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
+    DECLARE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

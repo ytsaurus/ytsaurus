@@ -133,7 +133,7 @@ void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)
 void TFileNodeTypeHandler::GetChunkId(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
-    auto chunkId = chunk == NULL ? TChunkId() : chunk->GetId();
+    auto chunkId = chunk == NULL ? NChunkClient::TChunkId() : chunk->GetId();
     BuildYsonFluently(param.Consumer)
         .Scalar(chunkId.ToString());
 }

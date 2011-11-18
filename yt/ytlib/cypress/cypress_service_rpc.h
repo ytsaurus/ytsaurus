@@ -34,10 +34,28 @@ public:
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
+        NYTree::TYPath path,
         const NTransaction::TTransactionId& transactionId,
         TTypedRequest* innerRequest)
     {
+        innerRequest->SetPath(path);
         auto outerRequest = Execute();
+        outerRequest->SetTransactionId(transactionId.ToProto());
+        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+            ~outerRequest,
+            innerRequest);
+    }
+
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(
+        const TNodeId& rootNodeId,
+        const NTransaction::TTransactionId& transactionId,
+        TTypedRequest* innerRequest)
+    {
+        innerRequest->SetPath("/");
+        auto outerRequest = Execute();
+        outerRequest->SetRootNodeId(rootNodeId.ToProto());
         outerRequest->SetTransactionId(transactionId.ToProto());
         return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
             ~outerRequest,

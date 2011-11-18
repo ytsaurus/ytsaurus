@@ -20,8 +20,8 @@ static NLog::TLogger Logger("TransactionClient");
 class TTransactionManager::TTransaction
     : public ITransaction
 {
-    DECLARE_BYREF_RW_PROPERTY(OnCommitted, TSignal);
-    DECLARE_BYREF_RW_PROPERTY(OnAborted, TSignal);
+    DECLARE_BYREF_RW_PROPERTY(TSignal, OnCommitted);
+    DECLARE_BYREF_RW_PROPERTY(TSignal, OnAborted);
 
 public:
     typedef TIntrusivePtr<TTransaction> TPtr;
