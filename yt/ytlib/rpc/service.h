@@ -139,8 +139,8 @@ public:
     typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
-    DECLARE_BYREF_RW_PROPERTY(Request, TTypedRequest);
-    DECLARE_BYREF_RW_PROPERTY(Response, TTypedResponse);
+    DECLARE_BYREF_RW_PROPERTY(TTypedRequest, Request);
+    DECLARE_BYREF_RW_PROPERTY(TTypedResponse, Response);
 
 public:
     TTypedServiceContext(IServiceContext* context)
