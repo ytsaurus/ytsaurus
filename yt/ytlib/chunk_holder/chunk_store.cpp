@@ -14,6 +14,15 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NChunkClient::TChunkId;
+using NChunkClient::TFileReader;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,14 +102,14 @@ int TLocation::GetSessionCount() const
 
 class TChunkStore::TCachedReader
     : public TCacheValueBase<TChunkId, TCachedReader>
-    , public TFileChunkReader
+    , public TFileReader
 {
 public:
     typedef TIntrusivePtr<TCachedReader> TPtr;
 
     TCachedReader(const TChunkId& chunkId, Stroka fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileChunkReader(fileName)
+        , TFileReader(fileName)
     { }
 
 };
@@ -330,7 +339,7 @@ TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
     return meta;
 }
 
-TFileChunkReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
+TFileReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
 {
     return ReaderCache->Get(chunk);
 }

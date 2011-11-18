@@ -5,7 +5,7 @@
 #include "../misc/cache.h"
 #include "../actions/action_queue.h"
 #include "../actions/signal.h"
-#include "../chunk_client/file_chunk_reader.h"
+#include "../chunk_client/file_reader.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -25,7 +25,7 @@ class TChunkMeta
 public:
     typedef TIntrusivePtr<TChunkMeta> TPtr;
 
-    TChunkMeta(TFileChunkReader::TPtr reader)
+    TChunkMeta(NChunkClient::TFileReader::TPtr reader)
     {
         YASSERT(~reader != NULL);
         BlockCount = reader->GetBlockCount();
@@ -105,7 +105,7 @@ public:
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
-        const TChunkId& id,
+        const NChunkClient::TChunkId& id,
         i64 size,
         TLocation::TPtr location)
         : Id(id)
@@ -114,7 +114,7 @@ public:
     { }
 
     //! Returns chunk id.
-    TChunkId GetId() const
+    NChunkClient::TChunkId GetId() const
     {
         return Id;
     }
@@ -134,11 +134,10 @@ public:
 private:
     friend class TChunkStore;
 
-    TChunkId Id;
+    NChunkClient::TChunkId Id;
     i64 Size;
     TLocation::TPtr Location;
     TChunkMeta::TPtr Meta;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,12 +156,12 @@ public:
 
     //! Registers a just-uploaded chunk for further usage.
     TChunk::TPtr RegisterChunk(
-        const TChunkId& chunkId,
+        const NChunkClient::TChunkId& chunkId,
         i64 size,
         TLocation::TPtr location);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunk::TPtr FindChunk(const TChunkId& chunkId);
+    TChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);
 
     //! Fetches meta-information for a given chunk.
     TFuture<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
@@ -172,7 +171,7 @@ public:
      *  This call is thread-safe but may block since it actually opens the file.
      *  A common rule is to invoke it only from IO thread.
      */
-    TFileChunkReader::TPtr GetChunkReader(TChunk::TPtr chunk);
+    NChunkClient::TFileReader::TPtr GetChunkReader(TChunk::TPtr chunk);
 
     //! Physically removes the chunk.
     /*!
@@ -184,7 +183,7 @@ public:
     TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location);
+    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation::TPtr location);
 
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(TChunk::TPtr chunk);
@@ -211,7 +210,7 @@ private:
     TChunkHolderConfig Config;
     TLocations Locations;
 
-    typedef yhash_map<TChunkId, TChunk::TPtr> TChunkMap;
+    typedef yhash_map<NChunkClient::TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
 
     //! Caches opened chunk files.

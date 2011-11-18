@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_writer.h"
+#include "async_writer.h"
 
 #include "../misc/config.h"
 #include "../misc/metric.h"
@@ -13,17 +13,16 @@
 
 #include <util/generic/deque.h>
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: -> TRemoteWriter
-class TRemoteChunkWriter
-    : public IChunkWriter
+class TRemoteWriter
+    : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TRemoteChunkWriter> TPtr;
+    typedef TIntrusivePtr<TRemoteWriter> TPtr;
 
     struct TConfig
     {
@@ -61,7 +60,7 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TRemoteChunkWriter(
+    TRemoteWriter(
         const TConfig& config, 
         const TChunkId& chunkId,
         const yvector<Stroka>& addresses);
@@ -84,7 +83,7 @@ public:
      */
     void Cancel(const Stroka& errorMessage);
 
-    ~TRemoteChunkWriter();
+    ~TRemoteWriter();
 
     /*!
      * \note Thread affinity: any.
@@ -287,5 +286,6 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NChunkClient
+} // namespace NYT
 

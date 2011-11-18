@@ -9,6 +9,9 @@
 namespace NYT {
 namespace NTableClient {
 
+using NChunkClient::WriterThread;
+using NChunkClient::TChunkId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TableClientLogger;
@@ -17,14 +20,14 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkWriter::TChunkWriter(
     const TConfig& config, 
-    IChunkWriter::  TPtr chunkWriter,
+    NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema,
     ICodec* codec)
     : Config(config)
-    , CurrentBlockIndex(0)
-    , ChunkWriter(chunkWriter)
     , Schema(schema)
     , Codec(codec)
+    , ChunkWriter(chunkWriter)
+    , CurrentBlockIndex(0)
     , SentSize(0)
     , CurrentSize(0)
 {

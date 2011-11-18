@@ -12,6 +12,7 @@ namespace NTransaction {
 
 using namespace NYTree;
 using namespace NCypress;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

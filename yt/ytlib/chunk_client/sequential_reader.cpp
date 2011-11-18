@@ -1,16 +1,17 @@
 #include "stdafx.h"
-#include "sequential_chunk_reader.h"
+#include "sequential_reader.h"
 
 #include "../actions/action_util.h"
 
 namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TSequentialChunkReader::TSequentialChunkReader(
+TSequentialReader::TSequentialReader(
     const TConfig& config, 
     const yvector<int>& blockIndexes, 
-    IChunkReader::TPtr chunkReader)
+    IAsyncReader::TPtr chunkReader)
     : BlockIndexSequence(blockIndexes)
     , FirstUnfetchedIndex(0)
     , Config(config)
@@ -31,13 +32,13 @@ TSequentialChunkReader::TSequentialChunkReader(
     int fetchCount = FreeSlots / Config.GroupSize;
     for (int i = 0; i < fetchCount; ++i) {
         ReaderThread->GetInvoker()->Invoke(FromMethod(
-            &TSequentialChunkReader::FetchNextGroup,
+            &TSequentialReader::FetchNextGroup,
             TPtr(this)));
     }
 }
 
-TFuture<TSequentialChunkReader::TResult>::TPtr
-TSequentialChunkReader::AsyncGetNextBlock()
+TFuture<TSequentialReader::TResult>::TPtr
+TSequentialReader::AsyncGetNextBlock()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(~PendingResult == NULL);
@@ -55,8 +56,8 @@ TSequentialChunkReader::AsyncGetNextBlock()
     return result;
 }
 
-void TSequentialChunkReader::OnGotBlocks(
-    IChunkReader::TReadResult readResult, 
+void TSequentialReader::OnGotBlocks(
+    IAsyncReader::TReadResult readResult, 
     int firstSequenceIndex)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
@@ -83,16 +84,16 @@ void TSequentialChunkReader::OnGotBlocks(
     DoProcessPendingResult();
 }
 
-void TSequentialChunkReader::ShiftWindow()
+void TSequentialReader::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     ReaderThread->GetInvoker()->Invoke(FromMethod(
-        &TSequentialChunkReader::DoShiftWindow, 
+        &TSequentialReader::DoShiftWindow, 
         TPtr(this)));
 }
 
-void TSequentialChunkReader::DoShiftWindow()
+void TSequentialReader::DoShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -110,7 +111,7 @@ void TSequentialChunkReader::DoShiftWindow()
     }
 }
 
-void TSequentialChunkReader::FetchNextGroup()
+void TSequentialReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -126,7 +127,7 @@ void TSequentialChunkReader::FetchNextGroup()
 
     yvector<int> groupIndexes(groupBegin, groupEnd);
     ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(FromMethod(
-        &TSequentialChunkReader::OnGotBlocks, 
+        &TSequentialReader::OnGotBlocks, 
         TPtr(this),
         FirstUnfetchedIndex)
             ->Via(ReaderThread->GetInvoker()));
@@ -135,7 +136,7 @@ void TSequentialChunkReader::FetchNextGroup()
     FirstUnfetchedIndex += groupIndexes.ysize();
 }
 
-bool TSequentialChunkReader::IsNextSlotEmpty()
+bool TSequentialReader::IsNextSlotEmpty()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -144,7 +145,7 @@ bool TSequentialChunkReader::IsNextSlotEmpty()
     return slot.IsEmpty;
 }
 
-TSequentialChunkReader::TResult& TSequentialChunkReader::GetNextSlotResult()
+TSequentialReader::TResult& TSequentialReader::GetNextSlotResult()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -160,16 +161,16 @@ TSequentialChunkReader::TResult& TSequentialChunkReader::GetNextSlotResult()
     return slot.Result;
 }
 
-void TSequentialChunkReader::ProcessPendingResult()
+void TSequentialReader::ProcessPendingResult()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     
     ReaderThread->GetInvoker()->Invoke(FromMethod(
-        &TSequentialChunkReader::DoProcessPendingResult, 
+        &TSequentialReader::DoProcessPendingResult, 
         TPtr(this)));
 }
 
-void TSequentialChunkReader::DoProcessPendingResult()
+void TSequentialReader::DoProcessPendingResult()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
     
@@ -184,7 +185,7 @@ void TSequentialChunkReader::DoProcessPendingResult()
     }
 }
 
-TSequentialChunkReader::TWindowSlot& TSequentialChunkReader::GetEmptySlot(int sequenceIndex)
+TSequentialReader::TWindowSlot& TSequentialReader::GetEmptySlot(int sequenceIndex)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -195,5 +196,5 @@ TSequentialChunkReader::TWindowSlot& TSequentialChunkReader::GetEmptySlot(int se
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT
-

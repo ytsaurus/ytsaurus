@@ -65,10 +65,10 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
     RPC_SERVICE_METHOD_DECL(NProto, PingSession);
 
-    void ValidateNoSession(const TChunkId& chunkId);
-    void ValidateNoChunk(const TChunkId& chunkId);
+    void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
+    void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);
 
-    TSession::TPtr GetSession(const TChunkId& chunkId);
+    TSession::TPtr GetSession(const NChunkClient::TChunkId& chunkId);
 
     void OnFinishedChunk(
         TVoid,

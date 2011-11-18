@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "common.h"
-#include "chunk_set_writer.h"
+#include "chunk_sequence_writer.h"
 
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
@@ -21,9 +21,9 @@ public:
 
     struct TConfig {
         TDuration RpcTimeout;
-        TChunkSetWriter::TConfig ChunkSetConfig;
+        TChunkSequenceWriter::TConfig ChunkSetConfig;
 
-        TConfig(const TChunkSetWriter::TConfig& config)
+        TConfig(const TChunkSequenceWriter::TConfig& config)
             : RpcTimeout(TDuration::Seconds(5))
             , ChunkSetConfig(config)
         { }
@@ -53,7 +53,7 @@ private:
     Stroka NodeId;
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
-    TChunkSetWriter::TPtr Writer;
+    TChunkSequenceWriter::TPtr Writer;
     NCypress::TCypressServiceProxy Proxy;
     IAction::TPtr OnAborted;
 

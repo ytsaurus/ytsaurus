@@ -1,14 +1,16 @@
 #include "stdafx.h"
-#include "file_chunk_writer.h"
+#include "file_writer.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
+
+///////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileChunkWriter::TFileChunkWriter(Stroka fileName)
+TFileWriter::TFileWriter(Stroka fileName)
     : FileName(fileName)
     , Result(New<TAsyncStreamState::TAsyncResult>())
 {
@@ -17,7 +19,7 @@ TFileChunkWriter::TFileChunkWriter(Stroka fileName)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TFileChunkWriter::AsyncWriteBlock(const TSharedRef& data)
+TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 {
     TBlockInfo* blockInfo = Meta.AddBlocks();
     blockInfo->SetSize(static_cast<int>(data.Size()));
@@ -28,7 +30,7 @@ TFileChunkWriter::AsyncWriteBlock(const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
+TFileWriter::AsyncClose(const TSharedRef& masterMeta)
 {
     Meta.SetMasterMeta(masterMeta.Begin(), masterMeta.Size());
 
@@ -39,7 +41,7 @@ TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
     }
 
     TChunkFooter footer;
-    footer.Singature = TChunkFooter::ExpectedSignature;
+    footer.Signature = TChunkFooter::ExpectedSignature;
     footer.MetaOffset = File->GetLength();
     footer.MetaSize = metaBlob.ysize();
 
@@ -51,12 +53,12 @@ TFileChunkWriter::AsyncClose(const TSharedRef& masterMeta)
     return Result;
 }
 
-void TFileChunkWriter::Cancel(const Stroka& /*errorMessage*/)
+void TFileWriter::Cancel(const Stroka& /*errorMessage*/)
 {
     File.Destroy();
 }
 
-TChunkId TFileChunkWriter::GetChunkId() const
+TChunkId TFileWriter::GetChunkId() const
 {
     // ToDo: consider using ChunkId instead of file name
     // and implementing this.
@@ -65,5 +67,6 @@ TChunkId TFileChunkWriter::GetChunkId() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT
 

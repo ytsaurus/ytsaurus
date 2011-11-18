@@ -5,6 +5,7 @@
 #include "../misc/checksum.h"
 
 namespace NYT {
+namespace NChunkClient {
 
 //! Represents an offset inside a chunk.
 typedef i64 TChunkOffset;
@@ -25,8 +26,7 @@ struct TChunkFooter
     static const ui32 ExpectedSignature = 0x46435459; // YTCF
 
     //! Signature, must be #ExpectedSignature for valid chunks.
-    // TODO: -> Signature
-    ui32 Singature;
+    ui32 Signature;
     
     //! The size of the meta, in bytes.
     i32 MetaSize;
@@ -41,4 +41,5 @@ struct TChunkFooter
 
 #pragma pack(pop)
 
+} // namespace NChunkClient
 } // namespace NYT

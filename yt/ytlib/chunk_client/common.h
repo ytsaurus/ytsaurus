@@ -4,6 +4,7 @@
 #include "../misc/guid.h"
 
 namespace NYT {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,15 +60,16 @@ inline bool operator!=(const TBlockId& blockId1, const TBlockId& blockId2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A hasher for TBlockId.
 template<>
-struct hash<NYT::TBlockId>
+struct hash<NYT::NChunkClient::TBlockId>
 {
-    i32 operator()(const NYT::TBlockId& blockId) const
+    i32 operator()(const NYT::NChunkClient::TBlockId& blockId) const
     {
         return (i32) THash<NYT::TGuid>()(blockId.ChunkId) * 497 + (i32) blockId.BlockIndex;
     }

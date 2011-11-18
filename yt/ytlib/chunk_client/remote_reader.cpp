@@ -1,13 +1,13 @@
 #include "stdafx.h"
-#include "remote_chunk_reader.h"
+#include "remote_reader.h"
 #include "holder_channel_cache.h"
 #include "reader_thread.h"
 
 #include "../misc/foreach.h"
 #include "../actions/action_util.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -15,7 +15,7 @@ static NLog::TLogger Logger("ChunkReader");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, const yvector<Stroka>& holderAddresses)
+TRemoteReader::TRemoteReader(const TChunkId& chunkId, const yvector<Stroka>& holderAddresses)
     : ChunkId(chunkId)
     , Timeout(TDuration::Seconds(15)) // ToDo: make configurable
     , HolderAddresses(holderAddresses)
@@ -25,8 +25,8 @@ TRemoteChunkReader::TRemoteChunkReader(const TChunkId& chunkId, const yvector<St
     CurrentHolder = 0;
 }
 
-TFuture<IChunkReader::TReadResult>::TPtr
-TRemoteChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TFuture<IAsyncReader::TReadResult>::TPtr
+TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     auto result = New< TFuture<TReadResult> >();
@@ -36,7 +36,7 @@ TRemoteChunkReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return result;
 }
 
-void TRemoteChunkReader::DoReadBlocks(
+void TRemoteReader::DoReadBlocks(
     const yvector<int>& blockIndexes, 
     TFuture<TReadResult>::TPtr result)
 {
@@ -52,13 +52,13 @@ void TRemoteChunkReader::DoReadBlocks(
     }
 
     req->Invoke()->Subscribe(FromMethod(
-        &TRemoteChunkReader::OnBlocksRead, 
+        &TRemoteReader::OnBlocksRead, 
         TPtr(this), 
         result,
         blockIndexes)->Via(ReaderThread->GetInvoker()));
 }
 
-void TRemoteChunkReader::OnBlocksRead(
+void TRemoteReader::OnBlocksRead(
     TRspGetBlocks::TPtr rsp, 
     TFuture<TReadResult>::TPtr result, 
     const yvector<int>& blockIndexes)
@@ -86,7 +86,7 @@ void TRemoteChunkReader::OnBlocksRead(
     }
 }
 
-bool TRemoteChunkReader::ChangeCurrentHolder()
+bool TRemoteReader::ChangeCurrentHolder()
 {
     // Thread affinity is important here to ensure no race conditions on #CurrentHolder 
     VERIFY_THREAD_AFFINITY(Response);
@@ -101,4 +101,5 @@ bool TRemoteChunkReader::ChangeCurrentHolder()
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

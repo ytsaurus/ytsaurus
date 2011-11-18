@@ -3,10 +3,14 @@
 
 #include "../misc/assert.h"
 #include "../misc/string.h"
-#include "../chunk_client/remote_chunk_writer.h"
+#include "../chunk_client/remote_writer.h"
 
 namespace NYT {
 namespace NChunkHolder {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,8 +104,8 @@ void TJob::OnGotMeta(TChunkMeta::TPtr meta)
 {
     Meta = meta;
 
-    Writer = New<TRemoteChunkWriter>(
-        TRemoteChunkWriter::TConfig(),
+    Writer = New<TRemoteWriter>(
+        TRemoteWriter::TConfig(),
         Chunk->GetId(),
         TargetAddresses);
 
@@ -119,7 +123,7 @@ void TJob::Stop()
 void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
 {
     if (!result.IsOK) {
-        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d): ",
+        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d, Error: %s): ",
             ~JobId.ToString(),
             blockIndex,
             ~result.ErrorMessage);

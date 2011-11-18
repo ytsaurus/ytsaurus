@@ -1,29 +1,29 @@
 ﻿#include "stdafx.h"
-#include "chunk_set_writer.h"
+#include "chunk_sequence_writer.h"
 
+#include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
 
 namespace NYT {
 namespace NTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NTransactionClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkSetWriter::TChunkSetWriter(
+TChunkSequenceWriter::TChunkSequenceWriter(
     const TConfig& config,
     const TSchema& schema,
     ICodec* codec,
     const TTransactionId& transactionId,
     NRpc::IChannel::TPtr masterChannel)
-    : Schema(schema)
+    : Config(config)
+    , Schema(schema)
     , Codec(codec)
-    , Config(config)
     , TransactionId(transactionId)
     , Proxy(masterChannel)
-    , CloseChunksAwaiter(New<TParallelAwaiter>(TSyncInvoker::Get()))
+    , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(Config.NextChunkThreshold < 1);
@@ -31,7 +31,7 @@ TChunkSetWriter::TChunkSetWriter(
     CreateNextChunk();
 }
 
-void TChunkSetWriter::CreateNextChunk()
+void TChunkSequenceWriter::CreateNextChunk()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(~NextChunk == NULL);
@@ -41,13 +41,12 @@ void TChunkSetWriter::CreateNextChunk()
     req->SetReplicaCount(Config.ReplicationFactor);
     req->SetTransactionId(TransactionId.ToProto());
 
-    // ToDo: invoke via writer thread.
     req->Invoke()->Subscribe(FromMethod(
-        &TChunkSetWriter::OnChunkCreated,
-        this));
+        &TChunkSequenceWriter::OnChunkCreated,
+        this)->Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSetWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
+void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(~NextChunk != NULL);
@@ -62,7 +61,7 @@ void TChunkSetWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
 
         //ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
-        auto chunkWriter = New<TRemoteChunkWriter>(
+        auto chunkWriter = New<TRemoteWriter>(
             Config.ChunkWriterConfig,
             TChunkId::FromProto(rsp->GetChunkId()),
             addresses);
@@ -74,24 +73,23 @@ void TChunkSetWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
             Codec));
 
     } else {
-        // ToDo: errorMessage from rpc.
-        State.Fail("");
+        State.Fail(rsp->GetError().ToString());
     }
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSetWriter::AsyncInit()
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncInit()
 {
     YASSERT(!State.HasRunningOperation());
 
     State.StartOperation();
     NextChunk->Subscribe(FromMethod(
-        &TChunkSetWriter::InitCurrentChunk,
+        &TChunkSequenceWriter::InitCurrentChunk,
         TPtr(this)));
 
     return State.GetOperationResult();
 }
 
-void TChunkSetWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
+void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     {
@@ -102,7 +100,7 @@ void TChunkSetWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     State.FinishOperation();
 }
 
-void TChunkSetWriter::Write(const TColumn& column, TValue value)
+void TChunkSequenceWriter::Write(const TColumn& column, TValue value)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -111,20 +109,20 @@ void TChunkSetWriter::Write(const TColumn& column, TValue value)
     CurrentChunk->Write(column, value);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSetWriter::AsyncEndRow()
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     State.StartOperation();
 
     CurrentChunk->AsyncEndRow()->Subscribe(FromMethod(
-        &TChunkSetWriter::OnRowEnded,
+        &TChunkSequenceWriter::OnRowEnded,
         TPtr(this)));
 
     return State.GetOperationResult();
 }
 
-void TChunkSetWriter::OnRowEnded(TAsyncStreamState::TResult result)
+void TChunkSequenceWriter::OnRowEnded(TAsyncStreamState::TResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -142,17 +140,17 @@ void TChunkSetWriter::OnRowEnded(TAsyncStreamState::TResult result)
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk();
         NextChunk->Subscribe(FromMethod(
-            &TChunkSetWriter::InitCurrentChunk,
+            &TChunkSequenceWriter::InitCurrentChunk,
             TPtr(this)));
     } else {
         State.FinishOperation();
     }
 }
 
-void TChunkSetWriter::FinishCurrentChunk() 
+void TChunkSequenceWriter::FinishCurrentChunk() 
 {
     CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), FromMethod(
-        &TChunkSetWriter::OnChunkClosed, 
+        &TChunkSequenceWriter::OnChunkClosed, 
         TPtr(this),
         CurrentChunk->GetChunkId()));
 
@@ -160,14 +158,14 @@ void TChunkSetWriter::FinishCurrentChunk()
     CurrentChunk.Reset();
 }
 
-bool TChunkSetWriter::IsNextChunkTime() const
+bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return CurrentChunk->GetCurrentSize() / Config.MaxChunkSize > 
         Config.NextChunkThreshold;
 }
 
-void TChunkSetWriter::OnChunkClosed(
+void TChunkSequenceWriter::OnChunkClosed(
     TAsyncStreamState::TResult result,
     TChunkId chunkId)
 {
@@ -182,7 +180,7 @@ void TChunkSetWriter::OnChunkClosed(
     WrittenChunks.push_back(chunkId);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSetWriter::AsyncClose()
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -190,13 +188,13 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSetWriter::AsyncClose()
     FinishCurrentChunk();
 
     CloseChunksAwaiter->Complete(FromMethod(
-        &TChunkSetWriter::OnClose,
+        &TChunkSequenceWriter::OnClose,
         TPtr(this)));
 
     return State.GetOperationResult();
 }
 
-void TChunkSetWriter::OnClose()
+void TChunkSequenceWriter::OnClose()
 {
     if (State.IsActive()) {
         State.Close();
@@ -204,7 +202,7 @@ void TChunkSetWriter::OnClose()
     State.FinishOperation();
 }
 
-void TChunkSetWriter::Cancel(const Stroka& errorMessage)
+void TChunkSequenceWriter::Cancel(const Stroka& errorMessage)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -216,14 +214,13 @@ void TChunkSetWriter::Cancel(const Stroka& errorMessage)
     }
 }
 
-const yvector<TChunkId>& TChunkSetWriter::GetWrittenChunks() const
+const yvector<TChunkId>& TChunkSequenceWriter::GetWrittenChunks() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(State.IsClosed());
 
     return WrittenChunks;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

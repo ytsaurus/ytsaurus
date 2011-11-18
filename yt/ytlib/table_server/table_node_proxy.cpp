@@ -10,6 +10,7 @@ using namespace NChunkServer;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

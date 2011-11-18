@@ -8,8 +8,8 @@
 #include "../actions/future.h"
 #include "../misc/async_stream_state.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +21,10 @@ namespace NYT
  *  multiple destinations using torrent or chaining strategies.
  */
 // TODO: -> IAsyncWriter
-struct IChunkWriter
+struct IAsyncWriter
     : virtual public TRefCountedBase
-    , public ISyncInterface
 {
-    typedef TIntrusivePtr<IChunkWriter> TPtr;
+    typedef TIntrusivePtr<IAsyncWriter> TPtr;
 
     //! Called when the client wants to upload a new block.
     /*!
@@ -57,7 +56,6 @@ struct IChunkWriter
      *  It is safe to call this method at any time and possibly 
      *  multiple times.Calling #AsyncWriteBlock afterwards is an error.
      */
-    // TODO: Stroka -> TError
     virtual void Cancel(const Stroka& errorMessage) = 0;
 
     //! Returns the id of the chunk being written.
@@ -66,4 +64,5 @@ struct IChunkWriter
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

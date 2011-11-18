@@ -20,6 +20,7 @@ namespace NChunkServer {
 
 using namespace NProto;
 using namespace NMetaState;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +73,6 @@ public:
             &TThis::OnTransactionAborted,
             TPtr(this)));
     }
-
 
     const THolder* FindHolder(const Stroka& address)
     {

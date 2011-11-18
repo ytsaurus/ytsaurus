@@ -1,30 +1,29 @@
 ﻿#pragma once
 
 #include "common.h"
-#include "chunk_reader.h"
+#include "async_reader.h"
 
 #include "../chunk_holder/chunk_holder_rpc.h"
 #include "../misc/metric.h"
 #include "../misc/thread_affinity.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: -> TRemoteReader
-class TRemoteChunkReader
-    : public IChunkReader
+class TRemoteReader
+    : public IAsyncReader
 {
 public:
-    TRemoteChunkReader(
+    TRemoteReader(
         const TChunkId& chunkId,
         const yvector<Stroka>& holderAddresses);
 
     TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
 private:
-    typedef TIntrusivePtr<TRemoteChunkReader> TPtr;
+    typedef TIntrusivePtr<TRemoteReader> TPtr;
 
     typedef NChunkHolder::TChunkHolderProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
@@ -51,6 +50,8 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(Response);
 };
+
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

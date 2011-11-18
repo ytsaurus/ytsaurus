@@ -34,8 +34,8 @@ public:
         , Request(request)
         , OriginalHandler(originalHandler)
         , Timeout(timeout)
-        , SendResult(New< TFuture<TError> >())
         , CumulativeErrorMessage("Retriable channel failed.")
+        , SendResult(New< TFuture<TError> >())
     {
         YASSERT(channel != NULL);
         YASSERT(request != NULL);

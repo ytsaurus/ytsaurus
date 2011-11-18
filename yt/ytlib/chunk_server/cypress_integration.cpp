@@ -11,6 +11,7 @@ namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NCypress;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

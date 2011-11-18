@@ -7,7 +7,7 @@
 #include "schema.h"
 #include "channel_writer.h"
 
-#include "../chunk_client/chunk_writer.h"
+#include "../chunk_client/async_writer.h"
 #include "../misc/codec.h"
 #include "../misc/async_stream_state.h"
 #include "../misc/thread_affinity.h"
@@ -17,8 +17,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Given a schema and input data creates a sequence of blocks and feeds them to
-//! NChunkClient::IWriter.
+//! Given a schema and input data creates a sequence of blocks 
+//! and feeds them to NChunkClient::IAsyncWriter.
 class  TChunkWriter
     : public IWriter
 {
@@ -37,7 +37,7 @@ public:
 
     TChunkWriter(
         const TConfig& config, 
-        IChunkWriter::TPtr chunkWriter, 
+        NChunkClient::IAsyncWriter::TPtr chunkWriter, 
         const TSchema& schema,
         ICodec* codec);
     ~TChunkWriter();
@@ -54,7 +54,7 @@ public:
 
     i64 GetCurrentSize() const;
 
-    TChunkId GetChunkId() const;
+    NChunkClient::TChunkId GetChunkId() const;
 
 private:
     TSharedRef PrepareBlock(int channelIndex);
@@ -69,21 +69,20 @@ private:
     void OnClosed(TAsyncStreamState::TResult result);
 
 private:
+    const TConfig Config;
+    const TSchema Schema;
+    ICodec* Codec;
+
+    NChunkClient::IAsyncWriter::TPtr ChunkWriter;
+
     TAsyncStreamState State;
 
-    TConfig Config;
-    IChunkWriter::TPtr ChunkWriter;
-
-    int CurrentBlockIndex;
-
-    TSchema Schema;
+    yvector<TChannelWriter::TPtr> ChannelWriters;
 
     //! Columns already set in current row
     yhash_set<TColumn> UsedColumns;
 
-    yvector<TChannelWriter::TPtr> ChannelWriters;
-
-    ICodec* Codec;
+    int CurrentBlockIndex;
 
     //! Sum size of completed and sent blocks
     i64 SentSize;

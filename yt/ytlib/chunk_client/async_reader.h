@@ -5,18 +5,16 @@
 #include "../actions/future.h"
 #include "../misc/enum.h"
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: error handling?
-// TODO: -> IAsyncReader
 //! Provides a basic interface for readings chunks from holders.
-struct IChunkReader
+struct IAsyncReader
     : virtual public TRefCountedBase
 {
-    typedef TIntrusivePtr<IChunkReader> TPtr;
+    typedef TIntrusivePtr<IAsyncReader> TPtr;
 
     //ToDo: pretty heavy obj. May be RefCounted?
     //! Describes a result of #ReadBlocks.
@@ -38,4 +36,5 @@ struct IChunkReader
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

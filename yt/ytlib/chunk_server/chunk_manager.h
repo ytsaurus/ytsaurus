@@ -40,10 +40,10 @@ public:
 
     // TODO: provide Stop method
 
-    METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(Chunk, TChunk, NChunkClient::TChunkId);
     METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
-    METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
+    METAMAP_ACCESSORS_DECL(JobList, TJobList, NChunkClient::TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
     const THolder* FindHolder(const Stroka& address);
@@ -51,14 +51,14 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
+    TMetaChange<NChunkClient::TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
 
     TChunkList& CreateChunkList();
     void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
 
-    void RefChunk(const TChunkId& chunkId);
+    void RefChunk(const NChunkClient::TChunkId& chunkId);
     void RefChunk(TChunk& chunk);
-    void UnrefChunk(const TChunkId& chunkId);
+    void UnrefChunk(const NChunkClient::TChunkId& chunkId);
     void UnrefChunk(TChunk& chunk);
 
     void RefChunkList(const TChunkListId& chunkListId);

@@ -10,7 +10,7 @@ namespace NChunkServer {
 class TChunkList
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TChunkListId);
-    DECLARE_BYREF_RW_PROPERTY(ChunkIds, yvector<TChunkId>);
+    DECLARE_BYREF_RW_PROPERTY(ChunkIds, yvector<NChunkClient::TChunkId>);
     DECLARE_BYVAL_RW_PROPERTY(ReplicaCount, i32);
 
 public:

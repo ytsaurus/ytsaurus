@@ -1,15 +1,15 @@
 SET(YT_SOURCE_FILES
+    chunk.proto
     common.cpp
     format.h
-    chunk_writer.h
-    remote_chunk_writer.cpp
-    remote_chunk_reader.cpp
-    file_chunk_writer.cpp
-    chunk_reader.h
-    file_chunk_reader.cpp
-    chunk.proto
+    async_writer.h
+    async_reader.h
+    remote_writer.cpp
+    remote_reader.cpp
+    file_writer.cpp
+    file_reader.cpp
+    sequential_reader.cpp
     holder_channel_cache.cpp
-    sequential_chunk_reader.cpp
     reader_thread.cpp
     writer_thread.cpp
 )

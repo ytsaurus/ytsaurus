@@ -21,7 +21,7 @@ using NCypress::TLockId;
 class TTransaction
 {
     DECLARE_BYVAL_RO_PROPERTY(Id, TTransactionId);
-    DECLARE_BYREF_RW_PROPERTY(RegisteredChunks, yvector<TChunkId>);
+    DECLARE_BYREF_RW_PROPERTY(RegisteredChunks, yvector<NChunkClient::TChunkId>);
     DECLARE_BYREF_RW_PROPERTY(LockIds, yvector<TLockId>);
     DECLARE_BYREF_RW_PROPERTY(BranchedNodes, yvector<TNodeId>);
     DECLARE_BYREF_RW_PROPERTY(CreatedNodes, yvector<TNodeId>);

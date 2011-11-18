@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_reader.h"
+#include "async_reader.h"
 #include "reader_thread.h"
 
 #include "../misc/common.h"
@@ -11,21 +11,21 @@
 #include "../actions/future.h"
 
 namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 //! For a sequence of block indexes fetches and outputs these blocks in the given order.
 //! Prefetches and stores a configured number of blocks in its internal cyclic buffer.
-// TODO: -> TSequentialReader
-class TSequentialChunkReader
+class TSequentialReader
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TSequentialChunkReader> TPtr;
+    typedef TIntrusivePtr<TSequentialReader> TPtr;
 
+    // ToDo: use TAsyncError and TAsyncStreamState
     struct TResult
     {
-        //ToDo: proper error code
         bool IsOK;
         TSharedRef Block;
     };
@@ -46,10 +46,10 @@ public:
     };
 
     //! Configures an instance.
-    TSequentialChunkReader(
+    TSequentialReader(
         const TConfig& config,
         const yvector<int>& blockIndexes,
-        IChunkReader::TPtr chunkReader);
+        IAsyncReader::TPtr chunkReader);
 
     //! Asynchronously fetches the next block.
     /*!
@@ -71,7 +71,7 @@ private:
     };
 
     void OnGotBlocks(
-        IChunkReader::TReadResult readResult, 
+        IAsyncReader::TReadResult readResult, 
         int firstSequenceIndex);
 
     void ProcessPendingResult();
@@ -91,7 +91,7 @@ private:
     int FirstUnfetchedIndex;
 
     const TConfig Config;
-    IChunkReader::TPtr ChunkReader;
+    IAsyncReader::TPtr ChunkReader;
 
     TCyclicBuffer<TWindowSlot> Window;
 
@@ -113,4 +113,5 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

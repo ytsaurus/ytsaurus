@@ -1,26 +1,25 @@
 #pragma once
 
-#include "chunk_reader.h"
+#include "async_reader.h"
 #include "format.h"
 #include "chunk.pb.h"
 
 #include <util/system/file.h>
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IChunkReader.
-// TODO -> TFileReader
-class TFileChunkReader
-    : public IChunkReader
+class TFileReader
+    : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TFileChunkReader> TPtr;
+    typedef TIntrusivePtr<TFileReader> TPtr;
 
     //! Creates a new reader.
-    TFileChunkReader(Stroka fileName);
+    TFileReader(Stroka fileName);
 
     //! Returns the number of blocks in the chunk.
     i32 GetBlockCount() const;
@@ -49,4 +48,5 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

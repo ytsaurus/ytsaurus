@@ -5,7 +5,8 @@
 #include "block_store.h"
 
 #include "../misc/guid.h"
-#include "../chunk_client/chunk_writer.h"
+#include "../misc/async_stream_state.h"
+#include "../chunk_client/async_writer.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -71,7 +72,7 @@ private:
     EJobState State;
     TChunk::TPtr Chunk;
     yvector<Stroka> TargetAddresses;
-    IChunkWriter::TPtr Writer;
+    NChunkClient::IAsyncWriter::TPtr Writer;
     TCancelableInvoker::TPtr CancelableInvoker;
     TChunkMeta::TPtr Meta;
     

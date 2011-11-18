@@ -1,26 +1,25 @@
 #pragma once
 
-#include "chunk_writer.h"
+#include "async_writer.h"
 #include "format.h"
 #include "chunk.pb.h"
 
 #include <util/system/file.h>
 
-namespace NYT
-{
+namespace NYT {
+namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a local and synchronous implementation of IChunkWriter.
-// TODO -> TChunkWriter
-class TFileChunkWriter
-    : public IChunkWriter
+//! Provides a local and synchronous implementation of #IAsynckWriter.
+class TFileWriter
+    : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TFileChunkWriter> TPtr;
+    typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    TFileChunkWriter(Stroka fileName);
+    TFileWriter(Stroka fileName);
 
     TAsyncStreamState::TAsyncResult::TPtr 
     AsyncWriteBlock(const TSharedRef& data);
@@ -39,7 +38,7 @@ private:
     TAsyncStreamState::TAsyncResult::TPtr Result;
 };
 
-
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NChunkClient
 } // namespace NYT

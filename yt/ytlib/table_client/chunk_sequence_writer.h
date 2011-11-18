@@ -7,7 +7,7 @@
 #include "../misc/thread_affinity.h"
 
 #include "../chunk_server/chunk_service_rpc.h"
-#include "../chunk_client/remote_chunk_writer.h"
+#include "../chunk_client/remote_writer.h"
 #include "../transaction_client/transaction.h"
 
 namespace NYT {
@@ -15,12 +15,16 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NYT::NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO: rename to TChunkSequenceWriter
-class TChunkSetWriter
+class TChunkSequenceWriter
     : public IWriter
 {
 public:
-    typedef TIntrusivePtr<TChunkSetWriter> TPtr;
+    typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
 
     struct TConfig
     {
@@ -33,13 +37,13 @@ public:
         int ReplicationFactor;
 
         TChunkWriter::TConfig TableChunkConfig;
-        TRemoteChunkWriter::TConfig ChunkWriterConfig;
+        TRemoteWriter::TConfig ChunkWriterConfig;
 
         TConfig(
             i64 chunkSize, 
             double threshold,
             int repFactor, 
-            const TRemoteChunkWriter::TConfig& chunkWriterConfig)
+            const TRemoteWriter::TConfig& chunkWriterConfig)
             : MaxChunkSize(chunkSize)
             , NextChunkThreshold(threshold)
             , ReplicationFactor(repFactor)
@@ -47,7 +51,7 @@ public:
         { }
     };
 
-    TChunkSetWriter(
+    TChunkSequenceWriter(
         const TConfig& config,
         const TSchema& schema,
         ICodec* codec,
@@ -64,15 +68,10 @@ public:
     const yvector<TChunkId>& GetWrittenChunks() const;
 
 private:
-    TAsyncStreamState State;
-
-    TSchema Schema;
-    ICodec* Codec;
-
     typedef NChunkServer::TChunkServiceProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, CreateChunk)
 
-    void CreateNextChunk();
+        void CreateNextChunk();
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
     void FinishCurrentChunk();
 
@@ -87,8 +86,13 @@ private:
     void OnRowEnded(TAsyncStreamState::TResult result);
     void OnClose();
 
-    TConfig Config;
-    NTransactionClient::TTransactionId TransactionId;
+    const TConfig Config;
+    const TSchema Schema;
+    ICodec* Codec;
+    const NTransactionClient::TTransactionId TransactionId;
+
+    TAsyncStreamState State;
+    TProxy Proxy;
 
     //! Protects #CurrentChunk.
     TSpinLock CurrentSpinLock;
@@ -100,8 +104,6 @@ private:
     yvector<TChunkId> WrittenChunks;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
-
-    TProxy Proxy;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

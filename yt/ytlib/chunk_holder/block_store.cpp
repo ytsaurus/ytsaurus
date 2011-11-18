@@ -2,12 +2,16 @@
 #include "block_store.h"
 #include "chunk_store.h"
 
-#include "../chunk_client/file_chunk_reader.h"
+#include "../chunk_client/file_reader.h"
 
 #include "../misc/assert.h"
 
 namespace NYT {
 namespace NChunkHolder {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

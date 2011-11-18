@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
 
+#include "../misc/sync.h"
 #include "../cypress/cypress_ypath_rpc.h"
 
 namespace NYT {
@@ -25,7 +26,7 @@ TTableWriter::TTableWriter(
     , Path(path)
     , Transaction(transaction)
     , MasterChannel(masterChannel)
-    , Writer(New<TChunkSetWriter>(
+    , Writer(New<TChunkSequenceWriter>(
         config.ChunkSetConfig, 
         schema, 
         codec, 
@@ -50,7 +51,7 @@ TTableWriter::TTableWriter(
 
 void TTableWriter::Init()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncInit);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncInit);
 }
 
 bool TTableWriter::NodeExists(const Stroka& nodePath)
@@ -99,12 +100,12 @@ void TTableWriter::Write(const TColumn& column, TValue value)
 
 void TTableWriter::EndRow()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncEndRow);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncEndRow);
 }
 
 void TTableWriter::Close()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncClose);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
     // TODO: use node id
     auto req = TTableYPathProxy::AddTableChunks(Path);

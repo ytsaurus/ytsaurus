@@ -3,11 +3,16 @@
 
 #include "../misc/fs.h"
 #include "../misc/assert.h"
+#include "../misc/sync.h"
 
 #include <util/generic/yexception.h>
 
 namespace NYT {
 namespace NChunkHolder {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -277,7 +282,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Writer->Sync(&IChunkWriter::AsyncWriteBlock, block->GetData());
+        Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
         LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
@@ -365,7 +370,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileChunkWriter>(FileName + NFS::TempFileSuffix);
+    Writer = New<TFileWriter>(FileName + NFS::TempFileSuffix);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -407,7 +412,7 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TSharedRef& masterMeta)
 NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
 {
     try {
-        Writer->Sync(&IChunkWriter::AsyncClose, masterMeta);
+        Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
     } catch (...) {
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
             ~ChunkId.ToString());

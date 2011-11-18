@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NChunkServer {
 
+using NChunkClient::TChunkId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;

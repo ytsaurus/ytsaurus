@@ -38,6 +38,7 @@ SET(YT_SOURCE_FILES
     mpl.h
     new_config.cpp
     new_config-inl.h
+    sync.h
 
 
     ${SRCDIR}/preprocessor-gen.h
