@@ -25,7 +25,7 @@ public:
     explicit TVirtualNode(
         const TBranchedNodeId& id,
         ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid,
-        TYson manifest = "")
+        const TYson& manifest = "")
         : TCypressNodeBase(id)
         , RuntimeType_(runtimeType)
         , Manifest_(manifest)
@@ -80,15 +80,12 @@ public:
         , Service(service)
     { }
 
-    virtual bool IsLogged(IServiceContext* context) const
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
-        // Don't log anything for virtual nodes expect when the path is
-        // empty and thus refers to the node itself.
-        TYPath path = context->GetPath();
-        if (IsEmptyYPath(path)) {
-            return TBase::IsLogged(context);
+        if (IsLocalYPath(path)) {
+            return TBase::Resolve(path, verb);
         } else {
-            return false;
+            return TResolveResult::There(~Service, path);
         }
     }
 
@@ -97,23 +94,6 @@ private:
 
     IYPathService::TPtr Service;
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
-    {
-        if (~Service == NULL) {
-            return TBase::Resolve(path, verb);
-        } else {
-            return Service->Resolve(path, verb);
-        }
-    }
-
-    virtual void Invoke(IServiceContext* context)
-    {
-        if (~Service == NULL) {
-            TBase::Invoke(context);
-        } else {
-            Service->Invoke(context);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,12 +123,6 @@ public:
         context.NodeId = node.GetId().NodeId;
         context.TransactionId = transactionId;
         context.Manifest = typedNode.GetManifest();
-        context.Fallback = New<TVirtualNodeProxy>(
-            this,
-            ~CypressManager,
-            transactionId,
-            node.GetId().NodeId,
-            static_cast<IYPathService*>(NULL));
 
         auto service = Producer->Do(context);
 

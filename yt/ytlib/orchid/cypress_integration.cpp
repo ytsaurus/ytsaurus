@@ -30,8 +30,7 @@ class TOrchidYPathService
 public:
     typedef TIntrusivePtr<TOrchidYPathService> TPtr;
 
-    TOrchidYPathService(IYPathService* fallbackService, const TYson& manifestYson)
-        : FallbackService(fallbackService)
+    TOrchidYPathService(const TYson& manifestYson)
     {
         auto manifestBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         TYsonReader reader(~manifestBuilder);
@@ -51,15 +50,10 @@ public:
         Proxy = new TOrchidServiceProxy(~channel);
     }
 
-    IYPathService::TResolveResult Resolve(TYPath path, const Stroka& verb)
+    TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
         UNUSED(verb);
-
-        if (IsEmptyYPath(path)) {
-            return TResolveResult::There(~FallbackService, path);
-        } else {
-            return TResolveResult::Here(path);
-        }
+        return TResolveResult::Here(path);
     }
 
     void Invoke(NRpc::IServiceContext* context)
@@ -130,7 +124,6 @@ private:
         }
     };
 
-    IYPathService::TPtr FallbackService;
     TManifest Manifest;
     TAutoPtr<TOrchidServiceProxy> Proxy;
 
@@ -147,9 +140,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(
         "orchid",
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
-                return New<TOrchidYPathService>(
-                    ~IYPathService::FromNode(~context.Fallback),
-                    context.Manifest);
+                return New<TOrchidYPathService>(context.Manifest);
             }));
 }
 

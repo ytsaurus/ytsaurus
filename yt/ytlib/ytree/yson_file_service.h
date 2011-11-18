@@ -16,4 +16,3 @@ NYTree::TYPathServiceProducer::TPtr CreateYsonFileProducer(const Stroka& fileNam
 
 } // namespace NYTree
 } // namespace NYT
-

@@ -241,7 +241,10 @@ bool IsEmptyYPath(TYPath path);
 
 bool IsFinalYPath(TYPath path);
 
-bool HasYPathAttributeMarker(TYPath path);
+bool IsAttributeYPath(TYPath path);
+
+// TODO: choose a better name
+bool IsLocalYPath(TYPath path);
 
 TYPath ChopYPathAttributeMarker(TYPath path);
 
