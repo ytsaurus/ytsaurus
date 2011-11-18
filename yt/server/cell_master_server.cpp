@@ -30,6 +30,8 @@
 
 #include <yt/ytlib/table_server/table_node.h>
 
+#include <yt/ytlib/ytree/yson_file_service.h>
+
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
@@ -159,6 +161,11 @@ void TCellMasterServer::Run()
             ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
             orchidFactory),
         "monitoring");
+    orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NYTree::CreateYsonFileProducer("c:\\temp\\some.yson"),
+            orchidFactory),
+        "config");
 
     auto orchidService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

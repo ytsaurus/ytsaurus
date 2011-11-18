@@ -117,8 +117,11 @@ private:
     yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
-    TVoid DoExecuteVerb(const NProto::TMsgExecuteVerb& message);
-    TVoid DoExecuteVerbFast(NYTree::IYPathService::TPtr service, NRpc::IServiceContext::TPtr context);
+    TVoid DoExecuteLoggedVerb(const NProto::TMsgExecuteVerb& message);
+    TVoid DoExecuteVerb(
+        ICypressNodeProxy::TPtr proxy,
+        NRpc::IServiceContext::TPtr context,
+        bool startAutoTransaction);
 
     // TMetaStatePart overrides.
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

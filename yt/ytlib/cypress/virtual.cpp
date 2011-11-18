@@ -80,12 +80,13 @@ public:
         , Service(service)
     { }
 
-    virtual bool IsOperationLogged(TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(IServiceContext* context) const
     {
         // Don't log anything for virtual nodes expect when the path is
         // empty and thus refers to the node itself.
+        TYPath path = context->GetPath();
         if (IsEmptyYPath(path)) {
-            return TBase::IsOperationLogged(path, verb);
+            return TBase::IsLogged(context);
         } else {
             return false;
         }
@@ -225,15 +226,15 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
-    return New<TVirtualNodeTypeHandler>(
+    return CreateVirtualTypeHandler(
         cypressManager,
+        runtypeType,
+        typeName,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);
                 return service_;
-            }),
-        runtypeType,
-        typeName);
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -139,10 +139,9 @@ public:
     }
 
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        UNUSED(path);
-
+        Stroka verb = context->GetVerb();
         if (verb == "Set" ||
             verb == "Remove" ||
             verb == "Lock")
@@ -152,6 +151,19 @@ public:
         return false;
     }
 
+    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const
+    {
+        if (TransactionId != NullTransactionId) {
+            return false;
+        }
+        
+        Stroka verb = context->GetVerb();
+        if (verb == "Lock") {
+            return false;
+        }
+
+        return IsLogged(context);
+    }
 
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
@@ -397,12 +409,13 @@ protected:
         }
     }
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
+        Stroka verb = context->GetVerb();
         if (verb == "Create") {
             return true;
         } else {
-            return TBase::IsOperationLogged(path, verb);
+            return TBase::IsLogged(context);
         }
     }
 

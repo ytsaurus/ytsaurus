@@ -27,12 +27,13 @@ TTableNodeProxy::TTableNodeProxy(
     , ChunkManager(chunkManager)
 { }
 
-bool TTableNodeProxy::IsOperationLogged(TYPath path, const Stroka& verb) const
+bool TTableNodeProxy::IsLogged(IServiceContext* context) const
 {
+    Stroka verb = context->GetVerb();
     if (verb == "AddTableChunks") {
         return true;
     } else {
-        return TBase::IsOperationLogged(path, verb);
+        return TBase::IsLogged(context);
     }
 }
 

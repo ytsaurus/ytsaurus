@@ -29,15 +29,11 @@ TServiceContextBase::TServiceContextBase(
         requestMessage->GetParts().end());
 }
 
-bool TServiceContextBase::IsReplied() const
-{
-    return Replied;
-}
-
 void TServiceContextBase::Reply(const TError& error)
 {
     // Failure here means that #Reply is called twice.
     YASSERT(!Replied);
+    Error = error;
     Replied = true;
 
     LogResponse(error);
@@ -56,6 +52,17 @@ void TServiceContextBase::Reply(const TError& error)
     }
 
     DoReply(error, ~responseMessage);
+}
+
+bool TServiceContextBase::IsReplied() const
+{
+    return Replied;
+}
+
+TError TServiceContextBase::GetError() const
+{
+    YASSERT(Replied);
+    return Error;
 }
 
 TSharedRef TServiceContextBase::GetRequestBody() const
