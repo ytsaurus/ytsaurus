@@ -173,15 +173,15 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         if (!response->IsOK()) {
             auto error = response->GetError();
             if (error.IsServiceError()) {
-                switch (TProxy::EErrorCode(error.GetCode())) {
-                    case TProxy::EErrorCode::InvalidSegmentId:
+                switch (error.GetCode()) {
+                    case EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
                             "Peer %d does not have snapshot %d anymore",
                             sourceId,
                             snapshotId);
                         return EResult::SnapshotUnavailable;
 
-                    case TProxy::EErrorCode::IOError:
+                    case EErrorCode::IOError:
                         LOG_WARNING(
                             "IO error occurred on peer %d during downloading snapshot %d",
                             sourceId,

@@ -298,7 +298,7 @@ void TRemoteChunkWriter::TGroup::CheckSendResponse(
     int srcNode, 
     int dstNode)
 {
-    if (rsp->GetErrorCode() == TProxy::EErrorCode::RemoteCallFailed) {
+    if (rsp->GetErrorCode() == EErrorCode::RemoteCallFailed) {
         Writer->OnNodeDied(dstNode);
         return;
     }

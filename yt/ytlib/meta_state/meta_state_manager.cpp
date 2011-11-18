@@ -191,7 +191,7 @@ private:
             context->Reply();
         } catch (...) {
             // TODO: fail?
-            ythrow TServiceException(TProxy::EErrorCode::IOError) <<
+            ythrow TServiceException(EErrorCode::IOError) <<
                 Sprintf("IO error while reading snapshot (SnapshotId: %d)\n%s",
                     snapshotId,
                     ~CurrentExceptionMessage());
@@ -1053,13 +1053,13 @@ void TMetaStateManager::TImpl::OnFollowerCommit(
 
         case TCommitterBase::EResult::LateChanges:
             context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
+                EErrorCode::InvalidVersion,
                 "Changes are late");
             break;
 
         case TCommitterBase::EResult::OutOfOrderChanges:
             context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
+                EErrorCode::InvalidVersion,
                 "Changes are out of order");
             Restart();
             break;
