@@ -2,6 +2,7 @@
 
 #include "../misc/common.h"
 #include "../misc/enum.h"
+#include "../misc/property.h"
 
 namespace NYT {
 namespace NRpc {
@@ -24,24 +25,18 @@ DECLARE_ENUM(EErrorCode,
 
 class TError
 {
+    DECLARE_BYVAL_RO_PROPERTY(Code, int);
+    DECLARE_BYVAL_RO_PROPERTY(Message, Stroka);
+
 public:
     TError()
+        : Code_(EErrorCode::OK)
     { }
 
     TError(int code, const Stroka& message)
         : Code_(code)
         , Message_(message)
     { }
-
-    int GetCode() const
-    {
-        return Code_;
-    }
-
-    Stroka GetMessage() const
-    {
-        return Message_;
-    }
 
     bool IsOK() const
     {
@@ -62,13 +57,14 @@ public:
     {
         return Sprintf("(%d): %s", Code_, ~Message_);
     }
-
-private:
-    int Code_;
-    Stroka Message_;
 };
 
-typedef TFuture<TError> TAsyncError;
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: get rid of this
+#ifdef _win_
+#undef GetMessage
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

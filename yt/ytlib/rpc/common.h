@@ -1,10 +1,10 @@
 #pragma once
 
+#include "error.h"
+
 #include "../misc/guid.h"
 
 #include "../logging/log.h"
-
-#include "error.h"
 
 namespace NYT {
 namespace NRpc {
@@ -14,9 +14,6 @@ namespace NRpc {
 extern NLog::TLogger RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO: get rid of this
-#undef GetMessage
 
 typedef TGuid TRequestId;
 
