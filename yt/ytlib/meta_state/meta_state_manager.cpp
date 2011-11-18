@@ -559,6 +559,9 @@ private:
                         ->Via(~EpochControlInvoker));
                 }
                 break;
+                
+            default:
+                YUNREACHABLE();
         }
 
         response->SetStatus(status);
