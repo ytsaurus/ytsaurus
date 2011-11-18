@@ -51,17 +51,19 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
-    for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
-        LOG_INFO("Requesting snapshot info from peer %d", i);
+    for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
+        if (peerId == CellManager->GetSelfId()) continue;
 
-        auto proxy = CellManager->GetMasterProxy<TProxy>(i);
+        LOG_INFO("Requesting snapshot info from peer %d", peerId);
+
+        auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
         proxy->SetTimeout(Config.LookupTimeout);
 
         auto request = proxy->GetSnapshotInfo();
         request->SetSnapshotId(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TSnapshotDownloader::OnResponse,
-            awaiter, asyncResult, i));
+            awaiter, asyncResult, peerId));
     }
 
     awaiter->Complete(FromMethod(

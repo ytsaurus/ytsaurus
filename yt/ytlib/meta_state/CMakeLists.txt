@@ -37,7 +37,7 @@ SET(YT_SOURCE_FILES
    
     cell_channel.cpp
 
-    leader_pinger.cpp
+    follower_pinger.cpp
 
     map.h
     map-inl.h

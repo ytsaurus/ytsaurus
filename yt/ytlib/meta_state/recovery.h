@@ -148,7 +148,6 @@ public:
         TChangeLogCache::TPtr changeLogCache,
         TSnapshotStore::TPtr snapshotStore,
         TEpoch epoch,
-        TPeerId leaderId,
         IInvoker::TPtr controlInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
@@ -183,7 +182,9 @@ public:
         TSnapshotStore::TPtr snapshotStore,
         TEpoch epoch,
         TPeerId leaderId,
-        IInvoker::TPtr controlInvoker);
+        IInvoker::TPtr controlInvoker,
+        TMetaVersion targetVersion,
+        i32 maxSnapshotId);
 
     //! Performs follower recovery brining the follower up-to-date and synchronized with the leader.
     /*!
@@ -244,17 +245,17 @@ private:
 
     // Any thread.
     TAsyncResult::TPtr Result;
+    TMetaVersion TargetVersion;
+    i32 MaxSnapshotId;
 
     // Control thread
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
-    bool SyncReceived;
+    
+    TAsyncResult::TPtr OnSyncReached(EResult result);
 
     TAsyncResult::TPtr CapturePostponedChanges();
     TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
-
-    void OnSync(TProxy::TRspSync::TPtr response);
-    TAsyncResult::TPtr OnSyncReached(EResult result);
 
     virtual bool IsLeader() const;
 
