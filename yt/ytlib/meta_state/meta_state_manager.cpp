@@ -9,7 +9,7 @@
 #include "cell_manager.h"
 #include "change_committer.h"
 #include "follower_tracker.h"
-#include "leader_pinger.h"
+#include "follower_pinger.h"
 
 #include "../election/election_manager.h"
 #include "../rpc/service.h"
@@ -60,14 +60,13 @@ public:
         YASSERT(metaState != NULL);
         YASSERT(server != NULL);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Sync));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingLeader));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
         NFS::CleanTempFiles(config.LogLocation);
         ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
@@ -163,47 +162,8 @@ private:
     TLeaderCommitter::TPtr LeaderCommitter;
     TFollowerCommitter::TPtr FollowerCommitter;
 
-    TIntrusivePtr<TFollowerTracker> FollowerTracker;
-    TIntrusivePtr<TLeaderPinger> LeaderPinger;
-
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, Sync)
-    {
-        UNUSED(request);
-        UNUSED(response);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-    
-        if (GetControlStatus() != EPeerStatus::Leading && GetControlStatus() != EPeerStatus::LeaderRecovery) {
-            ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
-        }
-
-        GetStateInvoker()->Invoke(FromMethod(
-            &TThis::SendSync,
-            TPtr(this),
-            Epoch,
-            context));
-    }
-
-    void SendSync(const TEpoch& epoch, TCtxSync::TPtr context)
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-    
-        auto version = MetaState->GetReachableVersion();
-        i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
-
-        auto& response = context->Response();
-        response.SetSegmentId(version.SegmentId);
-        response.SetRecordCount(version.RecordCount);
-        response.SetEpoch(epoch.ToProto());
-        response.SetMaxSnapshotId(maxSnapshotId);
-
-        context->SetResponseInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
-            ~version.ToString(),
-            ~epoch.ToString(),
-            maxSnapshotId);
-
-        context->Reply();
-    }
+    TFollowerTracker::TPtr FollowerTracker;
+    TFollowerPinger::TPtr FollowerPinger;
 
 
     RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetSnapshotInfo)
@@ -542,29 +502,65 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingLeader)
+    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingFollower)
     {
-        UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto followerId = request->GetFollowerId();
-        auto followerEpoch = TEpoch::FromProto(request->GetEpoch());
-        auto followerStatus = static_cast<EPeerStatus>(request->GetStatus());
+        i32 segmentId = request->GetSegmentId();
+        i32 recordCount = request->GetRecordCount();
+        TMetaVersion version(segmentId, recordCount);
+        auto epoch = TEpoch::FromProto(request->GetEpoch());
+        i32 maxSnapshotId = request->GetMaxSnapshotId();
+        
+        context->SetRequestInfo("Version: %s,  Epoch: %s, MaxSnapshotId: %d",
+            ~version.ToString(),
+            ~epoch.ToString(),
+            maxSnapshotId);
 
-        context->SetRequestInfo("Id: %d, Epoch: %s, State: %s",
-            followerId,
-            ~followerEpoch.ToString(),
-            ~followerStatus.ToString());
+        auto status = GetControlStatus();
 
-        if (GetControlStatus() != EPeerStatus::Leading) {
-            LOG_DEBUG("PingLeader: invalid status (Status: %s)",
-                ~GetControlStatus().ToString());
-        } else if (followerEpoch != Epoch ) {
-            LOG_DEBUG("PingLeader: invalid epoch (Epoch: %s)",
-                ~Epoch.ToString());
-        } else {
-            FollowerTracker->ProcessPing(followerId, followerStatus);
+        if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
+            ythrow TServiceException(EErrorCode::InvalidStatus) <<
+                Sprintf("Invalid status (Status: %s)",
+                    ~GetControlStatus().ToString());
         }
+
+        if (epoch != Epoch) {
+            Restart();
+            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
+                Sprintf("Invalid epoch (Expected: %s, Received: %s)",
+                    ~Epoch.ToString(),
+                    ~epoch.ToString());
+        }
+
+        switch (status) {
+            case EPeerStatus::Following:
+                // code here for two-phase commit
+                // right now, ignoring ping
+                break;
+
+            case EPeerStatus::FollowerRecovery:
+                if (~FollowerRecovery == NULL) {
+                    FollowerRecovery = New<TFollowerRecovery>(
+                        Config,
+                        CellManager,
+                        MetaState,
+                        ChangeLogCache,
+                        SnapshotStore,
+                        Epoch,
+                        LeaderId,
+                        ControlInvoker,
+                        version,
+                        maxSnapshotId);
+
+                    FollowerRecovery->Run()->Subscribe(
+                        FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
+                        ->Via(~EpochControlInvoker));
+                }
+                break;
+        }
+
+        response->SetStatus(status);
 
         // Reply with OK in any case.
         context->Reply();
@@ -649,15 +645,6 @@ private:
         YASSERT(~FollowerCommitter == NULL);
         FollowerCommitter = New<TFollowerCommitter>(
             MetaState,
-            ControlInvoker);
-
-        YASSERT(~LeaderPinger == NULL);
-        LeaderPinger = New<TLeaderPinger>(
-            TLeaderPinger::TConfig(),
-            Owner,
-            CellManager,
-            LeaderId,
-            Epoch,
             ControlInvoker);
 
         YASSERT(~SnapshotCreator == NULL);
@@ -778,6 +765,17 @@ private:
             &TThis::DoStartLeading,
             TPtr(this)));
 
+        YASSERT(~FollowerPinger == NULL);
+        FollowerPinger = New<TFollowerPinger>(
+            TFollowerPinger::TConfig(), // Change to Config.LeaderPinger
+            MetaState,
+            CellManager,
+            FollowerTracker,
+            SnapshotStore,
+            Epoch,
+            ControlInvoker);
+
+        
         YASSERT(~LeaderRecovery == NULL);
         LeaderRecovery = New<TLeaderRecovery>(
             Config,
@@ -786,7 +784,6 @@ private:
             ChangeLogCache,
             SnapshotStore,
             Epoch,
-            LeaderId,
             ControlInvoker);
         LeaderRecovery->Run()->Subscribe(
             FromMethod(&TThis::OnLeaderRecoveryComplete, TPtr(this))
@@ -817,6 +814,11 @@ private:
             LeaderCommitter.Reset();
         }
 
+        if (~FollowerPinger != NULL) {
+            FollowerPinger->Stop();
+            FollowerPinger.Reset();
+        }
+
         if (~FollowerTracker != NULL) {
             FollowerTracker->Stop();
             FollowerTracker.Reset();
@@ -845,19 +847,6 @@ private:
             TPtr(this)));
 
         YASSERT(~FollowerRecovery == NULL);
-        FollowerRecovery = New<TFollowerRecovery>(
-            Config,
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
-            Epoch,
-            LeaderId,
-            ControlInvoker);
-
-        FollowerRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnFollowerRecoveryComplete, TPtr(this))
-            ->Via(~EpochControlInvoker));
     }
 
     virtual void OnStopFollowing()
@@ -884,12 +873,7 @@ private:
             FollowerCommitter->Stop();
             FollowerCommitter.Reset();
         }
-
-        if (~LeaderPinger != NULL) {
-            LeaderPinger->Stop();
-            LeaderPinger.Reset();
-        }
-
+        
         if (~SnapshotCreator != NULL) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));

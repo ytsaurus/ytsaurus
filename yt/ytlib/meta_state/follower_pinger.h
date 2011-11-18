@@ -47,7 +47,7 @@ public:
         TFollowerTracker::TPtr followerTracker,
         TSnapshotStore::TPtr snapshotStore,
         const TEpoch& epoch,
-        IInvoker::TPtr serviceInvoker);
+        IInvoker::TPtr controlInvoker);
 
     void Stop();
 
@@ -55,7 +55,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
 
     void SendPing();
-    void OnSendPing(TProxy::TRspPingFollower::TPtr response);
+    void OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
     TConfig Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
@@ -64,7 +64,7 @@ private:
     TFollowerTracker::TPtr FollowerTracker;
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
-    TCancelableInvoker::TPtr CancelableInvoker;
+    TCancelableInvoker::TPtr ControlInvoker;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
