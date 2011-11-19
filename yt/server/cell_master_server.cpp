@@ -21,7 +21,7 @@
 #include <yt/ytlib/chunk_server/cypress_integration.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/cypress_integration.h>
+#include <yt/ytlib/monitoring/ytree_integration.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>

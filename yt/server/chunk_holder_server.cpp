@@ -8,7 +8,7 @@
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/cypress_integration.h>
+#include <yt/ytlib/monitoring/ytree_integration.h>
 
 #include <yt/ytlib/ytree/yson_file_service.h>
 
