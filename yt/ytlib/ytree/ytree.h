@@ -226,6 +226,13 @@ struct IMapNode
         YASSERT(~child != NULL);
         return child;
     }
+
+    //! Returns the key for a given child.
+    /*!
+     *  \param child A node that must be a child.
+     *  \return Child's key.
+     */
+    virtual Stroka GetChildKey(INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +277,13 @@ struct IListNode
         YASSERT(~child != NULL);
         return child;
     }
+
+    //! Returns the index for a given child.
+    /*!
+     *  \param child A node that must be a child.
+     *  \return Child's index.
+     */
+    virtual int GetChildIndex(INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

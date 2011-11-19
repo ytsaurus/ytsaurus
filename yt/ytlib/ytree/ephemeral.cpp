@@ -111,6 +111,7 @@ public:
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
+    virtual Stroka GetChildKey(INode* child);
 
 private:
     yhash_map<Stroka, INode::TPtr> NameToChild;
@@ -139,9 +140,11 @@ public:
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
     virtual void RemoveChild(INode::TPtr child);
+    virtual int GetChildIndex(INode* child);
 
 private:
-    yvector<INode::TPtr> List;
+    yvector<INode::TPtr> IndexToChild;
+    yhash_map<INode::TPtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
     virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
@@ -281,6 +284,13 @@ void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
 }
 
+Stroka TMapNode::GetChildKey(INode* child)
+{
+    auto it = ChildToName.find(child);
+    YASSERT(it != ChildToName.end());
+    return it->Second();
+}
+
 void TMapNode::DoInvoke(NRpc::IServiceContext* context)
 {
     if (TMapNodeMixin::DoInvoke(context)) {
@@ -307,62 +317,80 @@ void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TC
 
 void TListNode::Clear()
 {
-    FOREACH(const auto& node, List) {
+    FOREACH(const auto& node, IndexToChild) {
         node->SetParent(NULL);
     }
-    List.clear();
+    IndexToChild.clear();
+    ChildToIndex.clear();
 }
 
 int TListNode::GetChildCount() const
 {
-    return List.ysize();
+    return IndexToChild.ysize();
 }
 
 yvector<INode::TPtr> TListNode::GetChildren() const
 {
-    return List;
+    return IndexToChild;
 }
 
 INode::TPtr TListNode::FindChild(int index) const
 {
-    return index >= 0 && index < List.ysize() ? List[index] : NULL;
+    return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
 }
 
 void TListNode::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
 {
     if (beforeIndex < 0) {
-        List.push_back(child); 
+        YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).Second());
+        IndexToChild.push_back(child); 
     } else {
-        List.insert(List.begin() + beforeIndex, child);
+        YVERIFY(ChildToIndex.insert(MakePair(child, beforeIndex)).Second());
+        IndexToChild.insert(IndexToChild.begin() + beforeIndex, child);
     }
     child->SetParent(this);
 }
 
 bool TListNode::RemoveChild(int index)
 {
-    if (index < 0 || index >= List.ysize())
+    if (index < 0 || index >= IndexToChild.ysize())
         return false;
 
-    List[index]->SetParent(NULL);
-    List.erase(List.begin() + index);
+    auto child = IndexToChild[index];
+    YVERIFY(ChildToIndex.erase(child));
+    IndexToChild.erase(IndexToChild.begin() + index);
+    child->SetParent(NULL);
+
     return true;
 }
 
 void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 {
-    auto it = std::find(List.begin(), List.end(), ~oldChild);
-    YASSERT(it != List.end());
+    auto it = ChildToIndex.find(oldChild);
+    YASSERT(it != ChildToIndex.end());
+
+    int index = it->Second();
 
     oldChild->SetParent(NULL);
-    *it = newChild;
+
+    IndexToChild[index] = newChild;
+    ChildToIndex.erase(it);
+    YVERIFY(ChildToIndex.insert(MakePair(newChild, index)).Second());
     newChild->SetParent(this);
 }
 
 void TListNode::RemoveChild(INode::TPtr child)
 {
-    auto it = std::find(List.begin(), List.end(), ~child);
-    YASSERT(it != List.end());
-    List.erase(it);
+    auto it = std::find(IndexToChild.begin(), IndexToChild.end(), ~child);
+    YASSERT(it != IndexToChild.end());
+    IndexToChild.erase(it);
+}
+
+int TListNode::GetChildIndex(INode* child)
+{
+    auto it = ChildToIndex.find(child);
+    YASSERT(it != ChildToIndex.end());
+    return it->Second();
 }
 
 IYPathService::TResolveResult TListNode::ResolveRecursive(TYPath path, const Stroka& verb)

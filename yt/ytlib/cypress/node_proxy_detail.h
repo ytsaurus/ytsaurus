@@ -468,6 +468,7 @@ public:
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
     virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual Stroka GetChildKey(INode* child);
 
 private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
@@ -500,6 +501,7 @@ public:
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
     virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual int GetChildIndex(INode* child);
 
 private:
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
