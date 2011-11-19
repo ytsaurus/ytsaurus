@@ -57,7 +57,7 @@ void TChunkReplication::RunJobControl(
         jobsToStart);
 }
 
-void TChunkReplication::AddHolder(const THolder& holder)
+void TChunkReplication::RegisterHolder(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -68,7 +68,7 @@ void TChunkReplication::AddHolder(const THolder& holder)
     }
 }
 
-void TChunkReplication::RemoveHolder(const THolder& holder)
+void TChunkReplication::UnregisterHolder(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

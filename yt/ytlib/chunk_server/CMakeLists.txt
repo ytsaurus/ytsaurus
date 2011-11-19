@@ -13,9 +13,14 @@ SET(YT_SOURCE_FILES
 
     chunk_manager.proto
     chunk_manager.cpp
+
     chunk_placement.cpp
+
     chunk_replication.cpp
+
     holder_expiration.cpp
+
+    holder_registry.cpp
 
     cypress_integration.cpp
 )

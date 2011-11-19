@@ -20,11 +20,11 @@ using NCypress::TLockId;
 
 class TTransaction
 {
-    DECLARE_BYVAL_RO_PROPERTY(TTransactionId, Id);
-    DECLARE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, RegisteredChunks);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TLockId>, LockIds);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TNodeId>, BranchedNodes);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TNodeId>, CreatedNodes);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, RegisteredChunks);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TLockId>, LockIds);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, BranchedNodes);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, CreatedNodes);
 
 public:
     TTransaction(const TTransactionId& id)

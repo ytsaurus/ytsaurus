@@ -123,13 +123,13 @@ public:
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
 
     // TODO: get rid of this stupid name clash with IElectionCallbacks
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyStartLeading);
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyLeaderRecoveryComplete);
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyStopLeading);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyStartLeading);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyLeaderRecoveryComplete);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyStopLeading);
 
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyStartFollowing);
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyFollowerRecoveryComplete);
-    DECLARE_BYREF_RW_PROPERTY(TSignal, OnMyStopFollowing);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyStartFollowing);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyFollowerRecoveryComplete);
+    DEFINE_BYREF_RW_PROPERTY(TSignal, OnMyStopFollowing);
 
 private:
     typedef TImpl TThis;

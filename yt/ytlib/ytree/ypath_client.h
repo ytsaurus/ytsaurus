@@ -29,9 +29,9 @@ class TTypedYPathResponse;
 class TYPathRequest
     : public TRefCountedBase
 {
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, Verb);
-    DECLARE_BYVAL_RW_PROPERTY(TYPath, Path);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
+    DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
 
 public:
     typedef TIntrusivePtr<TYPathRequest> TPtr;
@@ -72,8 +72,8 @@ protected:
 class TYPathResponse
     : public TRefCountedBase
 {
-    DECLARE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DECLARE_BYVAL_RW_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RW_PROPERTY(NRpc::TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;

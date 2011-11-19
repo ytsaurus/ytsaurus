@@ -14,7 +14,7 @@ namespace NFileServer {
 class TFileNode
     : public NCypress::TCypressNodeBase
 {
-    DECLARE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
+    DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
     explicit TFileNode(const NCypress::TBranchedNodeId& id);

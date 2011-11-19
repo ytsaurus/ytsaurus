@@ -200,13 +200,13 @@ public:
     int GetChunkCount();
 
     //! Storage locations.
-    DECLARE_BYREF_RO_PROPERTY(TLocations, Locations);
+    DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
 
     //! Raised when a chunk is removed.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
 
 private:
     class TCachedReader;

@@ -36,22 +36,25 @@ public:
 
     TImpl(
         const TConfig& config,
-        TChunkManager::TPtr chunkManager,
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager)
+        TChunkManager* chunkManager,
+        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager,
+        IHolderRegistry* holderRegistry)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         // TODO: this makes a cyclic reference, don't forget to drop it in Stop
         , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
+        , HolderRegistry(holderRegistry)
         // Some random number.
         , ChunkIdGenerator(0x7390bac62f716a19)
         // Some random number.
         , ChunkListIdGenerator(0x761ba739c541fcd0)
     {
-        YASSERT(~chunkManager != NULL);
-        YASSERT(~transactionManager != NULL);
+        YASSERT(chunkManager != NULL);
+        YASSERT(transactionManager != NULL);
+        YASSERT(holderRegistry != NULL);
 
         RegisterMethod(this, &TImpl::CreateChunk);
         RegisterMethod(this, &TImpl::RegisterHolder);
@@ -101,6 +104,9 @@ public:
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
+
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId)
     {
@@ -265,6 +271,7 @@ private:
     TConfig Config;
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
+    IHolderRegistry::TPtr HolderRegistry;
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
@@ -353,6 +360,11 @@ private:
             DoUnregisterHolder(*existingHolder);
         }
 
+        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
+            ~address,
+            holderId,
+            ~statistics.ToString());
+
         auto* newHolder = new THolder(
             holderId,
             address,
@@ -364,12 +376,11 @@ private:
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
-        }
 
-        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
-            ~address,
-            holderId,
-            ~statistics.ToString());
+            if (!IsRecovery()) {
+                HolderRegistered_.Fire(*newHolder);
+            }
+        }
 
         return holderId;
     }
@@ -395,7 +406,7 @@ private:
         holder.Statistics() = statistics;
 
         if (IsLeader()) {
-            HolderExpiration->RenewHolder(holder);
+            HolderExpiration->RenewHolderLease(holder);
             ChunkPlacement->UpdateHolder(holder);
         }
 
@@ -558,16 +569,16 @@ private:
 
     void StartHolderTracking(const THolder& holder)
     {
-        HolderExpiration->AddHolder(holder);
-        ChunkPlacement->AddHolder(holder);
-        ChunkReplication->AddHolder(holder);
+        HolderExpiration->RegisterHolder(holder);
+        ChunkPlacement->RegisterHolder(holder);
+        ChunkReplication->RegisterHolder(holder);
     }
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderExpiration->RemoveHolder(holder);
-        ChunkPlacement->RemoveHolder(holder);
-        ChunkReplication->RemoveHolder(holder);
+        HolderExpiration->UnregisterHolder(holder);
+        ChunkPlacement->UnregisterHolder(holder);
+        ChunkReplication->UnregisterHolder(holder);
     }
 
 
@@ -575,8 +586,16 @@ private:
     { 
         auto holderId = holder.GetId();
 
+        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
+            ~holder.GetAddress(),
+            holderId);
+
         if (IsLeader()) {
             StopHolderTracking(holder);
+
+            if (!IsRecovery()) {
+                HolderRegistered_.Fire(holder);
+            }
         }
 
         FOREACH(const auto& chunkId, holder.ChunkIds()) {
@@ -588,10 +607,6 @@ private:
             const auto& job = GetJob(jobId);
             DoRemoveJobAtDeadHolder(holder, job);
         }
-
-        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
-            ~holder.GetAddress(),
-            holderId);
 
         YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
         HolderMap.Remove(holderId);
@@ -860,14 +875,16 @@ TChunkManager::TChunkManager(
     const TConfig& config,
     NMetaState::TMetaStateManager* metaStateManager,
     NMetaState::TCompositeMetaState* metaState,
-    TTransactionManager* transactionManager)
+    TTransactionManager* transactionManager,
+    IHolderRegistry* holderRegistry)
     : Config(config)
     , Impl(New<TImpl>(
         config,
         this,
         metaStateManager,
         metaState,
-        transactionManager))
+        transactionManager,
+        holderRegistry))
 {
     metaState->RegisterPart(Impl);
 }
@@ -980,6 +997,9 @@ METAMAP_ACCESSORS_FWD(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, THolderId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, Job, TJob, TJobId, *Impl)
+
+FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
+FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -47,6 +47,7 @@ using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
 using NChunkServer::CreateChunkListMapTypeHandler;
+using NChunkServer::CreateHolderRegistry;
 
 using NMetaState::TCompositeMetaState;
 
@@ -115,18 +116,6 @@ void TCellMasterServer::Run()
         ~transactionManager,
         ~rpcServer);
 
-    auto chunkManager = New<TChunkManager>(
-        TChunkManagerConfig(),
-        ~metaStateManager,
-        ~metaState,
-        ~transactionManager);
-
-    auto chunkService = New<TChunkService>(
-        ~metaStateManager,
-        ~chunkManager,
-        ~transactionManager,
-        ~rpcServer);
-
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
@@ -135,6 +124,21 @@ void TCellMasterServer::Run()
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
+        ~transactionManager,
+        ~rpcServer);
+
+    auto holderRegistry = CreateHolderRegistry(~cypressManager);
+
+    auto chunkManager = New<TChunkManager>(
+        TChunkManagerConfig(),
+        ~metaStateManager,
+        ~metaState,
+        ~transactionManager,
+        ~holderRegistry);
+
+    auto chunkService = New<TChunkService>(
+        ~metaStateManager,
+        ~chunkManager,
         ~transactionManager,
         ~rpcServer);
 

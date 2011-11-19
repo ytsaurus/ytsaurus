@@ -24,8 +24,8 @@ public:
         TChunkPlacement* chunkPlacement,
         IInvoker* invoker);
 
-    void AddHolder(const THolder& holder);
-    void RemoveHolder(const THolder& holder);
+    void RegisterHolder(const THolder& holder);
+    void UnregisterHolder(const THolder& holder);
 
     void AddReplica(const THolder& holder, const TChunk& chunk);
     void RemoveReplica(const THolder& holder, const TChunk& chunk);

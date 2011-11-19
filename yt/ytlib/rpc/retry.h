@@ -22,13 +22,13 @@ class TRetriableChannel
     : public IChannel
 {
     //! An underlying channel.
-    DECLARE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
+    DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
 
     //! A interval between successive attempts.
-    DECLARE_BYVAL_RO_PROPERTY(TDuration, BackoffTime);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, BackoffTime);
 
     //! Maximum number of retry attempts.
-    DECLARE_BYVAL_RO_PROPERTY(int, RetryCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, RetryCount);
 
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;

@@ -26,8 +26,8 @@ struct IYPathService
 
     class TResolveResult
     {
-        DECLARE_BYVAL_RO_PROPERTY(IYPathService::TPtr, Service);
-        DECLARE_BYVAL_RO_PROPERTY(TYPath, Path);
+        DEFINE_BYVAL_RO_PROPERTY(IYPathService::TPtr, Service);
+        DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
         static TResolveResult Here(TYPath path)

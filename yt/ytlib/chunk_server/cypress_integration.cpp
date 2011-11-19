@@ -120,5 +120,34 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THolderRegistry
+    : public IHolderRegistry
+{
+public:
+    typedef TIntrusivePtr<THolderRegistry> TPtr;
+
+    THolderRegistry(TCypressManager* cypressManager)
+        : CypressManager(cypressManager)
+    { }
+
+    virtual bool IsHolderAuthorized(const Stroka& address)
+    {
+        UNUSED(address);
+        return true;
+    }
+    
+private:
+    TCypressManager::TPtr CypressManager;
+
+};
+
+IHolderRegistry::TPtr CreateHolderRegistry(
+    TCypressManager* cypressManager)
+{
+    return New<THolderRegistry>(cypressManager);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT

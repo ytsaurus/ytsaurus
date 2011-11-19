@@ -214,10 +214,10 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
-    DECLARE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
-    DECLARE_BYVAL_RW_PROPERTY(TNodeId, AttributesId);
-    DECLARE_BYVAL_RW_PROPERTY(ENodeState, State);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, AttributesId);
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
     explicit TCypressNodeBase(const TBranchedNodeId& id);
@@ -280,7 +280,7 @@ class TScalarNode
 {
     typedef TScalarNode<TValue> TThis;
 
-    DECLARE_BYREF_RW_PROPERTY(TValue, Value)
+    DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
     explicit TScalarNode(const TBranchedNodeId& id)
@@ -371,8 +371,8 @@ class TMapNode
     typedef yhash_map<Stroka, TNodeId> TNameToChild;
     typedef yhash_map<TNodeId, Stroka> TChildToName;
 
-    DECLARE_BYREF_RW_PROPERTY(TNameToChild, NameToChild);
-    DECLARE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
+    DEFINE_BYREF_RW_PROPERTY(TNameToChild, NameToChild);
+    DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
     explicit TMapNode(const TBranchedNodeId& id);
@@ -429,8 +429,8 @@ class TListNode
     typedef yvector<TNodeId> TIndexToChild;
     typedef yhash_map<TNodeId, int> TChildToIndex;
 
-    DECLARE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
-    DECLARE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
+    DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
+    DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
     explicit TListNode(const TBranchedNodeId& id);

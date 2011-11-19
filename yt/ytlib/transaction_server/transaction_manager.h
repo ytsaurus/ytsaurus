@@ -25,11 +25,11 @@ class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
     //! Called when a new transaction is started.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionStarted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionStarted);
     //! Called during transaction commit.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionCommitted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionCommitted);
     //! Called during transaction abort.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionAborted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionAborted);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;

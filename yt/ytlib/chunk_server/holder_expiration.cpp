@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "holder_expiration.h"
+#include "chunk_manager.h"
 
 #include "../misc/assert.h"
 
@@ -24,11 +25,13 @@ THolderExpiration::THolderExpiration(
     YASSERT(invoker != NULL);
 }
 
-void THolderExpiration::AddHolder(const THolder& holder)
+void THolderExpiration::RegisterHolder(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
+
     auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
     YASSERT(pair.Second());
+
     auto& holderInfo = pair.First()->Second();
     holderInfo.Lease = TLeaseManager::Get()->CreateLease(
         Config.HolderLeaseTimeout,
@@ -39,14 +42,14 @@ void THolderExpiration::AddHolder(const THolder& holder)
         ->Via(Invoker));
 }
 
-void THolderExpiration::RemoveHolder(const THolder& holder)
+void THolderExpiration::UnregisterHolder(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::Get()->CloseLease(holderInfo.Lease);
     YASSERT(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
-void THolderExpiration::RenewHolder(const THolder& holder)
+void THolderExpiration::RenewHolderLease(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
     auto& holderInfo = GetHolderInfo(holder.GetId());

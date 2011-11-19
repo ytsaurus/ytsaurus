@@ -40,7 +40,7 @@ protected:
 
     TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
-    DECLARE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;
@@ -65,10 +65,10 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, Path);
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, Verb);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DECLARE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Path);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
 
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
@@ -175,10 +175,10 @@ struct IClientResponseHandler
 class TClientResponse
     : public IClientResponseHandler
 {
-    DECLARE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
-    DECLARE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DECLARE_BYVAL_RO_PROPERTY(NRpc::TError, Error);
-    DECLARE_BYVAL_RO_PROPERTY(TInstant, StartTime);
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
@@ -275,6 +275,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: deprecate
 #define USE_RPC_PROXY_METHOD(TProxy, method) \
     typedef TProxy::TReq##method TReq##method; \
     typedef TProxy::TRsp##method TRsp##method; \

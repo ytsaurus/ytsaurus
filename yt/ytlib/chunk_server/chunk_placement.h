@@ -15,8 +15,8 @@ public:
 
     TChunkPlacement(TChunkManager::TPtr chunkManager);
 
-    void AddHolder(const THolder& holder);
-    void RemoveHolder(const THolder& holder);
+    void RegisterHolder(const THolder& holder);
+    void UnregisterHolder(const THolder& holder);
     void UpdateHolder(const THolder& holder);
     void AddHolderSessionHint(const THolder& holder);
 

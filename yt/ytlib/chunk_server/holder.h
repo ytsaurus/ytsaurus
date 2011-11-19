@@ -22,12 +22,12 @@ DECLARE_ENUM(EHolderState,
 
 class THolder
 {
-    DECLARE_BYVAL_RO_PROPERTY(THolderId, Id);
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DECLARE_BYVAL_RW_PROPERTY(EHolderState, State);
-    DECLARE_BYREF_RW_PROPERTY(THolderStatistics, Statistics);
-    DECLARE_BYREF_RW_PROPERTY(yhash_set<NChunkClient::TChunkId>, ChunkIds);
-    DECLARE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+    DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
+    DEFINE_BYREF_RW_PROPERTY(THolderStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkClient::TChunkId>, ChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 
 public:

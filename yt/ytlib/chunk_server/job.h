@@ -13,7 +13,7 @@ struct TJob
         EJobType type,
         const TJobId& jobId,
         const NChunkClient::TChunkId& chunkId,
-        Stroka runnerAddress,
+        const Stroka& runnerAddress,
         const yvector<Stroka>& targetAddresses)
         : Type_(type)
         , JobId_(jobId)
@@ -56,11 +56,11 @@ struct TJob
         return new TJob(type, jobId, chunkId, runnerAddress, targetAddresses);
     }
 
-    DECLARE_BYVAL_RO_PROPERTY(EJobType, Type);
-    DECLARE_BYVAL_RO_PROPERTY(TJobId, JobId);
-    DECLARE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
-    DECLARE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
+    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
+    DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

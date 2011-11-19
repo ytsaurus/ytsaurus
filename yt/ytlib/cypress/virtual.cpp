@@ -18,8 +18,8 @@ using namespace NRpc;
 class TVirtualNode
     : public TCypressNodeBase
 {
-    DECLARE_BYVAL_RO_PROPERTY(ERuntimeNodeType, RuntimeType);
-    DECLARE_BYVAL_RO_PROPERTY(TYson, Manifest);
+    DEFINE_BYVAL_RO_PROPERTY(ERuntimeNodeType, RuntimeType);
+    DEFINE_BYVAL_RO_PROPERTY(TYson, Manifest);
 
 public:
     explicit TVirtualNode(

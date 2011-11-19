@@ -22,7 +22,7 @@ TChunkPlacement::TChunkPlacement(TChunkManager::TPtr chunkManager)
     YASSERT(~chunkManager != NULL);
 }
 
-void TChunkPlacement::AddHolder(const THolder& holder)
+void TChunkPlacement::RegisterHolder(const THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, holder.GetId()));
@@ -30,7 +30,7 @@ void TChunkPlacement::AddHolder(const THolder& holder)
     YVERIFY(HintedSessionsMap.insert(MakePair(holder.GetId(), 0)).Second());
 }
 
-void TChunkPlacement::RemoveHolder(const THolder& holder)
+void TChunkPlacement::UnregisterHolder(const THolder& holder)
 {
     auto iteratorIt = IteratorMap.find(holder.GetId());
     YASSERT(iteratorIt != IteratorMap.end());
@@ -42,8 +42,8 @@ void TChunkPlacement::RemoveHolder(const THolder& holder)
 
 void TChunkPlacement::UpdateHolder(const THolder& holder)
 {
-    RemoveHolder(holder);
-    AddHolder(holder);
+    UnregisterHolder(holder);
+    RegisterHolder(holder);
 }
 
 void TChunkPlacement::AddHolderSessionHint(const THolder& holder)
