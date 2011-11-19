@@ -145,7 +145,7 @@ void TCellMasterServer::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "/refcounted",
+        "/ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
     monitoringManager->Register(
         "/meta_state",

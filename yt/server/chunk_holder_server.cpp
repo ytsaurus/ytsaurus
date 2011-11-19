@@ -39,7 +39,7 @@ void TChunkHolderServer::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "/refcounted",
+        "/ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
     // TODO: register more monitoring infos
     monitoringManager->Start();
