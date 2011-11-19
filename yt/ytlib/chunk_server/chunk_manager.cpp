@@ -378,7 +378,6 @@ private:
             StartHolderTracking(*newHolder);
 
             if (!IsRecovery()) {
-                HolderRegistered_.Fire(*newHolder);
             }
         }
 
@@ -572,6 +571,8 @@ private:
         HolderExpiration->RegisterHolder(holder);
         ChunkPlacement->RegisterHolder(holder);
         ChunkReplication->RegisterHolder(holder);
+
+        HolderRegistered_.Fire(holder); 
     }
 
     void StopHolderTracking(const THolder& holder)
@@ -579,6 +580,8 @@ private:
         HolderExpiration->UnregisterHolder(holder);
         ChunkPlacement->UnregisterHolder(holder);
         ChunkReplication->UnregisterHolder(holder);
+
+        HolderUnregistered_.Fire(holder);
     }
 
 
@@ -592,10 +595,6 @@ private:
 
         if (IsLeader()) {
             StopHolderTracking(holder);
-
-            if (!IsRecovery()) {
-                HolderRegistered_.Fire(holder);
-            }
         }
 
         FOREACH(const auto& chunkId, holder.ChunkIds()) {

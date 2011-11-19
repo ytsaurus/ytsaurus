@@ -2,8 +2,10 @@
 #include "cypress_integration.h"
 
 #include "../cypress/virtual.h"
+#include "../cypress/node_proxy_detail.h"
 #include "../ytree/virtual.h"
 #include "../ytree/fluent.h"
+#include "../ytree/ypath_rpc.h"
 #include "../misc/string.h"
 
 namespace NYT {
@@ -11,7 +13,7 @@ namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NCypress;
-using NChunkClient::TChunkId;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +147,151 @@ IHolderRegistry::TPtr CreateHolderRegistry(
     TCypressManager* cypressManager)
 {
     return New<THolderRegistry>(cypressManager);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THolderMapNode
+    : public TMapNode
+{
+public:
+    explicit THolderMapNode(const TBranchedNodeId& id)
+        : TMapNode(id)
+    { }
+
+    THolderMapNode(const TBranchedNodeId& id, const TMapNode& other)
+        : TMapNode(id, other)
+    { }
+
+    virtual TAutoPtr<ICypressNode> Clone() const
+    {
+        return new THolderMapNode(Id, *this);
+    }
+
+    ERuntimeNodeType GetRuntimeType() const
+    {
+        return ERuntimeNodeType::HolderMap;
+    }
+};
+
+class THolderMapBehavior
+    : public TNodeBehaviorBase<THolderMapNode, TMapNodeProxy>
+{
+public:
+    typedef TNodeBehaviorBase<THolderMapNode, TMapNodeProxy> TBase;
+    typedef THolderMapBehavior TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
+
+    THolderMapBehavior(
+        const ICypressNode& node,
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager)
+        : TBase(node, cypressManager)
+        , ChunkManager(chunkManager)
+    {
+        OnRegistered_ = FromMethod(&TThis::OnRegistered, TPtr(this));
+        ChunkManager->HolderRegistered().Subscribe(OnRegistered_);
+    }
+
+    virtual void Destroy()
+    {
+        ChunkManager->HolderRegistered().Unsubscribe(OnRegistered_);
+    }
+
+private:
+    TChunkManager::TPtr ChunkManager;
+
+    IParamAction<const THolder&>::TPtr OnRegistered_;
+    
+    void OnRegistered(const THolder& holder)
+    {
+        auto request = TYPathProxy::Set();
+        request->SetValue("{}");
+        
+        TYPath path = "/" + holder.GetAddress();
+
+        ExecuteVerb(
+            ~IYPathService::FromNode(~GetProxy()),
+            path,
+            ~request,
+            ~CypressManager);
+    }
+
+};
+
+class THolderMapTypeHandler
+    : public TMapNodeTypeHandler
+{
+public:
+    typedef THolderMapTypeHandler TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
+
+    THolderMapTypeHandler(
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager)
+        : TMapNodeTypeHandler(cypressManager)
+        , CypressManager(cypressManager)
+        , ChunkManager(chunkManager)
+    {
+        // NB: No smartpointer for this here.
+        RegisterGetter("alive_holders", FromMethod(&TThis::GetAliveHolders, this));
+    }
+
+    virtual ERuntimeNodeType GetRuntimeType()
+    {
+        return ERuntimeNodeType::HolderMap;
+    }
+
+    virtual Stroka GetTypeName()
+    {
+        // TODO: extract type name
+        return "holder_map";
+    }
+
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        NYTree::INode* manifest)
+    {
+        UNUSED(transactionId);
+        UNUSED(manifest);
+
+        return new THolderMapNode(TBranchedNodeId(nodeId, NullTransactionId));
+    }
+
+    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    {
+        return New<THolderMapBehavior>(node, ~CypressManager, ~ChunkManager);
+    }
+
+private:
+    TCypressManager::TPtr CypressManager;
+    TChunkManager::TPtr ChunkManager;
+
+    void GetAliveHolders(const TGetAttributeParam& param)
+    {
+        // TODO: use new fluent API
+        param.Consumer->OnBeginList();
+        FOREACH (auto holderId, ChunkManager->GetHolderIds()) {
+            const auto& holder = ChunkManager->GetHolder(holderId);
+            param.Consumer->OnListItem();
+            param.Consumer->OnStringScalar(holder.GetAddress(), false);
+        }
+        param.Consumer->OnEndList(false);
+    }
+
+};
+
+INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager != NULL);
+    YASSERT(chunkManager != NULL);
+
+    return New<THolderMapTypeHandler>(
+        cypressManager,
+        chunkManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,30 +81,57 @@ DECLARE_ENUM(ENodeState,
 struct ICypressNode;
 struct ICypressNodeProxy;
 
+struct INodeBehavior
+    : virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<INodeBehavior> TPtr;
+
+    virtual void Destroy() = 0;
+};
+
+//! Provides node type-specific services.
 struct INodeTypeHandler
-    : public virtual TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<INodeTypeHandler> TPtr;
 
     //! Constructs a proxy.
     /*!
      *  \param transactionId The id of the transaction for which the proxy
-     *  is being created, may be #NullTransactionId.
+     *  is being created (possibly #NullTransactionId).
      *  \return The constructed proxy.
      */
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
         const TTransactionId& transactionId) = 0;
 
+    //! Returns the runtime node.
     virtual ERuntimeNodeType GetRuntimeType() = 0;
+    
+    //! Returns the (static) node name.
     virtual NYTree::ENodeType GetNodeType() = 0;
+
+    //! Returns the type name.
+    /*!
+     *  This name is displayed via <tt>type</tt> attribute.
+     *  Also when creating a dynamic node the client must specify
+     *  <tt>type</tt> attribute in the manifest.
+     */
     virtual Stroka GetTypeName() = 0;
     
+    //! Creates a dynamic node with a given manifest.
+    /*!
+     *  This is called during <tt>Create<tt> verb execution.
+     */
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest) = 0;
+        NYTree::INode* manifest) = 0;
 
+    //! Create a empty instance of the node.
+    /*!
+     *  This is called when a node is being loaded from a snapshot.
+     */
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;
 
@@ -148,6 +175,23 @@ struct INodeTypeHandler
     virtual NYTree::IYPathService::TPtr GetAttributeService(
         const ICypressNode& node,
         const Stroka& name) = 0;
+
+
+    //! Creates a behavior object that lives as long as the node
+    //! exists in Cypress.
+    /*!
+     *  \note
+     *  The callee may return NULL if no behavior is needed.
+     *  
+     *  Behaviors are only created at leader.
+     *  
+     *  Behaviors are only created for non-branched nodes.
+     *  
+     *  The callee must not keep the node reference since node's
+     *  content may get eventually destroyed by TMetaStateMap.
+     *  Instead it should keep the node id.
+     */
+    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +213,8 @@ struct ICypressNode
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TBranchedNodeId GetId() const = 0;
 
-    //! Gets node state.
+    // TODO: propertify
+    //! Gets the state of node.
     virtual ENodeState GetState() const = 0;
     //! Sets node state.
     virtual void SetState(const ENodeState& value) = 0;

@@ -26,6 +26,7 @@ struct ICypressNodeProxy;
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
+    , public NYTree::IYPathExecutor
 {
 public:
     typedef TCypressManager TThis;
@@ -121,6 +122,8 @@ private:
     yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
+    yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
+
     TVoid DoExecuteLoggedVerb(const NProto::TMsgExecuteVerb& message);
     TVoid DoExecuteVerb(
         ICypressNodeProxy::TPtr proxy,
@@ -131,6 +134,9 @@ private:
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
     virtual void Clear();
+
+    virtual void OnLeaderRecoveryComplete();
+    virtual void OnStopLeading();
 
     void OnTransactionCommitted(const NTransaction::TTransaction& transaction);
     void OnTransactionAborted(const NTransaction::TTransaction& transaction);
@@ -144,13 +150,13 @@ private:
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
     INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
+    void CreateNodeBehavior(const ICypressNode& node);
+    void DestroyNodeBehavior(const ICypressNode& node);
+
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(
         const TTransactionId& transactionId,
         ERuntimeNodeType type);
-
-    class TDeserializationBuilder;
-    friend class TDeserializationBuilder;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

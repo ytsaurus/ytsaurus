@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "ypath_detail.h"
 #include "cypress_service_rpc.pb.h"
 
 #include "../rpc/service.h"
@@ -14,6 +15,7 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: move impl to inl
 class TCypressServiceProxy
     : public NRpc::TProxyBase
 {
@@ -41,7 +43,7 @@ public:
         innerRequest->SetPath(path);
         auto outerRequest = Execute();
         outerRequest->SetTransactionId(transactionId.ToProto());
-        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+        return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
             ~outerRequest,
             innerRequest);
     }
@@ -57,7 +59,7 @@ public:
         auto outerRequest = Execute();
         outerRequest->SetRootNodeId(rootNodeId.ToProto());
         outerRequest->SetTransactionId(transactionId.ToProto());
-        return DoExecute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
+        return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
             ~outerRequest,
             innerRequest);
     }
@@ -65,7 +67,9 @@ public:
 private:
     template <class TTypedRequest, class TTypedResponse>
     TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
-    DoExecute(TReqExecute* outerRequest, TTypedRequest* innerRequest)
+    Execute(
+        TCypressServiceProxy::TReqExecute* outerRequest,
+        TTypedRequest* innerRequest)
     {
         auto innerRequestMessage = innerRequest->Serialize();
         NYTree::WrapYPathRequest(outerRequest, ~innerRequestMessage);

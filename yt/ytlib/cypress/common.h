@@ -32,6 +32,7 @@ DECLARE_ENUM(ERuntimeNodeType,
     ((TransactionMap)(22))
     ((NodeMap)(23))
     ((LockMap)(24))
+    ((HolderMap)(25))
 
     // Other virtual types
     ((Monitoring)(30))

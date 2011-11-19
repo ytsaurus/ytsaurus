@@ -94,7 +94,7 @@ void TYPathResponse::ThrowIfError() const
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
 {
     auto request = TYPathProxy::Get();
-    auto response = ExecuteYPath(rootService, path, ~request)->Get();
+    auto response = ExecuteVerb(rootService, path, ~request)->Get();
     response->ThrowIfError();
     return response->GetValue();
 }
@@ -103,21 +103,21 @@ void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& v
 {
     auto request = TYPathProxy::Set();
     request->SetValue(value);
-    auto response = ExecuteYPath(rootService, path, ~request)->Get();
+    auto response = ExecuteVerb(rootService, path, ~request)->Get();
     response->ThrowIfError();
 }
 
 void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
 {
     auto request = TYPathProxy::Remove();
-    auto response = ExecuteYPath(rootService, path, ~request)->Get();
+    auto response = ExecuteVerb(rootService, path, ~request)->Get();
     response->ThrowIfError();
 }
 
 yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
 {
     auto request = TYPathProxy::List();
-    auto response = ExecuteYPath(rootService, path, ~request)->Get();
+    auto response = ExecuteVerb(rootService, path, ~request)->Get();
     response->ThrowIfError();
     return FromProto<Stroka>(response->GetKeys());
 }

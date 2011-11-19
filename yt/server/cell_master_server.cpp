@@ -48,6 +48,7 @@ using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
 using NChunkServer::CreateChunkListMapTypeHandler;
 using NChunkServer::CreateHolderRegistry;
+using NChunkServer::CreateHolderMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
@@ -197,6 +198,9 @@ void TCellMasterServer::Run()
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateTableTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
 

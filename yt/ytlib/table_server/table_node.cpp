@@ -55,7 +55,7 @@ public:
     TTableNodeTypeHandler(
         NCypress::TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager)
-    : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
+        : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
     {
         RegisterGetter("chunk_list_ids", FromMethod(&TThis::GetChunkListIds));
@@ -79,7 +79,7 @@ public:
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const NCypress::TNodeId& nodeId,
         const NTransaction::TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest)
+        NYTree::INode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);

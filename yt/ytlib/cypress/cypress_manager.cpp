@@ -84,6 +84,40 @@ INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
     return handler;
 }
 
+void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
+{
+    auto nodeId = node.GetId();
+    if (nodeId.IsBranched())
+        return;
+
+    auto typeHandler = GetTypeHandler(node);
+    auto behavior = typeHandler->CreateBehavior(node);
+    if (~behavior == NULL)
+        return;
+
+    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.NodeId, behavior)).Second());
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
+        ~nodeId.NodeId.ToString());
+}
+
+void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
+{
+    auto nodeId = node.GetId();
+    if (nodeId.IsBranched())
+        return;
+
+    auto it = NodeBehaviors.find(nodeId.NodeId);
+    if (it == NodeBehaviors.end())
+        return;
+
+    it->Second()->Destroy();
+    NodeBehaviors.erase(it);
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
+        ~nodeId.NodeId.ToString());
+}
+
 const ICypressNode* TCypressManager::FindTransactionNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
@@ -297,12 +331,12 @@ IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& trans
     return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
 }
 
-struct TManifest
-    : public TConfigBase
+struct TManifestSkeleton
+    : TConfigBase
 {
     Stroka Type;
 
-    TManifest()
+    TManifestSkeleton()
     {
         Register("type", Type).NonEmpty();
     }
@@ -318,15 +352,16 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
         ythrow yexception() << "Cannot create a node outside of a transaction";
     }
 
-    if (manifestNode->GetType() != ENodeType::Map) {
-        ythrow yexception() << "Dynamic node manifest must be a map";
+    TManifestSkeleton manifestSkeleton;
+
+    try {
+        manifestSkeleton.Load(manifestNode);
+    } catch (...) {
+        ythrow yexception() << Sprintf("Error parsing dynamic node manifest\n%s",
+            ~CurrentExceptionMessage());
     }
-    auto manifestMapNode = manifestNode->AsMap();
 
-    TManifest manifest;
-    manifest.Load(~manifestMapNode);
-
-    Stroka type = manifest.Type;
+    Stroka type = manifestSkeleton.Type;
     auto it = TypeNameToHandler.find(type);
     if (it == TypeNameToHandler.end()) {
         ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~type.Quote());
@@ -336,22 +371,27 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
 
     auto nodeId = NodeIdGenerator.Next();
     TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    TAutoPtr<ICypressNode> nodeImpl(handler->CreateFromManifest(
+    TAutoPtr<ICypressNode> node(handler->CreateFromManifest(
         nodeId,
         transactionId,
-        manifestMapNode));
-    auto* nodePtr = nodeImpl.Get();
-    NodeMap.Insert(branchedNodeId, nodeImpl.Release());
+        manifestNode));
+    auto* node_ = node.Get();
+    NodeMap.Insert(branchedNodeId, node.Release());
 
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.CreatedNodes().push_back(nodeId);
 
-    auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
+    auto typeHandler = GetTypeHandler(*node_);
+    auto proxy = typeHandler->GetProxy(*node_, transactionId);
 
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TransactionId: %s, Type: %s)",
         ~nodeId.ToString(),
         ~transactionId.ToString(),
         ~type);
+
+    if (IsLeader()) {
+        CreateNodeBehavior(*node_);
+    }
 
     return ~proxy;
 }
@@ -583,6 +623,21 @@ void TCypressManager::Clear()
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
 }
 
+void TCypressManager::OnLeaderRecoveryComplete()
+{
+    FOREACH(const auto& pair, NodeMap) {
+        CreateNodeBehavior(*pair.Second());
+    }
+}
+
+void TCypressManager::OnStopLeading()
+{
+    FOREACH(const auto& pair, NodeBehaviors) {
+        pair.Second()->Destroy();
+    }
+    NodeBehaviors.clear();
+}
+
 void TCypressManager::RefNode(ICypressNode& node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -628,10 +683,12 @@ void TCypressManager::UnrefNode(ICypressNode& node)
         refCounter);
 
     if (refCounter == 0) {
-        LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
+        DestroyNodeBehavior(node);
 
         GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(nodeId);
+
+        LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
     }
 }
 

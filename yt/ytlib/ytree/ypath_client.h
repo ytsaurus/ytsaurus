@@ -124,10 +124,11 @@ protected:
 //! Executes a YPath verb against a local service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(
+ExecuteVerb(
     IYPathService* rootService,
     TYPath path,
-    TTypedRequest* request);
+    TTypedRequest* request,
+    IYPathExecutor* executor = ~GetDefaultExecutor());
 
 //! Executes "Get" verb synchronously. Throws if an error has occurred.
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
@@ -178,10 +179,11 @@ void OnYPathResponse(
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(
+ExecuteVerb(
     IYPathService* rootService,
     TYPath path,
-    TTypedRequest* request)
+    TTypedRequest* request,
+    IYPathExecutor* executor)
 {
     Stroka verb = request->GetVerb();
 
@@ -189,7 +191,6 @@ ExecuteYPath(
     TYPath suffixPath;
     ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
 
-    // TODO: can we avoid this?
     request->SetPath(suffixPath);
 
     auto requestMessage = request->Serialize();
@@ -207,7 +208,7 @@ ExecuteYPath(
             ComputeResolvedYPath(path, suffixPath)));
 
     try {
-        suffixService->Invoke(~context);
+        executor->ExecuteVerb(~suffixService, ~context);
     } catch (const NRpc::TServiceException& ex) {
         context->Reply(NRpc::TError(
             EYPathErrorCode(EYPathErrorCode::GenericError),

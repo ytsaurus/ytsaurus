@@ -16,6 +16,43 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TImpl, class TProxy>
+class TNodeBehaviorBase
+    : public INodeBehavior
+{
+public:
+    TNodeBehaviorBase(
+        const ICypressNode& node,
+        TCypressManager* cypressManager)
+        : CypressManager(cypressManager)
+        , NodeId(node.GetId().NodeId)
+    { }
+
+    virtual void Destroy()
+    { }
+
+
+protected:
+    TCypressManager::TPtr CypressManager;
+    TNodeId NodeId;
+
+    TImpl& GetImpl()
+    {
+        return CypressManager->GetNode(TBranchedNodeId(NodeId, NullTransactionId));
+    }
+
+    TIntrusivePtr<TProxy> GetProxy()
+    {
+        auto proxy = CypressManager->GetNodeProxy(NodeId, NullTransactionId);
+        auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
+        YASSERT(typedProxy != NULL);
+        return typedProxy;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TImpl>
 class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
@@ -26,7 +63,7 @@ public:
     {
         RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
         RegisterGetter("parent_id", FromMethod(&TThis::GetParentId));
-        // NB: no smartpointer for this here
+        // NB: No smartpointer for this here.
         RegisterGetter("type", FromMethod(&TThis::GetType, this));
     }
 
@@ -39,7 +76,7 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest)
+        NYTree::INode* manifest)
     {
         UNUSED(nodeId);
         UNUSED(transactionId);
@@ -144,6 +181,12 @@ public:
         auto result = builder->EndTree();
 
         return NYTree::IYPathService::FromNode(~result);
+    }
+
+    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    {
+        UNUSED(node);
+        return NULL;
     }
 
 protected:

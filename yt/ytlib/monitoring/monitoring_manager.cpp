@@ -79,7 +79,7 @@ void TMonitoringManager::Update()
             auto request = TYPathProxy::Set();
             request->SetValue(output.Str());
 
-            ExecuteYPath(~newRootService, pair.first, ~request);
+            ExecuteVerb(~newRootService, pair.first, ~request);
         }
 
         if (IsStarted) {

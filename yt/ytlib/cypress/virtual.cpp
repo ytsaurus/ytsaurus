@@ -152,14 +152,14 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest)
+        NYTree::INode* manifest)
     {
         UNUSED(transactionId);
 
         TStringStream manifestStream;
         TYsonWriter writer(&manifestStream, TYsonWriter::EFormat::Binary);
         TTreeVisitor visitor(&writer);
-        visitor.Visit(~manifest);
+        visitor.Visit(manifest);
 
         return new TVirtualNode(
             TBranchedNodeId(nodeId, NullTransactionId),

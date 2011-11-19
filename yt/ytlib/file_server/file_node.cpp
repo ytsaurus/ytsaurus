@@ -53,17 +53,17 @@ class TFileNodeTypeHandler
 {
 public:
     TFileNodeTypeHandler(
-        NCypress::TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager);
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager);
 
-    NCypress::ERuntimeNodeType GetRuntimeType();
-    NYTree::ENodeType GetNodeType();
+    ERuntimeNodeType GetRuntimeType();
+    ENodeType GetNodeType();
     Stroka GetTypeName();
 
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const NCypress::TNodeId& nodeId,
         const NTransaction::TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest);
+        INode* manifest);
 
     virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
         const NCypress::ICypressNode& node,
@@ -214,7 +214,7 @@ Stroka TFileNodeTypeHandler::GetTypeName()
 TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
-    IMapNode::TPtr manifest)
+    INode* manifest)
 {
     UNUSED(transactionId);
     UNUSED(manifest);
