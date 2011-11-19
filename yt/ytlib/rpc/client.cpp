@@ -67,6 +67,7 @@ TClientResponse::TClientResponse(const TRequestId& requestId)
 
 IMessage::TPtr TClientResponse::GetResponseMessage() const
 {
+    YASSERT(~ResponseMessage != NULL);
     return ResponseMessage;
 }
 
@@ -83,6 +84,7 @@ EErrorCode TClientResponse::GetErrorCode() const
 void TClientResponse::Deserialize(IMessage* responseMessage)
 {
     YASSERT(responseMessage != NULL);
+    YASSERT(~ResponseMessage == NULL);
 
     ResponseMessage = responseMessage;
 
