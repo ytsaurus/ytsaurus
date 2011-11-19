@@ -25,7 +25,7 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TThis(Id, *this);
+        return new TThis(this->Id, *this);
     }
 
     ERuntimeNodeType GetRuntimeType() const
