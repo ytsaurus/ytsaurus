@@ -19,12 +19,16 @@ struct ITreeBuilder
     //! Returns the root node of the constructed tree.
     /*!
      *  \note
-     *  Must be called after the tree is constructed.
+     *  Must be called after the tree is fully constructed.
      */
     virtual INode::TPtr EndTree() = 0;
 
 
-    // TODO: document
+    //! Enables inserting a pre-existing subtree into
+    //! the currently constructed one.
+    /*!
+     *  The given subtree is injected as-is, no cloning is done.
+     */
     virtual void OnNode(INode* node) = 0;
 };
 

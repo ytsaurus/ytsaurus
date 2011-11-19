@@ -38,18 +38,20 @@ public:
 
 private:
     INodeFactory* Factory;
-    yvector<INode::TPtr> Stack;
-    yvector<Stroka> NameStack; // contains names of corresponding childs in map
+    //! Contains nodes forming the current path in the tree.
+    yvector<INode::TPtr> NodeStack;
+    //! Contains names of the currently active map children.
+    yvector<Stroka> NameStack;
 
     void AddToList();
     void AddToMap();
 
-    void PushName(const Stroka &name);
+    void PushName(const Stroka& name);
     Stroka PopName();
 
-    void Push(INode::TPtr node);
-    INode::TPtr Pop();
-    INode::TPtr Peek();
+    void PushNode(INode* node);
+    INode::TPtr PopPop();
+    INode::TPtr PeekPop();
 };
 
 TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
@@ -65,21 +67,24 @@ TTreeBuilder::TTreeBuilder(INodeFactory* factory)
 
 void TTreeBuilder::BeginTree()
 {
-    Stack.clear();
+    NodeStack.clear();
     NameStack.clear();
 }
 
 INode::TPtr TTreeBuilder::EndTree()
 {
-    YASSERT(Stack.ysize() == 1);
-    auto node = Stack[0];
-    Stack.clear();
+    // Failure here means that the tree is not fully constructed yet.
+    YASSERT(NodeStack.ysize() == 1);
+    YASSERT(NameStack.ysize() == 0);
+
+    auto node = NodeStack[0];
+    NodeStack.clear();
     return node;
 }
 
 void TTreeBuilder::OnNode(INode* node)
 {
-    Push(node);
+    PushNode(node);
 }
 
 void TTreeBuilder::OnStringScalar(const Stroka& value, bool hasAttributes)
@@ -87,7 +92,7 @@ void TTreeBuilder::OnStringScalar(const Stroka& value, bool hasAttributes)
     UNUSED(hasAttributes);
     auto node = Factory->CreateString();
     node->SetValue(value);
-    Push(~node);
+    PushNode(~node);
 }
 
 void TTreeBuilder::OnInt64Scalar(i64 value, bool hasAttributes)
@@ -95,7 +100,7 @@ void TTreeBuilder::OnInt64Scalar(i64 value, bool hasAttributes)
     UNUSED(hasAttributes);
     auto node = Factory->CreateInt64();
     node->SetValue(value);
-    Push(~node);
+    PushNode(~node);
 }
 
 void TTreeBuilder::OnDoubleScalar(double value, bool hasAttributes)
@@ -103,19 +108,19 @@ void TTreeBuilder::OnDoubleScalar(double value, bool hasAttributes)
     UNUSED(hasAttributes);
     auto node = Factory->CreateDouble();
     node->SetValue(value);
-    Push(~node);
+    PushNode(~node);
 }
 
 void TTreeBuilder::OnEntity(bool hasAttributes)
 {
     UNUSED(hasAttributes);
-    Push(~Factory->CreateEntity());
+    PushNode(~Factory->CreateEntity());
 }
 
 void TTreeBuilder::OnBeginList()
 {
-    Push(~Factory->CreateList());
-    Push(NULL);
+    PushNode(~Factory->CreateList());
+    PushNode(NULL);
 }
 
 void TTreeBuilder::OnListItem()
@@ -131,9 +136,9 @@ void TTreeBuilder::OnEndList(bool hasAttributes)
 
 void TTreeBuilder::OnBeginMap()
 {
-    Push(~Factory->CreateMap());
+    PushNode(~Factory->CreateMap());
     PushName("");
-    Push(NULL);
+    PushNode(NULL);
 }
 
 void TTreeBuilder::OnMapItem(const Stroka& name)
@@ -161,15 +166,15 @@ void TTreeBuilder::OnAttributesItem(const Stroka& name)
 void TTreeBuilder::OnEndAttributes()
 {
     OnEndMap(false);
-    auto attributes = Pop()->AsMap();
-    auto node = Peek();
+    auto attributes = PopPop()->AsMap();
+    auto node = PeekPop();
     node->SetAttributes(attributes);
 }
 
 void TTreeBuilder::AddToList()
 {
-    auto child = Pop();
-    auto list = Peek()->AsList();
+    auto child = PopPop();
+    auto list = PeekPop()->AsList();
     if (~child != NULL) {
         list->AddChild(child);
     }
@@ -177,31 +182,31 @@ void TTreeBuilder::AddToList()
 
 void TTreeBuilder::AddToMap()
 {
-    auto child = Pop();
+    auto child = PopPop();
     auto name = PopName();
-    auto map = Peek()->AsMap();
+    auto map = PeekPop()->AsMap();
     if (~child != NULL) {
         map->AddChild(child, name);
     }
 }
 
-void TTreeBuilder::Push(INode::TPtr node)
+void TTreeBuilder::PushNode(INode* node)
 {
-    Stack.push_back(node);
+    NodeStack.push_back(node);
 }
 
-INode::TPtr TTreeBuilder::Pop()
+INode::TPtr TTreeBuilder::PopPop()
 {
-    YASSERT(!Stack.empty());
-    auto result = Stack.back();
-    Stack.pop_back();
+    YASSERT(!NodeStack.empty());
+    auto result = NodeStack.back();
+    NodeStack.pop_back();
     return result;
 }
 
-INode::TPtr TTreeBuilder::Peek()
+INode::TPtr TTreeBuilder::PeekPop()
 {
-    YASSERT(!Stack.empty());
-    return Stack.back();
+    YASSERT(!NodeStack.empty());
+    return NodeStack.back();
 }
 
 void TTreeBuilder::PushName(const Stroka& name)
