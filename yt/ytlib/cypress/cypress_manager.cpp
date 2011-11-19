@@ -445,7 +445,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
 {
     auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
     if (proxy == NULL || !proxy->IsLogged(context)) {
-        LOG_INFO("Executing non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
+        LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
             ~context->GetPath(),
             ~context->GetVerb(),
             proxy == NULL ? "N/A" : ~proxy->GetNodeId().ToString(),
@@ -475,6 +475,12 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
             proxy,
             context,
             startAutoTransaction));
+
+    LOG_INFO("Executing a logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
+        ~context->GetPath(),
+        ~context->GetVerb(),
+        ~proxy->GetNodeId().ToString(),
+        ~proxy->GetTransactionId().ToString());
 
     IServiceContext::TPtr context_ = context;
     change

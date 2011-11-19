@@ -230,7 +230,6 @@ void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* respons
     context->Reply();
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeProxy::TListNodeProxy(

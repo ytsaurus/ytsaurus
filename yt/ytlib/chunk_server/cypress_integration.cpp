@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../cypress/virtual.h"
-#include "../cypress/node_proxy_detail.h"
+#include "../misc/string.h"
 #include "../ytree/virtual.h"
 #include "../ytree/fluent.h"
-#include "../ytree/ypath_rpc.h"
-#include "../misc/string.h"
+#include "../cypress/virtual.h"
+#include "../cypress/node_proxy_detail.h"
+#include "../cypress/virtual_detail.h"
+#include "../cypress/cypress_ypath_rpc.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -151,28 +152,80 @@ IHolderRegistry::TPtr CreateHolderRegistry(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderMapNode
-    : public TMapNode
+typedef TVirtualizedNode<TMapNode, ERuntimeNodeType::Holder> THolderNode;
+
+class THolderTypeHandler
+    : public TMapNodeTypeHandler
 {
 public:
-    explicit THolderMapNode(const TBranchedNodeId& id)
-        : TMapNode(id)
-    { }
+    typedef THolderTypeHandler TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
 
-    THolderMapNode(const TBranchedNodeId& id, const TMapNode& other)
-        : TMapNode(id, other)
-    { }
-
-    virtual TAutoPtr<ICypressNode> Clone() const
+    THolderTypeHandler(
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager)
+        : TMapNodeTypeHandler(cypressManager)
+        , CypressManager(cypressManager)
+        , ChunkManager(chunkManager)
     {
-        return new THolderMapNode(Id, *this);
+        // NB: No smartpointer for this here.
+        RegisterGetter("alive", FromMethod(&TThis::GetAlive, this));
     }
 
-    ERuntimeNodeType GetRuntimeType() const
+    virtual ERuntimeNodeType GetRuntimeType()
     {
-        return ERuntimeNodeType::HolderMap;
+        return ERuntimeNodeType::Holder;
+    }
+
+    virtual Stroka GetTypeName()
+    {
+        // TODO: extract type name
+        return "holder";
+    }
+
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        NYTree::INode* manifest)
+    {
+        UNUSED(transactionId);
+        UNUSED(manifest);
+
+        return new THolderNode(TBranchedNodeId(nodeId, NullTransactionId));
+    }
+
+private:
+    TCypressManager::TPtr CypressManager;
+    TChunkManager::TPtr ChunkManager;
+
+    Stroka GetAddress(const ICypressNode& node)
+    {
+        auto proxy = CypressManager->GetNodeProxy(node.GetId().NodeId, NullTransactionId);
+        return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
+    }
+
+    void GetAlive(const TGetAttributeParam& param)
+    {
+        Stroka address = GetAddress(*param.Node);
+        bool alive = ChunkManager->FindHolder(address) != NULL;
+        BuildYsonFluently(param.Consumer)
+            .Scalar(alive);
     }
 };
+
+INodeTypeHandler::TPtr CreateHolderTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager != NULL);
+    YASSERT(chunkManager != NULL);
+
+    return New<THolderTypeHandler>(cypressManager, chunkManager);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef TVirtualizedNode<TMapNode, ERuntimeNodeType::HolderMap> THolderMapNode;
 
 class THolderMapBehavior
     : public TNodeBehaviorBase<THolderMapNode, TMapNodeProxy>
@@ -205,16 +258,35 @@ private:
     
     void OnRegistered(const THolder& holder)
     {
-        auto request = TYPathProxy::Set();
-        request->SetValue("{}");
-        
-        TYPath path = "/" + holder.GetAddress();
+        Stroka address = holder.GetAddress();
 
-        ExecuteVerb(
-            ~IYPathService::FromNode(~GetProxy()),
-            path,
-            ~request,
-            ~CypressManager);
+        auto node = GetProxy();
+        if (~node->FindChild(address) != NULL)
+            return;
+
+        // TODO: use fluent
+        // TODO: make a single transaction
+        // TODO: extract literals
+
+        {
+            auto request = TCypressYPathProxy::Create();
+            request->SetManifest("{type=holder}");     
+            ExecuteVerb(
+                ~IYPathService::FromNode(~node),
+                Sprintf("/%s", ~address),
+                ~request,
+                ~CypressManager);
+        }
+
+        {
+            auto request = TCypressYPathProxy::Create();
+            request->SetManifest(Sprintf("{type=orchid; remote_address=\"%s\"}", address));     
+            ExecuteVerb(
+                ~IYPathService::FromNode(~node),
+                Sprintf("/%s/orchid", ~address),
+                ~request,
+                ~CypressManager);
+        }
     }
 
 };
@@ -235,6 +307,7 @@ public:
     {
         // NB: No smartpointer for this here.
         RegisterGetter("alive_holders", FromMethod(&TThis::GetAliveHolders, this));
+        RegisterGetter("dead_holders", FromMethod(&TThis::GetDeadHolders, this));
     }
 
     virtual ERuntimeNodeType GetRuntimeType()
@@ -280,6 +353,19 @@ private:
         param.Consumer->OnEndList(false);
     }
 
+    void GetDeadHolders(const TGetAttributeParam& param)
+    {
+        // TODO: use new fluent API
+        param.Consumer->OnBeginList();
+        FOREACH (const auto& pair, param.Node->NameToChild()) {
+            Stroka address = pair.First();
+            if (ChunkManager->FindHolder(address) == NULL) {
+                param.Consumer->OnListItem();
+                param.Consumer->OnStringScalar(address, false);
+            }
+        }
+        param.Consumer->OnEndList(false);
+    }
 };
 
 INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
@@ -289,9 +375,7 @@ INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
     YASSERT(cypressManager != NULL);
     YASSERT(chunkManager != NULL);
 
-    return New<THolderMapTypeHandler>(
-        cypressManager,
-        chunkManager);
+    return New<THolderMapTypeHandler>(cypressManager, chunkManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

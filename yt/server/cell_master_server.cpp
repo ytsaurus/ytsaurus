@@ -200,6 +200,9 @@ void TCellMasterServer::Run()
     cypressManager->RegisterNodeType(~CreateTableTypeHandler(
         ~cypressManager,
         ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateHolderTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
     cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
         ~cypressManager,
         ~chunkManager));

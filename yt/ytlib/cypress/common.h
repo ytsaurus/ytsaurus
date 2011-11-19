@@ -25,23 +25,19 @@ DECLARE_ENUM(ERuntimeNodeType,
     // Dynamic types
     ((File)(10))
     ((Table)(11))
-
-    // Virtual maps
-    ((ChunkMap)(20))
-    ((ChunkListMap)(21))
-    ((TransactionMap)(22))
-    ((NodeMap)(23))
-    ((LockMap)(24))
-    ((HolderMap)(25))
-
-    // Other virtual types
-    ((Monitoring)(30))
-    ((Orchid)(31))
+    ((ChunkMap)(12))
+    ((ChunkListMap)(13))
+    ((TransactionMap)(14))
+    ((NodeMap)(15))
+    ((LockMap)(16))
+    ((Holder)(17))
+    ((HolderMap)(18))
+    ((Orchid)(19))
 
     // Denotes some uninitialized value.
     ((Invalid)(-1))
     // An upper bound will do.
-    ((Last)(40))
+    ((Last)(100))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
