@@ -175,7 +175,7 @@ struct IClientResponseHandler
 class TClientResponse
     : public IClientResponseHandler
 {
-    DECLARE_BYREF_RW_PROPERTY(TRequestId, RequestId);
+    DECLARE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
     DECLARE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DECLARE_BYVAL_RO_PROPERTY(NRpc::TError, Error);
     DECLARE_BYVAL_RO_PROPERTY(TInstant, StartTime);

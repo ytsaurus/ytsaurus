@@ -41,6 +41,8 @@ void TChunkHolderServer::Run()
     monitoringManager->Register(
         "/refcounted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+    // TODO: register more monitoring infos
+    monitoringManager->Start();
 
     // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();

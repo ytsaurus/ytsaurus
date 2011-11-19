@@ -23,6 +23,7 @@ using namespace NProto;
 
 static NRpc::TChannelCache ChannelCache;
 static TLazyPtr<TActionQueue> OrchidQueue;
+static NLog::TLogger& Logger = OrchidLogger;
 
 class TOrchidYPathService
     : public IYPathService
@@ -48,6 +49,7 @@ public:
 
         auto channel = ChannelCache.GetChannel(Manifest.RemoteAddress);
         Proxy = new TOrchidServiceProxy(~channel);
+        Proxy->SetTimeout(Manifest.Timeout);
     }
 
     TResolveResult Resolve(TYPath path, const Stroka& verb)
@@ -58,27 +60,29 @@ public:
 
     void Invoke(NRpc::IServiceContext* context)
     {
-        TYPath path = context->GetPath();
+        TYPath path = GetRedirectPath(context->GetPath());
         Stroka verb = context->GetVerb();
 
-        // TODO: logging
-
-        auto redirectPath = GetRedirectPath(path);
-
-        auto outerRequestMesage = UpdateYPathRequestHeader(
+        auto innerRequestMessage = UpdateYPathRequestHeader(
             ~context->GetRequestMessage(),
-            redirectPath,
+            path,
             verb);
 
-        auto innerRequest = Proxy->Execute();
-        WrapYPathRequest(~innerRequest, ~outerRequestMesage);
+        auto outerRequest = Proxy->Execute();
+        WrapYPathRequest(~outerRequest, ~innerRequestMessage);
 
-        innerRequest->Invoke()->Subscribe(
+        LOG_INFO("Sending request to a remote Orchid (Address: %s, Path: %s, Verb: %s, RequestId: %s)",
+            ~Manifest.RemoteAddress,
+            ~path,
+            ~verb,
+            ~outerRequest->GetRequestId().ToString());
+
+        outerRequest->Invoke()->Subscribe(
             ~FromMethod(
                 &TOrchidYPathService::OnResponse,
                 TPtr(this),
-                NRpc::IServiceContext::TPtr(context),
-                redirectPath,
+                IServiceContext::TPtr(context),
+                path,
                 verb)
             ->Via(OrchidQueue->GetInvoker()));
     }
@@ -90,6 +94,10 @@ private:
         TYPath path,
         const Stroka& verb)
     {
+        LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
+            ~response->GetRequestId().ToString(),
+            ~response->GetError().ToString());
+
         if (response->IsOK()) {
             auto innerResponseMessage = UnwrapYPathResponse(~response);
             ReplyYPathWithMessage(~context, ~innerResponseMessage);
@@ -116,11 +124,13 @@ private:
     {
         Stroka RemoteAddress;
         Stroka RemoteRoot;
+        TDuration Timeout;
 
         TManifest()
         {
             Register("remote_address", RemoteAddress);
             Register("remote_root", RemoteRoot).Default("/");
+            Register("timeout", Timeout).Default(TDuration::MilliSeconds(3000));
         }
     };
 

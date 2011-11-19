@@ -150,7 +150,6 @@ void TCellMasterServer::Run()
     monitoringManager->Register(
         "/meta_state",
         FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
-
     // TODO: register more monitoring infos
     monitoringManager->Start();
 
