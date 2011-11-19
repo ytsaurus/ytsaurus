@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "ypath_detail.h"
 #include "cypress_service_rpc.pb.h"
 
 #include "../rpc/service.h"
