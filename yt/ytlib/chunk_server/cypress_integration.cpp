@@ -280,7 +280,7 @@ private:
 
         {
             auto request = TCypressYPathProxy::Create();
-            request->SetManifest(Sprintf("{type=orchid; remote_address=\"%s\"}", address));     
+            request->SetManifest(Sprintf("{type=orchid; remote_address=\"%s\"}", ~address));     
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 Sprintf("/%s/orchid", ~address),
