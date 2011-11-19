@@ -170,11 +170,10 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
 void TChunkStore::ScanChunks()
 {
     try {
-        FOREACH(const auto& location, Locations) {
+        FOREACH(const auto& location, Locations_) {
             auto path = location->GetPath();
 
-            NFS::ForcePath(~path);
-
+            NFS::ForcePath(path);
             NFS::CleanTempFiles(path);
 
             LOG_INFO("Scanning location %s", ~path);
@@ -200,8 +199,8 @@ void TChunkStore::ScanChunks()
 
 void TChunkStore::InitLocations()
 {
-    for (int i = 0; i < Config.Locations.ysize(); ++i) {
-        Locations.push_back(New<TLocation>(Config.Locations[i]));
+    FOREACH (const auto& config, Config.Locations) {
+        Locations_.push_back(New<TLocation>(config));
     }
 }
 
@@ -219,7 +218,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
         ~chunkId.ToString(),
         size);
 
-    ChunkAdded_.Fire(chunk);
+    ChunkAdded_.Fire(~chunk);
 
     return chunk;
 }
@@ -246,39 +245,28 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
     LOG_INFO("Chunk removed (Id: %s)",
         ~chunk->GetId().ToString());
 
-    ChunkRemoved_.Fire(chunk);
+    ChunkRemoved_.Fire(~chunk);
 }
 
 TLocation::TPtr TChunkStore::GetNewChunkLocation()
 {
-    using namespace std;
+    YASSERT(!Locations_.empty());
 
-    YASSERT(!Locations.empty());
+    yvector<TLocation*> candidates;
+    candidates.reserve(Locations_.size());
 
-    // Return location with minimum sessions.
-
-    vector<TLocations::const_iterator> tmp;
-    tmp.reserve(Locations.size());
-
-    int minSessionCount = numeric_limits<int>::max();
-    int c;
-
-    for (TLocations::const_iterator it = Locations.begin(); it != Locations.end(); ++it) {
-        c = (*it)->GetSessionCount();
-        if (c > minSessionCount) {
-            continue;
+    int minCount = Max<int>();
+    FOREACH (const auto& location, Locations_) {
+        int count = location->GetSessionCount();
+        if (count < minCount) {
+            candidates.clear();
+            minCount = count;
+        } else if (count == minCount) {
+            candidates.push_back(~location);
         }
-        if (c < minSessionCount) {
-            tmp.clear();
-            minSessionCount = c;
-        }
-        tmp.push_back(it);
     }
 
-    // If we have several locations with the same number of opened sessions,
-    // select session randomly.
-
-    return *tmp[RandomNumber(tmp.size())];
+    return candidates[RandomNumber(candidates.size())];
 }
 
 Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
@@ -289,11 +277,6 @@ Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr lo
 Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
 {
     return GetChunkFileName(chunk->GetId(), chunk->GetLocation());
-}
-
-const yvector<TLocation::TPtr> TChunkStore::GetLocations() const
-{
-    return Locations;
 }
 
 TChunkStore::TChunks TChunkStore::GetChunks()
@@ -342,16 +325,6 @@ TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
 TFileReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
 {
     return ReaderCache->Get(chunk);
-}
-
-TParamSignal<TChunk::TPtr>& TChunkStore::ChunkAdded()
-{
-    return ChunkAdded_;
-}
-
-TParamSignal<TChunk::TPtr>& TChunkStore::ChunkRemoved()
-{
-    return ChunkRemoved_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

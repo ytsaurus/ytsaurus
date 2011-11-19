@@ -68,9 +68,11 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
+        NFS::ForcePath(config.LogLocation);
         NFS::CleanTempFiles(config.LogLocation);
         ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
 
+        NFS::ForcePath(config.SnapshotLocation);
         NFS::CleanTempFiles(config.SnapshotLocation);
         SnapshotStore = New<TSnapshotStore>(Config.SnapshotLocation);
 

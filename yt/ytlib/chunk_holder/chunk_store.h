@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "../misc/cache.h"
+#include "../misc/property.h"
 #include "../actions/action_queue.h"
 #include "../actions/signal.h"
 #include "../chunk_client/file_reader.h"
@@ -180,6 +181,10 @@ public:
     void RemoveChunk(TChunk::TPtr chunk);
 
     //! Calculates a storage location for a new chunk.
+    /*!
+     *  Returns a random location having the minimum number
+     *  of active sessions.
+     */
     TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
@@ -194,30 +199,26 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount();
 
-    //! Returns locations.
-    const TLocations GetLocations() const;
+    //! Storage locations.
+    DECLARE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added.
-    TParamSignal<TChunk::TPtr>& ChunkAdded();
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
 
     //! Raised when a chunk is removed.
-    TParamSignal<TChunk::TPtr>& ChunkRemoved();
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
 
 private:
     class TCachedReader;
     class TReaderCache;
 
     TChunkHolderConfig Config;
-    TLocations Locations;
 
     typedef yhash_map<NChunkClient::TChunkId, TChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
 
     //! Caches opened chunk files.
     TIntrusivePtr<TReaderCache> ReaderCache;
-
-    TParamSignal<TChunk::TPtr> ChunkAdded_;
-    TParamSignal<TChunk::TPtr> ChunkRemoved_;
 
     void ScanChunks();
     void InitLocations();

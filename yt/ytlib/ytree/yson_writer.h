@@ -37,6 +37,7 @@ public:
      */
     TYsonWriter(TOutputStream* stream, EFormat format);
 
+    // IYsonConsumer overrides.
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnInt64Scalar(i64 value, bool hasAttributes);
     virtual void OnDoubleScalar(double value, bool hasAttributes);
@@ -54,6 +55,7 @@ public:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
+    //! Inserts a portion of raw YSON into the stream.
     void OnRaw(const TYson& yson);
 
 private:

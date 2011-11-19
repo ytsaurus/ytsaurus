@@ -111,21 +111,21 @@ private:
     void OnDisconnected();
 
     //! Constructs a protobuf chunk info for a given chunk.
-    static NChunkServer::NProto::TChunkInfo GetInfo(TChunk::TPtr chunk);
+    static NChunkServer::NProto::TChunkInfo GetInfo(TChunk* chunk);
 
     //! Handles registration of new chunks.
     /*!
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(TChunk::TPtr);
+    void OnChunkAdded(TChunk* chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(TChunk::TPtr);
+    void OnChunkRemoved(TChunk* chunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
