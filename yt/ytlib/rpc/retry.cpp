@@ -87,7 +87,7 @@ private:
 
     virtual void OnError(const TError& error) 
     {
-        LOG_DEBUG("Retriable request failed (RequestId: %s): %s",
+        LOG_DEBUG("Retriable request failed (RequestId: %s)\n%s",
             ~Request->GetRequestId().ToString(),
             ~error.ToString());
 
