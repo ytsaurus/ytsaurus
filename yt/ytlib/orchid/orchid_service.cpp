@@ -8,6 +8,7 @@
 namespace NYT {
 namespace NOrchid {
 
+using namespace NBus;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,9 +74,9 @@ RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
         suffixPath,
         verb,
         Logger.GetCategory(),
-        ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
+        ~FromFunctor([=] (IMessage::TPtr responseMessage)
             {
-                WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
+                WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
                 context->Reply();
             }));
 

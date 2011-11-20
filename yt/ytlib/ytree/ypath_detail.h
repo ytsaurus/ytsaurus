@@ -259,13 +259,7 @@ void ResolveYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYPathResponseHandlerParam
-{
-    NRpc::TError Error;
-    NBus::IMessage::TPtr Message;
-};
-
-typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
+typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
 void ParseYPathRequestHeader(
     TRef headerData,

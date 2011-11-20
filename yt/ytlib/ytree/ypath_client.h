@@ -159,13 +159,13 @@ namespace NYTree {
 
 template <class TTypedRequest, class TTypedResponse>
 void OnYPathResponse(
-    const TYPathResponseHandlerParam& param,
+    NBus::IMessage::TPtr responseMessage,
     TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse,
     const Stroka& verb,
     TYPath resolvedPath)
 {
     auto response = New<TTypedResponse>();
-    response->Deserialize(~param.Message);
+    response->Deserialize(~responseMessage);
     if (!response->IsOK()) {
         auto error = response->GetError();
         Stroka message = Sprintf("Error executing YPath operation (Verb: %s, ResolvedPath: %s)\n%s",

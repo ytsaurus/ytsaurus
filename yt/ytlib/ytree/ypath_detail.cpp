@@ -237,11 +237,10 @@ protected:
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
+        UNUSED(error);
+
         if (~ResponseHandler != NULL) {
-            TYPathResponseHandlerParam response;
-            response.Message = responseMessage;
-            response.Error = error;
-            ResponseHandler->Do(response);
+            ResponseHandler->Do(responseMessage);
         }
     }
 
