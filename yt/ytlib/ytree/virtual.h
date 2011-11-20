@@ -3,6 +3,7 @@
 #include "common.h"
 #include "ypath_service.h"
 #include "ytree.h"
+#include "ypath_rpc.pb.h"
 
 namespace NYT {
 namespace NYTree {
@@ -19,6 +20,8 @@ protected:
 private:
     virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
     virtual void Invoke(NRpc::IServiceContext* context);
+
+    RPC_SERVICE_METHOD_DECL(NProto, Get);
 
 };
 

@@ -2,6 +2,9 @@
 #include "virtual.h"
 #include "fluent.h"
 #include "node_detail.h"
+#include "yson_writer.h"
+#include "ypath_detail.h"
+#include "ypath_client.h"
 
 namespace NYT {
 namespace NYTree {
@@ -12,47 +15,66 @@ using namespace NRpc;
 
 IYPathService::TResolveResult TVirtualMapBase::Resolve(TYPath path, const Stroka& verb)
 {
-    UNUSED(path);
     UNUSED(verb);
-    ythrow yexception() << "Resolution is not supported";
+
+    if (IsFinalYPath(path)) {
+        return TResolveResult::Here(path);
+    } else if (IsAttributeYPath(path)) {
+        ythrow yexception() << "Virtual map has no attributes";
+    } else {
+        Stroka prefix;
+        TYPath suffixPath;
+        ChopYPathToken(path, &prefix, &suffixPath);
+
+        auto service = GetItemService(prefix);
+        if (~service == NULL) {
+            ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+        }
+
+        return TResolveResult::There(~service, suffixPath);
+    }
 }
 
 void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
 {
-    UNUSED(context);
+    try {
+        Stroka verb = context->GetVerb();
+        if (verb == "Get") {
+            GetThunk(context);
+        } else {
+            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+                "Verb is not supported";
+        }
+    } catch (...) {
+        context->Reply(TError(
+            EYPathErrorCode::GenericError,
+            CurrentExceptionMessage()));
+    }
 }
 
-//IYPathService::TGetResult TVirtualMapBase::Get(TYPath path, IYsonConsumer* consumer)
-//{
-//    // TODO: attributes?
-//
-//    if (path.Empty()) {
-//        auto keys = GetKeys();
-//        // TODO: refactor using fluent API
-//        consumer->OnBeginMap();
-//        FOREACH (const auto& key, keys) {
-//            consumer->OnMapItem(key);
-//            auto service = GetItemService(key);
-//            YASSERT(~service != NULL);
-//            // TODO: use constant for /
-//            GetYPath(service, "/", consumer);
-//        }
-//        consumer->OnEndMap(false);
-//    } else {
-//        Stroka prefix;
-//        TYPath suffixPath;
-//        ChopYPathPrefix(path, &prefix, &suffixPath);
-//
-//        auto service = GetItemService(prefix);
-//        if (~service == NULL) {
-//            ythrow TYTreeException() << Sprintf("Key %s is not found",
-//                ~prefix.Quote());
-//        }
-//
-//        return TGetResult::CreateRecurse(service, suffixPath);
-//    }
-//    return TGetResult::CreateDone();
-//}
+RPC_SERVICE_METHOD_IMPL(TVirtualMapBase, Get)
+{
+    UNUSED(request);
+
+    if (!IsFinalYPath(context->GetPath())) {
+        ythrow yexception() << "Resolution error: path must be final";
+    }
+
+    TStringStream stream;
+    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    auto keys = GetKeys();
+    writer.OnBeginMap();
+    FOREACH (const auto& key, keys) {
+        writer.OnMapItem(key);
+        auto service = GetItemService(key);
+        YASSERT(~service != NULL);
+        writer.OnRaw(SyncExecuteYPathGet(~service, "/"));
+    }
+    writer.OnEndMap(false);
+
+    response->SetValue(stream.Str());
+    context->Reply();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
