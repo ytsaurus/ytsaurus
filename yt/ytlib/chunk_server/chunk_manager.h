@@ -51,13 +51,13 @@ public:
     //! Fired when a holder gets registered.
     /*!
      *  \note
-     *  Only fired for leaders, it not fired during recovery.
+     *  Only fired for leaders, not fired during recovery.
      */
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
     //! Fired when a holder gets unregistered.
     /*!
      *  \note
-     *  Only fired for leaders, it not fired during recovery.
+     *  Only fired for leaders, not fired during recovery.
      */
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
