@@ -348,9 +348,9 @@ private:
         FOREACH (auto holderId, ChunkManager->GetHolderIds()) {
             const auto& holder = ChunkManager->GetHolder(holderId);
             param.Consumer->OnListItem();
-            param.Consumer->OnStringScalar(holder.GetAddress(), false);
+            param.Consumer->OnStringScalar(holder.GetAddress());
         }
-        param.Consumer->OnEndList(false);
+        param.Consumer->OnEndList();
     }
 
     void GetDeadHolders(const TGetAttributeParam& param)
@@ -361,10 +361,10 @@ private:
             Stroka address = pair.First();
             if (ChunkManager->FindHolder(address) == NULL) {
                 param.Consumer->OnListItem();
-                param.Consumer->OnStringScalar(address, false);
+                param.Consumer->OnStringScalar(address);
             }
         }
-        param.Consumer->OnEndList(false);
+        param.Consumer->OnEndList();
     }
 };
 

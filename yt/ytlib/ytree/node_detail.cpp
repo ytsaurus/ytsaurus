@@ -103,7 +103,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
                 }
             }
 
-            writer.OnEndMap(false);
+            writer.OnEndMap();
 
             response->SetValue(stream.Str());
             context->Reply();

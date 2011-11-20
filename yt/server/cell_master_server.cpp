@@ -13,7 +13,6 @@
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
-#include <yt/ytlib/cypress/world_initializer.h>
 #include <yt/ytlib/cypress/cypress_integration.h>
 
 #include <yt/ytlib/chunk_server/chunk_manager.h>
@@ -54,7 +53,6 @@ using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
-using NCypress::TWorldInitializer;
 using NCypress::CreateLockMapTypeHandler;
 
 using NMonitoring::TMonitoringManager;
@@ -142,11 +140,6 @@ void TCellMasterServer::Run()
         ~chunkManager,
         ~transactionManager,
         ~rpcServer);
-
-    auto worldIntializer = New<TWorldInitializer>(
-        ~metaStateManager,
-        ~cypressManager);
-    worldIntializer->Start();
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
