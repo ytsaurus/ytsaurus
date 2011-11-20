@@ -165,7 +165,7 @@ void TTreeBuilder::OnAttributesItem(const Stroka& name)
 
 void TTreeBuilder::OnEndAttributes()
 {
-    OnEndMap();
+    OnEndMap(false);
     auto attributes = PopPop()->AsMap();
     auto node = PeekPop();
     node->SetAttributes(attributes);
