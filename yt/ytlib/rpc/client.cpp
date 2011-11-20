@@ -112,7 +112,7 @@ void TClientResponse::OnAcknowledgement()
 
 void TClientResponse::OnError(const TError& error)
 {
-    LOG_DEBUG("Request failed (RequestId: %s): %s",
+    LOG_DEBUG("Request failed (RequestId: %s)\n%s",
         ~RequestId_.ToString(),
         ~error.ToString());
 
