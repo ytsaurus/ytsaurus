@@ -162,7 +162,6 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    // ToDo: fix typo Acknowledgment.
     virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
 
     virtual void OnResponse(const TError& error, NBus::IMessage* message) = 0;
