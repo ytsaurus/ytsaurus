@@ -34,7 +34,6 @@ public:
         , Request(request)
         , OriginalHandler(originalHandler)
         , Timeout(timeout)
-        , CumulativeErrorMessage("Retriable channel failed.")
         , SendResult(New< TFuture<TError> >())
     {
         YASSERT(channel != NULL);
@@ -101,7 +100,7 @@ private:
                 case IBus::ESendResult::Failed:
                     guard.Release();
 
-                    OnAttemptFailed("Request acknowledgment failed.");
+                    OnAttemptFailed("Acknowledgment failed");
                     break;
 
                 default:
@@ -120,14 +119,15 @@ private:
             State = EState::Done;
             guard.Release();
 
-            OnAttemptFailed("Request timed out.");
+            OnAttemptFailed("Timed out");
         }
     }
 
     virtual void OnResponse(const TError& error, IMessage* message)
     {
-        LOG_DEBUG("Retriable response received (RequestId: %s)",
-            ~Request->GetRequestId().ToString());
+        LOG_DEBUG("Retriable response received (RequestId: %s): %s",
+            ~Request->GetRequestId().ToString(),
+            ~error.ToString());
 
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Sent || State == EState::Acked) {
@@ -146,7 +146,8 @@ private:
     void OnAttemptFailed(const Stroka& errorMessage)
     {
         int count = AtomicIncrement(CurrentAttempt);
-        CumulativeErrorMessage.append(Sprintf(" Attempt %d: (%s)",
+
+        CumulativeErrorMessage.append(Sprintf("\n[%d]: %s",
             count,
             ~errorMessage));
 
@@ -155,7 +156,9 @@ private:
                 FromMethod(&TRetriableRequest::DoSend, TPtr(this)),
                 TInstant::Now() + Channel->GetBackoffTime());
         } else {
-            TError error(EErrorCode::Unavailable, CumulativeErrorMessage);
+            TError error(
+                EErrorCode::Unavailable,
+                "Retriable request has failed, details follow:" + CumulativeErrorMessage);
             OriginalHandler->OnResponse(error, NULL);
             SendResult->Set(error);
         }
