@@ -261,7 +261,8 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
         if (count < minCount) {
             candidates.clear();
             minCount = count;
-        } else if (count == minCount) {
+        }
+        if (count == minCount) {
             candidates.push_back(~location);
         }
     }
