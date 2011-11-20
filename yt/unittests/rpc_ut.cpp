@@ -22,7 +22,7 @@ public:
 
     static const Stroka ServiceName;
 
-    TMyProxy(IChannel::TPtr channel)
+    TMyProxy(IChannel* channel)
         : TProxyBase(channel, ServiceName)
     { }
 
@@ -46,7 +46,7 @@ public:
 
     static const Stroka ServiceName;
 
-    TNonExistingServiceProxy(IChannel::TPtr channel)
+    TNonExistingServiceProxy(IChannel* channel)
         : TProxyBase(channel, ServiceName)
     { }
 
@@ -172,7 +172,7 @@ public:
 
 TEST_F(TRpcTest, Send)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
     request->SetA(42);
     auto result = request->Invoke();
@@ -204,7 +204,7 @@ TEST_F(TRpcTest, Send)
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->ReplyingCall();
     auto result = request->Invoke();
     auto response = result->Get();
@@ -214,7 +214,7 @@ TEST_F(TRpcTest, OK)
 
 TEST_F(TRpcTest, TransportError)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2001"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2001"));
     auto request = proxy->EmptyCall();
     auto result = request->Invoke();
     auto response = result->Get();
@@ -222,10 +222,9 @@ TEST_F(TRpcTest, TransportError)
     EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
 }
 
-// TODO: uncomment this when YT-276 is fixed
 TEST_F(TRpcTest, NoService)
 {
-    auto proxy = new TNonExistingServiceProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->EmptyCall();
     auto result = request->Invoke();
     auto response = result->Get();
@@ -235,7 +234,7 @@ TEST_F(TRpcTest, NoService)
 
 TEST_F(TRpcTest, NoMethod)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->NotRegistredCall();
     auto result = request->Invoke();
     auto response = result->Get();
@@ -245,7 +244,7 @@ TEST_F(TRpcTest, NoMethod)
 
 TEST_F(TRpcTest, Timeout)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     proxy->SetTimeout(TDuration::Seconds(1));
 
     auto request = proxy->EmptyCall();
@@ -257,7 +256,7 @@ TEST_F(TRpcTest, Timeout)
 
 TEST_F(TRpcTest, CustomMessage)
 {
-    auto proxy = new TMyProxy(CreateBusChannel("localhost:2000"));
+    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->CustomMessageError();
     auto result = request->Invoke();
     auto response = result->Get();

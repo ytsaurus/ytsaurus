@@ -43,7 +43,7 @@ TMasterConnector::TMasterConnector(
     YASSERT(~serviceInvoker != NULL);
 
     auto channel = CreateCellChannel(Config.Masters);
-    Proxy.Reset(new TProxy(channel));
+    Proxy.Reset(new TProxy(~channel));
     Proxy->SetTimeout(Config.RpcTimeout);
 
     Address = Sprintf("%s:%d", ~HostName(), Config.Port);

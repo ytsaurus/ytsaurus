@@ -23,7 +23,7 @@ public:
         ((NoSuchChunk)(3))
     );
 
-    TChunkServiceProxy(NRpc::IChannel::TPtr channel)
+    TChunkServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -26,7 +26,7 @@ public:
         ((Busy)(6))
     );
 
-    TMetaStateManagerProxy(NRpc::IChannel::TPtr channel)
+    TMetaStateManagerProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -22,7 +22,7 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     , Schema(schema)
     , Codec(codec)
     , TransactionId(transactionId)
-    , Proxy(masterChannel)
+    , Proxy(~masterChannel)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
     VERIFY_THREAD_AFFINITY(ClientThread);

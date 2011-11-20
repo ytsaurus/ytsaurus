@@ -21,7 +21,7 @@ public:
         ((ResolutionError)(1))
     );
 
-    TOrchidServiceProxy(NRpc::IChannel::TPtr channel)
+    TOrchidServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

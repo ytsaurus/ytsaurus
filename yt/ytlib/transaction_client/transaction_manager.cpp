@@ -27,15 +27,15 @@ public:
     typedef TIntrusivePtr<TTransaction> TPtr;
 
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
-        TTransactionManager::TPtr transactionManager)
+        NRpc::IChannel* cellChannel,
+        TTransactionManager* transactionManager)
         : TransactionManager(transactionManager)
         , Proxy(cellChannel)
         , State(EState::Init)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
-        YASSERT(~cellChannel != NULL);
-        YASSERT(~transactionManager != NULL);
+        YASSERT(cellChannel != NULL);
+        YASSERT(transactionManager != NULL);
 
         LOG_INFO("Starting transaction");
 
@@ -185,18 +185,18 @@ private:
 
 TTransactionManager::TTransactionManager(
     const TConfig& config, 
-    NRpc::IChannel::TPtr channel)
+    NRpc::IChannel* channel)
     : Config(config)
     , Channel(channel)
 {
-    YASSERT(~channel != NULL);
+    YASSERT(channel != NULL);
 }
 
 ITransaction::TPtr TTransactionManager::StartTransaction()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return New<TTransaction>(Channel, this);
+    return New<TTransaction>(~Channel, this);
 }
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
@@ -209,7 +209,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
             return;
     }
 
-    TProxy proxy(Channel);
+    TProxy proxy(~Channel);
     proxy.SetTimeout(Config.RpcTimeout);
 
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());

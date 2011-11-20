@@ -49,7 +49,7 @@ public:
      */
     TTransactionManager(
         const TConfig& config,
-        NRpc::IChannel::TPtr channel);
+        NRpc::IChannel* channel);
 
     //! Starts a new transaction.
     /*!
