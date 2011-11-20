@@ -19,8 +19,6 @@ SET(YT_SOURCE_FILES
     virtual.cpp
     virtual_detail.cpp
 
-    world_initializer.cpp
-
     cypress_integration.cpp
 
     cypress_ypath_rpc.proto

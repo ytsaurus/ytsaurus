@@ -163,6 +163,7 @@ struct INodeTypeHandler
      *  \note 
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
+    // TODO: RV-ref?
     virtual void Merge(
         ICypressNode& committedNode,
         ICypressNode& branchedNode) = 0;
