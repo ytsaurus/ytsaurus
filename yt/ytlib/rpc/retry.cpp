@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "retry.h"
+#include "client.h"
 
 #include "../bus/bus_client.h"
 #include "../misc/assert.h"
@@ -15,6 +16,43 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetriableChannel
+    : public IChannel
+{
+    DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, BackoffTime);
+    DEFINE_BYVAL_RO_PROPERTY(int, RetryCount);
+
+public:
+    typedef TIntrusivePtr<TRetriableChannel> TPtr;
+
+    TRetriableChannel(
+        IChannel* underlyingChannel, 
+        TDuration backoffTime, 
+        int retryCount);
+
+    void Send(
+        IClientRequest* request, 
+        IClientResponseHandler* responseHandler, 
+        TDuration timeout);
+
+    void Terminate();
+
+};
+
+IChannel::TPtr CreateRetriableChannel(
+    IChannel* underlyingChannel,
+    TDuration backoffTime,
+    int retryCount)
+{
+    return New<TRetriableChannel>(
+        underlyingChannel,
+        backoffTime,
+        retryCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
