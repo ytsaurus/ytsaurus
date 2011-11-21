@@ -21,8 +21,10 @@ public:
         Stroka fileName,
         i32 segmentId);
 
-    void Open(i64 offset = 0);
+    void Open();
+    void OpenRaw(i64 offset);
     TInputStream& GetStream() const;
+    TInputStream& GetRawStream() const;
     i64 GetLength() const;
     void Close();
     TChecksum GetChecksum() const;

@@ -75,7 +75,30 @@ TSnapshotReader::TSnapshotReader(
     , SegmentId(segmentId)
 { }
 
-void TSnapshotReader::Open(i64 offset)
+void TSnapshotReader::Open()
+{
+    Close();
+
+    LOG_DEBUG("Opening snapshot reader %s", ~FileName);
+    File.Reset(new TFile(FileName, OpenExisting));
+    
+    TSnapshotHeader header;
+    Read(*File, &header);
+    header.Validate();
+    if (header.SegmentId != SegmentId) {
+        LOG_FATAL("Invalid snapshot id: expected %d, got %d",
+            SegmentId,
+            header.SegmentId);
+    }
+    PrevRecordCount = header.PrevRecordCount;
+    Checksum = header.Checksum;
+
+    FileInput.Reset(new TBufferedFileInput(*File));
+    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
+    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
+}
+
+void TSnapshotReader::OpenRaw(i64 offset)
 {
     Close();
 
@@ -95,14 +118,18 @@ void TSnapshotReader::Open(i64 offset)
 
     File->Seek(offset + sizeof(header), sSet);
     FileInput.Reset(new TBufferedFileInput(*File));
-    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
-    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
 }
 
 TInputStream& TSnapshotReader::GetStream() const
 {
     YASSERT(~ChecksummableInput != NULL);
     return *ChecksummableInput;
+}
+
+TInputStream& TSnapshotReader::GetRawStream() const
+{
+    YASSERT(~FileInput != NULL);
+    return *FileInput;
 }
 
 i64 TSnapshotReader::GetLength() const

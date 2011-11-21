@@ -255,10 +255,10 @@ private:
         VERIFY_THREAD_AFFINITY(ReadThread);
 
         try {
-            reader->Open(offset);
+            reader->OpenRaw(offset);
 
             TBlob data(length);
-            i32 bytesRead = reader->GetStream().Read(data.begin(), length);
+            i32 bytesRead = reader->GetRawStream().Read(data.begin(), length);
             data.erase(data.begin() + bytesRead, data.end());
 
             context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
