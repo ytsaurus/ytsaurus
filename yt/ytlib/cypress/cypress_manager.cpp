@@ -72,16 +72,16 @@ void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
 }
 
-INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
-{
-    return GetTypeHandler(node.GetRuntimeType());
-}
-
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
 {
     auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
     YASSERT(~handler != NULL);
     return handler;
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
+{
+    return GetTypeHandler(node.GetRuntimeType());
 }
 
 void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
@@ -284,7 +284,7 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(
     // Create a new node.
     auto nodeId = NodeIdGenerator.Next();
     TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    auto* nodeImpl = new TImpl(branchedNodeId);
+    auto* nodeImpl = new TImpl(branchedNodeId, type);
     NodeMap.Insert(branchedNodeId, nodeImpl);
 
     // Register the node with the transaction.
@@ -623,7 +623,9 @@ void TCypressManager::Clear()
     LockMap.Clear();
 
     // Create the root.
-    auto* rootImpl = new TMapNode(TBranchedNodeId(RootNodeId, NullTransactionId));
+    auto* rootImpl = new TMapNode(
+        TBranchedNodeId(RootNodeId, NullTransactionId),
+        ERuntimeNodeType::Map);
     rootImpl->SetState(ENodeState::Committed);
     RefNode(*rootImpl);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);

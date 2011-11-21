@@ -15,8 +15,8 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TBranchedNodeId& id)
-    : TCypressNodeBase(id)
+TTableNode::TTableNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+    : TCypressNodeBase(id, runtimeType)
 { }
 
 TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
@@ -84,8 +84,9 @@ public:
         UNUSED(transactionId);
         UNUSED(manifest);
 
-        TAutoPtr<TTableNode> node(new TTableNode(TBranchedNodeId(nodeId, NullTransactionId)));
-        return node.Release();
+        return new TTableNode(
+            TBranchedNodeId(nodeId, NullTransactionId),
+            GetRuntimeType());
     }
 
     virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(

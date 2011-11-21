@@ -58,7 +58,7 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
-    TCypressNodeTypeHandlerBase(TCypressManager::TPtr cypressManager)
+    TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
     {
         RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
@@ -70,7 +70,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TImpl(id);
+        return new TImpl(id, GetRuntimeType());
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
@@ -263,8 +263,10 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
-    explicit TCypressNodeBase(const TBranchedNodeId& id);
+    TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
+    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
+    virtual ERuntimeNodeType GetRuntimeType() const;
     virtual TBranchedNodeId GetId() const;
 
     virtual i32 Ref();
@@ -274,9 +276,8 @@ public:
     virtual void Load(TInputStream* input);
 
 protected:
-    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
-
     TBranchedNodeId Id;
+    ERuntimeNodeType RuntimeType;
     i32 RefCounter;
 
 };
@@ -326,8 +327,8 @@ class TScalarNode
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    explicit TScalarNode(const TBranchedNodeId& id)
-        : TCypressNodeBase(id)
+    TScalarNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+        : TCypressNodeBase(id, runtimeType)
     { }
 
     TScalarNode(const TBranchedNodeId& id, const TThis& other)
@@ -338,11 +339,6 @@ public:
     virtual TAutoPtr<ICypressNode> Clone() const
     {
         return new TThis(Id, *this);
-    }
-
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
     virtual void Save(TOutputStream* output) const
@@ -369,7 +365,7 @@ class TScalarNodeTypeHandler
     : public TCypressNodeTypeHandlerBase< TScalarNode<TValue> >
 {
 public:
-    TScalarNodeTypeHandler(TCypressManager::TPtr cypressManager)
+    TScalarNodeTypeHandler(TCypressManager* cypressManager)
         : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(cypressManager)
     { }
 
@@ -418,12 +414,10 @@ class TMapNode
     DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
-    explicit TMapNode(const TBranchedNodeId& id);
+    TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
     TMapNode(const TBranchedNodeId& id, const TMapNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
-
-    virtual ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
@@ -437,7 +431,7 @@ class TMapNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TMapNode>
 {
 public:
-    TMapNodeTypeHandler(TCypressManager::TPtr cypressManager);
+    TMapNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
     virtual NYTree::ENodeType GetNodeType();
@@ -476,12 +470,10 @@ class TListNode
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TBranchedNodeId& id);
+    explicit TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
     TListNode(const TBranchedNodeId& id, const TListNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
-
-    virtual ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
@@ -494,7 +486,7 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(TCypressManager::TPtr cypressManager);
+    TListNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
     virtual NYTree::ENodeType GetNodeType();

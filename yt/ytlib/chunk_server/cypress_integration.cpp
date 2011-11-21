@@ -6,7 +6,6 @@
 #include "../ytree/fluent.h"
 #include "../cypress/virtual.h"
 #include "../cypress/node_proxy_detail.h"
-#include "../cypress/virtual_detail.h"
 #include "../cypress/cypress_ypath_rpc.h"
 
 namespace NYT {
@@ -152,8 +151,6 @@ IHolderRegistry::TPtr CreateHolderRegistry(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TVirtualizedNode<TMapNode, ERuntimeNodeType::Holder> THolderNode;
-
 class THolderTypeHandler
     : public TMapNodeTypeHandler
 {
@@ -190,8 +187,7 @@ public:
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-
-        return new THolderNode(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(TBranchedNodeId(nodeId, NullTransactionId));
     }
 
 private:
@@ -225,13 +221,11 @@ INodeTypeHandler::TPtr CreateHolderTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TVirtualizedNode<TMapNode, ERuntimeNodeType::HolderMap> THolderMapNode;
-
 class THolderMapBehavior
-    : public TNodeBehaviorBase<THolderMapNode, TMapNodeProxy>
+    : public TNodeBehaviorBase<TMapNode, TMapNodeProxy>
 {
 public:
-    typedef TNodeBehaviorBase<THolderMapNode, TMapNodeProxy> TBase;
+    typedef TNodeBehaviorBase<TMapNode, TMapNodeProxy> TBase;
     typedef THolderMapBehavior TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
@@ -328,8 +322,7 @@ public:
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-
-        return new THolderMapNode(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(TBranchedNodeId(nodeId, NullTransactionId));
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)

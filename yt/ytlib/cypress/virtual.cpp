@@ -18,43 +18,38 @@ using namespace NRpc;
 class TVirtualNode
     : public TCypressNodeBase
 {
-    DEFINE_BYVAL_RO_PROPERTY(ERuntimeNodeType, RuntimeType);
     DEFINE_BYVAL_RO_PROPERTY(TYson, Manifest);
 
 public:
-    explicit TVirtualNode(
+    TVirtualNode(
         const TBranchedNodeId& id,
-        ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid,
+        ERuntimeNodeType runtimeType,
         const TYson& manifest = "")
-        : TCypressNodeBase(id)
-        , RuntimeType_(runtimeType)
+        : TCypressNodeBase(id, runtimeType)
         , Manifest_(manifest)
     { }
 
-    explicit TVirtualNode(
+    TVirtualNode(
         const TBranchedNodeId& id,
         const TVirtualNode& other)
-        : TCypressNodeBase(id)
-        , RuntimeType_(other.RuntimeType_)
+        : TCypressNodeBase(id, other)
         , Manifest_(other.Manifest_)
     { }
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TVirtualNode(Id, RuntimeType_);
+        return new TVirtualNode(Id, *this);
     }
 
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
-        ::Save(output, RuntimeType_);
         ::Save(output, Manifest_);
     }
 
     virtual void Load(TInputStream* input)
     {
         TCypressNodeBase::Load(input);
-        ::Load(input, RuntimeType_);
         ::Load(input, Manifest_);
     }
 
@@ -170,7 +165,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TVirtualNode(id);
+        return new TVirtualNode(id, RuntimeType);
     }
 
 private:
