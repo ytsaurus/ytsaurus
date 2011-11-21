@@ -3,7 +3,7 @@
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"
 #include "chunk_replication.h"
-#include "holder_expiration.h"
+#include "holder_lease_tracker.h"
 
 #include "../transaction_server/transaction_manager.h"
 #include "../meta_state/meta_state_manager.h"
@@ -94,7 +94,7 @@ public:
         auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
         FOREACH(auto holderId, holderIds) {
             const auto& holder = GetHolder(holderId);
-            ChunkPlacement->AddHolderSessionHint(holder);
+            ChunkPlacement->OnSessionHinted(holder);
         }
         return holderIds;
     }
@@ -275,7 +275,7 @@ private:
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
-    THolderExpiration::TPtr HolderExpiration;
+    THolderLeaseTracker::TPtr HolderExpiration;
     
     TIdGenerator<TChunkId> ChunkIdGenerator;
     TIdGenerator<TChunkId> ChunkListIdGenerator;
@@ -403,7 +403,7 @@ private:
 
         if (IsLeader()) {
             HolderExpiration->RenewHolderLease(holder);
-            ChunkPlacement->UpdateHolder(holder);
+            ChunkPlacement->OnHolderUpdated(holder);
         }
 
         FOREACH(const auto& chunkInfo, message.GetAddedChunks()) {
@@ -519,12 +519,14 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+
         ChunkReplication = New<TChunkReplication>(
             ~ChunkManager,
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
-        HolderExpiration = New<THolderExpiration>(
+
+        HolderExpiration = New<THolderLeaseTracker>(
             Config,
             ~ChunkManager,
             ~MetaStateManager->GetEpochStateInvoker());
@@ -566,8 +568,8 @@ private:
     void StartHolderTracking(const THolder& holder)
     {
         HolderExpiration->RegisterHolder(holder);
-        ChunkPlacement->RegisterHolder(holder);
-        ChunkReplication->RegisterHolder(holder);
+        ChunkPlacement->OnHolderRegistered(holder);
+        ChunkReplication->OnHolderRegistered(holder);
 
         HolderRegistered_.Fire(holder); 
     }
@@ -575,8 +577,8 @@ private:
     void StopHolderTracking(const THolder& holder)
     {
         HolderExpiration->UnregisterHolder(holder);
-        ChunkPlacement->UnregisterHolder(holder);
-        ChunkReplication->UnregisterHolder(holder);
+        ChunkPlacement->OnHolderUnregistered(holder);
+        ChunkReplication->OnHolderUnregistered(holder);
 
         HolderUnregistered_.Fire(holder);
     }
@@ -621,7 +623,7 @@ private:
             chunk.GetSize());
 
         if (IsLeader()) {
-            ChunkReplication->AddReplica(holder, chunk);
+            ChunkReplication->OnReplicaAdded(holder, chunk);
         }
     }
 
@@ -636,7 +638,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
@@ -650,7 +652,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
