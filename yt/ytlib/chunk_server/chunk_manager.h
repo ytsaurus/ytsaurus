@@ -19,7 +19,7 @@ namespace NChunkServer {
 
 // TODO: get rid
 using NMetaState::TMetaChange;
-using NMetaState::TMetaStateManager;
+using NMetaState::IMetaStateManager;
 using NMetaState::TCompositeMetaState;
 using NTransaction::TTransactionManager;
 using NTransaction::TTransactionId;
@@ -35,7 +35,7 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMetaStateManager* metaStateManager,
+        IMetaStateManager* metaStateManager,
         TCompositeMetaState* metaState,
         TTransactionManager* transactionManager,
         IHolderRegistry* holderRegistry);

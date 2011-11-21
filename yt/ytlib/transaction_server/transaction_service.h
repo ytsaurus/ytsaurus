@@ -21,7 +21,7 @@ public:
 
     //! Creates an instance.
     TTransactionService(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         TTransactionManager* transactionManager,
         NRpc::IServer* server);
 

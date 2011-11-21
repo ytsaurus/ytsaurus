@@ -20,7 +20,7 @@ public:
 
     //! Creates an instance.
     TChunkService(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         TChunkManager* chunkManager,
         NTransaction::TTransactionManager* transactionManager,
         NRpc::IServer* server);

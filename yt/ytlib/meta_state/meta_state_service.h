@@ -15,10 +15,10 @@ class TMetaStateServiceBase
 protected:
     typedef TIntrusivePtr<TMetaStateServiceBase> TPtr;
 
-    TMetaStateManager::TPtr MetaStateManager;
+    IMetaStateManager::TPtr MetaStateManager;
 
     TMetaStateServiceBase(
-        TMetaStateManager* metaStateManager,
+        IMetaStateManager* metaStateManager,
         const Stroka& serviceName,
         const Stroka& loggingCategory)
         : NRpc::TServiceBase(

@@ -101,7 +101,7 @@ void TCellMasterServer::Run()
 
     auto rpcServer = CreateRpcServer(port);
 
-    auto metaStateManager = New<TMetaStateManager>(
+    auto metaStateManager = IMetaStateManager::CreateInstance(
         Config.MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
@@ -154,7 +154,7 @@ void TCellMasterServer::Run()
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
     monitoringManager->Register(
         "/meta_state",
-        FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
+        FromMethod(&IMetaStateManager::GetMonitoringInfo, metaStateManager));
     // TODO: register more monitoring infos
     monitoringManager->Start();
 

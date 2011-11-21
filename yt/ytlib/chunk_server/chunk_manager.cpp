@@ -37,7 +37,7 @@ public:
     TImpl(
         const TConfig& config,
         TChunkManager* chunkManager,
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         TTransactionManager* transactionManager,
         IHolderRegistry* holderRegistry)
@@ -872,7 +872,7 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    NMetaState::TMetaStateManager* metaStateManager,
+    NMetaState::IMetaStateManager* metaStateManager,
     NMetaState::TCompositeMetaState* metaState,
     TTransactionManager* transactionManager,
     IHolderRegistry* holderRegistry)

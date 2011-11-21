@@ -33,7 +33,7 @@ public:
     typedef TIntrusivePtr<TThis> TPtr;
 
     TCypressManager(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         NTransaction::TTransactionManager* transactionManager);
 

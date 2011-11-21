@@ -26,7 +26,7 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressManager::TCypressManager(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     TCompositeMetaState* metaState,
     TTransactionManager* transactionManager)
     : TMetaStatePart(metaStateManager, metaState)

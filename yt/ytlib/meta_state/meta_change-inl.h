@@ -13,7 +13,7 @@ namespace NMetaState {
 
 template <class TResult>
 TMetaChange<TResult>::TMetaChange(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     TChangeFunc* func,
     const TSharedRef& changeData)
     : MetaStateManager(metaStateManager)
@@ -84,7 +84,7 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 
 template <class TTarget, class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     const TMessage& message,
     TResult (TTarget::* func)(const TMessage&),
     TTarget* target)
@@ -108,7 +108,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
 
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     const TMessage& message,
     IFunc<TResult>* func)
 {

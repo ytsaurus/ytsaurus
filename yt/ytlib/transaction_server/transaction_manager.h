@@ -46,7 +46,7 @@ public:
     //! Creates an instance.
     TTransactionManager(
         const TConfig& config,
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
+        NMetaState::IMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState);
 
     TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();

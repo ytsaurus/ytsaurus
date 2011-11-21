@@ -16,7 +16,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkService::TChunkService(
-    NMetaState::TMetaStateManager* metaStateManager,
+    NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager,
     NRpc::IServer* server)

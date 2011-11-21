@@ -15,7 +15,7 @@ static NLog::TLogger& Logger = TransactionLogger;
 
 TTransactionManager::TTransactionManager(
     const TConfig& config,
-    TMetaStateManager::TPtr metaStateManager,
+    IMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState)
     : TMetaStatePart(metaStateManager, metaState)
     , Config(config)
