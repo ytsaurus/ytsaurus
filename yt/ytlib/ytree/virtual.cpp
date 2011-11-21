@@ -13,42 +13,29 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TVirtualMapBase::Resolve(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(TYPath path, const Stroka& verb)
 {
     UNUSED(verb);
 
-    if (IsFinalYPath(path)) {
-        return TResolveResult::Here(path);
-    } else if (IsAttributeYPath(path)) {
-        ythrow yexception() << "Virtual map has no attributes";
-    } else {
-        Stroka prefix;
-        TYPath suffixPath;
-        ChopYPathToken(path, &prefix, &suffixPath);
+    Stroka prefix;
+    TYPath suffixPath;
+    ChopYPathToken(path, &prefix, &suffixPath);
 
-        auto service = GetItemService(prefix);
-        if (~service == NULL) {
-            ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
-        }
-
-        return TResolveResult::There(~service, suffixPath);
+    auto service = GetItemService(prefix);
+    if (~service == NULL) {
+        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
+
+    return TResolveResult::There(~service, suffixPath);
 }
 
-void TVirtualMapBase::Invoke(NRpc::IServiceContext* context)
+void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
 {
-    try {
-        Stroka verb = context->GetVerb();
-        if (verb == "Get") {
-            GetThunk(context);
-        } else {
-            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-                "Verb is not supported";
-        }
-    } catch (...) {
-        context->Reply(TError(
-            EYPathErrorCode::GenericError,
-            CurrentExceptionMessage()));
+    Stroka verb = context->GetVerb();
+    if (verb == "Get") {
+        GetThunk(context);
+    } else {
+        TYPathServiceBase::DoInvoke(context);
     }
 }
 
