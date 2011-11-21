@@ -25,7 +25,7 @@ protected:
 
     virtual void TearDown()
     {
-        TemporaryFile.Reset(0);
+        TemporaryFile.Reset(NULL);
     }
 };
 
@@ -34,13 +34,13 @@ TEST_F(TSnapshotTest, EmptySnapshot)
     // TODO: Add checksums.
     ASSERT_NO_THROW({
         TSnapshotWriter writer(TemporaryFile->Name(), 0);
-        writer.Open(-1);
+        writer.Open(NonexistingPrevRecordCount);
         writer.Close();
     });
 
     ASSERT_NO_THROW({
         TSnapshotReader reader(TemporaryFile->Name(), 0);
-        reader.Open(-1);
+        reader.Open();
         reader.Close();
     });
 }
@@ -51,7 +51,7 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     const i32 recordCount = 1024;
 
     TSnapshotWriter writer(TemporaryFile->Name(), 0);
-    writer.Open(-1);
+    writer.Open(NonexistingPrevRecordCount);
     TOutputStream& outputStream = writer.GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {

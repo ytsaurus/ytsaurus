@@ -150,12 +150,13 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     LOG_DEBUG("Opening snapshot writer %s", ~TempFileName);
     File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
     FileOutput.Reset(new TBufferedFileOutput(*File));
-    CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
-    ChecksummableOutput.Reset(new TChecksummableOutput(*CompressedOutput));
 
     TSnapshotHeader header(SegmentId, PrevRecordCount);
     Write(*FileOutput, header);
 
+    CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
+    ChecksummableOutput.Reset(new TChecksummableOutput(*CompressedOutput));
+    
     Checksum = 0;
 }
 
