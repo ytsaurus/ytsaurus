@@ -20,7 +20,7 @@ BEGIN_DECLARE_POLY_ENUM(EErrorCode, EErrorCode,
     ((TransportError)(-1))
     ((ProtocolError)(-2))
     ((NoSuchService)(-3))
-    ((NoSuchMethod)(-4))
+    ((NoSuchVerb)(-4))
     ((Timeout)(-5))
     ((ServiceError)(-6))
     ((Unavailable)(-7))
