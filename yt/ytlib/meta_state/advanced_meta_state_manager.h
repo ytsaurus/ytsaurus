@@ -52,12 +52,6 @@ public:
      */
     virtual IInvoker::TPtr GetEpochStateInvoker();
 
-    //! Returns an invoker used for updating the state.
-    /*!
-     * \note Thread affinity: any
-     */
-    IInvoker::TPtr GetSnapshotInvoker();
-
     /*!
      * \note Thread affinity: StateThread
      */

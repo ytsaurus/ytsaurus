@@ -108,7 +108,7 @@ public:
 
     IInvoker::TPtr GetStateInvoker();
     IInvoker::TPtr GetEpochStateInvoker();
-    IInvoker::TPtr GetSnapshotInvoker();
+    //IInvoker::TPtr GetSnapshotInvoker();
 
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
@@ -1024,12 +1024,12 @@ IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetEpochStateInvoker()
     return ~EpochStateInvoker;
 }
 
-IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetSnapshotInvoker()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return MetaState->GetSnapshotInvoker();
-}
+//IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetSnapshotInvoker()
+//{
+//    VERIFY_THREAD_AFFINITY_ANY();
+//
+//    return MetaState->GetSnapshotInvoker();
+//}
 
 TAdvancedMetaStateManager::TAsyncCommitResult::TPtr
 TAdvancedMetaStateManager::TImpl::CommitChange(
@@ -1294,10 +1294,10 @@ IInvoker::TPtr TAdvancedMetaStateManager::GetEpochStateInvoker()
     return Impl->GetEpochStateInvoker();
 }
 
-IInvoker::TPtr TAdvancedMetaStateManager::GetSnapshotInvoker()
-{
-    return Impl->GetSnapshotInvoker();
-}
+//IInvoker::TPtr TAdvancedMetaStateManager::GetSnapshotInvoker()
+//{
+//    return Impl->GetSnapshotInvoker();
+//}
 
 TAdvancedMetaStateManager::TAsyncCommitResult::TPtr
 TAdvancedMetaStateManager::CommitChange(
