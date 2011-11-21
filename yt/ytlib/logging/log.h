@@ -27,7 +27,7 @@ public:
     static TLogManager* Get();
 
     void Configure(TJsonObject* root);
-    void Configure(Stroka fileName, Stroka rootPath);
+    void Configure(const Stroka& fileName, const Stroka& rootPath);
 
     void Flush();
     void Shutdown();
@@ -74,7 +74,7 @@ class TLogger
     : private TNonCopyable
 {
 public:
-    TLogger(Stroka category);
+    TLogger(const Stroka& category);
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level);
@@ -86,24 +86,6 @@ private:
     Stroka Category;
     int ConfigVersion;
     ELogLevel MinLevel;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: not used, consider dropping
-class TPrefixLogger
-    : private TNonCopyable
-{
-public:
-    TPrefixLogger(TLogger& baseLogger, const Stroka& prefix);
-
-    Stroka GetCategory() const;
-    bool IsEnabled(ELogLevel level);
-    void Write(const TLogEvent& event);
-    
-private:
-    TLogger& BaseLogger;
-    Stroka Prefix;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +136,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TLogger>
+template <class TLogger>
 void LogEventImpl(
     TLogger& logger,
     const char* fileName,

@@ -351,7 +351,7 @@ void TLogManager::Configure(TJsonObject* root)
     AtomicIncrement(ConfigVersion);
 }
 
-void TLogManager::Configure(Stroka fileName, Stroka rootPath)
+void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
 {
     try {
         TIFStream configStream(fileName);
@@ -379,7 +379,7 @@ void TLogManager::ConfigureDefault()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(Stroka category)
+TLogger::TLogger(const Stroka& category)
     : Category(category)
     , ConfigVersion(0)
 { }
@@ -408,38 +408,6 @@ void TLogger::UpdateConfig()
         Category,
         &MinLevel,
         &ConfigVersion);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPrefixLogger::TPrefixLogger(TLogger& baseLogger, const Stroka& prefix)
-    : BaseLogger(baseLogger)
-    , Prefix(prefix)
-{ }
-
-Stroka TPrefixLogger::GetCategory() const
-{
-    return BaseLogger.GetCategory();
-}
-
-void TPrefixLogger::Write(const TLogEvent& event)
-{
-    // TODO: optimize?
-    TLogEvent prefixedEvent(
-        event.GetCategory(),
-        event.GetLevel(),
-        Prefix + event.GetMessage());
-
-    FOREACH(const auto& pair, event.GetProperties()) {
-        prefixedEvent.AddProperty(pair.first, pair.second);
-    }
-
-    BaseLogger.Write(prefixedEvent);
-}
-
-bool TPrefixLogger::IsEnabled(ELogLevel level)
-{
-    return BaseLogger.IsEnabled(level);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
