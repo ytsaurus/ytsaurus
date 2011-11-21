@@ -426,6 +426,8 @@ private:
             ythrow yexception() << "Node already exists";
         }
 
+        Stroka typeName = request->GetType();
+
         auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
         builder->BeginTree();
         TStringInput input(request->GetManifest());
@@ -435,6 +437,7 @@ private:
 
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
+            typeName,
             ~manifest);
         CreateRecursive(context->GetPath(), ~value);
 

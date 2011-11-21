@@ -3,11 +3,8 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
-#include "../misc/config.h"
 #include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
-#include "../ytree/forwarding_yson_events.h"
 
 namespace NYT {
 namespace NCypress {
@@ -331,19 +328,9 @@ IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& trans
     return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
 }
 
-struct TManifestSkeleton
-    : TConfigBase
-{
-    Stroka Type;
-
-    TManifestSkeleton()
-    {
-        Register("type", Type).NonEmpty();
-    }
-};
-
 ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
+    const Stroka& typeName,
     INode* manifestNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -352,19 +339,9 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
         ythrow yexception() << "Cannot create a node outside of a transaction";
     }
 
-    TManifestSkeleton manifestSkeleton;
-
-    try {
-        manifestSkeleton.Load(manifestNode);
-    } catch (...) {
-        ythrow yexception() << Sprintf("Error parsing dynamic node manifest\n%s",
-            ~CurrentExceptionMessage());
-    }
-
-    Stroka type = manifestSkeleton.Type;
-    auto it = TypeNameToHandler.find(type);
+    auto it = TypeNameToHandler.find(typeName);
     if (it == TypeNameToHandler.end()) {
-        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~type.Quote());
+        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~typeName.Quote());
     }
 
     auto handler = it->Second();
@@ -387,7 +364,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TransactionId: %s, Type: %s)",
         ~nodeId.ToString(),
         ~transactionId.ToString(),
-        ~type);
+        ~typeName);
 
     if (IsLeader()) {
         CreateNodeBehavior(*node_);

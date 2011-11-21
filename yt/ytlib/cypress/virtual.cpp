@@ -97,6 +97,8 @@ class TVirtualNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TVirtualNode>
 {
 public:
+    typedef TVirtualNodeTypeHandler TThis;
+
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
         TYPathServiceProducer* producer,
@@ -106,7 +108,9 @@ public:
         , Producer(producer)
         , RuntimeType(runtimeType)
         , TypeName(typeName)
-    { }
+    {
+        RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
+    }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
@@ -173,6 +177,12 @@ private:
     ERuntimeNodeType RuntimeType;
     Stroka TypeName;
 
+    static void GetManifest(const TGetAttributeParam& param)
+    {
+        TYsonReader reader(param.Consumer);
+        TStringInput input(param.Node->GetManifest());
+        reader.Read(&input);
+    }
 };
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(

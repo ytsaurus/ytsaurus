@@ -12,7 +12,8 @@ message TRspLock
 
 message TReqCreate
 {
-    required bytes Manifest = 1;
+    required bytes Type = 1;
+    required bytes Manifest = 2;
 }
 
 message TRspCreate
