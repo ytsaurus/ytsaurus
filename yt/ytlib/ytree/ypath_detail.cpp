@@ -25,7 +25,7 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(TYPath path, const Stro
     if (IsFinalYPath(path)) {
         return ResolveSelf(path, verb);
     } else if (IsAttributeYPath(path)) {
-        return ResolveAttributes(ChopYPathAttributeMarker(path), verb);
+        return ResolveAttributes(path, verb);
     } else {
         return ResolveRecursive(path, verb);
     }
@@ -64,6 +64,7 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
 
 void TYPathServiceBase::DoInvoke(IServiceContext* context)
 {
+    UNUSED(context);
     ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
