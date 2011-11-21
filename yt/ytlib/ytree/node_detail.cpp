@@ -14,48 +14,18 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TNodeBase::ResolveAttributes(TYPath path, const Stroka& verb)
 {
-    if (IsFinalYPath(path)) {
-        return ResolveSelf(path, verb);
-    } else if (IsAttributeYPath(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        if (IsFinalYPath(attributePath) &&
-            verb != "Get" &&
-            verb != "List" &&
-            verb != "Remove")
-        {
-            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-                "Verb is not supported for attribute lists";
-        }
-        return TResolveResult::Here(path);
-    } else {
-        return ResolveRecursive(path, verb);
+    Stroka attributePath = ChopYPathAttributeMarker(path);
+    if (IsFinalYPath(attributePath) &&
+        verb != "Get" &&
+        verb != "List" &&
+        verb != "Remove")
+    {
+        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+            "Verb is not supported for attributes";
     }
-}
-
-IYPathService::TResolveResult TNodeBase::ResolveSelf(TYPath path, const Stroka& verb)
-{
-    UNUSED(verb);
     return TResolveResult::Here(path);
-}
-
-IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, const Stroka& verb)
-{
-    UNUSED(path);
-    UNUSED(verb);
-    ythrow yexception() << "Node does not support YPath resolution";
-}
-
-void TNodeBase::Invoke(IServiceContext* context)
-{
-    try {
-        DoInvoke(context);
-    } catch (...) {
-        context->Reply(TError(
-            EYPathErrorCode::GenericError,
-            CurrentExceptionMessage()));
-    }
 }
 
 void TNodeBase::DoInvoke(IServiceContext* context)
@@ -69,10 +39,11 @@ void TNodeBase::DoInvoke(IServiceContext* context)
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-            "Verb is not supported";
+        TYPathServiceBase::DoInvoke(context);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 {
@@ -103,7 +74,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
                 }
             }
 
-            writer.OnEndMap(false);
+            writer.OnEndMap();
 
             response->SetValue(stream.Str());
             context->Reply();

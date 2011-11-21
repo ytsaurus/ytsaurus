@@ -20,6 +20,57 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IYPathService::TResolveResult TYPathServiceBase::Resolve(TYPath path, const Stroka& verb)
+{
+    if (IsFinalYPath(path)) {
+        return ResolveSelf(path, verb);
+    } else if (IsAttributeYPath(path)) {
+        return ResolveAttributes(path, verb);
+    } else {
+        return ResolveRecursive(path, verb);
+    }
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(TYPath path, const Stroka& verb)
+{
+    UNUSED(verb);
+    return TResolveResult::Here(path);
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(TYPath path, const Stroka& verb)
+{
+    UNUSED(path);
+    UNUSED(verb);
+    ythrow yexception() << "YPath resolution for attributes is not supported";
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(TYPath path, const Stroka& verb)
+{
+    UNUSED(path);
+    UNUSED(verb);
+    ythrow yexception() << "YPath resolution is not supported";
+}
+
+void TYPathServiceBase::Invoke(IServiceContext* context)
+{
+    try {
+        DoInvoke(context);
+    } catch (...) {
+        context->Reply(TError(
+            EYPathErrorCode::GenericError,
+            CurrentExceptionMessage()));
+    }
+}
+
+void TYPathServiceBase::DoInvoke(IServiceContext* context)
+{
+    UNUSED(context);
+    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+        "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , Builder(builder)
@@ -237,11 +288,10 @@ protected:
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
+        UNUSED(error);
+
         if (~ResponseHandler != NULL) {
-            TYPathResponseHandlerParam response;
-            response.Message = responseMessage;
-            response.Error = error;
-            ResponseHandler->Do(response);
+            ResponseHandler->Do(responseMessage);
         }
     }
 

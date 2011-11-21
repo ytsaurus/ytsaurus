@@ -38,6 +38,7 @@ public:
         NTransaction::TTransactionManager* transactionManager);
 
     void RegisterNodeType(INodeTypeHandler* handler);
+    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
@@ -148,7 +149,6 @@ private:
     void CommitCreatedNodes(const NTransaction::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
-    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
     void CreateNodeBehavior(const ICypressNode& node);
     void DestroyNodeBehavior(const ICypressNode& node);

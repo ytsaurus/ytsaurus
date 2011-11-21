@@ -14,8 +14,8 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TBranchedNodeId& id)
-    : TCypressNodeBase(id)
+TFileNode::TFileNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+    : TCypressNodeBase(id, runtimeType)
     , ChunkListId_(NullChunkListId)
 { }
 
@@ -219,8 +219,9 @@ TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
     UNUSED(transactionId);
     UNUSED(manifest);
 
-    TAutoPtr<TFileNode> node(new TFileNode(TBranchedNodeId(nodeId, NullTransactionId)));
-    return node.Release();
+    return new TFileNode(
+        TBranchedNodeId(nodeId, NullTransactionId),
+        GetRuntimeType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

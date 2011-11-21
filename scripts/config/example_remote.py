@@ -38,7 +38,7 @@ class Server(Base, RemoteServer):
     files = RemoteServer.files + [Yson]
     bin_path = '/home/yt/src/yt/server/server'
 
-    yson_data = 'some data'
+    yson_data = '{hello=world}'
     def new_config(cls, fd):
         print >>fd, cls.yson_data
 

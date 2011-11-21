@@ -32,7 +32,7 @@ TTableWriter::TTableWriter(
         codec, 
         Transaction->GetId(), 
         MasterChannel))
-    , Proxy(masterChannel)
+    , Proxy(~masterChannel)
 {
     YASSERT(~masterChannel != NULL);
     YASSERT(~transaction != NULL);

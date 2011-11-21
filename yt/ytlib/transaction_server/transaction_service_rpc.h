@@ -21,7 +21,7 @@ public:
         ((NoSuchTransaction)(1))
     );
 
-    TTransactionServiceProxy(NRpc::IChannel::TPtr channel)
+    TTransactionServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -40,11 +40,12 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id)
+TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
     , Id(id)
+    , RuntimeType(runtimeType)
     , RefCounter(0)
 { }
 
@@ -53,8 +54,14 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNode
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
     , Id(id)
+    , RuntimeType(other.RuntimeType)
     , RefCounter(0)
 { }
+
+ERuntimeNodeType TCypressNodeBase::GetRuntimeType() const
+{
+    return RuntimeType;
+}
 
 TBranchedNodeId TCypressNodeBase::GetId() const
 {
@@ -93,8 +100,8 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TBranchedNodeId& id)
-    : TCypressNodeBase(id)
+TMapNode::TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+    : TCypressNodeBase(id, runtimeType)
 { }
 
 TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
@@ -124,14 +131,9 @@ void TMapNode::Load(TInputStream* input)
     }
 }
 
-ERuntimeNodeType TMapNode::GetRuntimeType() const
-{
-    return ERuntimeNodeType::Map;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager::TPtr cypressManager)
+TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
 {
     RegisterGetter("size", FromMethod(&TThis::GetSize));
@@ -203,8 +205,8 @@ void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TBranchedNodeId& id)
-    : TCypressNodeBase(id)
+TListNode::TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+    : TCypressNodeBase(id, runtimeType)
 { }
 
 TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
@@ -217,11 +219,6 @@ TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
 TAutoPtr<ICypressNode> TListNode::Clone() const
 {
     return new TListNode(Id, *this);
-}
-
-ERuntimeNodeType TListNode::GetRuntimeType() const
-{
-    return ERuntimeNodeType::List;
 }
 
 TIntrusivePtr<ICypressNodeProxy> TMapNodeTypeHandler::GetProxy(
@@ -252,7 +249,7 @@ void TListNode::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager::TPtr cypressManager)
+TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TListNode>(cypressManager)
 {
     RegisterGetter("size", FromMethod(&TThis::GetSize));

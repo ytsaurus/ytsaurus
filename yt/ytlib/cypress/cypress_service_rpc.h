@@ -26,7 +26,7 @@ public:
         ((ResolutionError)(2))
     );
 
-    TCypressServiceProxy(NRpc::IChannel::TPtr channel)
+    TCypressServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

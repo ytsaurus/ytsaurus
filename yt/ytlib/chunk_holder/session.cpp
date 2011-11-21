@@ -202,7 +202,7 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),
@@ -233,7 +233,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
         }
 
         ythrow TServiceException(EErrorCode::UnmatchedBlockContent) <<
-            Sprintf("block with the same blockId but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+            Sprintf("Block with the same id but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
             ~blockId.ToString(),
             WindowStart,
             Window.ysize());
@@ -284,7 +284,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
     try {
         Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
-        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d)\n%s",
+        LOG_FATAL("Error writing chunk block (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
             blockIndex,
             ~CurrentExceptionMessage());
@@ -316,7 +316,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),
@@ -344,7 +344,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
-                Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                Sprintf("Finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                     ~ChunkId.ToString(),
                     WindowStart,
                     Window.ysize(),
@@ -452,7 +452,7 @@ void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),

@@ -13,6 +13,23 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYPathServiceBase
+    : public IYPathService
+{
+public:
+    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
+
+protected:
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual TResolveResult ResolveSelf(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
@@ -259,13 +276,7 @@ void ResolveYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYPathResponseHandlerParam
-{
-    NRpc::TError Error;
-    NBus::IMessage::TPtr Message;
-};
-
-typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
+typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
 void ParseYPathRequestHeader(
     TRef headerData,

@@ -14,11 +14,11 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
+TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
 {
-    YASSERT(~channel != NULL);
+    YASSERT(channel != NULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,11 +50,11 @@ IMessage::TPtr TClientRequest::Serialize() const
         Attachments_);
 }
 
-TFuture<TError>::TPtr TClientRequest::DoInvoke(
+void TClientRequest::DoInvoke(
     TClientResponse* response,
     TDuration timeout)
 {
-    return Channel->Send(this, response, timeout);
+    Channel->Send(this, response, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,63 +100,49 @@ void TClientResponse::Deserialize(IMessage* responseMessage)
         std::back_inserter(Attachments_));
 }
 
-void TClientResponse::OnAcknowledgement(IBus::ESendResult sendResult)
+void TClientResponse::OnAcknowledgement()
 {
-    LOG_DEBUG("Request acknowledged (RequestId: %s, Result: %s)",
-        ~RequestId_.ToString(),
-        ~sendResult.ToString());
+    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
 
     TGuard<TSpinLock> guard(&SpinLock);
     if (State == EState::Sent) {
-        switch (sendResult) {
-            case IBus::ESendResult::OK:
-                State = EState::Ack;
-                break;
-
-            case IBus::ESendResult::Failed:
-                Complete(TError(EErrorCode::TransportError));
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
+        State = EState::Ack;
     }
 }
 
-void TClientResponse::OnTimeout()
+void TClientResponse::OnError(const TError& error)
 {
-    LOG_DEBUG("Request timed out (RequestId: %s)",
-        ~RequestId_.ToString());
+    LOG_DEBUG("Request failed (RequestId: %s)\n%s",
+        ~RequestId_.ToString(),
+        ~error.ToString());
 
-    TGuard<TSpinLock> guard(&SpinLock);
-    if (State == EState::Sent || State == EState::Ack) {
-        Complete(TError(EErrorCode::Timeout));
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        if (State == EState::Done) {
+            // Ignore the error.
+            // Most probably this is a late timeout.
+            return;
+        }
+        State = EState::Done;
     }
+
+    Error_  = error;
+    FireCompleted();
 }
 
-void TClientResponse::OnResponse(const TError& error, IMessage* message)
+void TClientResponse::OnResponse(IMessage* message)
 {
     LOG_DEBUG("Response received (RequestId: %s)",
         ~RequestId_.ToString());
 
-    if (error.GetCode() == EErrorCode::OK) {
-        Deserialize(message);
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        YASSERT(State == EState::Sent || State == EState::Ack);
+        State = EState::Done;
     }
 
-    TGuard<TSpinLock> guard(&SpinLock);
-    if (State == EState::Sent || State == EState::Ack) {
-        Complete(error);
-    }
-}
-
-void TClientResponse::Complete(const TError& error)
-{
-    LOG_DEBUG("Request complete (RequestId: %s, Error: %s)",
-        ~RequestId_.ToString(),
-        ~error.ToString());
-
-    Error_ = error;
-    State = EState::Done;
+    Deserialize(message);
+    FireCompleted();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

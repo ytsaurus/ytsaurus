@@ -376,9 +376,6 @@ private:
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
-
-            if (!IsRecovery()) {
-            }
         }
 
         return holderId;

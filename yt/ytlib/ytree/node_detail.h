@@ -15,7 +15,7 @@ namespace NYTree {
 
 class TNodeBase
     : public virtual INode
-    , public virtual IYPathService
+    , public TYPathServiceBase
 {
 public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
@@ -44,9 +44,6 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual void Invoke(NRpc::IServiceContext* context);
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
-
 protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const Stroka& value)
@@ -57,8 +54,7 @@ protected:
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual TResolveResult ResolveSelf(TYPath path, const Stroka& verb);
-    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
 
     RPC_SERVICE_METHOD_DECL(NProto, Get);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);

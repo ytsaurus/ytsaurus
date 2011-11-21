@@ -13,7 +13,6 @@
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
-#include <yt/ytlib/cypress/world_initializer.h>
 #include <yt/ytlib/cypress/cypress_integration.h>
 
 #include <yt/ytlib/chunk_server/chunk_manager.h>
@@ -54,7 +53,6 @@ using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
-using NCypress::TWorldInitializer;
 using NCypress::CreateLockMapTypeHandler;
 
 using NMonitoring::TMonitoringManager;
@@ -143,11 +141,6 @@ void TCellMasterServer::Run()
         ~transactionManager,
         ~rpcServer);
 
-    auto worldIntializer = New<TWorldInitializer>(
-        ~metaStateManager,
-        ~cypressManager);
-    worldIntializer->Start();
-
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
@@ -194,16 +187,17 @@ void TCellMasterServer::Run()
         ~cypressManager));
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
-    cypressManager->RegisterNodeType(~CreateFileTypeHandler(
-        ~cypressManager,
-        ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateTableTypeHandler(
-        ~cypressManager,
-        ~chunkManager));
     cypressManager->RegisterNodeType(~CreateHolderTypeHandler(
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+
+    cypressManager->RegisterNodeType(~CreateFileTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateTableTypeHandler(
         ~cypressManager,
         ~chunkManager));
 

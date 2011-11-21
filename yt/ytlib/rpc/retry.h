@@ -42,9 +42,9 @@ public:
         TDuration backoffTime, 
         int retryCount);
 
-    TFuture<TError>::TPtr Send(
-        IClientRequest::TPtr request, 
-        IClientResponseHandler::TPtr responseHandler, 
+    void Send(
+        IClientRequest* request, 
+        IClientResponseHandler* responseHandler, 
         TDuration timeout);
 
     void Terminate();
