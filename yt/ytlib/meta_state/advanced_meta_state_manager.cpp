@@ -1030,13 +1030,6 @@ IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetEpochStateInvoker()
     return ~EpochStateInvoker;
 }
 
-//IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetSnapshotInvoker()
-//{
-//    VERIFY_THREAD_AFFINITY_ANY();
-//
-//    return MetaState->GetSnapshotInvoker();
-//}
-
 TAdvancedMetaStateManager::TAsyncCommitResult::TPtr
 TAdvancedMetaStateManager::TImpl::CommitChange(
     const TSharedRef& changeData,
@@ -1133,11 +1126,6 @@ void TAdvancedMetaStateManager::TImpl::GetMonitoringInfo(NYTree::IYsonConsumer* 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
 
 void TAdvancedMetaStateManager::TImpl::OnFollowerCommit(
     TLeaderCommitter::EResult result,
