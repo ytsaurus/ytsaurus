@@ -191,7 +191,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
 }
 
 
-void TSnapshotWriter::OpenRaw(i32 prevRecordCount)
+void TSnapshotWriter::OpenRaw(i32 prevRecordCount, TChecksum checksum)
 {
     // TODO: extract method (here and in Open)
     PrevRecordCount = prevRecordCount;
@@ -204,7 +204,7 @@ void TSnapshotWriter::OpenRaw(i32 prevRecordCount)
     TSnapshotHeader header(SegmentId, PrevRecordCount);
     Write(*FileOutput, header);
 
-    Checksum = 0;
+    Checksum = checksum;
 }
 
 
@@ -225,13 +225,16 @@ void TSnapshotWriter::Close()
     if (~FileOutput == NULL)
         return;
 
-    Checksum = ChecksummableOutput->GetChecksum();
-
     LOG_DEBUG("Closing snapshot writer %s", ~TempFileName);
-    ChecksummableOutput->Flush();
-    ChecksummableOutput.Reset(NULL);
-    CompressedOutput->Flush(); // in fact, this is called automatically by the previous stream...
-    CompressedOutput.Reset(NULL);
+
+    if (~ChecksummableOutput != NULL) {
+        Checksum = ChecksummableOutput->GetChecksum();
+        ChecksummableOutput->Flush();
+        ChecksummableOutput.Reset(NULL);
+        CompressedOutput->Flush(); // in fact, this is called automatically by the previous stream...
+        CompressedOutput.Reset(NULL);
+    }
+
     FileOutput->Flush(); // ...but this is not!
     FileOutput.Reset(NULL);
 

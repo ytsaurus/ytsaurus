@@ -51,7 +51,7 @@ private:
         TPeerId SourceId;
         i64 Length;
         i32 PrevRecordCount;
-        ui64 Checksum;
+        TChecksum Checksum;
 
         TSnapshotInfo() {}
 
