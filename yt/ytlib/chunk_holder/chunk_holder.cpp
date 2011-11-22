@@ -64,6 +64,7 @@ TChunkHolder::TChunkHolder(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+    
     server->RegisterService(this);
 }
 

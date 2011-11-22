@@ -116,7 +116,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session, "Session lease expired.");
+        CancelSession(session, "Session lease expired");
     }
 }
 
@@ -393,7 +393,7 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
             ~ChunkId.ToString());
     }
 
-    LOG_DEBUG("Chunk file deleted (ChunkId: %s). Reason: %s",
+    LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
         ~errorMessage);
 }
@@ -414,8 +414,9 @@ NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
     try {
         Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
     } catch (...) {
-        LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
+        LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
+            ~ChunkId.ToString(),
+            ~CurrentExceptionMessage());
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
