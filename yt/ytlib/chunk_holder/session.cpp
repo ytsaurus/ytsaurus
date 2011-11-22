@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NChunkClient;

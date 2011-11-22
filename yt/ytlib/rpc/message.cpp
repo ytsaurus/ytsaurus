@@ -56,7 +56,6 @@ NBus::IMessage::TPtr CreateResponseMessage(
     TResponseHeader header;
     header.SetRequestId(requestId.ToProto());
     header.SetErrorCode(error.GetCode());
-    header.SetErrorCodeString(error.GetCode().ToString());
     header.SetErrorMessage(error.GetMessage());
 
     TBlob headerBlob;
@@ -81,7 +80,6 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     TResponseHeader header;
     header.SetRequestId(requestId.ToProto());
     header.SetErrorCode(error.GetCode());
-    header.SetErrorCodeString(error.GetCode().ToString());
     header.SetErrorMessage(error.GetMessage());
 
     TBlob headerBlob;

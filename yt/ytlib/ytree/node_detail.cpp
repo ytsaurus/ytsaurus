@@ -22,7 +22,7 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(TYPath path, const St
         verb != "List" &&
         verb != "Remove")
     {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+        ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
             "Verb is not supported for attributes";
     }
     return TResolveResult::Here(path);
@@ -172,7 +172,7 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
     UNUSED(response);
     UNUSED(context);
 
-    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+    ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
 

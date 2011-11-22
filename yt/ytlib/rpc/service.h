@@ -22,48 +22,19 @@ class TServiceException
 {
 public:
     //! Initializes a new instance.
-    explicit TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
-        : ErrorCode(errorCode)
+    explicit TServiceException(int code)
+        : Code_(code)
     { }
 
     //! Gets the error code.
     TError GetError() const
     {
-        return TError(ErrorCode, what());
+        return TError(Code_, what());
     }
 
 protected:
-    EErrorCode ErrorCode;
+    int Code_;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A typed version of TServiceException.
-/*!
- *  The primary difference from the untyped TServiceException is that the
- *  constructor accepts an error of a given TErrorCode type.
- *  
- *  This enables to capture the error message during exception construction
- *  and write
- *  \code
- *  typedef TTypedServiceException<EMyCode> TMyException;
- *  ythrow TMyException(EMyCode::SomethingWrong);
- *  \endcode
- *  instead of
- *  \code
- *  ythrow TServiceException(EMyCode(EMyCode::SomethingWrong));
- *  \endcode
- */
-template <class TErrorCode>
-class TTypedServiceException 
-    : public TServiceException
-{
-public:
-    //! Initializes a new instance.
-    explicit TTypedServiceException(TErrorCode errorCode = EErrorCode::ServiceError)
-        : TServiceException(errorCode)
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,12 +171,12 @@ public:
     // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
     void Reply()
     {
-        Reply(EErrorCode::OK);
+        Reply(TError(EErrorCode::OK, ""));
     }
 
-    void Reply(EErrorCode errorCode)
+    void Reply(int code, const Stroka& message)
     {
-        Reply(TError(errorCode));
+        Reply(TError(code, message));
     }
 
     void Reply(const TError& error)

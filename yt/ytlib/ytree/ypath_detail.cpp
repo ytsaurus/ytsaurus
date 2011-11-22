@@ -65,7 +65,7 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
 void TYPathServiceBase::DoInvoke(IServiceContext* context)
 {
     UNUSED(context);
-    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+    ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
 
@@ -486,9 +486,7 @@ void ReplyYPathWithMessage(
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    TError error(
-        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-        header.GetErrorMessage());
+    TError error(header.GetErrorCode(), header.GetErrorMessage());
 
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);

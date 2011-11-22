@@ -55,9 +55,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
         LOG_FATAL("Error deserializing response header");
     }
 
-    Error_ = TError(
-        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-        header.GetErrorMessage());
+    Error_ = TError(header.GetErrorCode(), header.GetErrorMessage());
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -72,7 +70,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
     }
 }
 
-EErrorCode TYPathResponse::GetErrorCode() const
+int TYPathResponse::GetErrorCode() const
 {
     return Error_.GetCode();
 }

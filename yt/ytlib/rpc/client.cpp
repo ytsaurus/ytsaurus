@@ -73,10 +73,10 @@ IMessage::TPtr TClientResponse::GetResponseMessage() const
 
 bool TClientResponse::IsOK() const
 {
-    return Error_.GetCode() == EErrorCode::OK;
+    return Error_.IsOK();
 }
 
-EErrorCode TClientResponse::GetErrorCode() const
+int TClientResponse::GetErrorCode() const
 {
     return Error_.GetCode();
 }
