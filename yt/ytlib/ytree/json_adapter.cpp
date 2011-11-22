@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "json_adapter.h"
 
+#include "null_yson_consumer.h"
+
 #include <library/json/json_writer.h>
 
 namespace NYT {
@@ -14,72 +16,72 @@ TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, true))
 { }
 
-void TJsonAdapter::OnStringScalar(const Stroka& value, bool hasAttributes)
+void TJsonAdapter::OnMyStringScalar(const Stroka& value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnInt64Scalar(i64 value, bool hasAttributes)
+void TJsonAdapter::OnMyInt64Scalar(i64 value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnDoubleScalar(double value, bool hasAttributes)
+void TJsonAdapter::OnMyDoubleScalar(double value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnEntity(bool hasAttributes)
+void TJsonAdapter::OnMyEntity(bool hasAttributes)
 {
     UNUSED(hasAttributes);
-    YUNREACHABLE();
+    JsonWriter->WriteNull();
 }
 
-void TJsonAdapter::OnBeginList()
+void TJsonAdapter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
 }
 
-void TJsonAdapter::OnListItem()
+void TJsonAdapter::OnMyListItem()
 { }
 
-void TJsonAdapter::OnEndList(bool hasAttributes)
+void TJsonAdapter::OnMyEndList(bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->CloseArray();
 }
 
-void TJsonAdapter::OnBeginMap()
+void TJsonAdapter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
 }
 
-void TJsonAdapter::OnMapItem(const Stroka& name)
+void TJsonAdapter::OnMyMapItem(const Stroka& name)
 {
     JsonWriter->Write(name);
 }
 
-void TJsonAdapter::OnEndMap(bool hasAttributes)
+void TJsonAdapter::OnMyEndMap(bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->CloseMap();
 }
 
-void TJsonAdapter::OnBeginAttributes()
+void TJsonAdapter::OnMyBeginAttributes()
 {
-    YUNREACHABLE();
+    ForwardAttributes(GetNullYsonConsumer(), NULL);
 }
 
-void TJsonAdapter::OnAttributesItem(const Stroka& name)
+void TJsonAdapter::OnMyAttributesItem(const Stroka& name)
 {
     UNUSED(name);
     YUNREACHABLE();
 }
 
-void TJsonAdapter::OnEndAttributes()
+void TJsonAdapter::OnMyEndAttributes()
 {
     YUNREACHABLE();
 }

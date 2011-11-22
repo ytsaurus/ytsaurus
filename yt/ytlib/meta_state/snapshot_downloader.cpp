@@ -119,7 +119,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     
     TPeerId sourceId = snapshotInfo.SourceId;
     try {
-        snapshotWriter->OpenRaw(snapshotInfo.PrevRecordCount);
+        snapshotWriter->OpenRaw(
+            snapshotInfo.PrevRecordCount,
+            snapshotInfo.Checksum);
     } catch (const yexception& ex) {
         LOG_ERROR("Could not open snapshot writer\n%s", ex.what());
         return EResult::IOError;

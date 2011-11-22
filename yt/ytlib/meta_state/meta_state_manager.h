@@ -15,10 +15,9 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IMetaStateManager
+struct IMetaStateManager
     : public virtual TRefCountedBase
 {
-public:
     typedef TIntrusivePtr<IMetaStateManager> TPtr;
     typedef TMetaStateManagerConfig TConfig;
 

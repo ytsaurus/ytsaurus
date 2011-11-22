@@ -219,7 +219,7 @@ void Load(TInputStream* input, NYT::TSharedRef& ref);
 
 inline void Save(TOutputStream* output, const NYT::TSharedRef& ref)
 {
-    if (ref.Begin() == NULL) {
+    if (ref == NYT::TSharedRef()) {
         ::Save(output, static_cast<i64>(-1));
     } else {
         ::Save(output, static_cast<i64>(ref.Size()));
