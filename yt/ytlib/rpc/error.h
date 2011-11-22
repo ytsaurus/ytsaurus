@@ -55,7 +55,11 @@ public:
 
     Stroka ToString() const
     {
-        return Sprintf("(%d): %s", Code_, ~Message_);
+        if (Code_ == EErrorCode::OK) {
+            return "OK"
+        } else {
+            return Sprintf("(%d): %s", Code_, ~Message_);
+        }
     }
 };
 

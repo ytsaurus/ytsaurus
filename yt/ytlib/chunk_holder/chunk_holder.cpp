@@ -213,7 +213,7 @@ void TChunkHolder::OnSentBlocks(
         context->Reply();
     } else {
         Stroka message = Sprintf(
-            "OnSentBlocks: Cannot put blocks on the remote chunk holder:\n%s",
+            "SendBlocks: Cannot put blocks on the remote chunk holder\n%s",
             ~putResponse->GetError().ToString());
 
         LOG_WARNING("%s", ~message);
