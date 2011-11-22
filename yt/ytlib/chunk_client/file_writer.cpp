@@ -10,7 +10,7 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(Stroka fileName)
+TFileWriter::TFileWriter(const Stroka& fileName)
     : FileName(fileName)
     , Result(New<TAsyncStreamState::TAsyncResult>())
 {

@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    TFileWriter(Stroka fileName);
+    TFileWriter(const Stroka& fileName);
 
     TAsyncStreamState::TAsyncResult::TPtr 
     AsyncWriteBlock(const TSharedRef& data);
