@@ -65,7 +65,7 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
 void TYPathServiceBase::DoInvoke(IServiceContext* context)
 {
     UNUSED(context);
-    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+    ythrow TServiceException(EYPathErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
 

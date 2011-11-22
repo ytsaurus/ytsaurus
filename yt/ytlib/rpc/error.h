@@ -25,8 +25,8 @@ DECLARE_ENUM(EErrorCode,
 
 class TError
 {
-    DECLARE_BYVAL_RO_PROPERTY(int, Code);
-    DECLARE_BYVAL_RO_PROPERTY(Stroka, Message);
+    DEFINE_BYVAL_RO_PROPERTY(int, Code);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Message);
 
 public:
     TError()
@@ -56,7 +56,7 @@ public:
     Stroka ToString() const
     {
         if (Code_ == EErrorCode::OK) {
-            return "OK"
+            return "OK";
         } else {
             return Sprintf("(%d): %s", Code_, ~Message_);
         }
