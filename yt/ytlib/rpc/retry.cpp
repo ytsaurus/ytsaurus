@@ -125,16 +125,14 @@ private:
 
     virtual void OnError(const TError& error) 
     {
-        LOG_DEBUG("Retriable request failed (RequestId: %s)\n%s",
+        LOG_DEBUG("Retriable request attempt failed (RequestId: %s, Attempt: %d)\n%s",
             ~Request->GetRequestId().ToString(),
+            static_cast<int>(CurrentAttempt),
             ~error.ToString());
 
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (State != EState::Sent)
-                return;
-            State = EState::Done;
-        }
+        TGuard<TSpinLock> guard(SpinLock);
+        if (State == EState::Done)
+            return;
 
         if (error.IsRpcError()) {
             int count = AtomicIncrement(CurrentAttempt);
@@ -148,11 +146,17 @@ private:
                     FromMethod(&TRetriableRequest::Send, TPtr(this)),
                     TInstant::Now() + Channel->GetBackoffTime());
             } else {
+                State = EState::Done;
+                guard.Release();
+
                 OriginalHandler->OnError(TError(
                     EErrorCode::Unavailable,
                     "Retriable request has failed, details follow:" + CumulativeErrorMessage));
             }
         } else {
+            State = EState::Done;
+            guard.Release();
+
             OriginalHandler->OnError(error);
         }
     }

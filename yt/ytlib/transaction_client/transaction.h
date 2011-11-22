@@ -44,25 +44,8 @@ struct ITransaction
      */
     virtual TTransactionId GetId() const  = 0;
 
-
-    //! Raised when the transaction is committed successfully.
-    /*!
-     *  \note
-     *  Raised from an unspecified thread.
-     *  
-     *  Thread affinity: any.
-     */
-    virtual TSignal& OnCommitted() = 0;
-
-    //! Raised when the transaction is either aborted by the client
-    //! or a ping has failed.
-    /*!
-    *   \note
-    *   Raised from an unspecified thread.
-    *   
-    *   Thread affinity: any.
-     */
-    virtual TSignal& OnAborted() = 0;
+    virtual bool SubscribeOnAborted(IAction::TPtr onAborted) = 0;
+    virtual void UnsubscribeOnAborted(IAction::TPtr onAborted) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

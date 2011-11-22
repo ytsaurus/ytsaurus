@@ -20,9 +20,6 @@ static NLog::TLogger Logger("TransactionClient");
 class TTransactionManager::TTransaction
     : public ITransaction
 {
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnCommitted);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnAborted);
-
 public:
     typedef TIntrusivePtr<TTransaction> TPtr;
 
@@ -31,7 +28,8 @@ public:
         TTransactionManager* transactionManager)
         : TransactionManager(transactionManager)
         , Proxy(cellChannel)
-        , State(EState::Init)
+        , State(EState::Active)
+        , ErrorMessage("")
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
         YASSERT(cellChannel != NULL);
@@ -46,11 +44,12 @@ public:
 
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
-            State = EState::Finished;
+            State = EState::Aborted;
+            ErrorMessage = Sprintf("Error starting transaction (Error: %s)",
+                ~rsp->GetError().ToString());
 
             // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction (Error: %s)",
-                ~rsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(yexception(), ~ErrorMessage);
         }
 
         Id = TTransactionId::FromProto(rsp->GetTransactionId());
@@ -80,7 +79,6 @@ public:
     TTransactionId GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
         return Id;
     }
 
@@ -88,84 +86,108 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        SetFinished();
-
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
-        
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Active) {
+                LOG_ERROR_AND_THROW(yexception(), 
+                    ~Sprintf("Unable to commit transaction, details: %s", ~ErrorMessage));
+            }
+            State = EState::Commiting;
+        }
+
         auto req = Proxy.CommitTransaction();
         req->SetTransactionId(Id.ToProto());
         auto rsp = req->Invoke()->Get();
 
+        TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
-            OnAborted_.Fire();
-
-            // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s, Error: %s)",
+            ErrorMessage = Sprintf("Error committing transaction (TransactionId: %s, Error: %s)",
                 ~Id.ToString(),
                 ~rsp->GetError().ToString());
+            State = EState::Aborted;
+            guard.Release();
+            
+            DoAbort();
+
+            LOG_ERROR_AND_THROW(yexception(), ~ErrorMessage);
+        } else {
+            ErrorMessage = Sprintf("Transaction committed (TransactionId: %s)", ~Id.ToString());
+            State = EState::Commited;
+            LOG_DEBUG(~ErrorMessage);
+            PingInvoker->Stop();
         }
-
-        LOG_DEBUG("Transaction committed (TransactionId: %s)", ~Id.ToString());
-
-        OnCommitted_.Fire();
-
-        // TODO: consider extracting a method
-        OnAborted_.Clear();
-        OnCommitted_.Clear();
     }
 
     void Abort()
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        SetFinished();
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Active) {
+                return;
+            }
+            State = EState::Aborted;
+            ErrorMessage = Sprintf("Transaction aborted by client (TransactionId: %s)", 
+                ~Id.ToString());
+            LOG_INFO(~ErrorMessage);
+        }
 
-        LOG_INFO("Aborting transaction (TransactionId: %s)", ~Id.ToString());
-
+        // Fire and forget.
         auto req = Proxy.AbortTransaction();
         req->Invoke();
 
-        OnAborted_.Fire();
+        DoAbort();
+    }
 
-        OnAborted_.Clear();
-        OnCommitted_.Clear();
+    bool SubscribeOnAborted(IAction::TPtr onAborted)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        TGuard<TSpinLock> guard(SpinLock);
+        if (State == EState::Active) {
+            OnAborted.Subscribe(onAborted);
+            return true;
+        }
+        return false;
+    }
+
+    void UnsubscribeOnAborted(IAction::TPtr onAborted)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        TGuard<TSpinLock> guard(SpinLock);
+        OnAborted.Unsubscribe(onAborted);
     }
 
     void AsyncAbort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Finished) {
-            State = EState::Finished;
-            guard.Release();
-
-            OnAborted_.Fire();
-            
-            OnAborted_.Clear();
-            OnCommitted_.Clear();
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Active) {
+                return;
+            }
+            State = EState::Aborted;
         }
+
+        DoAbort();
     }
 
 private:
-    void SetFinished()
+    void DoAbort()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Finished) {
-            ythrow yexception() << Sprintf("Transaction is already finished (TransactionId: %s)",
-                ~Id.ToString());
-        }
-
-        YASSERT(State == EState::Active);
-
-        State == EState::Finished;
         PingInvoker->Stop();
+        OnAborted.Fire();
+        OnAborted.Clear();
     }
 
     DECLARE_ENUM(EState,
-        (Init)
         (Active)
-        (Finished)
+        (Aborted)
+        (Commiting)
+        (Commited)
     );
 
     TTransactionManager::TPtr TransactionManager;
@@ -174,9 +196,12 @@ private:
 
     //! Protects state transitions.
     TSpinLock SpinLock;
+    Stroka ErrorMessage;
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
+
+    TSignal OnAborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
