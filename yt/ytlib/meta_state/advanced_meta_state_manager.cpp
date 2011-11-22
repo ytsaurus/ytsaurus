@@ -1159,7 +1159,6 @@ void TAdvancedMetaStateManager::TImpl::OnFollowerCommit(
     }
 }
 
-
 void TAdvancedMetaStateManager::TImpl::OnCreateLocalSnapshot(
     TSnapshotCreator::TLocalResult result,
     TCtxAdvanceSegment::TPtr context)
