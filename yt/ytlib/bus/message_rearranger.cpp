@@ -36,8 +36,6 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
         ScheduleTimeout();
         ExpectedSequenceId = sequenceId + 1;
 
-        guard.Release();
-
         OnMessageDequeued->Do(message);
         return;
     }
@@ -65,48 +63,35 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
 
 void TMessageRearranger::OnTimeout()
 {
-    yvector<IMessage::TPtr> flushedMessages;
-    TSequenceId firstFlushedSequenceId;
+    TGuard<TSpinLock> guard(SpinLock);
+    
+    if (MessageMap.empty())
+        return;
 
-    {
-        TGuard<TSpinLock> guard(SpinLock);
+    ExpectedSequenceId = MessageMap.begin()->first;
 
-        if (MessageMap.empty())
-            return;
+    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")",
+        ExpectedSequenceId);
 
-        ExpectedSequenceId = MessageMap.begin()->first;
+    while (true) {
+        auto it = MessageMap.begin();
+        auto sequenceId = it->first;
+        if (sequenceId != ExpectedSequenceId)
+            break;
 
-        LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")",
-            ExpectedSequenceId);
+        auto message = it->second;
+        
+        LOG_DEBUG("Flushed message (Message: %p, SequenceId: %" PRId64 ")",
+            ~message,
+            sequenceId);
 
-        firstFlushedSequenceId = ExpectedSequenceId;
-        while (true) {
-            auto it = MessageMap.begin();
-            auto sequenceId = it->first;
-            if (sequenceId != ExpectedSequenceId)
-                break;
+        OnMessageDequeued->Do(message);
+        MessageMap.erase(it);
 
-            auto message = it->second;
-            flushedMessages.push_back(message);
-            MessageMap.erase(it);
-
-            ++ExpectedSequenceId;
-        }
-
-        ScheduleTimeout();
+        ++ExpectedSequenceId;
     }
-
-    {
-        auto sequenceId = firstFlushedSequenceId;
-        FOREACH (const auto& message, flushedMessages) {
-            LOG_DEBUG("Flushed message (Message: %p, SequenceId: %" PRId64 ")",
-                ~message,
-                sequenceId);
-
-            OnMessageDequeued->Do(message);
-            ++sequenceId;
-        }
-    }
+   
+    ScheduleTimeout();
 }
 
 void TMessageRearranger::ScheduleTimeout()
