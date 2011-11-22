@@ -772,7 +772,7 @@ private:
         if (chunk->GetMasterMeta() != TSharedRef() &&
             !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))
         {
-            LOG_ERROR("Chunk server meta mismatch (ChunkId: %)", ~chunkId.ToString());
+            LOG_ERROR("Chunk server meta mismatch (ChunkId: %s)", ~chunkId.ToString());
             return;
         }
 
