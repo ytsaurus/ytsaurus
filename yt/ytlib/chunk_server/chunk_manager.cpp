@@ -747,17 +747,17 @@ private:
             return;
         }
 
-        //if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
-        //    LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-        //        ~chunkId.ToString(),
-        //        chunk->Size,
-        //        size);
-        //    return;
-        //}
+        if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
+            LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
+                ~chunkId.ToString(),
+                chunk->Size,
+                size);
+            return;
+        }
 
-        //if (chunk->Size == TChunk::UnknownSize) {
-        //    chunk->Size = size;
-        //}
+        if (chunk->Size == TChunk::UnknownSize) {
+            chunk->Size = size;
+        }
 
         DoAddChunkReplica(holder, *chunk);
     }
