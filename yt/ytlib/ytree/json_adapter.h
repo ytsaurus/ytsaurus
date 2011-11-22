@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "yson_events.h"
+#include "forwarding_yson_events.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,30 +26,30 @@ namespace NYTree {
  */
 // TODO: UTF8 strings
 class TJsonAdapter
-    : public IYsonConsumer
+    : public TForwardingYsonConsumer
 {
 public:
     TJsonAdapter(TOutputStream* output);
 
     void Flush();
 
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
+    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
 
-    virtual void OnEntity(bool hasAttributes);
+    virtual void OnMyEntity(bool hasAttributes);
 
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
+    virtual void OnMyBeginList();
+    virtual void OnMyListItem();
+    virtual void OnMyEndList(bool hasAttributes);
 
-    virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
-    virtual void OnEndMap(bool hasAttributes);
+    virtual void OnMyBeginMap();
+    virtual void OnMyMapItem(const Stroka& name);
+    virtual void OnMyEndMap(bool hasAttributes);
 
-    virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
-    virtual void OnEndAttributes();
+    virtual void OnMyBeginAttributes();
+    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyEndAttributes();
 
 private:
     THolder<NJson::TJsonWriter> JsonWriter;
