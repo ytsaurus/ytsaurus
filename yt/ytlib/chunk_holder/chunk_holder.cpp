@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
@@ -215,9 +217,12 @@ void TChunkHolder::OnSentBlocks(
     if (putResponse->IsOK()) {
         context->Reply();
     } else {
-        LOG_WARNING("SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
+        Stroka message = Sprintf(
+            "SendBlocks: Cannot put blocks on the remote chunk holder\n%s",
             ~putResponse->GetError().ToString());
-        context->Reply(TProxy::EErrorCode::RemoteCallFailed);
+
+        LOG_WARNING("%s", ~message);
+        context->Reply(EErrorCode::RemoteCallFailed, message);
     }
 }
 
@@ -248,7 +253,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
                 {
                     if (~block == NULL) {
                         awaiter->Cancel();
-                        context->Reply(TChunkHolderProxy::EErrorCode::NoSuchBlock);
+                        context->Reply(
+                            EErrorCode::NoSuchBlock,
+                            Sprintf("Block not found (ChunkId: %s, Index: %d)",
+                                ~chunkId.ToString(),
+                                blockIndex));
                     } else {
                         context->Response().Attachments()[index] = block->GetData();
                     }

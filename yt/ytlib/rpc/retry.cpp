@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "retry.h"
 
 #include "../bus/bus_client.h"
