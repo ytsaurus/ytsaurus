@@ -119,13 +119,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     
     TPeerId sourceId = snapshotInfo.SourceId;
     try {
-        snapshotWriter->Open(snapshotInfo.PrevRecordCount);
+        snapshotWriter->OpenRaw(snapshotInfo.PrevRecordCount);
     } catch (const yexception& ex) {
         LOG_ERROR("Could not open snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
-    TOutputStream& output = snapshotWriter->GetStream();
+    TOutputStream& output = snapshotWriter->GetRawStream();
     EResult result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, output);
     if (result != EResult::OK) {
         return result;
@@ -138,13 +138,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         return EResult::IOError;
     }
 
-    if (snapshotWriter->GetChecksum() != snapshotInfo.Checksum) {
+    // snapshotWriter can't calculate checksum in raw mode.
+    /*if (snapshotWriter->GetChecksum() != snapshotInfo.Checksum) {
         LOG_ERROR(
             "Incorrect checksum in snapshot %d from peer %d, "
             "expected %" PRIx64 ", got %" PRIx64,
             segmentId, sourceId, snapshotInfo.Checksum, snapshotWriter->GetChecksum());
         return EResult::IncorrectChecksum;
-    }
+    }*/
     
     return EResult::OK;
 }

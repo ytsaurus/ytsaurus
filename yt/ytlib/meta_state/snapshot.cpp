@@ -77,6 +77,7 @@ TSnapshotReader::TSnapshotReader(
 
 void TSnapshotReader::Open()
 {
+    // TODO: extract method (here and in OpenRaw)
     Close();
 
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
@@ -100,6 +101,7 @@ void TSnapshotReader::Open()
 
 void TSnapshotReader::OpenRaw(i64 offset)
 {
+    // TODO: extract method (here and in Open)
     Close();
 
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
@@ -171,6 +173,7 @@ TSnapshotWriter::TSnapshotWriter(Stroka fileName, i32 segmentId)
 
 void TSnapshotWriter::Open(i32 prevRecordCount)
 {
+    // TODO: extract method (here and in OpenRaw)
     PrevRecordCount = prevRecordCount;
     Close();
 
@@ -187,10 +190,34 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     Checksum = 0;
 }
 
+
+void TSnapshotWriter::OpenRaw(i32 prevRecordCount)
+{
+    // TODO: extract method (here and in Open)
+    PrevRecordCount = prevRecordCount;
+    Close();
+
+    LOG_DEBUG("Opening snapshot writer %s", ~TempFileName);
+    File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
+    FileOutput.Reset(new TBufferedFileOutput(*File));
+
+    TSnapshotHeader header(SegmentId, PrevRecordCount);
+    Write(*FileOutput, header);
+
+    Checksum = 0;
+}
+
+
 TOutputStream& TSnapshotWriter::GetStream() const
 {
     YASSERT(~ChecksummableOutput != NULL);
     return *ChecksummableOutput;
+}
+
+TOutputStream& TSnapshotWriter::GetRawStream() const
+{
+    YASSERT(~FileOutput != NULL);
+    return *FileOutput;
 }
 
 void TSnapshotWriter::Close()

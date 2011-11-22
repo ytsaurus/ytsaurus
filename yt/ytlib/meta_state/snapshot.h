@@ -56,7 +56,9 @@ public:
         i32 segmentId);
 
     void Open(i32 prevRecordCount);
+    void OpenRaw(i32 prevRecordCount);
     TOutputStream& GetStream() const;
+    TOutputStream& GetRawStream() const;
     void Close();
     TChecksum GetChecksum() const;
 

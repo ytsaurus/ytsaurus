@@ -36,7 +36,7 @@ public:
         (SnapshotUnavailable)
         (RemoteError)
         (IOError)
-        (IncorrectChecksum)
+        //(IncorrectChecksum)
     );
 
     TSnapshotDownloader(
