@@ -254,7 +254,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
                     if (~block == NULL) {
                         awaiter->Cancel();
                         context->Reply(
-                            EErrorCode::NoSuchBlock,
+                            TChunkHolderProxy::EErrorCode::NoSuchBlock,
                             Sprintf("Block not found (ChunkId: %s, Index: %d)",
                                 ~chunkId.ToString(),
                                 blockIndex));
