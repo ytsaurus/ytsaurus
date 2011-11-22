@@ -108,8 +108,7 @@ public:
 
     IInvoker::TPtr GetStateInvoker();
     IInvoker::TPtr GetEpochStateInvoker();
-    //IInvoker::TPtr GetSnapshotInvoker();
-
+    
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction);
@@ -136,7 +135,6 @@ private:
     typedef TImpl TThis;
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef TTypedServiceException<EErrorCode> TServiceException;
 
     TAdvancedMetaStateManager::TPtr Owner;
     EPeerStatus ControlStatus;
@@ -255,10 +253,10 @@ private:
         VERIFY_THREAD_AFFINITY(ReadThread);
 
         try {
-            reader->Open(offset);
+            reader->OpenRaw(offset);
 
             TBlob data(length);
-            i32 bytesRead = reader->GetStream().Read(data.begin(), length);
+            i32 bytesRead = reader->GetRawStream().Read(data.begin(), length);
             data.erase(data.begin() + bytesRead, data.end());
 
             context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
@@ -427,7 +425,9 @@ private:
                     LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
                         ~version.ToString(),
                         changeCount);
-                    context->Reply(EErrorCode::InvalidStatus);
+                    context->Reply(
+                        EErrorCode::InvalidStatus,
+                        Sprintf("Ping is not received yet (Status: %s)", ~GetControlStatus().ToString()));
                 }
                 break;
             }
@@ -499,12 +499,17 @@ private:
                     }
 
                     if (createSnapshot) {
-                        context->Reply(EErrorCode::InvalidStatus);
+                        context->Reply(
+                            EErrorCode::InvalidStatus,
+                            "Unable to create a snapshot during recovery");
                     } else {
                         context->Reply();
                     }
                 } else {
-                    context->Reply(EErrorCode::InvalidStatus);
+                    context->Reply(
+                        EErrorCode::InvalidStatus,
+                        Sprintf("Ping is not received yet (Status: %s)",
+                            ~GetControlStatus().ToString()));
                 }
                 break;
             }
@@ -1024,13 +1029,6 @@ IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetEpochStateInvoker()
     return ~EpochStateInvoker;
 }
 
-//IInvoker::TPtr TAdvancedMetaStateManager::TImpl::GetSnapshotInvoker()
-//{
-//    VERIFY_THREAD_AFFINITY_ANY();
-//
-//    return MetaState->GetSnapshotInvoker();
-//}
-
 TAdvancedMetaStateManager::TAsyncCommitResult::TPtr
 TAdvancedMetaStateManager::TImpl::CommitChange(
     const TSharedRef& changeData,
@@ -1128,11 +1126,6 @@ void TAdvancedMetaStateManager::TImpl::GetMonitoringInfo(NYTree::IYsonConsumer* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-
-
-
 void TAdvancedMetaStateManager::TImpl::OnFollowerCommit(
     TLeaderCommitter::EResult result,
     TCtxApplyChanges::TPtr context)
@@ -1148,11 +1141,15 @@ void TAdvancedMetaStateManager::TImpl::OnFollowerCommit(
             break;
 
         case TCommitterBase::EResult::LateChanges:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are late");
             break;
 
         case TCommitterBase::EResult::OutOfOrderChanges:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are out of order");
             Restart();
             break;
 
@@ -1160,7 +1157,6 @@ void TAdvancedMetaStateManager::TImpl::OnFollowerCommit(
             YUNREACHABLE();
     }
 }
-
 
 void TAdvancedMetaStateManager::TImpl::OnCreateLocalSnapshot(
     TSnapshotCreator::TLocalResult result,
@@ -1176,16 +1172,19 @@ void TAdvancedMetaStateManager::TImpl::OnCreateLocalSnapshot(
             context->Reply();
             break;
         case TSnapshotCreator::EResultCode::InvalidVersion:
-            context->Reply(TProxy::EErrorCode::InvalidVersion);
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Requested to create a snapshot for an invalid version");
             break;
         case TSnapshotCreator::EResultCode::AlreadyInProgress:
-            context->Reply(TProxy::EErrorCode::Busy);
+            context->Reply(
+                TProxy::EErrorCode::Busy,
+                "Snapshot creation is already in progress");
             break;
         default:
             YUNREACHABLE();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // IElectionCallbacks members

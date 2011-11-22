@@ -13,8 +13,7 @@ message TResponseHeader
 {
     required bytes RequestId = 1;
     required int32 ErrorCode = 2;
-    required bytes ErrorCodeString = 3;
-    required bytes ErrorMessage = 4;
+    required bytes ErrorMessage = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

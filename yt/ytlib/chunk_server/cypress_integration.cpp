@@ -46,7 +46,11 @@ private:
                 // TODO: locations
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("size").Scalar(chunk->GetSize())
+                        .Item("chunk_size").Scalar(chunk->GetSize())
+                        .Item("meta_size").Scalar(
+                            chunk->GetMasterMeta() == TSharedRef()
+                            ? -1
+                            : static_cast<i64>(chunk->GetMasterMeta().Size()))
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
                     .EndMap();
             }));

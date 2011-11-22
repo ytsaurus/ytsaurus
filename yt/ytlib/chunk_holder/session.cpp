@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NChunkClient;
@@ -48,7 +50,7 @@ TSession::TPtr TSessionManager::StartSession(
 {
     auto location = ChunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, location, windowSize);
+    auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
     auto lease = TLeaseManager::Get()->CreateLease(
         Config.SessionTimeout,
@@ -99,13 +101,12 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
-    ChunkStore->RegisterChunk(
-        session->GetChunkId(),
-        session->GetSize(),
-        session->GetLocation());
-
     LOG_INFO("Session finished (ChunkId: %s)",
         ~session->GetChunkId().ToString());
+
+    ChunkStore->RegisterChunk(
+        session->GetChunkId(),
+        ~session->GetLocation());
 
     return TVoid();
 }
@@ -128,9 +129,9 @@ int TSessionManager::GetSessionCount()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManager::TPtr sessionManager,
+    TSessionManager* sessionManager,
     const TChunkId& chunkId,
-    TLocation::TPtr location,
+    TLocation* location,
     int windowSize)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
@@ -139,10 +140,10 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
-    YASSERT(~sessionManager != NULL);
-    YASSERT(~location != NULL);
+    YASSERT(sessionManager != NULL);
+    YASSERT(location != NULL);
 
-    Location->IncSessionCount();
+    Location->IncrementSessionCount();
 
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
 
@@ -155,7 +156,7 @@ TSession::TSession(
 
 TSession::~TSession()
 {
-    Location->DecSessionCount();
+    Location->DecrementSessionCount();
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)

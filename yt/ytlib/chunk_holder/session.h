@@ -22,9 +22,9 @@ public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TIntrusivePtr<TSessionManager> sessionManager,
+        TSessionManager* sessionManager,
         const NChunkClient::TChunkId& chunkId,
-        TLocation::TPtr location,
+        TLocation* location,
         int windowSize);
 
     ~TSession();
@@ -59,7 +59,6 @@ private:
 
     typedef TChunkHolderProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)

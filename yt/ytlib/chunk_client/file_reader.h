@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a local and synchronous implementation of IChunkReader.
+//! Provides a local and synchronous implementation of IAsyncReader.
 class TFileReader
     : public IAsyncReader
 {
@@ -19,7 +19,10 @@ public:
     typedef TIntrusivePtr<TFileReader> TPtr;
 
     //! Creates a new reader.
-    TFileReader(Stroka fileName);
+    TFileReader(const Stroka& fileName);
+
+    //! Returns the full file size.
+    i64 GetSize() const;
 
     //! Returns the number of blocks in the chunk.
     i32 GetBlockCount() const;
@@ -39,6 +42,7 @@ public:
 private:
     Stroka FileName;
     THolder<TFile> File;
+    i64 Size;
     NChunkClient::NProto::TChunkMeta Meta;
     yvector<TChunkOffset> BlockOffsets;
     TSharedRef MasterMeta;

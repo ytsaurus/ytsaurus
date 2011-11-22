@@ -616,11 +616,15 @@ private:
         YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
+        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
+        YASSERT(chunk.GetMasterMeta() != TSharedRef());
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, ChunkSize: %" PRId64 ", MetaSize: %" PRISZT")",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
-            chunk.GetSize());
+            chunk.GetSize(),
+            chunk.GetMasterMeta().Size());
 
         if (IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -747,16 +751,33 @@ private:
             return;
         }
 
-        if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
+        if (chunk->GetSize() != TChunk::UnknownSize &&
+            chunk->GetSize() != size)
+        {
             LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
                 ~chunkId.ToString(),
-                chunk->Size,
+                chunk->GetSize(),
                 size);
             return;
         }
 
-        if (chunk->Size == TChunk::UnknownSize) {
-            chunk->Size = size;
+        if (chunk->GetSize() == TChunk::UnknownSize) {
+            chunk->SetSize(size);
+        }
+
+        TRef masterMeta(
+            const_cast<char*>(chunkInfo.GetMasterMeta().begin()),
+            chunkInfo.GetMasterMeta().size());
+
+        if (chunk->GetMasterMeta() != TSharedRef() &&
+            !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))
+        {
+            LOG_ERROR("Chunk server meta mismatch (ChunkId: %)", ~chunkId.ToString());
+            return;
+        }
+
+        if (chunk->GetMasterMeta() == TSharedRef()) {
+            chunk->SetMasterMeta(MoveRV(masterMeta.ToBlob()));
         }
 
         DoAddChunkReplica(holder, *chunk);
@@ -825,7 +846,7 @@ private:
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
                     YASSERT(sink.JobIds.erase(job.GetJobId()) == 1);
-                    MaybeDropReplicationSink(sink);
+                    DropReplicationSinkIfEmpty(sink);
                 }
                 break;
             }
@@ -849,10 +870,10 @@ private:
         return pair.first->Second();
     }
 
-    void MaybeDropReplicationSink(const TReplicationSink& sink)
+    void DropReplicationSinkIfEmpty(const TReplicationSink& sink)
     {
         if (sink.JobIds.empty()) {
-            // NB: do not try to inline this variable! erase() will destroy the object
+            // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
             Stroka address = sink.Address;
             YVERIFY(ReplicationSinkMap.erase(address) == 1);

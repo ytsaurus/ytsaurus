@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
 
@@ -209,3 +211,32 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+void Save(TOutputStream* output, const NYT::TRef& ref);
+void Load(TInputStream* input, NYT::TSharedRef& ref);
+
+// TODO: move to impl
+
+inline void Save(TOutputStream* output, const NYT::TSharedRef& ref)
+{
+    if (ref.Begin() == NULL) {
+        ::Save(output, static_cast<i64>(-1));
+    } else {
+        ::Save(output, static_cast<i64>(ref.Size()));
+        output->Write(ref.Begin(), ref.Size());
+    }
+}
+
+inline void Load(TInputStream* input, NYT::TSharedRef& ref)
+{
+    i64 size;
+    ::Load(input, size);
+    if (size == -1) {
+        ref = NYT::TSharedRef();
+    } else {
+        YASSERT(size >= 0);
+        NYT::TBlob blob(static_cast<size_t>(size));
+        input->Read(blob.begin(), blob.size());
+        ref = NYT::TSharedRef(NYT::MoveRV(blob));
+    }
+}

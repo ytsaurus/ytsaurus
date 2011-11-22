@@ -15,43 +15,6 @@ class TChunkStore;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes chunk meta-information.
-/*!
- *  This class holds some useful pieces of information that
- *  is impossible to fetch during holder startup since it requires reading chunk files.
- */
-class TChunkMeta
-    : public TRefCountedBase
-{
-public:
-    typedef TIntrusivePtr<TChunkMeta> TPtr;
-
-    TChunkMeta(NChunkClient::TFileReader::TPtr reader)
-    {
-        YASSERT(~reader != NULL);
-        BlockCount = reader->GetBlockCount();
-        MasterMeta = reader->GetMasterMeta();
-    }
-
-    i32 GetBlockCount() const
-    {
-        return BlockCount;
-    }
-
-    const TSharedRef& GetMasterMeta() const
-    {
-        return MasterMeta;
-    }
-
-private:
-    friend class TChunkStore;
-
-    TSharedRef MasterMeta;
-    i32 BlockCount;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunk;
 
 //! Describes a physical location of chunks at a chunk holder.
@@ -84,8 +47,8 @@ public:
     //! Returns the load factor.
     double GetLoadFactor() const;
 
-    void IncSessionCount();
-    void DecSessionCount();
+    void IncrementSessionCount();
+    void DecrementSessionCount();
     int GetSessionCount() const;
 
 private:
@@ -102,43 +65,29 @@ private:
 class TChunk
     : public TRefCountedBase
 {
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TLocation::TPtr, Location);
+    DEFINE_BYVAL_RO_PROPERTY(i64, Size);
+    DEFINE_BYVAL_RO_PROPERTY(i32, BlockCount);
+    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, MasterMeta);
+
 public:
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
         const NChunkClient::TChunkId& id,
-        i64 size,
-        TLocation::TPtr location)
-        : Id(id)
-        , Size(size)
-        , Location(location)
+        NChunkClient::TFileReader* reader,
+        TLocation* location)
+        : Id_(id)
+        , Location_(location)
+        , Size_(reader->GetSize())
+        , BlockCount_(reader->GetBlockCount())
+        , MasterMeta_(reader->GetMasterMeta())
     { }
-
-    //! Returns chunk id.
-    NChunkClient::TChunkId GetId() const
-    {
-        return Id;
-    }
-
-    //! Returns the size of the chunk.
-    i64 GetSize() const
-    {
-        return Size;
-    }
-
-    //! Returns the location of the chunk.
-    TLocation::TPtr GetLocation()
-    {
-        return Location;
-    }
 
 private:
     friend class TChunkStore;
 
-    NChunkClient::TChunkId Id;
-    i64 Size;
-    TLocation::TPtr Location;
-    TChunkMeta::TPtr Meta;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,30 +104,26 @@ public:
     //! Constructs a new instance.
     TChunkStore(const TChunkHolderConfig& config);
 
-    //! Registers a just-uploaded chunk for further usage.
+    //! Registers a chunk for further usage.
     TChunk::TPtr RegisterChunk(
         const NChunkClient::TChunkId& chunkId,
-        i64 size,
-        TLocation::TPtr location);
+        TLocation* location);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);
-
-    //! Fetches meta-information for a given chunk.
-    TFuture<TChunkMeta::TPtr>::TPtr GetChunkMeta(TChunk::TPtr chunk);
 
     //! Returns a (cached) chunk reader.
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
      *  A common rule is to invoke it only from IO thread.
      */
-    NChunkClient::TFileReader::TPtr GetChunkReader(TChunk::TPtr chunk);
+    NChunkClient::TFileReader::TPtr GetChunkReader(TChunk* chunk);
 
     //! Physically removes the chunk.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    void RemoveChunk(TChunk::TPtr chunk);
+    void RemoveChunk(TChunk* chunk);
 
     //! Calculates a storage location for a new chunk.
     /*!
@@ -188,10 +133,10 @@ public:
     TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation::TPtr location);
+    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation* location);
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(TChunk::TPtr chunk);
+    Stroka GetChunkFileName(TChunk* chunk);
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
@@ -222,7 +167,6 @@ private:
 
     void ScanChunks();
     void InitLocations();
-    TChunkMeta::TPtr DoGetChunkMeta(TChunk::TPtr chunk);
 
 };
 

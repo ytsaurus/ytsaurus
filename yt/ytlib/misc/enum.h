@@ -43,14 +43,6 @@ public:
         : Value(0)
     { }
 
-    TEnumBase(const TEnumBase<TDerived>& other)
-        : Value(other.Value)
-    { }
-
-    TEnumBase(TEnumBase<TDerived>&& other)
-        : Value(MoveRV(other.Value))
-    { }
-
     //! Explicit constructor.
     explicit TEnumBase(int value)
         : Value(value)
@@ -77,63 +69,6 @@ public:
 
 protected:
     int Value;
-};
-
-//! Base class for polymorphic enumerations.
-template<class TDerived>
-class TPolymorphicEnumBase
-{
-public:
-    //! Default constructor.
-    TPolymorphicEnumBase()
-        : Value(0)
-        , Literal("")
-    { }
-
-    TPolymorphicEnumBase(const TPolymorphicEnumBase<TDerived>& other)
-        : Value(other.Value)
-        , Literal(other.Literal)
-    { }
-
-    TPolymorphicEnumBase(TPolymorphicEnumBase<TDerived>&& other)
-        : Value(MoveRV(other.Value))
-        , Literal(MoveRV(other.Literal))
-    { }
-
-    //! Explicit constructor.
-    explicit TPolymorphicEnumBase(int value, const Stroka& literal = "")
-        : Value(value)
-        , Literal(literal)
-    { }
-
-    //! Returns underlying integral value.
-    int ToValue() const
-    {
-        return Value;
-    }
-
-    //! Checks whether there is an associated string literal with this value.
-    bool HasAssociatedStringLiteral() const
-    {
-        return !Literal.empty();
-    }
-
-    void Load(TInputStream* input)
-    {
-        i32 value;
-        input->Load(&value, sizeof(i32));
-        Value = value;
-    }
-
-    void Save(TOutputStream* output) const
-    {
-        i32 value = static_cast<i32>(Value);
-        output->Write(&value, sizeof(i32));
-    }
-
-protected:
-    int Value;
-    Stroka Literal;
 };
 
 /*! \} */
@@ -168,41 +103,13 @@ protected:
             : TBase() \
         { } \
         \
-        name(const name& other) \
-            : TBase(MoveRV(static_cast<TBase>(other))) \
-        { } \
-        \
-        name(name&& other) \
-            : TBase(MoveRV(other)) \
-        { } \
-        \
-        name(const TBase& other) \
-            : TBase(other) \
-        { } \
-        \
-        name(TBase&& other) \
-            : TBase(MoveRV(other)) \
-        { } \
-        \
         name(const EDomain& e) \
-            : TBase(MoveRV(name::SpawnFauxBase(static_cast<int>(e)))) \
+            : TBase(static_cast<int>(e)) \
         { } \
-        \
-        name& operator=(const TBase& other) \
-        { \
-            TBase::operator=(other); \
-            return *this; \
-        } \
-        \
-        name& operator=(TBase&& other) \
-        { \
-            TBase::operator=(MoveRV(other)); \
-            return *this; \
-        } \
         \
         name& operator=(const EDomain& e) \
         { \
-            TBase::operator=(MoveRV(name::SpawnFauxBase(static_cast<int>(e)))); \
+            name::operator=(MoveRV(name(static_cast<int>(e)))); \
             return *this; \
         } \
         \
@@ -212,7 +119,7 @@ protected:
         } \
         \
     public: \
-        static Stroka GetLiteralByValue(int value) \
+        static const char* GetLiteralByValue(int value) \
         { \
             switch (value) \
             { \
@@ -222,32 +129,42 @@ protected:
             } \
         } \
         \
-        static bool GetValueByLiteral(const Stroka& literal, int* target) \
+        static bool GetValueByLiteral(const char* literal, int* target) \
         { \
             PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
             return false; \
         } \
         \
-        static name FromString(const Stroka& str) \
+        static name FromString(const char* str) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
                 ythrow yexception() \
-                    << "Error parsing " PP_STRINGIZE(name) " value " << str.Quote(); \
+                    << "Error parsing " PP_STRINGIZE(name) " value '" << Stroka(str).Quote() << "'"; \
             } else { \
-                return name::SpawnFauxBase(value); \
+                return name(value); \
             } \
         } \
         \
-        static bool FromString(const Stroka& str, name* target) \
+        static name FromString(const Stroka& str) \
+        { \
+            return name::FromString(str.c_str()); \
+        } \
+        \
+        static bool FromString(const char* str, name* target) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
                 return false; \
             } else { \
-                *target = MoveRV(name::SpawnFauxBase(value)); \
+                *target = name(value); \
                 return true; \
             } \
+        } \
+        \
+        static bool FromString(const Stroka& str, name* target) \
+        { \
+            return name::FromString(str.c_str(), target); \
         }
 
 //! EDomain declaration helper.
@@ -296,7 +213,7 @@ protected:
     ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(item) \
-    if (literal == PP_STRINGIZE(item)) { \
+    if (::strcmp(literal, PP_STRINGIZE(item)) == 0) { \
         *target = static_cast<int>(item); \
         return true; \
     }
@@ -337,12 +254,6 @@ protected:
 //! See #DECLARE_ENUM.
 #define BEGIN_DECLARE_ENUM(name, seq) \
     ENUM__CLASS(name, ::NYT::TEnumBase<name>, seq) \
-    private: \
-        static TBase SpawnFauxBase(int value) \
-        { \
-            return TBase(value); \
-        } \
-        \
     public: \
         explicit name(int value) \
             : TBase(value) \
@@ -363,72 +274,6 @@ protected:
 //! Ends the declaration of a strongly-typed enumeration.
 //! See #DECLARE_ENUM.
 #define END_DECLARE_ENUM() \
-    }
-
-//! Declares a polymorphic enumeration with its own scope.
-/*!
- * \param name Name of the enumeration.
- * \param seq Enumeration domain encoded as a <em>sequence</em>.
- */
-#define DECLARE_POLY_ENUM1(name, seq) \
-    BEGIN_DECLARE_POLY_ENUM(name, name, seq) \
-    END_DECLARE_POLY_ENUM()
-
-//! Declares a polymorphic enumeration with the specified scope.
-/*!
- * \param scope Scope of the polymorphism.
- * \param name Name of the enumeration.
- * \param seq Enumeration domain encoded as a <em>sequence</em>.
- */
-#define DECLARE_POLY_ENUM2(name, scope, seq) \
-    BEGIN_DECLARE_POLY_ENUM(name, scope, seq) \
-    END_DECLARE_POLY_ENUM()
-
-//! Begins the declaration of a polymorphic enumeration.
-//! See #DECLARE_POLY_ENUM1.
-#define BEGIN_DECLARE_POLY_ENUM(name, scope, seq) \
-    ENUM__CLASS(name, ::NYT::TPolymorphicEnumBase<scope>, seq) \
-    private: \
-        static TBase SpawnFauxBase(int value, const Stroka& literal = NULL) \
-        { \
-            return TBase( \
-                value, \
-                literal.empty() ? GetLiteralByValue(value) : literal); \
-        } \
-        \
-    public: \
-        explicit name(int value, const Stroka& literal = "") \
-        : TBase( \
-            value, \
-            literal.empty() ? GetLiteralByValue(value) : literal) \
-        { } \
-        \
-        Stroka ToString() const \
-        { \
-            if (!Literal.empty()) { \
-                return Literal; \
-            } \
-            \
-            Stroka str = name::GetLiteralByValue(Value); \
-            if (EXPECT_TRUE(!str.empty())) { \
-                return str; \
-            } \
-            \
-            if (!TSameType<name, scope>::Result) { \
-                str = scope::GetLiteralByValue(Value); \
-                if (EXPECT_TRUE(!str.empty())) { \
-                    return str; \
-                } \
-            } \
-            \
-            return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(Value) + ")"; \
-        } \
-        \
-        ENUM__RELATIONAL_OPERATORS(name)
-
-//! Ends the declaration of a polymorphic enumeration.
-//! See #DECLARE_POLY_ENUM1.
-#define END_DECLARE_POLY_ENUM() \
     }
 
 /*! \} */

@@ -92,7 +92,7 @@ public:
 
         auto invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
-            &TBlockCache::ReadBlock,
+            &TBlockCache::DoReadBlock,
             TPtr(this),
             chunk,
             blockId,
@@ -104,13 +104,13 @@ public:
 private:
     TChunkStore::TPtr ChunkStore;
 
-    void ReadBlock(
+    void DoReadBlock(
         TChunk::TPtr chunk,
         const TBlockId& blockId,
         TAutoPtr<TInsertCookie> cookie)
     {
         try {
-            auto reader = ChunkStore->GetChunkReader(chunk);
+            auto reader = ChunkStore->GetChunkReader(~chunk);
             auto data = reader->ReadBlock(blockId.BlockIndex);
             if (~data != NULL) {
                 auto block = New<TCachedBlock>(blockId, data);

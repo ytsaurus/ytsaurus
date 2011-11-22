@@ -69,47 +69,38 @@ TChunk::TPtr TJob::GetChunk() const
 void TJob::Start()
 {
     switch (JobType) {
-        case EJobType::Remove:
+        case EJobType::Remove: {
             LOG_INFO("Removal job started (JobId: %s, ChunkId: %s)",
                 ~JobId.ToString(),
                 ~Chunk->GetId().ToString());
 
-            ChunkStore->RemoveChunk(Chunk);
+            ChunkStore->RemoveChunk(~Chunk);
 
             LOG_DEBUG("Removal job completed (JobId: %s)",
                 ~JobId.ToString());
 
             State = EJobState::Completed;
             break;
+        }
 
-        case EJobType::Replicate:
+        case EJobType::Replicate: {
             LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
                 ~JobId.ToString(),
                 ~JoinToString(TargetAddresses),
                 ~Chunk->GetId().ToString());
 
-            ChunkStore->GetChunkMeta(Chunk)->Subscribe(
-                FromMethod(
-                &TJob::OnGotMeta,
-                TPtr(this))
-                ->Via(~CancelableInvoker));
+            Writer = New<TRemoteWriter>(
+                TRemoteWriter::TConfig(),
+                Chunk->GetId(),
+                TargetAddresses);
+
+            ReplicateBlock(TAsyncStreamState::TResult(), 0);
             break;
+        }
 
         default:
             YUNREACHABLE();
     }
-}
-
-void TJob::OnGotMeta(TChunkMeta::TPtr meta)
-{
-    Meta = meta;
-
-    Writer = New<TRemoteWriter>(
-        TRemoteWriter::TConfig(),
-        Chunk->GetId(),
-        TargetAddresses);
-
-    ReplicateBlock(TAsyncStreamState::TResult(), 0);
 }
 
 void TJob::Stop()
@@ -132,11 +123,11 @@ void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
         return;
     }
 
-    if (blockIndex >= Meta->GetBlockCount()) {
+    if (blockIndex >= Chunk->GetBlockCount()) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
 
-        Writer->AsyncClose(Meta->GetMasterMeta())->Subscribe(
+        Writer->AsyncClose(Chunk->GetMasterMeta())->Subscribe(
             FromMethod(
                 &TJob::OnWriterClosed,
                 TPtr(this))

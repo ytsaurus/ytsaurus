@@ -12,14 +12,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
-////////////////////////////////////////////////////////////////////////////////
-
-using NChunkClient::TChunkId;
-using NChunkClient::TFileReader;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using namespace NYT::NChunkClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,13 +74,13 @@ double TLocation::GetLoadFactor() const
     return (double) UsedSpace / (UsedSpace + AvailableSpace);
 }
 
-void TLocation::IncSessionCount()
+void TLocation::IncrementSessionCount()
 {
     ++SessionCount;
     LOG_DEBUG("Location %s has %d sessions", ~Path, SessionCount);
 }
 
-void TLocation::DecSessionCount()
+void TLocation::DecrementSessionCount()
 {
     --SessionCount;
     LOG_DEBUG("Location %s has %d sessions", ~Path, SessionCount);
@@ -129,7 +122,7 @@ public:
         , ChunkStore(chunkStore)
     { }
 
-    TCachedReader::TPtr Get(TChunk::TPtr chunk)
+    TCachedReader::TPtr Get(TChunk* chunk)
     {
         TInsertCookie cookie(chunk->GetId());
         if (BeginInsert(&cookie)) {
@@ -184,9 +177,7 @@ void TChunkStore::ScanChunks()
             while ((fileName = fileList.Next()) != NULL) {
                 auto chunkId = TChunkId::FromString(fileName);
                 if (!chunkId.IsEmpty()) {
-                    auto fullName = path + "/" + fileName;
-                    i64 size = NFS::GetFileSize(fullName);
-                    RegisterChunk(chunkId, size, location);
+                    RegisterChunk(chunkId, ~location);
                 }
             }
         }
@@ -206,17 +197,17 @@ void TChunkStore::InitLocations()
 
 TChunk::TPtr TChunkStore::RegisterChunk(
     const TChunkId& chunkId,
-    i64 size,
-    TLocation::TPtr location)
+    TLocation* location)
 {
-    auto chunk = New<TChunk>(chunkId, size, location);
+    auto fileName = GetChunkFileName(chunkId, location);
+    auto reader = New<TFileReader>(fileName);
+
+    auto chunk = New<TChunk>(chunkId, ~reader, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     location->RegisterChunk(chunk);
 
-    LOG_DEBUG("Chunk registered (Id: %s, Size: %" PRId64 ")",
-        ~chunkId.ToString(),
-        size);
+    LOG_DEBUG("Chunk registered (Id: %s)", ~chunkId.ToString());
 
     ChunkAdded_.Fire(~chunk);
 
@@ -229,8 +220,11 @@ TChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId)
     return it == ChunkMap.end() ? NULL : it->Second();
 }
 
-void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
+void TChunkStore::RemoveChunk(TChunk* chunk)
 {
+    // Hold the chunk during removal.
+    TChunk::TPtr chunk_ = chunk;
+
     YVERIFY(ChunkMap.erase(chunk->GetId()) == 1);
 
     ReaderCache->Remove(chunk);
@@ -245,7 +239,7 @@ void TChunkStore::RemoveChunk(TChunk::TPtr chunk)
     LOG_INFO("Chunk removed (Id: %s)",
         ~chunk->GetId().ToString());
 
-    ChunkRemoved_.Fire(~chunk);
+    ChunkRemoved_.Fire(chunk);
 }
 
 TLocation::TPtr TChunkStore::GetNewChunkLocation()
@@ -270,14 +264,14 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
     return candidates[RandomNumber(candidates.size())];
 }
 
-Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation::TPtr location)
+Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation* location)
 {
     return location->GetPath() + "/" + chunkId.ToString();
 }
 
-Stroka TChunkStore::GetChunkFileName(TChunk::TPtr chunk)
+Stroka TChunkStore::GetChunkFileName(TChunk* chunk)
 {
-    return GetChunkFileName(chunk->GetId(), chunk->GetLocation());
+    return GetChunkFileName(chunk->GetId(), ~chunk->GetLocation());
 }
 
 TChunkStore::TChunks TChunkStore::GetChunks()
@@ -295,35 +289,7 @@ int TChunkStore::GetChunkCount()
     return ChunkMap.ysize();
 }
 
-TFuture<TChunkMeta::TPtr>::TPtr TChunkStore::GetChunkMeta(TChunk::TPtr chunk)
-{
-    auto meta = chunk->Meta;
-    if (~meta != NULL) {
-        return New< TFuture<TChunkMeta::TPtr> >(meta);
-    }
-
-    auto invoker = chunk->GetLocation()->GetInvoker();
-    return
-        FromMethod(
-            &TChunkStore::DoGetChunkMeta,
-            TPtr(this),
-            chunk)
-        ->AsyncVia(invoker)
-        ->Do();
-}
-
-TChunkMeta::TPtr TChunkStore::DoGetChunkMeta(TChunk::TPtr chunk)
-{
-    auto reader = GetChunkReader(chunk);
-    if (~reader == NULL)
-        return NULL;
-
-    auto meta = New<TChunkMeta>(reader);
-    chunk->Meta = meta;
-    return meta;
-}
-
-TFileReader::TPtr TChunkStore::GetChunkReader(TChunk::TPtr chunk)
+TFileReader::TPtr TChunkStore::GetChunkReader(TChunk* chunk)
 {
     return ReaderCache->Get(chunk);
 }

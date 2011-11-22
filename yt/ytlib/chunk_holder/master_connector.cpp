@@ -270,6 +270,8 @@ NChunkServer::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk* chunk)
     NChunkServer::NProto::TChunkInfo result;
     result.SetId(chunk->GetId().ToProto());
     result.SetSize(chunk->GetSize());
+    auto meta = chunk->GetMasterMeta();
+    result.SetMasterMeta(meta.Begin(), meta.Size());
     return result;
 }
 

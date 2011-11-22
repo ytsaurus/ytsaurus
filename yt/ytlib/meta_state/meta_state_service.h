@@ -46,7 +46,9 @@ protected:
         TIntrusivePtr<TContext> context_ = context;
         return FromFunctor([=] ()
             {
-                context_->Reply(NRpc::EErrorCode::Unavailable);
+                context_->Reply(
+                    NRpc::EErrorCode::Unavailable,
+                    "Error commiting meta state changes");
             });
     }
 

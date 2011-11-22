@@ -25,8 +25,10 @@ void TChunk::Save(TOutputStream* output) const
 {
     ::Save(output, ChunkListId_);
     ::Save(output, Size_);
+    ::Save(output, MasterMeta_);
     ::Save(output, Locations_);
     ::Save(output, RefCounter);
+
 }
 
 TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
@@ -34,6 +36,7 @@ TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
     TAutoPtr<TChunk> chunk = new TChunk(id);
     ::Load(input, chunk->ChunkListId_);
     ::Load(input, chunk->Size_);
+    ::Load(input, chunk->MasterMeta_);
     ::Load(input, chunk->Locations_);
     ::Load(input, chunk->RefCounter);
     return chunk;
