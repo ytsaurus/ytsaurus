@@ -9,6 +9,7 @@ SET(YT_SOURCE_FILES
 
     yson_events.h
     forwarding_yson_events.cpp
+    null_yson_consumer.cpp
 
     yson_reader.cpp
     yson_writer.cpp
