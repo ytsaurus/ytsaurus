@@ -21,11 +21,11 @@ class TChunkManager;
  *  The latter is a logged operation during which #THolderExpiration::Unregister
  *  gets called.
  */
-class THolderExpiration
+class THolderLeaseTracker
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<THolderExpiration> TPtr;
+    typedef TIntrusivePtr<THolderLeaseTracker> TPtr;
     typedef TChunkManagerConfig TConfig;
 
     //! Initializes an instance.
@@ -34,7 +34,7 @@ public:
      *  \param chunkManager A chunk manager.
      *  \param invoker An invoker used for lease expiration callbacks.
      */
-    THolderExpiration(
+    THolderLeaseTracker(
         const TConfig& config,
         TChunkManager* chunkManager,
         IInvoker* invoker);

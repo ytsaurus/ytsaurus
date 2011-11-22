@@ -24,11 +24,11 @@ public:
         TChunkPlacement* chunkPlacement,
         IInvoker* invoker);
 
-    void RegisterHolder(const THolder& holder);
-    void UnregisterHolder(const THolder& holder);
+    void OnHolderRegistered(const THolder& holder);
+    void OnHolderUnregistered(const THolder& holder);
 
-    void AddReplica(const THolder& holder, const TChunk& chunk);
-    void RemoveReplica(const THolder& holder, const TChunk& chunk);
+    void OnReplicaAdded(const THolder& holder, const TChunk& chunk);
+    void OnReplicaRemoved(const THolder& holder, const TChunk& chunk);
 
     void ScheduleChunkRemoval(const THolder& holder, const NChunkClient::TChunkId& chunkId);
 

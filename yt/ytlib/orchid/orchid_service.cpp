@@ -9,6 +9,7 @@ namespace NYT {
 namespace NOrchid {
 
 using namespace NBus;
+using namespace NRpc;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

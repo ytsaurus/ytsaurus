@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "holder_expiration.h"
+#include "holder_lease_tracker.h"
 #include "chunk_manager.h"
 
 #include "../misc/assert.h"
@@ -13,7 +13,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THolderExpiration::THolderExpiration(
+THolderLeaseTracker::THolderLeaseTracker(
     const TConfig& config,
     TChunkManager* chunkManager,
     IInvoker* invoker)
@@ -25,7 +25,7 @@ THolderExpiration::THolderExpiration(
     YASSERT(invoker != NULL);
 }
 
-void THolderExpiration::RegisterHolder(const THolder& holder)
+void THolderLeaseTracker::RegisterHolder(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
 
@@ -36,27 +36,27 @@ void THolderExpiration::RegisterHolder(const THolder& holder)
     holderInfo.Lease = TLeaseManager::Get()->CreateLease(
         Config.HolderLeaseTimeout,
         FromMethod(
-            &THolderExpiration::OnExpired,
+            &THolderLeaseTracker::OnExpired,
             TPtr(this),
             holder.GetId())
         ->Via(Invoker));
 }
 
-void THolderExpiration::UnregisterHolder(const THolder& holder)
+void THolderLeaseTracker::UnregisterHolder(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::Get()->CloseLease(holderInfo.Lease);
     YASSERT(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
-void THolderExpiration::RenewHolderLease(const THolder& holder)
+void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::Get()->RenewLease(holderInfo.Lease);
 }
 
-void THolderExpiration::OnExpired(THolderId holderId)
+void THolderLeaseTracker::OnExpired(THolderId holderId)
 {
     // Check if the holder is still registered.
     auto* holderInfo = FindHolderInfo(holderId);
@@ -70,13 +70,13 @@ void THolderExpiration::OnExpired(THolderId holderId)
         ->Commit();
 }
 
-THolderExpiration::THolderInfo* THolderExpiration::FindHolderInfo(THolderId holderId)
+THolderLeaseTracker::THolderInfo* THolderLeaseTracker::FindHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     return it == HolderInfoMap.end() ? NULL : &it->Second();
 }
 
-THolderExpiration::THolderInfo& THolderExpiration::GetHolderInfo(THolderId holderId)
+THolderLeaseTracker::THolderInfo& THolderLeaseTracker::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());

@@ -4,6 +4,7 @@
 namespace NYT {
 namespace NTransaction {
 
+using namespace NRpc;
 using namespace NProto;
 using namespace NMetaState;
 

@@ -78,7 +78,8 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
 void TTableWriter::CreateTableNode(const Stroka& nodePath)
 {
     auto req = TCypressYPathProxy::Create();
-    req->SetManifest("{type=table}");
+    req->SetType("table");
+    req->SetManifest("{}");
 
     auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
 

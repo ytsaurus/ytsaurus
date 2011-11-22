@@ -74,12 +74,10 @@ private:
     yvector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriter::TPtr Writer;
     TCancelableInvoker::TPtr CancelableInvoker;
-    TChunkMeta::TPtr Meta;
     
     void Start();
     void Stop();
 
-    void OnGotMeta(TChunkMeta::TPtr meta);
     void ReplicateBlock(
         TAsyncStreamState::TResult result, 
         int blockIndex);

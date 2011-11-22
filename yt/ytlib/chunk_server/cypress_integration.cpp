@@ -46,7 +46,11 @@ private:
                 // TODO: locations
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("size").Scalar(chunk->GetSize())
+                        .Item("chunk_size").Scalar(chunk->GetSize())
+                        .Item("meta_size").Scalar(
+                            chunk->GetMasterMeta() == TSharedRef()
+                            ? -1
+                            : static_cast<i64>(chunk->GetMasterMeta().Size()))
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
                     .EndMap();
             }));
@@ -264,7 +268,8 @@ private:
 
         {
             auto request = TCypressYPathProxy::Create();
-            request->SetManifest("{type=holder}");     
+            request->SetType("holder");     
+            request->SetManifest("{}");     
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 Sprintf("/%s", ~address),
@@ -274,7 +279,8 @@ private:
 
         {
             auto request = TCypressYPathProxy::Create();
-            request->SetManifest(Sprintf("{type=orchid; remote_address=\"%s\"}", ~address));     
+            request->SetType("orchid");     
+            request->SetManifest(Sprintf("{remote_address=\"%s\"}", ~address));     
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 Sprintf("/%s/orchid", ~address),

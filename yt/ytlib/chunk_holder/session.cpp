@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NChunkClient;
@@ -48,7 +50,7 @@ TSession::TPtr TSessionManager::StartSession(
 {
     auto location = ChunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, location, windowSize);
+    auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
     auto lease = TLeaseManager::Get()->CreateLease(
         Config.SessionTimeout,
@@ -99,13 +101,12 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
-    ChunkStore->RegisterChunk(
-        session->GetChunkId(),
-        session->GetSize(),
-        session->GetLocation());
-
     LOG_INFO("Session finished (ChunkId: %s)",
         ~session->GetChunkId().ToString());
+
+    ChunkStore->RegisterChunk(
+        session->GetChunkId(),
+        ~session->GetLocation());
 
     return TVoid();
 }
@@ -116,7 +117,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session, "Session lease expired.");
+        CancelSession(session, "Session lease expired");
     }
 }
 
@@ -128,9 +129,9 @@ int TSessionManager::GetSessionCount()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManager::TPtr sessionManager,
+    TSessionManager* sessionManager,
     const TChunkId& chunkId,
-    TLocation::TPtr location,
+    TLocation* location,
     int windowSize)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
@@ -139,10 +140,10 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
-    YASSERT(~sessionManager != NULL);
-    YASSERT(~location != NULL);
+    YASSERT(sessionManager != NULL);
+    YASSERT(location != NULL);
 
-    Location->IncSessionCount();
+    Location->IncrementSessionCount();
 
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
 
@@ -155,7 +156,7 @@ TSession::TSession(
 
 TSession::~TSession()
 {
-    Location->DecSessionCount();
+    Location->DecrementSessionCount();
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -393,7 +394,7 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
             ~ChunkId.ToString());
     }
 
-    LOG_DEBUG("Chunk file deleted (ChunkId: %s). Reason: %s",
+    LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
         ~errorMessage);
 }
@@ -414,8 +415,9 @@ NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
     try {
         Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
     } catch (...) {
-        LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
+        LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
+            ~ChunkId.ToString(),
+            ~CurrentExceptionMessage());
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {

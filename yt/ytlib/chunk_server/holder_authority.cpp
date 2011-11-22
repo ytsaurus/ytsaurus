@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "holder_registry.h"
+#include "holder_authority.h"
 
 namespace NYT {
 namespace NChunkServer {

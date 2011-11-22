@@ -104,6 +104,7 @@ private:
     typedef ydeque<TGroupPtr> TWindow;
 
     typedef NChunkHolder::TChunkHolderProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
 
     USE_RPC_PROXY_METHOD(TProxy, StartChunk);
     USE_RPC_PROXY_METHOD(TProxy, FinishChunk);

@@ -18,9 +18,9 @@ SET(YT_SOURCE_FILES
 
     chunk_replication.cpp
 
-    holder_expiration.cpp
+    holder_lease_tracker.cpp
 
-    holder_registry.cpp
+    holder_authority.cpp
 
     cypress_integration.cpp
 )

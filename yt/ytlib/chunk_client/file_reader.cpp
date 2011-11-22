@@ -12,10 +12,11 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileReader::TFileReader(Stroka fileName)
+TFileReader::TFileReader(const Stroka& fileName)
     : FileName(fileName)
 {
     File.Reset(new TFile(fileName, OpenExisting|RdOnly));
+    Size = File->GetLength();
 
     TChunkFooter footer;
     File->Seek(File->GetLength() - sizeof (footer), sSet);
@@ -47,6 +48,11 @@ TFileReader::TFileReader(Stroka fileName)
         BlockOffsets.push_back(currentOffset);
         currentOffset += Meta.GetBlocks(blockIndex).GetSize();
     }
+}
+
+i64 TFileReader::GetSize() const
+{
+    return Size;
 }
 
 i32 TFileReader::GetBlockCount() const

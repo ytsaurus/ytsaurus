@@ -3,7 +3,7 @@
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"
 #include "chunk_replication.h"
-#include "holder_expiration.h"
+#include "holder_lease_tracker.h"
 
 #include "../transaction_server/transaction_manager.h"
 #include "../meta_state/meta_state_manager.h"
@@ -94,7 +94,7 @@ public:
         auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
         FOREACH(auto holderId, holderIds) {
             const auto& holder = GetHolder(holderId);
-            ChunkPlacement->AddHolderSessionHint(holder);
+            ChunkPlacement->OnSessionHinted(holder);
         }
         return holderIds;
     }
@@ -275,7 +275,7 @@ private:
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
-    THolderExpiration::TPtr HolderExpiration;
+    THolderLeaseTracker::TPtr HolderExpiration;
     
     TIdGenerator<TChunkId> ChunkIdGenerator;
     TIdGenerator<TChunkId> ChunkListIdGenerator;
@@ -403,7 +403,7 @@ private:
 
         if (IsLeader()) {
             HolderExpiration->RenewHolderLease(holder);
-            ChunkPlacement->UpdateHolder(holder);
+            ChunkPlacement->OnHolderUpdated(holder);
         }
 
         FOREACH(const auto& chunkInfo, message.GetAddedChunks()) {
@@ -519,12 +519,14 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+
         ChunkReplication = New<TChunkReplication>(
             ~ChunkManager,
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
-        HolderExpiration = New<THolderExpiration>(
+
+        HolderExpiration = New<THolderLeaseTracker>(
             Config,
             ~ChunkManager,
             ~MetaStateManager->GetEpochStateInvoker());
@@ -566,8 +568,8 @@ private:
     void StartHolderTracking(const THolder& holder)
     {
         HolderExpiration->RegisterHolder(holder);
-        ChunkPlacement->RegisterHolder(holder);
-        ChunkReplication->RegisterHolder(holder);
+        ChunkPlacement->OnHolderRegistered(holder);
+        ChunkReplication->OnHolderRegistered(holder);
 
         HolderRegistered_.Fire(holder); 
     }
@@ -575,8 +577,8 @@ private:
     void StopHolderTracking(const THolder& holder)
     {
         HolderExpiration->UnregisterHolder(holder);
-        ChunkPlacement->UnregisterHolder(holder);
-        ChunkReplication->UnregisterHolder(holder);
+        ChunkPlacement->OnHolderUnregistered(holder);
+        ChunkReplication->OnHolderUnregistered(holder);
 
         HolderUnregistered_.Fire(holder);
     }
@@ -614,14 +616,18 @@ private:
         YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
+        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
+        YASSERT(chunk.GetMasterMeta() != TSharedRef());
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, ChunkSize: %" PRId64 ", MetaSize: %" PRISZT")",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
-            chunk.GetSize());
+            chunk.GetSize(),
+            chunk.GetMasterMeta().Size());
 
         if (IsLeader()) {
-            ChunkReplication->AddReplica(holder, chunk);
+            ChunkReplication->OnReplicaAdded(holder, chunk);
         }
     }
 
@@ -636,7 +642,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
@@ -650,7 +656,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
@@ -745,17 +751,34 @@ private:
             return;
         }
 
-        //if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
-        //    LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-        //        ~chunkId.ToString(),
-        //        chunk->Size,
-        //        size);
-        //    return;
-        //}
+        if (chunk->GetSize() != TChunk::UnknownSize &&
+            chunk->GetSize() != size)
+        {
+            LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
+                ~chunkId.ToString(),
+                chunk->GetSize(),
+                size);
+            return;
+        }
 
-        //if (chunk->Size == TChunk::UnknownSize) {
-        //    chunk->Size = size;
-        //}
+        if (chunk->GetSize() == TChunk::UnknownSize) {
+            chunk->SetSize(size);
+        }
+
+        TRef masterMeta(
+            const_cast<char*>(chunkInfo.GetMasterMeta().begin()),
+            chunkInfo.GetMasterMeta().size());
+
+        if (chunk->GetMasterMeta() != TSharedRef() &&
+            !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))
+        {
+            LOG_ERROR("Chunk server meta mismatch (ChunkId: %)", ~chunkId.ToString());
+            return;
+        }
+
+        if (chunk->GetMasterMeta() == TSharedRef()) {
+            chunk->SetMasterMeta(MoveRV(masterMeta.ToBlob()));
+        }
 
         DoAddChunkReplica(holder, *chunk);
     }
@@ -823,7 +846,7 @@ private:
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
                     YASSERT(sink.JobIds.erase(job.GetJobId()) == 1);
-                    MaybeDropReplicationSink(sink);
+                    DropReplicationSinkIfEmpty(sink);
                 }
                 break;
             }
@@ -847,10 +870,10 @@ private:
         return pair.first->Second();
     }
 
-    void MaybeDropReplicationSink(const TReplicationSink& sink)
+    void DropReplicationSinkIfEmpty(const TReplicationSink& sink)
     {
         if (sink.JobIds.empty()) {
-            // NB: do not try to inline this variable! erase() will destroy the object
+            // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
             Stroka address = sink.Address;
             YVERIFY(ReplicationSinkMap.erase(address) == 1);

@@ -161,7 +161,7 @@ public:
 
     NBus::IMessage::TPtr GetResponseMessage() const;
 
-    EErrorCode GetErrorCode() const;
+    int GetErrorCode() const;
     bool IsOK() const;
 
 protected:
@@ -238,7 +238,7 @@ private:
         return PP_STRINGIZE(path); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##path##Error, NRpc::EErrorCode, \
+    DECLARE_ENUM(E##path##Error, \
         errorCodes \
     ); \
     \

@@ -11,10 +11,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_POLY_ENUM2(EYPathErrorCode, NRpc::EErrorCode,
-    ((NoSuchVerb)(100))
-    ((GenericError)(101))
-    ((CommitError)(102))
+DECLARE_ENUM(EYPathErrorCode,
+    ((GenericError)(1))
+    ((CommitError)(2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

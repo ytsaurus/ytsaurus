@@ -13,12 +13,13 @@ class TChunkPlacement
 public:
     typedef TIntrusivePtr<TChunkPlacement> TPtr;
 
-    TChunkPlacement(TChunkManager::TPtr chunkManager);
+    TChunkPlacement(TChunkManager* chunkManager);
 
-    void RegisterHolder(const THolder& holder);
-    void UnregisterHolder(const THolder& holder);
-    void UpdateHolder(const THolder& holder);
-    void AddHolderSessionHint(const THolder& holder);
+    void OnHolderRegistered(const THolder& holder);
+    void OnHolderUnregistered(const THolder& holder);
+    void OnHolderUpdated(const THolder& holder);
+
+    void OnSessionHinted(const THolder& holder);
 
     double GetLoadFactor(const THolder& holder) const;
     double GetFillCoeff(const THolder& holder) const;

@@ -7,7 +7,7 @@
 #include "job.h"
 #include "job_list.h"
 #include "chunk_service_rpc.h"
-#include "holder_registry.h"
+#include "holder_authority.h"
 #include "chunk_manager.pb.h"
 
 #include "../meta_state/meta_change.h"

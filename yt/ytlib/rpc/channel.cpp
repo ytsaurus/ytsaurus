@@ -196,7 +196,7 @@ private:
             responseHandler->OnResponse(~message);
         } else {
             responseHandler->OnError(TError(
-                EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
+                header.GetErrorCode(),
                 header.GetErrorMessage()));
         }
     }

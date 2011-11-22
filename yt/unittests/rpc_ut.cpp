@@ -239,7 +239,7 @@ TEST_F(TRpcTest, NoMethod)
     auto result = request->Invoke();
     auto response = result->Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchMethod, response->GetErrorCode());
+    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
 }
 
 TEST_F(TRpcTest, Timeout)

@@ -36,7 +36,7 @@ public:
         (SnapshotUnavailable)
         (RemoteError)
         (IOError)
-        (IncorrectChecksum)
+        //(IncorrectChecksum)
     );
 
     TSnapshotDownloader(
@@ -64,6 +64,7 @@ private:
     };
 
     typedef TMetaStateManagerProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
 
     TConfig Config;
     TCellManager::TPtr CellManager;
