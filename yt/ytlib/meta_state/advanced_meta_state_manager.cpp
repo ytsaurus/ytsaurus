@@ -108,8 +108,7 @@ public:
 
     IInvoker::TPtr GetStateInvoker();
     IInvoker::TPtr GetEpochStateInvoker();
-    //IInvoker::TPtr GetSnapshotInvoker();
-
+    
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction);
