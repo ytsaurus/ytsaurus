@@ -4,8 +4,11 @@ package NYT.NFileClient.NProto;
 
 message TChunkServerMeta
 {
+    // Number of blocks in chunk.
+    required int32 BlockCount = 1;
+
     // The real (user-visible) size of the file.
-    required int64 Size = 1;
+    required int64 Size = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

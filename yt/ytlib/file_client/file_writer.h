@@ -64,6 +64,7 @@ private:
     NChunkClient::TChunkId ChunkId;
 
     i64 Size;
+    i32 BlockCount;
     TBlob Buffer;
 
     IAction::TPtr OnAborted_;

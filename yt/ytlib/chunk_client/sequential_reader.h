@@ -4,7 +4,7 @@
 #include "async_reader.h"
 #include "reader_thread.h"
 
-#include "../misc/common.h"
+#include "../misc/config.h"
 #include "../misc/enum.h"
 #include "../misc/cyclic_buffer.h"
 #include "../misc/thread_affinity.h"
@@ -31,25 +31,37 @@ public:
     };
 
     struct TConfig
+        : TConfigBase
     {
         //! Prefetch window size (in blocks).
-        int WindowSize;
+        int PrefetchWindowSize;
 
         //! Maximum number of blocks to be transfered via a single RPC request.
         int GroupSize;
 
-        // ToDo: read from config
         TConfig()
-            : WindowSize(40)
-            , GroupSize(8)
-        { }
-    };
+        {
+            Register("window_size", PrefetchWindowSize).Default(40).GreaterThan(0);
+            Register("group_size", GroupSize).Default(8).GreaterThan(0);
+
+            SetDefaults();
+        }
+
+        virtual void Validate(const Stroka& path = "") const
+        {
+            if (GroupSize > PrefetchWindowSize) {
+                ythrow yexception() << "Group size cannot be larger than prefetch window size";
+            }
+
+            TConfigBase::Validate(path);
+        }
+     };
 
     //! Configures an instance.
     TSequentialReader(
         const TConfig& config,
         const yvector<int>& blockIndexes,
-        IAsyncReader::TPtr chunkReader);
+        IAsyncReader* chunkReader);
 
     //! Asynchronously fetches the next block.
     /*!

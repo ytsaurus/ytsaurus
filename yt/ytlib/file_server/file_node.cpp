@@ -92,6 +92,7 @@ private:
     TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
 
     void GetSize(const TGetAttributeParam& param);
+    void GetBlockCount(const TGetAttributeParam& param);
     static void GetChunkListId(const TGetAttributeParam& param);
     void GetChunkId(const TGetAttributeParam& param);
 
@@ -118,6 +119,7 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
 {
     // NB: No smartpointer for this here.
     RegisterGetter("size", FromMethod(&TThis::GetSize, this));
+    RegisterGetter("block_count", FromMethod(&TThis::GetBlockCount, this));
     RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
 }
@@ -135,6 +137,21 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
     auto meta = chunk->DeserializeMasterMeta<TChunkServerMeta>();
     BuildYsonFluently(param.Consumer)
         .Scalar(meta.GetSize());
+}
+
+void TFileNodeTypeHandler::GetBlockCount(const TGetAttributeParam& param)
+{
+    const auto* chunk = GetChunk(*param.Node);
+
+    if (chunk == NULL || chunk->GetMasterMeta() == TSharedRef()) {
+        BuildYsonFluently(param.Consumer)
+            .Scalar(-1);
+        return;
+    }
+
+    auto meta = chunk->DeserializeMasterMeta<TChunkServerMeta>();
+    BuildYsonFluently(param.Consumer)
+        .Scalar(meta.GetBlockCount());
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
+#include "file_chunk_server_meta.pb.h"
 
 #include "../misc/string.h"
 
@@ -11,6 +12,7 @@ using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NFileClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,12 +76,18 @@ RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
         response->SetChunkId(chunkId.ToProto());
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = ChunkManager->GetHolder(holderId);
-            response->AddAddresses(holder.GetAddress());
+            response->AddHolderAddresses(holder.GetAddress());
         }   
 
-        context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
+        auto meta = chunk.DeserializeMasterMeta<TChunkServerMeta>();
+        response->SetBlockCount(meta.GetBlockCount());
+        response->SetSize(meta.GetSize());
+
+        context->SetResponseInfo("ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s]",
             ~chunkId.ToString(),
-            ~JoinToString(response->GetAddresses()));
+            response->GetBlockCount(),
+            ~JoinToString(response->GetHolderAddresses()),
+            response->GetSize());
     }
 
     context->Reply();

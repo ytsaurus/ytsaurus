@@ -8,7 +8,9 @@ message TReqGetFileChunk
 message TRspGetFileChunk
 {
     required bytes ChunkId = 1;
-    repeated bytes Addresses = 2;
+    repeated bytes HolderAddresses = 2;
+    required int32 BlockCount = 3;
+    required int64 Size = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

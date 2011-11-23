@@ -38,7 +38,11 @@ TFileWriter::TFileWriter(
     , Closed(false)
     , Aborted(false)
     , Size(0)
+    , BlockCount(0)
 {
+    YASSERT(masterChannel != NULL);
+    YASSERT(transaction != NULL);
+
     // TODO: use totalReplicaCount
     UNUSED(totalReplicaCount);
 
@@ -102,7 +106,9 @@ TFileWriter::TFileWriter(
 
 void TFileWriter::Write(TRef data)
 {
-    YASSERT(!Closed);
+    if (Closed) {
+        ythrow yexception() << "File writer is already closed";
+    }
 
     CheckAborted();
 
@@ -156,6 +162,7 @@ void TFileWriter::Close()
 
     // Construct server meta.
     TChunkServerMeta meta;
+    meta.SetBlockCount(BlockCount);
     meta.SetSize(Size);
     TBlob metaBlob;
     SerializeProtobuf(&meta, &metaBlob);
@@ -170,12 +177,10 @@ void TFileWriter::Close()
             ~CurrentExceptionMessage());
     }
 
-    LOG_INFO("File chunk closed (Path: %s, TransactionId: %s)",
-        ~Path,
-        ~Transaction->GetId().ToString());
+    LOG_INFO("File chunk closed");
 
     // Associate the chunk with the file.
-    LOG_INFO("Setting file chunk");
+    LOG_INFO("Attaching file chunk to file node");
 
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
     setChunkRequest->SetChunkId(ChunkId.ToProto());
@@ -186,7 +191,7 @@ void TFileWriter::Close()
             ~setChunkResponse->GetError().ToString());
     }
 
-    LOG_INFO("File chunk is set");
+    LOG_INFO("File chunk is attached");
 }
 
 void TFileWriter::FlushBlock()
@@ -194,7 +199,7 @@ void TFileWriter::FlushBlock()
     if (Buffer.empty())
         return;
 
-    LOG_INFO("Writing file block");
+    LOG_INFO("Writing file block (BlockIndex: %d)", BlockCount);
 
     try {
         Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, TSharedRef(MoveRV(Buffer)));
@@ -207,6 +212,7 @@ void TFileWriter::FlushBlock()
 
     // AsyncWriteBlock should have done this already, so this is just a precaution.
     Buffer.clear();
+    ++BlockCount;
 }
 
 void TFileWriter::Finish()

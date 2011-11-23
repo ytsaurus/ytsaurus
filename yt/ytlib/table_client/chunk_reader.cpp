@@ -111,7 +111,7 @@ void TTableChunkReader::OnGotMeta(
     }
 
     yvector<int> blockIndexSequence = GetBlockReadingOrder(selectedChannels, protoMeta);
-    SequentialReader = New<TSequentialReader>(config, blockIndexSequence, chunkReader);
+    SequentialReader = New<TSequentialReader>(config, blockIndexSequence, ~chunkReader);
 
     ChannelReaders.reserve(selectedChannels.size());
     FOREACH(int i, selectedChannels) {

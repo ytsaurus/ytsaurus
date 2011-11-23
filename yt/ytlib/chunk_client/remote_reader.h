@@ -3,9 +3,10 @@
 #include "common.h"
 #include "async_reader.h"
 
-#include "../chunk_holder/chunk_holder_rpc.h"
 #include "../misc/metric.h"
+#include "../misc/config.h"
 #include "../misc/thread_affinity.h"
+#include "../chunk_holder/chunk_holder_rpc.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -16,7 +17,20 @@ class TRemoteReader
     : public IAsyncReader
 {
 public:
+    struct TConfig
+        : TConfigBase
+    {
+        //! Holder RPC requests timeout.
+        TDuration HolderRpcTimeout;
+
+        TConfig()
+        {
+            Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
+        }
+    };
+
     TRemoteReader(
+        const TConfig& config,
         const TChunkId& chunkId,
         const yvector<Stroka>& holderAddresses);
 
@@ -39,8 +53,8 @@ private:
 
     bool ChangeCurrentHolder();
 
+    const TConfig Config;
     const TChunkId ChunkId;
-    const TDuration Timeout;
 
     const yvector<Stroka> HolderAddresses;
 

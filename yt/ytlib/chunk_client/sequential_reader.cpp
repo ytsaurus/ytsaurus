@@ -11,13 +11,13 @@ namespace NChunkClient {
 TSequentialReader::TSequentialReader(
     const TConfig& config, 
     const yvector<int>& blockIndexes, 
-    IAsyncReader::TPtr chunkReader)
+    IAsyncReader* chunkReader)
     : BlockIndexSequence(blockIndexes)
     , FirstUnfetchedIndex(0)
     , Config(config)
     , ChunkReader(chunkReader)
-    , Window(config.WindowSize)
-    , FreeSlots(config.WindowSize)
+    , Window(config.PrefetchWindowSize)
+    , FreeSlots(config.PrefetchWindowSize)
     , PendingResult(NULL)
     , HasFailed(false)
     , NextSequenceIndex(0)
@@ -27,7 +27,7 @@ TSequentialReader::TSequentialReader(
 
     YASSERT(~ChunkReader != NULL);
     YASSERT(blockIndexes.ysize() > 0);
-    YASSERT(Config.GroupSize <= Config.WindowSize);
+    YASSERT(Config.GroupSize <= Config.PrefetchWindowSize);
 
     int fetchCount = FreeSlots / Config.GroupSize;
     for (int i = 0; i < fetchCount; ++i) {

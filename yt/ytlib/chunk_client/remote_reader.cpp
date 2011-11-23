@@ -11,17 +11,20 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO: use ChunkClientLogger
 static NLog::TLogger Logger("ChunkReader");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteReader::TRemoteReader(const TChunkId& chunkId, const yvector<Stroka>& holderAddresses)
-    : ChunkId(chunkId)
-    , Timeout(TDuration::Seconds(15)) // ToDo: make configurable
+TRemoteReader::TRemoteReader(
+    const TConfig& config,
+    const TChunkId& chunkId,
+    const yvector<Stroka>& holderAddresses)
+    : Config(config)
+    , ChunkId(chunkId)
     , HolderAddresses(holderAddresses)
     , ExecutionTime(0, 1000, 20)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
     CurrentHolder = 0;
 }
 
@@ -42,7 +45,7 @@ void TRemoteReader::DoReadBlocks(
 {
     VERIFY_THREAD_AFFINITY_ANY();
     TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
-    proxy.SetTimeout(Timeout);
+    proxy.SetTimeout(Config.HolderRpcTimeout);
 
     auto req = proxy.GetBlocks();
     req->SetChunkId(ChunkId.ToProto());
@@ -70,8 +73,8 @@ void TRemoteReader::OnBlocksRead(
 
         TReadResult readResult;
         for (int i = 0; i < rsp->Attachments().ysize(); i++) {
-            // Since all attachments reference the same rpc response
-            // memory will be freed only when all the blocks die
+            // Since all attachments reference the same RPC response
+            // memory will be freed only when all the blocks die.
             readResult.Blocks.push_back(rsp->Attachments()[i]);
         }
 
@@ -88,7 +91,7 @@ void TRemoteReader::OnBlocksRead(
 
 bool TRemoteReader::ChangeCurrentHolder()
 {
-    // Thread affinity is important here to ensure no race conditions on #CurrentHolder 
+    // Thread affinity is important here to ensure no race conditions on #CurrentHolder.
     VERIFY_THREAD_AFFINITY(Response);
 
     ++CurrentHolder;
