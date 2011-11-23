@@ -28,9 +28,9 @@ TSnapshotDownloader::TSnapshotDownloader(
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
-    TSnapshotWriter::TPtr snapshotWriter)
+    TAutoPtr<TFile> snapshotFile)
 {
-    YASSERT(~snapshotWriter != NULL);
+    YASSERT(~snapshotFile != NULL);
 
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
@@ -38,7 +38,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
         return EResult::SnapshotNotFound;
     }
     
-    EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotWriter);
+    EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotFile);
     if (result != EResult::OK) {
         return result;
     }
@@ -89,15 +89,12 @@ void TSnapshotDownloader::OnResponse(
     }
     
     i64 length = response->GetLength();
-    ui64 checksum = response->GetChecksum();
-    i32 prevRecordCount = response->GetPrevRecordCount();
     
-    LOG_INFO("Got snapshot info from peer %d (Length: %" PRId64 ", Checksum: %" PRIx64 ")",
+    LOG_INFO("Got snapshot info from peer %d (Length: %" PRId64 ")",
         peerId,
-        length,
-        checksum);
+        length);
 
-    asyncResult->Set(TSnapshotInfo(peerId, length, prevRecordCount, checksum));
+    asyncResult->Set(TSnapshotInfo(peerId, length));
     awaiter->Cancel();
 }
 
@@ -107,48 +104,35 @@ void TSnapshotDownloader::OnComplete(
 {
     LOG_INFO("Could not get snapshot %d info from masters", segmentId);
 
-    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1, 0, 0));
+    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TSnapshotInfo snapshotInfo,
-    TSnapshotWriter::TPtr snapshotWriter)
+    TAutoPtr<TFile> snapshotFile)
 {
     YASSERT(snapshotInfo.Length >= 0);
     
     TPeerId sourceId = snapshotInfo.SourceId;
-    try {
-        snapshotWriter->OpenRaw(
-            snapshotInfo.PrevRecordCount,
-            snapshotInfo.Checksum);
-    } catch (const yexception& ex) {
-        LOG_ERROR("Could not open snapshot writer\n%s", ex.what());
-        return EResult::IOError;
-    }
 
-    TOutputStream& output = snapshotWriter->GetRawStream();
-    EResult result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, output);
+    snapshotFile->Resize(snapshotInfo.Length);
+    TBufferedFileOutput writer(*snapshotFile);
+    
+    EResult result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, writer);
     if (result != EResult::OK) {
         return result;
     }
 
+    writer.Flush();
     try {
-        snapshotWriter->Close();
+        snapshotFile->Flush();
+        snapshotFile->Close();
     } catch (const yexception& ex) {
         LOG_ERROR("Could not close snapshot writer\n%s", ex.what());
         return EResult::IOError;
     }
 
-    // snapshotWriter can't calculate checksum in raw mode.
-    /*if (snapshotWriter->GetChecksum() != snapshotInfo.Checksum) {
-        LOG_ERROR(
-            "Incorrect checksum in snapshot %d from peer %d, "
-            "expected %" PRIx64 ", got %" PRIx64,
-            segmentId, sourceId, snapshotInfo.Checksum, snapshotWriter->GetChecksum());
-        return EResult::IncorrectChecksum;
-    }*/
-    
     return EResult::OK;
 }
 

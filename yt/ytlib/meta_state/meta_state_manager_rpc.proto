@@ -41,8 +41,6 @@ message TReqGetSnapshotInfo
 message TRspGetSnapshotInfo
 {
     optional int64 Length = 1;
-    optional uint64 Checksum = 2;
-    optional int32 PrevRecordCount = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

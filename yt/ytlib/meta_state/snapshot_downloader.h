@@ -43,23 +43,19 @@ public:
         const TConfig& config,
         TCellManager::TPtr cellManager);
 
-    EResult GetSnapshot(i32 segmentId, TSnapshotWriter::TPtr snapshotWriter);
+    EResult GetSnapshot(i32 segmentId, TAutoPtr<TFile> snapshotFile);
 
 private:
     struct TSnapshotInfo
     {
         TPeerId SourceId;
         i64 Length;
-        i32 PrevRecordCount;
-        TChecksum Checksum;
-
+        
         TSnapshotInfo() {}
 
-        TSnapshotInfo(TPeerId owner, i64 length, i32 prevRecordCount, ui64 checksum)
+        TSnapshotInfo(TPeerId owner, i64 length)
             : SourceId(owner)
             , Length(length)
-            , PrevRecordCount(prevRecordCount)
-            , Checksum(checksum)
         {}
     };
 
@@ -81,7 +77,7 @@ private:
     EResult DownloadSnapshot(
         i32 segmentId,
         TSnapshotInfo snapshotInfo,
-        TSnapshotWriter::TPtr snapshotWriter);
+        TAutoPtr<TFile> snapshotFile);
     EResult WriteSnapshot(
         i32 segmentId,
         i64 snapshotLength,
