@@ -77,7 +77,6 @@ TSnapshotReader::TSnapshotReader(
 
 void TSnapshotReader::Open()
 {
-    // TODO: extract method (here and in OpenRaw)
     Close();
 
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
@@ -93,33 +92,11 @@ void TSnapshotReader::Open()
     }
     PrevRecordCount = header.PrevRecordCount;
     Checksum = header.Checksum;
+    YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
     DecompressedInput.Reset(new TDecompressedInput(~FileInput));
     ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
-}
-
-void TSnapshotReader::OpenRaw(i64 offset)
-{
-    // TODO: extract method (here and in Open)
-    Close();
-
-    LOG_DEBUG("Opening snapshot reader %s", ~FileName);
-    File.Reset(new TFile(FileName, OpenExisting));
-    
-    TSnapshotHeader header;
-    Read(*File, &header);
-    header.Validate();
-    if (header.SegmentId != SegmentId) {
-        LOG_FATAL("Invalid snapshot id: expected %d, got %d",
-            SegmentId,
-            header.SegmentId);
-    }
-    PrevRecordCount = header.PrevRecordCount;
-    Checksum = header.Checksum;
-
-    File->Seek(offset + sizeof(header), sSet);
-    FileInput.Reset(new TBufferedFileInput(*File));
 }
 
 TInputStream& TSnapshotReader::GetStream() const
@@ -128,15 +105,9 @@ TInputStream& TSnapshotReader::GetStream() const
     return *ChecksummableInput;
 }
 
-TInputStream& TSnapshotReader::GetRawStream() const
-{
-    YASSERT(~FileInput != NULL);
-    return *FileInput;
-}
-
 i64 TSnapshotReader::GetLength() const
 {
-    return File->GetLength() - sizeof(TSnapshotHeader);
+    return File->GetLength();
 }
 
 void TSnapshotReader::Close()
@@ -173,7 +144,6 @@ TSnapshotWriter::TSnapshotWriter(Stroka fileName, i32 segmentId)
 
 void TSnapshotWriter::Open(i32 prevRecordCount)
 {
-    // TODO: extract method (here and in OpenRaw)
     PrevRecordCount = prevRecordCount;
     Close();
 
@@ -190,34 +160,10 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     Checksum = 0;
 }
 
-
-void TSnapshotWriter::OpenRaw(i32 prevRecordCount, TChecksum checksum)
-{
-    // TODO: extract method (here and in Open)
-    PrevRecordCount = prevRecordCount;
-    Close();
-
-    LOG_DEBUG("Opening snapshot writer %s", ~TempFileName);
-    File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
-    FileOutput.Reset(new TBufferedFileOutput(*File));
-
-    TSnapshotHeader header(SegmentId, PrevRecordCount);
-    Write(*FileOutput, header);
-
-    Checksum = checksum;
-}
-
-
 TOutputStream& TSnapshotWriter::GetStream() const
 {
     YASSERT(~ChecksummableOutput != NULL);
     return *ChecksummableOutput;
-}
-
-TOutputStream& TSnapshotWriter::GetRawStream() const
-{
-    YASSERT(~FileOutput != NULL);
-    return *FileOutput;
 }
 
 void TSnapshotWriter::Close()

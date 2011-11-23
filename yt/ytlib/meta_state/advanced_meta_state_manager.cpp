@@ -190,8 +190,6 @@ private:
             int prevRecordCount = reader->GetPrevRecordCount();
 
             response->SetLength(length);
-            response->SetPrevRecordCount(prevRecordCount);
-            response->SetChecksum(checksum);
 
             context->SetResponseInfo("Length: %" PRId64 ", PrevRecordCount: %d, Checksum: %" PRIx64,
                 length,
@@ -226,8 +224,8 @@ private:
         YASSERT(offset >= 0);
         YASSERT(length >= 0);
 
-        auto reader = SnapshotStore->GetReader(snapshotId);
-        if (~reader == NULL) {
+        auto snapshotFile = SnapshotStore->GetRawReader(snapshotId);
+        if (~snapshotFile == NULL) {
             ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
                 Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
         }
@@ -237,7 +235,7 @@ private:
                 &TImpl::DoReadSnapshot,
                 TPtr(this),
                 snapshotId,
-                reader,
+                snapshotFile,
                 offset,
                 length)));
     }
@@ -246,17 +244,17 @@ private:
     void DoReadSnapshot(
         TCtxReadSnapshot::TPtr context,
         i32 snapshotId,
-        TSnapshotReader::TPtr reader,
+        TAutoPtr<TFile> snapshotFile,
         i64 offset,
         i32 length) 
     {
         VERIFY_THREAD_AFFINITY(ReadThread);
 
         try {
-            reader->OpenRaw(offset);
-
+            snapshotFile->Seek(offset, sSet);
+            
             TBlob data(length);
-            i32 bytesRead = reader->GetRawStream().Read(data.begin(), length);
+            i32 bytesRead = snapshotFile->Read(data.begin(), length);
             data.erase(data.begin() + bytesRead, data.end());
 
             context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));

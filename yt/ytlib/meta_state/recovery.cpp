@@ -94,7 +94,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 TSnapshotDownloader::TConfig(),
                 CellManager);
 
-            auto snapshotWriter = SnapshotStore->GetWriter(snapshotId);
+            auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
             auto snapshotResult = snapshotDownloader.GetSnapshot(
                 snapshotId,
                 ~snapshotWriter);

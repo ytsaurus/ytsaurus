@@ -25,13 +25,16 @@ public:
     TSnapshotStore(Stroka location);
 
     //! Gets a reader for a given snapshot id.
-    /*!
-     *  Reader instances are cached.
-     */
-    TSnapshotReader::TPtr GetReader(int snapshotId);
+    TSnapshotReader::TPtr GetReader(int snapshotId) const;
 
     //! Gets a writer for a given snapshot id.
-    TSnapshotWriter::TPtr GetWriter(int snapshotId);
+    TSnapshotWriter::TPtr GetWriter(int snapshotId) const;
+
+    //! Gets a raw reader for a given snapshot id.
+    TAutoPtr<TFile> GetRawReader(int snapshotId) const;
+
+    //! Gets a writer for a given snapshot id.
+    TAutoPtr<TFile> GetRawWriter(int snapshotId) const;
 
     //! Returns the largest id of the snapshot that is known to exist locally.
     //! or #NonexistingSnapshotId if no snapshots are present.
@@ -40,7 +43,7 @@ public:
      *  
      *  \see #UpdateMaxSnapshotId.
      */
-    int GetMaxSnapshotId();
+    int GetMaxSnapshotId() const;
 
     //! Tells the store that a new snapshot was created.
     /*!
@@ -50,9 +53,9 @@ public:
 
 private:
     Stroka Location;
-    int CachedMaxSnapshotId;
+    mutable int CachedMaxSnapshotId;
 
-    Stroka GetSnapshotFileName(int snapshotId);
+    Stroka GetSnapshotFileName(int snapshotId) const;
 
 };
 
