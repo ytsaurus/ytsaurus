@@ -3,6 +3,7 @@
 #include "node_proxy.h"
 
 #include "../ytree/ypath_detail.h"
+#include "../ytree/ypath_client.h"
 
 namespace NYT {
 namespace NCypress {
@@ -10,7 +11,6 @@ namespace NCypress {
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NMetaState;
 using namespace NTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,13 +61,14 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
         ? TNodeId::FromProto(request->GetRootNodeId())
         : RootNodeId;
 
-    const auto& attachments = request->Attachments();
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto requestParts = requestMessage->GetParts();
+    YASSERT(!requestParts.empty());
 
     TYPath path;
     Stroka verb;
-    YASSERT(!attachments.empty());
     ParseYPathRequestHeader(
-        attachments[0],
+        requestParts[0],
         &path,
         &verb);
 
@@ -81,36 +82,29 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 
     auto root = CypressManager->FindNodeProxy(rootNodeId, transactionId);
     if (~root == NULL) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << Sprintf("Root node is not found (NodeId: %s)",
+        ythrow TServiceException(EErrorCode::NoSuchRootNode) << Sprintf("Root node is not found (NodeId: %s)",
             ~rootNodeId.ToString());
     }
 
     auto rootService = IYPathService::FromNode(~root);
 
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    try {
-        ResolveYPath(~rootService, path, verb, &suffixService, &suffixPath);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
-    }
+    ExecuteVerb(
+        ~rootService,
+        ~requestMessage,
+        ~CypressManager)
+    ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
+        {
+            auto responseParts = responseMessage->GetParts();
+            YASSERT(!responseParts.empty());
 
-    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
+            TError error;
+            ParseYPathResponseHeader(responseParts[0], &error);
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
-    auto innerContext = CreateYPathContext(
-        ~updatedRequestMessage,
-        suffixPath,
-        verb,
-        Logger.GetCategory(),
-        ~FromFunctor([=] (IMessage::TPtr responseMessage)
-            {
-                WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
-                context->Reply();
-            }));
+            context->SetRequestInfo("YPathError: %s", ~error.ToString());
 
-    CypressManager->ExecuteVerb(~suffixService, ~innerContext);
+            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
+            context->Reply();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

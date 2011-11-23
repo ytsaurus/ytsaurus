@@ -27,7 +27,6 @@ public:
 
 private:
     typedef TOrchidService TThis;
-    typedef TOrchidServiceProxy::EErrorCode EErrorCode;
 
     NYTree::INode::TPtr Root;
 

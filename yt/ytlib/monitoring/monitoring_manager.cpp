@@ -76,10 +76,7 @@ void TMonitoringManager::Update()
             TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
             pair.second->Do(&writer);
 
-            auto request = TYPathProxy::Set();
-            request->SetValue(output.Str());
-
-            ExecuteVerb(~newRootService, pair.first, ~request);
+            SyncExecuteYPathSet(~newRootService, pair.first, output.Str());
         }
 
         if (IsStarted) {

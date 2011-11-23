@@ -23,7 +23,7 @@ struct IChannel
     //! Sends a request via the channel.
     /*!
      *  \param request A request to send.
-     *  \param responseHandler An object that will handle a response (if any).
+     *  \param responseHandler An object that will handle a response.
      *  \param timeout Request processing timeout.
      */
     virtual void Send(

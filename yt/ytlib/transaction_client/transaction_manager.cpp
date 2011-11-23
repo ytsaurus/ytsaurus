@@ -94,7 +94,7 @@ public:
                 LOG_ERROR_AND_THROW(yexception(), 
                     ~Sprintf("Unable to commit transaction, details: %s", ~ErrorMessage));
             }
-            State = EState::Commiting;
+            State = EState::Committing;
         }
 
         auto req = Proxy.CommitTransaction();
@@ -186,7 +186,7 @@ private:
     DECLARE_ENUM(EState,
         (Active)
         (Aborted)
-        (Commiting)
+        (Committing)
         (Commited)
     );
 

@@ -350,7 +350,7 @@ void ResolveYPath(
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+            ythrow yexception() << Sprintf("Error resolving YPath (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
                 ~path,
                 ~verb,
                 ~ComputeResolvedYPath(path, currentPath),
@@ -387,6 +387,20 @@ void ParseYPathRequestHeader(
     *verb = header.GetVerb();
 }
 
+void ParseYPathResponseHeader(
+    TRef headerData,
+    TError* error)
+{
+    YASSERT(error != NULL);
+
+    TResponseHeader header;
+    if (!DeserializeProtobuf(&header, headerData)) {
+        LOG_FATAL("Error deserializing YPath response header");
+    }
+
+    *error = TError(header.GetErrorCode(), header.GetErrorMessage());
+}
+
 IMessage::TPtr UpdateYPathRequestHeader(
     IMessage* message,
     TYPath path,
@@ -398,6 +412,29 @@ IMessage::TPtr UpdateYPathRequestHeader(
     header.SetRequestId(TRequestId().ToProto());
     header.SetPath(path);
     header.SetVerb(verb);
+
+    TBlob headerData;
+    if (!SerializeProtobuf(&header, &headerData)) {
+        LOG_FATAL("Error serializing YPath request header");
+    }
+
+    auto parts = message->GetParts();
+    YASSERT(!parts.empty());
+    parts[0] = TSharedRef(MoveRV(headerData));
+
+    return CreateMessageFromParts(parts);
+}
+
+IMessage::TPtr UpdateYPathResponseHeader(
+    IMessage* message,
+    const TError& error)
+{
+    YASSERT(message != NULL);
+
+    TResponseHeader header;
+    header.SetRequestId(TRequestId().ToProto());
+    header.SetErrorCode(error.GetCode());
+    header.SetErrorMessage(error.GetMessage());
 
     TBlob headerData;
     if (!SerializeProtobuf(&header, &headerData)) {
