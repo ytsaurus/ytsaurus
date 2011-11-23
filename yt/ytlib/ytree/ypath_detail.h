@@ -283,10 +283,18 @@ void ParseYPathRequestHeader(
     TYPath* path,
     Stroka* verb);
 
+void ParseYPathResponseHeader(
+    TRef headerData,
+    NRpc::TError* error);
+
 NBus::IMessage::TPtr UpdateYPathRequestHeader(
     NBus::IMessage* message,
     NYTree::TYPath path,
     const Stroka& verb);
+
+NBus::IMessage::TPtr UpdateYPathResponseHeader(
+    NBus::IMessage* message,
+    const NRpc::TError& error);
 
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,

@@ -121,25 +121,31 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Executes a YPath verb against a local service.
+//! Asynchronously executes an untyped YPath verb against a given service.
+TFuture<NBus::IMessage::TPtr>::TPtr
+ExecuteVerb(
+    IYPathService* rootService,
+    NBus::IMessage* requestMessage,
+    IYPathExecutor* executor = ~GetDefaultExecutor());
+
+//! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
     IYPathService* rootService,
-    TYPath path,
     TTypedRequest* request,
     IYPathExecutor* executor = ~GetDefaultExecutor());
 
-//! Executes "Get" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
 
-//! Executes "Set" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value);
 
-//! Executes "Remove" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Remove" verb. Throws if an error has occurred.
 void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path);
 
-//! Executes "List" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,72 +156,29 @@ yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
 
 // TODO: move to ypath_client-inl.h
 
-#include "ypath_detail.h"
-
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTypedRequest, class TTypedResponse>
-void OnYPathResponse(
-    NBus::IMessage::TPtr responseMessage,
-    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse,
-    const Stroka& verb,
-    TYPath resolvedPath)
-{
-    auto response = New<TTypedResponse>();
-    response->Deserialize(~responseMessage);
-    if (!response->IsOK()) {
-        auto error = response->GetError();
-        Stroka message = Sprintf("Error executing YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
-            ~verb,
-            ~resolvedPath,
-            ~error.GetMessage());
-        response->SetError(NRpc::TError(error.GetCode(), message));
-    }
-    asyncResponse->Set(response);
-}
-
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
     IYPathService* rootService,
-    TYPath path,
     TTypedRequest* request,
     IYPathExecutor* executor)
 {
-    Stroka verb = request->GetVerb();
-
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
-
-    request->SetPath(suffixPath);
+    typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto requestMessage = request->Serialize();
-    auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
-
-    auto context = CreateYPathContext(
-        ~requestMessage,
-        suffixPath,
-        verb,
-        YTreeLogger.GetCategory(),
-        ~FromMethod(
-            &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
-            asyncResponse,
-            verb,
-            ComputeResolvedYPath(path, suffixPath)));
-
-    try {
-        executor->ExecuteVerb(~suffixService, ~context);
-    } catch (const NRpc::TServiceException& ex) {
-        context->Reply(NRpc::TError(
-            EYPathErrorCode(EYPathErrorCode::GenericError),
-            ex.what()));
-    }
-
-    return asyncResponse;
+    return
+        ExecuteVerb(rootService, ~requestMessage, executor)
+        ->Apply(FromFunctor([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse>
+            {
+                auto response = New<TTypedResponse>();
+                response->Deserialize(~responseMessage);
+                return response;
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

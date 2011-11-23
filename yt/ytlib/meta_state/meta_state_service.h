@@ -48,7 +48,7 @@ protected:
             {
                 context_->Reply(
                     NRpc::EErrorCode::Unavailable,
-                    "Error commiting meta state changes");
+                    "Error committing meta state changes");
             });
     }
 

@@ -136,13 +136,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Handles response for an RPC request.
 struct IClientResponseHandler
     : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
+    //! The delivery of the request has been successfully acknowledged.
     virtual void OnAcknowledgement() = 0;
+    //! The request has been replied with #EErrorCode::OK.
+    /*!
+     *  \param message A message containing the response.
+     */
     virtual void OnResponse(NBus::IMessage* message) = 0;
+    //! The request has failed.
+    /*!
+     *  \param error An error that has occurred.
+     */
     virtual void OnError(const TError& error) = 0;
 };
 

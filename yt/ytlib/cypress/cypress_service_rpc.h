@@ -23,7 +23,7 @@ public:
 
     RPC_DECLARE_PROXY(CypressService,
         ((NoSuchTransaction)(1))
-        ((ResolutionError)(2))
+        ((NoSuchRootNode)(2))
     );
 
     TCypressServiceProxy(NRpc::IChannel* channel)
