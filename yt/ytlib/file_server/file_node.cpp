@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_node.h"
 #include "file_node_proxy.h"
+#include "file_chunk_server_meta.pb.h"
 
 #include "../cypress/node_proxy.h"
 #include "../ytree/fluent.h"
@@ -11,6 +12,11 @@ namespace NFileServer {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
+using namespace NFileClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,12 +68,12 @@ public:
 
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const NCypress::TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         INode* manifest);
 
     virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
         const NCypress::ICypressNode& node,
-        const NTransaction::TTransactionId& transactionId);
+        const NTransactionServer::TTransactionId& transactionId);
 
 protected:
     virtual void DoDestroy(TFileNode& node);
@@ -119,9 +125,16 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
 void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
-    i64 size = chunk == NULL ? -1 : chunk->GetSize();
+
+    if (chunk == NULL || chunk->GetMasterMeta() == TSharedRef()) {
+        BuildYsonFluently(param.Consumer)
+            .Scalar(-1);
+        return;
+    }
+
+    auto meta = chunk->DeserializeMasterMeta<TChunkServerMeta>();
     BuildYsonFluently(param.Consumer)
-        .Scalar(size);
+        .Scalar(meta.GetSize());
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)

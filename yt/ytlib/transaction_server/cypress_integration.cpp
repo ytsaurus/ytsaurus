@@ -8,7 +8,7 @@
 
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 using namespace NYTree;
 using namespace NCypress;
@@ -67,5 +67,5 @@ NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

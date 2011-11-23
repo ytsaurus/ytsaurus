@@ -37,9 +37,9 @@ static NLog::TLogger Logger("CellMaster");
 
 using NRpc::CreateRpcServer;
 
-using NTransaction::TTransactionManager;
-using NTransaction::TTransactionService;
-using NTransaction::CreateTransactionMapTypeHandler;
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionService;
+using NTransactionServer::CreateTransactionMapTypeHandler;
 
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;

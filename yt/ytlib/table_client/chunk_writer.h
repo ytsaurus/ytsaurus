@@ -27,7 +27,7 @@ public:
 
     struct TConfig
     {
-        int BlockSize;
+        i64 BlockSize;
 
         TConfig()
             // ToDo: make configurable

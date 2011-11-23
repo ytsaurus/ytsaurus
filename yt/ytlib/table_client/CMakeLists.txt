@@ -1,6 +1,7 @@
 SET(YT_SOURCE_FILES
     common.cpp
-    chunk_meta.proto
+    table_chunk_meta.proto
+    table_chunk_server_meta.proto
     value.cpp
     schema.cpp
     channel_writer.cpp

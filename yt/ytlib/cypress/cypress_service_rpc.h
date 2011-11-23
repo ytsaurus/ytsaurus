@@ -36,7 +36,7 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         NYTree::TYPath path,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         TTypedRequest* innerRequest)
     {
         innerRequest->SetPath(path);
@@ -51,7 +51,7 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         const TNodeId& rootNodeId,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         TTypedRequest* innerRequest)
     {
         innerRequest->SetPath("/");

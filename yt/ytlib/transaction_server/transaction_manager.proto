@@ -1,10 +1,9 @@
-package NYT.NTransaction.NProto;
+package NYT.NTransactionServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TMsgStartTransaction
-{
-}
+{ }
 
 message TMsgCommitTransaction
 {

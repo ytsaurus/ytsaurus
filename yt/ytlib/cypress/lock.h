@@ -14,14 +14,14 @@ class TLock
 {
     DEFINE_BYVAL_RO_PROPERTY(TLockId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, NodeId);
-    DEFINE_BYVAL_RO_PROPERTY(NTransaction::TTransactionId, TransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(ELockMode, Mode);
 
 public:
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         ELockMode mode);
 
     TAutoPtr<TLock> Clone() const;

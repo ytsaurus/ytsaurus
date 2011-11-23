@@ -23,7 +23,7 @@ public:
         NCypress::INodeTypeHandler* typeHandler,
         NCypress::TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const;

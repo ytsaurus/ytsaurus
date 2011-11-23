@@ -9,7 +9,7 @@
 #include <util/ysaveload.h>
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 // TODO: get rid
 using NCypress::TNodeId;
@@ -69,5 +69,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

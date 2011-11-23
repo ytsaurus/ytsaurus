@@ -105,11 +105,11 @@ private:
     template <class T, bool TIsConfig>
     friend class NConfig::TParameter;
 
-    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> ParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
 
     void DoSetDefaults(bool skipRequiredParameters, const Stroka& path);
 
-    ParameterMap Parameters;
+    TParameterMap Parameters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

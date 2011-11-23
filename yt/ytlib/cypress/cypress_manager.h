@@ -35,7 +35,7 @@ public:
     TCypressManager(
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
-        NTransaction::TTransactionManager* transactionManager);
+        NTransactionServer::TTransactionManager* transactionManager);
 
     void RegisterNodeType(INodeTypeHandler* handler);
     INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
@@ -113,7 +113,7 @@ private:
 
     };
     
-    const NTransaction::TTransactionManager::TPtr TransactionManager;
+    const NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     TIdGenerator<TNodeId> NodeIdGenerator;
     NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
@@ -140,14 +140,14 @@ private:
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
-    void OnTransactionCommitted(const NTransaction::TTransaction& transaction);
-    void OnTransactionAborted(const NTransaction::TTransaction& transaction);
+    void OnTransactionCommitted(const NTransactionServer::TTransaction& transaction);
+    void OnTransactionAborted(const NTransactionServer::TTransaction& transaction);
 
-    void ReleaseLocks(const NTransaction::TTransaction& transaction);
-    void MergeBranchedNodes(const NTransaction::TTransaction& transaction);
-    void RemoveBranchedNodes(const NTransaction::TTransaction& transaction);
-    void UnrefOriginatingNodes(const NTransaction::TTransaction& transaction);
-    void CommitCreatedNodes(const NTransaction::TTransaction& transaction);
+    void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
+    void CommitCreatedNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
 

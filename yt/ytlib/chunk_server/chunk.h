@@ -3,8 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-
-#include <util/ysaveload.h>
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -34,6 +33,19 @@ public:
 
     i32 Ref();
     i32 Unref();
+
+    template <class TMeta>
+    TMeta DeserializeMasterMeta() const
+    {
+        TMeta meta;
+        if (!DeserializeProtobuf(&meta, MasterMeta_)) {
+            NLog::TLogger& Logger = ChunkServerLogger;
+            LOG_FATAL("Error deserializing chunk meta (ChunkId: %s, TypeName: %s)",
+                ~Id_.ToString(),
+                meta.GetTypeName().c_str());
+        }
+        return meta;
+    }
 
 private:
     i32 RefCounter;

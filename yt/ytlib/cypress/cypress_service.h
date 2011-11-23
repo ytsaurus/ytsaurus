@@ -21,7 +21,7 @@ public:
     TCypressService(
         IInvoker* invoker,
         TCypressManager* cypressManager,
-        NTransaction::TTransactionManager* transactionManager,
+        NTransactionServer::TTransactionManager* transactionManager,
         NRpc::IServer* server);
 
 private:
@@ -29,7 +29,7 @@ private:
     typedef TCypressServiceProxy::EErrorCode EErrorCode;
 
     TCypressManager::TPtr CypressManager;
-    NTransaction::TTransactionManager::TPtr TransactionManager;
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     void ValidateTransactionId(const TTransactionId& transactionId);
 

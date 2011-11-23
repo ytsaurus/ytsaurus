@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_reader.h"
 
-#include "chunk_meta.pb.h"
+#include "table_chunk_meta.pb.h"
 
 #include "../misc/foreach.h"
 #include "../actions/action_util.h"

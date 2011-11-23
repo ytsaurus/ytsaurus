@@ -2,14 +2,14 @@
 #include "transaction_manager.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 using namespace NMetaState;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TransactionLogger;
+static NLog::TLogger& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,5 +247,5 @@ METAMAP_ACCESSORS_IMPL(TTransactionManager, Transaction, TTransaction, TTransact
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

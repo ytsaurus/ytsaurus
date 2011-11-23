@@ -4,23 +4,20 @@
 #include "../misc/guid.h"
 #include "../logging/log.h"
 
+#include "../transaction_client/common.h"
+
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TransactionLogger;
+extern NLog::TLogger TransactionServerLogger;
+
+using NTransactionClient::TTransactionId;
+using NTransactionClient::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Identifies a transaction.
-typedef TGuid TTransactionId;
-
-//! Means "no transaction".
-extern TTransactionId NullTransactionId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT
 

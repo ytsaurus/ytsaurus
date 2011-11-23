@@ -21,6 +21,8 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NRpc;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkWriter");
@@ -44,11 +46,13 @@ struct TRemoteWriter::TNode
     TProxy Proxy;
     TDelayedInvoker::TCookie Cookie;
 
-    TNode(Stroka address, NRpc::IChannel* channel)
+    TNode(const Stroka& address, IChannel* channel, TDuration timeout)
         : IsAlive(true)
         , Address(address)
         , Proxy(channel)
-    { }
+    {
+        Proxy.SetTimeout(timeout);
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -417,8 +421,11 @@ TRemoteWriter::TRemoteWriter(
 void TRemoteWriter::InitializeNodes(const yvector<Stroka>& addresses)
 {
     FOREACH(const auto& address, addresses) {
-        Nodes.push_back(New<TNode>(address, ~HolderChannelCache->GetChannel(address)));
-        Nodes.back()->Proxy.SetTimeout(Config.RpcTimeout);
+        auto node = New<TNode>(
+            address,
+            ~HolderChannelCache->GetChannel(address),
+            Config.HolderRpcTimeout);
+        Nodes.push_back(node);
     }
 }
 
@@ -827,7 +834,7 @@ void TRemoteWriter::SchedulePing(int node)
             TPtr(this),
             node)
         ->Via(WriterThread->GetInvoker()),
-        Config.SessionTimeout);
+        Config.SessionPingInterval);
 }
 
 void TRemoteWriter::CancelPing(int node)

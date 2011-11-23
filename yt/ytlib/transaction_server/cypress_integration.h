@@ -7,7 +7,7 @@
 #include "../cypress/node.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +17,5 @@ NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

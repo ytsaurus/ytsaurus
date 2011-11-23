@@ -9,7 +9,7 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NCypress;
-using namespace NTransaction;
+using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NChunkServer;
 
@@ -78,7 +78,7 @@ public:
 
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const NCypress::TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         NYTree::INode* manifest)
     {
         UNUSED(transactionId);
@@ -91,7 +91,7 @@ public:
 
     virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
         const NCypress::ICypressNode& node,
-        const NTransaction::TTransactionId& transactionId)
+        const NTransactionServer::TTransactionId& transactionId)
     {
         return New<TTableNodeProxy>(
             this,

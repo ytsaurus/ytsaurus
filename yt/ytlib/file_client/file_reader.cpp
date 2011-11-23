@@ -1,13 +1,12 @@
 #include "stdafx.h"
-#include "transaction.h"
+#include "file_reader.h"
 
 namespace NYT {
-namespace NTransactionServer {
+namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
+} // namespace NFileClient
 } // namespace NYT
-

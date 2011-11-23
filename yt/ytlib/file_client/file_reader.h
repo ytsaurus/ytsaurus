@@ -1,13 +1,13 @@
-#include "stdafx.h"
-#include "transaction.h"
+#pragma once
+
+#include "common.h"
 
 namespace NYT {
-namespace NTransactionServer {
+namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
+} // namespace NFileClient
 } // namespace NYT
-

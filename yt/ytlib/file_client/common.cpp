@@ -1,13 +1,15 @@
 #include "stdafx.h"
-#include "transaction.h"
+#include "common.h"
 
 namespace NYT {
-namespace NTransactionServer {
+namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NLog::TLogger FileClientLogger("FileClient");
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
+} // namespace NFileClient
 } // namespace NYT
 

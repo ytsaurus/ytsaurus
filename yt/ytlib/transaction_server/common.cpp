@@ -2,16 +2,14 @@
 #include "common.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger TransactionLogger("Transaction");
-
-TTransactionId NullTransactionId(0, 0, 0, 0);
+NLog::TLogger TransactionServerLogger("TransactionServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT
 

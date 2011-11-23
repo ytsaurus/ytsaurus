@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "value.h"
-#include "chunk_meta.pb.h"
+#include "table_chunk_meta.pb.h"
 
 namespace NYT {
 namespace NTableClient {

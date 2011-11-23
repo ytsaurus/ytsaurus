@@ -201,6 +201,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
     ValidateTransactionId(transactionId);
 
     auto holderIds = ChunkManager->AllocateUploadTargets(replicaCount);
+    if (holderIds.ysize() < replicaCount) {
+        ythrow TServiceException(EErrorCode::NotEnoughHolders) << Sprintf("Not enough holders available (ReplicaCount: %d)",
+            replicaCount);
+    }
+
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = ChunkManager->GetHolder(holderId);
         response->AddHolderAddresses(holder.GetAddress());

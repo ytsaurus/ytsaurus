@@ -42,7 +42,7 @@ TTableWriter::TTableWriter(
     OnAborted = FromMethod(
         &TTableWriter::OnTransactionAborted,
         TPtr(this));
-    Transaction->SubscribeOnAborted(OnAborted);
+    Transaction->SubscribeAborted(OnAborted);
 
     if (!NodeExists(path)) {
         CreateTableNode(path);
@@ -122,7 +122,7 @@ void TTableWriter::Close()
             ~error.ToString());
     }
 
-    Transaction->UnsubscribeOnAborted(OnAborted);
+    Transaction->UnsubscribeAborted(OnAborted);
     // Drop cyclic reference.
     OnAborted.Reset();
 }

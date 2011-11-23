@@ -44,8 +44,8 @@ struct ITransaction
      */
     virtual TTransactionId GetId() const  = 0;
 
-    virtual bool SubscribeOnAborted(IAction::TPtr onAborted) = 0;
-    virtual void UnsubscribeOnAborted(IAction::TPtr onAborted) = 0;
+    virtual void SubscribeAborted(IAction::TPtr onAborted) = 0;
+    virtual void UnsubscribeAborted(IAction::TPtr onAborted) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

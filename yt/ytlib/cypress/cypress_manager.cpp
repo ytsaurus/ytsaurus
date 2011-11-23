@@ -12,7 +12,7 @@ namespace NCypress {
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
-using namespace NTransaction;
+using namespace NTransactionServer;
 using namespace NMetaState;
 using namespace NProto;
 

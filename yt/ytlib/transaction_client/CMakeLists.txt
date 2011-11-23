@@ -1,5 +1,5 @@
 SET(YT_SOURCE_FILES
-    common.h
+    common.cpp
     transaction.h
     transaction_manager.cpp
 )

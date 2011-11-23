@@ -21,9 +21,9 @@ namespace NChunkServer {
 using NMetaState::TMetaChange;
 using NMetaState::IMetaStateManager;
 using NMetaState::TCompositeMetaState;
-using NTransaction::TTransactionManager;
-using NTransaction::TTransactionId;
-using NTransaction::TTransaction;
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionId;
+using NTransactionServer::TTransaction;
 
 class TChunkManager
     : public TRefCountedBase

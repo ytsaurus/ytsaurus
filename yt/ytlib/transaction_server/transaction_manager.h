@@ -13,7 +13,7 @@
 #include "../meta_state/map.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 // TODO: get rid
 using NMetaState::TMetaChange;
@@ -94,5 +94,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

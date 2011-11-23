@@ -25,6 +25,7 @@ public:
     typedef TIntrusivePtr<TRemoteWriter> TPtr;
 
     struct TConfig
+        : TConfigBase
     {
         //! Maximum number of blocks that may be concurrently present in the window.
         int WindowSize;
@@ -37,20 +38,23 @@ public:
          *  This timeout is especially useful for PutBlocks calls to ensure that
          *  uploading is not stalled.
          */
-        TDuration RpcTimeout;
+        TDuration HolderRpcTimeout;
 
-        //! Timeout specifying a maxmimum allowed period of time without RPC request to ChunkHolder.
+        //! Timeout specifying a maximum allowed period of time without RPC request to ChunkHolder.
         /*!
-         * If no activity occured during this period, PingSession call will be sent.
+         * If no activity occurred during this period, PingSession call will be sent.
          */
-        TDuration SessionTimeout;
+        TDuration SessionPingInterval;
 
         TConfig()
-            : WindowSize(16)
-            , GroupSize(1024 * 1024)
-            , RpcTimeout(TDuration::Seconds(30))
-            , SessionTimeout(TDuration::Seconds(10))
-        { }
+        {
+            Register("window_size", WindowSize).Default(16).GreaterThan(0);
+            Register("group_size", GroupSize).Default(1024 * 1024).GreaterThan(0);
+            Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
+            Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
+
+            SetDefaults();
+        }
 
         void Read(TJsonObject* config);
     };
@@ -113,7 +117,6 @@ private:
     USE_RPC_PROXY_METHOD(TProxy, FlushBlock);
     USE_RPC_PROXY_METHOD(TProxy, PingSession);
 
-private:
     TChunkId ChunkId;
     const TConfig Config;
 
@@ -148,133 +151,57 @@ private:
     TMetric FlushBlockTiming;
     TMetric FinishChunkTiming;
 
-private:
     /*!
      * Invoked from #Close.
-     * \note Thread affinity: WriterThread
      * Sets #IsCloseRequested.
      */
     void DoClose(const TSharedRef& masterMeta);
     
     /*!
      * Invoked from #Cancel
-     * \note Thread affinity: WriterThread.
      */
     void DoCancel(const Stroka& errorMessage);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void AddGroup(TGroupPtr group);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnNodeDied(int node);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void ReleaseSlots(int count);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void ShiftWindow();
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnBlockFlushed(int node, int blockIndex);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
-
     void OnWindowShifted(int blockIndex);
-    /*!
-     * \note Thread affinity: ClientThread
-     */
+
     void InitializeNodes(const yvector<Stroka>& addresses);
 
-    /*!
-     * \note Thread affinity: ClientThread
-     */
     void StartSession();
 
-    /*!
-     * \note Thread affinity: ClientThread
-     */
     TInvStartChunk::TPtr StartChunk(int node);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnChunkStarted(int node);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnSessionStarted();
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void CloseSession();
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     TInvFinishChunk::TPtr FinishChunk(int node);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnChunkFinished(int node);
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void OnSessionFinished();
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void PingSession(int node);
-
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void SchedulePing(int node);
-
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void CancelPing(int node);
-
-     /*!
-     * \note Thread affinity: WriterThread
-     */
     void Shutdown();
-
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     void CancelAllPings();
 
-    /*!
-     * \note Thread affinity: WriterThread
-     */
     template<class TResponse>
     void CheckResponse(
         typename TResponse::TPtr rsp, 
