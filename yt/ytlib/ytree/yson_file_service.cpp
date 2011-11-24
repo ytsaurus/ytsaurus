@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "yson_file_service.h"
-#include "yson_reader.h"
+#include "serialize.h"
 #include "tree_builder.h"
 #include "ephemeral.h"
 
@@ -38,12 +38,7 @@ private:
     INode::TPtr LoadFile()
     {
         try {
-            auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-            builder->BeginTree();
-            TYsonReader reader(~builder);
-            TFileInput input(FileName);
-            reader.Read(&input);
-            return builder->EndTree();
+            return DeserializeFromYson(FileName, GetEphemeralNodeFactory());
         } catch (...) {
             throw yexception() << Sprintf("Error loading YSON file %s\n%s",
                 ~FileName,
