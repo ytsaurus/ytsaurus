@@ -123,6 +123,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     output <<
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/json\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
         "\r\n";
     TJsonAdapter adapter(&output);
     TYsonReader ysonReader(&adapter);
