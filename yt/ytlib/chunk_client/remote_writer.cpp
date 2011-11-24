@@ -625,16 +625,16 @@ void TRemoteWriter::OnNodeDied(int node)
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
-    LOG_INFO("Node is considered dead (ChunkId: %s, Address: %s, AliveNodeCount: %d)", 
+    LOG_INFO("Holder died (ChunkId: %s, Address: %s, AliveCount: %d)", 
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address,
         AliveNodeCount);
 
     if (State.IsActive() && AliveNodeCount == 0) {
         // ToDo: use error codes from rpc here.
-        DoCancel("All nodes died.");
+        DoCancel("All holders died");
 
-        LOG_WARNING("No alive nodes left, chunk writing failed (ChunkId: %s)",
+        LOG_WARNING("No alive holders left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
     }
 }
