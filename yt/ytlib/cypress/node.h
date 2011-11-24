@@ -236,9 +236,11 @@ struct ICypressNode
     virtual yhash_set<TLockId>& LockIds() = 0;
 
     //! Increments the reference counter, returns the incremented value.
-    virtual int Ref() = 0;
+    virtual i32 Ref() = 0;
     //! Decrements the reference counter, returns the decremented value.
-    virtual int Unref() = 0;
+    virtual i32 Unref() = 0;
+    //! Returns the current reference counter value.
+    virtual i32 GetRefCounter() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

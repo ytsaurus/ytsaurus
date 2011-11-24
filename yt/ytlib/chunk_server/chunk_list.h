@@ -14,54 +14,22 @@ class TChunkList
     DEFINE_BYVAL_RW_PROPERTY(i32, ReplicaCount);
 
 public:
-    TChunkList(const TChunkListId& id)
-        : Id_(id)
-        , ReplicaCount_(3)
-        , RefCounter(0)
-    { }
+    TChunkList(const TChunkListId& id);
 
-    TAutoPtr<TChunkList> Clone() const
-    {
-        return new TChunkList(*this);
-    }
+    TAutoPtr<TChunkList> Clone() const;
 
-    void Save(TOutputStream* output) const
-    {
-        //::Save(output, Id_);
-        ::Save(output, ChunkIds_);
-        ::Save(output, ReplicaCount_);
-        ::Save(output, RefCounter);
-    }
-
-    static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input)
-    {
-        TAutoPtr<TChunkList> chunkList = new TChunkList(id);
-        ::Load(input, chunkList->ChunkIds_);
-        ::Load(input, chunkList->ReplicaCount_);
-        ::Load(input, chunkList->RefCounter);
-        return chunkList;
-    }
+    void Save(TOutputStream* output) const;
+    static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input);
 
 
-    i32 Ref()
-    {
-        return ++RefCounter;
-    }
-
-    i32 Unref()
-    {
-        return --RefCounter;
-    }
+    i32 Ref();
+    i32 Unref();
+    i32 GetRefCounter() const;
 
 private:
     i32 RefCounter;
 
-    TChunkList(const TChunkList& other)
-        : Id_(other.Id_)
-        , ChunkIds_(other.ChunkIds_)
-        , ReplicaCount_(other.ReplicaCount_)
-        , RefCounter(other.RefCounter)
-    { }
+    TChunkList(const TChunkList& other);
 
 };
 

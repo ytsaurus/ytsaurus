@@ -16,6 +16,14 @@ TChunk::TChunk(const TChunkId& id)
     , RefCounter(0)
 { }
 
+TChunk::TChunk(const TChunk& other)
+    : Id_(other.Id_)
+    , ChunkListId_(other.ChunkListId_)
+    , Size_(other.Size_)
+    , Locations_(other.Locations_)
+    , RefCounter(other.RefCounter)
+{ }
+
 TAutoPtr<TChunk> TChunk::Clone() const
 {
     return new TChunk(*this);
@@ -65,13 +73,10 @@ i32 TChunk::Unref()
     return --RefCounter;
 }
 
-TChunk::TChunk(const TChunk& other)
-    : Id_(other.Id_)
-    , ChunkListId_(other.ChunkListId_)
-    , Size_(other.Size_)
-    , Locations_(other.Locations_)
-    , RefCounter(other.RefCounter)
-{ }
+i32 TChunk::GetRefCounter() const
+{
+    return RefCounter;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

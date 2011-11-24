@@ -52,6 +52,7 @@ private:
                             ? -1
                             : static_cast<i64>(chunk->GetMasterMeta().Size()))
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
+                        .Item("ref_counter").Scalar(chunk->GetRefCounter())
                     .EndMap();
             }));
     }
@@ -104,6 +105,7 @@ private:
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("replica_count").Scalar(chunkList->GetReplicaCount())
+                        .Item("ref_counter").Scalar(chunkList->GetRefCounter())
                     .EndMap();
             }));
     }

@@ -74,10 +74,15 @@ i32 TCypressNodeBase::Ref()
     return ++RefCounter;
 }
 
-i32  TCypressNodeBase::Unref()
+i32 TCypressNodeBase::Unref()
 {
     YASSERT(State_ != ENodeState::Branched);
     return --RefCounter;
+}
+
+i32 TCypressNodeBase::GetRefCounter() const
+{
+    return RefCounter;
 }
 
 void TCypressNodeBase::Save(TOutputStream* output) const

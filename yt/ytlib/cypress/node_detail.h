@@ -271,6 +271,7 @@ public:
 
     virtual i32 Ref();
     virtual i32 Unref();
+    virtual i32 GetRefCounter() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);

@@ -33,6 +33,7 @@ public:
 
     i32 Ref();
     i32 Unref();
+    i32 GetRefCounter() const;
 
     template <class TMeta>
     TMeta DeserializeMasterMeta() const
