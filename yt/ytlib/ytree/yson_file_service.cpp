@@ -52,7 +52,7 @@ private:
     }
 };
 
-TYPathServiceProducer::TPtr CreateYsonFileProducer(const Stroka& fileName)
+TYPathServiceProvider::TPtr CreateYsonFileProvider(const Stroka& fileName)
 {
     return FromFunctor([=] () -> IYPathService::TPtr
         {

@@ -22,11 +22,12 @@ public:
 
     virtual bool Reply(void* /*ThreadSpecificResource*/)
     {
-        if (strnicmp(~Headers[0], "GET ", 4) != 0) {
+        auto tokens = splitStroku(~Headers[0], " ");
+        if (tokens[0] != "GET") {
             Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";
             return true;
         }
-        auto path = Headers[0].substr(4);
+        auto path = tokens[1];
 
         FOREACH (auto pair, Handlers) {
             auto prefix = pair.First();
@@ -100,9 +101,15 @@ namespace {
 
 Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
 {
+    if (!response->IsOK()) {
+        return
+            "HTTP/1.1 500 Internal Server Error\r\n"
+            "Content-Type: text/plain\r\n"            "\r\n"
+            + response->GetError().ToString();
+    }
     TStringStream output;
     output <<
-        "HTTP/1.0 200 OK\r\n"
+        "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/json\r\n"
         "\r\n";
     TJsonAdapter adapter(&output);
@@ -114,19 +121,36 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     return output.Str();
 }
 
-TFuture<Stroka>::TPtr YTreeHandler(Stroka path, IYPathService::TPtr pathService)
+TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
 {
+    if (~pathService == NULL) {
+        return ToFuture(
+            Stroka(
+                "HTTP/1.1 503 YPath Service Unavailable\r\n"
+                "Content-Type: text/plain\r\n"                "\r\n"));
+    }
     auto request = TYPathProxy::Get();
     request->SetPath(path);
     auto response = ExecuteVerb(~pathService, ~request);
     return response->Apply(FromMethod(&OnResponse));
 }
 
+TFuture<Stroka>::TPtr YTreeHandler(
+    Stroka path,
+    TYPathServiceAsyncProvider::TPtr asyncProvider)
+{
+    return
+        asyncProvider
+        ->Do()
+        ->Apply(FromMethod(&AsyncGet, path));
+}
+
 } // namespace
 
-THttpTreeServer::THandler::TPtr GetYPathServiceHandler(IYPathService* pathService)
+THttpTreeServer::THandler::TPtr GetYPathServiceHandler(
+    TYPathServiceAsyncProvider::TPtr pathServiceAsyncProvider)
 {
-    return FromMethod(&YTreeHandler, IYPathService::TPtr(pathService));
+    return FromMethod(&YTreeHandler, pathServiceAsyncProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

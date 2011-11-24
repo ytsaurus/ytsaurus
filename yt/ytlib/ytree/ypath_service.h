@@ -58,7 +58,7 @@ struct IYPathService
     static IYPathService::TPtr FromProducer(TYsonProducer* producer);
 };
 
-typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProducer;
+typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 

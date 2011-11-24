@@ -66,7 +66,7 @@ using NFileServer::CreateFileTypeHandler;
 using NTableServer::CreateTableTypeHandler;
 
 using namespace NCypress;
-
+using namespace NMetaState;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,13 +162,13 @@ void TCellMasterServer::Run()
     auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
-            ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
+            ~NMonitoring::CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
         "monitoring");
     if (!Config.NewConfigFileName.empty()) {
         orchidRoot->AddChild(
             NYTree::CreateVirtualNode(
-                ~NYTree::CreateYsonFileProducer(Config.NewConfigFileName),
+                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
                 orchidFactory),
             "config");
     }
@@ -209,14 +209,27 @@ void TCellMasterServer::Run()
 
     // TODO: fix memory leaking
     auto httpServer = new THttpTreeServer(Config.MonitoringPort);
+    auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
         "/orchid",
-        GetYPathServiceHandler(~IYPathService::FromNode(~orchidRoot)));
+        GetYPathServiceHandler(
+            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+                {
+                    return orchidPathService;
+                })));
     httpServer->Register(
         "/cypress",
-        GetYPathServiceHandler(~IYPathService::FromNode(
-            ~cypressManager->GetNodeProxy(RootNodeId, NullTransactionId))));
-
+        GetYPathServiceHandler(
+            FromFunctor([=] () -> IYPathService::TPtr
+                {
+                    auto status = metaStateManager->GetStateStatus();
+                    if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
+                        return NULL;
+                    }
+                    return IYPathService::FromNode(
+                        ~cypressManager->GetNodeProxy(RootNodeId, NullTransactionId));
+                })
+            ->AsyncVia(metaStateManager->GetStateInvoker())));            
 
     httpServer->Start();
     metaStateManager->Start();
