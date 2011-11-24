@@ -183,10 +183,13 @@ protected:
             LockThunk(context);
         } else if (verb == "GetId") {
             GetIdThunk(context);
+        } else if (verb == "Create") {
+            CreateThunk(context);
         } else {
             TNodeBase::DoInvoke(context);
         }
     }
+
 
     RPC_SERVICE_METHOD_DECL(NProto, Lock)
     {
@@ -203,6 +206,18 @@ protected:
 
         response->SetNodeId(GetNodeId().ToProto());
         context->Reply();
+    }
+
+    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        if (NYTree::IsFinalYPath(context->GetPath())) {
+            ythrow yexception() << "Node already exists";
+        }
+
+        context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
     }
 
 
@@ -423,7 +438,9 @@ private:
     RPC_SERVICE_METHOD_DECL(NProto, Create)
     {
         if (NYTree::IsFinalYPath(context->GetPath())) {
-            ythrow yexception() << "Node already exists";
+            // This should throw an exception.
+            TBase::Create(request, response, context);
+            return;
         }
 
         Stroka typeName = request->GetType();
