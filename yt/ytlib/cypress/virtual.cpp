@@ -155,15 +155,12 @@ public:
     {
         UNUSED(transactionId);
 
-        TStringStream manifestStream;
-        TYsonWriter writer(&manifestStream, TYsonWriter::EFormat::Binary);
-        TTreeVisitor visitor(&writer);
-        visitor.Visit(manifest);
-
+        Stroka manifestString = SerializeToYson(manifest,
+            TYsonWriter::EFormat::Binary);
         return new TVirtualNode(
             TBranchedNodeId(nodeId, NullTransactionId),
             RuntimeType,
-            manifestStream.Str());
+            manifestString);
     }
 
     virtual TAutoPtr<ICypressNode> Create(

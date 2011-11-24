@@ -6,6 +6,7 @@
 #include "tree_builder.h"
 #include "yson_writer.h"
 #include "ypath_client.h"
+#include "serialize.h"
 
 namespace NYT {
 namespace NYTree {
@@ -106,7 +107,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
 {
     UNUSED(request);
-
+    
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
     TTreeVisitor visitor(&writer, false);
@@ -296,13 +297,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    builder->BeginTree();
-    TStringInput input(request->GetValue());
-    TYsonReader reader(~builder);
-    reader.Read(&input);
-    auto value = builder->EndTree();
-
+    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
     TMapNodeMixin::SetRecursive(path, ~value);
 }
 
@@ -360,13 +355,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, cons
 
 void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    builder->BeginTree();
-    TStringInput input(request->GetValue());
-    TYsonReader reader(~builder);
-    reader.Read(&input);
-    auto value = builder->EndTree();
-
+    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
     SetRecursive(path, ~value);
 }
 

@@ -9,7 +9,7 @@
 #include "../ytree/ypath_service.h"
 #include "../ytree/ypath_detail.h"
 #include "../ytree/node_detail.h"
-#include "../ytree/yson_reader.h"
+#include "../ytree/serialize.h"
 #include "../ytree/ephemeral.h"
 
 namespace NYT {
@@ -445,12 +445,8 @@ private:
 
         Stroka typeName = request->GetType();
 
-        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
-        builder->BeginTree();
-        TStringInput input(request->GetManifest());
-        NYTree::TYsonReader reader(~builder);
-        reader.Read(&input);
-        auto manifest = builder->EndTree();
+        auto manifest = NYTree::DeserializeFromYson(request->GetManifest(),
+            NYTree::GetEphemeralNodeFactory());
 
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
