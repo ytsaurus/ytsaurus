@@ -10,7 +10,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPathServiceProducer::TPtr CreateMonitoringProducer(
+NYTree::TYPathServiceProvider::TPtr CreateMonitoringProvider(
     TMonitoringManager* monitoringManager)
 {
     TMonitoringManager::TPtr monitoringManager_ = monitoringManager;

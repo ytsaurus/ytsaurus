@@ -73,9 +73,9 @@ class TVirtualEntityNode
 
 public:
     TVirtualEntityNode(
-        TYPathServiceProducer* builder,
+        TYPathServiceProvider* builder,
         INodeFactory* factory)
-        : Producer(builder)
+        : Provider(builder)
         , Factory(factory)
     { }
 
@@ -109,13 +109,13 @@ public:
         if (IsLocalYPath(path)) {
             return TNodeBase::Resolve(path, verb);
         } else {
-            auto service = Producer->Do();
+            auto service = Provider->Do();
             return TResolveResult::There(~service, path);
         }
     }
 
 private:
-    TYPathServiceProducer::TPtr Producer;
+    TYPathServiceProvider::TPtr Provider;
     INodeFactory* Factory;
 
     ICompositeNode* Parent;
@@ -124,10 +124,10 @@ private:
 };
 
 INode::TPtr CreateVirtualNode(
-    TYPathServiceProducer* producer,
+    TYPathServiceProvider* provider,
     INodeFactory* factory)
 {
-    return New<TVirtualEntityNode>(producer, factory);
+    return New<TVirtualEntityNode>(provider, factory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

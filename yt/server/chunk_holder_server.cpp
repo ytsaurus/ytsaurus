@@ -49,13 +49,13 @@ void TChunkHolderServer::Run()
     auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
-            ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
+            ~NMonitoring::CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
         "monitoring");
     if (!Config.NewConfigFileName.empty()) {
         orchidRoot->AddChild(
             NYTree::CreateVirtualNode(
-                ~NYTree::CreateYsonFileProducer(Config.NewConfigFileName),
+                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
                 orchidFactory),
             "config");
     }
