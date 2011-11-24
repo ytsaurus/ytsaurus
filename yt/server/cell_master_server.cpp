@@ -211,16 +211,16 @@ void TCellMasterServer::Run()
     auto httpServer = new THttpTreeServer(Config.MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
-        "/orchid",
-        GetYPathServiceHandler(
-            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+        "orchid",
+        GetYPathHttpHandler(
+            ~FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
                 {
                     return orchidPathService;
                 })));
     httpServer->Register(
-        "/cypress",
-        GetYPathServiceHandler(
-            FromFunctor([=] () -> IYPathService::TPtr
+        "cypress",
+        GetYPathHttpHandler(
+            ~FromFunctor([=] () -> IYPathService::TPtr
                 {
                     auto status = metaStateManager->GetStateStatus();
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {

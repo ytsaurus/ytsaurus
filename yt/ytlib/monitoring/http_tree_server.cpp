@@ -4,6 +4,7 @@
 #include "../ytree/json_adapter.h"
 #include "../ytree/ypath_rpc.h"
 #include "../ytree/yson_reader.h"
+#include "../ytree/ypath_detail.h"
 
 namespace NYT {
 namespace NMonitoring {
@@ -23,25 +24,35 @@ public:
     virtual bool Reply(void* /*ThreadSpecificResource*/)
     {
         auto tokens = splitStroku(~Headers[0], " ");
-        if (tokens[0] != "GET") {
+        Stroka verb = tokens[0];
+
+        if (verb != "GET") {
             Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";
             return true;
         }
+
         auto path = tokens[1];
 
-        FOREACH (auto pair, Handlers) {
-            auto prefix = pair.First();
-            if (path.has_prefix(prefix)) {
-                auto suffix = path.substr(prefix.length());
-                auto handler = pair.Second();
-                auto future = handler->Do(suffix);
-                auto result = future->Get();
-                Output() << result;
+        if (!path.empty() && path[0] == '/') {
+            Stroka prefix;
+            TYPath suffixPath;
+            ChopYPathToken(ChopYPathRootMarker(path), &prefix, &suffixPath);
 
+            auto it = Handlers.find(prefix);
+            if (it != Handlers.end()) {
+                auto handler = it->Second();
+                auto result = handler->Do("/" + suffixPath)->Get();
+                Output() << result;
                 return true;
             }
         }
-        return false;
+
+        Output() << "HTTP/1.1 404 Not Found\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
+            "Unrecognized prefix";
+
+        return true;
     }
 
 
@@ -104,7 +115,8 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     if (!response->IsOK()) {
         return
             "HTTP/1.1 500 Internal Server Error\r\n"
-            "Content-Type: text/plain\r\n"            "\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
             + response->GetError().ToString();
     }
     TStringStream output;
@@ -124,10 +136,11 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
 TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
 {
     if (~pathService == NULL) {
-        return ToFuture(
-            Stroka(
-                "HTTP/1.1 503 YPath Service Unavailable\r\n"
-                "Content-Type: text/plain\r\n"                "\r\n"));
+        return ToFuture(Stroka(
+            "HTTP/1.1 503 Service Unavailable\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
+            "Service unavailable"));
     }
     auto request = TYPathProxy::Get();
     request->SetPath(path);
@@ -147,10 +160,10 @@ TFuture<Stroka>::TPtr YTreeHandler(
 
 } // namespace
 
-THttpTreeServer::THandler::TPtr GetYPathServiceHandler(
-    TYPathServiceAsyncProvider::TPtr pathServiceAsyncProvider)
+THttpTreeServer::THandler::TPtr GetYPathHttpHandler(
+    TYPathServiceAsyncProvider* asyncProvider)
 {
-    return FromMethod(&YTreeHandler, pathServiceAsyncProvider);
+    return FromMethod(&YTreeHandler, asyncProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

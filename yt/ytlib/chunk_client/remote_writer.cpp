@@ -655,7 +655,7 @@ void TRemoteWriter::CheckResponse(
     } 
 
     // TODO: retry?
-    LOG_ERROR("Error reported by node (ChunkId: %s, Address: %s, Error: %s)", 
+    LOG_ERROR("Error reported by holder (ChunkId: %s, Address: %s)\n%s", 
         ~ChunkId.ToString(),
         ~Nodes[node]->Address, 
         ~rsp->GetError().ToString());
@@ -714,7 +714,7 @@ void TRemoteWriter::OnSessionStarted()
         return;
     }
 
-    LOG_DEBUG("Writer ready (ChunkId: %s)", 
+    LOG_DEBUG("Writer is ready (ChunkId: %s)", 
         ~ChunkId.ToString());
 
     IsInitComplete = true;
@@ -775,7 +775,7 @@ void TRemoteWriter::OnChunkFinished(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk finished (ChunkId: %s, Address: %s)",
+    LOG_DEBUG("Chunk is finished (ChunkId: %s, Address: %s)",
         ~ChunkId.ToString(), 
         ~Nodes[node]->Address);
 }

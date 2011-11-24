@@ -245,6 +245,8 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath ChopYPathRootMarker(TYPath path);
+
 void ChopYPathToken(
     TYPath path,
     Stroka* prefix,

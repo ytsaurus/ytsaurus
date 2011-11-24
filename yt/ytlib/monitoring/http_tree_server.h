@@ -35,10 +35,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef IFunc<TFuture<NYTree::IYPathService::TPtr>::TPtr> TYPathServiceAsyncProvider;
-
-THttpTreeServer::THandler::TPtr GetYPathServiceHandler(
-     TYPathServiceAsyncProvider::TPtr pathServiceAsyncProvider);
+THttpTreeServer::THandler::TPtr GetYPathHttpHandler(
+     NYTree::TYPathServiceAsyncProvider* asyncProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

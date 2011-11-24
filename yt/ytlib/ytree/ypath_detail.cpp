@@ -179,6 +179,19 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath ChopYPathRootMarker(TYPath path)
+{
+    if (path.empty()) {
+        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
+    }
+
+    if (path[0] != '/') {
+        ythrow yexception() << "YPath must start with \"/\"";
+    }
+
+    return path.substr(1);
+}
+
 void ChopYPathToken(
     TYPath path,
     Stroka* prefix,
@@ -221,19 +234,6 @@ TYPath ComputeResolvedYPath(
         resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
         ? wholePath.substr(0, resolvedLength - 1)
         : wholePath.substr(0, resolvedLength);
-}
-
-TYPath ParseYPathRoot(TYPath path)
-{
-    if (path.empty()) {
-        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
-    }
-
-    if (path[0] != '/') {
-        ythrow yexception() << "YPath must start with \"/\"";
-    }
-
-    return path.substr(1);
 }
 
 bool IsEmptyYPath(TYPath path)
@@ -343,7 +343,7 @@ void ResolveYPath(
     YASSERT(suffixPath != NULL);
 
     IYPathService::TPtr currentService = rootService;
-    auto currentPath = ParseYPathRoot(path);
+    auto currentPath = ChopYPathRootMarker(path);
 
     while (true) {
         IYPathService::TResolveResult result;
