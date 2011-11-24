@@ -27,6 +27,7 @@ class FileDescr(object):
             self.method= method
 
 Config = FileDescr('config', ('remote', ), 'json', 'makeConfig')
+YsonConfig = FileDescr('yson_config', ('remote', ), 'yson', 'ysonConfig')
 Run = FileDescr('run', ('aggregate', 'exec', ))
 Stop = FileDescr('stop', ('aggregate', 'exec', ))
 Clean = FileDescr('clean', ('aggregate', 'exec', ))
@@ -68,6 +69,10 @@ class Node(AggrBase):
     def makeConfig(cls, fd):
         import json
         json.dump(cls.config, fd, indent=4)
+
+    def ysonConfig(cls, fd):
+        import yson
+        yson.dump(cls.config, fd, indent='  ')
         
     def makeFiles(cls):
         for descr in cls.files:
@@ -89,7 +94,7 @@ class ServerNode(Node):
         
 ##################################################################
     
-def make_aggregate(node, runcmd):
+def make_aggregate(node, runcmd, footer=''):
     if node.__leafs:
         # make list of file descriptions
         names = set()
@@ -105,7 +110,8 @@ def make_aggregate(node, runcmd):
                     for descr in l.files:
                         if name == descr.name:
                             print >>fd, runcmd(l.local_path(descr.filename))
-                print >>fd, 'wait'
+                if footer:
+                    print >>fd, footer
             make_executable(fd.name)
 
     for scls in node.__subclasses__():

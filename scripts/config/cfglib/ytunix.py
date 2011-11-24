@@ -23,7 +23,7 @@ cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
 class UnixNode(ServerNode):
-    files = [Config, Prepare, Run, Clean, Stop]
+    files = [Config, YsonConfig, Prepare, Run, Clean, Stop]
 
     @initmethod
     def init(cls):
