@@ -21,6 +21,7 @@
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/ytree_integration.h>
+#include <yt/ytlib/monitoring/http_tree_server.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -30,6 +31,7 @@
 #include <yt/ytlib/table_server/table_node.h>
 
 #include <yt/ytlib/ytree/yson_file_service.h>
+#include <yt/ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 
@@ -55,13 +57,17 @@ using NCypress::TCypressManager;
 using NCypress::TCypressService;
 using NCypress::CreateLockMapTypeHandler;
 
-using NMonitoring::TMonitoringManager;
+using namespace NMonitoring;
 
 using NOrchid::CreateOrchidTypeHandler;
 
 using NFileServer::CreateFileTypeHandler;
 
 using NTableServer::CreateTableTypeHandler;
+
+using namespace NCypress;
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,11 +207,18 @@ void TCellMasterServer::Run()
         ~cypressManager,
         ~chunkManager));
 
-    auto monitoringServer = new THttpTreeServer(
-        monitoringManager->GetProducer(),
-        Config.MonitoringPort);
+    // TODO: fix memory leaking
+    auto httpServer = new THttpTreeServer(Config.MonitoringPort);
+    httpServer->Register(
+        "/orchid",
+        GetYPathServiceHandler(~IYPathService::FromNode(~orchidRoot)));
+    httpServer->Register(
+        "/cypress",
+        GetYPathServiceHandler(~IYPathService::FromNode(
+            ~cypressManager->GetNodeProxy(RootNodeId, NullTransactionId))));
 
-    monitoringServer->Start();
+
+    httpServer->Start();
     metaStateManager->Start();
     rpcServer->Start();
 
