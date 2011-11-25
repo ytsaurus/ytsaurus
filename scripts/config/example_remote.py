@@ -34,7 +34,6 @@ class Base(AggrBase):
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
     
 class Server(Base, RemoteServer):
-    files = RemoteServer.files + [Yson]
     bin_path = '/home/yt/src/yt/server/server'
     
 class Master(Server):
