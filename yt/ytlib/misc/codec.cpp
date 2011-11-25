@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "codec.h"
 
+#include "assert.h"
+
 #include <contrib/libs/snappy/snappy.h>
 
 namespace NYT {
