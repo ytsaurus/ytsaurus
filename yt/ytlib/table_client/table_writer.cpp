@@ -19,7 +19,7 @@ TTableWriter::TTableWriter(
     const TConfig& config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
-    const ICodec& codec,
+    const ECodecId codecId,
     const TSchema& schema,
     const Stroka& path)
     : Config(config)
@@ -29,7 +29,7 @@ TTableWriter::TTableWriter(
     , Writer(New<TChunkSequenceWriter>(
         config.ChunkSetConfig, 
         schema, 
-        codec, 
+        codecId, 
         Transaction->GetId(), 
         MasterChannel))
     , Proxy(~masterChannel)

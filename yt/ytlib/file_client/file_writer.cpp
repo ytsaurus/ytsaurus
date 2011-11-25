@@ -164,6 +164,7 @@ void TFileWriter::Close()
     TChunkServerMeta meta;
     meta.SetBlockCount(BlockCount);
     meta.SetSize(Size);
+    meta.SetCodecId(Config.CodecId);
     TBlob metaBlob;
     SerializeProtobuf(&meta, &metaBlob);
 
@@ -202,7 +203,9 @@ void TFileWriter::FlushBlock()
     LOG_INFO("Writing file block (BlockIndex: %d)", BlockCount);
 
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, TSharedRef(MoveRV(Buffer)));
+        auto& codec = ICodec::GetCodec(Config.CodecId);
+        auto compressedBlock = codec.Encode(MoveRV(Buffer));
+        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBlock);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ~CurrentExceptionMessage());

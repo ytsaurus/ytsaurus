@@ -39,7 +39,7 @@ public:
         const TConfig& config, 
         NChunkClient::IAsyncWriter::TPtr chunkWriter, 
         const TSchema& schema,
-        const ICodec& codec);
+        ECodecId codecId);
     ~TChunkWriter();
 
     // TODO: -> Open
@@ -71,7 +71,7 @@ private:
 private:
     const TConfig Config;
     const TSchema Schema;
-    const ICodec& Codec;
+    ECodecId CodecId;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 

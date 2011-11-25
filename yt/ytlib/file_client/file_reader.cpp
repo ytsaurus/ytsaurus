@@ -62,6 +62,8 @@ TFileReader::TFileReader(
     Size = getChunkResponse->GetSize();
     auto addresses = FromProto<Stroka>(getChunkResponse->GetHolderAddresses());
 
+    CodecId = ECodecId::None; // TODO: fill in CodecId from server meta
+
     LOG_INFO("File chunk information received (ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s])",
         ~ChunkId.ToString(),
         BlockCount,
@@ -118,10 +120,13 @@ TSharedRef TFileReader::Read()
             "--here come the details--");
     }
 
+    auto& codec = ICodec::GetCodec(CodecId);
+    auto decompressedBlock = codec.Decode(result.Block);
+
     LOG_INFO("File block is read");
 
     ++BlockIndex;
-    return result.Block;
+    return decompressedBlock;
 }
 
 i64 TFileReader::GetSize() const

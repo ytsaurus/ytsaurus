@@ -23,11 +23,6 @@ public:
         return block;
     }
 
-    virtual TCodecId GetId() const
-    {
-        return 0;
-    }
-
     static const TTrivialCodec* GetInstance()
     {
         return Singleton<TTrivialCodec>();
@@ -59,11 +54,6 @@ public:
         return TSharedRef(MoveRV(blob));
     }
 
-    virtual TCodecId GetId() const
-    {
-        return 1;
-    }
-
     static const TSnappyCodec* GetInstance()
     {
         return Singleton<TSnappyCodec>();
@@ -72,13 +62,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ICodec& ICodec::GetCodec(TCodecId id)
+const ICodec& ICodec::GetCodec(ECodecId id)
 {
     switch (id) {
-        case 0:
+        case ECodecId::None:
             return *TTrivialCodec::GetInstance();
 
-        case 1:
+        case ECodecId::Snappy:
             return *TSnappyCodec::GetInstance();
 
         default:

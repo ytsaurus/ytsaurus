@@ -22,10 +22,10 @@ TChunkWriter::TChunkWriter(
     const TConfig& config, 
     NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema,
-    const ICodec& codec)
+    ECodecId codecId)
     : Config(config)
     , Schema(schema)
-    , Codec(codec)
+    , CodecId(codecId)
     , ChunkWriter(chunkWriter)
     , CurrentBlockIndex(0)
     , SentSize(0)
@@ -105,7 +105,8 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto data = Codec.Encode(channel->FlushBlock());
+    auto& codec = ICodec::GetCodec(CodecId);
+    auto data = codec.Encode(channel->FlushBlock());
     SentSize += data.Size();
     ++CurrentBlockIndex;
 
@@ -155,7 +156,7 @@ void TChunkWriter::ContinueClose(
         }
     }
 
-    ChunkMeta.SetCodecId(Codec.GetId());
+    ChunkMeta.SetCodecId(CodecId);
 
     TBlob metaBlob;
     if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
