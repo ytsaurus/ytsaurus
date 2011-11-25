@@ -32,7 +32,7 @@ SET(YT_SOURCE_FILES
     intrusive_ptr.h
     singleton.h
     rvalue.h
-    codec.h
+    codec.cpp
     async_stream_state.cpp
     cyclic_buffer.h
     mpl.h

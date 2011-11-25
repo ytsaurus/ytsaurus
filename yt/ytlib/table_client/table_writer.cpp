@@ -19,7 +19,7 @@ TTableWriter::TTableWriter(
     const TConfig& config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
-    ICodec* codec,
+    const ICodec& codec,
     const TSchema& schema,
     const Stroka& path)
     : Config(config)

@@ -33,7 +33,7 @@ public:
         const TConfig& config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
-        ICodec* codec,
+        const ICodec& codec,
         const TSchema& schema,
         const Stroka& path);
 

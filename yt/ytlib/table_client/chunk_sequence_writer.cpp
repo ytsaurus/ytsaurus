@@ -15,7 +15,7 @@ using namespace NChunkClient;
 TChunkSequenceWriter::TChunkSequenceWriter(
     const TConfig& config,
     const TSchema& schema,
-    ICodec* codec,
+    const ICodec& codec,
     const TTransactionId& transactionId,
     NRpc::IChannel::TPtr masterChannel)
     : Config(config)

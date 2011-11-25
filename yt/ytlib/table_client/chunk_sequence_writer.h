@@ -54,7 +54,7 @@ public:
     TChunkSequenceWriter(
         const TConfig& config,
         const TSchema& schema,
-        ICodec* codec,
+        const ICodec& codec,
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
@@ -88,7 +88,7 @@ private:
 
     const TConfig Config;
     const TSchema Schema;
-    ICodec* Codec;
+    const ICodec& Codec;
     const NTransactionClient::TTransactionId TransactionId;
 
     TAsyncStreamState State;

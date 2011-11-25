@@ -22,7 +22,7 @@ TChunkWriter::TChunkWriter(
     const TConfig& config, 
     NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema,
-    ICodec* codec)
+    const ICodec& codec)
     : Config(config)
     , Schema(schema)
     , Codec(codec)
@@ -32,8 +32,7 @@ TChunkWriter::TChunkWriter(
     , CurrentSize(0)
 {
     YASSERT(~chunkWriter != NULL);
-    YASSERT(codec != NULL);
-
+    
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
@@ -106,7 +105,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto data = Codec->Encode(channel->FlushBlock());
+    auto data = Codec.Encode(channel->FlushBlock());
     SentSize += data.Size();
     ++CurrentBlockIndex;
 
@@ -156,7 +155,7 @@ void TChunkWriter::ContinueClose(
         }
     }
 
-    ChunkMeta.SetCodecId(Codec->GetId());
+    ChunkMeta.SetCodecId(Codec.GetId());
 
     TBlob metaBlob;
     if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
