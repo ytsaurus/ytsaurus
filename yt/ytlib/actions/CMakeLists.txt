@@ -1,27 +1,26 @@
-SET(YT_SOURCE_FILES
-    action.cpp
-    action_util.h
-    action-inl.h
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action.cpp
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action-inl.h
 
-    action_queue.cpp
-    invoker.h
-    invoker_util.cpp
-    future.h
-    future-inl.h
-    parallel_awaiter.h
-    parallel_awaiter-inl.h
-    signal.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_queue.cpp
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/invoker.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/invoker_util.cpp
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/future.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/future-inl.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/parallel_awaiter.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/parallel_awaiter-inl.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/signal.h
 
-    common.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/common.h
 
-    action_util.h
-    ${SRCDIR}/action_util-gen.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util.h
+  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
 )
 
 ADD_CUSTOM_COMMAND(
-    OUTPUT  ${SRCDIR}/action_util-gen.h
-    COMMAND ${PYTHON} ${ARCADIA_ROOT}/scripts/pump.py ${SRCDIR}/action_util-gen.h.pump > ${SRCDIR}/action_util-gen.h
-    DEPENDS ${SRCDIR}/action_util-gen.h.pump
+    OUTPUT  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h.pump > ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h.pump
     COMMENT "Regenerating action_util-gen.h..."
 )
-

@@ -1,7 +1,8 @@
-SET(YT_SOURCE_FILES
-    election_manager.cpp
-    election_manager_rpc.proto
-    election_manager_rpc.h
-    leader_lookup.cpp
-    common.h
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager_rpc.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/leader_lookup.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/common.h
 )
+
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager_rpc.proto YT_SOURCE_FILES )

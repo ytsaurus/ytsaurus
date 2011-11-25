@@ -1,9 +1,10 @@
-SET(YT_SOURCE_FILES
-    common.cpp
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/common.cpp
 
-    orchid_service.cpp
-    orchid_service_rpc.h
-    orchid_service_rpc.proto
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service_rpc.h
 
-    cypress_integration.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/cypress_integration.cpp
 )
+
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service_rpc.proto YT_SOURCE_FILES )

@@ -1,26 +1,27 @@
-SET(YT_SOURCE_FILES
-    common.cpp
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/common.cpp
 
-    node.cpp
-    node_detail.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_detail.cpp
 
-    node_proxy.cpp
-    node_proxy_detail.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_proxy.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_proxy_detail.cpp
 
-    lock.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/lock.cpp
 
-    cypress_manager.cpp
-    cypress_manager.proto
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_manager.cpp
 
-    cypress_service.cpp
-    cypress_service_rpc.h
-    cypress_service_rpc.proto
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc.h
 
-    virtual.cpp
-    world_initializer.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/virtual.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/world_initializer.cpp
 
-    cypress_integration.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_integration.cpp
 
-    cypress_ypath_rpc.proto
-    cypress_ypath_rpc.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.h
 )
+
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.proto YT_SOURCE_FILES )
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc.proto YT_SOURCE_FILES )
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_manager.proto YT_SOURCE_FILES )

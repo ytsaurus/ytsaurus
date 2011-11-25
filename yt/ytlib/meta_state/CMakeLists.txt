@@ -1,55 +1,56 @@
-SET(YT_SOURCE_FILES
-    common.cpp
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/common.cpp
 
-    meta_state.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state.h
 
-    decorated_meta_state.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/decorated_meta_state.cpp
 
-    meta_state_manager.cpp
-    meta_state_manager.proto
-    meta_state_manager_rpc.proto
-    meta_state_manager_rpc.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager_rpc.h
 
-    snapshot.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot.cpp
 
-    change_log.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log.cpp
 
-    change_committer.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_committer.cpp
 
-    async_change_log.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/async_change_log.cpp
 
-    change_log_downloader.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log_downloader.cpp
 
-    change_log_cache.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log_cache.cpp
 
-    snapshot_creator.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_creator.cpp
 
-    snapshot_downloader.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_downloader.cpp
 
-    snapshot_store.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_store.cpp
 
-    recovery.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/recovery.cpp
 
-    follower_tracker.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/follower_tracker.cpp
 
-    cell_manager-inl.h
-    cell_manager.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager-inl.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager.cpp
    
-    cell_channel.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_channel.cpp
 
-    leader_pinger.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/leader_pinger.cpp
 
-    map.h
-    map-inl.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map-inl.h
     
-    composite_meta_state-inl.h
-    composite_meta_state.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state-inl.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state.cpp
 
-    composite_meta_state_detail.cpp
-    composite_meta_state_detail-inl.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state_detail.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state_detail-inl.h
 
-    meta_change.h
-    meta_change-inl.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_change.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_change-inl.h
     
-    meta_state_service.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_service.h
 )
+
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager.proto YT_SOURCE_FILES )
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager_rpc.proto YT_SOURCE_FILES )

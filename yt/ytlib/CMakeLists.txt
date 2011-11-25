@@ -1,83 +1,40 @@
-LIBRARY(ytlib)
 
-IF(CMAKE_COMPILER_IS_GNUXX)
-    SET(CMAKE_CXX_FLAGS "-std=c++0x")
-ENDIF(CMAKE_COMPILER_IS_GNUXX)
+include(actions/CMakeLists.txt)
+include(election/CMakeLists.txt)
+include(chunk_holder/CMakeLists.txt)
+include(chunk_client/CMakeLists.txt)
+include(chunk_server/CMakeLists.txt)
+include(transaction_server/CMakeLists.txt)
+include(transaction_client/CMakeLists.txt)
+include(logging/CMakeLists.txt)
+include(meta_state/CMakeLists.txt)
+include(misc/CMakeLists.txt)
+include(rpc/CMakeLists.txt)
+include(bus/CMakeLists.txt)
+include(ytree/CMakeLists.txt)
+include(cypress/CMakeLists.txt)
+include(orchid/CMakeLists.txt)
+include(file_server/CMakeLists.txt)
+include(table_server/CMakeLists.txt)
+include(table_client/CMakeLists.txt)
+include(monitoring/CMakeLists.txt)
 
-SET(HEADERS "")
-
-MACRO(YT_SUBDIRECTORY DIR)
-    SET(YT_SOURCE_FILES "")
-    SET(YT_SOURCE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${DIR})
-
-    # Alter ${SRCDIR} for included script.
-    SET(SAVED_SRCDIR ${SRCDIR})
-    SET(SRCDIR ${SRCDIR}/${DIR})
-    INCLUDE(${DIR}/CMakeLists.txt)
-    SET(SRCDIR ${SAVED_SRCDIR})
-
-    # Plug defined source files in the main build.
-    FOREACH(__file_ ${YT_SOURCE_FILES})
-        GET_FILENAME_COMPONENT(__file_path_ ${__file_} PATH)
-        GET_FILENAME_COMPONENT(__file_name_ ${__file_} NAME)
-        GET_FILENAME_COMPONENT(__file_ext_ ${__file_} EXT)
-
-        IF ("X${__file_path_}X" STREQUAL "XX")
-            SET(__file_path_ "${YT_SOURCE_DIRECTORY}")
-        ENDIF ("X${__file_path_}X" STREQUAL "XX")
-
-        IF ("${__file_ext_}" STREQUAL ".h")
-            SET_APPEND(HEADERS "${__file_path_}/${__file_name_}")
-        ENDIF ("${__file_ext_}" STREQUAL ".h")
-
-        SET_APPEND(SRCS "${__file_path_}/${__file_name_}")
-    ENDFOREACH(__file_)
-
-    UNSET(YT_SOURCE_FILES)
-    UNSET(YT_SOURCE_DIRECTORY)
-
-    SOURCE_GROUP(${DIR} REGULAR_EXPRESSION ${DIR}/.*)
-ENDMACRO(YT_SUBDIRECTORY)
-
-SRCS(
-    stdafx.cpp
+add_library( ytlib STATIC
+  ${YT_SOURCE_FILES}
+  stdafx.cpp
 )
 
-YT_SUBDIRECTORY(actions)
-YT_SUBDIRECTORY(election)
-YT_SUBDIRECTORY(chunk_holder)
-YT_SUBDIRECTORY(chunk_client)
-YT_SUBDIRECTORY(chunk_server)
-YT_SUBDIRECTORY(transaction_server)
-YT_SUBDIRECTORY(transaction_client)
-YT_SUBDIRECTORY(logging)
-YT_SUBDIRECTORY(meta_state)
-YT_SUBDIRECTORY(misc)
-YT_SUBDIRECTORY(rpc)
-YT_SUBDIRECTORY(bus)
-YT_SUBDIRECTORY(ytree)
-YT_SUBDIRECTORY(cypress)
-YT_SUBDIRECTORY(orchid)
-YT_SUBDIRECTORY(file_server)
-YT_SUBDIRECTORY(table_server)
-YT_SUBDIRECTORY(table_client)
-YT_SUBDIRECTORY(monitoring)
-
-# Removes header files from build in VS
-SET_SOURCE_FILES_PROPERTIES(
-    ${HEADERS}
-    PROPERTIES HEADER_FILE_ONLY TRUE
+include_directories(
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/include
+  .
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_server
+  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_holder
+  ${CMAKE_CURRENT_SOURCE_DIR}/rpc
+  ${CMAKE_CURRENT_SOURCE_DIR}/ytree
 )
 
-PEERDIR(
-    contrib/libs/protobuf
-    quality/Misc
-    quality/NetLiba
-    dict/json
-    library/json
-    util/server
-)
+#
+#SET(USE_LF_ALLOCATOR yes)
 
-SET(USE_LF_ALLOCATOR yes)
-
-END()

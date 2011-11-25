@@ -1,7 +1,13 @@
-PROGRAM(unittester)
+PROTOC( rpc_ut.proto PROTO_SRC )
 
-SRCS(
-    ${ARCADIA_ROOT}/contrib/testing/framework.cpp
+include_directories(
+  ../ytlib
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/include
+)
+
+add_executable( unittester
+    ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
     stdafx.cpp
     utmain.cpp
     change_log_ut.cpp
@@ -28,11 +34,32 @@ SRCS(
     bus_ut.cpp
 
     rpc_ut.cpp
-    rpc_ut.proto
+    ${PROTO_SRC}
 )
 
-PEERDIR(
-    ADDINCL yt/ytlib
-)
+if (CMAKE_COMPILER_IS_GNUCXX)
+  SET( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -nodefaultlibs -L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib" )
 
-END()
+  target_link_libraries( unittester
+    -lytlib
+    -larcadia-utils
+    -lsnappy
+    -llz4
+    -lfastlz
+    -lminilzo
+    -larczlib
+    -lprotobuf
+    -lqmisc
+    -lNetLiba
+    -lyajl
+    -ljson
+   
+    -lstlport
+  )
+
+  target_link_libraries( unittester -larcadia-utils )
+
+  target_link_libraries( unittester -ldl )
+
+  target_link_libraries( unittester -lc -lm -lpthread -ldl -lgcc_s )
+endif()

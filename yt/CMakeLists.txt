@@ -1,3 +1,6 @@
+add_subdirectory(ytlib)
+add_subdirectory(server)
+
 if (YT_BUILD_EXPERIMENTS)
     #add_subdirectory(experiments)
 else()
@@ -5,10 +8,7 @@ else()
 endif()
 
 if (YT_BUILD_TESTS)
-    #add_subdirectory(unittests)
+    add_subdirectory(unittests)
 else()
     message(STATUS "Omitting unittests from build")
 endif()
-
-add_subdirectory(ytlib)
-add_subdirectory(server)

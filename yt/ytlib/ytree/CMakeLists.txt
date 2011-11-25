@@ -1,38 +1,34 @@
-SET(YT_SOURCE_FILES
-    common.cpp
+SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/common.cpp
 
-    ytree_fwd.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ytree_fwd.h
 
-    ytree.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ytree.h
 
-    yson_format.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_format.h
 
-    yson_events.h
-    forwarding_yson_events.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_events.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/forwarding_yson_events.cpp
 
-    yson_reader.cpp
-    yson_writer.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_reader.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_writer.cpp
 
-    tree_builder.cpp
-    tree_visitor.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/tree_builder.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/tree_visitor.cpp
 
-    node_detail.cpp
-    ephemeral.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/node_detail.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ephemeral.cpp
 
-    fluent.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/fluent.h
 
-    json_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/json_adapter.cpp
 
-    virtual.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/virtual.cpp
 
-    ypath_client.cpp
-    ypath_service.cpp
-    ypath_detail.cpp
-    ypath_rpc.h
-    ypath_rpc.proto
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_client.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_service.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_detail.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.h
 )
 
-include_directories(
-  ${SOURCE_ROOT}/include
-)
-
+PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.proto YT_SOURCE_FILES )
