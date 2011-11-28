@@ -15,7 +15,8 @@ T CheckedStaticCast(i64 value)
 {
     if (value < Min<T>() || value > Max<T>()) {
         ythrow yexception()
-            << "Argument is out of integral range (Value: " << value << ")";
+            << Sprintf("Argument is out of integral range (Value: %" PRId64 ")",
+                value);
     }
     return static_cast<T>(value);
 }
@@ -54,11 +55,10 @@ inline void Read(bool* parameter, NYTree::INode* node)
         *parameter = false;
     } else {
         ythrow yexception()
-            << "Could not load boolean parameter (Value: "
-            << (value.length() <= 10
-                ? value
-                : value.substr(0, 10) + "...")
-            << ")";
+            << Sprintf("Could not load boolean parameter (Value: %s)",
+                value.length() <= 10
+                    ? ~value
+                    : ~(value.substr(0, 10) + "..."));
     }
 }
 
