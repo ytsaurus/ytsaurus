@@ -18,8 +18,6 @@ DECLARE_ENUM(EHolderState,
     (Active)
 );
 
-// TODO: move impl to cpp
-
 class THolder
 {
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
@@ -35,62 +33,17 @@ public:
         THolderId id,
         const Stroka& address,
         EHolderState state,
-        const THolderStatistics& statistics)
-        : Id_(id)
-        , Address_(address)
-        , State_(state)
-        , Statistics_(statistics)
-    { }
+        const THolderStatistics& statistics);
 
-    THolder(const THolder& other)
-        : Id_(other.Id_)
-        , Address_(other.Address_)
-        , State_(other.State_)
-        , Statistics_(other.Statistics_)
-        , ChunkIds_(other.ChunkIds_)
-        , JobIds_(other.JobIds_)
-    { }
+    THolder(const THolder& other);
 
-    TAutoPtr<THolder> Clone() const
-    {
-        return new THolder(*this);
-    }
+    TAutoPtr<THolder> Clone() const;
 
-    void Save(TOutputStream* output) const
-    {
-        ::Save(output, Address_);
-        ::Save(output, State_);
-        ::Save(output, Statistics_);
-        SaveSet(output, ChunkIds_);
-        ::Save(output, JobIds_);
-    }
+    void Save(TOutputStream* output) const;
+    static TAutoPtr<THolder> Load(THolderId id, TInputStream* input);
 
-    static TAutoPtr<THolder> Load(THolderId id, TInputStream* input)
-    {
-        Stroka address;
-        EHolderState state;
-        THolderStatistics statistics;
-        ::Load(input, address);
-        ::Load(input, state);
-        ::Load(input, statistics);
-        TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
-        ::Load(input, holder->ChunkIds_);
-        ::Load(input, holder->JobIds_);
-        return holder;
-    }
-
-    void AddJob(const TJobId& id)
-    {
-        JobIds_.push_back(id);
-    }
-
-    void RemoveJob(const TJobId& id)
-    {
-        auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
-        if (it != JobIds_.end()) {
-            JobIds_.erase(it);
-        }
-    }
+    void AddJob(const TJobId& id);
+    void RemoveJob(const TJobId& id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,6 +14,7 @@ SET(YT_SOURCE_FILES
 
     cypress_service.cpp
     cypress_service_rpc.h
+    cypress_service_rpc-inl.h
     cypress_service_rpc.proto
 
     virtual.cpp

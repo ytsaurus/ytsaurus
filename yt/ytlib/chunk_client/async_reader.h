@@ -4,6 +4,7 @@
 #include "../misc/ref.h"
 #include "../actions/future.h"
 #include "../misc/enum.h"
+#include "../rpc/error.h"
 
 namespace NYT {
 namespace NChunkClient {
