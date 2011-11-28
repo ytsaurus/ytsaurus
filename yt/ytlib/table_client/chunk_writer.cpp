@@ -213,7 +213,7 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
         TPtr(this)));
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncInit()
+TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncOpen()
 {
     // Stub to implement IWriter interface.
     VERIFY_THREAD_AFFINITY(ClientThread);

@@ -37,8 +37,7 @@ public:
         const TSchema& schema,
         const Stroka& path);
 
-    // TODO: -> Open
-    void Init();
+    void Open();
     void Write(const TColumn& column, TValue value);
     void EndRow();
     void Close();

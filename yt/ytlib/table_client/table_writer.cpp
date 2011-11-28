@@ -49,9 +49,9 @@ TTableWriter::TTableWriter(
     }
 }
 
-void TTableWriter::Init()
+void TTableWriter::Open()
 {
-    Sync(~Writer, &TChunkSequenceWriter::AsyncInit);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 }
 
 bool TTableWriter::NodeExists(const Stroka& nodePath)

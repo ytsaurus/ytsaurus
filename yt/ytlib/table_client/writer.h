@@ -18,8 +18,7 @@ struct IAsyncWriter
 {
     typedef TIntrusivePtr<IAsyncWriter> Ptr;
 
-    // TODO: -> AsyncOpen
-    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncInit() = 0;
+    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncOpen() = 0;
 
     virtual void Write(const TColumn& column, TValue value) = 0;
 
@@ -37,8 +36,7 @@ struct ISyncWriter
 {
     typedef TIntrusivePtr<ISyncWriter> TPtr;
 
-    // TODO: -> Open
-    virtual void Init() = 0;
+    virtual void Open() = 0;
     virtual void Write(const TColumn& column, TValue value) = 0;
     virtual void EndRow() = 0;
     virtual void Close() = 0;
@@ -50,9 +48,9 @@ struct IWriter
     : public IAsyncWriter
     , public ISyncWriter
 {
-    void Init()
+    void Open()
     {
-        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncInit);
+        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncOpen);
     }
 
     void EndRow()

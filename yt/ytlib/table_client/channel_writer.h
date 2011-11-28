@@ -4,33 +4,10 @@
 #include "value.h"
 #include "schema.h"
 
+#include "../misc/blob_output.h"
+
 namespace NYT {
 namespace NTableClient {
-
-///////////////////////////////////////////////////////////////////////////////
-
-// ToDo: move to misc
-class TBlobOutput
-    : public TOutputStream
-{
-public:
-    /*!
-     * \param size - size of blob reserved in ctor
-     */
-    TBlobOutput(size_t size);
-    ~TBlobOutput() throw();
-
-    void DoWrite(const void* buf, size_t len);
-
-    const char* Begin() const;
-    i32 GetSize() const;
-
-    void Clear();
-    TSharedRef Flush();
-
-private:
-    TBlob Blob;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 

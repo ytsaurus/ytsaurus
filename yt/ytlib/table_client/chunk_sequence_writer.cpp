@@ -77,7 +77,7 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
     }
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncInit()
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 

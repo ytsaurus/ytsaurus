@@ -27,6 +27,8 @@ SET(YT_SOURCE_FILES
     virtual.cpp
 
     ypath_client.cpp
+    ypath_client-inl.h
+
     ypath_service.cpp
     ypath_detail.cpp
     ypath_rpc.h
