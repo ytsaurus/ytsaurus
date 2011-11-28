@@ -3,14 +3,15 @@
 #include "node_proxy.h"
 
 #include "../ytree/ypath_detail.h"
+#include "../ytree/ypath_client.h"
 
 namespace NYT {
 namespace NCypress {
 
+using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NMetaState;
-using namespace NTransaction;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +35,6 @@ TCypressService::TCypressService(
     YASSERT(server != NULL);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNodeId));
 
     server->RegisterService(this);
 }
@@ -56,83 +56,55 @@ RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
     UNUSED(response);
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto rootNodeId =
+        request->HasRootNodeId()
+        ? TNodeId::FromProto(request->GetRootNodeId())
+        : RootNodeId;
 
-    const auto& attachments = request->Attachments();
-    YASSERT(attachments.ysize() >= 2);
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto requestParts = requestMessage->GetParts();
+    YASSERT(!requestParts.empty());
 
     TYPath path;
     Stroka verb;
     ParseYPathRequestHeader(
-        attachments[0],
+        requestParts[0],
         &path,
         &verb);
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
+    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s, RootNodeId: %s",
         ~transactionId.ToString(),
         ~path,
-        ~verb);
+        ~verb,
+        ~rootNodeId.ToString());
 
     ValidateTransactionId(transactionId);
 
-    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto root = CypressManager->FindNodeProxy(rootNodeId, transactionId);
+    if (~root == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchRootNode) << Sprintf("Root node is not found (NodeId: %s)",
+            ~rootNodeId.ToString());
+    }
+
     auto rootService = IYPathService::FromNode(~root);
 
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    try {
-        ResolveYPath(~rootService, path, verb, &suffixService, &suffixPath);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
-    }
+    ExecuteVerb(
+        ~rootService,
+        ~requestMessage,
+        ~CypressManager)
+    ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
+        {
+            auto responseParts = responseMessage->GetParts();
+            YASSERT(!responseParts.empty());
 
-    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
+            TError error;
+            ParseYPathResponseHeader(responseParts[0], &error);
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
-    auto innerContext = CreateYPathContext(
-        ~updatedRequestMessage,
-        suffixPath,
-        verb,
-        Logger.GetCategory(),
-        ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
-            {
-                WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
-                context->Reply();
-            }));
+            context->SetRequestInfo("YPathError: %s", ~error.ToString());
 
-    CypressManager->ExecuteVerb(~suffixService, ~innerContext);
-}
-
-RPC_SERVICE_METHOD_IMPL(TCypressService, GetNodeId)
-{
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    Stroka path = request->GetPath();
-
-    context->SetRequestInfo("TransactionId: %s, Path: %s",
-        ~transactionId.ToString(),
-        ~path);
-
-    ValidateTransactionId(transactionId);
-
-    auto root = CypressManager->GetNodeProxy(RootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~root);
-
-    IYPathService::TPtr targetService;
-    try {
-        targetService = ResolveYPath(~rootService, path);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
-    }
-
-    auto* targetNode = dynamic_cast<ICypressNodeProxy*>(~targetService);
-    if (targetNode == NULL) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << "Path does not resolve to a physical node";
-    }
-
-    auto id = targetNode->GetNodeId();
-    response->SetNodeId(targetNode->GetNodeId().ToProto());
-    context->SetResponseInfo("NodeId: %s", ~id.ToString());
-    context->Reply();
+            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
+            context->Reply();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

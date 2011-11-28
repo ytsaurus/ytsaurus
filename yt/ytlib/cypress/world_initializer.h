@@ -19,13 +19,13 @@ public:
     typedef TIntrusivePtr<TWorldInitializer> TPtr;
 
     TWorldInitializer(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         TCypressManager* cypressManager);
 
     void Start();
 
 private:
-    NMetaState::TMetaStateManager::TPtr MetaStateManager;
+    NMetaState::IMetaStateManager::TPtr MetaStateManager;
     TCypressManager::TPtr CypressManager;
 
     void CheckWorldInitialized();

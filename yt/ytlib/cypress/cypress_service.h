@@ -21,21 +21,19 @@ public:
     TCypressService(
         IInvoker* invoker,
         TCypressManager* cypressManager,
-        NTransaction::TTransactionManager* transactionManager,
+        NTransactionServer::TTransactionManager* transactionManager,
         NRpc::IServer* server);
 
 private:
     typedef TCypressService TThis;
     typedef TCypressServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TCypressManager::TPtr CypressManager;
-    NTransaction::TTransactionManager::TPtr TransactionManager;
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     void ValidateTransactionId(const TTransactionId& transactionId);
 
     RPC_SERVICE_METHOD_DECL(NProto, Execute);
-    RPC_SERVICE_METHOD_DECL(NProto, GetNodeId);
 
 };
 

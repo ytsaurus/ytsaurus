@@ -14,47 +14,18 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TNodeBase::Resolve(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TNodeBase::ResolveAttributes(TYPath path, const Stroka& verb)
 {
-    if (IsFinalYPath(path)) {
-        return ResolveSelf(path, verb);
-    } else if (HasYPathAttributeMarker(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        if (IsFinalYPath(attributePath) &&
-            verb != "Get" &&
-            verb != "List" &&
-            verb != "Remove")
-        {
-            ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-                "Verb is not supported for attribute lists";
-        }
-        return TResolveResult::Here(path);
-    } else {
-        return ResolveRecursive(path, verb);
+    Stroka attributePath = ChopYPathAttributeMarker(path);
+    if (IsFinalYPath(attributePath) &&
+        verb != "Get" &&
+        verb != "List" &&
+        verb != "Remove")
+    {
+        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
+            "Verb is not supported for attributes";
     }
-}
-
-IYPathService::TResolveResult TNodeBase::ResolveSelf(TYPath path, const Stroka& verb)
-{
-    UNUSED(verb);
     return TResolveResult::Here(path);
-}
-
-IYPathService::TResolveResult TNodeBase::ResolveRecursive(TYPath path, const Stroka& verb)
-{
-    UNUSED(path);
-    UNUSED(verb);
-    ythrow yexception() << "Node does not support YPath resolution";
-}
-
-void TNodeBase::Invoke(IServiceContext* context)
-{
-    try {
-        DoInvoke(context);
-    } catch (...) {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::GenericError) <<
-            CurrentExceptionMessage();
-    }
 }
 
 void TNodeBase::DoInvoke(IServiceContext* context)
@@ -68,17 +39,18 @@ void TNodeBase::DoInvoke(IServiceContext* context)
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
-        ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
-            "Verb is not supported";
+        TYPathServiceBase::DoInvoke(context);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         GetSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             TStringStream stream;
@@ -102,7 +74,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
                 }
             }
 
-            writer.OnEndMap(false);
+            writer.OnEndMap();
 
             response->SetValue(stream.Str());
             context->Reply();
@@ -159,7 +131,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         SetSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
@@ -200,7 +172,7 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
     UNUSED(response);
     UNUSED(context);
 
-    ythrow TTypedServiceException<EYPathErrorCode>(EYPathErrorCode::NoSuchVerb) <<
+    ythrow TServiceException(EErrorCode::NoSuchVerb) <<
         "Verb is not supported";
 }
 
@@ -219,7 +191,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
     Stroka path = context->GetPath();
     if (IsFinalYPath(path)) {
         RemoveSelf(request, response, context);
-    } else if (HasYPathAttributeMarker(path)) {
+    } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             SetAttributes(NULL);
@@ -240,7 +212,7 @@ RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
             }
         }
         context->Reply();
-    } else {
+    } else {    
         RemoveRecursive(path, request, response, context);
     }
 }
@@ -477,7 +449,7 @@ int TListNodeMixin::ParseChildIndex(TStringBuf str)
 
     int count = GetChildCount();
     if (count == 0) {
-        ythrow yexception() << Sprintf("Invalid index %s: list is empty",
+        ythrow yexception() << Sprintf("Invalid index %d: list is empty",
             index);
     }
 

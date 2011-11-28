@@ -4,15 +4,8 @@
 
 #include "../bus/message.h"
 
-#include <contrib/libs/protobuf/message.h>
-
 namespace NYT {
 namespace NRpc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool SerializeMessage(const google::protobuf::Message* message, TBlob* data);
-bool DeserializeMessage(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,8 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/decorated_meta_state.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/simple_meta_state_manager.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/advanced_meta_state_manager.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager_rpc.h
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot.cpp
@@ -35,7 +37,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
    
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_channel.cpp
 
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/leader_pinger.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/follower_pinger.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map-inl.h

@@ -15,7 +15,6 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc.h
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/virtual.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/world_initializer.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_integration.cpp
 

@@ -11,9 +11,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_POLY_ENUM2(EYPathErrorCode, NRpc::EErrorCode,
-    ((NoSuchVerb)(100))
-    ((GenericError)(101))
+DECLARE_ENUM(EYPathErrorCode,
+    ((ResolveError)(1))
+    ((GenericError)(2))
+    ((CommitError)(3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +26,8 @@ struct IYPathService
 
     class TResolveResult
     {
-        DECLARE_BYVAL_RO_PROPERTY(Service, IYPathService::TPtr);
-        DECLARE_BYVAL_RO_PROPERTY(Path, TYPath);
+        DEFINE_BYVAL_RO_PROPERTY(IYPathService::TPtr, Service);
+        DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
         static TResolveResult Here(TYPath path)
@@ -57,10 +58,24 @@ struct IYPathService
     static IYPathService::TPtr FromProducer(TYsonProducer* producer);
 };
 
-typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProducer;
+typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
+typedef IFunc<TFuture<NYTree::IYPathService::TPtr>::TPtr> TYPathServiceAsyncProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IYPathExecutor
+    : public virtual TRefCountedBase
+{
+    typedef TIntrusivePtr<IYPathExecutor> TPtr;
+
+    virtual void ExecuteVerb(
+        IYPathService* service,
+        NRpc::IServiceContext* context) = 0;
+};
+
+IYPathExecutor::TPtr GetDefaultExecutor();
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

@@ -3,11 +3,18 @@
 
 #include "../misc/fs.h"
 #include "../misc/assert.h"
+#include "../misc/sync.h"
 
 #include <util/generic/yexception.h>
 
 namespace NYT {
 namespace NChunkHolder {
+
+using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +50,7 @@ TSession::TPtr TSessionManager::StartSession(
 {
     auto location = ChunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, location, windowSize);
+    auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
     auto lease = TLeaseManager::Get()->CreateLease(
         Config.SessionTimeout,
@@ -94,13 +101,12 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
-    ChunkStore->RegisterChunk(
-        session->GetChunkId(),
-        session->GetSize(),
-        session->GetLocation());
-
     LOG_INFO("Session finished (ChunkId: %s)",
         ~session->GetChunkId().ToString());
+
+    ChunkStore->RegisterChunk(
+        session->GetChunkId(),
+        ~session->GetLocation());
 
     return TVoid();
 }
@@ -111,7 +117,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session, "Session lease expired.");
+        CancelSession(session, "Session lease expired");
     }
 }
 
@@ -123,9 +129,9 @@ int TSessionManager::GetSessionCount()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManager::TPtr sessionManager,
+    TSessionManager* sessionManager,
     const TChunkId& chunkId,
-    TLocation::TPtr location,
+    TLocation* location,
     int windowSize)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
@@ -134,10 +140,10 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
 {
-    YASSERT(~sessionManager != NULL);
-    YASSERT(~location != NULL);
+    YASSERT(sessionManager != NULL);
+    YASSERT(location != NULL);
 
-    Location->IncSessionCount();
+    Location->IncrementSessionCount();
 
     FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
 
@@ -150,7 +156,7 @@ TSession::TSession(
 
 TSession::~TSession()
 {
-    Location->DecSessionCount();
+    Location->DecrementSessionCount();
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -197,7 +203,7 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),
@@ -228,7 +234,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
         }
 
         ythrow TServiceException(EErrorCode::UnmatchedBlockContent) <<
-            Sprintf("block with the same blockId but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+            Sprintf("Block with the same id but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
             ~blockId.ToString(),
             WindowStart,
             Window.ysize());
@@ -277,9 +283,9 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Writer->Sync(&IChunkWriter::AsyncWriteBlock, block->GetData());
+        Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
-        LOG_FATAL("Error writing chunk block  (ChunkId: %s, BlockIndex: %d)\n%s",
+        LOG_FATAL("Error writing chunk block (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
             blockIndex,
             ~CurrentExceptionMessage());
@@ -311,7 +317,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),
@@ -339,7 +345,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
-                Sprintf("finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+                Sprintf("Finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                     ~ChunkId.ToString(),
                     WindowStart,
                     Window.ysize(),
@@ -365,7 +371,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileChunkWriter>(FileName + NFS::TempFileSuffix);
+    Writer = New<TFileWriter>(FileName + NFS::TempFileSuffix);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -388,7 +394,7 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
             ~ChunkId.ToString());
     }
 
-    LOG_DEBUG("Chunk file deleted (ChunkId: %s). Reason: %s",
+    LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
         ~errorMessage);
 }
@@ -407,10 +413,11 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TSharedRef& masterMeta)
 NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
 {
     try {
-        Writer->Sync(&IChunkWriter::AsyncClose, masterMeta);
+        Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
     } catch (...) {
-        LOG_FATAL("Error flushing chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
+        LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
+            ~ChunkId.ToString(),
+            ~CurrentExceptionMessage());
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
@@ -447,7 +454,7 @@ void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 ~ChunkId.ToString(),
                 WindowStart,
                 Window.ysize(),

@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
 
+#include "../misc/sync.h"
 #include "../cypress/cypress_ypath_rpc.h"
 
 namespace NYT {
@@ -10,6 +11,7 @@ namespace NTableClient {
 
 using namespace NTransactionClient;
 using namespace NCypress;
+using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,53 +19,52 @@ TTableWriter::TTableWriter(
     const TConfig& config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
-    ICodec* codec,
+    const ECodecId codecId,
     const TSchema& schema,
-    const Stroka& ypath)
+    const Stroka& path)
     : Config(config)
+    , Path(path)
     , Transaction(transaction)
     , MasterChannel(masterChannel)
-    , Writer(New<TChunkSetWriter>(
+    , Writer(New<TChunkSequenceWriter>(
         config.ChunkSetConfig, 
         schema, 
-        codec, 
+        codecId, 
         Transaction->GetId(), 
         MasterChannel))
+    , Proxy(~masterChannel)
 {
     YASSERT(~masterChannel != NULL);
     YASSERT(~transaction != NULL);
 
+    Proxy.SetTimeout(Config.RpcTimeout);
+
     OnAborted = FromMethod(
         &TTableWriter::OnTransactionAborted,
         TPtr(this));
-    Transaction->OnAborted().Subscribe(OnAborted);
+    Transaction->SubscribeAborted(OnAborted);
 
-    if (!NodeExists(ypath)) {
-        CreateTableNode(ypath);
+    if (!NodeExists(path)) {
+        CreateTableNode(path);
     }
 }
 
 void TTableWriter::Init()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncInit);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncInit);
 }
 
 bool TTableWriter::NodeExists(const Stroka& nodePath)
 {
-    TCypressProxy proxy(MasterChannel);
-    proxy.SetTimeout(Config.RpcTimeout);
+    auto req = TCypressYPathProxy::GetId();
 
-    auto req = proxy.GetNodeId();
-    req->SetTransactionId(Transaction->GetId().ToProto());
-    req->SetPath(nodePath);
-    auto rsp = req->Invoke()->Get();
+    auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
+
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
-        if (!error.IsServiceError() || 
-            error.GetCode() != TCypressProxy::EErrorCode::ResolutionError) 
-        {
+        if (error.IsRpcError()) {
             Writer->Cancel(error.ToString());
-            ythrow yexception() << Sprintf("Error checking for table existence (Path: %s)\n%s",
+            ythrow yexception() << Sprintf("Error checking table existence (Path: %s)\n%s",
                 ~nodePath,
                 ~error.ToString());
         }
@@ -76,11 +77,11 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
 
 void TTableWriter::CreateTableNode(const Stroka& nodePath)
 {
-    auto req = TCypressYPathProxy::Create(nodePath);
-    req->SetManifest("{type=table}");
+    auto req = TCypressYPathProxy::Create();
+    req->SetType("table");
+    req->SetManifest("{}");
 
-    TCypressProxy proxy(MasterChannel);
-    auto rsp = proxy.Execute(Transaction->GetId(), ~req)->Get();
+    auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
@@ -100,39 +101,39 @@ void TTableWriter::Write(const TColumn& column, TValue value)
 
 void TTableWriter::EndRow()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncEndRow);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncEndRow);
 }
 
 void TTableWriter::Close()
 {
-    Writer->Sync(&TChunkSetWriter::AsyncClose);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
-    TTableProxy proxy(MasterChannel);
-    proxy.SetTimeout(Config.RpcTimeout);
-
-    auto req = proxy.AddTableChunks();
-    req->SetTransactionId(Transaction->GetId().ToProto());
-    req->SetNodeId(NodeId);
+    // TODO: use node id
+    auto req = TTableYPathProxy::AddTableChunks();
     FOREACH(const auto& chunkId, Writer->GetWrittenChunks()) {
         req->AddChunkIds(chunkId.ToProto());
     }
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = Proxy.Execute(Path, Transaction->GetId(), ~req)->Get();
+
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
         ythrow yexception() << Sprintf("Error adding chunks to table\n%s",
             ~error.ToString());
     }
 
-    Transaction->OnAborted().Unsubscribe(OnAborted);
+    Transaction->UnsubscribeAborted(OnAborted);
+    // Drop cyclic reference.
+    OnAborted.Reset();
 }
 
 void TTableWriter::OnTransactionAborted()
 {
     Writer->Cancel("Transaction aborted");
+    OnAborted.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT 
 } // namespace NTableClient
+} // namespace NYT

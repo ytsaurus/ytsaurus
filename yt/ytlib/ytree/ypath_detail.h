@@ -13,6 +13,23 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYPathServiceBase
+    : public IYPathService
+{
+public:
+    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
+
+protected:
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual TResolveResult ResolveSelf(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
@@ -228,6 +245,8 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath ChopYPathRootMarker(TYPath path);
+
 void ChopYPathToken(
     TYPath path,
     Stroka* prefix,
@@ -241,7 +260,10 @@ bool IsEmptyYPath(TYPath path);
 
 bool IsFinalYPath(TYPath path);
 
-bool HasYPathAttributeMarker(TYPath path);
+bool IsAttributeYPath(TYPath path);
+
+// TODO: choose a better name
+bool IsLocalYPath(TYPath path);
 
 TYPath ChopYPathAttributeMarker(TYPath path);
 
@@ -254,29 +276,27 @@ void ResolveYPath(
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath);
 
-IYPathService::TPtr ResolveYPath(
-    IYPathService* rootService,
-    TYPath path);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYPathResponseHandlerParam
-{
-    NRpc::TError Error;
-    NBus::IMessage::TPtr Message;
-};
-
-typedef IParamAction<const TYPathResponseHandlerParam&> TYPathResponseHandler;
+typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
 void ParseYPathRequestHeader(
     TRef headerData,
     TYPath* path,
     Stroka* verb);
 
+void ParseYPathResponseHeader(
+    TRef headerData,
+    NRpc::TError* error);
+
 NBus::IMessage::TPtr UpdateYPathRequestHeader(
     NBus::IMessage* message,
     NYTree::TYPath path,
     const Stroka& verb);
+
+NBus::IMessage::TPtr UpdateYPathResponseHeader(
+    NBus::IMessage* message,
+    const NRpc::TError& error);
 
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,

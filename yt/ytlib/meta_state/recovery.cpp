@@ -94,7 +94,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 TSnapshotDownloader::TConfig(),
                 CellManager);
 
-            auto snapshotWriter = SnapshotStore->GetWriter(snapshotId);
+            auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
             auto snapshotResult = snapshotDownloader.GetSnapshot(
                 snapshotId,
                 ~snapshotWriter);
@@ -210,18 +210,20 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
                 LOG_INFO("Local changelog is longer than expected, truncated to %d records (ChangeLogId: %d)",
                     remoteRecordCount,
                     segmentId);
+            }
 
-                auto currentVersion = MetaState->GetVersion();
-                YASSERT(currentVersion.SegmentId <= segmentId);
+            auto currentVersion = MetaState->GetVersion();
+            YASSERT(currentVersion.SegmentId <= segmentId);
 
-                if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                    LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
+            // Check if the current state contains some changes that are not present in remote changelog.
+            // If so, clear the state and restart recovery.
+            if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
+                LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
 
-                    MetaState->Clear();
-                    return FromMethod(&TRecovery::Run, TPtr(this))
-                           ->AsyncVia(~CancelableControlInvoker)
-                           ->Do();
-                }
+                MetaState->Clear();
+                return FromMethod(&TRecovery::Run, TPtr(this))
+                        ->AsyncVia(~CancelableControlInvoker)
+                        ->Do();
             }
 
             // Do not download more than actually needed.
@@ -327,16 +329,15 @@ TLeaderRecovery::TLeaderRecovery(
     TChangeLogCache::TPtr changeLogCache,
     TSnapshotStore::TPtr snapshotStore,
     TEpoch epoch,
-    TPeerId leaderId,
     IInvoker::TPtr controlInvoker)
     : TRecovery(
-        config,    
+        config,
         cellManager,
         metaState,
         changeLogCache,
         snapshotStore,
         epoch,
-        leaderId,
+        cellManager->GetSelfId(),
         controlInvoker)
 {
     YASSERT(~cellManager != NULL);
@@ -382,7 +383,9 @@ TFollowerRecovery::TFollowerRecovery(
     TSnapshotStore::TPtr snapshotStore,
     TEpoch epoch,
     TPeerId leaderId,
-    IInvoker::TPtr controlInvoker)
+    IInvoker::TPtr controlInvoker,
+    TMetaVersion targetVersion,
+    i32 maxSnapshotId)
     : TRecovery(
         config,
         cellManager,
@@ -393,7 +396,8 @@ TFollowerRecovery::TFollowerRecovery(
         leaderId,
         controlInvoker)
     , Result(New<TAsyncResult>())
-    , SyncReceived(false)
+    , TargetVersion(targetVersion)
+    , MaxSnapshotId(maxSnapshotId)
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);
@@ -408,62 +412,14 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Synchronizing with leader");
-
-    TAutoPtr<TProxy> proxy(CellManager->GetMasterProxy<TProxy>(LeaderId));
-    proxy->SetTimeout(Config.SyncTimeout);
-
-    auto request = proxy->Sync();
-    request->Invoke()->Subscribe(
-        FromMethod(&TFollowerRecovery::OnSync, TPtr(this))
-        ->Via(~CancelableControlInvoker));
-
-    return Result;
-}
-
-void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (!response->IsOK()) {
-        LOG_ERROR("Error synchronizing with leader (Error: %s)",
-            ~response->GetError().ToString());
-        Result->Set(EResult::Failed);
-        return;
-    }
-
-    YASSERT(!SyncReceived);
-    SyncReceived = true;
-
-    TMetaVersion version(
-        response->GetSegmentId(),
-        response->GetRecordCount());
-    auto epoch = TEpoch::FromProto(response->GetEpoch());
-    i32 maxSnapshotId = response->GetMaxSnapshotId();
-
-    if (epoch != Epoch) {
-        LOG_ERROR("Invalid epoch (expected: %s, received: %s)",
-            ~Epoch.ToString(),
-            ~epoch.ToString());
-        Result->Set(EResult::Failed);
-        return;
-    }
-
-    LOG_INFO("Sync received (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
-        ~version.ToString(),
-        ~epoch.ToString(),
-        maxSnapshotId);
-
-    PostponedVersion = version;
+    PostponedVersion = TargetVersion;
     YASSERT(PostponedChanges.empty());
-
-    i32 snapshotId = Max(maxSnapshotId, SnapshotStore->GetMaxSnapshotId());
 
     FromMethod(
         &TRecovery::RecoverFromSnapshotAndChangeLog,
         TPtr(this),
-        PostponedVersion,
-        snapshotId)
+        TargetVersion,
+        MaxSnapshotId)
     ->AsyncVia(~CancelableStateInvoker)
     ->Do()->Apply(FromMethod(
         &TFollowerRecovery::OnSyncReached,
@@ -471,6 +427,8 @@ void TFollowerRecovery::OnSync(TProxy::TRspSync::TPtr response)
     ->Subscribe(FromMethod(
         &TAsyncResult::Set,
         Result));
+
+    return Result;
 }
 
 TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
@@ -556,11 +514,6 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!SyncReceived) {
-        LOG_DEBUG("Segment advance received before sync, ignored");
-        return EResult::OK;
-    }
-
     if (PostponedVersion > version) {
         LOG_DEBUG("Late segment advance received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
             ~PostponedVersion.ToString(),
@@ -590,11 +543,6 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
     const yvector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (!SyncReceived) {
-        LOG_DEBUG("Changes received before sync, ignored");
-        return EResult::OK;
-    }
 
     if (PostponedVersion > version) {
         LOG_WARNING("Late changes received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",

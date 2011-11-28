@@ -2,20 +2,6 @@ package NYT.NMetaState.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSync
-{
-}
-
-message TRspSync
-{
-    optional int32 SegmentId = 1;
-    optional int32 RecordCount = 2;
-    optional bytes Epoch = 3;
-    optional int32 MaxSnapshotId = 4;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqReadSnapshot
 {
     required int32 SnapshotId = 1;
@@ -55,8 +41,6 @@ message TReqGetSnapshotInfo
 message TRspGetSnapshotInfo
 {
     optional int64 Length = 1;
-    optional uint64 Checksum = 2;
-    optional int32 PrevRecordCount = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,15 +57,17 @@ message TRspGetChangeLogInfo
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqPingLeader
+message TReqPingFollower
 {
-    required bytes Epoch = 1;
-    required int32 FollowerId = 2;
-    required int32 Status = 3;
+    required int32 SegmentId = 1;
+    required int32 RecordCount = 2;
+    required bytes Epoch = 3;
+    required int32 MaxSnapshotId = 4;
 }
 
-message TRspPingLeader
+message TRspPingFollower
 {
+    required int32 Status = 1;
 }
                                                                               
 ////////////////////////////////////////////////////////////////////////////////

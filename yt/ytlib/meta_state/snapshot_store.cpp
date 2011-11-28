@@ -24,7 +24,7 @@ TSnapshotStore::TSnapshotStore(Stroka location)
     , CachedMaxSnapshotId(NonexistingSnapshotId)
 { }
 
-Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId)
+Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 {
     return
         Location + "/" +
@@ -32,7 +32,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId)
         SnapshotExtension;
 }
 
-TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId)
+TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId) const
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
@@ -41,14 +41,30 @@ TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId)
     return New<TSnapshotReader>(fileName, snapshotId);
 }
 
-TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId)
+TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
     return New<TSnapshotWriter>(fileName, snapshotId);
 }
 
-i32 TSnapshotStore::GetMaxSnapshotId()
+TAutoPtr<TFile> TSnapshotStore::GetRawReader(int snapshotId) const
+{
+    YASSERT(snapshotId > 0);
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    if (!isexist(~fileName))
+        return NULL;
+    return new TFile(fileName, OpenExisting | RdOnly);
+}
+
+TAutoPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
+{
+    YASSERT(snapshotId > 0);
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    return new TFile(fileName, CreateAlways | WrOnly | Seq);
+}
+
+i32 TSnapshotStore::GetMaxSnapshotId() const
 {
     // Check for a cached value first.
     if (CachedMaxSnapshotId != NonexistingSnapshotId &&

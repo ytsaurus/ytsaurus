@@ -6,6 +6,7 @@
 
 #include "../misc/ref_counted_base.h"
 #include "../misc/async_stream_state.h"
+#include "../misc/sync.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -14,7 +15,6 @@ namespace NTableClient {
 
 struct IAsyncWriter
     : public virtual TRefCountedBase
-    , public ISyncInterface
 {
     typedef TIntrusivePtr<IAsyncWriter> Ptr;
 
@@ -52,17 +52,17 @@ struct IWriter
 {
     void Init()
     {
-        Sync(&IAsyncWriter::AsyncInit);
+        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncInit);
     }
 
     void EndRow()
     {
-        Sync(&IAsyncWriter::AsyncEndRow);
+        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncEndRow);
     }
 
     void Close()
     {
-        Sync(&IAsyncWriter::AsyncClose);
+        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncClose);
     }
 };
 

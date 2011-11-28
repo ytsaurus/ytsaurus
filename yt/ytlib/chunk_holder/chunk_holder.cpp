@@ -8,6 +8,13 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NChunkClient::TChunkId;
+using NChunkClient::TBlockId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
@@ -59,6 +66,7 @@ TChunkHolder::TChunkHolder(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+    
     server->RegisterService(this);
 }
 
@@ -121,9 +129,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->GetChunkId());
-
-    TBlob metaBlob(request->GetMeta().begin(), request->GetMeta().end());
-    TSharedRef masterMeta(metaBlob);
+    TSharedRef masterMeta(TBlob(request->GetMeta().begin(), request->GetMeta().end()));
 
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
@@ -212,9 +218,12 @@ void TChunkHolder::OnSentBlocks(
     if (putResponse->IsOK()) {
         context->Reply();
     } else {
-        LOG_WARNING("SendBlocks: error putting blocks on the remote chunk holder (Error: %s)",
+        Stroka message = Sprintf(
+            "SendBlocks: Cannot put blocks on the remote chunk holder\n%s",
             ~putResponse->GetError().ToString());
-        context->Reply(TProxy::EErrorCode::RemoteCallFailed);
+
+        LOG_WARNING("%s", ~message);
+        context->Reply(EErrorCode::RemoteCallFailed, message);
     }
 }
 
@@ -245,7 +254,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
                 {
                     if (~block == NULL) {
                         awaiter->Cancel();
-                        context->Reply(TChunkHolderProxy::EErrorCode::NoSuchBlock);
+                        context->Reply(
+                            TChunkHolderProxy::EErrorCode::NoSuchBlock,
+                            Sprintf("Block not found (ChunkId: %s, Index: %d)",
+                                ~chunkId.ToString(),
+                                blockIndex));
                     } else {
                         context->Response().Attachments()[index] = block->GetData();
                     }

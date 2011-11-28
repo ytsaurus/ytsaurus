@@ -3,6 +3,9 @@
 #include "../actions/action_queue.h"
 
 namespace NYT {
+namespace NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 /*!
  *  This thread is used for background operations in 
@@ -11,4 +14,7 @@ namespace NYT {
  */
 extern TLazyPtr<TActionQueue> WriterThread;
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NChunkClient
 } // namespace NYT

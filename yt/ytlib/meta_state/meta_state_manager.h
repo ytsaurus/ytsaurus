@@ -3,36 +3,33 @@
 #include "common.h"
 #include "meta_state.h"
 
-#include "../rpc/server.h"
 #include "../actions/signal.h"
 
 namespace NYT {
+
+namespace NRpc {
+    struct IServer;
+}
+
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetaStateManager
-    : public TRefCountedBase
+struct IMetaStateManager
+    : public virtual TRefCountedBase
 {
-public:
-    typedef TIntrusivePtr<TMetaStateManager> TPtr;
+    typedef TIntrusivePtr<IMetaStateManager> TPtr;
     typedef TMetaStateManagerConfig TConfig;
 
     typedef TFuture<ECommitResult> TAsyncCommitResult;
 
-    TMetaStateManager(
-        const TConfig& config,
-        IInvoker* controlInvoker,
-        IMetaState* metaState,
-        NRpc::IServer* server);
-
-    ~TMetaStateManager();
+    virtual ~IMetaStateManager();
 
     //! Boots up the manager.
     /*!
      * \note Thread affinity: any
      */
-    void Start();
+    virtual void Start() = 0;
 
     // TODO: provide stop method
 
@@ -40,71 +37,72 @@ public:
     /*!
      * \note Thread affinity: ControlThread
      */
-    EPeerStatus GetControlStatus() const;
+    virtual EPeerStatus GetControlStatus() const = 0;
 
     //! Returns the status as seen in the state thread.
     /*!
      * \note Thread affinity: StateThread
      */
-    EPeerStatus GetStateStatus() const;
+    virtual EPeerStatus GetStateStatus() const = 0;
 
     //! Returns an invoker used for updating the state.
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetStateInvoker();
+    virtual IInvoker::TPtr GetStateInvoker() = 0;
 
     //! Returns a cancelable invoker that corresponds to the state thread and is only valid
     //! for the duration of the current epoch.
     /*!
      * \note Thread affinity: StateThread
      */
-    IInvoker::TPtr GetEpochStateInvoker();
-
-    //! Returns an invoker used for updating the state.
-    /*!
-     * \note Thread affinity: any
-     */
-    IInvoker::TPtr GetSnapshotInvoker();
+    virtual IInvoker::TPtr GetEpochStateInvoker() = 0;
 
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncCommitResult::TPtr CommitChange(
+    virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        IAction* changeAction = NULL);
+        IAction* changeAction = NULL) = 0;
 
     /*!
      * \note Thread affinity: any
      */
-    void SetReadOnly(bool readOnly);
+    virtual void SetReadOnly(bool readOnly) = 0;
 
     //! Returns monitoring info.
     /*!
      * \note Thread affinity: any
      */
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
 
     //! Raised within the state thread when the state has started leading
     //! and now enters recovery.
-    TSignal& OnStartLeading();
+    virtual TSignal& OnStartLeading() = 0;
     //! Raised within the state thread when the leader recovery is complete.
-    TSignal& OnLeaderRecoveryComplete();
+    virtual TSignal& OnLeaderRecoveryComplete() = 0;
     //! Raised within the state thread when the state has stopped leading.
-    TSignal& OnStopLeading();
+    virtual TSignal& OnStopLeading() = 0;
 
     //! Raised within the state thread when the state has started following
     //! and now enters recovery.
-    TSignal& OnStartFollowing();
+    virtual TSignal& OnStartFollowing() = 0;
     //! Raised within the state thread when the follower recovery is complete.
-    TSignal& OnFollowerRecoveryComplete();
+    virtual TSignal& OnFollowerRecoveryComplete() = 0;
     //! Raised within the   state thread when the state has started leading.
-    TSignal& OnStopFollowing();
+    virtual TSignal& OnStopFollowing() = 0;
 
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+public:
+    static TPtr CreateInstance(
+        const TConfig& config,
+        IInvoker* controlInvoker,
+        IMetaState* metaState,
+        NRpc::IServer* server);
 
+    static TPtr CreateInstance(
+        const TConfig& config,
+        IInvoker* controlInvoker,
+        IMetaState* metaState);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@ namespace NCypress {
 TLock::TLock(
     const TLockId& id,
     const TNodeId& nodeId,
-    const NTransaction::TTransactionId& transactionId,
+    const NTransactionServer::TTransactionId& transactionId,
     ELockMode mode)
     : Id_(id)
     , NodeId_(nodeId)
@@ -32,7 +32,7 @@ void TLock::Save(TOutputStream* output) const
 TAutoPtr<TLock> TLock::Load(const TLockId& id, TInputStream* input)
 {
     TNodeId nodeId;
-    NTransaction::TTransactionId transactionId;
+    NTransactionServer::TTransactionId transactionId;
     ELockMode mode;
     ::Load(input, nodeId);
     ::Load(input, transactionId);

@@ -12,16 +12,16 @@ namespace NCypress {
 
 class TLock
 {
-    DECLARE_BYVAL_RO_PROPERTY(Id, TLockId);
-    DECLARE_BYVAL_RO_PROPERTY(NodeId, TNodeId);
-    DECLARE_BYVAL_RO_PROPERTY(TransactionId, NTransaction::TTransactionId);
-    DECLARE_BYVAL_RO_PROPERTY(Mode, ELockMode);
+    DEFINE_BYVAL_RO_PROPERTY(TLockId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeId, NodeId);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransactionId, TransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(ELockMode, Mode);
 
 public:
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
-        const NTransaction::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         ELockMode mode);
 
     TAutoPtr<TLock> Clone() const;

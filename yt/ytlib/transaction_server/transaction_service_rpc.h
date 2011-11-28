@@ -7,7 +7,7 @@
 #include "../rpc/client.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ public:
         ((NoSuchTransaction)(1))
     );
 
-    TTransactionServiceProxy(NRpc::IChannel::TPtr channel)
+    TTransactionServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -34,5 +34,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

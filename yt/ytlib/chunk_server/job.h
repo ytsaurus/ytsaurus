@@ -12,8 +12,8 @@ struct TJob
     TJob(
         EJobType type,
         const TJobId& jobId,
-        const TChunkId& chunkId,
-        Stroka runnerAddress,
+        const NChunkClient::TChunkId& chunkId,
+        const Stroka& runnerAddress,
         const yvector<Stroka>& targetAddresses)
         : Type_(type)
         , JobId_(jobId)
@@ -46,7 +46,7 @@ struct TJob
     static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input)
     {
         EJobType type;
-        TChunkId chunkId;
+        NChunkClient::TChunkId chunkId;
         Stroka runnerAddress;
         yvector<Stroka> targetAddresses;
         ::Load(input, type);
@@ -56,11 +56,11 @@ struct TJob
         return new TJob(type, jobId, chunkId, runnerAddress, targetAddresses);
     }
 
-    DECLARE_BYVAL_RO_PROPERTY(Type, EJobType);
-    DECLARE_BYVAL_RO_PROPERTY(JobId, TJobId);
-    DECLARE_BYVAL_RO_PROPERTY(ChunkId, TChunkId);
-    DECLARE_BYVAL_RO_PROPERTY(RunnerAddress, Stroka);
-    DECLARE_BYREF_RO_PROPERTY(TargetAddresses, yvector<Stroka>);
+    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
+    DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

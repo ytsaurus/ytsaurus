@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../ytree/yson_events.h"
+#include "../ytree/ypath_service.h"
 
 #include <util/server/http.h>
 
@@ -14,10 +14,11 @@ class THttpTreeServer
     : public TNonCopyable
 {
 public:
-    THttpTreeServer(
-        NYTree::TYsonProducer::TPtr ysonProducer,
-        int port);
+    typedef IParamFunc<Stroka, TFuture<Stroka>::TPtr> THandler;
 
+    THttpTreeServer(int port);
+
+    void Register(const Stroka& prefix, THandler::TPtr handler);
     void Start();
     void Stop();
 
@@ -25,9 +26,17 @@ private:
     class TClient;
     class TCallback;
 
+    typedef yhash_map<Stroka, THandler::TPtr> THandlerMap;
+
+    THandlerMap Handlers;
     THolder<TCallback> Callback;
     THolder<THttpServer> Server;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+THttpTreeServer::THandler::TPtr GetYPathHttpHandler(
+     NYTree::TYPathServiceAsyncProvider* asyncProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

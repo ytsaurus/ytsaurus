@@ -13,57 +13,61 @@
 
 #include <yt/ytlib/cypress/cypress_manager.h>
 #include <yt/ytlib/cypress/cypress_service.h>
-#include <yt/ytlib/cypress/world_initializer.h>
 #include <yt/ytlib/cypress/cypress_integration.h>
 
 #include <yt/ytlib/chunk_server/chunk_manager.h>
 #include <yt/ytlib/chunk_server/chunk_service.h>
 #include <yt/ytlib/chunk_server/cypress_integration.h>
 
-#include <yt/ytlib/file_server/file_manager.h>
-#include <yt/ytlib/file_server/file_service.h>
-
-#include <yt/ytlib/table_server/table_manager.h>
-#include <yt/ytlib/table_server/table_service.h>
-
 #include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/cypress_integration.h>
+#include <yt/ytlib/monitoring/ytree_integration.h>
+#include <yt/ytlib/monitoring/http_tree_server.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/file_server/file_node.h>
+
+#include <yt/ytlib/table_server/table_node.h>
+
+#include <yt/ytlib/ytree/yson_file_service.h>
+#include <yt/ytlib/ytree/ypath_service.h>
+
 namespace NYT {
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("CellMaster");
 
 using NRpc::CreateRpcServer;
 
-using NTransaction::TTransactionManager;
-using NTransaction::TTransactionService;
-using NTransaction::CreateTransactionMapTypeHandler;
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionService;
+using NTransactionServer::CreateTransactionMapTypeHandler;
 
 using NChunkServer::TChunkManagerConfig;
 using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
 using NChunkServer::CreateChunkListMapTypeHandler;
+using NChunkServer::CreateHolderRegistry;
+using NChunkServer::CreateHolderMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
-using NCypress::TWorldInitializer;
 using NCypress::CreateLockMapTypeHandler;
 
-using NFileServer::TFileManager;
-using NFileServer::TFileService;
-
-using NTableServer::TTableManager;
-using NTableServer::TTableService;
-
-using NMonitoring::TMonitoringManager;
+using namespace NMonitoring;
 
 using NOrchid::CreateOrchidTypeHandler;
+
+using NFileServer::CreateFileTypeHandler;
+
+using NTableServer::CreateTableTypeHandler;
+
+using namespace NCypress;
+using namespace NMetaState;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +105,7 @@ void TCellMasterServer::Run()
 
     auto rpcServer = CreateRpcServer(port);
 
-    auto metaStateManager = New<TMetaStateManager>(
+    auto metaStateManager = IMetaStateManager::CreateInstance(
         Config.MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
@@ -117,18 +121,6 @@ void TCellMasterServer::Run()
         ~transactionManager,
         ~rpcServer);
 
-    auto chunkManager = New<TChunkManager>(
-        TChunkManagerConfig(),
-        ~metaStateManager,
-        ~metaState,
-        ~transactionManager);
-
-    auto chunkService = New<TChunkService>(
-        ~metaStateManager,
-        ~chunkManager,
-        ~transactionManager,
-        ~rpcServer);
-
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
@@ -140,55 +132,46 @@ void TCellMasterServer::Run()
         ~transactionManager,
         ~rpcServer);
 
-    auto fileManager = New<TFileManager>(
+    auto holderRegistry = CreateHolderRegistry(~cypressManager);
+
+    auto chunkManager = New<TChunkManager>(
+        TChunkManagerConfig(),
         ~metaStateManager,
         ~metaState,
-        ~cypressManager,
-        ~chunkManager,
-        ~transactionManager);
+        ~transactionManager,
+        ~holderRegistry);
 
-    auto fileService = New<TFileService>(
+    auto chunkService = New<TChunkService>(
         ~metaStateManager,
         ~chunkManager,
-        ~fileManager,
+        ~transactionManager,
         ~rpcServer);
-
-    auto tableManager = New<TTableManager>(
-        ~metaStateManager,
-        ~metaState,
-        ~cypressManager,
-        ~chunkManager,
-        ~transactionManager);
-
-    auto tableService = New<TTableService>(
-        ~metaStateManager,
-        ~chunkManager,
-        ~tableManager,
-        ~rpcServer);
-
-    auto worldIntializer = New<TWorldInitializer>(
-        ~metaStateManager,
-        ~cypressManager);
-    worldIntializer->Start();
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "/refcounted",
+        "/ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
     monitoringManager->Register(
         "/meta_state",
-        FromMethod(&TMetaStateManager::GetMonitoringInfo, metaStateManager));
-
+        FromMethod(&IMetaStateManager::GetMonitoringInfo, metaStateManager));
     // TODO: register more monitoring infos
     monitoringManager->Start();
 
+    // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
-            ~NMonitoring::CreateMonitoringProducer(~monitoringManager),
+            ~NMonitoring::CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
         "monitoring");
+    if (!Config.NewConfigFileName.empty()) {
+        orchidRoot->AddChild(
+            NYTree::CreateVirtualNode(
+                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
+                orchidFactory),
+            "config");
+    }
 
     auto orchidService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
@@ -210,12 +193,45 @@ void TCellMasterServer::Run()
         ~cypressManager));
     cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
         ~cypressManager));
+    cypressManager->RegisterNodeType(~CreateHolderTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
 
-    auto monitoringServer = new THttpTreeServer(
-        monitoringManager->GetProducer(),
-        Config.MonitoringPort);
+    cypressManager->RegisterNodeType(~CreateFileTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
+    cypressManager->RegisterNodeType(~CreateTableTypeHandler(
+        ~cypressManager,
+        ~chunkManager));
 
-    monitoringServer->Start();
+    // TODO: fix memory leaking
+    auto httpServer = new THttpTreeServer(Config.MonitoringPort);
+    auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
+    httpServer->Register(
+        "orchid",
+        GetYPathHttpHandler(
+            ~FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+                {
+                    return orchidPathService;
+                })));
+    httpServer->Register(
+        "cypress",
+        GetYPathHttpHandler(
+            ~FromFunctor([=] () -> IYPathService::TPtr
+                {
+                    auto status = metaStateManager->GetStateStatus();
+                    if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
+                        return NULL;
+                    }
+                    return IYPathService::FromNode(
+                        ~cypressManager->GetNodeProxy(RootNodeId, NullTransactionId));
+                })
+            ->AsyncVia(metaStateManager->GetStateInvoker())));            
+
+    httpServer->Start();
     metaStateManager->Start();
     rpcServer->Start();
 

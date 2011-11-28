@@ -3,6 +3,7 @@
 #include "common.h"
 #include "transaction.h"
 
+#include "../misc/config.h"
 #include "../rpc/channel.h"
 #include "../transaction_server/transaction_service_rpc.h"
 
@@ -23,23 +24,28 @@ public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
     struct TConfig
+        : TConfigBase
     {
+        TConfig()
+        {
+            Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
+            Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
+
+            SetDefaults();
+        }
+
         //! An internal between successive transaction pings.
         TDuration PingPeriod;
-        //! A timeout for RPC requests.
+
+        //! A timeout for RPC requests to masters.
         /*! 
          *  Particularly useful for
-         *  #NTransaction::TTransactionServiceProxy::StartTransaction,
-         *  #NTransaction::TTransactionServiceProxy::CommitTransaction and
-         *  #NTransaction::TTransactionServiceProxy::AbortTransaction calls
+         *  #NTransactionServer::TTransactionServiceProxy::StartTransaction,
+         *  #NTransactionServer::TTransactionServiceProxy::CommitTransaction and
+         *  #NTransactionServer::TTransactionServiceProxy::AbortTransaction calls
          *  since they are done synchronously.
          */
-        TDuration RpcTimeout;
-
-        TConfig()
-            : PingPeriod(TDuration::Seconds(5))
-            , RpcTimeout(TDuration::Seconds(2))
-        { }
+        TDuration MasterRpcTimeout;
     };
 
     //! Initializes an instance.
@@ -49,7 +55,7 @@ public:
      */
     TTransactionManager(
         const TConfig& config,
-        NRpc::IChannel::TPtr channel);
+        NRpc::IChannel* channel);
 
     //! Starts a new transaction.
     /*!
@@ -60,7 +66,7 @@ public:
     ITransaction::TPtr StartTransaction();
 
 private:
-    typedef NTransaction::TTransactionServiceProxy TProxy;
+    typedef NTransactionServer::TTransactionServiceProxy TProxy;
 
     void PingTransaction(const TTransactionId& transactionId);
     void OnPingResponse(

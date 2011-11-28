@@ -18,11 +18,11 @@ public:
     typedef TIntrusivePtr<TMetaStatePart> TPtr;
 
     TMetaStatePart(
-        TMetaStateManager::TPtr metaStateManager,
+        IMetaStateManager::TPtr metaStateManager,
         TIntrusivePtr<TCompositeMetaState> metaState);
 
 protected:
-    TMetaStateManager::TPtr MetaStateManager;
+    IMetaStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
 
     template<class TMessage, class TResult>

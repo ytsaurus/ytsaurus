@@ -7,7 +7,6 @@
 #include "../misc/property.h"
 #include "../bus/message.h"
 #include "../rpc/client.h"
-#include "../rpc/message.h"
 #include "../actions/action_util.h"
 
 namespace NYT {
@@ -30,14 +29,14 @@ class TTypedYPathResponse;
 class TYPathRequest
     : public TRefCountedBase
 {
-    DECLARE_BYVAL_RO_PROPERTY(Verb, Stroka);
-    DECLARE_BYVAL_RW_PROPERTY(Path, TYPath);
-    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
+    DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
 
 public:
     typedef TIntrusivePtr<TYPathRequest> TPtr;
     
-    TYPathRequest(const Stroka& verb, TYPath path);
+    TYPathRequest(const Stroka& verb);
 
     NBus::IMessage::TPtr Serialize();
 
@@ -57,14 +56,14 @@ public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
     typedef TIntrusivePtr< TTypedYPathRequest<TRequestMessage, TResponseMessage> > TPtr;
 
-    TTypedYPathRequest(const Stroka& verb, TYPath path)
-        : TYPathRequest(verb, path)
+    TTypedYPathRequest(const Stroka& verb)
+        : TYPathRequest(verb)
     { }
 
 protected:
     virtual bool SerializeBody(TBlob* data) const
     {
-        return NRpc::SerializeMessage(this, data);
+        return SerializeProtobuf(this, data);
     }
 };
 
@@ -73,15 +72,15 @@ protected:
 class TYPathResponse
     : public TRefCountedBase
 {
-    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
-    DECLARE_BYVAL_RW_PROPERTY(Error, NRpc::TError);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RW_PROPERTY(NRpc::TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;
 
     void Deserialize(NBus::IMessage* message);
 
-    NRpc::EErrorCode GetErrorCode() const;
+    int GetErrorCode() const;
     bool IsOK() const;
 
     void ThrowIfError() const;
@@ -104,7 +103,7 @@ public:
 protected:
     virtual bool DeserializeBody(TRef data)
     {
-        return NRpc::DeserializeMessage(this, data);
+        return DeserializeProtobuf(this, data);
     }
 
 };
@@ -115,28 +114,38 @@ protected:
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \
-    static TReq##method::TPtr method(::NYT::NYTree::TYPath path) \
+    static TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(#method, path); \
+        return New<TReq##method>(#method); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Executes a YPath verb against a local service.
+//! Asynchronously executes an untyped YPath verb against a given service.
+TFuture<NBus::IMessage::TPtr>::TPtr
+ExecuteVerb(
+    IYPathService* rootService,
+    NBus::IMessage* requestMessage,
+    IYPathExecutor* executor = ~GetDefaultExecutor());
+
+//! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(IYPathService* rootService, TTypedRequest* request);
+ExecuteVerb(
+    IYPathService* rootService,
+    TTypedRequest* request,
+    IYPathExecutor* executor = ~GetDefaultExecutor());
 
-//! Executes "Get" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
 
-//! Executes "Set" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value);
 
-//! Executes "Remove" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "Remove" verb. Throws if an error has occurred.
 void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path);
 
-//! Executes "List" verb synchronously. Throws if an error has occurred.
+//! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,70 +156,29 @@ yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
 
 // TODO: move to ypath_client-inl.h
 
-#include "ypath_detail.h"
-
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTypedRequest, class TTypedResponse>
-void OnYPathResponse(
-    const TYPathResponseHandlerParam& param,
-    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > > asyncResponse,
-    const Stroka& verb,
-    TYPath resolvedPath)
-{
-    auto response = New<TTypedResponse>();
-    response->Deserialize(~param.Message);
-    if (!response->IsOK()) {
-        auto error = response->GetError();
-        Stroka message = Sprintf("Error executing YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
-            ~verb,
-            ~resolvedPath,
-            ~error.GetMessage());
-        response->SetError(NRpc::TError(error.GetCode(), message));
-    }
-    asyncResponse->Set(response);
-}
-
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteYPath(IYPathService* rootService, TTypedRequest* request)
+ExecuteVerb(
+    IYPathService* rootService,
+    TTypedRequest* request,
+    IYPathExecutor* executor)
 {
-    TYPath path = request->GetPath();
-    Stroka verb = request->GetVerb();
-
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
-
-    // TODO: can we avoid this?
-    request->SetPath(suffixPath);
+    typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto requestMessage = request->Serialize();
-    auto asyncResponse = New< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >();
-
-    auto context = CreateYPathContext(
-        ~requestMessage,
-        suffixPath,
-        verb,
-        YTreeLogger.GetCategory(),
-        ~FromMethod(
-            &OnYPathResponse<TTypedRequest, typename TTypedRequest::TTypedResponse>,
-            asyncResponse,
-            verb,
-            ComputeResolvedYPath(path, suffixPath)));
-
-    try {
-        suffixService->Invoke(~context);
-    } catch (const NRpc::TServiceException& ex) {
-        context->Reply(NRpc::TError(
-            EYPathErrorCode(EYPathErrorCode::GenericError),
-            ex.what()));
-    }
-
-    return asyncResponse;
+    return
+        ExecuteVerb(rootService, ~requestMessage, executor)
+        ->Apply(FromFunctor([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse>
+            {
+                auto response = New<TTypedResponse>();
+                response->Deserialize(~responseMessage);
+                return response;
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

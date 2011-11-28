@@ -23,13 +23,12 @@ struct IChannel
     //! Sends a request via the channel.
     /*!
      *  \param request A request to send.
-     *  \param responseHandler An object that will handle a response (if any).
+     *  \param responseHandler An object that will handle a response.
      *  \param timeout Request processing timeout.
-     *  \return An asynchronous result of an RPC call.
      */
-    virtual TFuture<TError>::TPtr Send(
-        TIntrusivePtr<IClientRequest> request,
-        TIntrusivePtr<IClientResponseHandler> responseHandler,
+    virtual void Send(
+        IClientRequest* request,
+        IClientResponseHandler* responseHandler,
         TDuration timeout) = 0;
 
     //! Shuts down the channel.

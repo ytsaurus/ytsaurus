@@ -3,7 +3,6 @@
 #include "guid.h"
 
 #include <util/digest/murmur.h>
-// TODO: move to impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,10 +11,10 @@ namespace NYT {
     class TIdGenerator;
 }
 
-template<class T>
+template <class T>
 void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator);
 
-template<class T>
+template <class T>
 void Load(TInputStream* input, NYT::TIdGenerator<T>& generator);
 
 ////////////////////////////////////////////////////////////////////////////////

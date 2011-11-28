@@ -11,7 +11,7 @@ using namespace NMetaState;
 ////////////////////////////////////////////////////////////////////////////////
 
 TWorldInitializer::TWorldInitializer(
-    NMetaState::TMetaStateManager* metaStateManager,
+    NMetaState::IMetaStateManager* metaStateManager,
     TCypressManager* cypressManager)
     : MetaStateManager(metaStateManager)
     , CypressManager(cypressManager)

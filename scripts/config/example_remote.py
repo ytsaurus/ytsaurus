@@ -1,6 +1,6 @@
 #!/usr/bin/python
-from ytremote import *
-import opts
+from cfglib.ytremote import *
+import cfglib.opts as opts
 
 Logging = {
     'Writers' : [
@@ -33,20 +33,13 @@ class Base(AggrBase):
         print >>fd, shebang
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
     
-Yson = FileDescr('new_config', ('remote'), 'yson')
 class Server(Base, RemoteServer):
-    files = RemoteServer.files + [Yson]
     bin_path = '/home/yt/src/yt/server/server'
-
-    yson_data = 'some data'
-    def new_config(cls, fd):
-        print >>fd, cls.yson_data
-
     
 class Master(Server):
     base_dir = './'
     address = Subclass(MasterAddresses)
-    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s --new_config %(new_config_path)s')
+    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s --new_config %(yson_config_path)s')
 
     config = Template({
         'MetaState' : {

@@ -32,13 +32,13 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/intrusive_ptr.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/singleton.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/rvalue.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/codec.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/codec.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/async_stream_state.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/cyclic_buffer.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/mpl.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config-inl.h
-
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/sync.h
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h

@@ -128,45 +128,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-// TODO: write a couple of overloads manually, switch to Pump later
-template <class TTarget>
-void Sync(
-    TTarget* target,
-    TAsyncStreamState::TAsyncResult::TPtr (TTarget::*method)())
-{
-    auto result = (target->*method)()->Get();
-    if (!result.IsOK()) {
-        // TODO: ToString()
-        ythrow yexception() << result.ErrorMessage;
-    }
-}
-
-// ToDo: codegen! Type traits.
-struct ISyncInterface
-{
-    template<class TUnderlying>
-    void Sync(
-        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)()) 
-    {
-        auto result = (static_cast<TUnderlying*>(this)->*method)()->Get();
-        if (!result.IsOK) {
-            ythrow yexception() << result.ErrorMessage;
-        }
-    }
-
-    template<class TUnderlying, class TArg1>
-    void Sync(
-        TAsyncStreamState::TAsyncResult::TPtr (TUnderlying::*method)(const TArg1&), 
-        const TArg1& arg1) 
-    {
-        auto result = (static_cast<TUnderlying*>(this)->*method)(arg1)->Get();
-        if (!result.IsOK) {
-            ythrow yexception() << result.ErrorMessage;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT

@@ -10,6 +10,10 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NChunkClient::TChunkId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +57,7 @@ void TChunkReplication::RunJobControl(
         jobsToStart);
 }
 
-void TChunkReplication::AddHolder(const THolder& holder)
+void TChunkReplication::OnHolderRegistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -64,14 +68,14 @@ void TChunkReplication::AddHolder(const THolder& holder)
     }
 }
 
-void TChunkReplication::RemoveHolder(const THolder& holder)
+void TChunkReplication::OnHolderUnregistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YVERIFY(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
-void TChunkReplication::AddReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::OnReplicaAdded(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -79,7 +83,7 @@ void TChunkReplication::AddReplica(const THolder& holder, const TChunk& chunk)
     ScheduleRefresh(chunk.GetId());
 }
 
-void TChunkReplication::RemoveReplica(const THolder& holder, const TChunk& chunk)
+void TChunkReplication::OnReplicaRemoved(const THolder& holder, const TChunk& chunk)
 {
     UNUSED(holder);
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -211,7 +215,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     FOREACH (auto holderId, targets) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         targetAddresses.push_back(holder.GetAddress());
-        ChunkPlacement->AddHolderSessionHint(holder);
+        ChunkPlacement->OnSessionHinted(holder);
     }
 
     auto jobId = TJobId::Create();
@@ -264,7 +268,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     }
 
     const auto& targetHolder = ChunkManager->GetHolder(targetHolderId);
-    ChunkPlacement->AddHolderSessionHint(targetHolder);
+    ChunkPlacement->OnSessionHinted(targetHolder);
     
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;

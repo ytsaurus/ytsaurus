@@ -1,10 +1,9 @@
-package NYT.NTransaction.NProto;
+package NYT.NTransactionServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqStartTransaction
-{
-}
+{ }
 
 message TRspStartTransaction
 {
@@ -19,8 +18,7 @@ message TReqCommitTransaction
 }
 
 message TRspCommitTransaction
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +28,7 @@ message TReqAbortTransaction
 }
 
 message TRspAbortTransaction
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +38,6 @@ message TReqRenewTransactionLease
 }
 
 message TRspRenewTransactionLease
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

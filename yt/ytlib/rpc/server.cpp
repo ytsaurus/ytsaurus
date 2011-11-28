@@ -158,7 +158,7 @@ private:
         }
 
         TRequestHeader requestHeader;
-        if (!DeserializeMessage(&requestHeader, parts[0])) {
+        if (!DeserializeProtobuf(&requestHeader, parts[0])) {
             LOG_ERROR("Error deserializing request header");
             return;
         }
@@ -173,13 +173,15 @@ private:
             ~requestId.ToString());
 
         if (!Started) {
-            auto errorMessage = CreateErrorResponseMessage(
-                requestId,
-                TError(EErrorCode::Unavailable));
-            replyBus->Send(errorMessage);
-
-            LOG_DEBUG("Server is not started (RequestId: %s)",
+            Stroka message = Sprintf("Server is not started (RequestId: %s)",
                 ~requestId.ToString());
+
+            auto response = CreateErrorResponseMessage(
+                requestId,
+                TError(EErrorCode::Unavailable, message));
+            replyBus->Send(response);
+
+            LOG_DEBUG("%s", ~message);
             return;
         }
 
@@ -188,14 +190,16 @@ private:
 
         auto service = GetService(serviceName);
         if (~service == NULL) {
-            auto errorMessage = CreateErrorResponseMessage(
-                requestId,
-                TError(EErrorCode::NoSuchService));
-            replyBus->Send(errorMessage);
-
-            LOG_DEBUG("Unknown service name (RequestId: %s, ServiceName: %s)",
+            Stroka message = Sprintf("Unknown service name (RequestId: %s, ServiceName: %s)",
                 ~requestId.ToString(),
                 ~serviceName);
+
+            auto response = CreateErrorResponseMessage(
+                requestId,
+                TError(EErrorCode::NoSuchService, message));
+            replyBus->Send(response);
+
+            LOG_DEBUG("%s", ~message);
             return;
         }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <util/stream/str.h>
 #include <util/system/atexit.h>
 
@@ -9,32 +11,32 @@ namespace NYT {
 
 typedef yvector<char> TBlob;
 
+//! A non-owning reference to a block of memory.
+/*!
+ *  This is merely a (start, size) pair.
+ */
 class TRef
 {
 public:
+    //! Creates a NULL reference with zero size.
     TRef()
         : Data(NULL)
         , Size_(0)
     { }
 
+    //! Creates a reference for a given block of memory.
     TRef(void* data, size_t size)
-        : Data(NULL)
-        , Size_(0)
     {
-        if (data != NULL && size != 0) {
-            Data = reinterpret_cast<char*>(data);
-            Size_ = size;
-        }
+        YASSERT(data != NULL || size == 0);
+        Data = reinterpret_cast<char*>(data);
+        Size_ = size;
     }
 
+    //! Creates a reference for a given blob.
     TRef(const TBlob& blob)
-        : Data(NULL)
-        , Size_(0)
     {
-        if (!blob.empty()) {
-            Data = const_cast<char*>(blob.begin());
-            Size_ = blob.size();
-        }
+        Data = const_cast<char*>(blob.begin());
+        Size_ = blob.size();
     }
 
     const char* Begin() const
@@ -62,22 +64,29 @@ public:
         return Size_;
     }
 
-    // Let's hope your compiler supports RVO.
+    //! Copies the data to a fresh blob.
+    /*!
+     *  The reference must not be NULL.
+     */
     TBlob ToBlob() const
     {
+        YASSERT(Data != NULL);
         return TBlob(Begin(), End());
     }
 
+    //! Compares the pointer (not the content!) for equality.
     bool operator == (const TRef& other) const
     {
         return Data == other.Data && Size_ == other.Size_;
     }
 
+    //! Compares the pointer (not the content!) for inequality.
     bool operator != (const TRef& other) const
     {
         return !(*this == other);
     }
 
+    //! Compares the content for equality.
     static inline bool CompareContent(const TRef& lhs, const TRef& rhs)
     {
         if (lhs.Size() != rhs.Size())
@@ -95,17 +104,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A reference of a shared block of memory.
+/*!
+ *  Internally it is represented a by a shared pointer to a TBlob holding the
+ *  data and a TRef pointing inside the blob.
+ */
 class TSharedRef
 {
 public:
+    //! Creates a NULL reference.
     TSharedRef()
     { }
 
-    explicit TSharedRef(const TRef& ref)
-        : Blob(NULL)
-        , Ref(ref)
-    { }
+    //! Creates a non-owning reference from TPtr. Use it with caution!
+    static TSharedRef FromRefNonOwning(const TRef& ref)
+    {
+        return TSharedRef(NULL, ref);
+    }
 
+    //! Creates a reference to the whole blob taking the ownership of its content.
     TSharedRef(TBlob&& blob)
         : Blob(new TBlob())
     {
@@ -113,10 +130,13 @@ public:
         Ref = *Blob;
     }
 
+    //! Creates a reference from another shared reference a reference to a portion of its data.
     TSharedRef(const TSharedRef& sharedRef, const TRef& ref)
         : Blob(sharedRef.Blob)
         , Ref(ref)
-    { }
+    {
+        YASSERT(Ref.Begin() >= Blob->begin() && Ref.End() <= Blob->end());
+    }
 
     operator TRef() const
     {
@@ -153,17 +173,22 @@ public:
         return Ref.Size();
     }
 
-    // Let's hope your compiler supports RVO.
+    //! Copies the data to a fresh blob.
+    /*!
+     *  The reference must not be NULL.
+     */
     TBlob ToBlob() const
     {
         return Ref.ToBlob();
     }
 
+    //! Compares the pointer (not the content!) for equality.
     bool operator == (const TSharedRef& other) const
     {
         return Blob == other.Blob && Ref == other.Ref;
     }
 
+    //! Compares the pointer (not the content!) for inequality.
     bool operator != (const TSharedRef& other) const
     {
         return !(*this == other);
@@ -171,6 +196,11 @@ public:
 
 private:
     typedef TSharedPtr<TBlob, TAtomicCounter> TBlobPtr;
+
+    TSharedRef(const TBlobPtr& blob, const TRef& ref)
+        : Blob(blob)
+        , Ref(ref)
+    { }
 
     TBlobPtr Blob;
     TRef Ref;
@@ -181,3 +211,32 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+void Save(TOutputStream* output, const NYT::TRef& ref);
+void Load(TInputStream* input, NYT::TSharedRef& ref);
+
+// TODO: move to impl
+
+inline void Save(TOutputStream* output, const NYT::TSharedRef& ref)
+{
+    if (ref == NYT::TSharedRef()) {
+        ::Save(output, static_cast<i64>(-1));
+    } else {
+        ::Save(output, static_cast<i64>(ref.Size()));
+        output->Write(ref.Begin(), ref.Size());
+    }
+}
+
+inline void Load(TInputStream* input, NYT::TSharedRef& ref)
+{
+    i64 size;
+    ::Load(input, size);
+    if (size == -1) {
+        ref = NYT::TSharedRef();
+    } else {
+        YASSERT(size >= 0);
+        NYT::TBlob blob(static_cast<size_t>(size));
+        input->Read(blob.begin(), blob.size());
+        ref = NYT::TSharedRef(NYT::MoveRV(blob));
+    }
+}

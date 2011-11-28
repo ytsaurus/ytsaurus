@@ -3,11 +3,8 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
-#include "../misc/config.h"
 #include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
-#include "../ytree/forwarding_yson_events.h"
 
 namespace NYT {
 namespace NCypress {
@@ -15,7 +12,7 @@ namespace NCypress {
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
-using namespace NTransaction;
+using namespace NTransactionServer;
 using namespace NMetaState;
 using namespace NProto;
 
@@ -26,7 +23,7 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressManager::TCypressManager(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     TCompositeMetaState* metaState,
     TTransactionManager* transactionManager)
     : TMetaStatePart(metaStateManager, metaState)
@@ -54,7 +51,7 @@ TCypressManager::TCypressManager(
     RegisterNodeType(~New<TMapNodeTypeHandler>(this));
     RegisterNodeType(~New<TListNodeTypeHandler>(this));
 
-    RegisterMethod(this, &TThis::DoExecuteVerb);
+    RegisterMethod(this, &TThis::DoExecuteLoggedVerb);
 
     metaState->RegisterLoader(
         "Cypress.1",
@@ -72,11 +69,6 @@ void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
 }
 
-INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
-{
-    return GetTypeHandler(node.GetRuntimeType());
-}
-
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
 {
     auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
@@ -84,16 +76,50 @@ INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
     return handler;
 }
 
+INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(const ICypressNode& node)
+{
+    return GetTypeHandler(node.GetRuntimeType());
+}
+
+void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
+{
+    auto nodeId = node.GetId();
+    if (nodeId.IsBranched())
+        return;
+
+    auto typeHandler = GetTypeHandler(node);
+    auto behavior = typeHandler->CreateBehavior(node);
+    if (~behavior == NULL)
+        return;
+
+    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.NodeId, behavior)).Second());
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
+        ~nodeId.NodeId.ToString());
+}
+
+void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
+{
+    auto nodeId = node.GetId();
+    if (nodeId.IsBranched())
+        return;
+
+    auto it = NodeBehaviors.find(nodeId.NodeId);
+    if (it == NodeBehaviors.end())
+        return;
+
+    it->Second()->Destroy();
+    NodeBehaviors.erase(it);
+
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
+        ~nodeId.NodeId.ToString());
+}
+
 const ICypressNode* TCypressManager::FindTransactionNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    // Handle sys transaction first.
-    if (transactionId == SysTransactionId) {
-        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    }
 
     // First try to fetch a branched copy.
     auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
@@ -119,30 +145,18 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Handle sys transaction first.
-    if (transactionId == SysTransactionId) {
-        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    }
-
-    // First fetch an unbranched copy and check if it is uncommitted.
-    auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    if (nonbranchedImpl != NULL && nonbranchedImpl->GetState() == ENodeState::Uncommitted) {
-        return nonbranchedImpl;
-    }
-
-    // Then try to fetch a branched copy.
+    // Try to fetch a branched copy.
     auto* branchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
     if (branchedImpl != NULL) {
+        YASSERT(branchedImpl->GetState() == ENodeState::Branched);
         return branchedImpl;
     }
 
-    // Now check if we have any copy at all.
+    // Then fetch an unbranched copy and check if we have a valid node at all.
+    auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
     if (nonbranchedImpl == NULL) {
-        return NULL;;
+        return NULL;
     }
-
-    // The non-branched copy must be committed.
-    YASSERT(nonbranchedImpl->GetState() == ENodeState::Committed);
 
     // Branch it!
     return &BranchNode(*nonbranchedImpl, transactionId);
@@ -159,15 +173,28 @@ ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
     return *impl;
 }
 
-ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(nodeId != NullNodeId);
-    const auto& impl = GetTransactionNode(nodeId, transactionId);
-    return GetTypeHandler(impl)->GetProxy(impl, transactionId);
+    const auto* impl = FindTransactionNode(nodeId, transactionId);
+    if (impl == NULL) {
+        return NULL;
+    }
+
+    return GetTypeHandler(*impl)->GetProxy(*impl, transactionId);
+}
+
+ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId)
+{
+    auto proxy = FindNodeProxy(nodeId, transactionId);
+    YASSERT(~proxy != NULL);
+    return proxy;
 }
 
 bool TCypressManager::IsTransactionNodeLocked(
@@ -175,11 +202,6 @@ bool TCypressManager::IsTransactionNodeLocked(
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    // No locking is need for sys transaction.
-    if (transactionId == SysTransactionId) {
-        return true;
-    }
 
     // Check if the node is created by the current transaction and is still uncommitted.
     const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
@@ -190,7 +212,7 @@ bool TCypressManager::IsTransactionNodeLocked(
     // Walk up to the root.
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
-        const auto& currentImpl = GetNode(TBranchedNodeId(currentNodeId, NullTransactionId));
+        const auto& currentImpl = NodeMap.Get(TBranchedNodeId(currentNodeId, NullTransactionId));
         // Check the locks assigned to the current node.
         FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
@@ -209,13 +231,13 @@ TLockId TCypressManager::LockTransactionNode(
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(transactionId != SysTransactionId);
 
     if (transactionId == NullTransactionId) {
         ythrow yexception() << "Cannot lock a node outside of a transaction";
     }
 
-    auto& impl = GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    // NB: Locks are assigned to non-branched nodes.
+    const auto& impl = NodeMap.Get(TBranchedNodeId(nodeId, NullTransactionId));
 
     // Make sure that the node is committed.
     if (impl.GetState() != ENodeState::Committed) {
@@ -237,7 +259,7 @@ TLockId TCypressManager::LockTransactionNode(
     // Walk up to the root and apply locks.
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
-        auto& impl = GetNodeForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
+        auto& impl = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
         impl.LockIds().insert(lock.GetId());
         currentNodeId = impl.GetParentId();
     }
@@ -259,14 +281,12 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(
     // Create a new node.
     auto nodeId = NodeIdGenerator.Next();
     TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    auto* nodeImpl = new TImpl(branchedNodeId);
+    auto* nodeImpl = new TImpl(branchedNodeId, type);
     NodeMap.Insert(branchedNodeId, nodeImpl);
 
-    // Register the node with the transaction (unless this is a sys transaction).
-    if (transactionId != SysTransactionId) {
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.CreatedNodes().push_back(nodeId);
-    }
+    // Register the node with the transaction.
+    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    transaction.CreatedNodes().push_back(nodeId);
 
     // Create a proxy.
     auto proxy = New<TProxy>(
@@ -308,19 +328,9 @@ IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& trans
     return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
 }
 
-struct TManifest
-    : public TConfigBase
-{
-    Stroka Type;
-
-    TManifest()
-    {
-        Register("type", Type).NonEmpty();
-    }
-};
-
 ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
+    const Stroka& typeName,
     INode* manifestNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -329,42 +339,36 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
         ythrow yexception() << "Cannot create a node outside of a transaction";
     }
 
-    if (manifestNode->GetType() != ENodeType::Map) {
-        ythrow yexception() << "Dynamic node manifest must be a map";
-    }
-    auto manifestMapNode = manifestNode->AsMap();
-
-    TManifest manifest;
-    manifest.Load(~manifestMapNode);
-
-    Stroka type = manifest.Type;
-    auto it = TypeNameToHandler.find(type);
+    auto it = TypeNameToHandler.find(typeName);
     if (it == TypeNameToHandler.end()) {
-        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~type.Quote());
+        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~typeName.Quote());
     }
 
     auto handler = it->Second();
 
     auto nodeId = NodeIdGenerator.Next();
     TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    TAutoPtr<ICypressNode> nodeImpl(handler->CreateFromManifest(
+    TAutoPtr<ICypressNode> node(handler->CreateFromManifest(
         nodeId,
         transactionId,
-        manifestMapNode));
-    auto* nodePtr = nodeImpl.Get();
-    NodeMap.Insert(branchedNodeId, nodeImpl.Release());
+        manifestNode));
+    auto* node_ = node.Get();
+    NodeMap.Insert(branchedNodeId, node.Release());
 
-    if (transactionId != SysTransactionId) {
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.CreatedNodes().push_back(nodeId);
-    }
+    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    transaction.CreatedNodes().push_back(nodeId);
 
-    auto proxy = GetTypeHandler(*nodePtr)->GetProxy(*nodePtr, transactionId);
+    auto typeHandler = GetTypeHandler(*node_);
+    auto proxy = typeHandler->GetProxy(*node_, transactionId);
 
     LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TransactionId: %s, Type: %s)",
         ~nodeId.ToString(),
         ~transactionId.ToString(),
-        ~type);
+        ~typeName);
+
+    if (IsLeader()) {
+        CreateNodeBehavior(*node_);
+    }
 
     return ~proxy;
 }
@@ -373,14 +377,14 @@ TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& 
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = LockIdGenerator.Next();
-    auto* lock = new TLock(id, nodeId, transactionId, ELockMode::ExclusiveWrite);
-    LockMap.Insert(id, lock);
+    auto lockId = LockIdGenerator.Next();
+    auto* lock = new TLock(lockId, nodeId, transactionId, ELockMode::ExclusiveWrite);
+    LockMap.Insert(lockId, lock);
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
     transaction.LockIds().push_back(lock->GetId());
 
     LOG_INFO_IF(!IsRecovery(), "Lock created (LockId: %s, NodeId: %s, TransactionId: %s)",
-        ~id.ToString(),
+        ~lockId.ToString(),
         ~nodeId.ToString(),
         ~transactionId.ToString());
 
@@ -417,19 +421,22 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
 void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* context)
 {
     auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
-    YASSERT(proxy != NULL);
-
-    if (!proxy->IsOperationLogged(context->GetPath(), context->GetVerb())) {
+    if (proxy == NULL || !proxy->IsLogged(context)) {
+        LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
+            ~context->GetPath(),
+            ~context->GetVerb(),
+            proxy == NULL ? "N/A" : ~proxy->GetNodeId().ToString(),
+            proxy == NULL ? "N/A" : ~proxy->GetTransactionId().ToString());
         service->Invoke(context);
         return;
     }
 
-    IYPathService::TPtr service_ = service;
-    IServiceContext::TPtr context_ = context;
+    bool startAutoTransaction = proxy->IsTransactionRequired(context);
 
     TMsgExecuteVerb message;
     message.SetNodeId(proxy->GetNodeId().ToProto());
     message.SetTransactionId(proxy->GetTransactionId().ToProto());
+    message.SetStartAutoTransaction(startAutoTransaction);
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
@@ -439,33 +446,47 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        ~FromMethod(&TCypressManager::DoExecuteVerbFast, TPtr(this), service, context));
+        ~FromMethod(
+            &TCypressManager::DoExecuteVerb,
+            TPtr(this),
+            proxy,
+            context,
+            startAutoTransaction));
 
+    LOG_INFO("Executing a logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
+        ~context->GetPath(),
+        ~context->GetVerb(),
+        ~proxy->GetNodeId().ToString(),
+        ~proxy->GetTransactionId().ToString());
+
+    IServiceContext::TPtr context_ = context;
     change
         ->OnError(~FromFunctor([=] ()
             {
-                context_->Reply(TError(EYPathErrorCode(EYPathErrorCode::GenericError)));
+                context_->Reply(TError(
+                    EYPathErrorCode::CommitError,
+                    "Error committing meta state changes"));
             }))
         ->Commit();
 }
 
-TVoid TCypressManager::DoExecuteVerb(const TMsgExecuteVerb& message)
+TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
 {
     auto nodeId = TNodeId::FromProto(message.GetNodeId());
     auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
+    bool startAutoTransaction = message.GetStartAutoTransaction();
 
     yvector<TSharedRef> parts(message.RequestPartsSize());
     for (int partIndex = 0; partIndex < static_cast<int>(message.RequestPartsSize()); ++partIndex) {
-        // NB: This constructs a non-owning TSharedRef to avoid copying.
-        // This is feasible since message will outlive the request.
+        // Construct a non-owning TSharedRef to avoid copying.
+        // This is feasible since the message will outlive the request.
         const auto& part = message.GetRequestParts(partIndex);
-        parts[partIndex] = TSharedRef(TRef(const_cast<char*>(part.begin()), part.size()));
+        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
-
-    YASSERT(parts.ysize() >= 2);
 
     TYPath path;
     Stroka verb;
+    YASSERT(!parts.empty());
     ParseYPathRequestHeader(
         parts[0],
         &path,
@@ -481,21 +502,59 @@ TVoid TCypressManager::DoExecuteVerb(const TMsgExecuteVerb& message)
         NULL);
 
     auto proxy = GetNodeProxy(nodeId, transactionId);
+    DoExecuteVerb(
+        proxy,
+        context,
+        startAutoTransaction);
+
+    return TVoid();
+}
+
+TVoid TCypressManager::DoExecuteVerb(
+    ICypressNodeProxy::TPtr proxy,
+    IServiceContext::TPtr context,
+    bool startAutoTransaction)
+{
+    TTransaction* transaction = NULL;
+
+    if (startAutoTransaction) {
+        // Create an automatic transaction.
+        transaction = &TransactionManager->StartTransaction();
+
+        // Replace the proxy with the transacted one.
+        proxy = GetNodeProxy(proxy->GetNodeId(), transaction->GetId());
+
+        LOG_INFO_IF(!IsRecovery(), "Automatic transaction started (TransactionId: %s)",
+            ~transaction->GetId().ToString());
+    }
+
+    LOG_INFO_IF(!IsRecovery(), "Executing logged operation (Path: %s, Verb: %s, TransactionId: %s)",
+        ~context->GetPath(),
+        ~context->GetVerb(),
+        ~proxy->GetTransactionId().ToString());
+
     auto service = IYPathService::FromNode(~proxy);
     service->Invoke(~context);
 
     LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
 
-    return TVoid();
-}
+    if (startAutoTransaction) {
+        // Commit or abort the automatic transaction depending on the
+        // outcome of the invocation.
+        auto transactionId = transaction->GetId();
+        if (context->GetError().IsOK()) {
+            // TODO: commit may fail!
+            TransactionManager->CommitTransaction(*transaction);
 
-TVoid TCypressManager::DoExecuteVerbFast(
-    NYTree::IYPathService::TPtr service,
-    NRpc::IServiceContext::TPtr context)
-{
-    service->Invoke(~context);
+            LOG_INFO_IF(!IsRecovery(), "Automatic transaction committed (TransactionId: %s)",
+                ~transactionId.ToString());
+        } else {
+            TransactionManager->AbortTransaction(*transaction);
 
-    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
+            LOG_INFO_IF(!IsRecovery(), "Automatic transaction aborted (TransactionId: %s)",
+                ~transactionId.ToString());
+        }
+    }
 
     return TVoid();
 }
@@ -541,10 +600,27 @@ void TCypressManager::Clear()
     LockMap.Clear();
 
     // Create the root.
-    auto* rootImpl = new TMapNode(TBranchedNodeId(RootNodeId, NullTransactionId));
+    auto* rootImpl = new TMapNode(
+        TBranchedNodeId(RootNodeId, NullTransactionId),
+        ERuntimeNodeType::Map);
     rootImpl->SetState(ENodeState::Committed);
     RefNode(*rootImpl);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
+}
+
+void TCypressManager::OnLeaderRecoveryComplete()
+{
+    FOREACH(const auto& pair, NodeMap) {
+        CreateNodeBehavior(*pair.Second());
+    }
+}
+
+void TCypressManager::OnStopLeading()
+{
+    FOREACH(const auto& pair, NodeBehaviors) {
+        pair.Second()->Destroy();
+    }
+    NodeBehaviors.clear();
 }
 
 void TCypressManager::RefNode(ICypressNode& node)
@@ -568,7 +644,7 @@ void TCypressManager::RefNode(ICypressNode& node)
 
 void TCypressManager::RefNode(const TNodeId& nodeId)
 {
-    auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
     RefNode(node);
 }
 
@@ -580,7 +656,7 @@ void TCypressManager::UnrefNode(ICypressNode& node)
 
     int refCounter;
     if (nodeId.IsBranched()) {
-        auto& nonbranchedNode = GetNodeForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
+        auto& nonbranchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId.NodeId, NullTransactionId));
         refCounter = nonbranchedNode.Unref();
         YVERIFY(refCounter > 0);
     } else {
@@ -592,16 +668,18 @@ void TCypressManager::UnrefNode(ICypressNode& node)
         refCounter);
 
     if (refCounter == 0) {
-        LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
+        DestroyNodeBehavior(node);
 
         GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(nodeId);
+
+        LOG_INFO_IF(!IsRecovery(), "Node removed (NodeId: %s)", ~nodeId.NodeId.ToString());
     }
 }
 
 void TCypressManager::UnrefNode(const TNodeId& nodeId)
 {
-    auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
     UnrefNode(node);
 }
 
@@ -653,7 +731,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
     // Merge all branched nodes and remove them.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        YASSERT(node.GetState() == ENodeState::Committed);
+        YASSERT(node.GetState() != ENodeState::Branched);
 
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
@@ -670,7 +748,7 @@ void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
 
 void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
-    // Drop the implicit references from branched nodes to their originators.
+    // Drop implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
         UnrefNode(nodeId);
     }
@@ -680,7 +758,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodes()) {
-        auto& node = GetNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
+        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
         GetTypeHandler(node)->Destroy(node);
         NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
 

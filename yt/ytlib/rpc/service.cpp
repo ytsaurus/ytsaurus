@@ -69,10 +69,11 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     }
 
     if (runtimeInfo == NULL) {
-        LOG_WARNING("Unknown method (ServiceName: %s, Verb: %s)",
+        Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~verb);
-        context->Reply(TError(EErrorCode::NoSuchMethod));
+        LOG_WARNING("%s", ~message);
+        context->Reply(TError(EErrorCode::NoSuchVerb, message));
     } else {
         auto handler = runtimeInfo->Descriptor.Handler;
         auto wrappedHandler = context->Wrap(~handler->Bind(context));

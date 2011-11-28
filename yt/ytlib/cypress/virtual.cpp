@@ -18,43 +18,38 @@ using namespace NRpc;
 class TVirtualNode
     : public TCypressNodeBase
 {
-    DECLARE_BYVAL_RO_PROPERTY(RuntimeType, ERuntimeNodeType);
-    DECLARE_BYVAL_RO_PROPERTY(Manifest, TYson);
+    DEFINE_BYVAL_RO_PROPERTY(TYson, Manifest);
 
 public:
-    explicit TVirtualNode(
+    TVirtualNode(
         const TBranchedNodeId& id,
-        ERuntimeNodeType runtimeType = ERuntimeNodeType::Invalid,
-        TYson manifest = "")
-        : TCypressNodeBase(id)
-        , RuntimeType_(runtimeType)
+        ERuntimeNodeType runtimeType,
+        const TYson& manifest = "")
+        : TCypressNodeBase(id, runtimeType)
         , Manifest_(manifest)
     { }
 
-    explicit TVirtualNode(
+    TVirtualNode(
         const TBranchedNodeId& id,
         const TVirtualNode& other)
-        : TCypressNodeBase(id)
-        , RuntimeType_(other.RuntimeType_)
+        : TCypressNodeBase(id, other)
         , Manifest_(other.Manifest_)
     { }
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TVirtualNode(Id, RuntimeType_);
+        return new TVirtualNode(Id, *this);
     }
 
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
-        ::Save(output, RuntimeType_);
         ::Save(output, Manifest_);
     }
 
     virtual void Load(TInputStream* input)
     {
         TCypressNodeBase::Load(input);
-        ::Load(input, RuntimeType_);
         ::Load(input, Manifest_);
     }
 
@@ -80,14 +75,12 @@ public:
         , Service(service)
     { }
 
-    bool IsOperationLogged(TYPath path, const Stroka& verb) const
+    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
     {
-        // Don't log anything for virtual nodes expect when the path is
-        // empty and thus refers to the node itself.
-        if (IsEmptyYPath(path)) {
-            return TBase::IsOperationLogged(path, verb);
+        if (IsLocalYPath(path)) {
+            return TBase::Resolve(path, verb);
         } else {
-            return false;
+            return TResolveResult::There(~Service, path);
         }
     }
 
@@ -96,23 +89,6 @@ private:
 
     IYPathService::TPtr Service;
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
-    {
-        if (~Service == NULL) {
-            return TBase::Resolve(path, verb);
-        } else {
-            return Service->Resolve(path, verb);
-        }
-    }
-
-    virtual void Invoke(IServiceContext* context)
-    {
-        if (~Service == NULL) {
-            TBase::Invoke(context);
-        } else {
-            Service->Invoke(context);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +97,8 @@ class TVirtualNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TVirtualNode>
 {
 public:
+    typedef TVirtualNodeTypeHandler TThis;
+
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
         TYPathServiceProducer* producer,
@@ -130,7 +108,9 @@ public:
         , Producer(producer)
         , RuntimeType(runtimeType)
         , TypeName(typeName)
-    { }
+    {
+        RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
+    }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
@@ -142,12 +122,6 @@ public:
         context.NodeId = node.GetId().NodeId;
         context.TransactionId = transactionId;
         context.Manifest = typedNode.GetManifest();
-        context.Fallback = New<TVirtualNodeProxy>(
-            this,
-            ~CypressManager,
-            transactionId,
-            node.GetId().NodeId,
-            static_cast<IYPathService*>(NULL));
 
         auto service = Producer->Do(context);
 
@@ -177,14 +151,14 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest)
+        NYTree::INode* manifest)
     {
         UNUSED(transactionId);
 
         TStringStream manifestStream;
         TYsonWriter writer(&manifestStream, TYsonWriter::EFormat::Binary);
         TTreeVisitor visitor(&writer);
-        visitor.Visit(~manifest);
+        visitor.Visit(manifest);
 
         return new TVirtualNode(
             TBranchedNodeId(nodeId, NullTransactionId),
@@ -195,7 +169,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TVirtualNode(id);
+        return new TVirtualNode(id, RuntimeType);
     }
 
 private:
@@ -203,6 +177,12 @@ private:
     ERuntimeNodeType RuntimeType;
     Stroka TypeName;
 
+    static void GetManifest(const TGetAttributeParam& param)
+    {
+        TYsonReader reader(param.Consumer);
+        TStringInput input(param.Node->GetManifest());
+        reader.Read(&input);
+    }
 };
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
@@ -225,15 +205,15 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
-    return New<TVirtualNodeTypeHandler>(
+    return CreateVirtualTypeHandler(
         cypressManager,
+        runtypeType,
+        typeName,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);
                 return service_;
-            }),
-        runtypeType,
-        typeName);
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

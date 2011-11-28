@@ -19,9 +19,6 @@ namespace {
          (Black)
          (White)
     );
-
-    DECLARE_POLY_ENUM1(EMyFirst, ((Chip)(1)));
-    DECLARE_POLY_ENUM2(EMySecond, EMyFirst, ((Dale)(2)));
 } // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,10 +37,6 @@ TEST(TEnumTest, Basic)
     EXPECT_EQ(30, EColor(EColor::Blue ).ToValue());
     EXPECT_EQ(31, EColor(EColor::Black).ToValue());
     EXPECT_EQ(32, EColor(EColor::White).ToValue());
-
-    EXPECT_EQ(0, EMyFirst().ToValue());
-    EXPECT_EQ(1, EMyFirst(EMyFirst::Chip).ToValue());
-    EXPECT_EQ(2, EMyFirst(2).ToValue());
 }
 
 TEST(TEnumTest, ToString)
@@ -56,10 +49,6 @@ TEST(TEnumTest, ToString)
     EXPECT_EQ("Blue",  EColor(EColor::Blue ).ToString());
     EXPECT_EQ("Black", EColor(EColor::Black).ToString());
     EXPECT_EQ("White", EColor(EColor::White).ToString());
-
-    EXPECT_EQ("EMyFirst(0)", EMyFirst().ToString());
-    EXPECT_EQ("Chip", EMyFirst(EMyFirst::Chip).ToString());
-    EXPECT_EQ("Foo", EMyFirst(2, "Foo").ToString());
 }
 
 TEST(TEnumTest, FromString)
@@ -82,45 +71,6 @@ TEST(TEnumTest, FromString)
     returnValue = EColor::FromString("Pink", &color);
     EXPECT_EQ(EColor::Red, color);
     EXPECT_IS_FALSE(returnValue);
-}
-
-TEST(TEnumTest, Polymorphism1)
-{
-    EMyFirst first(EMyFirst::Chip);
-    EMySecond second(first);
-
-    EXPECT_EQ("Chip", first.ToString());
-    EXPECT_EQ("Chip", second.ToString());
-
-    second = EMySecond::Dale;
-    first = second;
-
-    EXPECT_EQ("Dale", first.ToString());
-    EXPECT_EQ("Dale", second.ToString());
-}
-
-TEST(TEnumTest, Polymorphism2)
-{
-    EMyFirst first(2);
-    EMySecond second(first);
-
-    EXPECT_EQ("EMyFirst(2)", first.ToString());
-    EXPECT_EQ("Dale", second.ToString());
-
-    second = EMySecond(1);
-    first = second;
-
-    EXPECT_EQ("Chip", first.ToString());
-    EXPECT_EQ("Chip", second.ToString());
-}
-
-TEST(TEnumTest, Polymorphism3)
-{
-    EMyFirst first(17);
-    EMySecond second(first);
-
-    EXPECT_EQ("EMyFirst(17)", first.ToString());
-    EXPECT_EQ("EMySecond(17)", second.ToString());
 }
 
 TEST(TEnumTest, Ordering)
@@ -190,21 +140,6 @@ TEST(TEnumTest, OrderingWithDomainValues)
     EXPECT_NE(EColor::Blue, color);
 }
 
-TEST(TEnumTest, OrderingWithPolymorphism)
-{
-    EMyFirst f1(EMyFirst::Chip);
-    EMyFirst f2(2);
-    EMySecond g1(1);
-    EMySecond g2(EMySecond::Dale);
-
-    EXPECT_LT(f1, g2);
-    EXPECT_GT(f2, g1);
-    EXPECT_LE(f1, g1);
-    EXPECT_GE(f2, g2);
-    EXPECT_EQ(f1, g1);
-    EXPECT_NE(f1, g2);
-}
-
 TEST(TEnumTest, SaveAndLoad)
 {
     TStringStream stream;
@@ -222,30 +157,6 @@ TEST(TEnumTest, SaveAndLoad)
 
     EXPECT_EQ(first, third);
     EXPECT_EQ(second, fourth);
-}
-
-TEST(TEnumTest, SaveAndLoadWithPolymorphism)
-{
-    TStringStream stream;
-
-    EMyFirst f1(EMyFirst::Chip);
-    EMyFirst f2(0);
-
-    EXPECT_NE(f1, f2);
-
-    EMySecond g1(EMySecond::Dale);
-    EMySecond g2(0);
-
-    EXPECT_NE(g1, g2);
-
-    ::Save(&stream, f1);
-    ::Save(&stream, g1);
-
-    ::Load(&stream, f2);
-    ::Load(&stream, g2);
-
-    EXPECT_EQ(f1, f2);
-    EXPECT_EQ(g1, g2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

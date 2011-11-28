@@ -15,10 +15,10 @@ class TMetaStateServiceBase
 protected:
     typedef TIntrusivePtr<TMetaStateServiceBase> TPtr;
 
-    TMetaStateManager::TPtr MetaStateManager;
+    IMetaStateManager::TPtr MetaStateManager;
 
     TMetaStateServiceBase(
-        TMetaStateManager* metaStateManager,
+        IMetaStateManager* metaStateManager,
         const Stroka& serviceName,
         const Stroka& loggingCategory)
         : NRpc::TServiceBase(
@@ -46,7 +46,9 @@ protected:
         TIntrusivePtr<TContext> context_ = context;
         return FromFunctor([=] ()
             {
-                context_->Reply(NRpc::EErrorCode::Unavailable);
+                context_->Reply(
+                    NRpc::EErrorCode::Unavailable,
+                    "Error committing meta state changes");
             });
     }
 

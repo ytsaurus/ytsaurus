@@ -10,53 +10,45 @@
 
 namespace NYT {
 namespace NTransactionClient {
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("TransactionClient");
+static NLog::TLogger& Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TTransaction
     : public ITransaction
 {
-    DECLARE_BYREF_RW_PROPERTY(OnCommitted, TSignal);
-    DECLARE_BYREF_RW_PROPERTY(OnAborted, TSignal);
-
 public:
     typedef TIntrusivePtr<TTransaction> TPtr;
 
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
-        TTransactionManager::TPtr transactionManager)
+        NRpc::IChannel* cellChannel,
+        TTransactionManager* transactionManager)
         : TransactionManager(transactionManager)
         , Proxy(cellChannel)
-        , State(EState::Init)
+        , State(EState::Active)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
-        YASSERT(~cellChannel != NULL);
-        YASSERT(~transactionManager != NULL);
+        YASSERT(cellChannel != NULL);
+        YASSERT(transactionManager != NULL);
 
-        LOG_INFO("Starting transaction");
-
-        Proxy.SetTimeout(TransactionManager->Config.RpcTimeout);
+        Proxy.SetTimeout(TransactionManager->Config.MasterRpcTimeout);
 
         auto req = Proxy.StartTransaction();
-        auto rsp = req->Invoke()->Get();
 
+        LOG_INFO("Starting transaction");
+        auto rsp = req->Invoke()->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
-            State = EState::Finished;
-
-            // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction (Error: %s)",
-                ~rsp->GetError().ToString());
+            State = EState::Aborted;
+            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-
         Id = TTransactionId::FromProto(rsp->GetTransactionId());
-
-        LOG_DEBUG("Transaction started (TransactionId: %s)", ~Id.ToString());
-
         State = EState::Active;
+
+        LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
 
         TransactionManager->RegisterTransaction(this);
 
@@ -79,7 +71,6 @@ public:
     TTransactionId GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
         return Id;
     }
 
@@ -87,115 +78,158 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        SetFinished();
+        MakeStateTransition(EState::Committing);
 
-        LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
-        
         auto req = Proxy.CommitTransaction();
         req->SetTransactionId(Id.ToProto());
+
+        LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
         auto rsp = req->Invoke()->Get();
 
+        TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
-            OnAborted_.Fire();
+            State = EState::Aborted;
+            guard.Release();
+            
+            DoAbort();
 
-            // TODO: exception type
-            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s, Error: %s)",
+            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s)\n%s",
                 ~Id.ToString(),
                 ~rsp->GetError().ToString());
+            return;
         }
+        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
 
-        LOG_DEBUG("Transaction committed (TransactionId: %s)", ~Id.ToString());
-
-        OnCommitted_.Fire();
-
-        // TODO: consider extracting a method
-        OnAborted_.Clear();
-        OnCommitted_.Clear();
+        State = EState::Committed;
+        PingInvoker->Stop();
     }
 
     void Abort()
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        SetFinished();
+        MakeStateTransition(EState::Aborted);
 
-        LOG_INFO("Aborting transaction (TransactionId: %s)", ~Id.ToString());
-
+        // Fire and forget.
         auto req = Proxy.AbortTransaction();
+        req->SetTransactionId(Id.ToProto());
         req->Invoke();
 
-        OnAborted_.Fire();
+        DoAbort();
 
-        OnAborted_.Clear();
-        OnCommitted_.Clear();
+        LOG_INFO("Transaction aborted by client (TransactionId: %s)",  ~Id.ToString());
+    }
+
+    void SubscribeAborted(IAction::TPtr onAborted)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        
+        TGuard<TSpinLock> guard(SpinLock);
+        switch (State) {
+            case EState::Active:
+                Aborted.Subscribe(onAborted);
+                break;
+
+            case EState::Aborted:
+                guard.Release();
+                onAborted->Do();
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void UnsubscribeAborted(IAction::TPtr onAborted)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        Aborted.Unsubscribe(onAborted);
     }
 
     void AsyncAbort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Finished) {
-            State = EState::Finished;
-            guard.Release();
-
-            OnAborted_.Fire();
-            
-            OnAborted_.Clear();
-            OnCommitted_.Clear();
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Active) {
+                return;
+            }
+            State = EState::Aborted;
         }
+
+        DoAbort();
     }
 
 private:
-    void SetFinished()
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Finished) {
-            ythrow yexception() << Sprintf("Transaction is already finished (TransactionId: %s)",
-                ~Id.ToString());
-        }
-
-        YASSERT(State == EState::Active);
-
-        State == EState::Finished;
-        PingInvoker->Stop();
-    }
-
     DECLARE_ENUM(EState,
-        (Init)
         (Active)
-        (Finished)
+        (Aborted)
+        (Committing)
+        (Committed)
     );
 
     TTransactionManager::TPtr TransactionManager;
     TProxy Proxy;
-    EState State;
 
     //! Protects state transitions.
     TSpinLock SpinLock;
+    EState State;
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
 
+    TSignal Aborted;
+
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+
+
+    void MakeStateTransition(EState newState)
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        switch (State) {
+            case EState::Committed:
+                ythrow yexception() << "Transaction is already committed";
+                break;
+
+            case EState::Aborted:
+                ythrow yexception() << "Transaction is already aborted";
+                break;
+
+            case EState::Active:
+                State = newState;
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void DoAbort()
+    {
+        PingInvoker->Stop();
+        Aborted.Fire();
+        Aborted.Clear();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
     const TConfig& config, 
-    NRpc::IChannel::TPtr channel)
+    NRpc::IChannel* channel)
     : Config(config)
     , Channel(channel)
 {
-    YASSERT(~channel != NULL);
+    YASSERT(channel != NULL);
 }
 
 ITransaction::TPtr TTransactionManager::StartTransaction()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return New<TTransaction>(Channel, this);
+    return New<TTransaction>(~Channel, this);
 }
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
@@ -208,8 +242,8 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
             return;
     }
 
-    TProxy proxy(Channel);
-    proxy.SetTimeout(Config.RpcTimeout);
+    TProxy proxy(~Channel);
+    proxy.SetTimeout(Config.MasterRpcTimeout);
 
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
@@ -247,21 +281,23 @@ void TTransactionManager::OnPingResponse(
         }
     }
     
-    if (~transaction == NULL) {
-        LOG_DEBUG("Renewed lease for a non-existing transaction (TransactionId: %s)", 
-            ~id.ToString());
+    if (~transaction == NULL)
         return;
-    }
 
     if (!rsp->IsOK()) {
-        LOG_WARNING("Failed to renew transaction lease (TransactionId: %s)", 
-            ~id.ToString());
-        transaction->AsyncAbort();
+        if (rsp->GetErrorCode() == TProxy::EErrorCode::NoSuchTransaction) {
+            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
+                ~id.ToString(),
+                ~rsp->GetError().ToString());
+        } else {
+            LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
+                ~id.ToString());
+            transaction->AsyncAbort();
+        }
         return;
     }
 
-    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)", 
-        ~id.ToString());
+    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)", ~id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

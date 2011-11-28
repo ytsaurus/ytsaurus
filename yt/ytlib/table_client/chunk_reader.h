@@ -5,7 +5,8 @@
 #include "schema.h"
 #include "channel_reader.h"
 
-#include "../chunk_client/sequential_chunk_reader.h"
+#include "../chunk_client/async_reader.h"
+#include "../chunk_client/sequential_reader.h"
 #include "../misc/thread_affinity.h"
 
 namespace NYT {
@@ -22,9 +23,9 @@ public:
     typedef TIntrusivePtr<TTableChunkReader> TPtr;
 
     TTableChunkReader(
-        const TSequentialChunkReader::TConfig& config,
+        const NChunkClient::TSequentialReader::TConfig& config,
         const TChannel& channel,
-        IChunkReader::TPtr chunkReader);
+        NChunkClient::IAsyncReader::TPtr chunkReader);
 
     // TODO: refactor using the following declarations
     DECLARE_ENUM(ECode,
@@ -93,9 +94,9 @@ public:
 
 private:
     void OnGotMeta(
-        IChunkReader::TReadResult readResult,
-        const TSequentialChunkReader::TConfig& config,
-        IChunkReader::TPtr chunkReader);
+        NChunkClient::IAsyncReader::TReadResult readResult,
+        const NChunkClient::TSequentialReader::TConfig& config,
+        NChunkClient::IAsyncReader::TPtr chunkReader);
 
     yvector<int> SelectChannels(const yvector<TChannel>& channels);
     int SelectSingleChannel(const yvector<TChannel>& channels, const NProto::TChunkMeta& protoMeta);
@@ -104,7 +105,7 @@ private:
         const yvector<int>& selectedChannels, 
         const NProto::TChunkMeta& protoMeta);
 
-    TSequentialChunkReader::TPtr SequentialChunkReader;
+    NChunkClient::TSequentialReader::TPtr SequentialReader;
 
     TFuture<bool>::TPtr InitSuccess;
     TChannel Channel;

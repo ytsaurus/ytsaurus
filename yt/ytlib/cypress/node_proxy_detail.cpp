@@ -191,6 +191,18 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     AttachChild(newChildImpl);
 }
 
+Stroka TMapNodeProxy::GetChildKey(INode* child)
+{
+    auto& impl = GetTypedImpl();
+    
+    auto* childProxy = ToProxy(child);
+
+    auto it = impl.ChildToName().find(childProxy->GetNodeId());
+    YASSERT(it != impl.ChildToName().end());
+
+    return it->Second();
+}
+
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 {
     if (TMapNodeMixin::DoInvoke(context)) {
@@ -305,6 +317,7 @@ bool TListNodeProxy::RemoveChild(int index)
     auto& childImpl = childProxy->GetImplForUpdate();
 
     list.erase(list.begin() + index);
+    YVERIFY(impl.ChildToIndex().erase(childProxy->GetNodeId()));
     DetachChild(childImpl);
 
     return true;
@@ -351,8 +364,21 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     DetachChild(oldChildImpl);
 
     impl.IndexToChild()[index] = newChildProxy->GetNodeId();
+    impl.ChildToIndex().erase(it);
     YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetNodeId(), index)).Second());
     AttachChild(newChildImpl);
+}
+
+int TListNodeProxy::GetChildIndex(INode* child)
+{
+    auto& impl = GetTypedImplForUpdate();
+
+    auto childProxy = ToProxy(child);
+
+    auto it = impl.ChildToIndex().find(childProxy->GetNodeId());
+    YASSERT(it != impl.ChildToIndex().end());
+
+    return it->Second();
 }
 
 void TListNodeProxy::CreateRecursive(TYPath path, INode* value)

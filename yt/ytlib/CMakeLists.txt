@@ -15,6 +15,7 @@ include(ytree/CMakeLists.txt)
 include(cypress/CMakeLists.txt)
 include(orchid/CMakeLists.txt)
 include(file_server/CMakeLists.txt)
+include(file_client/CMakeLists.txt)
 include(table_server/CMakeLists.txt)
 include(table_client/CMakeLists.txt)
 include(monitoring/CMakeLists.txt)
@@ -33,6 +34,8 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/chunk_holder
   ${CMAKE_CURRENT_SOURCE_DIR}/rpc
   ${CMAKE_CURRENT_SOURCE_DIR}/ytree
+  ${CMAKE_CURRENT_SOURCE_DIR}/file_server
+  ${CMAKE_CURRENT_SOURCE_DIR}/file_client
 )
 
 #

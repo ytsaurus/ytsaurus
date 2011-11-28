@@ -46,12 +46,13 @@ public:
     void Check()
     {
         intptr_t currentThreadId = static_cast<intptr_t>(TThread::CurrentThreadId());
-        intptr_t boundThreadId = BoundId;
-        if (boundThreadId != InvalidId) {
-            YVERIFY(boundThreadId == currentThreadId);
-        } else {
-            YVERIFY(AtomicCas(&BoundId, currentThreadId, InvalidId));
-        }
+        do {
+            intptr_t boundThreadId = BoundId;
+            if (boundThreadId != InvalidId) {
+                YVERIFY(boundThreadId == currentThreadId);
+                break;
+            }
+        } while (!AtomicCas(&BoundId, currentThreadId, InvalidId));
     }
 
 private:

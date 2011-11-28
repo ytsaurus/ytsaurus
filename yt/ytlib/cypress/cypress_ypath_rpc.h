@@ -15,6 +15,7 @@ struct TCypressYPathProxy
 {
     YPATH_PROXY_METHOD(NProto, Lock);
     YPATH_PROXY_METHOD(NProto, Create);
+    YPATH_PROXY_METHOD(NProto, GetId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

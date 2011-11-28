@@ -9,7 +9,7 @@
 #include <util/ysaveload.h>
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 // TODO: get rid
 using NCypress::TNodeId;
@@ -20,11 +20,11 @@ using NCypress::TLockId;
 
 class TTransaction
 {
-    DECLARE_BYVAL_RO_PROPERTY(Id, TTransactionId);
-    DECLARE_BYREF_RW_PROPERTY(RegisteredChunks, yvector<TChunkId>);
-    DECLARE_BYREF_RW_PROPERTY(LockIds, yvector<TLockId>);
-    DECLARE_BYREF_RW_PROPERTY(BranchedNodes, yvector<TNodeId>);
-    DECLARE_BYREF_RW_PROPERTY(CreatedNodes, yvector<TNodeId>);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, RegisteredChunks);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TLockId>, LockIds);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, BranchedNodes);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, CreatedNodes);
 
 public:
     TTransaction(const TTransactionId& id)
@@ -69,5 +69,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

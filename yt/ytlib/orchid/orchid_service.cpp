@@ -1,13 +1,14 @@
 #include "stdafx.h"
 #include "orchid_service.h"
 
-#include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
-#include "../ytree/ypath_rpc.h"
+#include "../ytree/ypath_detail.h"
+#include "../ytree/ypath_client.h"
 
 namespace NYT {
 namespace NOrchid {
 
+using namespace NBus;
+using namespace NRpc;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,15 +39,17 @@ TOrchidService::TOrchidService(
 
 RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
 {
+    UNUSED(request);
     UNUSED(response);
 
-    const auto& attachments = request->Attachments();
-    YASSERT(attachments.ysize() >= 2);
+    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto requestParts = requestMessage->GetParts();
+    YASSERT(!requestParts.empty());
 
     TYPath path;
     Stroka verb;
     ParseYPathRequestHeader(
-        attachments[0],
+        requestParts[0],
         &path,
         &verb);
 
@@ -55,31 +58,22 @@ RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
         ~verb);
 
     auto rootService = IYPathService::FromNode(~Root);
+    ExecuteVerb(
+        ~rootService,
+        ~requestMessage)
+    ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
+        {
+            auto responseParts = responseMessage->GetParts();
+            YASSERT(!responseParts.empty());
 
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    try {
-        ResolveYPath(~rootService, path, false, &suffixService, &suffixPath);
-    } catch (...) {
-        ythrow TServiceException(EErrorCode::ResolutionError) << CurrentExceptionMessage();
-    }
+            TError error;
+            ParseYPathResponseHeader(responseParts[0], &error);
 
-    LOG_DEBUG("Execute: SuffixPath: %s", ~suffixPath);
+            context->SetRequestInfo("YPathError: %s", ~error.ToString());
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto updatedRequestMessage = UpdateYPathRequestHeader(~requestMessage, suffixPath, verb);
-    auto innerContext = CreateYPathContext(
-        ~updatedRequestMessage,
-        suffixPath,
-        verb,
-        Logger.GetCategory(),
-        ~FromFunctor([=] (const TYPathResponseHandlerParam& param)
-            {
-                WrapYPathResponse(~context->GetUntypedContext(), ~param.Message);
-                context->Reply();
-            }));
-
-    suffixService->Invoke(~innerContext);
+            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
+            context->Reply();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

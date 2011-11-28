@@ -21,9 +21,10 @@ public:
         ((NoSuchTransaction)(1))
         ((NoSuchHolder)(2))
         ((NoSuchChunk)(3))
+        ((NotEnoughHolders)(4))
     );
 
-    TChunkServiceProxy(NRpc::IChannel::TPtr channel)
+    TChunkServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -7,6 +7,7 @@
 #include "job.h"
 #include "job_list.h"
 #include "chunk_service_rpc.h"
+#include "holder_authority.h"
 #include "chunk_manager.pb.h"
 
 #include "../meta_state/meta_change.h"
@@ -18,11 +19,11 @@ namespace NChunkServer {
 
 // TODO: get rid
 using NMetaState::TMetaChange;
-using NMetaState::TMetaStateManager;
+using NMetaState::IMetaStateManager;
 using NMetaState::TCompositeMetaState;
-using NTransaction::TTransactionManager;
-using NTransaction::TTransactionId;
-using NTransaction::TTransaction;
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionId;
+using NTransactionServer::TTransaction;
 
 class TChunkManager
     : public TRefCountedBase
@@ -34,31 +35,45 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        TMetaStateManager* metaStateManager,
+        IMetaStateManager* metaStateManager,
         TCompositeMetaState* metaState,
-        TTransactionManager* transactionManager);
+        TTransactionManager* transactionManager,
+        IHolderRegistry* holderRegistry);
 
     // TODO: provide Stop method
 
-    METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
+    METAMAP_ACCESSORS_DECL(Chunk, TChunk, NChunkClient::TChunkId);
     METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
     METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
-    METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
+    METAMAP_ACCESSORS_DECL(JobList, TJobList, NChunkClient::TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
+
+    //! Fired when a holder gets registered.
+    /*!
+     *  \note
+     *  Only fired for leaders, not fired during recovery.
+     */
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    //! Fired when a holder gets unregistered.
+    /*!
+     *  \note
+     *  Only fired for leaders, not fired during recovery.
+     */
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
     const THolder* FindHolder(const Stroka& address);
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
+    TMetaChange<NChunkClient::TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
 
     TChunkList& CreateChunkList();
     void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
 
-    void RefChunk(const TChunkId& chunkId);
+    void RefChunk(const NChunkClient::TChunkId& chunkId);
     void RefChunk(TChunk& chunk);
-    void UnrefChunk(const TChunkId& chunkId);
+    void UnrefChunk(const NChunkClient::TChunkId& chunkId);
     void UnrefChunk(TChunk& chunk);
 
     void RefChunkList(const TChunkListId& chunkListId);

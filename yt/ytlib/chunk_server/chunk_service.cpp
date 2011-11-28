@@ -6,7 +6,9 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NRpc;
 using namespace NMetaState;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,7 +17,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkService::TChunkService(
-    NMetaState::TMetaStateManager* metaStateManager,
+    NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager,
     NRpc::IServer* server)
@@ -199,6 +201,11 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
     ValidateTransactionId(transactionId);
 
     auto holderIds = ChunkManager->AllocateUploadTargets(replicaCount);
+    if (holderIds.ysize() < replicaCount) {
+        ythrow TServiceException(EErrorCode::NotEnoughHolders) << Sprintf("Not enough holders available (ReplicaCount: %d)",
+            replicaCount);
+    }
+
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = ChunkManager->GetHolder(holderId);
         response->AddHolderAddresses(holder.GetAddress());

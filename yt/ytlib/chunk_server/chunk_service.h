@@ -20,22 +20,21 @@ public:
 
     //! Creates an instance.
     TChunkService(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         TChunkManager* chunkManager,
-        NTransaction::TTransactionManager* transactionManager,
+        NTransactionServer::TTransactionManager* transactionManager,
         NRpc::IServer* server);
 
 private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
 
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);
-    void ValidateChunkId(const TChunkId& chunkId);
+    void ValidateChunkId(const NChunkClient::TChunkId& chunkId);
 
     RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
     RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);

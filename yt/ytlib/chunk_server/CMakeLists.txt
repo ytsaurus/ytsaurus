@@ -13,7 +13,8 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_manager.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_placement.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_replication.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder_expiration.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder_lease_tracker.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder_authority.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/cypress_integration.cpp
 )

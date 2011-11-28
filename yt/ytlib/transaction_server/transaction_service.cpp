@@ -2,25 +2,26 @@
 #include "transaction_service.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
+using namespace NRpc;
 using namespace NProto;
 using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TransactionLogger;
+static NLog::TLogger& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionService::TTransactionService(
-    TMetaStateManager* metaStateManager,
+    IMetaStateManager* metaStateManager,
     TTransactionManager* transactionManager,
     NRpc::IServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TTransactionServiceProxy::GetServiceName(),
-        TransactionLogger.GetCategory())
+        TransactionServerLogger.GetCategory())
     , TransactionManager(transactionManager)
 {
     YASSERT(transactionManager != NULL);
@@ -125,5 +126,5 @@ RPC_SERVICE_METHOD_IMPL(TTransactionService, RenewTransactionLease)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

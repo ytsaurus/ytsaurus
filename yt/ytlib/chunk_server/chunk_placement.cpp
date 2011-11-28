@@ -8,19 +8,21 @@
 namespace NYT {
 namespace NChunkServer {
 
+using NChunkClient::TChunkId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPlacement::TChunkPlacement(TChunkManager::TPtr chunkManager)
+TChunkPlacement::TChunkPlacement(TChunkManager* chunkManager)
     : ChunkManager(chunkManager)
 {
-    YASSERT(~chunkManager != NULL);
+    YASSERT(chunkManager != NULL);
 }
 
-void TChunkPlacement::AddHolder(const THolder& holder)
+void TChunkPlacement::OnHolderRegistered(const THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, holder.GetId()));
@@ -28,7 +30,7 @@ void TChunkPlacement::AddHolder(const THolder& holder)
     YVERIFY(HintedSessionsMap.insert(MakePair(holder.GetId(), 0)).Second());
 }
 
-void TChunkPlacement::RemoveHolder(const THolder& holder)
+void TChunkPlacement::OnHolderUnregistered(const THolder& holder)
 {
     auto iteratorIt = IteratorMap.find(holder.GetId());
     YASSERT(iteratorIt != IteratorMap.end());
@@ -38,13 +40,13 @@ void TChunkPlacement::RemoveHolder(const THolder& holder)
     YVERIFY(HintedSessionsMap.erase(holder.GetId()) == 1);
 }
 
-void TChunkPlacement::UpdateHolder(const THolder& holder)
+void TChunkPlacement::OnHolderUpdated(const THolder& holder)
 {
-    RemoveHolder(holder);
-    AddHolder(holder);
+    OnHolderUnregistered(holder);
+    OnHolderRegistered(holder);
 }
 
-void TChunkPlacement::AddHolderSessionHint(const THolder& holder)
+void TChunkPlacement::OnSessionHinted(const THolder& holder)
 {
     ++HintedSessionsMap[holder.GetId()];
 }

@@ -20,6 +20,57 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IYPathService::TResolveResult TYPathServiceBase::Resolve(TYPath path, const Stroka& verb)
+{
+    if (IsFinalYPath(path)) {
+        return ResolveSelf(path, verb);
+    } else if (IsAttributeYPath(path)) {
+        return ResolveAttributes(path, verb);
+    } else {
+        return ResolveRecursive(path, verb);
+    }
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(TYPath path, const Stroka& verb)
+{
+    UNUSED(verb);
+    return TResolveResult::Here(path);
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(TYPath path, const Stroka& verb)
+{
+    UNUSED(path);
+    UNUSED(verb);
+    ythrow yexception() << "YPath resolution for attributes is not supported";
+}
+
+IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(TYPath path, const Stroka& verb)
+{
+    UNUSED(path);
+    UNUSED(verb);
+    ythrow yexception() << "YPath resolution is not supported";
+}
+
+void TYPathServiceBase::Invoke(IServiceContext* context)
+{
+    try {
+        DoInvoke(context);
+    } catch (...) {
+        context->Reply(TError(
+            EYPathErrorCode::GenericError,
+            CurrentExceptionMessage()));
+    }
+}
+
+void TYPathServiceBase::DoInvoke(IServiceContext* context)
+{
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) <<
+        "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , Builder(builder)
@@ -128,6 +179,19 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath ChopYPathRootMarker(TYPath path)
+{
+    if (path.empty()) {
+        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
+    }
+
+    if (path[0] != '/') {
+        ythrow yexception() << "YPath must start with \"/\"";
+    }
+
+    return path.substr(1);
+}
+
 void ChopYPathToken(
     TYPath path,
     Stroka* prefix,
@@ -172,20 +236,6 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-TYPath ParseYPathRoot(TYPath path)
-{
-    if (path.empty()) {
-        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
-    }
-
-    if (path[0] != '/') {
-        ythrow yexception() << "YPath must start with \"/\"";
-    }
-
-    return path.substr(1);
-}
-
-
 bool IsEmptyYPath(TYPath path)
 {
     return path.empty();
@@ -196,7 +246,7 @@ bool IsFinalYPath(TYPath path)
     return path.empty() || path == "/";
 }
 
-bool HasYPathAttributeMarker(TYPath path)
+bool IsAttributeYPath(TYPath path)
 {
     return !path.empty() && path[0] == '@';
 }
@@ -204,6 +254,15 @@ bool HasYPathAttributeMarker(TYPath path)
 TYPath ChopYPathAttributeMarker(TYPath path)
 {
     return path.substr(1);
+}
+
+bool IsLocalYPath(TYPath path)
+{
+    // The empty path is handled by the virtual node itself.
+    // All other paths (including "/") are forwarded to the service.
+    // Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
+    // Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+    return IsEmptyYPath(path) || IsAttributeYPath(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,11 +288,10 @@ protected:
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
+        UNUSED(error);
+
         if (~ResponseHandler != NULL) {
-            TYPathResponseHandlerParam response;
-            response.Message = responseMessage;
-            response.Error = error;
-            ResponseHandler->Do(response);
+            ResponseHandler->Do(responseMessage);
         }
     }
 
@@ -285,14 +343,14 @@ void ResolveYPath(
     YASSERT(suffixPath != NULL);
 
     IYPathService::TPtr currentService = rootService;
-    auto currentPath = ParseYPathRoot(path);
+    auto currentPath = ChopYPathRootMarker(path);
 
     while (true) {
         IYPathService::TResolveResult result;
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+            ythrow yexception() << Sprintf("Error resolving YPath (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
                 ~path,
                 ~verb,
                 ~ComputeResolvedYPath(path, currentPath),
@@ -310,19 +368,6 @@ void ResolveYPath(
     }
 }
 
-IYPathService::TPtr ResolveYPath(
-    IYPathService* rootService,
-    TYPath path)
-{
-    YASSERT(rootService != NULL);
-
-    IYPathService::TPtr suffixService;
-    TYPath suffixPath;
-    // TODO: killme
-    ResolveYPath(rootService, path, "Get", &suffixService, &suffixPath);
-    return suffixService;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYPathRequestHeader(
@@ -334,12 +379,26 @@ void ParseYPathRequestHeader(
     YASSERT(verb != NULL);
 
     TRequestHeader header;
-    if (!DeserializeMessage(&header, headerData)) {
+    if (!DeserializeProtobuf(&header, headerData)) {
         LOG_FATAL("Error deserializing YPath request header");
     }
 
     *path = header.GetPath();
     *verb = header.GetVerb();
+}
+
+void ParseYPathResponseHeader(
+    TRef headerData,
+    TError* error)
+{
+    YASSERT(error != NULL);
+
+    TResponseHeader header;
+    if (!DeserializeProtobuf(&header, headerData)) {
+        LOG_FATAL("Error deserializing YPath response header");
+    }
+
+    *error = TError(header.GetErrorCode(), header.GetErrorMessage());
 }
 
 IMessage::TPtr UpdateYPathRequestHeader(
@@ -355,7 +414,30 @@ IMessage::TPtr UpdateYPathRequestHeader(
     header.SetVerb(verb);
 
     TBlob headerData;
-    if (!SerializeMessage(&header, &headerData)) {
+    if (!SerializeProtobuf(&header, &headerData)) {
+        LOG_FATAL("Error serializing YPath request header");
+    }
+
+    auto parts = message->GetParts();
+    YASSERT(!parts.empty());
+    parts[0] = TSharedRef(MoveRV(headerData));
+
+    return CreateMessageFromParts(parts);
+}
+
+IMessage::TPtr UpdateYPathResponseHeader(
+    IMessage* message,
+    const TError& error)
+{
+    YASSERT(message != NULL);
+
+    TResponseHeader header;
+    header.SetRequestId(TRequestId().ToProto());
+    header.SetErrorCode(error.GetCode());
+    header.SetErrorMessage(error.GetMessage());
+
+    TBlob headerData;
+    if (!SerializeProtobuf(&header, &headerData)) {
         LOG_FATAL("Error serializing YPath request header");
     }
 
@@ -437,13 +519,11 @@ void ReplyYPathWithMessage(
     YASSERT(!parts.empty());
 
     TResponseHeader header;
-    if (!DeserializeMessage(&header, parts[0])) {
+    if (!DeserializeProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    TError error(
-        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-        header.GetErrorMessage());
+    TError error(header.GetErrorCode(), header.GetErrorMessage());
 
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);

@@ -8,12 +8,48 @@
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"
 #include "../ytree/fluent.h"
-// TODO: remove
-#include "../ytree/tree_builder.h"
 #include "../ytree/ephemeral.h"
+#include "../ytree/tree_builder.h"
 
 namespace NYT {
 namespace NCypress {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TImpl, class TProxy>
+class TNodeBehaviorBase
+    : public INodeBehavior
+{
+public:
+    TNodeBehaviorBase(
+        const ICypressNode& node,
+        TCypressManager* cypressManager)
+        : CypressManager(cypressManager)
+        , NodeId(node.GetId().NodeId)
+    { }
+
+    virtual void Destroy()
+    { }
+
+
+protected:
+    TCypressManager::TPtr CypressManager;
+    TNodeId NodeId;
+
+    TImpl& GetImpl()
+    {
+        return CypressManager->GetNode(TBranchedNodeId(NodeId, NullTransactionId));
+    }
+
+    TIntrusivePtr<TProxy> GetProxy()
+    {
+        auto proxy = CypressManager->GetNodeProxy(NodeId, NullTransactionId);
+        auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
+        YASSERT(typedProxy != NULL);
+        return typedProxy;
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,24 +58,25 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
-    TCypressNodeTypeHandlerBase(TCypressManager::TPtr cypressManager)
+    TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
     {
         RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
-        // NB: no smartpointer for this here
+        RegisterGetter("parent_id", FromMethod(&TThis::GetParentId));
+        // NB: No smartpointer for this here.
         RegisterGetter("type", FromMethod(&TThis::GetType, this));
     }
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TImpl(id);
+        return new TImpl(id, GetRuntimeType());
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::IMapNode::TPtr manifest)
+        NYTree::INode* manifest)
     {
         UNUSED(nodeId);
         UNUSED(transactionId);
@@ -65,7 +102,7 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId)
     {
-        YASSERT(node.GetState() == ENodeState::Committed);
+        YASSERT(node.GetState() != ENodeState::Branched);
 
         const auto& typedNode = dynamic_cast<const TImpl&>(node);
 
@@ -89,25 +126,30 @@ public:
     }
 
     virtual void Merge(
-        ICypressNode& committedNode,
+        ICypressNode& originatingNode,
         ICypressNode& branchedNode)
     {
-       YASSERT(committedNode.GetState() == ENodeState::Committed);
-       YASSERT(branchedNode.GetState() == ENodeState::Branched);
+        YASSERT(originatingNode.GetState() != ENodeState::Branched);
+        YASSERT(branchedNode.GetState() == ENodeState::Branched);
+
+        // Set the parent of the originating node.
+        // Valid parents are first set for branched copies at TCypressNodeProxyBase::AttachChild
+        // and then propagates to their originators during transaction commit.
+        originatingNode.SetParentId(branchedNode.GetParentId());
 
         // Drop the reference to attributes, if any.
-        if (committedNode.GetAttributesId() != NullNodeId) {
+        if (originatingNode.GetAttributesId() != NullNodeId) {
             auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                committedNode.GetAttributesId(),
+                originatingNode.GetAttributesId(),
                 NullTransactionId));
             CypressManager->UnrefNode(attrImpl);
         }
 
         // Replace the attributes with the branched copy.
-        committedNode.SetAttributesId(branchedNode.GetAttributesId());
+        originatingNode.SetAttributesId(branchedNode.GetAttributesId());
 
         // Run custom merging.
-        DoMerge(dynamic_cast<TImpl&>(committedNode), dynamic_cast<TImpl&>(branchedNode));
+        DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
     virtual void GetAttributeNames(
@@ -141,6 +183,12 @@ public:
         return NYTree::IYPathService::FromNode(~result);
     }
 
+    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    {
+        UNUSED(node);
+        return NULL;
+    }
+
 protected:
     virtual void DoDestroy(TImpl& node)
     {
@@ -148,18 +196,18 @@ protected:
     }
 
     virtual void DoBranch(
-        const TImpl& committedNode,
+        const TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
     virtual void DoMerge(
-        TImpl& committedNode,
+        TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
@@ -186,6 +234,12 @@ protected:
             .Scalar(param.Node->GetId().NodeId.ToString());
     }
 
+    static void GetParentId(const TGetAttributeParam& param)
+    {
+        NYTree::BuildYsonFluently(param.Consumer)
+            .Scalar(param.Node->GetParentId().ToString());
+    }
+
     void GetType(const TGetAttributeParam& param)
     {
         NYTree::BuildYsonFluently(param.Consumer)
@@ -203,26 +257,28 @@ class TCypressNodeBase
     : public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DECLARE_BYREF_RW_PROPERTY(LockIds, yhash_set<TLockId>);
-    DECLARE_BYVAL_RW_PROPERTY(ParentId, TNodeId);
-    DECLARE_BYVAL_RW_PROPERTY(AttributesId, TNodeId);
-    DECLARE_BYVAL_RW_PROPERTY(State, ENodeState);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, AttributesId);
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
-    explicit TCypressNodeBase(const TBranchedNodeId& id);
+    TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
+    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
+    virtual ERuntimeNodeType GetRuntimeType() const;
     virtual TBranchedNodeId GetId() const;
 
     virtual i32 Ref();
     virtual i32 Unref();
+    virtual i32 GetRefCounter() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
 
 protected:
-    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
-
     TBranchedNodeId Id;
+    ERuntimeNodeType RuntimeType;
     i32 RefCounter;
 
 };
@@ -269,11 +325,11 @@ class TScalarNode
 {
     typedef TScalarNode<TValue> TThis;
 
-    DECLARE_BYREF_RW_PROPERTY(Value, TValue)
+    DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    explicit TScalarNode(const TBranchedNodeId& id)
-        : TCypressNodeBase(id)
+    TScalarNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+        : TCypressNodeBase(id, runtimeType)
     { }
 
     TScalarNode(const TBranchedNodeId& id, const TThis& other)
@@ -284,11 +340,6 @@ public:
     virtual TAutoPtr<ICypressNode> Clone() const
     {
         return new TThis(Id, *this);
-    }
-
-    virtual ERuntimeNodeType GetRuntimeType() const
-    {
-        return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
     }
 
     virtual void Save(TOutputStream* output) const
@@ -315,7 +366,7 @@ class TScalarNodeTypeHandler
     : public TCypressNodeTypeHandlerBase< TScalarNode<TValue> >
 {
 public:
-    TScalarNodeTypeHandler(TCypressManager::TPtr cypressManager)
+    TScalarNodeTypeHandler(TCypressManager* cypressManager)
         : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(cypressManager)
     { }
 
@@ -340,10 +391,10 @@ public:
 
 protected:
     virtual void DoMerge(
-        TScalarNode<TValue>& committedNode,
+        TScalarNode<TValue>& originatingNode,
         TScalarNode<TValue>& branchedNode)
     {
-        committedNode.Value() = branchedNode.Value();
+        originatingNode.Value() = branchedNode.Value();
     }
 
 };
@@ -360,16 +411,14 @@ class TMapNode
     typedef yhash_map<Stroka, TNodeId> TNameToChild;
     typedef yhash_map<TNodeId, Stroka> TChildToName;
 
-    DECLARE_BYREF_RW_PROPERTY(NameToChild, TNameToChild);
-    DECLARE_BYREF_RW_PROPERTY(ChildToName, TChildToName);
+    DEFINE_BYREF_RW_PROPERTY(TNameToChild, NameToChild);
+    DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
-    explicit TMapNode(const TBranchedNodeId& id);
+    TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
     TMapNode(const TBranchedNodeId& id, const TMapNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
-
-    virtual ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
@@ -383,7 +432,7 @@ class TMapNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TMapNode>
 {
 public:
-    TMapNodeTypeHandler(TCypressManager::TPtr cypressManager);
+    TMapNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
     virtual NYTree::ENodeType GetNodeType();
@@ -399,10 +448,11 @@ private:
     virtual void DoDestroy(TMapNode& node);
 
     virtual void DoBranch(
-        const TMapNode& committedNode,
+        const TMapNode& originatingNode,
         TMapNode& branchedNode);
+
     virtual void DoMerge(
-        TMapNode& committedNode,
+        TMapNode& originatingNode,
         TMapNode& branchedNode);
 
     static void GetSize(const TGetAttributeParam& param);
@@ -417,16 +467,14 @@ class TListNode
     typedef yvector<TNodeId> TIndexToChild;
     typedef yhash_map<TNodeId, int> TChildToIndex;
 
-    DECLARE_BYREF_RW_PROPERTY(IndexToChild, TIndexToChild);
-    DECLARE_BYREF_RW_PROPERTY(ChildToIndex, TChildToIndex);
+    DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
+    DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TBranchedNodeId& id);
+    explicit TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
     TListNode(const TBranchedNodeId& id, const TListNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
-
-    virtual ERuntimeNodeType GetRuntimeType() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
@@ -439,7 +487,7 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(TCypressManager::TPtr cypressManager);
+    TListNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
     virtual NYTree::ENodeType GetNodeType();
@@ -455,10 +503,11 @@ private:
     virtual void DoDestroy(TListNode& node);
 
     virtual void DoBranch(
-        const TListNode& committedNode,
+        const TListNode& originatingNode,
         TListNode& branchedNode);
+
     virtual void DoMerge(
-        TListNode& committedNode,
+        TListNode& originatingNode,
         TListNode& branchedNode);
 
     static void GetSize(const TGetAttributeParam& param);

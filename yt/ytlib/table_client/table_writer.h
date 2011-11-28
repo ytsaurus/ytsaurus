@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include "common.h"
-#include "chunk_set_writer.h"
+#include "chunk_sequence_writer.h"
 
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"
-#include "../table_server/table_service_rpc.h"
+#include "../table_server/table_ypath_rpc.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -21,9 +21,9 @@ public:
 
     struct TConfig {
         TDuration RpcTimeout;
-        TChunkSetWriter::TConfig ChunkSetConfig;
+        TChunkSequenceWriter::TConfig ChunkSetConfig;
 
-        TConfig(const TChunkSetWriter::TConfig& config)
+        TConfig(const TChunkSequenceWriter::TConfig& config)
             : RpcTimeout(TDuration::Seconds(5))
             , ChunkSetConfig(config)
         { }
@@ -33,9 +33,9 @@ public:
         const TConfig& config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
-        ICodec* codec,
+        ECodecId codecId,
         const TSchema& schema,
-        const Stroka& ypath);
+        const Stroka& path);
 
     // TODO: -> Open
     void Init();
@@ -48,16 +48,15 @@ private:
     void CreateTableNode(const Stroka& nodePath);
     void OnTransactionAborted();
 
-    typedef NCypress::TCypressServiceProxy TCypressProxy;
-    typedef NTableServer::TTableServiceProxy TTableProxy;
-
     const TConfig Config;
-    const Stroka TablePath;
+    const Stroka Path;
     Stroka NodeId;
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
-    TChunkSetWriter::TPtr Writer;
+    TChunkSequenceWriter::TPtr Writer;
+    NCypress::TCypressServiceProxy Proxy;
     IAction::TPtr OnAborted;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

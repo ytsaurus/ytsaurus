@@ -5,6 +5,7 @@
 #include "../misc/property.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/metric.h"
+#include "../misc/serialize.h"
 #include "../bus/bus_client.h"
 #include "../actions/future.h"
 
@@ -37,9 +38,9 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
+    TProxyBase(IChannel* channel, const Stroka& serviceName);
 
-    DECLARE_BYVAL_RW_PROPERTY(Timeout, TDuration);
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;
@@ -64,10 +65,10 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
-    DECLARE_BYVAL_RO_PROPERTY(Path, Stroka);
-    DECLARE_BYVAL_RO_PROPERTY(Verb, Stroka);
-    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
-    DECLARE_BYVAL_RO_PROPERTY(RequestId, TRequestId);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Path);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
 
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
@@ -83,16 +84,14 @@ protected:
         const Stroka& verb);
 
     virtual bool SerializeBody(TBlob* data) const = 0;
-    TFuture<TError>::TPtr DoInvoke(TClientResponse* response, TDuration timeout);
+
+    void DoInvoke(TClientResponse* response, TDuration timeout);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template <class TRequestMessage, class TResponseMessage>
 class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
@@ -102,70 +101,59 @@ private:
     TDuration Timeout;
 
 public:
-    typedef TIntrusivePtr<TTypedClientRequest> TPtr;
-    typedef TFuture<typename TTypedResponse::TPtr> TInvokeResult;
+    typedef TTypedClientRequest<TRequestMessage, TResponseMessage> TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
 
     TTypedClientRequest(
         IChannel* channel,
         const Stroka& path,
-        const Stroka& verb,
-        TDuration timeout)
+        const Stroka& verb)
         : TClientRequest(channel, path, verb)
-        , Timeout(timeout)
     {
         YASSERT(channel != NULL);
     }
 
-    typename TInvokeResult::TPtr Invoke()
+    typename TFuture< TIntrusivePtr<TTypedResponse> >::TPtr Invoke()
     {
-        typename TInvokeResult::TPtr asyncResult = NYT::New<TInvokeResult>();
-        typename TTypedResponse::TPtr response = NYT::New<TTypedResponse>(
-            GetRequestId(),
-            ~Channel);
-        DoInvoke(~response, Timeout)->Subscribe(FromMethod(
-            &TTypedClientRequest::OnReady,
-            asyncResult,
-            response));
+        auto response = NYT::New< TTypedClientResponse<TRequestMessage, TResponseMessage> >(GetRequestId());
+        auto asyncResult = response->GetAsyncResult();
+        DoInvoke(~response, Timeout);
         return asyncResult;
     }
 
-    TTypedClientRequest& SetTimeout(TDuration timeout)
+    TIntrusivePtr<TThis> SetTimeout(TDuration timeout)
     {
         Timeout = timeout;
-        return *this;
+        return this;
     }
 
 private:
     virtual bool SerializeBody(TBlob* data) const
     {
-        return SerializeMessage(this, data);
-    }
-
-    static void OnReady(
-        TError error,
-        typename TInvokeResult::TPtr asyncResult,
-        typename TTypedResponse::TPtr response)
-    {
-        YASSERT(~asyncResult != NULL);
-        YASSERT(~response != NULL);
-
-        UNUSED(error);
-        asyncResult->Set(response);
+        return SerializeProtobuf(this, data);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Handles response for an RPC request.
 struct IClientResponseHandler
     : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult) = 0;
-
-    virtual void OnResponse(const TError& error, NBus::IMessage* message) = 0;
-
-    virtual void OnTimeout() = 0;
+    //! The delivery of the request has been successfully acknowledged.
+    virtual void OnAcknowledgement() = 0;
+    //! The request has been replied with #EErrorCode::OK.
+    /*!
+     *  \param message A message containing the response.
+     */
+    virtual void OnResponse(NBus::IMessage* message) = 0;
+    //! The request has failed.
+    /*!
+     *  \param error An error that has occurred.
+     */
+    virtual void OnError(const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,23 +161,24 @@ struct IClientResponseHandler
 class TClientResponse
     : public IClientResponseHandler
 {
-    DECLARE_BYREF_RW_PROPERTY(RequestId, TRequestId);
-    DECLARE_BYREF_RW_PROPERTY(Attachments, yvector<TSharedRef>);
-    DECLARE_BYVAL_RO_PROPERTY(Error, NRpc::TError);
-    DECLARE_BYVAL_RO_PROPERTY(StartTime, TInstant);
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
     typedef TIntrusivePtr<TClientResponse> TPtr;
 
     NBus::IMessage::TPtr GetResponseMessage() const;
 
-    EErrorCode GetErrorCode() const;
+    int GetErrorCode() const;
     bool IsOK() const;
 
 protected:
     TClientResponse(const TRequestId& requestId);
 
     virtual bool DeserializeBody(TRef data) = 0;
+    virtual void FireCompleted() = 0;
 
 private:
     friend class TClientRequest;
@@ -206,20 +195,17 @@ private:
     NBus::IMessage::TPtr ResponseMessage;
 
     // IClientResponseHandler implementation.
-    virtual void OnAcknowledgement(NBus::IBus::ESendResult sendResult);
-    virtual void OnResponse(const TError& error, NBus::IMessage* message);
-    virtual void OnTimeout();
+    virtual void OnAcknowledgement();
+    virtual void OnResponse(NBus::IMessage* message);
+    virtual void OnError(const TError& error);
 
     void Deserialize(NBus::IMessage* responseMessage);
-    void Complete(const TError& error);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<
-    class TRequestMessage,
-    class TResponseMessage
->
+template <class TRequestMessage, class TResponseMessage>
 class TTypedClientResponse
     : public TClientResponse
     , public TResponseMessage
@@ -227,20 +213,30 @@ class TTypedClientResponse
 public:
     typedef TIntrusivePtr<TTypedClientResponse> TPtr;
 
-    TTypedClientResponse(
-        const TRequestId& requestId,
-        IChannel* channel)
+    TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
-    {
-        YASSERT(channel != NULL);
-    }
+        , AsyncResult(NYT::New< TFuture<TPtr> >())
+    { }
 
 private:
+    friend class TTypedClientRequest<TRequestMessage, TResponseMessage>;
+
     typename TFuture<TPtr>::TPtr AsyncResult;
+
+    typename TFuture<TPtr>::TPtr GetAsyncResult()
+    {
+        return AsyncResult;
+    }
+
+    virtual void FireCompleted()
+    {
+        AsyncResult->Set(this);
+        AsyncResult.Reset();
+    }
 
     virtual bool DeserializeBody(TRef data)
     {
-        return DeserializeMessage(this, data);
+        return DeserializeProtobuf(this, data);
     }
 };
 
@@ -252,12 +248,11 @@ private:
         return PP_STRINGIZE(path); \
     } \
     \
-    DECLARE_POLY_ENUM2(E##path##Error, NRpc::EErrorCode, \
+    DECLARE_ENUM(E##path##Error, \
         errorCodes \
     ); \
     \
     typedef E##path##Error EErrorCode;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,11 +263,14 @@ private:
     \
     TReq##method::TPtr method() \
     { \
-        return New<TReq##method>(~Channel, ServiceName, #method, GetTimeout()); \
+        return \
+            New<TReq##method>(~Channel, ServiceName, #method) \
+            ->SetTimeout(Timeout_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: deprecate
 #define USE_RPC_PROXY_METHOD(TProxy, method) \
     typedef TProxy::TReq##method TReq##method; \
     typedef TProxy::TRsp##method TRsp##method; \

@@ -139,10 +139,9 @@ public:
     }
 
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        UNUSED(path);
-
+        Stroka verb = context->GetVerb();
         if (verb == "Set" ||
             verb == "Remove" ||
             verb == "Lock")
@@ -152,6 +151,19 @@ public:
         return false;
     }
 
+    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const
+    {
+        if (TransactionId != NullTransactionId) {
+            return false;
+        }
+        
+        Stroka verb = context->GetVerb();
+        if (verb == "Lock") {
+            return false;
+        }
+
+        return IsLogged(context);
+    }
 
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
@@ -169,10 +181,15 @@ protected:
         Stroka verb = context->GetVerb();
         if (verb == "Lock") {
             LockThunk(context);
+        } else if (verb == "GetId") {
+            GetIdThunk(context);
+        } else if (verb == "Create") {
+            CreateThunk(context);
         } else {
             TNodeBase::DoInvoke(context);
         }
     }
+
 
     RPC_SERVICE_METHOD_DECL(NProto, Lock)
     {
@@ -183,6 +200,26 @@ protected:
         context->Reply();
     }
     
+    RPC_SERVICE_METHOD_DECL(NProto, GetId)
+    {
+        UNUSED(request);
+
+        response->SetNodeId(GetNodeId().ToProto());
+        context->Reply();
+    }
+
+    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        if (NYTree::IsFinalYPath(context->GetPath())) {
+            ythrow yexception() << "Node already exists";
+        }
+
+        context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
+    }
+
 
     virtual yvector<Stroka> GetVirtualAttributeNames()
     {
@@ -259,7 +296,6 @@ protected:
 
     void AttachChild(ICypressNode& child)
     {
-        YASSERT(child.GetState() == ENodeState::Uncommitted);
         child.SetParentId(NodeId);
         CypressManager->RefNode(child);
     }
@@ -388,18 +424,27 @@ protected:
         }
     }
 
-    virtual bool IsOperationLogged(NYTree::TYPath path, const Stroka& verb) const
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
+        Stroka verb = context->GetVerb();
         if (verb == "Create") {
             return true;
         } else {
-            return TBase::IsOperationLogged(path, verb);
+            return TBase::IsLogged(context);
         }
     }
 
 private:
     RPC_SERVICE_METHOD_DECL(NProto, Create)
     {
+        if (NYTree::IsFinalYPath(context->GetPath())) {
+            // This should throw an exception.
+            TBase::Create(request, response, context);
+            return;
+        }
+
+        Stroka typeName = request->GetType();
+
         auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
         builder->BeginTree();
         TStringInput input(request->GetManifest());
@@ -409,6 +454,7 @@ private:
 
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
+            typeName,
             ~manifest);
         CreateRecursive(context->GetPath(), ~value);
 
@@ -442,6 +488,7 @@ public:
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
     virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual Stroka GetChildKey(INode* child);
 
 private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
@@ -474,6 +521,7 @@ public:
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
     virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual int GetChildIndex(INode* child);
 
 private:
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);

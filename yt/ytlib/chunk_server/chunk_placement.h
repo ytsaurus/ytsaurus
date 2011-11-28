@@ -13,12 +13,13 @@ class TChunkPlacement
 public:
     typedef TIntrusivePtr<TChunkPlacement> TPtr;
 
-    TChunkPlacement(TChunkManager::TPtr chunkManager);
+    TChunkPlacement(TChunkManager* chunkManager);
 
-    void AddHolder(const THolder& holder);
-    void RemoveHolder(const THolder& holder);
-    void UpdateHolder(const THolder& holder);
-    void AddHolderSessionHint(const THolder& holder);
+    void OnHolderRegistered(const THolder& holder);
+    void OnHolderUnregistered(const THolder& holder);
+    void OnHolderUpdated(const THolder& holder);
+
+    void OnSessionHinted(const THolder& holder);
 
     double GetLoadFactor(const THolder& holder) const;
     double GetFillCoeff(const THolder& holder) const;
@@ -28,7 +29,7 @@ public:
     yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);
-    yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);
+    yvector<NChunkClient::TChunkId> GetBalancingChunks(const THolder& holder, int count);
     THolderId GetBalancingTarget(const TChunk& chunk, double maxFillCoeff);
    
 private:

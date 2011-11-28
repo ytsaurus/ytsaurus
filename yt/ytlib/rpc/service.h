@@ -22,48 +22,19 @@ class TServiceException
 {
 public:
     //! Initializes a new instance.
-    explicit TServiceException(EErrorCode errorCode = EErrorCode::ServiceError)
-        : ErrorCode(errorCode)
+    explicit TServiceException(int code)
+        : Code_(code)
     { }
 
     //! Gets the error code.
     TError GetError() const
     {
-        return TError(ErrorCode, what());
+        return TError(Code_, what());
     }
 
 protected:
-    EErrorCode ErrorCode;
+    int Code_;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A typed version of TServiceException.
-/*!
- *  The primary difference from the untyped TServiceException is that the
- *  constructor accepts an error of a given TErrorCode type.
- *  
- *  This enables to capture the error message during exception construction
- *  and write
- *  \code
- *  typedef TTypedServiceException<EMyCode> TMyException;
- *  ythrow TMyException(EMyCode::SomethingWrong);
- *  \endcode
- *  instead of
- *  \code
- *  ythrow TServiceException(EMyCode(EMyCode::SomethingWrong));
- *  \endcode
- */
-template <class TErrorCode>
-class TTypedServiceException 
-    : public TServiceException
-{
-public:
-    //! Initializes a new instance.
-    explicit TTypedServiceException(TErrorCode errorCode = EErrorCode::ServiceError)
-        : TServiceException(errorCode)
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +51,7 @@ struct IServiceContext
 
     virtual void Reply(const TError& error) = 0;
     virtual bool IsReplied() const = 0;
+    virtual TError GetError() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
@@ -168,8 +140,8 @@ public:
     typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
     typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
 
-    DECLARE_BYREF_RW_PROPERTY(Request, TTypedRequest);
-    DECLARE_BYREF_RW_PROPERTY(Response, TTypedResponse);
+    DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
+    DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
 
 public:
     TTypedServiceContext(IServiceContext* context)
@@ -180,7 +152,7 @@ public:
     {
         YASSERT(context != NULL);
 
-        if (!DeserializeMessage(&Request_, context->GetRequestBody())) {
+        if (!DeserializeProtobuf(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -199,19 +171,19 @@ public:
     // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
     void Reply()
     {
-        Reply(EErrorCode::OK);
+        Reply(TError(EErrorCode::OK, ""));
     }
 
-    void Reply(EErrorCode errorCode)
+    void Reply(int code, const Stroka& message)
     {
-        Reply(TError(errorCode));
+        Reply(TError(code, message));
     }
 
     void Reply(const TError& error)
     {
         if (error.IsOK()) {
             TBlob responseBlob;
-            if (!SerializeMessage(&Response_, &responseBlob)) {
+            if (!SerializeProtobuf(&Response_, &responseBlob)) {
                 LOG_FATAL("Error serializing response");
             }
             Context->SetResponseBody(MoveRV(responseBlob));

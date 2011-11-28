@@ -3,12 +3,14 @@
 #include "guid.h"
 #include "zigzag.h"
 #include "foreach.h"
+#include "ref.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/file.h>
 #include <util/ysaveload.h>
 
+#include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
 
 namespace NYT {
@@ -172,19 +174,27 @@ inline yvector<TArrayItem> FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: a comment per function please
+// Various functions that read/write varints from/to a stream.
 
-//! Functions to read and write varints from stream.
-
-//! Returns number of bytes written.
+// Returns the number of bytes written.
 int WriteVarUInt64(TOutputStream* output, ui64 value);
 int WriteVarInt32(TOutputStream* output, i32 value);
 int WriteVarInt64(TOutputStream* output, i64 value);
 
-//! Returns number of bytes read.
+// Returns the number of bytes read.
 int ReadVarUInt64(TInputStream* input, ui64* value);
 int ReadVarInt32(TInputStream* input, i32* value);
 int ReadVarInt64(TInputStream* input, i64* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Serializes a given protobuf message into a given blob.
+//! Return true iff everything was OK.
+bool SerializeProtobuf(const google::protobuf::Message* message, TBlob* data);
+
+//! Deserializes a given chunk of memory into a given protobuf message.
+//! Return true iff everything was OK.
+bool DeserializeProtobuf(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 

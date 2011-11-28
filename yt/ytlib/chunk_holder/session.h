@@ -4,7 +4,7 @@
 #include "chunk_store.h"
 #include "chunk_holder_rpc.h"
 
-#include "../chunk_client/file_chunk_writer.h"
+#include "../chunk_client/file_writer.h"
 #include "../misc/lease_manager.h"
 
 namespace NYT {
@@ -22,15 +22,15 @@ public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TIntrusivePtr<TSessionManager> sessionManager,
-        const TChunkId& chunkId,
-        TLocation::TPtr location,
+        TSessionManager* sessionManager,
+        const NChunkClient::TChunkId& chunkId,
+        TLocation* location,
         int windowSize);
 
     ~TSession();
 
     //! Returns TChunkId being uploaded.
-    TChunkId GetChunkId() const;
+    NChunkClient::TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
     TLocation::TPtr GetLocation() const;
@@ -59,7 +59,6 @@ private:
 
     typedef TChunkHolderProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -83,7 +82,7 @@ private:
     typedef yvector<TSlot> TWindow;
 
     TIntrusivePtr<TSessionManager> SessionManager;
-    TChunkId ChunkId;
+    NChunkClient::TChunkId ChunkId;
     TLocation::TPtr Location;
     
     TWindow Window;
@@ -92,7 +91,7 @@ private:
     i64 Size;
 
     Stroka FileName;
-    TFileChunkWriter::TPtr Writer;
+    NChunkClient::TFileWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
 
@@ -123,7 +122,6 @@ private:
     void OnBlockWritten(TVoid, i32 blockIndex);
 
     TVoid OnBlockFlushed(TVoid, i32 blockIndex);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +142,7 @@ public:
 
     //! Starts a new chunk upload session.
     TSession::TPtr StartSession(
-        const TChunkId& chunkId,
+        const NChunkClient::TChunkId& chunkId,
         int windowSize);
 
     //! Completes an earlier opened upload session.
@@ -160,7 +158,7 @@ public:
     void CancelSession(TSession::TPtr session, const Stroka& errorMessage);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
-    TSession::TPtr FindSession(const TChunkId& chunkId);
+    TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId);
 
     //! Returns the number of currently active session.
     int GetSessionCount();
@@ -173,7 +171,7 @@ private:
     TChunkStore::TPtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
 
-    typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
+    typedef yhash_map<NChunkClient::TChunkId, TSession::TPtr> TSessionMap;
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSession::TPtr session);

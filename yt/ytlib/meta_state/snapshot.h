@@ -21,7 +21,7 @@ public:
         Stroka fileName,
         i32 segmentId);
 
-    void Open(i64 offset = 0);
+    void Open();
     TInputStream& GetStream() const;
     i64 GetLength() const;
     void Close();
@@ -36,7 +36,9 @@ private:
 
     THolder<TFile> File;
     THolder<TBufferedFileInput> FileInput;
+    THolder<TInputStream> DecompressedInput;
     THolder<TChecksummableInput> ChecksummableInput;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +54,7 @@ public:
         i32 segmentId);
 
     void Open(i32 prevRecordCount);
+    
     TOutputStream& GetStream() const;
     void Close();
     TChecksum GetChecksum() const;
@@ -65,6 +68,7 @@ private:
 
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
+    THolder<TOutputStream> CompressedOutput;
     THolder<TChecksummableOutput> ChecksummableOutput;
 };
 

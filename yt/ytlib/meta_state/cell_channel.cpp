@@ -5,8 +5,53 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NBus;
 using namespace NRpc;
 using namespace NElection;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResponseHandlerWrapper
+    : public IClientResponseHandler
+{
+public:
+    typedef TIntrusivePtr<TResponseHandlerWrapper> TPtr;
+
+    TResponseHandlerWrapper(
+        IClientResponseHandler* underlyingHandler,
+        IAction* onFailed)
+        : UnderlyingHandler(underlyingHandler)
+        , OnFailed(onFailed)
+    { }
+
+    virtual void OnAcknowledgement()
+    {
+        UnderlyingHandler->OnAcknowledgement();
+    }
+
+    virtual void OnResponse(IMessage* message)
+    {
+        UnderlyingHandler->OnResponse(message);
+    }
+
+    virtual void OnError(const TError& error)
+    {
+        UnderlyingHandler->OnError(error);
+
+        auto code = error.GetCode();
+        if (code == EErrorCode::Timeout ||
+            code == EErrorCode::TransportError ||
+            code == EErrorCode::Unavailable)
+        {
+            OnFailed->Do();
+        }
+    }
+
+private:
+    IClientResponseHandler::TPtr UnderlyingHandler;
+    IAction::TPtr OnFailed;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,16 +61,49 @@ class TCellChannel
 public:
     typedef TIntrusivePtr<TCellChannel> TPtr;
 
-    TCellChannel(const TLeaderLookup::TConfig& config);
+    TCellChannel(const TLeaderLookup::TConfig& config)
+        : LeaderLookup(New<TLeaderLookup>(config))
+        , State(EState::NotConnected)
+    { }
     
-    virtual TFuture<TError>::TPtr Send(
-        IClientRequest::TPtr request,
-        IClientResponseHandler::TPtr responseHandler,
-        TDuration timeout);
+    virtual void Send(
+        IClientRequest* request,
+        IClientResponseHandler* responseHandler,
+        TDuration timeout)
+    {
+        YASSERT(request != NULL);
+        YASSERT(responseHandler != NULL);
+        YASSERT(State != EState::Terminated);
 
-    virtual void Terminate();
+        GetChannel()->Subscribe(FromMethod(
+            &TCellChannel::OnGotChannel,
+            TPtr(this),
+            request,
+            responseHandler,
+            timeout));
+    }
+
+
+    virtual void Terminate()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+    
+        if (State == EState::Terminated)
+            return;
+
+        if (~Channel != NULL) {
+            Channel->Terminate();
+            Channel.Reset();
+        }
+
+        LookupResult.Reset();
+
+        State = EState::Terminated;
+    }
 
 private:
+    friend class TResponseHandlerWrapper;
+
     DECLARE_ENUM(EState,
         (NotConnected)
         (Connecting)
@@ -34,18 +112,99 @@ private:
         (Terminated)
     );
 
-    TFuture<TError>::TPtr OnGotChannel(
+    void OnGotChannel(
         IChannel::TPtr channel,
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
-        TDuration timeout);
+        TDuration timeout)
+    {
+        if (~channel == NULL) {
+            responseHandler->OnError(TError(
+                EErrorCode::Unavailable,
+                "Unable to determine the leader"));
+        } else {
+            auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
+                ~responseHandler,
+                ~FromMethod(&TCellChannel::OnChannelFailed, TPtr(this)));
+            channel->Send(~request, ~responseHandlerWrapper, timeout);
+        }
+    }
 
-    TError OnResponseReady(TError error);
-  
-    TFuture<IChannel::TPtr>::TPtr GetChannel();
+    void OnChannelFailed()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (State != EState::Terminated) {
+            State = EState::Failed;
+            LookupResult.Reset();
+            Channel.Reset();
+        }
+    }
 
-    TFuture<IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result);
-    TFuture<IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult);
+    TFuture<IChannel::TPtr>::TPtr GetChannel()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        switch (State) {
+            case EState::NotConnected:
+            case EState::Failed: {
+                YASSERT(~LookupResult == NULL);
+                YASSERT(~Channel == NULL);
+                State = EState::Connecting;
+                auto lookupResult = LookupResult = LeaderLookup->GetLeader();
+                guard.Release();
+
+                return lookupResult->Apply(FromMethod(
+                    &TCellChannel::OnFirstLookupResult,
+                    TPtr(this)));
+            }
+
+            case EState::Connected:
+                YASSERT(~LookupResult == NULL);
+                YASSERT(~Channel != NULL);
+                return New< TFuture<IChannel::TPtr> >(~Channel);
+
+            case EState::Connecting: {
+                YASSERT(~LookupResult != NULL);
+                YASSERT(~Channel == NULL);
+                auto lookupResult = LookupResult;
+                guard.Release();
+
+                return lookupResult->Apply(FromMethod(
+                    &TCellChannel::OnSecondLookupResult,
+                    TPtr(this)));
+            }
+
+            case EState::Terminated:
+                YASSERT(~LookupResult == NULL);
+                YASSERT(~Channel == NULL);
+                return NULL;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    TFuture<IChannel::TPtr>::TPtr OnFirstLookupResult(TLeaderLookup::TResult result)
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        YASSERT(State == EState::Connecting);
+
+        if (result.Id == NElection::InvalidPeerId) {
+            State = EState::Failed;
+            LookupResult.Reset();
+            return New< TFuture<IChannel::TPtr> >(IChannel::TPtr(NULL));
+        }
+
+        State = EState::Connected;
+        Channel = CreateBusChannel(result.Address);
+        LookupResult.Reset();
+        return New< TFuture<IChannel::TPtr> >(~Channel);
+    }
+
+    TFuture<IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult)
+    {
+        return GetChannel();
+    }
 
 
     TSpinLock SpinLock;
@@ -59,151 +218,6 @@ private:
 IChannel::TPtr CreateCellChannel(const TLeaderLookup::TConfig& config)
 {
     return New<TCellChannel>(config);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCellChannel::TCellChannel(const TLeaderLookup::TConfig& config)
-    : LeaderLookup(New<TLeaderLookup>(config))
-    , State(EState::NotConnected)
-{ }
-
-TFuture<TError>::TPtr TCellChannel::Send(
-    IClientRequest::TPtr request,
-    IClientResponseHandler::TPtr responseHandler,
-    TDuration timeout)
-{
-    YASSERT(~request != NULL);
-    YASSERT(~responseHandler != NULL);
-    YASSERT(State != EState::Terminated);
-
-    return GetChannel()->Apply(FromMethod(
-        &TCellChannel::OnGotChannel,
-        TPtr(this),
-        request,
-        responseHandler,
-        timeout));
-}
-
-void TCellChannel::Terminate()
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    
-    if (State == EState::Terminated)
-        return;
-
-    if (~Channel != NULL) {
-        Channel->Terminate();
-        Channel.Reset();
-    }
-
-    LookupResult.Reset();
-
-    State = EState::Terminated;
-}
-
-TFuture<TError>::TPtr TCellChannel::OnGotChannel(
-    IChannel::TPtr channel,
-    IClientRequest::TPtr request,
-    IClientResponseHandler::TPtr responseHandler,
-    TDuration timeout)
-{
-    if (~channel == NULL) {
-        responseHandler->OnAcknowledgement(NBus::IBus::ESendResult::Failed);
-        return New< TFuture<TError> >(TError(EErrorCode::Unavailable));
-    }
-
-    return
-        channel
-        ->Send(request, responseHandler, timeout)
-        ->Apply(FromMethod(
-            &TCellChannel::OnResponseReady,
-            TPtr(this)));
-}
-
-TError TCellChannel::OnResponseReady(TError error)
-{
-    auto code = error.GetCode();
-    if (code == EErrorCode::TransportError ||
-        code == EErrorCode::Timeout ||
-        code == EErrorCode::Unavailable)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Terminated) {
-            State = EState::Failed;
-            LookupResult.Reset();
-            Channel.Reset();
-        }
-    }
-    return error;
-}
-
-TFuture<IChannel::TPtr>::TPtr TCellChannel::GetChannel()
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    switch (State) {
-        case EState::NotConnected:
-        case EState::Failed: {
-            YASSERT(~LookupResult == NULL);
-            YASSERT(~Channel == NULL);
-            State = EState::Connecting;
-            auto lookupResult = LookupResult = LeaderLookup->GetLeader();
-            guard.Release();
-
-            return lookupResult->Apply(FromMethod(
-                &TCellChannel::OnFirstLookupResult,
-                TPtr(this)));
-        }
-
-        case EState::Connected:
-            YASSERT(~LookupResult == NULL);
-            YASSERT(~Channel != NULL);
-            return New< TFuture<IChannel::TPtr> >(~Channel);
-
-        case EState::Connecting: {
-            YASSERT(~LookupResult != NULL);
-            YASSERT(~Channel == NULL);
-            auto lookupResult = LookupResult;
-            guard.Release();
-
-            return lookupResult->Apply(FromMethod(
-                &TCellChannel::OnSecondLookupResult,
-                TPtr(this)));
-        }
-
-        case EState::Terminated:
-            YASSERT(~LookupResult == NULL);
-            YASSERT(~Channel == NULL);
-            return NULL;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-TFuture<IChannel::TPtr>::TPtr TCellChannel::OnFirstLookupResult(
-    TLeaderLookup::TResult result)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-
-    YASSERT(State == EState::Connecting);
-
-    if (result.Id == NElection::InvalidPeerId) {
-        State = EState::Failed;
-        LookupResult.Reset();
-        return New< TFuture<IChannel::TPtr> >(IChannel::TPtr(NULL));
-    }
-
-    State = EState::Connected;
-    Channel = CreateBusChannel(result.Address);
-    LookupResult.Reset();
-    return New< TFuture<IChannel::TPtr> >(~Channel);
-}
-
-TFuture<IChannel::TPtr>::TPtr TCellChannel::OnSecondLookupResult(
-    TLeaderLookup::TResult)
-{
-    return GetChannel();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 /*!
  * \file fs.h
- * \brief Function to work with file system
+ * \brief File system functions
  */
 
 #include "common.h"
@@ -31,28 +31,16 @@ bool Remove(const Stroka& name);
 bool Rename(const Stroka& oldName, const Stroka& newName);
 
 //! Returns name of file.
-/*!
- * \param path Path of file
- */
 Stroka GetFileName(const Stroka& path);
 
 //! Returns extension of file.
-/*!
- * \param path Path of file
- */
 Stroka GetFileExtension(const Stroka& path);
 
 //! Returns name of file without extension.
-/*!
- * \param path Path of file
- */
 Stroka GetFileNameWithoutExtension(const Stroka& path);
 
-//! Deletes all files with extension #TempFileSuffix in directory.
-/*!
- * \param path Directory name
- */
-void CleanTempFiles(const Stroka& location);
+//! Deletes all files with extension #TempFileSuffix in a given directory.
+void CleanTempFiles(const Stroka& path);
 
 //! Returns available space at #path.
 //! Throws an exception if something went wrong.
@@ -60,14 +48,13 @@ i64 GetAvailableSpace(const Stroka& path);
 
 //! Creates the #path and parent directories if they don't exists.
 //! Throws an exception if something went wrong.
-//! Actually a call of the same named function from util/folder/dirut.
+/*!
+ *  Calls the same named function from util/folder/dirut.
+ */
 void ForcePath(const Stroka& path, int mode = 0777);
 
 //! Returns size of a file.
 //! Throws an exception if something went wrong.
-/*!
- * \param path Path of file
- */
 i64 GetFileSize(const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////

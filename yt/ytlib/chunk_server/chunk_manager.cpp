@@ -3,7 +3,7 @@
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"
 #include "chunk_replication.h"
-#include "holder_expiration.h"
+#include "holder_lease_tracker.h"
 
 #include "../transaction_server/transaction_manager.h"
 #include "../meta_state/meta_state_manager.h"
@@ -20,6 +20,7 @@ namespace NChunkServer {
 
 using namespace NProto;
 using namespace NMetaState;
+using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,22 +36,25 @@ public:
 
     TImpl(
         const TConfig& config,
-        TChunkManager::TPtr chunkManager,
-        NMetaState::TMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState,
-        TTransactionManager::TPtr transactionManager)
+        TChunkManager* chunkManager,
+        NMetaState::IMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        TTransactionManager* transactionManager,
+        IHolderRegistry* holderRegistry)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         // TODO: this makes a cyclic reference, don't forget to drop it in Stop
         , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
+        , HolderRegistry(holderRegistry)
         // Some random number.
         , ChunkIdGenerator(0x7390bac62f716a19)
         // Some random number.
         , ChunkListIdGenerator(0x761ba739c541fcd0)
     {
-        YASSERT(~chunkManager != NULL);
-        YASSERT(~transactionManager != NULL);
+        YASSERT(chunkManager != NULL);
+        YASSERT(transactionManager != NULL);
+        YASSERT(holderRegistry != NULL);
 
         RegisterMethod(this, &TImpl::CreateChunk);
         RegisterMethod(this, &TImpl::RegisterHolder);
@@ -73,7 +77,6 @@ public:
             TPtr(this)));
     }
 
-
     const THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
@@ -91,7 +94,7 @@ public:
         auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
         FOREACH(auto holderId, holderIds) {
             const auto& holder = GetHolder(holderId);
-            ChunkPlacement->AddHolderSessionHint(holder);
+            ChunkPlacement->OnSessionHinted(holder);
         }
         return holderIds;
     }
@@ -102,9 +105,12 @@ public:
     METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
     METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
 
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
+
     TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId)
     {
-        YASSERT(transactionId != NTransaction::NullTransactionId);
+        YASSERT(transactionId != NTransactionServer::NullTransactionId);
 
         TMsgCreateChunk message;
         message.SetTransactionId(transactionId.ToProto());
@@ -265,10 +271,11 @@ private:
     TConfig Config;
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
+    IHolderRegistry::TPtr HolderRegistry;
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
-    THolderExpiration::TPtr HolderExpiration;
+    THolderLeaseTracker::TPtr HolderExpiration;
     
     TIdGenerator<TChunkId> ChunkIdGenerator;
     TIdGenerator<TChunkId> ChunkListIdGenerator;
@@ -353,6 +360,11 @@ private:
             DoUnregisterHolder(*existingHolder);
         }
 
+        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
+            ~address,
+            holderId,
+            ~statistics.ToString());
+
         auto* newHolder = new THolder(
             holderId,
             address,
@@ -365,11 +377,6 @@ private:
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
         }
-
-        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
-            ~address,
-            holderId,
-            ~statistics.ToString());
 
         return holderId;
     }
@@ -395,8 +402,8 @@ private:
         holder.Statistics() = statistics;
 
         if (IsLeader()) {
-            HolderExpiration->RenewHolder(holder);
-            ChunkPlacement->UpdateHolder(holder);
+            HolderExpiration->RenewHolderLease(holder);
+            ChunkPlacement->OnHolderUpdated(holder);
         }
 
         FOREACH(const auto& chunkInfo, message.GetAddedChunks()) {
@@ -512,12 +519,14 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+
         ChunkReplication = New<TChunkReplication>(
             ~ChunkManager,
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
-        HolderExpiration = New<THolderExpiration>(
+
+        HolderExpiration = New<THolderLeaseTracker>(
             Config,
             ~ChunkManager,
             ~MetaStateManager->GetEpochStateInvoker());
@@ -558,22 +567,30 @@ private:
 
     void StartHolderTracking(const THolder& holder)
     {
-        HolderExpiration->AddHolder(holder);
-        ChunkPlacement->AddHolder(holder);
-        ChunkReplication->AddHolder(holder);
+        HolderExpiration->RegisterHolder(holder);
+        ChunkPlacement->OnHolderRegistered(holder);
+        ChunkReplication->OnHolderRegistered(holder);
+
+        HolderRegistered_.Fire(holder); 
     }
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderExpiration->RemoveHolder(holder);
-        ChunkPlacement->RemoveHolder(holder);
-        ChunkReplication->RemoveHolder(holder);
+        HolderExpiration->UnregisterHolder(holder);
+        ChunkPlacement->OnHolderUnregistered(holder);
+        ChunkReplication->OnHolderUnregistered(holder);
+
+        HolderUnregistered_.Fire(holder);
     }
 
 
     void DoUnregisterHolder(const THolder& holder)
     { 
         auto holderId = holder.GetId();
+
+        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
+            ~holder.GetAddress(),
+            holderId);
 
         if (IsLeader()) {
             StopHolderTracking(holder);
@@ -589,10 +606,6 @@ private:
             DoRemoveJobAtDeadHolder(holder, job);
         }
 
-        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
-            ~holder.GetAddress(),
-            holderId);
-
         YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
         HolderMap.Remove(holderId);
     }
@@ -603,14 +616,18 @@ private:
         YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, Size: %" PRId64 ")",
+        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
+        YASSERT(chunk.GetMasterMeta() != TSharedRef());
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, ChunkSize: %" PRId64 ", MetaSize: %" PRISZT")",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
-            chunk.GetSize());
+            chunk.GetSize(),
+            chunk.GetMasterMeta().Size());
 
         if (IsLeader()) {
-            ChunkReplication->AddReplica(holder, chunk);
+            ChunkReplication->OnReplicaAdded(holder, chunk);
         }
     }
 
@@ -625,7 +642,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
@@ -639,7 +656,7 @@ private:
              holder.GetId());
 
         if (IsLeader()) {
-            ChunkReplication->RemoveReplica(holder, chunk);
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
@@ -734,17 +751,34 @@ private:
             return;
         }
 
-        //if (chunk->Size != size && chunk->Size != TChunk::UnknownSize) {
-        //    LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-        //        ~chunkId.ToString(),
-        //        chunk->Size,
-        //        size);
-        //    return;
-        //}
+        if (chunk->GetSize() != TChunk::UnknownSize &&
+            chunk->GetSize() != size)
+        {
+            LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
+                ~chunkId.ToString(),
+                chunk->GetSize(),
+                size);
+            return;
+        }
 
-        //if (chunk->Size == TChunk::UnknownSize) {
-        //    chunk->Size = size;
-        //}
+        if (chunk->GetSize() == TChunk::UnknownSize) {
+            chunk->SetSize(size);
+        }
+
+        TRef masterMeta(
+            const_cast<char*>(chunkInfo.GetMasterMeta().begin()),
+            chunkInfo.GetMasterMeta().size());
+
+        if (chunk->GetMasterMeta() != TSharedRef() &&
+            !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))
+        {
+            LOG_ERROR("Chunk server meta mismatch (ChunkId: %s)", ~chunkId.ToString());
+            return;
+        }
+
+        if (chunk->GetMasterMeta() == TSharedRef()) {
+            chunk->SetMasterMeta(MoveRV(masterMeta.ToBlob()));
+        }
 
         DoAddChunkReplica(holder, *chunk);
     }
@@ -812,7 +846,7 @@ private:
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
                     YASSERT(sink.JobIds.erase(job.GetJobId()) == 1);
-                    MaybeDropReplicationSink(sink);
+                    DropReplicationSinkIfEmpty(sink);
                 }
                 break;
             }
@@ -836,10 +870,10 @@ private:
         return pair.first->Second();
     }
 
-    void MaybeDropReplicationSink(const TReplicationSink& sink)
+    void DropReplicationSinkIfEmpty(const TReplicationSink& sink)
     {
         if (sink.JobIds.empty()) {
-            // NB: do not try to inline this variable! erase() will destroy the object
+            // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
             Stroka address = sink.Address;
             YVERIFY(ReplicationSinkMap.erase(address) == 1);
@@ -858,16 +892,18 @@ METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 TChunkManager::TChunkManager(
     const TConfig& config,
-    NMetaState::TMetaStateManager* metaStateManager,
+    NMetaState::IMetaStateManager* metaStateManager,
     NMetaState::TCompositeMetaState* metaState,
-    TTransactionManager* transactionManager)
+    TTransactionManager* transactionManager,
+    IHolderRegistry* holderRegistry)
     : Config(config)
     , Impl(New<TImpl>(
         config,
         this,
         metaStateManager,
         metaState,
-        transactionManager))
+        transactionManager,
+        holderRegistry))
 {
     metaState->RegisterPart(Impl);
 }
@@ -980,6 +1016,9 @@ METAMAP_ACCESSORS_FWD(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, THolderId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, Job, TJob, TJobId, *Impl)
+
+FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
+FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

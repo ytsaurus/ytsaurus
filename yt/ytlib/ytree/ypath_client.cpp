@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ypath_client.h"
 #include "ypath_rpc.h"
+#include "ypath_detail.h"
 #include "rpc.pb.h"
 
 #include "../misc/serialize.h"
@@ -19,9 +20,8 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb, TYPath path)
+TYPathRequest::TYPathRequest(const Stroka& verb)
     : Verb_(verb)
-    , Path_(path)
 { }
 
 IMessage::TPtr TYPathRequest::Serialize()
@@ -29,7 +29,7 @@ IMessage::TPtr TYPathRequest::Serialize()
     // Serialize body.
     TBlob bodyData;
     if (!SerializeBody(&bodyData)) {
-        LOG_FATAL("Error serializing request body");
+        LOG_FATAL("Error serializing YPath request body");
     }
 
     // Compose message.
@@ -52,13 +52,11 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 
     // Deserialize RPC header.
     TResponseHeader header;
-    if (!DeserializeMessage(&header, parts[0])) {
-        LOG_FATAL("Error deserializing response header");
+    if (!DeserializeProtobuf(&header, parts[0])) {
+        LOG_FATAL("Error deserializing YPath response header");
     }
 
-    Error_ = TError(
-        EErrorCode(header.GetErrorCode(), header.GetErrorCodeString()),
-        header.GetErrorMessage());
+    Error_ = TError(header.GetErrorCode(), header.GetErrorMessage());
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -73,7 +71,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
     }
 }
 
-EErrorCode TYPathResponse::GetErrorCode() const
+int TYPathResponse::GetErrorCode() const
 {
     return Error_.GetCode();
 }
@@ -92,33 +90,111 @@ void TYPathResponse::ThrowIfError() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void OnYPathResponse(
+    IMessage::TPtr responseMessage,
+    TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,
+    const Stroka& verb,
+    TYPath resolvedPath)
+{
+    auto parts = responseMessage->GetParts();
+    YASSERT(!parts.empty());
+
+    TError error;
+    ParseYPathResponseHeader(parts[0], &error);
+
+    if (!error.IsOK()) {
+        Stroka message = Sprintf("Error executing a YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
+            ~verb,
+            ~resolvedPath,
+            ~error.GetMessage());
+        responseMessage = UpdateYPathResponseHeader(~responseMessage, TError(error.GetCode(), message));
+    }
+
+    asyncResponseMessage->Set(responseMessage);
+}
+
+TFuture<IMessage::TPtr>::TPtr
+ExecuteVerb(
+    IYPathService* rootService,
+    NBus::IMessage* requestMessage,
+    IYPathExecutor* executor)
+{
+    auto parts = requestMessage->GetParts();
+    YASSERT(!parts.empty());
+    TYPath path;
+    Stroka verb;
+    ParseYPathRequestHeader(
+        parts[0],
+        &path,
+        &verb);
+
+    IYPathService::TPtr suffixService;
+    TYPath suffixPath;
+    try {
+        // This may throw.
+        ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
+    } catch (...) {
+        auto responseMessage = NRpc::CreateErrorResponseMessage(
+            NRpc::TRequestId(),
+            NRpc::TError(
+            EYPathErrorCode(EYPathErrorCode::ResolveError), CurrentExceptionMessage()));
+        return New< TFuture<IMessage::TPtr> >(responseMessage);
+    }
+
+    auto updatedRequestMessage = UpdateYPathRequestHeader(
+        requestMessage,
+        suffixPath,
+        verb);
+
+    auto asyncResponseMessage = New< TFuture<IMessage::TPtr> >();
+    auto context = CreateYPathContext(
+        ~updatedRequestMessage,
+        suffixPath,
+        verb,
+        YTreeLogger.GetCategory(),
+        ~FromMethod(
+            &OnYPathResponse,
+            asyncResponseMessage,
+            verb,
+            ComputeResolvedYPath(path, suffixPath)));
+
+    // This should never throw.
+    executor->ExecuteVerb(~suffixService, ~context);
+
+    return asyncResponseMessage;
+}
+
 TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::Get(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::Get();
+    request->SetPath(path);
+    auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
     return response->GetValue();
 }
 
 void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value)
 {
-    auto request = TYPathProxy::Set(path);
+    auto request = TYPathProxy::Set();
+    request->SetPath(path);
     request->SetValue(value);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
 }
 
 void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::Remove(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::Remove();
+    request->SetPath(path);
+    auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
 }
 
 yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
 {
-    auto request = TYPathProxy::List(path);
-    auto response = ExecuteYPath(rootService, ~request)->Get();
+    auto request = TYPathProxy::List();
+    request->SetPath(path);
+    auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
     return FromProto<Stroka>(response->GetKeys());
 }

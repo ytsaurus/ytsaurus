@@ -2,30 +2,37 @@
 #include "chunk_writer.h"
 
 #include "../actions/action_util.h"
+#include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NTableClient {
+
+using NChunkClient::WriterThread;
+using NChunkClient::TChunkId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriter::TChunkWriter(
     const TConfig& config, 
-    IChunkWriter::  TPtr chunkWriter,
+    NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema,
-    ICodec* codec)
+    ECodecId codecId)
     : Config(config)
-    , CurrentBlockIndex(0)
-    , ChunkWriter(chunkWriter)
     , Schema(schema)
-    , Codec(codec)
+    , CodecId(codecId)
+    , ChunkWriter(chunkWriter)
+    , CurrentBlockIndex(0)
     , SentSize(0)
     , CurrentSize(0)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(~chunkWriter != NULL);
-    YASSERT(codec != NULL);
-
+    
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
@@ -62,7 +69,7 @@ void TChunkWriter::ContinueEndRow(
                 ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
                     &TChunkWriter::ContinueEndRow,
                     TPtr(this),
-                    channelIndex + 1));
+                    channelIndex + 1)->Via(WriterThread->GetInvoker()));
 
                 return;
             } 
@@ -98,7 +105,8 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto data = Codec->Encode(channel->FlushBlock());
+    auto& codec = ICodec::GetCodec(CodecId);
+    auto data = codec.Encode(channel->FlushBlock());
     SentSize += data.Size();
     ++CurrentBlockIndex;
 
@@ -113,8 +121,6 @@ TChunkWriter::~TChunkWriter()
 
 i64 TChunkWriter::GetCurrentSize() const
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     return CurrentSize;
 }
 
@@ -150,12 +156,14 @@ void TChunkWriter::ContinueClose(
         }
     }
 
-    ChunkMeta.SetCodecId(Codec->GetId());
+    ChunkMeta.SetCodecId(CodecId);
 
-    TBlob metaBlock(ChunkMeta.ByteSize());
-    YVERIFY(ChunkMeta.SerializeToArray(metaBlock.begin(), static_cast<int>(metaBlock.size())));
-
-    ChunkWriter->AsyncWriteBlock(TSharedRef(metaBlock))->Subscribe(FromMethod(
+    TBlob metaBlob;
+    if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
+        LOG_FATAL("Failed to serialize table chunk meta");
+    }
+    
+    ChunkWriter->AsyncWriteBlock(MoveRV(metaBlob))->Subscribe(FromMethod(
         &TChunkWriter::FinishClose,
         TPtr(this)));
 }
@@ -208,9 +216,8 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
 TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncInit()
 {
     // Stub to implement IWriter interface.
-    auto result = New<TAsyncStreamState::TAsyncResult>();
-    result->Set(State.GetCurrentResult());
-    return result;
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    return State.GetOperationResult();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

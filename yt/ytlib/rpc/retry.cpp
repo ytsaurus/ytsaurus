@@ -1,5 +1,6 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "retry.h"
+#include "client.h"
 
 #include "../bus/bus_client.h"
 #include "../misc/assert.h"
@@ -11,6 +12,47 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = RpcLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetriableChannel
+    : public IChannel
+{
+    DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, BackoffTime);
+    DEFINE_BYVAL_RO_PROPERTY(int, RetryCount);
+
+public:
+    typedef TIntrusivePtr<TRetriableChannel> TPtr;
+
+    TRetriableChannel(
+        IChannel* underlyingChannel, 
+        TDuration backoffTime, 
+        int retryCount);
+
+    void Send(
+        IClientRequest* request, 
+        IClientResponseHandler* responseHandler, 
+        TDuration timeout);
+
+    void Terminate();
+
+};
+
+IChannel::TPtr CreateRetriableChannel(
+    IChannel* underlyingChannel,
+    TDuration backoffTime,
+    int retryCount)
+{
+    return New<TRetriableChannel>(
+        underlyingChannel,
+        backoffTime,
+        retryCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,17 +72,22 @@ public:
         , Request(request)
         , OriginalHandler(originalHandler)
         , Timeout(timeout)
-        , SendResult(New< TFuture<TError> >())
     {
         YASSERT(channel != NULL);
         YASSERT(request != NULL);
         YASSERT(originalHandler != NULL);
     }
 
-    TFuture<TError>::TPtr Send() 
+    void Send() 
     {
-        DoSend();
-        return SendResult;
+        LOG_DEBUG("Retriable request sent (RequestId: %s, Attempt: %d)",
+            ~Request->GetRequestId().ToString(),
+            static_cast<int>(CurrentAttempt));
+
+        Channel->GetUnderlyingChannel()->Send(
+            ~Request,
+            this,
+            Timeout);
     }
 
 private:
@@ -50,8 +97,7 @@ private:
     IClientRequest::TPtr Request;
     IClientResponseHandler::TPtr OriginalHandler;
     TDuration Timeout;
-    //! Result returned by #IChannel::Send
-    TFuture<TError>::TPtr SendResult;
+    Stroka CumulativeErrorMessage;
 
     DECLARE_ENUM(EState, 
         (Sent)
@@ -63,80 +109,71 @@ private:
     TSpinLock SpinLock;
     EState State;
 
-    void DoSend()
+    virtual void OnAcknowledgement()
     {
-        Channel->GetUnderlyingChannel()->Send(
-            Request,
-            this,
-            Timeout);
-    }
-
-    virtual void OnAcknowledgement(IBus::ESendResult sendResult)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Sent) {
-            switch (sendResult) {
-                case IBus::ESendResult::OK:
-                    State = EState::Acked;
-                    guard.Release();
-
-                    OriginalHandler->OnAcknowledgement(sendResult);
-                    break;
-
-                case IBus::ESendResult::Failed:
-                    State = EState::Done;
-                    guard.Release();
-
-                    OnAttemptFailed();
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            }
+        LOG_DEBUG("Retriable request acknowledged (RequestId: %s)",
+            ~Request->GetRequestId().ToString());
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Sent)
+                return;
+            State = EState::Acked;
         }
+
+        OriginalHandler->OnAcknowledgement();
     }
 
-    virtual void OnTimeout() 
+    virtual void OnError(const TError& error) 
     {
+        LOG_DEBUG("Retriable request attempt failed (RequestId: %s, Attempt: %d)\n%s",
+            ~Request->GetRequestId().ToString(),
+            static_cast<int>(CurrentAttempt),
+            ~error.ToString());
+
         TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Sent) {
-            State = EState::Done;
-            guard.Release();
+        if (State == EState::Done)
+            return;
 
-            OnAttemptFailed();
-        }
-    }
+        if (error.IsRpcError()) {
+            int count = AtomicIncrement(CurrentAttempt);
 
-    virtual void OnResponse(const TError& error, IMessage* message)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Sent || State == EState::Acked) {
-            State = EState::Done;
-            guard.Release();
+            CumulativeErrorMessage.append(Sprintf("\n[%d]: %s",
+                count,
+                ~error.ToString()));
 
-            if (!error.IsRpcError()) {
-                OriginalHandler->OnResponse(error, message);
-                SendResult->Set(error);
+            if (count < Channel->GetRetryCount()) {
+                TDelayedInvoker::Get()->Submit(
+                    FromMethod(&TRetriableRequest::Send, TPtr(this)),
+                    TInstant::Now() + Channel->GetBackoffTime());
             } else {
-                OnAttemptFailed();
+                State = EState::Done;
+                guard.Release();
+
+                OriginalHandler->OnError(TError(
+                    EErrorCode::Unavailable,
+                    "Retriable request has failed, details follow:" + CumulativeErrorMessage));
             }
+        } else {
+            State = EState::Done;
+            guard.Release();
+
+            OriginalHandler->OnError(error);
         }
     }
 
-
-    void OnAttemptFailed()
+    virtual void OnResponse(IMessage* message)
     {
-        int count = AtomicIncrement(CurrentAttempt);
-        if (count < Channel->GetRetryCount()) {
-            TDelayedInvoker::Get()->Submit(
-                FromMethod(&TRetriableRequest::DoSend, TPtr(this)),
-                TInstant::Now() + Channel->GetBackoffTime());
-        } else {
-            // TODO: provide better diagnostics
-            TError error(EErrorCode::Unavailable);
-            OriginalHandler->OnResponse(error, NULL);
-            SendResult->Set(error);
+        LOG_DEBUG("Retriable response received (RequestId: %s)",
+            ~Request->GetRequestId().ToString());
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Sent && State != EState::Acked)
+                return;
+            State = EState::Done;
         }
+
+        OriginalHandler->OnResponse(message);
     }
 };
 
@@ -154,18 +191,18 @@ TRetriableChannel::TRetriableChannel(
     YASSERT(retryCount >= 1);
 }
 
-TFuture<TError>::TPtr TRetriableChannel::Send(
-    IClientRequest::TPtr request, 
-    IClientResponseHandler::TPtr responseHandler, 
+void TRetriableChannel::Send(
+    IClientRequest* request, 
+    IClientResponseHandler* responseHandler, 
     TDuration timeout)
 {
-    YASSERT(~request != NULL);
-    YASSERT(~responseHandler != NULL);
+    YASSERT(request != NULL);
+    YASSERT(responseHandler != NULL);
 
     auto retriableRequest = New<TRetriableRequest>(
         this,
-        ~request,
-        ~responseHandler,
+        request,
+        responseHandler,
         timeout);
 
     return retriableRequest->Send();

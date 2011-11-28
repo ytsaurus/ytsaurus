@@ -9,7 +9,7 @@
 #include "../rpc/server.h"
 
 namespace NYT {
-namespace NTransaction {
+namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
     
@@ -21,14 +21,13 @@ public:
 
     //! Creates an instance.
     TTransactionService(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         TTransactionManager* transactionManager,
         NRpc::IServer* server);
 
 private:
     typedef TTransactionService TThis;
     typedef TTransactionServiceProxy::EErrorCode EErrorCode;
-    typedef NRpc::TTypedServiceException<EErrorCode> TServiceException;
 
     TTransactionManager::TPtr TransactionManager;
 
@@ -43,5 +42,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransaction
+} // namespace NTransactionServer
 } // namespace NYT

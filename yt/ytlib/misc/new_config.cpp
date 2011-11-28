@@ -14,8 +14,9 @@ void TConfigBase::Load(NYTree::INode* node, const Stroka& path)
         mapNode = node->AsMap();
     } catch(...) {
         ythrow yexception()
-            << Sprintf("Config can be loaded only from map node (Path: %s, InnerException: %s)",
-                ~path, ~CurrentExceptionMessage());
+            << Sprintf("Configuration must be loaded from a map node (Path: %s)\n%s",
+                ~path,
+                ~CurrentExceptionMessage());
     }
     FOREACH (auto pair, Parameters) {
         auto name = pair.First();
@@ -32,7 +33,12 @@ void TConfigBase::Validate(const Stroka& path) const
     }
 }
 
-void TConfigBase::SetDefaults(bool skipRequiredParameters, const Stroka& path)
+void TConfigBase::SetDefaults(const Stroka& path)
+{
+    DoSetDefaults(true, path);
+}
+
+void TConfigBase::DoSetDefaults(bool skipRequiredParameters, const Stroka& path)
 {
     FOREACH (auto pair, Parameters) {
         auto name = pair.First();

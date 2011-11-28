@@ -3,15 +3,22 @@
 
 #include <yt/ytlib/ytree/tree_builder.h>
 #include <yt/ytlib/ytree/ephemeral.h>
-#include <yt/ytlib/ytree/fluent.h>
+#include <yt/ytlib/ytree/virtual.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/ytlib/monitoring/ytree_integration.h>
+
+#include <yt/ytlib/ytree/yson_file_service.h>
+
 namespace NYT {
 
-static NLog::TLogger Logger("Holder");
+static NLog::TLogger Logger("ChunkHolder");
 
 using NRpc::CreateRpcServer;
+
+using NMonitoring::TMonitoringManager;
 
 using NOrchid::TOrchidService;
 
@@ -28,28 +35,42 @@ void TChunkHolderServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto server = CreateRpcServer(Config.Port);
+    auto rpcServer = CreateRpcServer(Config.Port);
 
-    auto orchidBuilder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
-    orchidBuilder->BeginTree();
-    NYTree::BuildYsonFluently(~orchidBuilder)
-        // TODO: test
-        .BeginMap()
-            .Item("hello").Scalar("world")
-        .EndMap();
-    auto orchidRoot = orchidBuilder->EndTree();
+    auto monitoringManager = New<TMonitoringManager>();
+    monitoringManager->Register(
+        "/ref_counted",
+        FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+    // TODO: register more monitoring infos
+    monitoringManager->Start();
+
+    // TODO: refactor
+    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
+    auto orchidRoot = orchidFactory->CreateMap();  
+    orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NMonitoring::CreateMonitoringProvider(~monitoringManager),
+            orchidFactory),
+        "monitoring");
+    if (!Config.NewConfigFileName.empty()) {
+        orchidRoot->AddChild(
+            NYTree::CreateVirtualNode(
+                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
+                orchidFactory),
+            "config");
+    }
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~server,
+        ~rpcServer,
         ~controlQueue->GetInvoker());
 
     auto chunkHolder = New<TChunkHolder>(
         Config,
         ~controlQueue->GetInvoker(),
-        ~server);
+        ~rpcServer);
 
-    server->Start();
+    rpcServer->Start();
 
     Sleep(TDuration::Max());
 }

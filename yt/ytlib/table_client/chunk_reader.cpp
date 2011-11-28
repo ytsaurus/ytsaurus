@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_reader.h"
 
-#include "chunk_meta.pb.h"
+#include "table_chunk_meta.pb.h"
 
 #include "../misc/foreach.h"
 #include "../actions/action_util.h"
@@ -10,6 +10,10 @@
 
 namespace NYT {
 namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +44,10 @@ struct TBlockInfo {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkReader::TTableChunkReader(
-    const TSequentialChunkReader::TConfig& config,
+    const TSequentialReader::TConfig& config,
     const TChannel& channel,
-    IChunkReader::TPtr chunkReader)
-    : SequentialChunkReader(NULL)
+    NChunkClient::IAsyncReader::TPtr chunkReader)
+    : SequentialReader(NULL)
     , Channel(channel)
     , InitSuccess(New< TFuture<bool> >())
     , IsColumnValid(false)
@@ -66,9 +70,9 @@ TTableChunkReader::TTableChunkReader(
 }
 
 void TTableChunkReader::OnGotMeta(
-    IChunkReader::TReadResult readResult, 
-    const TSequentialChunkReader::TConfig& config,
-    IChunkReader::TPtr chunkReader)
+    IAsyncReader::TReadResult readResult, 
+    const TSequentialReader::TConfig& config,
+    IAsyncReader::TPtr chunkReader)
 {
     // ToDo: now we work in the rpc reply thread.
     // As the algorithm here is pretty heavy here,
@@ -107,7 +111,7 @@ void TTableChunkReader::OnGotMeta(
     }
 
     yvector<int> blockIndexSequence = GetBlockReadingOrder(selectedChannels, protoMeta);
-    SequentialChunkReader = New<TSequentialChunkReader>(config, blockIndexSequence, chunkReader);
+    SequentialReader = New<TSequentialReader>(config, blockIndexSequence, ~chunkReader);
 
     ChannelReaders.reserve(selectedChannels.size());
     FOREACH(int i, selectedChannels) {
@@ -124,7 +128,7 @@ bool TTableChunkReader::NextRow()
         ythrow yexception() << "Chunk reading failed.";
     }
 
-    YASSERT(~SequentialChunkReader != NULL);
+    YASSERT(~SequentialReader != NULL);
 
     CurrentChannel = 0;
     IsColumnValid = false;
@@ -140,7 +144,7 @@ bool TTableChunkReader::NextRow()
 
     FOREACH(auto& channel, ChannelReaders) {
         if (!channel.NextRow()) {
-            auto result = SequentialChunkReader->AsyncGetNextBlock()->Get();
+            auto result = SequentialReader->AsyncGetNextBlock()->Get();
             if (!result.IsOK) {
                 ythrow yexception() << "Chunk reading failed.";
             }

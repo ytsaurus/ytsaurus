@@ -26,17 +26,19 @@ struct ICypressNodeProxy;
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
+    , public NYTree::IYPathExecutor
 {
 public:
     typedef TCypressManager TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
     TCypressManager(
-        NMetaState::TMetaStateManager* metaStateManager,
+        NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
-        NTransaction::TTransactionManager* transactionManager);
+        NTransactionServer::TTransactionManager* transactionManager);
 
     void RegisterNodeType(INodeTypeHandler* handler);
+    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
     METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
 
@@ -53,6 +55,10 @@ public:
         const TTransactionId& transactionId);
 
     ICypressNode& GetTransactionNodeForUpdate(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    TIntrusivePtr<ICypressNodeProxy> FindNodeProxy(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -81,6 +87,7 @@ public:
 
     TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
         const TTransactionId& transactionId,
+        const Stroka& typeName,
         NYTree::INode* manifest);
 
     METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
@@ -106,7 +113,7 @@ private:
 
     };
     
-    const NTransaction::TTransactionManager::TPtr TransactionManager;
+    const NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     TIdGenerator<TNodeId> NodeIdGenerator;
     NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
@@ -117,33 +124,40 @@ private:
     yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
-    TVoid DoExecuteVerb(const NProto::TMsgExecuteVerb& message);
-    TVoid DoExecuteVerbFast(NYTree::IYPathService::TPtr service, NRpc::IServiceContext::TPtr context);
+    yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
+
+    TVoid DoExecuteLoggedVerb(const NProto::TMsgExecuteVerb& message);
+    TVoid DoExecuteVerb(
+        ICypressNodeProxy::TPtr proxy,
+        NRpc::IServiceContext::TPtr context,
+        bool startAutoTransaction);
 
     // TMetaStatePart overrides.
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
     virtual void Clear();
 
-    void OnTransactionCommitted(const NTransaction::TTransaction& transaction);
-    void OnTransactionAborted(const NTransaction::TTransaction& transaction);
+    virtual void OnLeaderRecoveryComplete();
+    virtual void OnStopLeading();
 
-    void ReleaseLocks(const NTransaction::TTransaction& transaction);
-    void MergeBranchedNodes(const NTransaction::TTransaction& transaction);
-    void RemoveBranchedNodes(const NTransaction::TTransaction& transaction);
-    void UnrefOriginatingNodes(const NTransaction::TTransaction& transaction);
-    void CommitCreatedNodes(const NTransaction::TTransaction& transaction);
+    void OnTransactionCommitted(const NTransactionServer::TTransaction& transaction);
+    void OnTransactionAborted(const NTransactionServer::TTransaction& transaction);
+
+    void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
+    void CommitCreatedNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);
-    INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
+
+    void CreateNodeBehavior(const ICypressNode& node);
+    void DestroyNodeBehavior(const ICypressNode& node);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(
         const TTransactionId& transactionId,
         ERuntimeNodeType type);
-
-    class TDeserializationBuilder;
-    friend class TDeserializationBuilder;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

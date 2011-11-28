@@ -17,11 +17,12 @@ class TOrchidServiceProxy
 public:
     typedef TIntrusivePtr<TOrchidServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(OrchidService,
-        ((ResolutionError)(1))
-    );
+    static Stroka GetServiceName()
+    {
+        return "OrchidService";
+    }
 
-    TOrchidServiceProxy(NRpc::IChannel::TPtr channel)
+    TOrchidServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

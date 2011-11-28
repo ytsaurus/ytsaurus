@@ -214,7 +214,7 @@ class TClientDispatcher
                 break;
 
             case TPacketHeader::EType::Message:
-                ProcessAck(header, nlResponse);
+                //ProcessAck(header, nlResponse);
                 ProcessMessage(header, nlResponse);
                 break;
 
@@ -590,7 +590,7 @@ void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusClient::TBusClient(Stroka address)
+TBusClient::TBusClient(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

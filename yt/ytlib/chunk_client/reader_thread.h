@@ -6,8 +6,9 @@
 #include "../actions/action_queue.h"
 
 namespace NYT {
+namespace NChunkClient {
 
-// TODO: move to common
+///////////////////////////////////////////////////////////////////////////////
 
 /*!
  * This thread is used for background operations in #TRemoteChunkReader
@@ -15,5 +16,8 @@ namespace NYT {
  */
 extern TLazyPtr<TActionQueue> ReaderThread;
 
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace NChunkClient
 } // namespace NYT
 

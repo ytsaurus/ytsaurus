@@ -9,7 +9,7 @@ namespace NChunkServer {
 
 struct TJobList
 {
-    TJobList(const TChunkId& chunkId)
+    TJobList(const NChunkClient::TChunkId& chunkId)
         : ChunkId_(chunkId)
     { }
 
@@ -28,7 +28,7 @@ struct TJobList
         ::Save(output, JobIds_);
     }
 
-    static TAutoPtr<TJobList> Load(const TChunkId& chunkId, TInputStream* input)
+    static TAutoPtr<TJobList> Load(const NChunkClient::TChunkId& chunkId, TInputStream* input)
     {
         TAutoPtr<TJobList> jobList = new TJobList(chunkId);
         ::Load(input, jobList->JobIds_);
@@ -48,8 +48,8 @@ struct TJobList
         }
     }
     
-    DECLARE_BYVAL_RO_PROPERTY(ChunkId, TChunkId);
-    DECLARE_BYREF_RO_PROPERTY(JobIds, yvector<TJobId>);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
+    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

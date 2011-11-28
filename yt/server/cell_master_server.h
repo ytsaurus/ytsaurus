@@ -5,7 +5,7 @@
 
 namespace NYT {
 
-using NMetaState::TMetaStateManager;
+using NMetaState::IMetaStateManager;
 
 using NMonitoring::THttpTreeServer;
 
@@ -18,9 +18,12 @@ public:
     struct TConfig
     {
         //! Meta state configuration.
-        TMetaStateManager::TConfig MetaState;
+        IMetaStateManager::TConfig MetaState;
 
         int MonitoringPort;
+
+        // TODO: killme
+        Stroka NewConfigFileName;
 
         TConfig()
             : MonitoringPort(10000)

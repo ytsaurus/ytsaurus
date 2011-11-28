@@ -9,6 +9,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_events.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/forwarding_yson_events.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/null_yson_consumer.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_reader.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_writer.cpp
@@ -29,6 +30,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_service.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_detail.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_file_service.cpp
 )
 
 PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.proto YT_SOURCE_FILES )

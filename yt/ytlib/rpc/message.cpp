@@ -2,6 +2,8 @@
 #include "message.h"
 #include "rpc.pb.h"
 
+#include "../misc/serialize.h"
+
 namespace NYT {
 namespace NRpc {
 
@@ -11,20 +13,6 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool SerializeMessage(const google::protobuf::Message* message, TBlob* data)
-{
-    int size = message->ByteSize();
-    data->resize(size);
-    return message->SerializeToArray(data->begin(), size);
-}
-
-bool DeserializeMessage(google::protobuf::Message* message, TRef data)
-{
-    return message->ParseFromArray(data.Begin(), data.Size());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +31,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
     requestHeader.SetVerb(verb);
 
     TBlob header;
-    if (!SerializeMessage(&requestHeader, &header)) {
+    if (!SerializeProtobuf(&requestHeader, &header)) {
         LOG_FATAL("Could not serialize request header");
     }
 
@@ -68,11 +56,10 @@ NBus::IMessage::TPtr CreateResponseMessage(
     TResponseHeader header;
     header.SetRequestId(requestId.ToProto());
     header.SetErrorCode(error.GetCode());
-    header.SetErrorCodeString(error.GetCode().ToString());
     header.SetErrorMessage(error.GetMessage());
 
     TBlob headerBlob;
-    if (!SerializeMessage(&header, &headerBlob)) {
+    if (!SerializeProtobuf(&header, &headerBlob)) {
         LOG_FATAL("Error serializing response header");
     }
 
@@ -93,11 +80,10 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     TResponseHeader header;
     header.SetRequestId(requestId.ToProto());
     header.SetErrorCode(error.GetCode());
-    header.SetErrorCodeString(error.GetCode().ToString());
     header.SetErrorMessage(error.GetMessage());
 
     TBlob headerBlob;
-    if (!SerializeMessage(&header, &headerBlob)) {
+    if (!SerializeProtobuf(&header, &headerBlob)) {
         LOG_FATAL("Error serializing error response header");
     }
 
