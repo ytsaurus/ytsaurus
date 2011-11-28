@@ -4,14 +4,25 @@ package NYT.NChunkClient.NProto;
 
 message TBlockInfo
 {
-    required int32 Size = 1;
-    required uint64 Checksum = 2;
+	required int64 Offset = 1;
+    required int32 Size = 2;
+    required uint64 Checksum = 3;
 }
 
-message TChunkMeta
+message TChunkAttributes
 {
-    repeated TBlockInfo Blocks = 1;
-    required bytes MasterMeta = 2;
+	extensions 100 to max;
+
+	required int32 Type = 1;
+	required bool IsRaw = 2;
+	optional int64 UncopmressedSize = 3;
+}
+
+message TChunkInfo
+{
+	required bytes Id = 1;
+    repeated TBlockInfo Blocks = 2;
+    required TChunkAttributes Attributes = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
