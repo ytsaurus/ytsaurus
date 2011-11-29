@@ -60,8 +60,8 @@ public:
     void Check(TYPath path, TYson expected)
     {
         TYson output = Get(path);
-        Cout << output << Endl;
-        Cout << expected << Endl;
+//        Cout << output << Endl;
+//        Cout << expected << Endl;
         EXPECT_EQ(expected, output);
     }
 
@@ -122,16 +122,16 @@ TEST_F(TYPathTest, ListModification)
     CheckList("/list", "500;200;1;220;100");
 
     Remove("/list/0");
-    Check("/", "{\"list\"=[0;200;1;220;100]}");
-    CheckList("/list", "0;200;1;220;100");
+    Check("/", "{\"list\"=[200;1;220;100]}");
+    CheckList("/list", "200;1;220;100");
 
     Set("/list/+", "666");
-    Check("/", "{\"list\"=[0;200;1;220;100;666]}");
-    CheckList("/", "0;200;1;220;100;666");
+    Check("/", "{\"list\"=[200;1;220;100;666]}");
+    CheckList("/list", "200;1;220;100;666");
 
     Set("/list/-", "777");
-    Check("/", "{\"list\"=[777;0;200;1;220;100;666]}");
-    CheckList("/list", "777;0;200;1;220;100;666");
+    Check("/", "{\"list\"=[777;200;1;220;100;666]}");
+    CheckList("/list", "777;200;1;220;100;666");
 }
 
 TEST_F(TYPathTest, ListReassignment)
@@ -153,6 +153,7 @@ TEST_F(TYPathTest, Ls)
     Set("/e", "5");
 
     auto result = List("/");
+    std::sort(result.begin(), result.end());
 
     yvector<Stroka> expected;
     expected.push_back("a");
