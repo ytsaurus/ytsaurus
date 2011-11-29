@@ -256,17 +256,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     auto logResult = MetaState->LogChange(version, changeData);
     auto batchResult = BatchChange(version, changeData, logResult);
 
-    try {
-        MetaState->ApplyChange(changeAction);
-    } catch (...) {
-        LOG_DEBUG("Failed to apply the change (Version: %s)\n%s",
-            ~version.ToString(),
-            ~CurrentExceptionMessage());
-    
-        // Need to fire it even here.
-        OnApplyChange_.Fire();
-        throw;
-    }
+    MetaState->ApplyChange(changeAction);
 
     LOG_DEBUG("Change is applied locally (Version: %s)", ~version.ToString());
 
@@ -405,14 +395,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
                     return TCommitterBase::EResult::Committed;
                 }));
 
-        try {
-            MetaState->ApplyChange(change);
-        } catch (...) {
-            LOG_DEBUG("Failed to apply the change (Version: %s)\n%s",
-                ~currentVersion.ToString(),
-                ~CurrentExceptionMessage());
-        }
-
+        MetaState->ApplyChange(change);
         ++currentVersion.RecordCount;
     }
 
