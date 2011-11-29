@@ -51,7 +51,7 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 {
     UNUSED(response);
 

@@ -475,7 +475,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
 {
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -520,7 +520,7 @@ RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
 {
     UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);

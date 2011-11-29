@@ -91,31 +91,31 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
     }
 
-    RPC_SERVICE_METHOD_DECL(NMyRpc, SomeCall);
-    RPC_SERVICE_METHOD_DECL(NMyRpc, ModifyAttachments);
-    RPC_SERVICE_METHOD_DECL(NMyRpc, ReplyingCall);
-    RPC_SERVICE_METHOD_DECL(NMyRpc, EmptyCall);
-    RPC_SERVICE_METHOD_DECL(NMyRpc, CustomMessageError);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
 
-    RPC_SERVICE_METHOD_DECL(NMyRpc, NotRegistredCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
 
 };
 
-RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
 {
     int a = request->GetA();
     response->SetB(a + 100);
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
 {
     UNUSED(request);
     UNUSED(response);
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
 {
     for (int i = 0; i < request->Attachments().ysize(); ++i) {
         auto blob = request->Attachments()[i].ToBlob();
@@ -126,21 +126,21 @@ RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TMyService, EmptyCall)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, EmptyCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-RPC_SERVICE_METHOD_IMPL(TMyService, NotRegistredCall)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, NotRegistredCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
 {
 
     UNUSED(request);

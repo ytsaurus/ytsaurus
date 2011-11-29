@@ -33,7 +33,7 @@ private:
 
     void ValidateTransactionId(const TTransactionId& transactionId);
 
-    RPC_SERVICE_METHOD_DECL(NProto, Execute);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
 
 };
 

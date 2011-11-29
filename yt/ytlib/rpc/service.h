@@ -355,7 +355,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_SERVICE_METHOD_DECL(ns, method) \
+#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
@@ -374,7 +374,7 @@ private:
         TRsp##method* response, \
         TCtx##method::TPtr context)
 
-#define RPC_SERVICE_METHOD_IMPL(type, method) \
+#define DEFINE_RPC_SERVICE_METHOD_IMPL(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \

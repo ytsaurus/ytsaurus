@@ -33,10 +33,10 @@ private:
 
     void ValidateTransactionId(const TTransactionId& id);
 
-    RPC_SERVICE_METHOD_DECL(NProto, StartTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, CommitTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, AbortTransaction);
-    RPC_SERVICE_METHOD_DECL(NProto, RenewTransactionLease);
+    DECLARE_RPC_SERVICE_METHOD(NProto, StartTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NProto, CommitTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbortTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NProto, RenewTransactionLease);
 
 };
 

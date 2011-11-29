@@ -36,10 +36,10 @@ private:
     void ValidateTransactionId(const TTransactionId& transactionId);
     void ValidateChunkId(const NChunkClient::TChunkId& chunkId);
 
-    RPC_SERVICE_METHOD_DECL(NProto, RegisterHolder);
-    RPC_SERVICE_METHOD_DECL(NProto, HolderHeartbeat);
-    RPC_SERVICE_METHOD_DECL(NProto, CreateChunk);
-    RPC_SERVICE_METHOD_DECL(NProto, FindChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
+    DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
+    DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, FindChunk);
 
 };
 

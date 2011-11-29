@@ -167,7 +167,7 @@ private:
     TFollowerPinger::TPtr FollowerPinger;
 
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetSnapshotInfo)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetSnapshotInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -206,7 +206,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadSnapshot)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ReadSnapshot)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -270,7 +270,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, GetChangeLogInfo)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetChangeLogInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -301,7 +301,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ReadChangeLog)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ReadChangeLog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -365,7 +365,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, ApplyChanges)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ApplyChanges)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -435,7 +435,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, AdvanceSegment)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, AdvanceSegment)
     {
         UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -517,7 +517,7 @@ private:
         }
     }
 
-    RPC_SERVICE_METHOD_DECL(NMetaState::NProto, PingFollower)
+    DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, PingFollower)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

@@ -191,7 +191,7 @@ protected:
     }
 
 
-    RPC_SERVICE_METHOD_DECL(NProto, Lock)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
         UNUSED(request);
         UNUSED(response);
@@ -200,7 +200,7 @@ protected:
         context->Reply();
     }
     
-    RPC_SERVICE_METHOD_DECL(NProto, GetId)
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetId)
     {
         UNUSED(request);
 
@@ -208,7 +208,7 @@ protected:
         context->Reply();
     }
 
-    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
         UNUSED(response);
@@ -435,7 +435,7 @@ protected:
     }
 
 private:
-    RPC_SERVICE_METHOD_DECL(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         if (NYTree::IsFinalYPath(context->GetPath())) {
             // This should throw an exception.
