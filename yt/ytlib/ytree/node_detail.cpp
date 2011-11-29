@@ -347,7 +347,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, cons
 
     char lastPrefixCh = prefix[prefix.length() - 1];
     if ((verb == "Set" || verb == "Create") &&
-        (lastPrefixCh != '+' || lastPrefixCh != '-'))
+        (lastPrefixCh == '+' || lastPrefixCh == '-'))
     {
         return IYPathService::TResolveResult::Here(path);
     } else {
