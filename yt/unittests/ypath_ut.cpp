@@ -115,15 +115,19 @@ TEST_F(TYPathTest, ListModification)
 
     Remove("/list/4");
     Check("/", "{\"list\"=[500;200;1;220;3;100]}");
+    CheckList("/list", "500;200;1;220;3;100");
 
     Remove("/list/4");
     Check("/", "{\"list\"=[500;200;1;220;100]}");
+    CheckList("/list", "500;200;1;220;100");
 
     Remove("/list/0");
     Check("/", "{\"list\"=[0;200;1;220;100]}");
+    CheckList("/list", "0;200;1;220;100");
 
     Set("/list/+", "666");
     Check("/", "{\"list\"=[0;200;1;220;100;666]}");
+    CheckList("/", "0;200;1;220;100;666");
 
     Set("/list/-", "777");
     Check("/", "{\"list\"=[777;0;200;1;220;100;666]}");
