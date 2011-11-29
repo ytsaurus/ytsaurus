@@ -87,6 +87,7 @@ private:
     const TConfig Config;
     const TSchema Schema;
     const ECodecId CodecId;
+
     const NTransactionClient::TTransactionId TransactionId;
 
     TAsyncStreamState State;

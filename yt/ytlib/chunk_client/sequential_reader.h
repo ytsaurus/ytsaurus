@@ -5,6 +5,7 @@
 #include "reader_thread.h"
 
 #include "../misc/config.h"
+#include "../misc/async_stream_state.h"
 #include "../misc/enum.h"
 #include "../misc/cyclic_buffer.h"
 #include "../misc/thread_affinity.h"
@@ -22,13 +23,6 @@ class TSequentialReader
 {
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
-
-    // ToDo: use TAsyncError and TAsyncStreamState
-    struct TResult
-    {
-        bool IsOK;
-        TSharedRef Block;
-    };
 
     struct TConfig
         : TConfigBase
@@ -63,22 +57,24 @@ public:
         const yvector<int>& blockIndexes,
         IAsyncReader* chunkReader);
 
+    bool HasNext() const;
+
     //! Asynchronously fetches the next block.
     /*!
      *  It is not allowed to ask for the next block until the previous one is retrieved.
-     *  If an error occurs during fetching (which is indicated by TResult::IsOK set to false)
-     *  then the whole session is failed and no further calls to #AsyncGetNextBlock are allowed.
+     *  If an error occurs during fetching then the whole session is failed.
      */
-    TFuture<TResult>::TPtr AsyncGetNextBlock();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncNextBlock();
+
+    TSharedRef GetBlock();
 
 private:
     struct TWindowSlot
     {
-        bool IsEmpty;
-        TResult Result;
+        TFuture<TSharedRef>::TPtr AsyncBlock;
 
         TWindowSlot()
-            : IsEmpty(true)
+            : AsyncBlock(New< TFuture<TSharedRef> >())
         { }
     };
 
@@ -86,18 +82,10 @@ private:
         IAsyncReader::TReadResult readResult, 
         int firstSequenceIndex);
 
-    void ProcessPendingResult();
-    void DoProcessPendingResult();
-
     void ShiftWindow();
     void DoShiftWindow();
 
     void FetchNextGroup();
-
-    bool IsNextSlotEmpty();
-    TResult& GetNextSlotResult();
-
-    TWindowSlot& GetEmptySlot(int sequenceIndex);
 
     const yvector<int> BlockIndexSequence;
     int FirstUnfetchedIndex;
@@ -110,14 +98,10 @@ private:
     //! Number of free slots in window.
     int FreeSlots;
 
-    //! Block, that has been already requested by client,
-    //! but not delivered from holder yet.
-    TFuture<TResult>::TPtr PendingResult;
-
-    bool HasFailed;
-
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
-    int NextSequenceIndex;
+    volatile int NextSequenceIndex;
+
+    TAsyncStreamState State;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

@@ -8,6 +8,7 @@ SET(YT_SOURCE_FILES
     yson_format.h
 
     yson_events.h
+    yson_events-mock.h
     forwarding_yson_events.cpp
     null_yson_consumer.cpp
 
