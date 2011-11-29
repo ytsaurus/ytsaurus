@@ -339,7 +339,7 @@ bool TListNodeProxy::RemoveChild(int index)
 void TListNodeProxy::RemoveChild(INode::TPtr child)
 {
     int index = GetChildIndex(~child);
-    RemoveChild(index);
+    YVERIFY(RemoveChild(index));
 }
 
 void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
