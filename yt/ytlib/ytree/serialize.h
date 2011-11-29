@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ephemeral.h"
 #include "ytree.h"
 #include "yson_reader.h"
 #include "yson_writer.h"
@@ -11,8 +12,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline
-INode::TPtr DeserializeFromYson(TInputStream* istream, INodeFactory* factory) {
+inline INode::TPtr DeserializeFromYson(TInputStream* istream,
+    INodeFactory* factory=GetEphemeralNodeFactory())
+{
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
     TYsonReader reader(~builder);
@@ -20,14 +22,14 @@ INode::TPtr DeserializeFromYson(TInputStream* istream, INodeFactory* factory) {
     return builder->EndTree();
 }
 
-inline
-INode::TPtr DeserializeFromYson(const Stroka& string, INodeFactory* factory) {
+inline INode::TPtr DeserializeFromYson(const Stroka& string,
+    INodeFactory* factory=GetEphemeralNodeFactory())
+{
     TStringInput stream(string);
     return DeserializeFromYson(&stream, factory);
 }
 
-inline
-TOutputStream& SerializeToYson(
+inline TOutputStream& SerializeToYson(
     const INode::TPtr& node,
     const TYsonWriter::EFormat& format,
     TOutputStream& ostream)
@@ -38,8 +40,7 @@ TOutputStream& SerializeToYson(
     return ostream;
 }
 
-inline
-Stroka SerializeToYson(
+inline Stroka SerializeToYson(
     const INode::TPtr& node,
     const TYsonWriter::EFormat& format)
 {

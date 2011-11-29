@@ -32,7 +32,7 @@ public:
 
     TOrchidYPathService(const TYson& manifestYson)
     {
-        auto manifestRoot = DeserializeFromYson(manifestYson, GetEphemeralNodeFactory());
+        auto manifestRoot = DeserializeFromYson(manifestYson);
 
         try {
             Manifest.Load(~manifestRoot);

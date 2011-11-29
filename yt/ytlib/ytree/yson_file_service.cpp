@@ -38,7 +38,7 @@ private:
     INode::TPtr LoadFile()
     {
         try {
-            return DeserializeFromYson(FileName, GetEphemeralNodeFactory());
+            return DeserializeFromYson(FileName);
         } catch (...) {
             throw yexception() << Sprintf("Error loading YSON file %s\n%s",
                 ~FileName,
