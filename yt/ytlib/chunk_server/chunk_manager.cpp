@@ -1017,8 +1017,8 @@ METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, THolderId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 METAMAP_ACCESSORS_FWD(TChunkManager, Job, TJob, TJobId, *Impl)
 
-FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
-FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

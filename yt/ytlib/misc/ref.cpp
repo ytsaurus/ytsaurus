@@ -1,6 +1,9 @@
+#include "stdafx.h"
 #include "ref.h"
 
 #include <util/ysaveload.h>
+
+////////////////////////////////////////////////////////////////////////////////
 
 void Save(TOutputStream* output, const NYT::TSharedRef& ref)
 {
@@ -25,3 +28,5 @@ void Load(TInputStream* input, NYT::TSharedRef& ref)
         ref = NYT::TSharedRef(NYT::MoveRV(blob));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
