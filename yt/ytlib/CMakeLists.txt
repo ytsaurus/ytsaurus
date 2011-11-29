@@ -38,6 +38,11 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/file_client
 )
 
+add_dependencies( ytlib
+  protoc
+  cpp_styleguide
+)
+
 #
 #SET(USE_LF_ALLOCATOR yes)
 

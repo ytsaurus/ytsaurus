@@ -21,25 +21,37 @@ include_directories(
 #SET(INSTALLEDNAME ${PROG})
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  SET( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -nodefaultlibs -L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib" )
+  if (YT_BUILD_WITH_STLPORT)
+    set_target_properties( server PROPERTIES
+      LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
+    )
+  else()
+    set_target_properties( server PROPERTIES
+      LINK_FLAGS "-L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
+    )
+  endif()
 
   target_link_libraries( server
     #-lprotoc_
     #-lprotobuf
-    -lytlib
-    -larcadia-utils
-    -lsnappy
-    -llz4
-    -lfastlz
-    -lminilzo
-    -larczlib
-    -lprotobuf
-    -lqmisc
-    -lNetLiba
-    # -lyajl
-    -ljson
-    -lstlport
+    ytlib
+    arcadia-utils
+    snappy
+    lz4
+    fastlz
+    minilzo
+    arczlib
+    protobuf
+    qmisc
+    NetLiba
+    json
   )
+  if (YT_BUILD_WITH_STLPORT)
+    target_link_libraries( server
+      stlport
+    )
+  endif()
+
   target_link_libraries( server -larcadia-utils )
 
   target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
