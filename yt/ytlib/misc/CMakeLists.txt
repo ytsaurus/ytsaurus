@@ -21,7 +21,7 @@ SET(YT_SOURCE_FILES
     semaphore.cpp
     guid.cpp
     assert.h
-    ref.h
+    ref.cpp
     string.h
     foreach.h
     thread_affinity.h
@@ -39,7 +39,7 @@ SET(YT_SOURCE_FILES
     new_config.cpp
     new_config-inl.h
     sync.h
-
+    blob_output.cpp
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

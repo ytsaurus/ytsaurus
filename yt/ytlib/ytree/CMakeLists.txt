@@ -8,6 +8,7 @@ SET(YT_SOURCE_FILES
     yson_format.h
 
     yson_events.h
+    yson_events-mock.h
     forwarding_yson_events.cpp
     null_yson_consumer.cpp
 
@@ -27,6 +28,8 @@ SET(YT_SOURCE_FILES
     virtual.cpp
 
     ypath_client.cpp
+    ypath_client-inl.h
+
     ypath_service.cpp
     ypath_detail.cpp
     ypath_rpc.h
