@@ -1,68 +1,97 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
+#include "../misc/fs.h"
+#include "../misc/serialize.h"
+#include "../logging/log.h"
+
 namespace NYT {
 namespace NChunkClient {
-
-///////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(const Stroka& fileName)
-    : FileName(fileName)
+static NLog::TLogger Logger("ChunkClient");
+    
+///////////////////////////////////////////////////////////////////////////////
+
+TFileWriter::TFileWriter(const TChunkId& id, const Stroka& fileName)
+    : Id(id)
+    , FileName(fileName)
     , Result(New<TAsyncStreamState::TAsyncResult>())
 {
-    File.Reset(new TFile(fileName, CreateAlways|WrOnly|Seq));
+    ChunkInfo.SetId(id.ToProto());
+    DataFile.Reset(
+        new TFile(FileName + NFS::TempFileSuffix, CreateAlways | WrOnly | Seq));
     Result->Set(TAsyncStreamState::TResult());
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
 TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 {
-    TBlockInfo* blockInfo = Meta.AddBlocks();
+    TBlockInfo* blockInfo = ChunkInfo.AddBlocks();
+    blockInfo->SetOffset(DataFile->GetPosition());
     blockInfo->SetSize(static_cast<int>(data.Size()));
     blockInfo->SetChecksum(GetChecksum(data));
 
-    File->Write(data.Begin(), data.Size());
+    DataFile->Write(data.Begin(), data.Size());
     return Result;
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TFileWriter::AsyncClose(const TSharedRef& masterMeta)
+TFileWriter::AsyncClose(const NProto::TChunkAttributes& chunkAttributes)
 {
-    Meta.SetMasterMeta(masterMeta.Begin(), masterMeta.Size());
+    DataFile->Close();
+    DataFile.Reset(NULL);
 
-    TBlob metaBlob(Meta.ByteSize());
-    if (!Meta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
-        ythrow yexception() << Sprintf("Failed to serialize chunk meta in %s",
+    *ChunkInfo.MutableAttributes() = chunkAttributes;
+    
+    TBlob infoBlob(ChunkInfo.ByteSize());
+    if (!ChunkInfo.SerializeToArray(infoBlob.begin(), infoBlob.ysize())) {
+        LOG_FATAL("Failed to serialize chunk info in %s",
             ~FileName.Quote());
     }
 
-    TChunkFooter footer;
-    footer.Signature = TChunkFooter::ExpectedSignature;
-    footer.MetaOffset = File->GetLength();
-    footer.MetaSize = metaBlob.ysize();
+    TChunkInfoHeader header;
+    header.Signature = header.ExpectedSignature;
+    header.Checksum = GetChecksum(infoBlob);
 
-    File->Write(metaBlob.begin(), metaBlob.ysize());
-    File->Write(&footer, sizeof (footer));
+    // Writing metainfo
+    Stroka chunkInfoFileName = FileName + ChunkInfoSuffix;
+    TFile chunkInfoFile(
+        chunkInfoFileName + NFS::TempFileSuffix,
+        CreateAlways | WrOnly | Seq);
+    Write(chunkInfoFile, header);
+    chunkInfoFile.Write(infoBlob.begin(), infoBlob.ysize());
+    chunkInfoFile.Close();
 
-    File->Close();
-    File.Destroy();
+    if (!NFS::Rename(chunkInfoFileName + NFS::TempFileSuffix, chunkInfoFileName)) {
+        return New<TAsyncStreamState::TAsyncResult>(TAsyncStreamState::TResult(
+            false, 
+            Sprintf("Error renaming temp chunk info file (FileName: %s)",
+                ~chunkInfoFileName)));
+    }
+
+    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
+        return New<TAsyncStreamState::TAsyncResult>(TAsyncStreamState::TResult(
+            false, 
+            Sprintf("Error renaming temp chunk info file (FileName: %s)",
+                ~FileName)));
+    }
+
     return Result;
 }
 
 void TFileWriter::Cancel(const Stroka& /*errorMessage*/)
 {
-    File.Destroy();
+    // TODO: Delete files
+    DataFile.Destroy();
 }
 
 TChunkId TFileWriter::GetChunkId() const
 {
-    // ToDo: consider using ChunkId instead of file name
-    // and implementing this.
-    return TChunkId();
+    return Id;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

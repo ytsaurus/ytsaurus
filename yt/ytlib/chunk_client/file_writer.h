@@ -19,22 +19,23 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    TFileWriter(const Stroka& fileName);
+    TFileWriter(const TChunkId& id, const Stroka& fileName);
 
     TAsyncStreamState::TAsyncResult::TPtr 
     AsyncWriteBlock(const TSharedRef& data);
 
     TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const TSharedRef& masterMeta);
+    AsyncClose(const NProto::TChunkAttributes& chunkAttributes);
 
     void Cancel(const Stroka& errorMessage);
 
     TChunkId GetChunkId() const;
 
 private:
+    TChunkId Id;
     Stroka FileName;
-    THolder<TFile> File;
-    NChunkClient::NProto::TChunkMeta Meta;
+    THolder<TFile> DataFile;
+    NProto::TChunkInfo ChunkInfo;
     TAsyncStreamState::TAsyncResult::TPtr Result;
 };
 

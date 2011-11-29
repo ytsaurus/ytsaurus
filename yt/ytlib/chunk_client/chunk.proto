@@ -4,23 +4,22 @@ package NYT.NChunkClient.NProto;
 
 message TBlockInfo
 {
-	required int64 Offset = 1;
+    required int64 Offset = 1;
     required int32 Size = 2;
     required uint64 Checksum = 3;
 }
 
 message TChunkAttributes
 {
-	extensions 100 to max;
+    extensions 100 to max;
 
-	required int32 Type = 1;
-	required bool IsRaw = 2;
-	optional int64 UncopmressedSize = 3;
+    required int32 Type = 1;
+    optional int64 OriginalSize = 2;
 }
 
 message TChunkInfo
 {
-	required bytes Id = 1;
+    required bytes Id = 1;
     repeated TBlockInfo Blocks = 2;
     required TChunkAttributes Attributes = 3;
 }

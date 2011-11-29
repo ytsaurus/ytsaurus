@@ -371,7 +371,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileWriter>(FileName + NFS::TempFileSuffix);
+    Writer = New<TFileWriter>(FileName);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -388,11 +388,6 @@ void TSession::DeleteFile(const Stroka& errorMessage)
 void TSession::DoDeleteFile(const Stroka& errorMessage)
 {
     Writer->Cancel(errorMessage);
-
-    if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
-        LOG_FATAL("Error deleting chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
-    }
 
     LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
@@ -418,11 +413,6 @@ NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
             ~ChunkId.ToString(),
             ~CurrentExceptionMessage());
-    }
-
-    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        LOG_FATAL("Error renaming temp chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
     }
 
     LOG_DEBUG("Chunk file closed (ChunkId: %s)",
