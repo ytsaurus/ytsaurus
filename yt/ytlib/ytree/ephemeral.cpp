@@ -360,12 +360,13 @@ bool TListNode::RemoveChild(int index)
     if (index < 0 || index >= IndexToChild.ysize())
         return false;
 
+    auto child = IndexToChild[index];
+
     for (auto it = IndexToChild.begin() + index + 1; it != IndexToChild.end(); ++it) {
         --ChildToIndex[*it];
     }
     IndexToChild.erase(IndexToChild.begin() + index);
 
-    auto child = IndexToChild[index];
     YVERIFY(ChildToIndex.erase(child));
     child->SetParent(NULL);
 
@@ -390,7 +391,7 @@ void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 void TListNode::RemoveChild(INode::TPtr child)
 {
     int index = GetChildIndex(~child);
-    RemoveChild(index);
+    YVERIFY(RemoveChild(index));
 }
 
 int TListNode::GetChildIndex(INode* child)

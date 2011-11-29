@@ -129,7 +129,7 @@ public:
         ICypressNode& committedNode,
         ICypressNode& branchedNode)
     {
-        YASSERT(committedNode.GetState() != ENodeState::Branched);
+        YASSERT(committedNode.GetState() == ENodeState::Committed);
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
         // Drop the reference to attributes, if any.
