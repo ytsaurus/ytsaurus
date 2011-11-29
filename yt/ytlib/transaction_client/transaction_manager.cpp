@@ -286,13 +286,13 @@ void TTransactionManager::OnPingResponse(
 
     if (!rsp->IsOK()) {
         if (rsp->GetErrorCode() == TProxy::EErrorCode::NoSuchTransaction) {
-            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
-                ~id.ToString(),
-                ~rsp->GetError().ToString());
-        } else {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->AsyncAbort();
+        } else {
+            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
+                ~id.ToString(),
+                ~rsp->GetError().ToString());
         }
         return;
     }
