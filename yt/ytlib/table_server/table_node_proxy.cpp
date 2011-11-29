@@ -61,13 +61,22 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TTableNodeProxy, AddTableChunks)
     EnsureLocked();
 
     auto& impl = GetTypedImplForUpdate();
-    YASSERT(impl.ChunkListIds().ysize() >= 1);
-    const auto& appendChunkListId = impl.ChunkListIds().back();
-    auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
+
+    // Check if the table has at least one chunk list.
+    // If not, create not.
+    TChunkList* chunkList;
+    if (impl.ChunkListIds().empty()) {
+        YASSERT(impl.GetState() != ENodeState::Branched);
+        chunkList = &ChunkManager->CreateChunkList();
+        impl.ChunkListIds().push_back(chunkList->GetId());
+        ChunkManager->RefChunkList(*chunkList);
+    } else {
+        chunkList = &ChunkManager->GetChunkListForUpdate(impl.ChunkListIds().back());
+    }
 
     FOREACH (const auto& chunkId, chunkIds) {
         auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
-        ChunkManager->AddChunkToChunkList(chunk, appendChunkList);
+        ChunkManager->AddChunkToChunkList(chunk, *chunkList);
     }
 
     context->Reply();
