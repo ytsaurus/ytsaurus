@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "ref.h"
 
 #include <util/ysaveload.h>

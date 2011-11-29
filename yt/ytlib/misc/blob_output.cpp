@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "blob_output.h"
 
 namespace NYT {
