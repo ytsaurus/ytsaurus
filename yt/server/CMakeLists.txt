@@ -12,14 +12,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree
 )
 
-#PEERDIR(
-#    ADDINCL yt/ytlib
-#    dict/json
-#)
-
-#DEFAULT(INSTALLDIR ${INSTALL_BIN_DIR})
-#SET(INSTALLEDNAME ${PROG})
-
 if (CMAKE_COMPILER_IS_GNUCXX)
   if (YT_BUILD_WITH_STLPORT)
     set_target_properties( server PROPERTIES
@@ -30,33 +22,39 @@ if (CMAKE_COMPILER_IS_GNUCXX)
       LINK_FLAGS "-L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
     )
   endif()
+endif()
 
-  target_link_libraries( server
-    #-lprotoc_
-    #-lprotobuf
-    ytlib
-    arcadia-utils
-    snappy
-    lz4
-    fastlz
-    minilzo
-    arczlib
-    protobuf
-    qmisc
-    NetLiba
-    json
+if (MSVC)
+  set_target_properties( server PROPERTIES
+    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
   )
-  if (YT_BUILD_WITH_STLPORT)
-    target_link_libraries( server
-      stlport
-    )
-  endif()
+endif()
 
-  target_link_libraries( server -larcadia-utils )
+target_link_libraries( server
+  #-lprotoc_
+  #-lprotobuf
+  ytlib
+  arcadia-utils
+  snappy
+  lz4
+  fastlz
+  minilzo
+  arczlib
+  protobuf
+  qmisc
+  NetLiba
+  json
+)
 
+if (YT_BUILD_WITH_STLPORT)
+  target_link_libraries( server
+    stlport
+  )
+endif()
+
+target_link_libraries( server -larcadia-utils )
+
+if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
 endif()
 
-#if (NOT WIN32)
-#  INSTALL(TARGETS server RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin)
-#endif()

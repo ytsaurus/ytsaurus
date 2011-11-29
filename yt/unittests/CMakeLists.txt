@@ -47,31 +47,38 @@ if (CMAKE_COMPILER_IS_GNUCXX)
       LINK_FLAGS "-L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
     )
   endif()
+endif()
 
-  target_link_libraries( unittester
-    ytlib
-    arcadia-utils
-    snappy
-    lz4
-    fastlz
-    minilzo
-    arczlib
-    protobuf
-    qmisc
-    NetLiba
-    yajl
-    json
+if (MSVC)
+  set_target_properties( unittester PROPERTIES
+    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
   )
+endif()
 
-  if (YT_BUILD_WITH_STLPORT)
-    target_link_libraries( unittester   
-      stlport
-    )
-  endif()
+target_link_libraries( unittester
+  ytlib
+  arcadia-utils
+  snappy
+  lz4
+  fastlz
+  minilzo
+  arczlib
+  protobuf
+  qmisc
+  NetLiba
+  yajl
+  json
+)
 
-  target_link_libraries( unittester -larcadia-utils )
+if (YT_BUILD_WITH_STLPORT)
+  target_link_libraries( unittester   
+    stlport
+  )
+endif()
 
+target_link_libraries( unittester -larcadia-utils )
+
+if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries( unittester -ldl )
-
   target_link_libraries( unittester -lc -lm -lpthread -ldl -lgcc_s )
 endif()
