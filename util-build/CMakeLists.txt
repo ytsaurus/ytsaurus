@@ -142,7 +142,7 @@ if (LINUX)
 endif()
 
 if (LINUX OR SUN OR CYGWIN OR WIN32)
-  SET( S_SRCS "${S_SRCS} ${S_BASE}/freeBSD_mktemp.cpp" )
+  SET( S_SRCS ${S_SRCS} ${S_BASE}/freeBSD_mktemp.cpp )
 endif()
 
 SET( M_BASE ${CMAKE_SOURCE_DIR}/util/memory )
