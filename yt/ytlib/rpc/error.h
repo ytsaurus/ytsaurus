@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../actions/future.h"
 #include "../misc/common.h"
 #include "../misc/enum.h"
 #include "../misc/property.h"
@@ -62,6 +63,10 @@ public:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef TFuture<TError> TAsyncError;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -107,6 +107,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     auto& codec = ICodec::GetCodec(CodecId);
     auto data = codec.Encode(channel->FlushBlock());
+
     SentSize += data.Size();
     ++CurrentBlockIndex;
 
