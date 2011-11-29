@@ -79,11 +79,9 @@ public:
     void UnrefNode(ICypressNode & node);
     void UnrefNode(const TNodeId& nodeId);
 
-    NYTree::IStringNode::TPtr CreateStringNodeProxy(const TTransactionId& transactionId);
-    NYTree::IInt64Node::TPtr  CreateInt64NodeProxy(const TTransactionId& transactionId);
-    NYTree::IDoubleNode::TPtr CreateDoubleNodeProxy(const TTransactionId& transactionId);
-    NYTree::IMapNode::TPtr    CreateMapNodeProxy(const TTransactionId& transactionId);
-    NYTree::IListNode::TPtr   CreateListNodeProxy(const TTransactionId& transactionId);
+    NYTree::INode::TPtr CreateNode(
+        ERuntimeNodeType type,
+        const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
         const TTransactionId& transactionId,
@@ -143,10 +141,17 @@ private:
     void OnTransactionCommitted(const NTransactionServer::TTransaction& transaction);
     void OnTransactionAborted(const NTransactionServer::TTransaction& transaction);
 
+    ICypressNodeProxy::TPtr RegisterNode(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        INodeTypeHandler* typeHandler,
+        TAutoPtr<ICypressNode> node);
+
     void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
     void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
+    void UnrefCreatedNodes(const NTransactionServer::TTransaction& transaction);
     void CommitCreatedNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);

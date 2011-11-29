@@ -296,6 +296,10 @@ protected:
 
     void AttachChild(ICypressNode& child)
     {
+        // One can only attach nodes that are created 
+        // by the current transaction.
+        YASSERT(child.GetState() == ENodeState::Uncommitted);
+
         child.SetParentId(NodeId);
         CypressManager->RefNode(child);
     }

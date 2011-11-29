@@ -394,7 +394,7 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
         ythrow yexception() << "Resolution error: insertion point expected";
     }
 
-    int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.end() - 1));
+    int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.length() - 1));
     switch (lastPrefixCh) {
         case '+':
             CreateChild(index + 1, suffixPath, value);

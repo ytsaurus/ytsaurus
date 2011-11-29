@@ -100,7 +100,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
             TError error;
             ParseYPathResponseHeader(responseParts[0], &error);
 
-            context->SetRequestInfo("YPathError: %s", ~error.ToString());
+            context->SetResponseInfo("YPathError: %s", ~error.ToString());
 
             WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
             context->Reply();

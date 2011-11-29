@@ -99,22 +99,22 @@ public:
     }
 
     virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode& node,
+        const ICypressNode& committedNode,
         const TTransactionId& transactionId)
     {
-        YASSERT(node.GetState() != ENodeState::Branched);
+        YASSERT(committedNode.GetState() == ENodeState::Committed);
 
-        const auto& typedNode = dynamic_cast<const TImpl&>(node);
+        const auto& typedNode = dynamic_cast<const TImpl&>(committedNode);
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode = new TImpl(
-            TBranchedNodeId(node.GetId().NodeId, transactionId),
+            TBranchedNodeId(committedNode.GetId().NodeId, transactionId),
             typedNode);
 
         // Add a reference to the attributes, if any.
-        if (node.GetAttributesId() != NullNodeId) {
+        if (committedNode.GetAttributesId() != NullNodeId) {
             auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                node.GetAttributesId(),
+                committedNode.GetAttributesId(),
                 NullTransactionId));
             CypressManager->RefNode(attrImpl);
         }
@@ -126,30 +126,25 @@ public:
     }
 
     virtual void Merge(
-        ICypressNode& originatingNode,
+        ICypressNode& committedNode,
         ICypressNode& branchedNode)
     {
-        YASSERT(originatingNode.GetState() != ENodeState::Branched);
+        YASSERT(committedNode.GetState() != ENodeState::Branched);
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        // Set the parent of the originating node.
-        // Valid parents are first set for branched copies at TCypressNodeProxyBase::AttachChild
-        // and then propagates to their originators during transaction commit.
-        originatingNode.SetParentId(branchedNode.GetParentId());
-
         // Drop the reference to attributes, if any.
-        if (originatingNode.GetAttributesId() != NullNodeId) {
+        if (committedNode.GetAttributesId() != NullNodeId) {
             auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                originatingNode.GetAttributesId(),
+                committedNode.GetAttributesId(),
                 NullTransactionId));
             CypressManager->UnrefNode(attrImpl);
         }
 
         // Replace the attributes with the branched copy.
-        originatingNode.SetAttributesId(branchedNode.GetAttributesId());
+        committedNode.SetAttributesId(branchedNode.GetAttributesId());
 
         // Run custom merging.
-        DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
+        DoMerge(dynamic_cast<TImpl&>(committedNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
     virtual void GetAttributeNames(
@@ -196,18 +191,18 @@ protected:
     }
 
     virtual void DoBranch(
-        const TImpl& originatingNode,
+        const TImpl& committedNode,
         TImpl& branchedNode)
     {
-        UNUSED(originatingNode);
+        UNUSED(committedNode);
         UNUSED(branchedNode);
     }
 
     virtual void DoMerge(
-        TImpl& originatingNode,
+        TImpl& committedNode,
         TImpl& branchedNode)
     {
-        UNUSED(originatingNode);
+        UNUSED(committedNode);
         UNUSED(branchedNode);
     }
 
@@ -391,10 +386,10 @@ public:
 
 protected:
     virtual void DoMerge(
-        TScalarNode<TValue>& originatingNode,
+        TScalarNode<TValue>& committedNode,
         TScalarNode<TValue>& branchedNode)
     {
-        originatingNode.Value() = branchedNode.Value();
+        committedNode.Value() = branchedNode.Value();
     }
 
 };
@@ -448,11 +443,11 @@ private:
     virtual void DoDestroy(TMapNode& node);
 
     virtual void DoBranch(
-        const TMapNode& originatingNode,
+        const TMapNode& committedNode,
         TMapNode& branchedNode);
 
     virtual void DoMerge(
-        TMapNode& originatingNode,
+        TMapNode& committedNode,
         TMapNode& branchedNode);
 
     static void GetSize(const TGetAttributeParam& param);
@@ -503,7 +498,7 @@ private:
     virtual void DoDestroy(TListNode& node);
 
     virtual void DoBranch(
-        const TListNode& originatingNode,
+        const TListNode& committedNode,
         TListNode& branchedNode);
 
     virtual void DoMerge(
