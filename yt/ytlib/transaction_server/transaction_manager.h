@@ -57,7 +57,7 @@ public:
 
     void RenewLease(const TTransactionId& id);
 
-    METAMAP_ACCESSORS_DECL(Transaction, TTransaction, TTransactionId);
+    DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
 private:
     typedef TTransactionManager TThis;

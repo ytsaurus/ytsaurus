@@ -40,7 +40,7 @@ public:
     void RegisterNodeType(INodeTypeHandler* handler);
     INodeTypeHandler::TPtr GetTypeHandler(ERuntimeNodeType type);
 
-    METAMAP_ACCESSORS_DECL(Node, ICypressNode, TBranchedNodeId);
+    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TBranchedNodeId);
 
     const ICypressNode* FindTransactionNode(
         const TNodeId& nodeId,
@@ -90,7 +90,7 @@ public:
         const Stroka& typeName,
         NYTree::INode* manifest);
 
-    METAMAP_ACCESSORS_DECL(Lock, TLock, TLockId);
+    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
 
     TLock& CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
 

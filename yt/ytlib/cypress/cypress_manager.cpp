@@ -781,8 +781,8 @@ void TCypressManager::CommitCreatedNodes(const TTransaction& transaction)
     }
 }
 
-METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
-METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
