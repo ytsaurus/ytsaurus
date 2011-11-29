@@ -91,6 +91,20 @@ TEST_F(TYPathTest, MapModification)
     Remove("/map/n");
     Check("/", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{\"some\"=\"value\"}]}}");
 
+    Set("/map/list", "[]");
+    Check("/", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[]}}");
+
+    Set("/map/list/+/a", "1");
+    Check("/", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"a\"=1}]}}");
+
+    Set("/map/list/-/b", "2");
+    Check("/", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
+
+    Remove("/map/hello");
+    Check("/", "{\"map\"={\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
+
+    Remove("/map");
+    Check("/", "{}");
 }
 
 TEST_F(TYPathTest, ListModification)
