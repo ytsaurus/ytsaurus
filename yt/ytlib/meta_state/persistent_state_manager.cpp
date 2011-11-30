@@ -329,6 +329,7 @@ public:
 
     // Per epoch, control (service) thread
     TEpoch Epoch;
+
     TCancelableInvoker::TPtr EpochControlInvoker;
     TCancelableInvoker::TPtr EpochStateInvoker;
     TSnapshotCreator::TPtr SnapshotCreator;
