@@ -6,7 +6,7 @@ SET(YT_SOURCE_FILES
     decorated_meta_state.cpp
 
     meta_state_manager.cpp
-    simple_meta_state_manager.cpp
+    transient_state_manager.cpp
     persistent_state_manager.cpp
     meta_state_manager.proto
     meta_state_manager_rpc.proto
