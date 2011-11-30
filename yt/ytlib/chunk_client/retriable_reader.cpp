@@ -127,8 +127,8 @@ void TRetriableReader::OnBlocksRead(
         TGuard<TSpinLock> guard(SpinLock);
         if (requestFailCount == FailCount) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
-                FailCount, 
-                result.Error.GetMessage()));
+                FailCount,
+                ~result.Error.GetMessage()));
             Retry();
         }
     }
