@@ -3,8 +3,14 @@ PROTOC( rpc_ut.proto PROTO_SRC )
 include_directories(
   ../ytlib
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_BINARY_DIR}/include
 )
+
+if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
+  include_directories(
+    ${CMAKE_CURRENT_BINARY_DIR}
+  )
+endif()
 
 add_executable( unittester
     ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp

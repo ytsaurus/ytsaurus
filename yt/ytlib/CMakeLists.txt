@@ -27,16 +27,37 @@ add_library( ytlib STATIC
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_BINARY_DIR}/include
   .
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_server
-  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_holder
-  ${CMAKE_CURRENT_SOURCE_DIR}/rpc
-  ${CMAKE_CURRENT_SOURCE_DIR}/ytree
-  ${CMAKE_CURRENT_SOURCE_DIR}/file_server
-  ${CMAKE_CURRENT_SOURCE_DIR}/file_client
+  #${CMAKE_CURRENT_SOURCE_DIR}/chunk_server
+  #${CMAKE_CURRENT_SOURCE_DIR}/chunk_holder
+  #${CMAKE_CURRENT_SOURCE_DIR}/rpc
+  #${CMAKE_CURRENT_SOURCE_DIR}/ytree
+  #${CMAKE_CURRENT_SOURCE_DIR}/file_server
+  #${CMAKE_CURRENT_SOURCE_DIR}/file_client
+
+  #${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/chunk_server
+  ${CMAKE_CURRENT_BINARY_DIR}/chunk_holder
+  ${CMAKE_CURRENT_BINARY_DIR}/rpc
+  ${CMAKE_CURRENT_BINARY_DIR}/ytree
+  ${CMAKE_CURRENT_BINARY_DIR}/file_server
+  ${CMAKE_CURRENT_BINARY_DIR}/file_client
 )
+
+if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
+  include_directories(
+    ${CMAKE_CURRENT_BINARY_DIR}/chunk_client  
+    ${CMAKE_CURRENT_BINARY_DIR}/election
+    ${CMAKE_CURRENT_BINARY_DIR}/transaction_server
+    ${CMAKE_CURRENT_BINARY_DIR}/meta_state
+    ${CMAKE_CURRENT_BINARY_DIR}/cypress
+    ${CMAKE_CURRENT_BINARY_DIR}/orchid
+    ${CMAKE_CURRENT_BINARY_DIR}/table_server
+    ${CMAKE_CURRENT_BINARY_DIR}/table_client
+  )
+endif()
 
 add_dependencies( ytlib
   protoc
