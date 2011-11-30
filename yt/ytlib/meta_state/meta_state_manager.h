@@ -91,18 +91,6 @@ struct IMetaStateManager
     virtual TSignal& OnFollowerRecoveryComplete() = 0;
     //! Raised within the   state thread when the state has started leading.
     virtual TSignal& OnStopFollowing() = 0;
-
-public:
-    static TPtr CreateInstance(
-        const TConfig& config,
-        IInvoker* controlInvoker,
-        IMetaState* metaState,
-        NRpc::IServer* server);
-
-    static TPtr CreateInstance(
-        const TConfig& config,
-        IInvoker* controlInvoker,
-        IMetaState* metaState);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

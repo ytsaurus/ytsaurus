@@ -7,7 +7,7 @@ SET(YT_SOURCE_FILES
 
     meta_state_manager.cpp
     simple_meta_state_manager.cpp
-    advanced_meta_state_manager.cpp
+    persistent_state_manager.cpp
     meta_state_manager.proto
     meta_state_manager_rpc.proto
     meta_state_manager_rpc.h
