@@ -22,7 +22,9 @@
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/statlog.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -85,6 +87,14 @@ using NTableServer::CreateTableTypeHandler;
 
 void TCellMasterServer::TConfig::Read(TJsonObject* json)
 {
+    Stroka monitoringPort;
+    
+    if (!TryRead(json, L"MonitoringPort", &monitoringPort)) {
+        MonitoringPort = 10000;
+    }
+
+    MonitoringPort = FromString(monitoringPort);
+
     TJsonObject* cellJson = GetSubTree(json, "Cell");
     if (cellJson != NULL) {
         MetaState.Cell.Read(cellJson);
@@ -110,6 +120,9 @@ void TCellMasterServer::Run()
     int rpcPort = FromString<int>(address.substr(index + 1));
 
     LOG_INFO("Starting cell master");
+
+    // Explicitly enable statlog thread creation
+    NSTAT::EnableStatlog(true);
 
     auto metaState = New<TCompositeMetaState>();
 
@@ -228,19 +241,23 @@ void TCellMasterServer::Run()
         ~chunkManager));
 
     // TODO: fix memory leaking
-    auto httpServer = new THttpTreeServer(Config.MonitoringPort);
+    auto httpServer = new NHTTP::TServer(Config.MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
-        "orchid",
-        GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+        "/profiling",
+        NMonitoring::GetProfilingHttpHandler()
+        );
+    httpServer->Register(
+        "/orchid",
+        NMonitoring::GetYPathHttpHandler(
+            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
                 {
                     return orchidPathService;
                 })));
     httpServer->Register(
-        "cypress",
-        GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathService::TPtr
+        "/cypress",
+        NMonitoring::GetYPathHttpHandler(
+            FromFunctor([=] () -> IYPathService::TPtr
                 {
                     auto status = metaStateManager->GetStateStatus();
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yt/ytlib/meta_state/meta_state_manager.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
+#include <yt/ytlib/monitoring/http_server.h>
 
 namespace NYT {
 
@@ -22,7 +22,6 @@ public:
         Stroka NewConfigFileName;
 
         TConfig()
-            : MonitoringPort(10000)
         { }
 
         //! Reads configuration from JSON.
