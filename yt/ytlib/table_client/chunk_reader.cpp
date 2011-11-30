@@ -102,7 +102,7 @@ private:
     void SelectChannels()
     {
         ChunkChannels.reserve(ProtoMeta.ChannelsSize());
-        for(int i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+        for(size_t i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
             ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.GetChannels(i)));
         }
 
@@ -129,10 +129,10 @@ private:
         int resultIdx = -1;
         size_t minBlockCount = std::numeric_limits<size_t>::max();
 
-        for (int i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+        for (size_t i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(ChunkReader->Channel)) {
-                int blockCount = ProtoMeta.GetChannels(i).BlocksSize();
+                size_t blockCount = ProtoMeta.GetChannels(i).BlocksSize();
                 if (minBlockCount > blockCount) {
                     resultIdx = i;
                     minBlockCount = blockCount;
@@ -155,7 +155,7 @@ private:
             int lastRow = 0;
             do {
                 ++blockIndex;
-                YASSERT(blockIndex < protoChannel.BlocksSize());
+                YASSERT(blockIndex < (int)protoChannel.BlocksSize());
                 const auto& protoBlock = protoChannel.GetBlocks(blockIndex);
                 // When a new block is set in TChannelReader, reader is virtually 
                 // one row behind its real starting row. E.g. for the first row of 
@@ -189,7 +189,7 @@ private:
 
         while (true) {
             TBlockInfo currentBlock = blockHeap.front();
-            int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
+            size_t nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
             const auto& protoChannel = ProtoMeta.GetChannels(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
@@ -247,7 +247,7 @@ private:
         }
 
         ++selectedChannelIndex;
-        if (selectedChannelIndex < SelectedChannels.size()) {
+        if (selectedChannelIndex < SelectedChannels.ysize()) {
             ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
                 FromMethod(&TInitializer::OnFirstBlock, TPtr(this), selectedChannelIndex)
             );
