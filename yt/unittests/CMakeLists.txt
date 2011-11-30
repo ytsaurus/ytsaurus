@@ -70,13 +70,13 @@ target_link_libraries( unittester
   json
 )
 
+target_link_libraries( unittester arcadia-utils )
+
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( unittester   
     stlport
   )
 endif()
-
-target_link_libraries( unittester -larcadia-utils )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries( unittester -ldl )

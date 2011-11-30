@@ -46,13 +46,13 @@ target_link_libraries( server
   json
 )
 
+target_link_libraries( server arcadia-utils )
+
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( server
     stlport
   )
 endif()
-
-target_link_libraries( server -larcadia-utils )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
