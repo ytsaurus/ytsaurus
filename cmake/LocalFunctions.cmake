@@ -19,7 +19,7 @@ function( PROTOC proto srcgen )
   if (NOT WIN32)
     SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/protoc -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} --cpp_styleguide_out=${CMAKE_BINARY_DIR}${notop} --plugin=protoc-gen-cpp_styleguide=${CMAKE_BINARY_DIR}/bin/cpp_styleguide ${ap_proto} )
   else()
-    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}/protoc -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} --cpp_styleguide_out=${CMAKE_BINARY_DIR}${notop} --plugin=protoc-gen-cpp_styleguide=${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}/cpp_styleguide.exe ${ap_proto} )
+    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}/protoc.exe -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} --cpp_styleguide_out=${CMAKE_BINARY_DIR}${notop} --plugin=protoc-gen-cpp_styleguide=${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}/cpp_styleguide.exe ${ap_proto} )
   endif()
 
   # add generated .pb.h and .pb.cc into source list ${${srcgen}}
