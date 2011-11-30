@@ -65,9 +65,13 @@ if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( server
     stlport
   )
-endif()
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
+  if (CMAKE_COMPILER_IS_GNUCXX)
+    target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
+  endif()
+else()
+  if (CMAKE_COMPILER_IS_GNUCXX)
+    target_link_libraries( server -ldl )
+  endif()
 endif()
 

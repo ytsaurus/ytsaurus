@@ -2,7 +2,7 @@ add_subdirectory(ytlib)
 add_subdirectory(server)
 
 if (YT_BUILD_EXPERIMENTS)
-    #add_subdirectory(experiments)
+    add_subdirectory(experiments)
 else()
     message(STATUS "Omitting experiments from build")
 endif()
