@@ -17,6 +17,8 @@ class TRemoteReader
     : public IAsyncReader
 {
 public:
+    typedef TIntrusivePtr<TRemoteReader> TPtr;
+
     struct TConfig
         : TConfigBase
     {
@@ -37,8 +39,6 @@ public:
     TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
 private:
-    typedef TIntrusivePtr<TRemoteReader> TPtr;
-
     typedef NChunkHolder::TChunkHolderProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
 
