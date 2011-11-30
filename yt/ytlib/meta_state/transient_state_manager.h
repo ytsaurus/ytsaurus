@@ -8,11 +8,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreateTransientStateManager(
-    const IMetaStateManager::TConfig& config,
-    IInvoker* controlInvoker,
-    IMetaState* metaState,
-    NRpc::IServer* server);
+IMetaStateManager::TPtr CreateTransientStateManager(IMetaState* metaState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

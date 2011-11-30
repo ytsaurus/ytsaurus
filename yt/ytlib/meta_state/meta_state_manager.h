@@ -31,7 +31,11 @@ struct IMetaStateManager
      */
     virtual void Start() = 0;
 
-    // TODO: provide stop method
+    //! Stops the manager.
+    /*!
+     * \note Thread affinity: any
+     */
+    virtual void Stop() = 0;
 
     //! Returns the status as seen in the control thread.
     /*!

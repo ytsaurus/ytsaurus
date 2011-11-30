@@ -141,10 +141,6 @@ public:
         server->RegisterService(this);
     }
 
-    //! Boots up the manager.
-    /*!
-     * \note Thread affinity: any
-     */
     void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -159,12 +155,12 @@ public:
         ElectionManager->Start();
     }
 
-    // TODO: provide stop method
+    void Stop()
+    {
+        //TODO: implement this
+        YUNIMPLEMENTED();
+    }
 
-    //! Returns the status as seen in the control thread.
-    /*!
-     * \note Thread affinity: ControlThread
-     */
     EPeerStatus GetControlStatus() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -172,10 +168,6 @@ public:
         return ControlStatus;
     }
 
-    //! Returns the status as seen in the state thread.
-    /*!
-     * \note Thread affinity: StateThread
-     */
     EPeerStatus GetStateStatus() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
@@ -183,10 +175,6 @@ public:
         return StateStatus;
     }
 
-    //! Returns an invoker used for updating the state.
-    /*!
-     * \note Thread affinity: any
-     */
     IInvoker::TPtr GetStateInvoker()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -194,11 +182,6 @@ public:
         return MetaState->GetStateInvoker();
     }
 
-    //! Returns a cancelable invoker that corresponds to the state thread and is only valid
-    //! for the duration of the current epoch.
-    /*!
-     * \note Thread affinity: StateThread
-     */
     IInvoker::TPtr GetEpochStateInvoker()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
@@ -206,9 +189,6 @@ public:
         return ~EpochStateInvoker;
     }
 
-    /*!
-     * \note Thread affinity: any
-     */
     void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -216,10 +196,6 @@ public:
         ReadOnly = readOnly;
     }
 
-    //! Returns monitoring info.
-    /*!
-     * \note Thread affinity: any
-     */
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
         auto current = BuildYsonFluently(consumer)
@@ -245,30 +221,14 @@ public:
         current
             .EndMap();
     }
-    //! Raised within the state thread when the state has started leading
-    //! and now enters recovery.
+
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStartLeading);
-
-    //! Raised within the state thread when the leader recovery is complete.
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnLeaderRecoveryComplete);
-
-    //! Raised within the state thread when the state has stopped leading.
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopLeading);
-
-    //! Raised within the state thread when the state has started following
-    //! and now enters recovery.
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStartFollowing);
-
-    //! Raised within the state thread when the follower recovery is complete.
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnFollowerRecoveryComplete);
-
-    //! Raised within the state thread when the state has started leading.
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopFollowing);
 
-
-    /*!
-     * \note Thread affinity: StateThread
-     */
     TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction)
