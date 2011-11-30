@@ -124,7 +124,7 @@ const ICypressNode* TCypressManager::FindTransactionNode(
     // First try to fetch a branched copy.
     auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
     if (impl == NULL) {
-        // Then try a committed or an uncommitted one.
+        // Then try a non-branched one.
         impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     }
     return impl;
@@ -158,8 +158,12 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
         return NULL;
     }
 
-    // Branch it!
-    return &BranchNode(*nonbranchedImpl, transactionId);
+    // Branch the node if it is committed.
+    if (nonbranchedImpl->GetState() == ENodeState::Committed) {
+        return &BranchNode(*nonbranchedImpl, transactionId);
+    } else {
+        return nonbranchedImpl;
+    }
 }
 
 ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
@@ -267,10 +271,9 @@ TLockId TCypressManager::LockTransactionNode(
     return lock.GetId();
 }
 
-template <class TImpl, class TProxy>
-TIntrusivePtr<TProxy> TCypressManager::CreateNode(
-    const TTransactionId& transactionId,
-    ERuntimeNodeType type)
+INode::TPtr TCypressManager::CreateNode(
+    ERuntimeNodeType type,
+    const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -278,54 +281,13 @@ TIntrusivePtr<TProxy> TCypressManager::CreateNode(
         ythrow yexception() << "Cannot create a node outside of a transaction";
     }
 
-    // Create a new node.
+    auto typeHandler = GetTypeHandler(type);
+
     auto nodeId = NodeIdGenerator.Next();
-    TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    auto* nodeImpl = new TImpl(branchedNodeId, type);
-    NodeMap.Insert(branchedNodeId, nodeImpl);
 
-    // Register the node with the transaction.
-    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-    transaction.CreatedNodes().push_back(nodeId);
+    TAutoPtr<ICypressNode> node = typeHandler->Create(TBranchedNodeId(nodeId, NullTransactionId));
 
-    // Create a proxy.
-    auto proxy = New<TProxy>(
-        ~RuntimeTypeToHandler[static_cast<int>(type)],
-        this,
-        transactionId,
-        nodeId);
-
-    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
-        ~nodeId.ToString(),
-        ~proxy->GetTypeHandler()->GetTypeName(),
-        ~transactionId.ToString());
-
-    return proxy;
-}
-
-IStringNode::TPtr TCypressManager::CreateStringNodeProxy(const TTransactionId& transactionId)
-{
-    return ~CreateNode<TStringNode, TStringNodeProxy>(transactionId, ERuntimeNodeType::String);
-}
-
-IInt64Node::TPtr TCypressManager::CreateInt64NodeProxy(const TTransactionId& transactionId)
-{
-    return ~CreateNode<TInt64Node, TInt64NodeProxy>(transactionId, ERuntimeNodeType::Int64);
-}
-
-IDoubleNode::TPtr TCypressManager::CreateDoubleNodeProxy(const TTransactionId& transactionId)
-{
-    return ~CreateNode<TDoubleNode, TDoubleNodeProxy>(transactionId, ERuntimeNodeType::Double);
-}
-
-IMapNode::TPtr TCypressManager::CreateMapNodeProxy(const TTransactionId& transactionId)
-{
-    return ~CreateNode<TMapNode, TMapNodeProxy>(transactionId, ERuntimeNodeType::Map);
-}
-
-IListNode::TPtr TCypressManager::CreateListNodeProxy(const TTransactionId& transactionId)
-{
-    return ~CreateNode<TListNode, TListNodeProxy>(transactionId, ERuntimeNodeType::List);
+    return RegisterNode(nodeId, transactionId, ~typeHandler, node);
 }
 
 ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
@@ -344,33 +306,50 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
         ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~typeName.Quote());
     }
 
-    auto handler = it->Second();
-
+    auto typeHandler = it->Second();
+    
     auto nodeId = NodeIdGenerator.Next();
-    TBranchedNodeId branchedNodeId(nodeId, NullTransactionId);
-    TAutoPtr<ICypressNode> node(handler->CreateFromManifest(
+
+    TAutoPtr<ICypressNode> node = typeHandler->CreateFromManifest(
         nodeId,
         transactionId,
-        manifestNode));
-    auto* node_ = node.Get();
-    NodeMap.Insert(branchedNodeId, node.Release());
+        manifestNode);
+    ICypressNode* node_ = ~node;
 
-    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-    transaction.CreatedNodes().push_back(nodeId);
-
-    auto typeHandler = GetTypeHandler(*node_);
-    auto proxy = typeHandler->GetProxy(*node_, transactionId);
-
-    LOG_INFO_IF(!IsRecovery(), "Dynamic node created (NodeId: %s, TransactionId: %s, Type: %s)",
-        ~nodeId.ToString(),
-        ~transactionId.ToString(),
-        ~typeName);
+    auto proxy = RegisterNode(nodeId, transactionId, ~typeHandler, node);
 
     if (IsLeader()) {
         CreateNodeBehavior(*node_);
     }
 
-    return ~proxy;
+    return proxy;
+}
+
+ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
+    const TNodeId& nodeId,
+    const TTransactionId& transactionId,
+    INodeTypeHandler* typeHandler,
+    TAutoPtr<ICypressNode> node)
+{
+    // Keep a pointer to the node (the ownership is about to transfer to NodeMap).
+    auto* node_ = ~node;
+
+    // Create a new node.
+    NodeMap.Insert(TBranchedNodeId(nodeId, NullTransactionId), node.Release());
+
+    // Register the node with the transaction.
+    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    transaction.CreatedNodes().push_back(nodeId);
+
+    // Each transaction holds an implicit reference to all created nodes.
+    node_->Ref();
+
+    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
+        ~nodeId.ToString(),
+        ~typeHandler->GetTypeName(),
+        ~transactionId.ToString());
+
+    return typeHandler->GetProxy(*node_, transactionId);
 }
 
 TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)
@@ -691,6 +670,7 @@ void TCypressManager::OnTransactionCommitted(const TTransaction& transaction)
     MergeBranchedNodes(transaction);
     CommitCreatedNodes(transaction);
     UnrefOriginatingNodes(transaction);
+    UnrefCreatedNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
@@ -700,6 +680,7 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
     UnrefOriginatingNodes(transaction);
+    UnrefCreatedNodes(transaction);
 
     // TODO: check that all created nodes died
 }
@@ -754,6 +735,14 @@ void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
     }
 }
 
+void TCypressManager::UnrefCreatedNodes(const TTransaction& transaction)
+{
+    // Drop implicit references to created nodes.
+    FOREACH (const auto& nodeId, transaction.CreatedNodes()) {
+        UnrefNode(nodeId);
+    }
+}
+
 void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
@@ -781,8 +770,8 @@ void TCypressManager::CommitCreatedNodes(const TTransaction& transaction)
     }
 }
 
-METAMAP_ACCESSORS_IMPL(TCypressManager, Lock, TLock, TLockId, LockMap);
-METAMAP_ACCESSORS_IMPL(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

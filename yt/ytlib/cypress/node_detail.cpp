@@ -314,7 +314,7 @@ void TListNodeTypeHandler::DoBranch(
 
 void TListNodeTypeHandler::DoMerge(
     TListNode& committedNode,
-    TListNode& branchedNode )
+    TListNode& branchedNode)
 {
     // Drop all references held by the originator.
     FOREACH (const auto& nodeId, committedNode.IndexToChild()) {

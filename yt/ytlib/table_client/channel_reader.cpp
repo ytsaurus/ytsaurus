@@ -14,7 +14,7 @@ TChannelReader::TChannelReader(const TChannel& channel)
     , CurrentColumnIndex(-1)
 { }
 
-void TChannelReader::SetBlock(const TSharedRef& block)
+void TChannelReader::SetBlock(TSharedRef&& block)
 {
     YASSERT(CurrentColumnIndex == -1);
 

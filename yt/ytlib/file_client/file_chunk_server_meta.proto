@@ -9,6 +9,9 @@ message TChunkServerMeta
 
     // The real (user-visible) size of the file.
     required int64 Size = 2;
+
+    // Id of the codec used during writing
+    required int32 CodecId = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

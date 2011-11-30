@@ -262,14 +262,14 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define METAMAP_ACCESSORS_DECL(entityName, entityType, idType) \
+#define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     const entityType* Find ## entityName(const idType& id) const; \
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName ## ForUpdate(const idType& id); \
     yvector<idType> Get ## entityName ## Ids();
 
-#define METAMAP_ACCESSORS_IMPL(declaringType, entityName, entityType, idType, map) \
+#define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
     { \
         return (map).Find(id); \
@@ -295,30 +295,30 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).GetKeys(); \
     }
 
-#define METAMAP_ACCESSORS_FWD(declaringType, entityName, entityType, idType, fwd) \
+#define DELEGATE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, delegateTo) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
     { \
-        return (fwd).Find ## entityName(id); \
+        return (delegateTo).Find ## entityName(id); \
     } \
     \
     entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
     { \
-        return (fwd).Find ## entityName ## ForUpdate(id); \
+        return (delegateTo).Find ## entityName ## ForUpdate(id); \
     } \
     \
     const entityType& declaringType::Get ## entityName(const idType& id) const \
     { \
-        return (fwd).Get ## entityName(id); \
+        return (delegateTo).Get ## entityName(id); \
     } \
     \
     entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
     { \
-        return (fwd).Get ## entityName ## ForUpdate(id); \
+        return (delegateTo).Get ## entityName ## ForUpdate(id); \
     } \
     \
     yvector<idType> declaringType::Get ## entityName ## Ids() \
     { \
-        return (fwd).Get ## entityName ## Ids(); \
+        return (delegateTo).Get ## entityName ## Ids(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

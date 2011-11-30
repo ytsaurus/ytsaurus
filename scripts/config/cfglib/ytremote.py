@@ -8,7 +8,7 @@ DoClean = FileDescr('do_clean', ('remote', 'exec'))
 DoTest = FileDescr('do_test', ('remote', 'exec'))
 Test = FileDescr('test', ('aggregate', 'exec'))
 
-Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
+Files = [YsonConfig, Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
 
 ################################################################
 
@@ -20,6 +20,9 @@ cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
 cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
+
+cmd_ssh = 'ssh -o ConnectTimeout=5 %s %s'
+cmd_rsync = 'rsync --copy-links %s %s:%s'
 
 def wrap_cmd(cmd, silent=False):
     res = ['cmd="%s"' % cmd]
@@ -67,14 +70,14 @@ class RemoteNode(Node):
         libs = getattr(cls, 'libs', None)
         if (libs):
             for lib in libs:
-                cmd = 'rsync --copy-links %s %s:%s' % (lib, cls.host, cls.remote_dir)
+                cmd = cmd_rsync % (lib, cls.host, cls.remote_dir)
                 print >>fd, wrap_cmd(cmd)
                 
         
         for descr in cls.files:
             if 'remote' in descr.attrs:
                 try:
-                    cmd = "rsync %s %s:%s" % (os.path.join(cls.local_path(descr.filename)), 
+                    cmd = cmd_rsync % (os.path.join(cls.local_path(descr.filename)), 
                         cls.host, cls.remote_dir)
                 except:
                     print cls.__dict__
@@ -90,7 +93,7 @@ class RemoteNode(Node):
     
     def run(cls, fd):
         print >>fd, shebang
-        print >>fd, 'ssh %s %s' % (cls.host, cls.do_run_path)
+        print >>fd, cmd_ssh % (cls.host, cls.do_run_path)
         
     stop_tmpl = Template(cmd_stop)
     def do_stop(cls, fd):
@@ -108,15 +111,15 @@ class RemoteNode(Node):
     
     def stop(cls, fd):
         print >>fd, shebang
-        print >>fd, 'ssh %s %s' % (cls.host, cls.do_stop_path)
+        print >>fd, cmd_ssh % (cls.host, cls.do_stop_path)
 
     def test(cls, fd):
         print >>fd, shebang
-        print >>fd, 'ssh %s %s' % (cls.host, cls.do_test_path)
+        print >>fd, cmd_ssh % (cls.host, cls.do_test_path)
         
     def clean(cls, fd):
         print >>fd, shebang
-        print >>fd, 'ssh %s %s' % (cls.host, cls.do_clean_path)
+        print >>fd, cmd_ssh % (cls.host, cls.do_clean_path)
 
 
 class RemoteServer(RemoteNode, ServerNode):
@@ -126,7 +129,7 @@ class RemoteServer(RemoteNode, ServerNode):
 
 def configure(root):
     make_files(root)
-    make_aggregate(root, lambda x:x + '&')
+    make_aggregate(root, lambda x:x + '&', 'wait')
     
     hosts = set()
     def append_hosts(node):

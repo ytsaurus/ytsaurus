@@ -105,7 +105,7 @@ TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
@@ -124,7 +124,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
@@ -149,7 +149,7 @@ void TChunkHolder::OnFinishedChunk(
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
@@ -175,7 +175,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
@@ -227,7 +227,7 @@ void TChunkHolder::OnSentBlocks(
     }
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
 
@@ -273,7 +273,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
         }));
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
 {
     UNUSED(response);
 
@@ -297,7 +297,7 @@ void TChunkHolder::OnFlushedBlock(TVoid, TCtxFlushBlock::TPtr context)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
 {
     UNUSED(response);
 

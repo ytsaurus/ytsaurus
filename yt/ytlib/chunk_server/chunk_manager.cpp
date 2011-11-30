@@ -99,11 +99,11 @@ public:
         return holderIds;
     }
 
-    METAMAP_ACCESSORS_DECL(Chunk, TChunk, TChunkId);
-    METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
-    METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
-    METAMAP_ACCESSORS_DECL(JobList, TJobList, TChunkId);
-    METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
+    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
+    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
@@ -882,11 +882,11 @@ private:
 
 };
 
-METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
-METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
-METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Holder, THolder, THolderId, HolderMap)
-METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
-METAMAP_ACCESSORS_IMPL(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Holder, THolder, THolderId, HolderMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1011,14 +1011,14 @@ void TChunkManager::RunJobControl(
         jobsToStop);
 }
 
-METAMAP_ACCESSORS_FWD(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
-METAMAP_ACCESSORS_FWD(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
-METAMAP_ACCESSORS_FWD(TChunkManager, Holder, THolder, THolderId, *Impl)
-METAMAP_ACCESSORS_FWD(TChunkManager, JobList, TJobList, TChunkId, *Impl)
-METAMAP_ACCESSORS_FWD(TChunkManager, Job, TJob, TJobId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, Holder, THolder, THolderId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, JobList, TJobList, TChunkId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 
-FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
-FWD_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

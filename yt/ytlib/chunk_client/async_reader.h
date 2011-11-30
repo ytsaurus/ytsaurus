@@ -4,6 +4,10 @@
 #include "../misc/ref.h"
 #include "../actions/future.h"
 #include "../misc/enum.h"
+#include "../rpc/error.h"
+
+// ToDo: use misc/error.h
+#include "../rpc/error.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -22,8 +26,8 @@ struct IAsyncReader
     {
         //! Blocks data.
         yvector<TSharedRef> Blocks;
-        // TODO: use TError
-        bool IsOK;
+        // TODO: remove NRpc
+        NRpc::TError Error;
     };
 
     //! Reads (asynchronously) a given set of blocks.

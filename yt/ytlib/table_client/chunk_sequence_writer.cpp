@@ -15,12 +15,12 @@ using namespace NChunkClient;
 TChunkSequenceWriter::TChunkSequenceWriter(
     const TConfig& config,
     const TSchema& schema,
-    ICodec* codec,
+    ECodecId codecId,
     const TTransactionId& transactionId,
     NRpc::IChannel::TPtr masterChannel)
     : Config(config)
     , Schema(schema)
-    , Codec(codec)
+    , CodecId(codecId)
     , TransactionId(transactionId)
     , Proxy(~masterChannel)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
@@ -70,14 +70,14 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
             Config.TableChunkConfig,
             chunkWriter,
             Schema,
-            Codec));
+            CodecId));
 
     } else {
         State.Fail(rsp->GetError().ToString());
     }
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncInit()
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 

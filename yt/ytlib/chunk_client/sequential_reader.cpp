@@ -18,8 +18,6 @@ TSequentialReader::TSequentialReader(
     , ChunkReader(chunkReader)
     , Window(config.PrefetchWindowSize)
     , FreeSlots(config.PrefetchWindowSize)
-    , PendingResult(NULL)
-    , HasFailed(false)
     , NextSequenceIndex(0)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
@@ -37,51 +35,57 @@ TSequentialReader::TSequentialReader(
     }
 }
 
-TFuture<TSequentialReader::TResult>::TPtr
-TSequentialReader::AsyncGetNextBlock()
+bool TSequentialReader::HasNext() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(~PendingResult == NULL);
-    YASSERT(!HasFailed);
-
-    auto result = New< TFuture<TResult> >();
-    if (IsNextSlotEmpty()) {
-        PendingResult = result;
-        ProcessPendingResult();
-    } else {
-        result->Set(GetNextSlotResult());
-        ShiftWindow();
-    }
-
-    return result;
+    return NextSequenceIndex < BlockIndexSequence.ysize();
 }
 
+TSharedRef TSequentialReader::GetBlock()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(NextSequenceIndex > 0);
+    return Window[NextSequenceIndex - 1].AsyncBlock->Get();
+}
+
+TAsyncStreamState::TAsyncResult::TPtr
+TSequentialReader::AsyncNextBlock()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(HasNext());
+    YASSERT(!State.HasRunningOperation());
+
+    State.StartOperation();
+
+    Window[NextSequenceIndex].AsyncBlock->Subscribe(FromMethod(
+        &TAsyncStreamState::FinishOperation,
+        &State,
+        TAsyncStreamState::TResult())->ToParamAction<TSharedRef>());
+
+    ShiftWindow();
+
+    return State.GetOperationResult();
+}
 void TSequentialReader::OnGotBlocks(
     IAsyncReader::TReadResult readResult, 
     int firstSequenceIndex)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    if (HasFailed) {
+    if (!State.IsActive())
         return;
-    }
 
-    if (readResult.IsOK) {
+    if (readResult.Error.IsOK()) {
         int sequenceIndex = firstSequenceIndex;
         FOREACH(auto& block, readResult.Blocks) {
-            auto& slot = GetEmptySlot(sequenceIndex);
-            slot.Result.IsOK = true;
-            slot.Result.Block = block;
-            slot.IsEmpty = false; // Now slot can be used from client thread
+            Window[sequenceIndex].AsyncBlock->Set(block);
             ++sequenceIndex;
         }
     } else {
-        auto& slot = GetEmptySlot(firstSequenceIndex);
-        slot.Result.IsOK = false;
-        slot.IsEmpty = false; // Now slot can be used from client thread
+        // ToDo: errorMessage.
+        State.Fail("");
     }
-
-    DoProcessPendingResult();
 }
 
 void TSequentialReader::ShiftWindow()
@@ -96,9 +100,6 @@ void TSequentialReader::ShiftWindow()
 void TSequentialReader::DoShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
-
-    auto& slot = Window.Front();
-    YASSERT(!slot.IsEmpty);
 
     Window.Shift();
     ++FreeSlots;
@@ -134,64 +135,6 @@ void TSequentialReader::FetchNextGroup()
 
     FreeSlots -= groupIndexes.ysize();
     FirstUnfetchedIndex += groupIndexes.ysize();
-}
-
-bool TSequentialReader::IsNextSlotEmpty()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YASSERT(NextSequenceIndex < BlockIndexSequence.ysize());
-    auto& slot = Window[NextSequenceIndex];
-    return slot.IsEmpty;
-}
-
-TSequentialReader::TResult& TSequentialReader::GetNextSlotResult()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YASSERT(NextSequenceIndex < BlockIndexSequence.ysize());
-    auto& slot = Window[NextSequenceIndex];
-    ++NextSequenceIndex;
-    YASSERT(!slot.IsEmpty);
-
-    if (!slot.Result.IsOK) {
-        HasFailed = true;
-    }
-
-    return slot.Result;
-}
-
-void TSequentialReader::ProcessPendingResult()
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    
-    ReaderThread->GetInvoker()->Invoke(FromMethod(
-        &TSequentialReader::DoProcessPendingResult, 
-        TPtr(this)));
-}
-
-void TSequentialReader::DoProcessPendingResult()
-{
-    VERIFY_THREAD_AFFINITY(ReaderThread);
-    
-    if (~PendingResult == NULL) {
-        return;
-    }
-
-    if (!IsNextSlotEmpty()) {
-        auto pending = PendingResult;
-        PendingResult.Reset();
-        pending->Set(GetNextSlotResult());
-    }
-}
-
-TSequentialReader::TWindowSlot& TSequentialReader::GetEmptySlot(int sequenceIndex)
-{
-    VERIFY_THREAD_AFFINITY(ReaderThread);
-
-    auto& slot = Window[sequenceIndex];
-    YASSERT(slot.IsEmpty);
-    return slot;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

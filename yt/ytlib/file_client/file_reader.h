@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include "../misc/codec.h"
 #include "../misc/config.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
@@ -69,6 +70,7 @@ private:
     i32 BlockCount;
     i32 BlockIndex;
     i64 Size;
+    ECodecId CodecId;
 
     IAction::TPtr OnAborted_;
 

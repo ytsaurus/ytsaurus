@@ -19,7 +19,7 @@ TTableWriter::TTableWriter(
     const TConfig& config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
-    ICodec* codec,
+    const ECodecId codecId,
     const TSchema& schema,
     const Stroka& path)
     : Config(config)
@@ -29,7 +29,7 @@ TTableWriter::TTableWriter(
     , Writer(New<TChunkSequenceWriter>(
         config.ChunkSetConfig, 
         schema, 
-        codec, 
+        codecId, 
         Transaction->GetId(), 
         MasterChannel))
     , Proxy(~masterChannel)
@@ -49,9 +49,9 @@ TTableWriter::TTableWriter(
     }
 }
 
-void TTableWriter::Init()
+void TTableWriter::Open()
 {
-    Sync(~Writer, &TChunkSequenceWriter::AsyncInit);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 }
 
 bool TTableWriter::NodeExists(const Stroka& nodePath)

@@ -66,7 +66,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
 {
     UNUSED(response);
 
@@ -91,7 +91,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
         ->Commit();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 {
     UNUSED(response);
 
@@ -188,7 +188,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         ->Commit();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 {
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
@@ -229,7 +229,7 @@ RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
         ->Commit();
 }
 
-RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
 {
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     auto chunkId = TChunkId::FromProto(request->GetChunkId());

@@ -22,18 +22,17 @@ TChunkWriter::TChunkWriter(
     const TConfig& config, 
     NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema,
-    ICodec* codec)
+    ECodecId codecId)
     : Config(config)
     , Schema(schema)
-    , Codec(codec)
+    , CodecId(codecId)
     , ChunkWriter(chunkWriter)
     , CurrentBlockIndex(0)
     , SentSize(0)
     , CurrentSize(0)
 {
     YASSERT(~chunkWriter != NULL);
-    YASSERT(codec != NULL);
-
+    
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
         *ChunkMeta.AddChannels() = channel.ToProto();
@@ -106,7 +105,9 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto data = Codec->Encode(channel->FlushBlock());
+    auto& codec = ICodec::GetCodec(CodecId);
+    auto data = codec.Encode(channel->FlushBlock());
+
     SentSize += data.Size();
     ++CurrentBlockIndex;
 
@@ -156,7 +157,7 @@ void TChunkWriter::ContinueClose(
         }
     }
 
-    ChunkMeta.SetCodecId(Codec->GetId());
+    ChunkMeta.SetCodecId(CodecId);
 
     TBlob metaBlob;
     if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
@@ -213,7 +214,7 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
         TPtr(this)));
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncInit()
+TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncOpen()
 {
     // Stub to implement IWriter interface.
     VERIFY_THREAD_AFFINITY(ClientThread);

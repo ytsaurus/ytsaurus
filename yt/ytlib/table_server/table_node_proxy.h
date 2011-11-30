@@ -35,7 +35,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    RPC_SERVICE_METHOD_DECL(NProto, AddTableChunks);
+    DECLARE_RPC_SERVICE_METHOD(NProto, AddTableChunks);
 
 };
 

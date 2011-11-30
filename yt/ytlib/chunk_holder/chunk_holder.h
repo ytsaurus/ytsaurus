@@ -56,13 +56,13 @@ private:
     //! Manages connection between chunk holder and master.
     TMasterConnector::TPtr MasterConnector;
 
-    RPC_SERVICE_METHOD_DECL(NProto, StartChunk);
-    RPC_SERVICE_METHOD_DECL(NProto, FinishChunk);
-    RPC_SERVICE_METHOD_DECL(NProto, PutBlocks);
-    RPC_SERVICE_METHOD_DECL(NProto, SendBlocks);
-    RPC_SERVICE_METHOD_DECL(NProto, FlushBlock);
-    RPC_SERVICE_METHOD_DECL(NProto, GetBlocks);
-    RPC_SERVICE_METHOD_DECL(NProto, PingSession);
+    DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, FinishChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, PutBlocks);
+    DECLARE_RPC_SERVICE_METHOD(NProto, SendBlocks);
+    DECLARE_RPC_SERVICE_METHOD(NProto, FlushBlock);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetBlocks);
+    DECLARE_RPC_SERVICE_METHOD(NProto, PingSession);
 
     void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
     void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);

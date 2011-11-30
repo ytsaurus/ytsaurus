@@ -33,12 +33,11 @@ public:
         const TConfig& config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
-        ICodec* codec,
+        ECodecId codecId,
         const TSchema& schema,
         const Stroka& path);
 
-    // TODO: -> Open
-    void Init();
+    void Open();
     void Write(const TColumn& column, TValue value);
     void EndRow();
     void Close();

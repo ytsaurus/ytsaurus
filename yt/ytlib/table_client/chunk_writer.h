@@ -39,11 +39,10 @@ public:
         const TConfig& config, 
         NChunkClient::IAsyncWriter::TPtr chunkWriter, 
         const TSchema& schema,
-        ICodec* codec);
+        ECodecId codecId);
     ~TChunkWriter();
 
-    // TODO: -> Open
-    TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
 
     TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
@@ -71,7 +70,7 @@ private:
 private:
     const TConfig Config;
     const TSchema Schema;
-    ICodec* Codec;
+    ECodecId CodecId;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 

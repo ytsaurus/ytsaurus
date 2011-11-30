@@ -4,9 +4,12 @@
 #include "table_chunk_meta.pb.h"
 
 #include "../misc/foreach.h"
+#include "../misc/sync.h"
+#include "../misc/serialize.h"
 #include "../actions/action_util.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace NYT {
 namespace NTableClient {
@@ -43,124 +46,335 @@ struct TBlockInfo {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableChunkReader::TTableChunkReader(
-    const TSequentialReader::TConfig& config,
-    const TChannel& channel,
-    NChunkClient::IAsyncReader::TPtr chunkReader)
-    : SequentialReader(NULL)
-    , Channel(channel)
-    , InitSuccess(New< TFuture<bool> >())
-    , IsColumnValid(false)
-    , IsRowValid(false)
-    , RowCount(0)
-    , CurrentRow(-1)
+//! Helper class aimed to asynchronously initialize the internals of TChunkReader.
+class TChunkReader::TInitializer:
+    public TRefCountedBase
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+public:
+    typedef TIntrusivePtr<TInitializer> TPtr;
 
-    YASSERT(~chunkReader != NULL);
+    TInitializer(
+        const TSequentialReader::TConfig& config,
+        TChunkReader::TPtr chunkReader, 
+        NChunkClient::IAsyncReader::TPtr asyncReader)
+        : SequentialConfig(config)
+        , AsyncReader(asyncReader)
+        , ChunkReader(chunkReader)
+    { }
 
-    // The last block contains meta.
-    yvector<int> metaIndex(1, -1);
-    chunkReader->AsyncReadBlocks(metaIndex)
-        ->Subscribe(FromMethod(
-            &TTableChunkReader::OnGotMeta, 
-            TPtr(this),
-            config,
-            chunkReader));
-}
-
-void TTableChunkReader::OnGotMeta(
-    IAsyncReader::TReadResult readResult, 
-    const TSequentialReader::TConfig& config,
-    IAsyncReader::TPtr chunkReader)
-{
-    // ToDo: now we work in the rpc reply thread.
-    // As the algorithm here is pretty heavy here,
-    // it may make sense to make a dedicated thread for it or reuse 
-    // ReaderThread from TSequentialChunkReader
-
-    VERIFY_THREAD_AFFINITY_ANY();
-    if (!readResult.IsOK) {
-        InitSuccess->Set(false);
-        return;
+    void Initialize()
+    {
+        // The last block contains meta.
+        yvector<int> metaIndex(1, -1);
+        AsyncReader->AsyncReadBlocks(metaIndex)
+            ->Subscribe(FromMethod(
+                &TInitializer::OnGotMeta, 
+                TPtr(this))
+            ->Via(ReaderThread->GetInvoker()));
     }
 
-    auto& metaBlob = readResult.Blocks.front();
-    NProto::TChunkMeta protoMeta;
-    protoMeta.ParseFromArray(metaBlob.Begin(), static_cast<int>(metaBlob.Size()));
+private:
+    void OnGotMeta(NChunkClient::IAsyncReader::TReadResult readResult)
+    {
+        if (!readResult.Error.IsOK()) {
+            ChunkReader->State.Fail(readResult.Error.GetMessage());
+            return;
+        }
 
-    yvector<TChannel> channels;
-    channels.reserve(protoMeta.ChannelsSize());
-    for(int i = 0; i < protoMeta.channels_size(); ++i) {
-        channels.push_back(
-            TChannel::FromProto(protoMeta.GetChannels(i))
+        auto& metaBlob = readResult.Blocks.front();
+
+        DeserializeProtobuf(&ProtoMeta, metaBlob);
+
+        SelectChannels();
+        YASSERT(SelectedChannels.size() > 0);
+
+        yvector<int> blockIndexSequence = GetBlockReadingOrder();
+        ChunkReader->SequentialReader = 
+            New<TSequentialReader>(SequentialConfig, blockIndexSequence, ~AsyncReader);
+
+        ChunkReader->ChannelReaders.reserve(SelectedChannels.size());
+
+        ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
+            FromMethod(&TInitializer::OnFirstBlock, TPtr(this), 0)
         );
     }
 
-    yvector<int> selectedChannels;
-
-    // Heuristic: first try to find a channel that contain the whole read channel.
-    // If several exists, choose the one with minimum number of blocks.
+    void SelectChannels()
     {
-        int channelIdx = SelectSingleChannel(channels, protoMeta);
-        if (channelIdx >= 0) {
-            selectedChannels.push_back(channelIdx);
-        } else {
-            selectedChannels = SelectChannels(channels);
+        ChunkChannels.reserve(ProtoMeta.ChannelsSize());
+        for(int i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+            ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.GetChannels(i)));
+        }
+
+        // Heuristic: first try to find a channel that contain the whole read channel.
+        // If several exists, choose the one with the minimum number of blocks.
+        if (SelectSingleChannel())
+            return;
+
+        TChannel remainder = ChunkReader->Channel;
+        for (int channelIdx = 0; channelIdx < ChunkChannels.ysize(); ++channelIdx) {
+            auto& curChannel = ChunkChannels[channelIdx];
+            if (curChannel.Overlaps(remainder)) {
+                remainder -= curChannel;
+                SelectedChannels.push_back(channelIdx);
+                if (remainder.IsEmpty()) {
+                    break;
+                }
+            }
         }
     }
 
-    yvector<int> blockIndexSequence = GetBlockReadingOrder(selectedChannels, protoMeta);
-    SequentialReader = New<TSequentialReader>(config, blockIndexSequence, ~chunkReader);
+    bool SelectSingleChannel()
+    {
+        int resultIdx = -1;
+        size_t minBlockCount = std::numeric_limits<size_t>::max();
 
-    ChannelReaders.reserve(selectedChannels.size());
-    FOREACH(int i, selectedChannels) {
-        ChannelReaders.push_back(TChannelReader(channels[i]));
+        for (int i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+            auto& channel = ChunkChannels[i];
+            if (channel.Contains(ChunkReader->Channel)) {
+                int blockCount = ProtoMeta.GetChannels(i).BlocksSize();
+                if (minBlockCount > blockCount) {
+                    resultIdx = i;
+                    minBlockCount = blockCount;
+                }
+            }
+        }
+
+        if (resultIdx < 0)
+            return false;
+
+        SelectedChannels.push_back(resultIdx);
+        return true;
     }
 
-    InitSuccess->Set(true);
+    void SelectOpeningBlocks(yvector<int>& result, yvector<TBlockInfo>& blockHeap) {
+        FOREACH (auto channelIdx, SelectedChannels) {
+            const auto& protoChannel = ProtoMeta.GetChannels(channelIdx);
+            int blockIndex = -1;
+            int startRow = 0;
+            int lastRow = 0;
+            do {
+                ++blockIndex;
+                YASSERT(blockIndex < protoChannel.BlocksSize());
+                const auto& protoBlock = protoChannel.GetBlocks(blockIndex);
+                // When a new block is set in TChannelReader, reader is virtually 
+                // one row behind its real starting row. E.g. for the first row of 
+                // the channel we consider start row to be -1.
+                startRow = lastRow - 1;
+                lastRow += protoBlock.GetRowCount();
+
+                if (lastRow > ChunkReader->StartRow) {
+                    blockHeap.push_back(TBlockInfo(
+                        protoBlock.GetBlockIndex(),
+                        blockIndex,
+                        channelIdx,
+                        lastRow));
+
+                    result.push_back(protoBlock.GetBlockIndex());
+                    StartRows.push_back(startRow);
+                    break;
+                }
+            } while (true);
+        }
+    }
+
+    yvector<int> GetBlockReadingOrder()
+    {
+        yvector<int> result;
+        yvector<TBlockInfo> blockHeap;
+
+        SelectOpeningBlocks(result, blockHeap);
+
+        std::make_heap(blockHeap.begin(), blockHeap.end());
+
+        while (true) {
+            TBlockInfo currentBlock = blockHeap.front();
+            int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
+            const auto& protoChannel = ProtoMeta.GetChannels(currentBlock.ChannelIndex);
+
+            std::pop_heap(blockHeap.begin(), blockHeap.end());
+            blockHeap.pop_back();
+
+            if (nextBlockIndex < protoChannel.BlocksSize()) {
+                if (currentBlock.LastRow >= ChunkReader->EndRow) {
+                    FOREACH (auto& block, blockHeap) {
+                        YASSERT(block.LastRow >= ChunkReader->EndRow);
+                    }
+                    break;
+                }
+
+                const auto& protoBlock = protoChannel.GetBlocks(nextBlockIndex);
+
+                blockHeap.push_back(TBlockInfo(
+                    protoBlock.GetBlockIndex(),
+                    nextBlockIndex,
+                    currentBlock.ChannelIndex,
+                    currentBlock.LastRow + protoBlock.GetRowCount()));
+
+                std::push_heap(blockHeap.begin(), blockHeap.end());
+                result.push_back(protoBlock.GetBlockIndex());
+            } else {
+                // EndRow is not set, so we reached the end of the chunk.
+                ChunkReader->EndRow = currentBlock.LastRow;
+                FOREACH (auto& block, blockHeap) {
+                    YASSERT(ChunkReader->EndRow == block.LastRow);
+                }
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    void OnFirstBlock(TAsyncStreamState::TResult result, int selectedChannelIndex)
+    {
+        if (!result.IsOK) {
+            ChunkReader->State.Fail(result.ErrorMessage);
+            return;
+        }
+
+        auto& channelIdx = SelectedChannels[selectedChannelIndex];
+        ChunkReader->ChannelReaders.push_back(TChannelReader(ChunkChannels[channelIdx]));
+
+        auto& channelReader = ChunkReader->ChannelReaders.back();
+        channelReader.SetBlock(ChunkReader->SequentialReader->GetBlock());
+
+        for (int row = StartRows[selectedChannelIndex]; 
+            row < ChunkReader->StartRow; 
+            ++row) 
+        {
+            YVERIFY(channelReader.NextRow());
+        }
+
+        ++selectedChannelIndex;
+        if (selectedChannelIndex < SelectedChannels.size()) {
+            ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
+                FromMethod(&TInitializer::OnFirstBlock, TPtr(this), selectedChannelIndex)
+            );
+        } else {
+            // Initialization complete.
+            ChunkReader->Initializer.Reset();
+            ChunkReader->State.FinishOperation();
+        }
+    }
+
+    const TSequentialReader::TConfig SequentialConfig;
+    NChunkClient::IAsyncReader::TPtr AsyncReader;
+    TChunkReader::TPtr ChunkReader;
+
+    NProto::TChunkMeta ProtoMeta;
+    yvector<TChannel> ChunkChannels;
+    yvector<int> SelectedChannels;
+
+    //! First row of the first block in each selected channel.
+    /*!
+     *  Is used to set channel readers to ChunkReader's StartRow during initialization.
+     */
+    yvector<int> StartRows;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReader::TChunkReader(
+    const TSequentialReader::TConfig& config,
+    const TChannel& channel,
+    NChunkClient::IAsyncReader::TPtr chunkReader,
+    int startRow,
+    int endRow)
+    : SequentialReader(NULL)
+    , Channel(channel)
+    , IsColumnValid(false)
+    , IsRowValid(false)
+    , CurrentRow(-1)
+    , StartRow(startRow)
+    , EndRow(endRow)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(~chunkReader != NULL);
+    if (EndRow < 0) {
+        // Will be later set by the initializer to the chunk row count.
+        EndRow = std::numeric_limits<int>::max();
+    }
+
+    Initializer = New<TInitializer>(config, this, chunkReader);
 }
 
-bool TTableChunkReader::NextRow()
+TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncOpen()
 {
-    VERIFY_THREAD_AFFINITY(Client);
-    if (!InitSuccess->Get()) {
-        ythrow yexception() << "Chunk reading failed.";
-    }
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    State.StartOperation();
 
-    YASSERT(~SequentialReader != NULL);
+    Initializer->Initialize();
+
+    return State.GetOperationResult();
+}
+
+bool TChunkReader::HasNextRow() const
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(~Initializer != NULL);
+
+    return CurrentRow < EndRow - 1;
+}
+
+TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncNextRow()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(~Initializer == NULL);
 
     CurrentChannel = 0;
     IsColumnValid = false;
     UsedColumns.clear();
     ++CurrentRow;
 
-    YASSERT(CurrentRow <= RowCount);
+    YASSERT(CurrentRow < EndRow);
 
-    if (CurrentRow == RowCount) {
-        IsRowValid = false;
-        return false;
+    State.StartOperation();
+
+    ContinueNextRow(TAsyncStreamState::TResult(), -1);
+
+    return State.GetOperationResult();
+}
+
+void TChunkReader::ContinueNextRow(
+    TAsyncStreamState::TResult result,
+    int channelIndex)
+{
+    if (!result.IsOK) {
+        State.Fail(result.ErrorMessage);
+        return;
     }
 
-    FOREACH(auto& channel, ChannelReaders) {
+    if (channelIndex >= 0) {
+        auto& channel = ChannelReaders[channelIndex];
+        channel.SetBlock(SequentialReader->GetBlock());
+        ++channelIndex;
+    }
+
+    while (channelIndex < ChannelReaders.ysize()) {
+        auto& channel = ChannelReaders[channelIndex];
         if (!channel.NextRow()) {
-            auto result = SequentialReader->AsyncGetNextBlock()->Get();
-            if (!result.IsOK) {
-                ythrow yexception() << "Chunk reading failed.";
-            }
-            channel.SetBlock(result.Block);
-            YVERIFY(channel.NextRow());
+            YASSERT(SequentialReader->HasNext());
+            SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+                &TChunkReader::ContinueNextRow,
+                TPtr(this),
+                channelIndex));
+            return;
         }
+        ++channelIndex;
     }
 
     IsRowValid = true;
-    return true;
+    State.FinishOperation();
 }
 
-bool TTableChunkReader::NextColumn()
+bool TChunkReader::NextColumn()
 {
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(InitSuccess->IsSet());
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(~Initializer == NULL);
     YASSERT(IsRowValid);
 
     while (true) {
@@ -176,11 +390,13 @@ bool TTableChunkReader::NextColumn()
                 continue;
             }
 
-            if (!UsedColumns.has(CurrentColumn)) {
-                UsedColumns.insert(CurrentColumn);
-                IsColumnValid = true;
-                return true;
+            if (UsedColumns.has(CurrentColumn)) {
+                continue;
             }
+
+            UsedColumns.insert(CurrentColumn);
+            IsColumnValid = true;
+            return true;
         } else {
             ++CurrentChannel;
         }
@@ -189,10 +405,11 @@ bool TTableChunkReader::NextColumn()
     YUNREACHABLE();
 }
 
-const TColumn& TTableChunkReader::GetColumn() const
+TColumn TChunkReader::GetColumn() const
 {
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(InitSuccess->IsSet());
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(~Initializer == NULL);
 
     YASSERT(IsRowValid);
     YASSERT(IsColumnValid);
@@ -200,10 +417,11 @@ const TColumn& TTableChunkReader::GetColumn() const
     return CurrentColumn;
 }
 
-TValue TTableChunkReader::GetValue() const
+TValue TChunkReader::GetValue()
 {
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(InitSuccess->IsSet());
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(~Initializer == NULL);
 
     YASSERT(IsRowValid);
     YASSERT(IsColumnValid);
@@ -211,96 +429,10 @@ TValue TTableChunkReader::GetValue() const
     return ChannelReaders[CurrentChannel].GetValue();
 }
 
-yvector<int> TTableChunkReader::SelectChannels(const yvector<TChannel>& channels)
+void TChunkReader::Cancel(const Stroka& errorMessage)
 {
-    yvector<int> result;
-
-    TChannel remainder = Channel;
-    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
-        auto& curChannel = channels[channelIdx];
-        if (curChannel.Overlaps(remainder)) {
-            remainder -= curChannel;
-            result.push_back(channelIdx);
-            if (remainder.IsEmpty()) {
-                break;
-            }
-        }
-    }
-
-    return result;
+    State.Fail(errorMessage);
 }
-
-int TTableChunkReader::SelectSingleChannel(
-    const yvector<TChannel>& channels, 
-    const NProto::TChunkMeta& protoMeta)
-{
-    int resultIdx = -1;
-    int minBlockCount = -1;
-
-    for (int channelIdx = 0; channelIdx < channels.ysize(); ++channelIdx) {
-        if (channels[channelIdx].Contains(Channel)) {
-            int blockCount = protoMeta.GetChannels(channelIdx).blocks_size();
-            if (resultIdx < 0 || minBlockCount > blockCount) {
-                resultIdx = channelIdx;
-                minBlockCount = blockCount;
-            }
-        }
-    }
-    return resultIdx;
-}
-
-// Note: sets RowCount as side effect
-yvector<int> TTableChunkReader::GetBlockReadingOrder(
-    const yvector<int>& selectedChannels, 
-    const NProto::TChunkMeta& protoMeta)
-{
-    yvector<int> result;
-
-    yvector<TBlockInfo> blockHeap;
-    FOREACH (auto channelIdx, selectedChannels) {
-        const auto& protoBlock =  protoMeta.GetChannels(channelIdx).GetBlocks(0);
-        blockHeap.push_back(TBlockInfo(
-            protoBlock.GetBlockIndex(),
-            0,
-            channelIdx,
-            protoBlock.GetRowCount()));
-
-        result.push_back(protoBlock.GetBlockIndex());
-    }
-    std::make_heap(blockHeap.begin(), blockHeap.end());
-
-    while (!blockHeap.empty()) {
-        TBlockInfo currentBlock = blockHeap.front();
-        int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-        const auto& protoChannel = protoMeta.GetChannels(currentBlock.ChannelIndex);
-
-        std::pop_heap(blockHeap.begin(), blockHeap.end());
-        blockHeap.pop_back();
-
-        if (nextBlockIndex < protoChannel.blocks_size()) {
-            const auto& protoBlock = protoChannel.GetBlocks(nextBlockIndex);
-
-            blockHeap.push_back(TBlockInfo(
-                protoBlock.GetBlockIndex(),
-                nextBlockIndex,
-                currentBlock.ChannelIndex,
-                currentBlock.LastRow + protoBlock.GetRowCount()));
-
-            std::push_heap(blockHeap.begin(), blockHeap.end());
-            result.push_back(protoBlock.GetBlockIndex());
-        } else {
-            if (RowCount == 0) {
-                // RowCount is not set yet
-                RowCount = currentBlock.LastRow;
-            } else {
-                YASSERT(RowCount == currentBlock.LastRow);
-            }
-        }
-    }
-
-    return result;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
