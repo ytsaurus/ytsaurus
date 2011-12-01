@@ -23,6 +23,8 @@ SET(YT_SOURCE_FILES
 
     fluent.h
 
+    serialize.h
+
     json_adapter.cpp
 
     virtual.cpp
