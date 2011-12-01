@@ -2,6 +2,8 @@
 
 #include "rpc_ut.pb.h"
 
+#include <yt/ytlib/misc/error.h>
+
 #include <yt/ytlib/bus/bus.h>
 #include <yt/ytlib/rpc/client.h>
 #include <yt/ytlib/rpc/server.h>
@@ -258,7 +260,7 @@ TEST_F(TRpcTest, OK)
     auto result = request->Invoke();
     auto response = result->Get();
 
-    EXPECT_EQ(EErrorCode::OK, response->GetErrorCode());
+    EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
 
 TEST_F(TRpcTest, TransportError)

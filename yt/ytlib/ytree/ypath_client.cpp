@@ -136,7 +136,7 @@ ExecuteVerb(
     } catch (...) {
         auto responseMessage = NRpc::CreateErrorResponseMessage(
             NRpc::TRequestId(),
-            NRpc::TError(
+            TError(
             EYPathErrorCode(EYPathErrorCode::ResolveError), CurrentExceptionMessage()));
         return New< TFuture<IMessage::TPtr> >(responseMessage);
     }

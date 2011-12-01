@@ -163,7 +163,7 @@ class TClientResponse
 {
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RO_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:

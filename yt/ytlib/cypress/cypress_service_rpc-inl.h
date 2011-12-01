@@ -57,10 +57,10 @@ TCypressServiceProxy::Execute(
             if (error.IsOK()) {
                 auto innerResponseMessage = NYTree::UnwrapYPathResponse(~outerResponse);
                 innerResponse->Deserialize(~innerResponseMessage);
-            } else if (error.IsRpcError()) {
+            } else if (NRpc::IsRpcError(error)) {
                 innerResponse->SetError(error);
             } else {
-                innerResponse->SetError(NRpc::TError(
+                innerResponse->SetError(TError(
                     NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
                     outerResponse->GetError().GetMessage()));
             }

@@ -40,6 +40,7 @@ SET(YT_SOURCE_FILES
     new_config-inl.h
     sync.h
     blob_output.cpp
+    error.cpp
 
     ${SRCDIR}/preprocessor-gen.h
     ${SRCDIR}/new.h

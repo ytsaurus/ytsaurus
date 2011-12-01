@@ -161,7 +161,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
         if (!response->IsOK()) {
             auto error = response->GetError();
-            if (error.IsServiceError()) {
+            if (NRpc::IsServiceError(error)) {
                 switch (error.GetCode()) {
                     case EErrorCode::InvalidSegmentId:
                         LOG_WARNING(
