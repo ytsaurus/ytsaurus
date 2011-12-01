@@ -29,6 +29,7 @@ SRCS(
 
     rpc_ut.cpp
     rpc_ut.proto
+    ypath_ut.cpp
 )
 
 PEERDIR(

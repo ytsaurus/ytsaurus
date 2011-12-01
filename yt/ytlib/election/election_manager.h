@@ -126,8 +126,8 @@ private:
     // Corresponds to #ControlInvoker.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    RPC_SERVICE_METHOD_DECL(NElection::NProto, PingFollower);
-    RPC_SERVICE_METHOD_DECL(NElection::NProto, GetStatus);
+    DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
+    DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
     void Reset();
     void OnLeaderPingTimeout();

@@ -15,9 +15,6 @@
 namespace NYT {
 namespace NTransactionServer {
 
-// TODO: get rid
-using NMetaState::TMetaChange;
-
 ////////////////////////////////////////////////////////////////////////////////
     
 //! Manages client transactions.
@@ -49,18 +46,18 @@ public:
         NMetaState::IMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState);
 
-    TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
+    NMetaState::TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
     TTransaction& StartTransaction();
 
-    TMetaChange<TVoid>::TPtr InitiateCommitTransaction(const TTransactionId& id);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateCommitTransaction(const TTransactionId& id);
     void CommitTransaction(TTransaction& transaction);
 
-    TMetaChange<TVoid>::TPtr InitiateAbortTransaction(const TTransactionId& id);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateAbortTransaction(const TTransactionId& id);
     void AbortTransaction(TTransaction& transaction);
 
     void RenewLease(const TTransactionId& id);
 
-    METAMAP_ACCESSORS_DECL(Transaction, TTransaction, TTransactionId);
+    DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
 private:
     typedef TTransactionManager TThis;

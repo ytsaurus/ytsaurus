@@ -30,7 +30,7 @@ private:
 
     NYTree::INode::TPtr Root;
 
-    RPC_SERVICE_METHOD_DECL(NProto, Execute);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
 
 };
 

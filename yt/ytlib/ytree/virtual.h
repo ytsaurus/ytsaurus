@@ -20,7 +20,7 @@ private:
     virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    RPC_SERVICE_METHOD_DECL(NProto, Get);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
 
 };
 

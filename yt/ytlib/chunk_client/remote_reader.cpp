@@ -77,14 +77,12 @@ void TRemoteReader::OnBlocksRead(
             // memory will be freed only when all the blocks die.
             readResult.Blocks.push_back(rsp->Attachments()[i]);
         }
-
-        readResult.IsOK = true;
         result->Set(readResult);
     } else if (ChangeCurrentHolder()) {
         DoReadBlocks(blockIndexes, result);
     } else {
         TReadResult readResult;
-        readResult.IsOK = false;
+        readResult.Error = rsp->GetError();
         result->Set(readResult);
     }
 }

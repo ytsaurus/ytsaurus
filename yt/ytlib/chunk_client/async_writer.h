@@ -22,7 +22,6 @@ namespace NChunkClient {
  *  An implementation may provide a buffering window (queue) to enable concurrent upload to
  *  multiple destinations using torrent or chaining strategies.
  */
-// TODO: -> IAsyncWriter
 struct IAsyncWriter
     : virtual public TRefCountedBase
 {

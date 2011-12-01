@@ -37,7 +37,7 @@ TOrchidService::TOrchidService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
 {
     UNUSED(request);
     UNUSED(response);

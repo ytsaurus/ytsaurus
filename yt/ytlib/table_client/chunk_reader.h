@@ -3,74 +3,45 @@
 #include "common.h"
 #include "value.h"
 #include "schema.h"
+#include "reader.h"
 #include "channel_reader.h"
 
 #include "../chunk_client/async_reader.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../misc/thread_affinity.h"
+#include "../misc/async_stream_state.h"
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: extract interface ITableReader
-// TODO: write something smart and funny here
-class TTableChunkReader
-    : public TRefCountedBase
+//! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
+class TChunkReader
+    : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TTableChunkReader> TPtr;
+    typedef TIntrusivePtr<TChunkReader> TPtr;
 
-    TTableChunkReader(
+    /*! 
+     *  \param EndRow - if equals -1 chunk is read to the last row.
+     */
+    TChunkReader(
         const NChunkClient::TSequentialReader::TConfig& config,
         const TChannel& channel,
-        NChunkClient::IAsyncReader::TPtr chunkReader);
+        NChunkClient::IAsyncReader::TPtr chunkReader,
+        int startRow = 0,
+        int endRow = -1);
 
-    // TODO: refactor using the following declarations
-    DECLARE_ENUM(ECode,
-        (OK)
-        (Finished)
-        (TryLater)
-        (Failed)
-    );
-
-    struct TResult
-    {
-        ECode Code;
-        // TODO: use an appropriate type for errors
-        Stroka Error;
-    };
+    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
 
     //! Asynchronously switches the reader to the next row.
     /*!
      *  This call cannot block.
-     *  
-     *  \param ready A future that gets filled when no more
-     *  data is available at hand and then gets set when more data arrives.
-     *  
-     *  \return Possible outcomes are:
-     *  - ECode::OK: the next row is fetched, the client must invoke
-     *  #NextColumn to fetch its first column.
-     *  - ECode::Finished: the table has no more rows.
-     *  - ECode::TryLater: no data is currently available, the client
-     *  must wait for #ready.
-     *  - ECode::Failed: something went wrong.
      */
-    TResult AsyncNextRow(TFuture<TVoid>::TPtr* ready);
+    TAsyncStreamState::TAsyncResult::TPtr AsyncNextRow();
 
-
-    // TODO: refactor using AsyncNextRow
-
-    //! Switches the reader to the next row.
-    /*!
-     *  This call may block.
-     *  Internally it invokes #AsyncNextRow.
-     *  This call throws an exception on failure.
-     *  
-     *  \return True iff a new row is fetched, False if the table chunk is finished.
-     */
-    bool NextRow();
+    bool HasNextRow() const;
 
     //! Switches the reader to the next column in the current row.
     /*!
@@ -82,7 +53,7 @@ public:
     bool NextColumn();
 
     //! Returns the name of the current column.
-    const TColumn& GetColumn() const;
+    TColumn GetColumn() const;
 
     //! Returns the value of the current column.
     /*!
@@ -90,7 +61,9 @@ public:
      *  by the reader as long as the current row does not change. The client
      *  must make an explicit copy of it if needed.
      */
-    TValue GetValue() const;
+    TValue GetValue();
+
+    void Cancel(const Stroka& errorMessage);
 
 private:
     void OnGotMeta(
@@ -105,24 +78,32 @@ private:
         const yvector<int>& selectedChannels, 
         const NProto::TChunkMeta& protoMeta);
 
+    void ContinueNextRow(TAsyncStreamState::TResult result, int channelIndex);
+
+    class TInitializer;
+    TIntrusivePtr<TInitializer> Initializer;
+
     NChunkClient::TSequentialReader::TPtr SequentialReader;
 
-    TFuture<bool>::TPtr InitSuccess;
+    TAsyncStreamState State;
     TChannel Channel;
 
     yhash_set<TColumn> UsedColumns;
     TColumn CurrentColumn;
 
-    int CurrentRow;
-    int RowCount;
-
     bool IsColumnValid;
     bool IsRowValid;
+
+    int CurrentRow;
+
+    int StartRow;
+    int EndRow;
 
     int CurrentChannel;
     yvector<TChannelReader> ChannelReaders;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

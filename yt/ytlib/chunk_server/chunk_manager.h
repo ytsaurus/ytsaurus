@@ -42,11 +42,11 @@ public:
 
     // TODO: provide Stop method
 
-    METAMAP_ACCESSORS_DECL(Chunk, TChunk, NChunkClient::TChunkId);
-    METAMAP_ACCESSORS_DECL(ChunkList, TChunkList, TChunkListId);
-    METAMAP_ACCESSORS_DECL(Holder, THolder, THolderId);
-    METAMAP_ACCESSORS_DECL(JobList, TJobList, NChunkClient::TChunkId);
-    METAMAP_ACCESSORS_DECL(Job, TJob, TJobId);
+    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, NChunkClient::TChunkId);
+    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
+    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, NChunkClient::TChunkId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     //! Fired when a holder gets registered.
     /*!

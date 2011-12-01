@@ -25,15 +25,15 @@ public: \
     }
 
 //! Forwards a trivial public read-write property that is passed by reference.
-#define FWD_BYREF_RW_PROPERTY(declaringType, type, name, fwd) \
+#define DELEGATE_BYREF_RW_PROPERTY(declaringType, type, name, delegateTo) \
     type& declaringType::name() \
     { \
-        return (fwd).name(); \
+        return (delegateTo).name(); \
     } \
     \
     const type& declaringType::name() const \
     { \
-        return (fwd).name(); \
+        return (delegateTo).name(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,10 +55,10 @@ public: \
     }
 
 //! Forwards a trivial public read-only property that is passed by reference.
-#define FWD_BYREF_RO_PROPERTY(declaringType, type, name, fwd) \
+#define DELEGATE_BYREF_RO_PROPERTY(declaringType, type, name, delegateTo) \
     const type& declaringType::name() const \
     { \
-        return (fwd).name(); \
+        return (delegateTo).name(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,20 +92,20 @@ public: \
     }
 
 //! Forwards a trivial public read-write property that is passed by value.
-#define FWD_BYVAL_RW_PROPERTY(declaringType, type, name, fwd) \
+#define DELEGATE_BYVAL_RW_PROPERTY(declaringType, type, name, delegateTo) \
     type declaringType::Get##name() \
     { \
-        return (fwd).Get##name(); \
+        return (delegateTo).Get##name(); \
     } \
     \
     void declaringType::Set##name(const type& value) \
     { \
-        (fwd).Set##name(value); \
+        (delegateTo).Set##name(value); \
     } \
     \
     void declaringType::Set##name(type&& value) const \
     { \
-        (fwd).Set##name(ForwardRV(value)); \
+        (delegateTo).Set##name(ForwardRV(value)); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,10 +127,10 @@ public: \
     }
 
 //! Forwards a trivial public read-only property that is passed by value.
-#define FWD_BYVAL_RO_PROPERTY(declaringType, type, name, fwd) \
+#define DELEGATE_BYVAL_RO_PROPERTY(declaringType, type, name, delegateTo) \
     type declaringType::Get##name() \
     { \
-        return (fwd).Get##name(); \
+        return (delegateTo).Get##name(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

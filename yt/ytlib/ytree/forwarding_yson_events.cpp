@@ -57,6 +57,7 @@ void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttrib
         OnMyStringScalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnStringScalar(value, hasAttributes);
+        UpdateDepth(hasAttributes ? +1 : 0);
     }
 }
 
@@ -66,6 +67,7 @@ void TForwardingYsonConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
         OnMyInt64Scalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnInt64Scalar(value, hasAttributes);
+        UpdateDepth(hasAttributes ? +1 : 0);
     }
 }
 
@@ -75,6 +77,7 @@ void TForwardingYsonConsumer::OnDoubleScalar(double value, bool hasAttributes)
         OnMyDoubleScalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnDoubleScalar(value, hasAttributes);
+        UpdateDepth(hasAttributes ? +1 : 0);
     }
 }
 
@@ -84,9 +87,7 @@ void TForwardingYsonConsumer::OnEntity(bool hasAttributes)
         OnMyEntity(hasAttributes);
     } else {
         ForwardingConsumer->OnEntity(hasAttributes);
-        if (hasAttributes) {
-            UpdateDepth(+1);
-        }
+        UpdateDepth(hasAttributes ? +1 : 0);
     }
 }
 
@@ -115,9 +116,7 @@ void TForwardingYsonConsumer::OnEndList(bool hasAttributes)
         OnMyEndList(hasAttributes);
     } else {
         ForwardingConsumer->OnEndList(hasAttributes);
-        if (!hasAttributes) {
-            UpdateDepth(-1);
-        }
+        UpdateDepth(hasAttributes ? 0 : -1);
     }
 }
 
@@ -146,9 +145,7 @@ void TForwardingYsonConsumer::OnEndMap(bool hasAttributes)
         OnMyEndMap(hasAttributes);
     } else {
         ForwardingConsumer->OnEndMap(hasAttributes);
-        if (!hasAttributes) {
-            UpdateDepth(-1);
-        }
+        UpdateDepth(hasAttributes ? 0 : -1);
     }
 }
 

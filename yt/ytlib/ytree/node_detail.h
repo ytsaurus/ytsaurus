@@ -56,15 +56,15 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
 
-    RPC_SERVICE_METHOD_DECL(NProto, Get);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
     virtual void GetRecursive(TYPath path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
 
-    RPC_SERVICE_METHOD_DECL(NProto, Set);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Set);
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
-    RPC_SERVICE_METHOD_DECL(NProto, Remove);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
     virtual void RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
 
@@ -85,7 +85,7 @@ protected:
     void SetRecursive(TYPath path, INode* value);
 
 private:
-    RPC_SERVICE_METHOD_DECL(NProto, List);
+    DECLARE_RPC_SERVICE_METHOD(NProto, List);
 
 };
 

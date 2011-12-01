@@ -42,8 +42,7 @@ public:
         ECodecId codecId);
     ~TChunkWriter();
 
-    // TODO: -> Open
-    TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
 
     TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();

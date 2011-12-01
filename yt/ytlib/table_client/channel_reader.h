@@ -13,7 +13,7 @@ class TChannelReader
 {
 public:
     TChannelReader(const TChannel& channel);
-    void SetBlock(const TSharedRef& block);
+    void SetBlock(TSharedRef&& block);
 
     bool NextRow();
     bool NextColumn();
