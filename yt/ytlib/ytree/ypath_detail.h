@@ -287,7 +287,7 @@ void ParseYPathRequestHeader(
 
 void ParseYPathResponseHeader(
     TRef headerData,
-    NRpc::TError* error);
+    TError* error);
 
 NBus::IMessage::TPtr UpdateYPathRequestHeader(
     NBus::IMessage* message,
@@ -296,7 +296,7 @@ NBus::IMessage::TPtr UpdateYPathRequestHeader(
 
 NBus::IMessage::TPtr UpdateYPathResponseHeader(
     NBus::IMessage* message,
-    const NRpc::TError& error);
+    const TError& error);
 
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,

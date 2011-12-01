@@ -1,47 +1,171 @@
 ﻿#include "stdafx.h"
 #include "chunk_sequence_reader.h"
 
+#include <limits>
+
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-TAsyncStreamState::TAsyncResult::TPtr NYT::NTableClient::TChunkSequenceReader::AsyncOpen()
+using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkSequenceReader::TChunkSequenceReader(
+    const TConfig& config,
+    const TChannel& channel,
+    const NTransactionClient::TTransactionId transactionId,
+    NRpc::IChannel::TPtr masterChannel,
+    yvector<NChunkClient::TChunkId>&& chunks,
+    int startRow,
+    int endRow)
+    : Config(config)
+    , Channel(channel)
+    , TransactionId(transactionId)
+    , Chunks(chunks)
+    , StartRow(startRow)
+    , EndRow(endRow)
+    , MasterChannel(masterChannel)
+    , NextChunkIndex(-1)
+    , NextReader(New< TFuture<TChunkReader::TPtr> >())
 {
-    throw std::exception("The method or operation is not implemented.");
+    PrepareNextChunk();
 }
 
-bool NYT::NTableClient::TChunkSequenceReader::HasNextRow() const
+void TChunkSequenceReader::PrepareNextChunk()
 {
-    throw std::exception("The method or operation is not implemented.");
+    YASSERT(!NextReader->IsSet());
+    YASSERT(NextChunkIndex < Chunks.ysize());
+
+    ++NextChunkIndex;
+    if (NextChunkIndex == Chunks.ysize()) {
+        NextReader->Set(NULL);
+        return;
+    }
+
+    TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
+        Config.RetriableReaderConfig, 
+        Chunks[NextChunkIndex],
+        TransactionId,
+        ~MasterChannel);
+
+    int startRow = NextChunkIndex == 0 ? StartRow : 0;
+    int endRow = NextChunkIndex == Chunks.ysize() - 1 ? 
+        EndRow : std::numeric_limits<int>::max();
+
+    TChunkReader::TPtr chunkReader = New<TChunkReader>(
+        Config.SequentialReaderConfig,
+        Channel,
+        retriableReader,
+        startRow,
+        endRow);
+
+    chunkReader->AsyncOpen()->Subscribe(FromMethod(
+        &TChunkSequenceReader::OnNextReaderOpened,
+        TPtr(this),
+        chunkReader));
 }
 
-TAsyncStreamState::TAsyncResult::TPtr NYT::NTableClient::TChunkSequenceReader::AsyncNextRow()
+void TChunkSequenceReader::OnNextReaderOpened(
+    TAsyncStreamState::TResult result, 
+    TChunkReader::TPtr reader)
 {
-    throw std::exception("The method or operation is not implemented.");
+    YASSERT(!NextReader->IsSet());
+
+    if (result.IsOK) {
+        NextReader->Set(reader);
+        return;
+    }
+
+    State.Fail(result.ErrorMessage);
+    NextReader->Set(NULL);
+}
+
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncOpen()
+{
+    YASSERT(NextChunkIndex == 0);
+    YASSERT(!State.HasRunningOperation());
+    State.StartOperation();
+    NextReader->Subscribe(FromMethod(
+        &TChunkSequenceReader::SetCurrentChunk,
+        TPtr(this)));
+
+    return State.GetOperationResult();
+}
+
+void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
+{
+    CurrentReader = nextReader;
+    if (~nextReader != NULL) {
+        NextReader = New< TFuture<TChunkReader::TPtr> >();
+        PrepareNextChunk();
+
+        if (NextChunkIndex > 0) {
+            YASSERT(CurrentReader->HasNextRow());
+            CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
+                &TChunkSequenceReader::OnNextRow,
+                TPtr(this)));
+            return;
+        }
+    } else {
+        YASSERT(!State.IsActive());
+    }
+    State.FinishOperation();
+}
+
+void TChunkSequenceReader::OnNextRow(TAsyncStreamState::TResult result)
+{
+    if (!result.IsOK) {
+        State.Fail(result.ErrorMessage);
+    }
+
+    State.FinishOperation();
+}
+
+bool TChunkSequenceReader::HasNextRow() const
+{
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(NextChunkIndex > 0);
+    return NextChunkIndex < Chunks.ysize() || CurrentReader->HasNextRow();
+}
+
+TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncNextRow()
+{
+    if (CurrentReader->HasNextRow()) {
+        return CurrentReader->AsyncNextRow();
+    } else {
+        State.StartOperation();
+
+        NextReader->Subscribe(FromMethod(
+            &TChunkSequenceReader::SetCurrentChunk,
+            TPtr(this)));
+
+        return State.GetOperationResult();
+    }
 }
 
 bool NYT::NTableClient::TChunkSequenceReader::NextColumn()
 {
-    throw std::exception("The method or operation is not implemented.");
+    return CurrentReader->NextColumn();
 }
 
-NYT::NTableClient::TValue NYT::NTableClient::TChunkSequenceReader::GetValue()
+TValue TChunkSequenceReader::GetValue()
 {
-    throw std::exception("The method or operation is not implemented.");
+    return CurrentReader->GetValue();
 }
 
-NYT::NTableClient::TColumn NYT::NTableClient::TChunkSequenceReader::GetColumn() const
+TColumn TChunkSequenceReader::GetColumn() const
 {
-    throw std::exception("The method or operation is not implemented.");
+    return CurrentReader->GetColumn();
 }
 
-void NYT::NTableClient::TChunkSequenceReader::Cancel( const Stroka& errorMessage )
+void TChunkSequenceReader::Cancel(const Stroka& errorMessage)
 {
-    throw std::exception("The method or operation is not implemented.");
+    State.Cancel(errorMessage);
+    CurrentReader->Cancel(errorMessage);
 }
-*/
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

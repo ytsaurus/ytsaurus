@@ -62,7 +62,7 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
-        if (error.IsRpcError()) {
+        if (NRpc::IsRpcError(error)) {
             Writer->Cancel(error.ToString());
             ythrow yexception() << Sprintf("Error checking table existence (Path: %s)\n%s",
                 ~nodePath,

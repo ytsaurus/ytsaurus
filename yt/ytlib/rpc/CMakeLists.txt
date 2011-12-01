@@ -8,6 +8,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/server_detail.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/message.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/retry.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/error.h
 )
 
 PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/rpc.proto YT_SOURCE_FILES )

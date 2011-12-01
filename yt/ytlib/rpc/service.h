@@ -171,7 +171,7 @@ public:
     // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
     void Reply()
     {
-        Reply(TError(EErrorCode::OK, ""));
+        Reply(TError(NYT::TError::OK, ""));
     }
 
     void Reply(int code, const Stroka& message)
