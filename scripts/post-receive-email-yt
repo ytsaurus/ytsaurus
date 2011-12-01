@@ -678,8 +678,9 @@ show_new_revisions()
 		do
 			echo "<a name=\"c-$onerev\" />"
 			echo "<hr />"
-			git show -C --pretty=format:"Commit: %H%nAuthor: %an <%ae>%nDate: %aD (%ar)%n%n%s%n%n%b" $onerev \
-			| PYTHONIOENCODING=latin1 pygmentize -O noclasses=True,style=colorful -f html -l diff
+			git show -C --pretty=format:"=Commit: %H%n=Author: %an <%ae>%n=  Date: %aD (%ar)%n%n%s%n%n%b" $onerev \
+            | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+			#| pygmentize -O noclasses=True,style=colorful,encoding=utf8 -f html -l diff
 			echo "<hr />"
 		done
 	fi
@@ -713,11 +714,38 @@ send_mail()
 	fi
 }
 
+arm()
+{
+	newrev="$2"
+	refname="$3"
+	rev_type=$(git cat-file -t $newrev 2> /dev/null)
+
+	case "$refname","$rev_type" in
+		refs/heads/*,commit)
+    		# branch
+			refname_type="branch"
+			short_refname=${refname##refs/heads/}
+	     	echo "/${refname_type}/${short_refname}"
+    	 	;;
+    	*)
+	     	# Anything else
+    	  	;;
+  	esac
+}
+
+call_url()
+{
+	read url
+ 	if [ -n "${buildurl}" ]; then
+		wget -o /dev/null ${buildurl}${url} >&2 /dev/null
+  	fi
+}
+
 # ---------------------------- main()
 
 # --- Constants
-LOGBEGIN="</pre><hr />"
-LOGEND="<hr /><pre>"
+LOGBEGIN="<hr />"
+LOGEND="<hr />"
 
 # --- Config
 # Set GIT_DIR either from the working directory, or from the environment
@@ -741,6 +769,7 @@ announcerecipients=$(git config hooks.announcelist)
 envelopesender=$(git config hooks.envelopesender)
 emailprefix=$(git config hooks.emailprefix || echo '[SCM] ')
 custom_showrev=$(git config hooks.showrev)
+buildurl=$(git config hooks.buildurl)
 maxlines=$(git config hooks.emailmaxlines)
 diffopts=$(git config hooks.diffopts)
 : ${diffopts:="--stat --summary --find-copies-harder"}
@@ -758,5 +787,6 @@ else
 	do
 		prep_for_email $oldrev $newrev $refname || continue
 		generate_email $maxlines | send_mail
+		arm $oldrev $newrev $refname | call_url
 	done
 fi

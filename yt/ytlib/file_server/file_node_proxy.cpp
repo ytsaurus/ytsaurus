@@ -54,7 +54,7 @@ void TFileNodeProxy::DoInvoke(IServiceContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
 {
     UNUSED(request);
 
@@ -93,7 +93,7 @@ RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
     context->Reply();
 }
 
-RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, SetFileChunk)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, SetFileChunk)
 {
     UNUSED(response);
 

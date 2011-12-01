@@ -2,6 +2,7 @@
 #include "file_reader.h"
 
 #include "../misc/string.h"
+#include "../misc/sync.h"
 #include "../file_server/file_ypath_rpc.h"
 
 namespace NYT {
@@ -83,6 +84,7 @@ TFileReader::TFileReader(
     }
 
     // Construct readers.
+    // ToDo: use TRetriableReader.
     auto remoteReader = New<TRemoteReader>(
         Config.RemoteReader,
         ChunkId,
@@ -108,20 +110,15 @@ TSharedRef TFileReader::Read()
 
     CheckAborted();
 
-    if (BlockIndex >= BlockCount) {
+    if (!SequentialReader->HasNext()) {
         return TSharedRef();
     }
 
     LOG_INFO("Reading file block (BlockIndex: %d)", BlockIndex);
-    auto result = SequentialReader->AsyncGetNextBlock()->Get();
-    if (!result.IsOK) {
-        // TODO: use TError
-        ythrow yexception() << Sprintf("Error reading file block\n%s",
-            "--here come the details--");
-    }
+    Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
 
     auto& codec = ICodec::GetCodec(CodecId);
-    auto decompressedBlock = codec.Decode(result.Block);
+    auto decompressedBlock = codec.Decode(SequentialReader->GetBlock());
 
     LOG_INFO("File block is read");
 

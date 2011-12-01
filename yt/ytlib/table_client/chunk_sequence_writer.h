@@ -19,7 +19,6 @@ using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: rename to TChunkSequenceWriter
 class TChunkSequenceWriter
     : public IWriter
 {
@@ -58,8 +57,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
-    // TODO: -> Open
-    TAsyncStreamState::TAsyncResult::TPtr AsyncInit();
+    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
     TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
     TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
@@ -89,6 +87,7 @@ private:
     const TConfig Config;
     const TSchema Schema;
     const ECodecId CodecId;
+
     const NTransactionClient::TTransactionId TransactionId;
 
     TAsyncStreamState State;

@@ -20,27 +20,27 @@ TNodeFactory::TNodeFactory(
 
 IStringNode::TPtr TNodeFactory::CreateString()
 {
-    return CypressManager->CreateStringNodeProxy(TransactionId);
+    return CypressManager->CreateNode(ERuntimeNodeType::String, TransactionId)->AsString();
 }
 
 IInt64Node::TPtr TNodeFactory::CreateInt64()
 {
-    return CypressManager->CreateInt64NodeProxy(TransactionId);
+    return CypressManager->CreateNode(ERuntimeNodeType::Int64, TransactionId)->AsInt64();
 }
 
 IDoubleNode::TPtr TNodeFactory::CreateDouble()
 {
-    return CypressManager->CreateDoubleNodeProxy(TransactionId);
+    return CypressManager->CreateNode(ERuntimeNodeType::Double, TransactionId)->AsDouble();
 }
 
 IMapNode::TPtr TNodeFactory::CreateMap()
 {
-    return CypressManager->CreateMapNodeProxy(TransactionId);
+    return CypressManager->CreateNode(ERuntimeNodeType::Map, TransactionId)->AsMap();
 }
 
 IListNode::TPtr TNodeFactory::CreateList()
 {
-    return CypressManager->CreateListNodeProxy(TransactionId);
+    return CypressManager->CreateNode(ERuntimeNodeType::List, TransactionId)->AsList();
 }
 
 IEntityNode::TPtr TNodeFactory::CreateEntity()
@@ -296,8 +296,15 @@ void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
         YVERIFY(impl.ChildToIndex().insert(MakePair(childId, list.ysize())).Second());
         list.push_back(childId);
     } else {
+        // Update the indices.
+        for (auto it = list.begin() + beforeIndex; it != list.end(); ++it) {
+            ++impl.ChildToIndex()[*it];
+        }
+
+        // Insert the new child.
         YVERIFY(impl.ChildToIndex().insert(MakePair(childId, beforeIndex)).Second());
         list.insert(list.begin() + beforeIndex, childId);
+
     }
 
     AttachChild(childImpl);
@@ -316,6 +323,12 @@ bool TListNodeProxy::RemoveChild(int index)
     auto childProxy = GetProxy<ICypressNodeProxy>(list[index]);
     auto& childImpl = childProxy->GetImplForUpdate();
 
+    // Update the indices.
+    for (auto it = list.begin() + index + 1; it != list.end(); ++it) {
+        --impl.ChildToIndex()[*it];
+    }
+
+    // Remove the child.
     list.erase(list.begin() + index);
     YVERIFY(impl.ChildToIndex().erase(childProxy->GetNodeId()));
     DetachChild(childImpl);
@@ -325,21 +338,8 @@ bool TListNodeProxy::RemoveChild(int index)
 
 void TListNodeProxy::RemoveChild(INode::TPtr child)
 {
-    EnsureLocked();
-
-    auto& impl = GetTypedImplForUpdate();
-    auto& list = impl.IndexToChild();
-    
-    auto childProxy = ToProxy(~child);
-    auto& childImpl = childProxy->GetImplForUpdate();
-
-    auto it = impl.ChildToIndex().find(childProxy->GetNodeId());
-    YASSERT(it != impl.ChildToIndex().end());
-
-    int index = it->Second();
-    impl.ChildToIndex().erase(it);
-    list.erase(list.begin() + index);
-    DetachChild(childImpl);
+    int index = GetChildIndex(~child);
+    YVERIFY(RemoveChild(index));
 }
 
 void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)

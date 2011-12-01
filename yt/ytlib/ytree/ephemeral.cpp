@@ -345,6 +345,10 @@ void TListNode::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
         YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).Second());
         IndexToChild.push_back(child); 
     } else {
+        for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
+            ++ChildToIndex[*it];
+        }
+
         YVERIFY(ChildToIndex.insert(MakePair(child, beforeIndex)).Second());
         IndexToChild.insert(IndexToChild.begin() + beforeIndex, child);
     }
@@ -357,8 +361,13 @@ bool TListNode::RemoveChild(int index)
         return false;
 
     auto child = IndexToChild[index];
-    YVERIFY(ChildToIndex.erase(child));
+
+    for (auto it = IndexToChild.begin() + index + 1; it != IndexToChild.end(); ++it) {
+        --ChildToIndex[*it];
+    }
     IndexToChild.erase(IndexToChild.begin() + index);
+
+    YVERIFY(ChildToIndex.erase(child));
     child->SetParent(NULL);
 
     return true;
@@ -381,9 +390,8 @@ void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
 void TListNode::RemoveChild(INode::TPtr child)
 {
-    auto it = std::find(IndexToChild.begin(), IndexToChild.end(), ~child);
-    YASSERT(it != IndexToChild.end());
-    IndexToChild.erase(it);
+    int index = GetChildIndex(~child);
+    YVERIFY(RemoveChild(index));
 }
 
 int TListNode::GetChildIndex(INode* child)

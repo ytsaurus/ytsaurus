@@ -35,8 +35,8 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    RPC_SERVICE_METHOD_DECL(NProto, GetFileChunk);
-    RPC_SERVICE_METHOD_DECL(NProto, SetFileChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetFileChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, SetFileChunk);
 
 };
 

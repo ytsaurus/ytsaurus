@@ -11,60 +11,26 @@
 namespace NYT {
 namespace NTransactionServer {
 
-// TODO: get rid
-using NCypress::TNodeId;
-using NCypress::TLockId;
-
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: move implementation to cpp
 
 class TTransaction
 {
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
     DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, RegisteredChunks);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TLockId>, LockIds);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, BranchedNodes);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TNodeId>, CreatedNodes);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TLockId>, LockIds);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, BranchedNodes);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, CreatedNodes);
 
 public:
-    TTransaction(const TTransactionId& id)
-        : Id_(id)
-    { }
+    TTransaction(const TTransactionId& id);
 
-    TAutoPtr<TTransaction> Clone() const
-    {
-        return new TTransaction(*this);
-    }
+    TAutoPtr<TTransaction> Clone() const;
 
-    void Save(TOutputStream* output) const
-    {
-        YASSERT(output != NULL);
-
-        //::Save(output, Id_);
-        ::Save(output, RegisteredChunks_);
-        ::Save(output, LockIds_);
-        ::Save(output, BranchedNodes_);
-    }
-
-    static TAutoPtr<TTransaction> Load(const TTransactionId& id, TInputStream* input)
-    {
-        YASSERT(input != NULL);
-
-        auto* transaction = new TTransaction(id);
-        ::Load(input, transaction->RegisteredChunks_);
-        ::Load(input, transaction->LockIds_);
-        ::Load(input, transaction->BranchedNodes_);
-        return transaction;
-    }
+    void Save(TOutputStream* output) const;
+    static TAutoPtr<TTransaction> Load(const TTransactionId& id, TInputStream* input);
 
 private:
-    TTransaction(const TTransaction& other)
-        : Id_(other.Id_)
-        , RegisteredChunks_(other.RegisteredChunks_)
-        , LockIds_(other.LockIds_)
-        , BranchedNodes_(other.BranchedNodes_)
-    { }
-
+    TTransaction(const TTransaction& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

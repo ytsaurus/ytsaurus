@@ -243,7 +243,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     InitiateAbortTransaction(id)->Commit();
 }
 
-METAMAP_ACCESSORS_IMPL(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
+DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -21,6 +21,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/semaphore.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/guid.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/assert.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/string.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/foreach.h
@@ -39,6 +40,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config-inl.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/sync.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/blob_output.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h

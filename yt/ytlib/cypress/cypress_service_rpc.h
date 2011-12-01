@@ -3,8 +3,6 @@
 #include "common.h"
 #include "cypress_service_rpc.pb.h"
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
 #include "../ytree/ypath_client.h"
 #include "../ytree/ypath_detail.h"
 #include "../transaction_server/common.h"
@@ -14,7 +12,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impl to inl
 class TCypressServiceProxy
     : public NRpc::TProxyBase
 {
@@ -37,62 +34,28 @@ public:
     Execute(
         NYTree::TYPath path,
         const NTransactionServer::TTransactionId& transactionId,
-        TTypedRequest* innerRequest)
-    {
-        innerRequest->SetPath(path);
-        auto outerRequest = Execute();
-        outerRequest->SetTransactionId(transactionId.ToProto());
-        return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
-            ~outerRequest,
-            innerRequest);
-    }
+        TTypedRequest* innerRequest);
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         const TNodeId& rootNodeId,
         const NTransactionServer::TTransactionId& transactionId,
-        TTypedRequest* innerRequest)
-    {
-        innerRequest->SetPath("/");
-        auto outerRequest = Execute();
-        outerRequest->SetRootNodeId(rootNodeId.ToProto());
-        outerRequest->SetTransactionId(transactionId.ToProto());
-        return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
-            ~outerRequest,
-            innerRequest);
-    }
+        TTypedRequest* innerRequest);
 
 private:
     template <class TTypedRequest, class TTypedResponse>
     TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
     Execute(
         TCypressServiceProxy::TReqExecute* outerRequest,
-        TTypedRequest* innerRequest)
-    {
-        auto innerRequestMessage = innerRequest->Serialize();
-        NYTree::WrapYPathRequest(outerRequest, ~innerRequestMessage);
-        return outerRequest->Invoke()->Apply(FromFunctor(
-            [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
-            {
-                auto innerResponse = New<TTypedResponse>();
-                auto error = outerResponse->GetError();
-                if (error.IsOK()) {
-                    auto innerResponseMessage = NYTree::UnwrapYPathResponse(~outerResponse);
-                    innerResponse->Deserialize(~innerResponseMessage);
-                } else if (error.IsRpcError()) {
-                    innerResponse->SetError(error);    
-                } else {
-                    innerResponse->SetError(NRpc::TError(
-                        NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
-                        outerResponse->GetError().GetMessage()));
-                }
-                return innerResponse;
-            }));
-    }
+        TTypedRequest* innerRequest);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress
 } // namespace NYT
+
+#define CYPRESS_SERVICE_RPC_INL_H_
+#include "cypress_service_rpc-inl.h"
+#undef CYPRESS_SERVICE_RPC_INL_H_

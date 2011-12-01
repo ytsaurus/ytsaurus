@@ -39,7 +39,7 @@ void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
-RPC_SERVICE_METHOD_IMPL(TVirtualMapBase, Get)
+DEFINE_RPC_SERVICE_METHOD_IMPL(TVirtualMapBase, Get)
 {
     UNUSED(request);
 
