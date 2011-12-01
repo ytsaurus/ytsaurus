@@ -38,6 +38,7 @@ add_executable( unittester
     tree_builder_ut.cpp
     config_ut.cpp
     bus_ut.cpp
+    serialize_ut.cpp
 
     rpc_ut.cpp
     ${PROTO_SRC}
