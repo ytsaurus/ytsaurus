@@ -69,7 +69,7 @@ class TChunk
     DEFINE_BYVAL_RO_PROPERTY(TLocation::TPtr, Location);
     DEFINE_BYVAL_RO_PROPERTY(i64, Size);
     DEFINE_BYVAL_RO_PROPERTY(i32, BlockCount);
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, MasterMeta);
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
 
 public:
     typedef TIntrusivePtr<TChunk> TPtr;
