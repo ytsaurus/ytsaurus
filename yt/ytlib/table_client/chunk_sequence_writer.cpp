@@ -149,10 +149,14 @@ void TChunkSequenceWriter::OnRowEnded(TAsyncStreamState::TResult result)
 
 void TChunkSequenceWriter::FinishCurrentChunk() 
 {
-    CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), FromMethod(
-        &TChunkSequenceWriter::OnChunkClosed, 
-        TPtr(this),
-        CurrentChunk->GetChunkId()));
+    if (CurrentChunk->GetCurrentSize() > 0) {
+        CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), FromMethod(
+            &TChunkSequenceWriter::OnChunkClosed, 
+            TPtr(this),
+            CurrentChunk->GetChunkId()));
+    } else {
+        CurrentChunk->Cancel("Chunk is empty.");
+    }
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
     CurrentChunk.Reset();

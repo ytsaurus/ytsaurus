@@ -102,7 +102,7 @@ private:
     void SelectChannels()
     {
         ChunkChannels.reserve(ProtoMeta.ChannelsSize());
-        for(size_t i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+        for(int i = 0; i < ProtoMeta.channels_size(); ++i) {
             ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.GetChannels(i)));
         }
 
@@ -129,7 +129,7 @@ private:
         int resultIdx = -1;
         size_t minBlockCount = std::numeric_limits<size_t>::max();
 
-        for (size_t i = 0; i < ProtoMeta.ChannelsSize(); ++i) {
+        for (int i = 0; i < ProtoMeta.channels_size(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(ChunkReader->Channel)) {
                 size_t blockCount = ProtoMeta.GetChannels(i).BlocksSize();
@@ -189,13 +189,13 @@ private:
 
         while (true) {
             TBlockInfo currentBlock = blockHeap.front();
-            size_t nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
+            int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
             const auto& protoChannel = ProtoMeta.GetChannels(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
 
-            if (nextBlockIndex < protoChannel.BlocksSize()) {
+            if (nextBlockIndex < protoChannel.blocks_size()) {
                 if (currentBlock.LastRow >= ChunkReader->EndRow) {
                     FOREACH (auto& block, blockHeap) {
                         YASSERT(block.LastRow >= ChunkReader->EndRow);
@@ -291,10 +291,6 @@ TChunkReader::TChunkReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(~chunkReader != NULL);
-    if (EndRow < 0) {
-        // Will be later set by the initializer to the chunk row count.
-        EndRow = std::numeric_limits<int>::max();
-    }
 
     Initializer = New<TInitializer>(config, this, chunkReader);
 }

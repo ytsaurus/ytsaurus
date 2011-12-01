@@ -24,14 +24,16 @@ public:
     typedef TIntrusivePtr<TChunkReader> TPtr;
 
     /*! 
-     *  \param EndRow - if equals -1 chunk is read to the last row.
+     *  \param EndRow - if given value exceeds row count of the chunk,
+     *  chunk is processed to the end without error. To guarantee reading
+     *  chunk to the end, set it to numerical_limits<int>::max().
      */
     TChunkReader(
         const NChunkClient::TSequentialReader::TConfig& config,
         const TChannel& channel,
         NChunkClient::IAsyncReader::TPtr chunkReader,
-        int startRow = 0,
-        int endRow = -1);
+        int startRow,
+        int endRow);
 
     TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
 
