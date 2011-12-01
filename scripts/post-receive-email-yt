@@ -679,7 +679,8 @@ show_new_revisions()
 			echo "<a name=\"c-$onerev\" />"
 			echo "<hr />"
 			git show -C --pretty=format:"=Commit: %H%n=Author: %an <%ae>%n=  Date: %aD (%ar)%n%n%s%n%n%b" $onerev \
-			| pygmentize -O noclasses=True,style=colorful,encoding=utf8 -f html -l diff
+            | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+			#| pygmentize -O noclasses=True,style=colorful,encoding=utf8 -f html -l diff
 			echo "<hr />"
 		done
 	fi
@@ -743,8 +744,8 @@ call_url()
 # ---------------------------- main()
 
 # --- Constants
-LOGBEGIN="</pre><hr />"
-LOGEND="<hr /><pre>"
+LOGBEGIN="<hr />"
+LOGEND="<hr />"
 
 # --- Config
 # Set GIT_DIR either from the working directory, or from the environment

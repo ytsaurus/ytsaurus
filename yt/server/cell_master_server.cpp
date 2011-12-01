@@ -6,6 +6,7 @@
 #include <yt/ytlib/ytree/virtual.h>
 
 #include <yt/ytlib/meta_state/composite_meta_state.h>
+#include <yt/ytlib/meta_state/persistent_state_manager.h>
 
 #include <yt/ytlib/transaction_server/transaction_manager.h>
 #include <yt/ytlib/transaction_server/transaction_service.h>
@@ -105,7 +106,7 @@ void TCellMasterServer::Run()
 
     auto rpcServer = CreateRpcServer(port);
 
-    auto metaStateManager = IMetaStateManager::CreateInstance(
+    auto metaStateManager = CreatePersistentStateManager(
         Config.MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
