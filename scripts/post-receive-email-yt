@@ -678,7 +678,8 @@ show_new_revisions()
 		do
 			echo "<a name=\"c-$onerev\" />"
 			echo "<hr />"
-			git show -C --pretty=format:"=Commit: %H%n=Author: %an <%ae>%n=  Date: %aD (%ar)%n%n%s%n%n%b" $onerev
+			git show -C --pretty=format:"=Commit: %H%n=Author: %an <%ae>%n=  Date: %aD (%ar)%n%n%s%n%n%b" $onerev \
+            | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 			#| pygmentize -O noclasses=True,style=colorful,encoding=utf8 -f html -l diff
 			echo "<hr />"
 		done
