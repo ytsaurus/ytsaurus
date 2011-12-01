@@ -84,6 +84,7 @@ TFileReader::TFileReader(
     }
 
     // Construct readers.
+    // ToDo: use TRetriableReader.
     auto remoteReader = New<TRemoteReader>(
         Config.RemoteReader,
         ChunkId,

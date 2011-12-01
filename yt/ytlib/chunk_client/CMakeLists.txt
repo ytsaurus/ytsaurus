@@ -12,6 +12,7 @@ SET(YT_SOURCE_FILES
     holder_channel_cache.cpp
     reader_thread.cpp
     writer_thread.cpp
+    retriable_reader.cpp
 )
 
 

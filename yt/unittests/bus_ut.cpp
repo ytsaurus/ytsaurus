@@ -16,6 +16,7 @@ IMessage::TPtr CreateMessage(int numParts)
 {
     TBlob data(numParts);
     yvector <TRef> parts;
+    parts.reserve(numParts);
     for (int i = 0; i < numParts; ++i) {
         parts.push_back(TRef(data.begin() + i, 1));
     }
@@ -36,6 +37,8 @@ Stroka Deserialize(IMessage::TPtr message)
     return Stroka(part.Begin(), part.Size());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TEmptyBusHandler
     : public IMessageHandler
 {
@@ -43,20 +46,30 @@ public:
     virtual void OnMessage(
         IMessage::TPtr message,
         IBus::TPtr replyBus)
-    { }
+    {
+        UNUSED(message);
+        UNUSED(replyBus);
+    }
 };
 
 class TReplying42BusHandler
     : public IMessageHandler
 {
 public:
+    TReplying42BusHandler(int numParts)
+        : NumPartsExpecting(numParts)
+    { }
+
     virtual void OnMessage(
         IMessage::TPtr message,
         IBus::TPtr replyBus)
     {
+        EXPECT_EQ(NumPartsExpecting, message->GetParts().ysize());
         auto replyMessage = Serialize("42");
         replyBus->Send(replyMessage);
     }
+private:
+    int NumPartsExpecting;
 };
 
 class TChecking42BusHandler
@@ -65,17 +78,53 @@ class TChecking42BusHandler
 public:
     typedef TIntrusivePtr<TChecking42BusHandler> TPtr;
 
+    TChecking42BusHandler(int numRepliesWaiting)
+        : NumRepliesWaiting(numRepliesWaiting)
+    { }
+
     Event Event_;
 
     virtual void OnMessage(
         IMessage::TPtr message,
         IBus::TPtr replyBus)
     {
+        UNUSED(replyBus);
+
         Stroka value = Deserialize(message);
         EXPECT_EQ("42", value);
-        Event_.Signal();
+
+        --NumRepliesWaiting;
+        if (NumRepliesWaiting == 0) {
+            Event_.Signal();
+        }
     }
+
+private:
+    int NumRepliesWaiting;
 };
+
+void TestReplies(int numRequests, int numParts)
+{
+    auto listener = New<TBusServer>(2000, ~New<TReplying42BusHandler>(numParts));
+    auto client = New<TBusClient>("localhost:2000");
+    auto handler = New<TChecking42BusHandler>(numRequests);
+    auto bus = client->CreateBus(~handler);
+    auto message = CreateMessage(numParts);
+
+    IBus::TSendResult::TPtr result;
+    for (int i = 0; i < numRequests; ++i) {
+        result = bus->Send(message);
+    }
+
+    result->Get();
+    if(!handler->Event_.Wait(2000)) {
+        EXPECT_IS_TRUE(false);
+    }
+
+    listener->Terminate();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TBusTest, OK)
 {
@@ -97,20 +146,14 @@ TEST(TBusTest, Failed)
     EXPECT_EQ(IBus::ESendResult::Failed, result);
 }
 
-TEST(TBusTest, Reply)
+TEST(TBusTest, OneReply)
 {
-    auto listener = New<TBusServer>(2000, ~New<TReplying42BusHandler>());
-    auto client = New<TBusClient>("localhost:2000");
-    auto handler = New<TChecking42BusHandler>();
-    auto bus = client->CreateBus(~handler);
-    auto message = CreateMessage(1);
-    bus->Send(message)->Get();
+    TestReplies(1, 1);
+}
 
-    if(!handler->Event_.Wait(2000)) {
-        EXPECT_IS_TRUE(false);
-    }
-
-    listener->Terminate();
+TEST(TBusTest, ManyReplies)
+{
+    TestReplies(1000, 100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

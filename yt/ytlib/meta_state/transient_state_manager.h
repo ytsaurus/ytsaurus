@@ -1,0 +1,16 @@
+#pragma once
+
+#include "common.h"
+#include "meta_state_manager.h"
+
+namespace NYT {
+namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMetaStateManager::TPtr CreateTransientStateManager(IMetaState* metaState);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMetaState
+} // namespace NYT
