@@ -13,7 +13,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline INode::TPtr DeserializeFromYson(TInputStream* istream,
-    INodeFactory* factory=GetEphemeralNodeFactory())
+    INodeFactory* factory = GetEphemeralNodeFactory())
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -23,7 +23,7 @@ inline INode::TPtr DeserializeFromYson(TInputStream* istream,
 }
 
 inline INode::TPtr DeserializeFromYson(const Stroka& string,
-    INodeFactory* factory=GetEphemeralNodeFactory())
+    INodeFactory* factory = GetEphemeralNodeFactory())
 {
     TStringInput stream(string);
     return DeserializeFromYson(&stream, factory);
