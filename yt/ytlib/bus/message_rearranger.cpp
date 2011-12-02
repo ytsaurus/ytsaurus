@@ -13,7 +13,7 @@ static NLog::TLogger& Logger = BusLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMessageRearranger::TMessageRearranger(
-    IParamAction<IMessage::TPtr>::TPtr onMessage,
+    IParamAction<IMessage::TPtr>* onMessage,
     TDuration timeout)
     : OnMessageDequeued(onMessage)
     , Timeout(timeout)

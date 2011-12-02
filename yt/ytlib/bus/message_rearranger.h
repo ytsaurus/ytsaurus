@@ -17,7 +17,7 @@ public:
     typedef TIntrusivePtr<TMessageRearranger> TPtr;
 
     TMessageRearranger(
-        IParamAction<IMessage::TPtr>::TPtr onDequeuedMessage,
+        IParamAction<IMessage::TPtr>* onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(

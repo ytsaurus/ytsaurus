@@ -45,7 +45,7 @@ void TNodeBase::DoInvoke(IServiceContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -126,7 +126,7 @@ void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, T
     ythrow yexception() << "Path must be final";
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -186,7 +186,7 @@ void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
     ythrow yexception() << "Path must be final";
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
 {
     Stroka path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -265,7 +265,7 @@ bool TMapNodeMixin::DoInvoke(IServiceContext* context)
     return false;
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
+DEFINE_RPC_SERVICE_METHOD(TMapNodeMixin, List)
 {
     UNUSED(request);
 

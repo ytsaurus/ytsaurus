@@ -46,7 +46,7 @@ void TTransactionService::ValidateTransactionId(const TTransactionId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
+DEFINE_RPC_SERVICE_METHOD(TTransactionService, StartTransaction)
 {
     UNUSED(request);
 
@@ -69,7 +69,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, StartTransaction)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
+DEFINE_RPC_SERVICE_METHOD(TTransactionService, CommitTransaction)
 {
     UNUSED(response);
 
@@ -88,7 +88,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, CommitTransaction)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
+DEFINE_RPC_SERVICE_METHOD(TTransactionService, AbortTransaction)
 {
     UNUSED(response);
 
@@ -107,7 +107,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, AbortTransaction)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TTransactionService, RenewTransactionLease)
+DEFINE_RPC_SERVICE_METHOD(TTransactionService, RenewTransactionLease)
 {
     UNUSED(response);
 

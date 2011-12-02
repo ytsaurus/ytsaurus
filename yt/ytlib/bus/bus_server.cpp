@@ -48,7 +48,7 @@ public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TBusServer::TPtr server,
+        TBusServer* server,
         const TSessionId& sessionId,
         const TUdpAddress& clientAddress,
         const TGuid& pingId)
@@ -59,7 +59,7 @@ public:
         , Terminated(false)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
-            FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
+            ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             MessageRearrangeTimeout))
     { }
 
@@ -72,7 +72,7 @@ public:
         Server.Reset();
     }
 
-    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
+    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
     {
         MessageRearranger->EnqueueMessage(message, sequenceId);
     }
@@ -109,7 +109,7 @@ public:
         int dataSize = data.ysize();
 
         auto response = New<TOutcomingResponse>(&data);
-        server->EnqueueOutcomingResponse(this, response);
+        server->EnqueueOutcomingResponse(this, ~response);
 
         LOG_DEBUG("Response enqueued (SessionId: %s, Response: %p, PacketSize: %d)",
             ~SessionId.ToString(),
@@ -119,7 +119,7 @@ public:
         return NULL;
     }
 
-    void EnqueueResponse(TOutcomingResponse::TPtr response)
+    void EnqueueResponse(TOutcomingResponse* response)
     {
         PendingResponses.Enqueue(response);
     }
@@ -162,7 +162,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusServer::TBusServer(int port, IMessageHandler::TPtr handler)
+TBusServer::TBusServer(int port, IMessageHandler* handler)
     : Handler(handler)
     , Terminated(false)
     , Thread(ThreadFunc, (void*) this)
@@ -319,7 +319,7 @@ void TBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
         LOG_DEBUG("Ping failed (RequestId: %s)",
             ~((TGuid) nlResponse->ReqId).ToString());
 
-        TSession::TPtr session = pingIt->Second();
+        auto session = pingIt->Second();
         UnregisterSession(session);
     }
 }
@@ -337,13 +337,13 @@ bool TBusServer::ProcessOutcomingResponses()
         auto response = session->DequeueResponse();
         if (~response != NULL) {
             ++callCount;
-            ProcessOutcomingResponse(session, response);
+            ProcessOutcomingResponse(~session, ~response);
         }
     }
     return callCount > 0;
 }
 
-void TBusServer::ProcessOutcomingResponse(TSession::TPtr session, TOutcomingResponse::TPtr response)
+void TBusServer::ProcessOutcomingResponse(TSession* session, TOutcomingResponse* response)
 {
     TGuid requestId = Requester->SendRequest(
         session->GetClientAddress(),
@@ -352,7 +352,7 @@ void TBusServer::ProcessOutcomingResponse(TSession::TPtr session, TOutcomingResp
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Response: %p)",
         ~session->GetSessionId().ToString(),
         ~requestId.ToString(),
-        ~response);
+        response);
 }
 
 void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
@@ -367,7 +367,7 @@ void TBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
         LOG_DEBUG("Ping ack received (RequestId: %s)",
             ~requestId.ToString());
 
-        TSession::TPtr session = pingIt->Second();
+        auto session = pingIt->Second();
         UnregisterSession(session);
     }
 }
@@ -449,12 +449,12 @@ TBusServer::TSession::TPtr TBusServer::DoProcessMessage(
         sequenceId,
         dataSize);
 
-    session->ProcessIncomingMessage(message, sequenceId);
+    session->ProcessIncomingMessage(~message, sequenceId);
 
     return session;
 }
 
-void TBusServer::EnqueueOutcomingResponse(TSession::TPtr session, TOutcomingResponse::TPtr response)
+void TBusServer::EnqueueOutcomingResponse(TSession* session, TOutcomingResponse* response)
 {
     session->EnqueueResponse(response);
     SessionsWithPendingResponses.Enqueue(session);

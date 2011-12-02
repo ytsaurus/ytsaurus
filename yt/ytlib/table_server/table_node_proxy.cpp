@@ -50,7 +50,7 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TTableNodeProxy, AddTableChunks)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
 {
     UNUSED(response);
 

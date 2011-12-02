@@ -101,21 +101,21 @@ public:
 
 };
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
 {
     int a = request->GetA();
     response->SetB(a + 100);
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, ReplyingCall)
 {
     UNUSED(request);
     UNUSED(response);
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
+DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
     for (int i = 0; i < request->Attachments().ysize(); ++i) {
         auto blob = request->Attachments()[i].ToBlob();
@@ -126,21 +126,21 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, EmptyCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, NotRegistredCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegistredCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
+DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 {
 
     UNUSED(request);

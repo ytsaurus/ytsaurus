@@ -18,9 +18,8 @@ class TBusServer
 public:
     typedef TIntrusivePtr<TBusServer> TPtr;
 
-    TBusServer(
-        int port,
-        IMessageHandler::TPtr handler);
+    TBusServer(int port, IMessageHandler* handler);
+
     virtual ~TBusServer();
 
     void Terminate();
@@ -55,9 +54,9 @@ private:
     void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse);
     void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
 
-    void EnqueueOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
+    void EnqueueOutcomingResponse(TSession* session, TOutcomingResponse* response);
     bool ProcessOutcomingResponses();
-    void ProcessOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
+    void ProcessOutcomingResponse(TSession* session, TOutcomingResponse* response);
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
