@@ -29,7 +29,7 @@ void TPeriodicInvoker::Stop()
     CancelableInvoker->Cancel();
     auto cookie = Cookie;
     if (~cookie != NULL) {
-        TDelayedInvoker::Get()->Cancel(cookie);
+        TDelayedInvoker::Cancel(cookie);
         Cookie.Reset();
     }
 }
@@ -37,8 +37,8 @@ void TPeriodicInvoker::Stop()
 void TPeriodicInvoker::RunAction()
 {
     Action->Do();
-    Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TPeriodicInvoker::RunAction, TPtr(this))
+    Cookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TPeriodicInvoker::RunAction, TPtr(this))
         ->Via(~CancelableInvoker),
         Period);
 }

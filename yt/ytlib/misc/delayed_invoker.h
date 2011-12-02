@@ -1,20 +1,16 @@
 #pragma once
 
-#include "../actions/invoker.h"
-#include "../actions/action_queue.h"
-
-#include <util/system/thread.h>
-#include <util/datetime/base.h>
-#include <util/generic/set.h>
-#include <util/system/spinlock.h>
+#include "../actions/action.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages delayed action execution.
 class TDelayedInvoker
     : private TNonCopyable
 {
+private:
     struct TEntry
         : public TRefCountedBase
     {
@@ -23,43 +19,45 @@ class TDelayedInvoker
         TInstant Deadline;
         IAction::TPtr Action;
 
-        TEntry(IAction::TPtr action, TInstant deadline)
+        TEntry(IAction* action, TInstant deadline)
             : Deadline(deadline)
             , Action(action)
         { }
     };
 
-    struct TEntryLess
-    {
-        bool operator()(TEntry::TPtr left, TEntry::TPtr right) const
-        {
-            return left->Deadline < right->Deadline ||
-                left->Deadline == right->Deadline &&
-                left->Action < right->Action;
-        }
-    };
-
-    yset<TEntry::TPtr, TEntryLess> Entries;
-    TThread Thread;
-    TSpinLock SpinLock;
-    volatile bool Finished;
-
 public:
+    //! Encapsulates a delayed execution token.
     typedef TEntry::TPtr TCookie;
 
-    TDelayedInvoker();
-    ~TDelayedInvoker();
+    //! An invalid cookie.
+    static TCookie NullCookie;
 
-    static TDelayedInvoker* Get();
+    //! Submits an action for execution after a given delay.
+    static TCookie Submit(IAction* action, TDuration delay);
 
-    TCookie Submit(IAction::TPtr action, TDuration delay);
-    TCookie Submit(IAction::TPtr action, TInstant deadline);
-    bool Cancel(TCookie cookie);
-    void Shutdown();
+    //! Submits an action for execution at a given deadline time.
+    static TCookie Submit(IAction* action, TInstant deadline);
+
+    //! Cancels an earlier scheduled execution.
+    /*!
+     *  \returns True iff the cookie is valid. 
+     */
+    static bool Cancel(TCookie cookie);
+
+    //! Cancels an earlier scheduled execution and clears the cookie.
+    /*!
+     *  \returns True iff the cookie is valid. 
+     */
+    static bool CancelAndClear(TCookie& cookie);
+
+    //! Terminates the scheduler thread.
+    /*!
+     *  All subsequent #Submit calls are silently ignored.
+     */
+    static void Shutdown();
 
 private:
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
+    class TImpl;
 
 };
 

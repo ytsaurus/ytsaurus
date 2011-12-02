@@ -9,41 +9,60 @@ namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages lease expiration.
+/*!
+ *  A lease is an opaque entity.
+ *  It is assigned a timeout and an expiration handler upon creation.
+ *  The lease must be continuously renewed by calling #Renew.
+ *  If #Renew is not called during the timeout, the lease expires and the handler is invoked.
+ *  Closing the lease releases resources and cancels expiration notification.
+ */
 class TLeaseManager
     : public TNonCopyable
 {
+private:
     struct TEntry
         : public TRefCountedBase
     {
         bool IsValid;
         TDuration Timeout;
-        IAction::TPtr OnExpire;
+        IAction::TPtr OnExpired;
         TDelayedInvoker::TCookie Cookie;
         TSpinLock SpinLock;
 
-        TEntry(TDuration timeout, IAction::TPtr onExpire)
+        TEntry(TDuration timeout, IAction* onExpired)
             : IsValid(true)
             , Timeout(timeout)
-            , OnExpire(onExpire)
+            , OnExpired(onExpired)
         { }
     };
 
 public:
+    //! Represents a lease token.
     typedef TIntrusivePtr<TEntry> TLease;
 
-    static TLeaseManager* Get();
+    //! An invalid lease.
+    static TLease NullLease;
 
-    TLease CreateLease(TDuration timeout, IAction::TPtr expiryCallback);
-    bool RenewLease(TLease lease);
-    bool CloseLease(TLease lease);
+    //! Creates a new lease with a given timeout and a given expiration callback.
+    static TLease CreateLease(TDuration timeout, IAction* onExpired);
+
+    //! Renews the lease.
+    /*!
+     *  \returns True iff the lease is still valid (i.e. not expired). 
+     */
+    static bool RenewLease(TLease lease);
+
+    //! Closes the lease.
+    /*!
+     *  \returns True iff the lease is still valid (i.e. not expired). 
+     */
+    static bool CloseLease(TLease lease);
 
 private:
-    bool EraseLease(TLease lease);
-    void ExpireLease(TLease lease);
-    void InvalidateLease(TLease lease);
+    class TImpl;
 
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -64,8 +64,9 @@ TMasterConnector::TMasterConnector(
 
 void TMasterConnector::ScheduleHeartbeat()
 {
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))->Via(ServiceInvoker),
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
+        ->Via(ServiceInvoker),
         Config.HeartbeatPeriod);
 }
 

@@ -52,9 +52,9 @@ TSession::TPtr TSessionManager::StartSession(
 
     auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
-    auto lease = TLeaseManager::Get()->CreateLease(
+    auto lease = TLeaseManager::CreateLease(
         Config.SessionTimeout,
-        FromMethod(
+        ~FromMethod(
             &TSessionManager::OnLeaseExpired,
             TPtr(this),
             session)
@@ -166,12 +166,12 @@ void TSession::SetLease(TLeaseManager::TLease lease)
 
 void TSession::RenewLease()
 {
-    TLeaseManager::Get()->RenewLease(Lease);
+    TLeaseManager::RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
-    TLeaseManager::Get()->CloseLease(Lease);
+    TLeaseManager::CloseLease(Lease);
 }
 
 IInvoker::TPtr TSession::GetInvoker()

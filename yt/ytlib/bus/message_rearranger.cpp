@@ -96,12 +96,11 @@ void TMessageRearranger::OnTimeout()
 
 void TMessageRearranger::ScheduleTimeout()
 {
-    if (TimeoutCookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-        TimeoutCookie = TDelayedInvoker::TCookie();
+    if (TimeoutCookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::CancelAndClear(TimeoutCookie);
     }
-    TimeoutCookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
+    TimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
         Timeout);
 }
 
