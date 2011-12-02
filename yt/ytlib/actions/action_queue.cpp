@@ -109,7 +109,8 @@ void TActionQueue::ThreadMain()
                 if (IsFinished)
                     break;
                 OnIdle();
-                WakeupEvent.Wait();
+                // TODO: make this configurable
+                WakeupEvent.WaitT(TDuration::MilliSeconds(10));
             }
         }
     } catch (...) {
