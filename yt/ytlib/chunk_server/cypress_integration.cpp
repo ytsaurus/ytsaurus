@@ -14,6 +14,7 @@ namespace NChunkServer {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkClient;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,12 +238,15 @@ public:
 
     THolderMapBehavior(
         const ICypressNode& node,
+        IMetaStateManager* metaStateManager,
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
         : TBase(node, cypressManager)
         , ChunkManager(chunkManager)
     {
-        OnRegistered_ = FromMethod(&TThis::OnRegistered, TPtr(this));
+        OnRegistered_ =
+            FromMethod(&TThis::OnRegistered, TPtr(this))
+            ->Via(metaStateManager->GetEpochStateInvoker());
         ChunkManager->HolderRegistered().Subscribe(OnRegistered_);
     }
 
@@ -301,9 +305,11 @@ public:
     typedef TIntrusivePtr<TThis> TPtr;
 
     THolderMapTypeHandler(
+        IMetaStateManager* metaStateManager,
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
         : TMapNodeTypeHandler(cypressManager)
+        , MetaStateManager(metaStateManager)
         , CypressManager(cypressManager)
         , ChunkManager(chunkManager)
     {
@@ -335,10 +341,11 @@ public:
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
     {
-        return New<THolderMapBehavior>(node, ~CypressManager, ~ChunkManager);
+        return New<THolderMapBehavior>(node, ~MetaStateManager, ~CypressManager, ~ChunkManager);
     }
 
 private:
+    IMetaStateManager::TPtr MetaStateManager;
     TCypressManager::TPtr CypressManager;
     TChunkManager::TPtr ChunkManager;
 
@@ -370,13 +377,14 @@ private:
 };
 
 INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
+    IMetaStateManager* metaStateManager,
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
     YASSERT(cypressManager != NULL);
     YASSERT(chunkManager != NULL);
 
-    return New<THolderMapTypeHandler>(cypressManager, chunkManager);
+    return New<THolderMapTypeHandler>(metaStateManager, cypressManager, chunkManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

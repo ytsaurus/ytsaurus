@@ -212,6 +212,7 @@ void TCellMasterServer::Run()
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
+        ~metaStateManager,
         ~cypressManager,
         ~chunkManager));
 
