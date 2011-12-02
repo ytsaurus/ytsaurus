@@ -153,7 +153,7 @@ class TClientDispatcher
     {
         BusMap.insert(MakePair(bus->SessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p)",
-            bus->SessionId.ToString(),
+            ~bus->SessionId.ToString(),
             bus);
     }
 
