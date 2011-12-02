@@ -275,6 +275,7 @@ void TNLBusServer::Stop()
     Thread.Join();
 
     Requester->StopNoWait();
+    Requester = NULL;
 
     FOREACH(auto& pair, SessionMap) {
         pair.second->Finalize();
@@ -593,7 +594,7 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
     auto requester = Requester;
     if (requester.Get() != NULL) {
         consumer->OnMapItem("nl_requester");
-        consumer->OnStringScalar(Requester->GetDebugInfo());
+        consumer->OnStringScalar(requester->GetDebugInfo());
     }
 
     consumer->OnEndMap();
