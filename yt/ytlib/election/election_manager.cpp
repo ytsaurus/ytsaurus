@@ -143,7 +143,7 @@ private:
 
         if (!response->IsOK()) {
             auto error = response->GetError();
-            if (error.IsRpcError()) {
+            if (IsRpcError(error)) {
                 // Hard error
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
                     LOG_WARNING("Error pinging follower %d, considered down (Error: %s)",

@@ -126,8 +126,8 @@ void TestReplies(int numRequests, int numParts)
     }
 
     result->Get();
-    if(!handler->Event_.Wait(2000)) {
-        EXPECT_IS_TRUE(false);
+    if(!handler->Event_.WaitT(TDuration::Seconds(2))) {
+        EXPECT_IS_TRUE(false); // timeout occured
     }
 
     server->Stop();

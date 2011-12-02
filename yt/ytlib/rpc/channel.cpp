@@ -193,7 +193,7 @@ private:
             UnregisterRequest(it);
         }
 
-        if (header.GetErrorCode() == EErrorCode::OK) {
+        if (header.GetErrorCode() == TError::OK) {
             responseHandler->OnResponse(~message);
         } else {
             responseHandler->OnError(TError(

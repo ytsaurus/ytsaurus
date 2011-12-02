@@ -184,7 +184,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     ScheduleHeartbeat();
     
     auto errorCode = response->GetErrorCode();
-    if (errorCode != NRpc::EErrorCode::OK) {
+    if (errorCode != NYT::TError::OK) {
         LOG_WARNING("Error sending heartbeat to master (Error: %s)",
             ~response->GetError().ToString());
 

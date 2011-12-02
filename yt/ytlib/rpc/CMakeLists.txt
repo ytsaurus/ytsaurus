@@ -9,4 +9,5 @@ SET(YT_SOURCE_FILES
     rpc.proto
     message.cpp
     retry.cpp
+    error.h
 )

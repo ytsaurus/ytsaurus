@@ -27,6 +27,7 @@ public:
         TDuration BackoffTime;
         int RetryCount;
         TDuration MasterRpcTimeout;
+
         TRemoteReader::TConfig RemoteReaderConfig;
 
         TConfig()

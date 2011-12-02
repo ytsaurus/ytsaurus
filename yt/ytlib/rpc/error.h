@@ -1,18 +1,14 @@
 #pragma once
 
-#include "../actions/future.h"
-#include "../misc/common.h"
-#include "../misc/enum.h"
-#include "../misc/property.h"
+#include "../misc/error.h"
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// By convention, RPC errors have negative error codes.
+// By convention, TError::OK = 0 and RPC errors have negative error codes.
 DECLARE_ENUM(EErrorCode,
-    ((OK)(0))
     ((TransportError)(-1))
     ((ProtocolError)(-2))
     ((NoSuchService)(-3))
@@ -24,56 +20,15 @@ DECLARE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TError
+FORCED_INLINE bool IsRpcError(const TError& error)
 {
-    DEFINE_BYVAL_RO_PROPERTY(int, Code);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Message);
+    return error.GetCode() < TError::OK;
+}
 
-public:
-    TError()
-        : Code_(EErrorCode::OK)
-    { }
-
-    TError(int code, const Stroka& message)
-        : Code_(code)
-        , Message_(message)
-    { }
-
-    bool IsOK() const
-    {
-        return Code_ == EErrorCode::OK;   
-    }
-
-    bool IsRpcError() const
-    {
-        return Code_ < EErrorCode::OK;
-    }
-
-    bool IsServiceError() const
-    {
-        return Code_ > EErrorCode::OK;
-    }
-
-    Stroka ToString() const
-    {
-        if (Code_ == EErrorCode::OK) {
-            return "OK";
-        } else {
-            return Sprintf("(%d): %s", Code_, ~Message_);
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef TFuture<TError> TAsyncError;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: get rid of this
-#ifdef _win_
-#undef GetMessage
-#endif
+FORCED_INLINE bool IsServiceError(const TError& error)
+{
+    return error.GetCode() > TError::OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

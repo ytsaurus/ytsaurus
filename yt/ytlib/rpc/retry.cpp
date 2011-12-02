@@ -134,7 +134,7 @@ private:
         if (State == EState::Done)
             return;
 
-        if (error.IsRpcError()) {
+        if (IsRpcError(error)) {
             int count = AtomicIncrement(CurrentAttempt);
 
             CumulativeErrorMessage.append(Sprintf("\n[%d]: %s",

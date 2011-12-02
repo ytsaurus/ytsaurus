@@ -73,7 +73,7 @@ class TYPathResponse
     : public TRefCountedBase
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;

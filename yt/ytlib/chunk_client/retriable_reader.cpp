@@ -96,7 +96,7 @@ void TRetriableReader::DoReadBlocks(
 {
     if (~reader == NULL) {
         TReadResult result;
-        result.Error = NRpc::TError(
+        result.Error = TError(
             NRpc::EErrorCode::Unavailable, 
             CumulativeError);
         asyncResult->Set(result);
