@@ -3,9 +3,8 @@
 
 #include "../misc/config.h"
 #include "../misc/lazy_ptr.h"
-#include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
 #include "../ytree/ephemeral.h"
+#include "../ytree/serialize.h"
 #include "../ytree/ypath_detail.h"
 #include "../cypress/virtual.h"
 #include "../orchid/orchid_service_rpc.h"
@@ -33,12 +32,7 @@ public:
 
     TOrchidYPathService(const TYson& manifestYson)
     {
-        auto manifestBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        TYsonReader reader(~manifestBuilder);
-        manifestBuilder->BeginTree();
-        TStringInput manifestInput(manifestYson);
-        reader.Read(&manifestInput);
-        auto manifestRoot = manifestBuilder->EndTree();
+        auto manifestRoot = DeserializeFromYson(manifestYson);
 
         try {
             Manifest.Load(~manifestRoot);
