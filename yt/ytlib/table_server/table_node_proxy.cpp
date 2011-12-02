@@ -2,6 +2,7 @@
 #include "table_node_proxy.h"
 
 #include "../misc/string.h"
+#include "../misc/serialize.h"
 
 namespace NYT {
 namespace NTableServer {
@@ -79,6 +80,25 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
         ChunkManager->AddChunkToChunkList(chunk, *chunkList);
     }
 
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetTableChunks)
+{
+    UNUSED(request);
+
+    yvector<TChunkId> chunkIds;
+
+    const auto& impl = GetTypedImpl();
+
+    FOREACH (const auto& chunkListId, impl.ChunkListIds()) {
+        const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
+        chunkIds.insert(chunkIds.end(), chunkList.ChunkIds().begin(), chunkList.ChunkIds().end());
+    }
+
+    ToProto<TChunkId, Stroka>(*response->MutableChunkIds(), chunkIds);
+
+    context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
     context->Reply();
 }
 
