@@ -18,6 +18,8 @@ struct TCypressYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, GetId);
 };
 
+NYTree::TYPath GetPathFromNodeId(const TNodeId& nodeId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

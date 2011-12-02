@@ -12,7 +12,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBusServer
-    : public virtual TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IBusServer> TPtr;
 

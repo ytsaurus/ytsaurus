@@ -88,7 +88,6 @@ void TMessageRearranger::OnTimeout()
 
         OnMessageDequeued->Do(~message);
 
-        // This is likely to kill the message.
         MessageMap.erase(it);
 
         ++ExpectedSequenceId;

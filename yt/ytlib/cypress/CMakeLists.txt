@@ -22,5 +22,5 @@ SET(YT_SOURCE_FILES
     cypress_integration.cpp
 
     cypress_ypath_rpc.proto
-    cypress_ypath_rpc.h
+    cypress_ypath_rpc.cpp
 )
