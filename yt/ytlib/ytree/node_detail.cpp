@@ -77,7 +77,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 
             writer.OnEndMap();
 
-            response->SetValue(stream.Str());
+            response->set_value(stream.Str());
             context->Reply();
         } else {
             Stroka prefix;
@@ -86,7 +86,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 
             auto service = GetVirtualAttributeService(prefix);
             if (~service != NULL) {
-                response->SetValue(SyncExecuteYPathGet(~service, "/" + suffixPath));
+                response->set_value(SyncExecuteYPathGet(~service, "/" + suffixPath));
                 context->Reply();
                 return;
             }
@@ -96,7 +96,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
                 ythrow yexception() << "Node has no attributes";
             }
 
-            response->SetValue(SyncExecuteYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
+            response->set_value(SyncExecuteYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
             context->Reply();
         }
     } else {
@@ -113,7 +113,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr conte
     TTreeVisitor visitor(&writer, false);
     visitor.Visit(this);
 
-    response->SetValue(stream.Str());
+    response->set_value(stream.Str());
     context->Reply();
 }
 
@@ -138,7 +138,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
             ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
         }
 
-        auto value = request->GetValue();
+        auto value = request->value();
 
         Stroka prefix;
         TYPath suffixPath;
@@ -271,7 +271,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
     UNUSED(request);
 
     FOREACH (const auto& pair, GetChildren()) {
-        response->AddKeys(pair.first);
+        response->add_keys(pair.first);
     }
 
     context->Reply();
@@ -297,7 +297,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
+    auto value = DeserializeFromYson(request->value(), GetFactory());
     TMapNodeMixin::SetRecursive(path, ~value);
 }
 
@@ -355,7 +355,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, cons
 
 void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
+    auto value = DeserializeFromYson(request->value(), GetFactory());
     SetRecursive(path, ~value);
 }
 

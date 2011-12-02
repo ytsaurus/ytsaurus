@@ -45,10 +45,10 @@ public:
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
             proxy->SetTimeout(config.Timeout);
             auto request = proxy->AdvanceSegment();
-            request->SetSegmentId(Version.SegmentId);
-            request->SetRecordCount(Version.RecordCount);
-            request->SetEpoch(Creator->Epoch.ToProto());
-            request->SetCreateSnapshot(true);
+            request->set_segmentid(Version.SegmentId);
+            request->set_recordcount(Version.RecordCount);
+            request->set_epoch(Creator->Epoch.ToProto());
+            request->set_createsnapshot(true);
 
             Awaiter->Await(
                 request->Invoke(),
@@ -106,7 +106,7 @@ private:
             return;
         }
 
-        auto checksum = response->GetChecksum();
+        auto checksum = response->checksum();
         LOG_INFO("Remote snapshot is created (FollowerId: %d, Checksum: %" PRIx64 ")",
             followerId,
             checksum);

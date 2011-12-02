@@ -413,13 +413,13 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     bool startAutoTransaction = proxy->IsTransactionRequired(context);
 
     TMsgExecuteVerb message;
-    message.SetNodeId(proxy->GetNodeId().ToProto());
-    message.SetTransactionId(proxy->GetTransactionId().ToProto());
-    message.SetStartAutoTransaction(startAutoTransaction);
+    message.set_nodeid(proxy->GetNodeId().ToProto());
+    message.set_transactionid(proxy->GetTransactionId().ToProto());
+    message.set_startautotransaction(startAutoTransaction);
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
-        message.AddRequestParts(part.Begin(), part.Size());
+        message.add_requestparts(part.Begin(), part.Size());
     }
 
     auto change = CreateMetaChange(
@@ -451,15 +451,15 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
 
 TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
 {
-    auto nodeId = TNodeId::FromProto(message.GetNodeId());
-    auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
-    bool startAutoTransaction = message.GetStartAutoTransaction();
+    auto nodeId = TNodeId::FromProto(message.nodeid());
+    auto transactionId = TTransactionId::FromProto(message.transactionid());
+    bool startAutoTransaction = message.startautotransaction();
 
-    yvector<TSharedRef> parts(message.RequestPartsSize());
-    for (int partIndex = 0; partIndex < static_cast<int>(message.RequestPartsSize()); ++partIndex) {
+    yvector<TSharedRef> parts(message.requestparts_size());
+    for (int partIndex = 0; partIndex < static_cast<int>(message.requestparts_size()); ++partIndex) {
         // Construct a non-owning TSharedRef to avoid copying.
         // This is feasible since the message will outlive the request.
-        const auto& part = message.GetRequestParts(partIndex);
+        const auto& part = message.requestparts(partIndex);
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 

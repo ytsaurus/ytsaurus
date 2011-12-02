@@ -182,7 +182,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             proxy->SetTimeout(Config.RpcTimeout);
 
             auto request = proxy->GetChangeLogInfo();
-            request->SetChangeLogId(segmentId);
+            request->set_changelogid(segmentId);
 
             auto response = request->Invoke()->Get();
             if (!response->IsOK()) {
@@ -191,7 +191,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
-            i32 remoteRecordCount = response->GetRecordCount();
+            i32 remoteRecordCount = response->recordcount();
 
             LOG_INFO("Changelog %d has %d local record(s), %d remote record(s)",
                 segmentId,

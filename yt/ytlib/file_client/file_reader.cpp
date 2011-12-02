@@ -58,10 +58,10 @@ TFileReader::TFileReader(
             ~getChunkResponse->GetError().ToString());
     }
 
-    ChunkId = TChunkId::FromProto(getChunkResponse->GetChunkId());
-    BlockCount = getChunkResponse->GetBlockCount();
-    Size = getChunkResponse->GetSize();
-    auto addresses = FromProto<Stroka>(getChunkResponse->GetHolderAddresses());
+    ChunkId = TChunkId::FromProto(getChunkResponse->chunkid());
+    BlockCount = getChunkResponse->blockcount();
+    Size = getChunkResponse->size();
+    auto addresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
 
     CodecId = ECodecId::None; // TODO: fill in CodecId from server meta
 

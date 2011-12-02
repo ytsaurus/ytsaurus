@@ -163,9 +163,9 @@ private:
             return;
         }
 
-        auto requestId = TRequestId::FromProto(requestHeader.GetRequestId());
-        Stroka path = requestHeader.GetPath();
-        Stroka verb = requestHeader.GetVerb();
+        auto requestId = TRequestId::FromProto(requestHeader.requestid());
+        Stroka path = requestHeader.path();
+        Stroka verb = requestHeader.verb();
 
         LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s)",
             ~path,

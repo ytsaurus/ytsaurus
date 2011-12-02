@@ -25,8 +25,8 @@ TRetriableReader::TRetriableReader(
 void TRetriableReader::RequestHolders()
 {
     auto req = Proxy.FindChunk();
-    req->SetChunkId(ChunkId.ToProto());
-    req->SetTransactionId(TransactionId.ToProto());
+    req->set_chunkid(ChunkId.ToProto());
+    req->set_transactionid(TransactionId.ToProto());
     req->Invoke()->Subscribe(FromMethod(
         &TRetriableReader::OnGotHolders,
         TPtr(this)));
@@ -34,7 +34,7 @@ void TRetriableReader::RequestHolders()
 
 void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
 {
-    if (!rsp->IsOK() || rsp->HolderAddressesSize() == 0) {
+    if (!rsp->IsOK() || rsp->holderaddresses_size() == 0) {
         TGuard<TSpinLock> guard(SpinLock);
         CumulativeError.append(Sprintf("\n[%d]: %s",
             FailCount,
@@ -47,8 +47,8 @@ void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
     }
 
     yvector<Stroka> holders(
-        rsp->GetHolderAddresses().begin(),
-        rsp->GetHolderAddresses().end());
+        rsp->holderaddresses().begin(),
+        rsp->holderaddresses().end());
     TRemoteReader::TPtr reader = 
         New<TRemoteReader>(Config.RemoteReaderConfig, ChunkId, holders);
     UnderlyingReader->Set(reader);

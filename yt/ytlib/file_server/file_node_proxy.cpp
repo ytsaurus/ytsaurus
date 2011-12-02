@@ -63,7 +63,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
     TChunkId chunkId;
     auto chunkListId = impl.GetChunkListId();
     if (chunkListId == NullChunkId) {
-        response->SetChunkId(NullChunkId.ToProto());
+        response->set_chunkid(NullChunkId.ToProto());
 
         context->SetResponseInfo("ChunkId: %s", ~NullChunkId.ToString());
     } else {
@@ -73,21 +73,21 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
 
         const auto& chunk = ChunkManager->GetChunk(chunkId);
 
-        response->SetChunkId(chunkId.ToProto());
+        response->set_chunkid(chunkId.ToProto());
         FOREACH (auto holderId, chunk.Locations()) {
             auto& holder = ChunkManager->GetHolder(holderId);
-            response->AddHolderAddresses(holder.GetAddress());
+            response->add_holderaddresses(holder.GetAddress());
         }   
 
         auto meta = chunk.DeserializeMasterMeta<TChunkServerMeta>();
-        response->SetBlockCount(meta.GetBlockCount());
-        response->SetSize(meta.GetSize());
+        response->set_blockcount(meta.blockcount());
+        response->set_size(meta.size());
 
         context->SetResponseInfo("ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s]",
             ~chunkId.ToString(),
-            response->GetBlockCount(),
-            ~JoinToString(response->GetHolderAddresses()),
-            response->GetSize());
+            response->blockcount(),
+            ~JoinToString(response->holderaddresses()),
+            response->size());
     }
 
     context->Reply();
@@ -97,7 +97,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, SetFileChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->chunkid());
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 

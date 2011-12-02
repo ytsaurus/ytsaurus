@@ -56,7 +56,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         proxy->SetTimeout(Config.LookupTimeout);
 
         auto request = proxy->GetChangeLogInfo();
-        request->SetChangeLogId(version.SegmentId);
+        request->set_changelogid(version.SegmentId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TChangeLogDownloader::OnResponse,
             awaiter,
@@ -89,12 +89,12 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
     while (downloadedRecordCount < version.RecordCount) {
         auto request = proxy->ReadChangeLog();
-        request->SetChangeLogId(version.SegmentId);
-        request->SetStartRecordId(downloadedRecordCount);
+        request->set_changelogid(version.SegmentId);
+        request->set_startrecordid(downloadedRecordCount);
         i32 desiredChunkSize = Min(
             Config.RecordsPerRequest,
             version.RecordCount - downloadedRecordCount);
-        request->SetRecordCount(desiredChunkSize);
+        request->set_recordcount(desiredChunkSize);
 
         LOG_DEBUG("Requesting records %d-%d",
             downloadedRecordCount,
@@ -179,7 +179,7 @@ void TChangeLogDownloader::OnResponse(
         return;
     }
 
-    i32 recordCount = response->GetRecordCount();
+    i32 recordCount = response->recordcount();
     if (recordCount < version.RecordCount) {
         LOG_INFO("Peer %d has only %d records while %d records needed",
             peerId,

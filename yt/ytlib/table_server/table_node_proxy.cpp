@@ -54,7 +54,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TTableNodeProxy, AddTableChunks)
 {
     UNUSED(response);
 
-    auto chunkIds = FromProto<TChunkId>(request->GetChunkIds());
+    auto chunkIds = FromProto<TChunkId>(request->chunkids());
 
     context->SetRequestInfo("ChunkIds: [%s]", ~JoinToString(chunkIds));
 

@@ -55,10 +55,10 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
 {
     UNUSED(response);
 
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
+    auto transactionId = TTransactionId::FromProto(request->transactionid());
     auto rootNodeId =
-        request->HasRootNodeId()
-        ? TNodeId::FromProto(request->GetRootNodeId())
+        request->has_rootnodeid()
+        ? TNodeId::FromProto(request->rootnodeid())
         : RootNodeId;
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());

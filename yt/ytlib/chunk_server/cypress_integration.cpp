@@ -271,8 +271,8 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s", ~address));
-            request->SetType("holder");     
-            request->SetManifest("{}");     
+            request->set_type("holder");     
+            request->set_manifest("{}");     
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 ~request,
@@ -282,8 +282,8 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->SetType("orchid");     
-            request->SetManifest(Sprintf("{remote_address=\"%s\"}", ~address));     
+            request->set_type("orchid");     
+            request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 ~request,

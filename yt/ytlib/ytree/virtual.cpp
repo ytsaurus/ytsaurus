@@ -59,7 +59,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TVirtualMapBase, Get)
     }
     writer.OnEndMap(false);
 
-    response->SetValue(stream.Str());
+    response->set_value(stream.Str());
     context->Reply();
 }
 

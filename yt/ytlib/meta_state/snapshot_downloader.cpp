@@ -60,7 +60,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         proxy->SetTimeout(Config.LookupTimeout);
 
         auto request = proxy->GetSnapshotInfo();
-        request->SetSnapshotId(snapshotId);
+        request->set_snapshotid(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TSnapshotDownloader::OnResponse,
             awaiter, asyncResult, peerId));
@@ -88,7 +88,7 @@ void TSnapshotDownloader::OnResponse(
         return;
     }
     
-    i64 length = response->GetLength();
+    i64 length = response->length();
     
     LOG_INFO("Got snapshot info from peer %d (Length: %" PRId64 ")",
         peerId,
@@ -153,10 +153,10 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
         auto request = proxy->ReadSnapshot();
-        request->SetSnapshotId(snapshotId);
-        request->SetOffset(downloadedLength);
+        request->set_snapshotid(snapshotId);
+        request->set_offset(downloadedLength);
         i32 blockSize = Min(Config.BlockSize, (i32)(snapshotLength - downloadedLength));
-        request->SetLength(blockSize);
+        request->set_length(blockSize);
         auto response = request->Invoke()->Get();
 
         if (!response->IsOK()) {

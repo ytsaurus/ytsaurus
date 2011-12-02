@@ -101,9 +101,9 @@ private:
 
     void SelectChannels()
     {
-        ChunkChannels.reserve(ProtoMeta.ChannelsSize());
+        ChunkChannels.reserve(ProtoMeta.channels_size());
         for(int i = 0; i < ProtoMeta.channels_size(); ++i) {
-            ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.GetChannels(i)));
+            ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.channels(i)));
         }
 
         // Heuristic: first try to find a channel that contain the whole read channel.
@@ -132,7 +132,7 @@ private:
         for (int i = 0; i < ProtoMeta.channels_size(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(ChunkReader->Channel)) {
-                size_t blockCount = ProtoMeta.GetChannels(i).BlocksSize();
+                size_t blockCount = ProtoMeta.channels(i).blocks_size();
                 if (minBlockCount > blockCount) {
                     resultIdx = i;
                     minBlockCount = blockCount;
@@ -149,28 +149,28 @@ private:
 
     void SelectOpeningBlocks(yvector<int>& result, yvector<TBlockInfo>& blockHeap) {
         FOREACH (auto channelIdx, SelectedChannels) {
-            const auto& protoChannel = ProtoMeta.GetChannels(channelIdx);
+            const auto& protoChannel = ProtoMeta.channels(channelIdx);
             int blockIndex = -1;
             int startRow = 0;
             int lastRow = 0;
             do {
                 ++blockIndex;
-                YASSERT(blockIndex < (int)protoChannel.BlocksSize());
-                const auto& protoBlock = protoChannel.GetBlocks(blockIndex);
+                YASSERT(blockIndex < (int)protoChannel.blocks_size());
+                const auto& protoBlock = protoChannel.blocks(blockIndex);
                 // When a new block is set in TChannelReader, reader is virtually 
                 // one row behind its real starting row. E.g. for the first row of 
                 // the channel we consider start row to be -1.
                 startRow = lastRow - 1;
-                lastRow += protoBlock.GetRowCount();
+                lastRow += protoBlock.rowcount();
 
                 if (lastRow > ChunkReader->StartRow) {
                     blockHeap.push_back(TBlockInfo(
-                        protoBlock.GetBlockIndex(),
+                        protoBlock.blockindex(),
                         blockIndex,
                         channelIdx,
                         lastRow));
 
-                    result.push_back(protoBlock.GetBlockIndex());
+                    result.push_back(protoBlock.blockindex());
                     StartRows.push_back(startRow);
                     break;
                 }
@@ -190,7 +190,7 @@ private:
         while (true) {
             TBlockInfo currentBlock = blockHeap.front();
             int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-            const auto& protoChannel = ProtoMeta.GetChannels(currentBlock.ChannelIndex);
+            const auto& protoChannel = ProtoMeta.channels(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
@@ -203,16 +203,16 @@ private:
                     break;
                 }
 
-                const auto& protoBlock = protoChannel.GetBlocks(nextBlockIndex);
+                const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
 
                 blockHeap.push_back(TBlockInfo(
-                    protoBlock.GetBlockIndex(),
+                    protoBlock.blockindex(),
                     nextBlockIndex,
                     currentBlock.ChannelIndex,
-                    currentBlock.LastRow + protoBlock.GetRowCount()));
+                    currentBlock.LastRow + protoBlock.rowcount()));
 
                 std::push_heap(blockHeap.begin(), blockHeap.end());
-                result.push_back(protoBlock.GetBlockIndex());
+                result.push_back(protoBlock.blockindex());
             } else {
                 // EndRow is not set, so we reached the end of the chunk.
                 ChunkReader->EndRow = currentBlock.LastRow;

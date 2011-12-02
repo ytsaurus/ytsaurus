@@ -204,7 +204,7 @@ protected:
     {
         UNUSED(request);
 
-        response->SetNodeId(GetNodeId().ToProto());
+        response->set_nodeid(GetNodeId().ToProto());
         context->Reply();
     }
 
@@ -447,9 +447,9 @@ private:
             return;
         }
 
-        Stroka typeName = request->GetType();
+        Stroka typeName = request->type();
 
-        auto manifest = NYTree::DeserializeFromYson(request->GetManifest(),
+        auto manifest = NYTree::DeserializeFromYson(request->manifest(),
             NYTree::GetEphemeralNodeFactory());
 
         auto value = this->CypressManager->CreateDynamicNode(
@@ -458,7 +458,7 @@ private:
             ~manifest);
         CreateRecursive(context->GetPath(), ~value);
 
-        response->SetNodeId(value->GetNodeId().ToProto());
+        response->set_nodeid(value->GetNodeId().ToProto());
 
         context->Reply();
     }

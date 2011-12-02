@@ -26,9 +26,9 @@ NBus::IMessage::TPtr CreateRequestMessage(
     yvector<TSharedRef> parts;
 
     TRequestHeader requestHeader;
-    requestHeader.SetRequestId(requestId.ToProto());
-    requestHeader.SetPath(path);
-    requestHeader.SetVerb(verb);
+    requestHeader.set_requestid(requestId.ToProto());
+    requestHeader.set_path(path);
+    requestHeader.set_verb(verb);
 
     TBlob header;
     if (!SerializeProtobuf(&requestHeader, &header)) {
@@ -54,9 +54,9 @@ NBus::IMessage::TPtr CreateResponseMessage(
     yvector<TSharedRef> parts;
 
     TResponseHeader header;
-    header.SetRequestId(requestId.ToProto());
-    header.SetErrorCode(error.GetCode());
-    header.SetErrorMessage(error.GetMessage());
+    header.set_requestid(requestId.ToProto());
+    header.set_errorcode(error.GetCode());
+    header.set_errormessage(error.GetMessage());
 
     TBlob headerBlob;
     if (!SerializeProtobuf(&header, &headerBlob)) {
@@ -78,9 +78,9 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TError& error)
 {
     TResponseHeader header;
-    header.SetRequestId(requestId.ToProto());
-    header.SetErrorCode(error.GetCode());
-    header.SetErrorMessage(error.GetMessage());
+    header.set_requestid(requestId.ToProto());
+    header.set_errorcode(error.GetCode());
+    header.set_errormessage(error.GetMessage());
 
     TBlob headerBlob;
     if (!SerializeProtobuf(&header, &headerBlob)) {

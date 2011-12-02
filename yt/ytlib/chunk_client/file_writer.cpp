@@ -21,9 +21,9 @@ TFileWriter::TFileWriter(const Stroka& fileName)
 TAsyncStreamState::TAsyncResult::TPtr 
 TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 {
-    TBlockInfo* blockInfo = Meta.AddBlocks();
-    blockInfo->SetSize(static_cast<int>(data.Size()));
-    blockInfo->SetChecksum(GetChecksum(data));
+    TBlockInfo* blockInfo = Meta.add_blocks();
+    blockInfo->set_size(static_cast<int>(data.Size()));
+    blockInfo->set_checksum(GetChecksum(data));
 
     File->Write(data.Begin(), data.Size());
     return Result;
@@ -32,7 +32,7 @@ TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 TAsyncStreamState::TAsyncResult::TPtr 
 TFileWriter::AsyncClose(const TSharedRef& masterMeta)
 {
-    Meta.SetMasterMeta(masterMeta.Begin(), masterMeta.Size());
+    Meta.set_mastermeta(masterMeta.Begin(), masterMeta.Size());
 
     TBlob metaBlob(Meta.ByteSize());
     if (!Meta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {

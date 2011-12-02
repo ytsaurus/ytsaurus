@@ -136,7 +136,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
         &header,
         &messageData);
 
-    Stroka changeType = header.GetChangeType();
+    Stroka changeType = header.changetype();
 
     auto it = Methods.find(changeType);
     YASSERT(it != Methods.end());

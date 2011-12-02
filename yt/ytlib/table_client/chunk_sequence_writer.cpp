@@ -38,8 +38,8 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     NextChunk = New< TFuture<TChunkWriter::TPtr> >();
     auto req = Proxy.CreateChunk();
-    req->SetReplicaCount(Config.ReplicationFactor);
-    req->SetTransactionId(TransactionId.ToProto());
+    req->set_replicacount(Config.ReplicationFactor);
+    req->set_transactionid(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(FromMethod(
         &TChunkSequenceWriter::OnChunkCreated,
@@ -56,14 +56,14 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
     }
 
     if (rsp->IsOK()) {
-        const auto& protoAddresses = rsp->GetHolderAddresses();
+        const auto& protoAddresses = rsp->holderaddresses();
         yvector<Stroka> addresses(protoAddresses.begin(), protoAddresses.end());
 
         //ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
             Config.ChunkWriterConfig,
-            TChunkId::FromProto(rsp->GetChunkId()),
+            TChunkId::FromProto(rsp->chunkid()),
             addresses);
 
         NextChunk->Set(new TChunkWriter(

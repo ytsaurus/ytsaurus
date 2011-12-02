@@ -111,9 +111,9 @@ void TChunkReplication::ProcessExistingJobs(
     // TODO: check for missing jobs
     // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
-        auto jobId = TJobId::FromProto(jobInfo.GetJobId());
+        auto jobId = TJobId::FromProto(jobInfo.jobid());
         const auto& job = ChunkManager->GetJob(jobId);
-        auto jobState = EJobState(jobInfo.GetState());
+        auto jobState = EJobState(jobInfo.state());
         switch (jobState) {
             case EJobState::Running:
                 switch (job.GetType()) {
@@ -220,10 +220,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;
-    startInfo.SetJobId(jobId.ToProto());
-    startInfo.SetType(EJobType::Replicate);
-    startInfo.SetChunkId(chunkId.ToProto());
-    ToProto(*startInfo.MutableTargetAddresses(), targetAddresses);
+    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_type(EJobType::Replicate);
+    startInfo.set_chunkid(chunkId.ToProto());
+    ToProto(*startInfo.mutable_targetaddresses(), targetAddresses);
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
@@ -272,10 +272,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;
-    startInfo.SetJobId(jobId.ToProto());
-    startInfo.SetType(EJobType::Replicate);
-    startInfo.SetChunkId(chunkId.ToProto());
-    startInfo.AddTargetAddresses(targetHolder.GetAddress());
+    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_type(EJobType::Replicate);
+    startInfo.set_chunkid(chunkId.ToProto());
+    startInfo.add_targetaddresses(targetHolder.GetAddress());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
@@ -304,9 +304,9 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     
     auto jobId = TJobId::Create();
     NProto::TJobStartInfo startInfo;
-    startInfo.SetJobId(jobId.ToProto());
-    startInfo.SetType(EJobType::Remove);
-    startInfo.SetChunkId(chunkId.ToProto());
+    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_type(EJobType::Remove);
+    startInfo.set_chunkid(chunkId.ToProto());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",

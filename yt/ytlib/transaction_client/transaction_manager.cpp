@@ -45,7 +45,7 @@ public:
             State = EState::Aborted;
             LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-        Id = TTransactionId::FromProto(rsp->GetTransactionId());
+        Id = TTransactionId::FromProto(rsp->transactionid());
         State = EState::Active;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
@@ -81,7 +81,7 @@ public:
         MakeStateTransition(EState::Committing);
 
         auto req = Proxy.CommitTransaction();
-        req->SetTransactionId(Id.ToProto());
+        req->set_transactionid(Id.ToProto());
 
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
         auto rsp = req->Invoke()->Get();
@@ -112,7 +112,7 @@ public:
 
         // Fire and forget.
         auto req = Proxy.AbortTransaction();
-        req->SetTransactionId(Id.ToProto());
+        req->set_transactionid(Id.ToProto());
         req->Invoke();
 
         DoAbort();
@@ -248,7 +248,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
     auto req = proxy.RenewTransactionLease();
-    req->SetTransactionId(id.ToProto());
+    req->set_transactionid(id.ToProto());
 
     req->Invoke()->Subscribe(FromMethod(
         &TTransactionManager::OnPingResponse,

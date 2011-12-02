@@ -71,15 +71,15 @@ bool TTableWriter::NodeExists(const Stroka& nodePath)
         return false;
     }
 
-    NodeId = rsp->GetNodeId();
+    NodeId = rsp->nodeid();
     return true;
 }
 
 void TTableWriter::CreateTableNode(const Stroka& nodePath)
 {
     auto req = TCypressYPathProxy::Create();
-    req->SetType("table");
-    req->SetManifest("{}");
+    req->set_type("table");
+    req->set_manifest("{}");
 
     auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
 
@@ -91,7 +91,7 @@ void TTableWriter::CreateTableNode(const Stroka& nodePath)
             ~error.ToString());
     }
 
-    NodeId = rsp->GetNodeId();
+    NodeId = rsp->nodeid();
 }
 
 void TTableWriter::Write(const TColumn& column, TValue value)
@@ -111,7 +111,7 @@ void TTableWriter::Close()
     // TODO: use node id
     auto req = TTableYPathProxy::AddTableChunks();
     FOREACH(const auto& chunkId, Writer->GetWrittenChunks()) {
-        req->AddChunkIds(chunkId.ToProto());
+        req->add_chunkids(chunkId.ToProto());
     }
 
     auto rsp = Proxy.Execute(Path, Transaction->GetId(), ~req)->Get();

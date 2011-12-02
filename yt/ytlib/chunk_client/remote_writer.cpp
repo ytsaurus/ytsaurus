@@ -230,8 +230,8 @@ TRemoteWriter::TGroup::PutBlocks(int node)
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
     auto req = Writer->Nodes[node]->Proxy.PutBlocks();
-    req->SetChunkId(Writer->ChunkId.ToProto());
-    req->SetStartBlockIndex(StartBlockIndex);
+    req->set_chunkid(Writer->ChunkId.ToProto());
+    req->set_startblockindex(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
     LOG_DEBUG("Putting blocks (ChunkId: %s, Blocks: %d-%d, Address: %s)",
@@ -290,10 +290,10 @@ TRemoteWriter::TGroup::SendBlocks(int srcNode, int dstNode)
         ~Writer->Nodes[dstNode]->Address);
 
     auto req = Writer->Nodes[srcNode]->Proxy.SendBlocks();
-    req->SetChunkId(Writer->ChunkId.ToProto());
-    req->SetStartBlockIndex(StartBlockIndex);
-    req->SetBlockCount(Blocks.ysize());
-    req->SetAddress(Writer->Nodes[dstNode]->Address);
+    req->set_chunkid(Writer->ChunkId.ToProto());
+    req->set_startblockindex(StartBlockIndex);
+    req->set_blockcount(Blocks.ysize());
+    req->set_address(Writer->Nodes[dstNode]->Address);
     return req->Invoke();
 }
 
@@ -494,8 +494,8 @@ TRemoteWriter::FlushBlock(int node, int blockIndex)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.FlushBlock();
-    req->SetChunkId(ChunkId.ToProto());
-    req->SetBlockIndex(blockIndex);
+    req->set_chunkid(ChunkId.ToProto());
+    req->set_blockindex(blockIndex);
     return req->Invoke();
 }
 
@@ -689,8 +689,8 @@ TRemoteWriter::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.StartChunk();
-    req->SetChunkId(ChunkId.ToProto());
-    req->SetWindowSize(Config.WindowSize);
+    req->set_chunkid(ChunkId.ToProto());
+    req->set_windowsize(Config.WindowSize);
     return req->Invoke();
 }
 
@@ -766,8 +766,8 @@ TRemoteWriter::FinishChunk(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.FinishChunk();
-    req->SetChunkId(ChunkId.ToProto());
-    req->SetMeta(MasterMeta.Begin(), MasterMeta.Size());
+    req->set_chunkid(ChunkId.ToProto());
+    req->set_meta(MasterMeta.Begin(), MasterMeta.Size());
     return req->Invoke();
 }
 
@@ -809,7 +809,7 @@ void TRemoteWriter::PingSession(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.PingSession();
-    req->SetChunkId(ChunkId.ToProto());
+    req->set_chunkid(ChunkId.ToProto());
     req->Invoke();
 
     SchedulePing(node);

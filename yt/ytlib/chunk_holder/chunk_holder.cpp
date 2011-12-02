@@ -109,8 +109,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, StartChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    int windowSize = request->GetWindowSize();
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    int windowSize = request->windowsize();
 
     context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
         ~chunkId.ToString(),
@@ -128,8 +128,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, FinishChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    TSharedRef masterMeta(TBlob(request->GetMeta().begin(), request->GetMeta().end()));
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    TSharedRef masterMeta(TBlob(request->meta().begin(), request->meta().end()));
 
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
@@ -153,8 +153,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, PutBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    i32 startBlockIndex = request->GetStartBlockIndex();
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    i32 startBlockIndex = request->startblockindex();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
         ~chunkId.ToString(),
@@ -179,10 +179,10 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    i32 startBlockIndex = request->GetStartBlockIndex();
-    i32 blockCount = request->GetBlockCount();
-    Stroka address = request->GetAddress();
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    i32 startBlockIndex = request->startblockindex();
+    i32 blockCount = request->blockcount();
+    Stroka address = request->address();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, Address: %s",
         ~chunkId.ToString(),
@@ -197,8 +197,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, SendBlocks)
     TProxy proxy(~ChannelCache.GetChannel(address));
     proxy.SetTimeout(Config.RpcTimeout);
     auto putRequest = proxy.PutBlocks();
-    putRequest->SetChunkId(chunkId.ToProto());
-    putRequest->SetStartBlockIndex(startBlockIndex);
+    putRequest->set_chunkid(chunkId.ToProto());
+    putRequest->set_startblockindex(startBlockIndex);
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
         auto block = session->GetBlock(blockIndex);
@@ -231,8 +231,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    int blockCount = static_cast<int>(request->BlockIndexesSize());
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    int blockCount = static_cast<int>(request->blockindexes_size());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
         ~chunkId.ToString(),
@@ -243,7 +243,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, GetBlocks)
     auto awaiter = New<TParallelAwaiter>();
 
     for (int index = 0; index < blockCount; ++index) {
-        i32 blockIndex = request->GetBlockIndexes(index);
+        i32 blockIndex = request->blockindexes(index);
 
         LOG_DEBUG("GetBlocks: (Index: %d)", blockIndex);
 
@@ -277,8 +277,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, FlushBlock)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    int blockIndex = request->GetBlockIndex();
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    int blockIndex = request->blockindex();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
         ~chunkId.ToString(),
@@ -301,7 +301,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkHolder, PingSession)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto chunkId = TChunkId::FromProto(request->chunkid());
     auto session = GetSession(chunkId);
     session->RenewLease();
 

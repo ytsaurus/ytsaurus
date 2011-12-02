@@ -55,8 +55,8 @@ TFileWriter::TFileWriter(
     CypressProxy->SetTimeout(config.MasterRpcTimeout);
 
     auto createNodeRequest = TCypressYPathProxy::Create();
-    createNodeRequest->SetType("file");
-    createNodeRequest->SetManifest("{}");
+    createNodeRequest->set_type("file");
+    createNodeRequest->set_manifest("{}");
 
     auto createNodeResponse = CypressProxy->Execute(
         Path,
@@ -68,7 +68,7 @@ TFileWriter::TFileWriter(
             ~createNodeResponse->GetError().ToString());
     }
 
-    NodeId = TNodeId::FromProto(createNodeResponse->GetNodeId());
+    NodeId = TNodeId::FromProto(createNodeResponse->nodeid());
 
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 
@@ -77,8 +77,8 @@ TFileWriter::TFileWriter(
 
     TChunkServiceProxy chunkProxy(masterChannel);
     auto createChunkRequest = chunkProxy.CreateChunk();
-    createChunkRequest->SetTransactionId(transaction->GetId().ToProto());
-    createChunkRequest->SetReplicaCount(uploadReplicaCount);
+    createChunkRequest->set_transactionid(transaction->GetId().ToProto());
+    createChunkRequest->set_replicacount(uploadReplicaCount);
 
     auto createChunkResponse = createChunkRequest->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
@@ -86,8 +86,8 @@ TFileWriter::TFileWriter(
             ~createChunkResponse->GetError().ToString());
     }
 
-    ChunkId = TChunkId::FromProto(createChunkResponse->GetChunkId());
-    auto addresses = FromProto<Stroka>(createChunkResponse->GetHolderAddresses());
+    ChunkId = TChunkId::FromProto(createChunkResponse->chunkid());
+    auto addresses = FromProto<Stroka>(createChunkResponse->holderaddresses());
 
     LOG_INFO("File chunk created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
@@ -162,9 +162,9 @@ void TFileWriter::Close()
 
     // Construct server meta.
     TChunkServerMeta meta;
-    meta.SetBlockCount(BlockCount);
-    meta.SetSize(Size);
-    meta.SetCodecId(Config.CodecId);
+    meta.set_blockcount(BlockCount);
+    meta.set_size(Size);
+    meta.set_codecid(Config.CodecId);
     TBlob metaBlob;
     SerializeProtobuf(&meta, &metaBlob);
 
@@ -184,7 +184,7 @@ void TFileWriter::Close()
     LOG_INFO("Attaching file chunk to file node");
 
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
-    setChunkRequest->SetChunkId(ChunkId.ToProto());
+    setChunkRequest->set_chunkid(ChunkId.ToProto());
 
     auto setChunkResponse = CypressProxy->Execute(NodeId, Transaction->GetId(), ~setChunkRequest)->Get();
     if (!setChunkResponse->IsOK()) {

@@ -48,10 +48,10 @@ void TRemoteReader::DoReadBlocks(
     proxy.SetTimeout(Config.HolderRpcTimeout);
 
     auto req = proxy.GetBlocks();
-    req->SetChunkId(ChunkId.ToProto());
+    req->set_chunkid(ChunkId.ToProto());
 
     FOREACH(auto index, blockIndexes) {
-        req->AddBlockIndexes(index);
+        req->add_blockindexes(index);
     }
 
     req->Invoke()->Subscribe(FromMethod(

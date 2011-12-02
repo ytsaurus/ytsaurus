@@ -127,7 +127,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
     { \
         UNUSED(response); \
-        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, request->GetValue()); \
+        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, request->value()); \
         context->Reply(); \
     }
 

@@ -306,7 +306,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 snapshotId = request->GetSnapshotId();
+        i32 snapshotId = request->snapshotid();
 
         context->SetRequestInfo("SnapshotId: %d",
             snapshotId);
@@ -324,7 +324,7 @@ public:
             TChecksum checksum = reader->GetChecksum();
             int prevRecordCount = reader->GetPrevRecordCount();
 
-            response->SetLength(length);
+            response->set_length(length);
 
             context->SetResponseInfo("Length: %" PRId64 ", PrevRecordCount: %d, Checksum: %" PRIx64,
                 length,
@@ -347,9 +347,9 @@ public:
 
         UNUSED(response);
 
-        i32 snapshotId = request->GetSnapshotId();
-        i64 offset = request->GetOffset();
-        i32 length = request->GetLength();
+        i32 snapshotId = request->snapshotid();
+        i64 offset = request->offset();
+        i32 length = request->length();
 
         context->SetRequestInfo("SnapshotId: %d, Offset: %" PRId64 ", Length: %d",
             snapshotId,
@@ -409,7 +409,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 changeLogId = request->GetChangeLogId();
+        i32 changeLogId = request->changelogid();
 
         context->SetRequestInfo("ChangeLogId: %d",
             changeLogId);
@@ -423,7 +423,7 @@ public:
 
             i32 recordCount = changeLog->GetRecordCount();
         
-            response->SetRecordCount(recordCount);
+            response->set_recordcount(recordCount);
         
             context->SetResponseInfo("RecordCount: %d", recordCount);
             context->Reply();
@@ -442,9 +442,9 @@ public:
 
         UNUSED(response);
 
-        i32 changeLogId = request->GetChangeLogId();
-        i32 startRecordId = request->GetStartRecordId();
-        i32 recordCount = request->GetRecordCount();
+        i32 changeLogId = request->changelogid();
+        i32 startRecordId = request->startrecordid();
+        i32 recordCount = request->recordcount();
     
         context->SetRequestInfo("ChangeLogId: %d, StartRecordId: %d, RecordCount: %d",
             changeLogId,
@@ -483,7 +483,7 @@ public:
             yvector<TSharedRef> recordData;
             changeLog->Read(startRecordId, recordCount, &recordData);
 
-            context->Response().SetRecordsRead(recordData.ysize());
+            context->Response().set_recordsread(recordData.ysize());
             context->Response().Attachments().insert(
                 context->Response().Attachments().end(),
                 recordData.begin(),
@@ -614,10 +614,10 @@ public:
 
                 auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
                 auto request = proxy->AdvanceSegment();
-                request->SetSegmentId(version.SegmentId);
-                request->SetRecordCount(version.RecordCount);
-                request->SetEpoch(epoch.ToProto());
-                request->SetCreateSnapshot(false);
+                request->set_segmentid(version.SegmentId);
+                request->set_recordcount(version.RecordCount);
+                request->set_epoch(epoch.ToProto());
+                request->set_createsnapshot(false);
                 request->Invoke()->Subscribe(FromMethod(
                     &TThis::OnRemoteAdvanceSegment,
                     TPtr(this),
@@ -635,9 +635,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TEpoch epoch = TEpoch::FromProto(request->GetEpoch());
-        i32 segmentId = request->GetSegmentId();
-        i32 recordCount = request->GetRecordCount();
+        TEpoch epoch = TEpoch::FromProto(request->epoch());
+        i32 segmentId = request->segmentid();
+        i32 recordCount = request->recordcount();
         TMetaVersion version(segmentId, recordCount);
 
         context->SetRequestInfo("Epoch: %s, Version: %s",
@@ -683,7 +683,7 @@ public:
                         Restart();
                     }
 
-                    response->SetCommitted(false);
+                    response->set_committed(false);
                     context->Reply();
                 } else {
                     LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
@@ -705,11 +705,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 segmentId = request->GetSegmentId();
-        i32 recordCount = request->GetRecordCount();
+        i32 segmentId = request->segmentid();
+        i32 recordCount = request->recordcount();
         TMetaVersion version(segmentId, recordCount);
-        auto epoch = TEpoch::FromProto(request->GetEpoch());
-        i32 maxSnapshotId = request->GetMaxSnapshotId();
+        auto epoch = TEpoch::FromProto(request->epoch());
+        i32 maxSnapshotId = request->maxsnapshotid();
 
         context->SetRequestInfo("Version: %s,  Epoch: %s, MaxSnapshotId: %d",
             ~version.ToString(),
@@ -762,7 +762,7 @@ public:
                 YUNREACHABLE();
         }
 
-        response->SetStatus(status);
+        response->set_status(status);
 
         // Reply with OK in any case.
         context->Reply();
@@ -773,11 +773,11 @@ public:
         UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epoch = TEpoch::FromProto(request->GetEpoch());
-        i32 segmentId = request->GetSegmentId();
-        i32 recordCount = request->GetRecordCount();
+        auto epoch = TEpoch::FromProto(request->epoch());
+        i32 segmentId = request->segmentid();
+        i32 recordCount = request->recordcount();
         TMetaVersion version(segmentId, recordCount);
-        bool createSnapshot = request->GetCreateSnapshot();
+        bool createSnapshot = request->createsnapshot();
 
         context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
             ~epoch.ToString(),
@@ -892,7 +892,7 @@ public:
 
         switch (result) {
             case TCommitterBase::EResult::Committed:
-                response.SetCommitted(true);
+                response.set_committed(true);
                 context->Reply();
                 break;
 
@@ -942,7 +942,7 @@ public:
 
         switch (result.ResultCode) {
             case TSnapshotCreator::EResultCode::OK:
-                response.SetChecksum(result.Checksum);
+                response.set_checksum(result.Checksum);
                 context->Reply();
                 break;
             case TSnapshotCreator::EResultCode::InvalidVersion:

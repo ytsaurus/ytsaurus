@@ -56,7 +56,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    Error_ = TError(header.GetErrorCode(), header.GetErrorMessage());
+    Error_ = TError(header.errorcode(), header.errormessage());
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -170,14 +170,14 @@ TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
     request->SetPath(path);
     auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
-    return response->GetValue();
+    return response->value();
 }
 
 void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value)
 {
     auto request = TYPathProxy::Set();
     request->SetPath(path);
-    request->SetValue(value);
+    request->set_value(value);
     auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
 }
@@ -196,7 +196,7 @@ yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
     request->SetPath(path);
     auto response = ExecuteVerb(rootService, ~request)->Get();
     response->ThrowIfError();
-    return FromProto<Stroka>(response->GetKeys());
+    return FromProto<Stroka>(response->keys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

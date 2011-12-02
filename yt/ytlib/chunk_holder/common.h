@@ -97,20 +97,20 @@ struct THolderStatistics
     static THolderStatistics FromProto(const NChunkServer::NProto::THolderStatistics& proto)
     {
         THolderStatistics result;
-        result.AvailableSpace = proto.GetAvailableSpace();
-        result.UsedSpace = proto.GetUsedSpace();
-        result.ChunkCount = proto.GetChunkCount();
-        result.SessionCount = proto.GetSessionCount();
+        result.AvailableSpace = proto.availablespace();
+        result.UsedSpace = proto.usedspace();
+        result.ChunkCount = proto.chunkcount();
+        result.SessionCount = proto.sessioncount();
         return result;
     }
 
     NChunkServer::NProto::THolderStatistics ToProto() const
     {
         NChunkServer::NProto::THolderStatistics result;
-        result.SetAvailableSpace(AvailableSpace);
-        result.SetUsedSpace(UsedSpace);
-        result.SetChunkCount(ChunkCount);
-        result.SetSessionCount(SessionCount);
+        result.set_availablespace(AvailableSpace);
+        result.set_usedspace(UsedSpace);
+        result.set_chunkcount(ChunkCount);
+        result.set_sessioncount(SessionCount);
         return result;
     }
 

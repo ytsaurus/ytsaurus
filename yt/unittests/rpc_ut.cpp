@@ -103,8 +103,8 @@ public:
 
 DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
 {
-    int a = request->GetA();
-    response->SetB(a + 100);
+    int a = request->a();
+    response->set_b(a + 100);
     context->Reply();
 }
 
@@ -187,7 +187,7 @@ public:
     void CheckReply(TRspSomeCall::TPtr response, int expected)
     {
         EXPECT_IS_TRUE(response->IsOK());
-        EXPECT_EQ(expected, response->GetB());
+        EXPECT_EQ(expected, response->b());
 
         --NumRepliesWaiting;
         if (NumRepliesWaiting == 0) {
@@ -207,12 +207,12 @@ TEST_F(TRpcTest, Send)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
-    request->SetA(42);
+    request->set_a(42);
     auto result = request->Invoke();
     auto response = result->Get();
 
     EXPECT_IS_TRUE(response->IsOK());
-    EXPECT_EQ(142, response->GetB());
+    EXPECT_EQ(142, response->b());
 }
 
 TEST_F(TRpcTest, ManyAsyncSends)
@@ -224,7 +224,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy->SomeCall();
-        request->SetA(i);
+        request->set_a(i);
         request->Invoke()->Subscribe(FromMethod(&TResponseHandler::CheckReply, handler, i + 100));
     }
 

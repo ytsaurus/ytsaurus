@@ -383,8 +383,8 @@ void ParseYPathRequestHeader(
         LOG_FATAL("Error deserializing YPath request header");
     }
 
-    *path = header.GetPath();
-    *verb = header.GetVerb();
+    *path = header.path();
+    *verb = header.verb();
 }
 
 void ParseYPathResponseHeader(
@@ -398,7 +398,7 @@ void ParseYPathResponseHeader(
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    *error = TError(header.GetErrorCode(), header.GetErrorMessage());
+    *error = TError(header.errorcode(), header.errormessage());
 }
 
 IMessage::TPtr UpdateYPathRequestHeader(
@@ -409,9 +409,9 @@ IMessage::TPtr UpdateYPathRequestHeader(
     YASSERT(message != NULL);
 
     TRequestHeader header;
-    header.SetRequestId(TRequestId().ToProto());
-    header.SetPath(path);
-    header.SetVerb(verb);
+    header.set_requestid(TRequestId().ToProto());
+    header.set_path(path);
+    header.set_verb(verb);
 
     TBlob headerData;
     if (!SerializeProtobuf(&header, &headerData)) {
@@ -432,9 +432,9 @@ IMessage::TPtr UpdateYPathResponseHeader(
     YASSERT(message != NULL);
 
     TResponseHeader header;
-    header.SetRequestId(TRequestId().ToProto());
-    header.SetErrorCode(error.GetCode());
-    header.SetErrorMessage(error.GetMessage());
+    header.set_requestid(TRequestId().ToProto());
+    header.set_errorcode(error.GetCode());
+    header.set_errormessage(error.GetMessage());
 
     TBlob headerData;
     if (!SerializeProtobuf(&header, &headerData)) {
@@ -523,7 +523,7 @@ void ReplyYPathWithMessage(
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    TError error(header.GetErrorCode(), header.GetErrorMessage());
+    TError error(header.errorcode(), header.errormessage());
 
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);

@@ -113,7 +113,7 @@ public:
         YASSERT(transactionId != NTransactionServer::NullTransactionId);
 
         TMsgCreateChunk message;
-        message.SetTransactionId(transactionId.ToProto());
+        message.set_transactionid(transactionId.ToProto());
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -210,8 +210,8 @@ public:
         const NChunkHolder::THolderStatistics& statistics)
     {
         TMsgRegisterHolder message;
-        message.SetAddress(address);
-        *message.MutableStatistics() = statistics.ToProto();
+        message.set_address(address);
+        *message.mutable_statistics() = statistics.ToProto();
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -223,7 +223,7 @@ public:
     TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId)
     {
         TMsgUnregisterHolder message;
-        message.SetHolderId(holderId);
+        message.set_holderid(holderId);
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -299,7 +299,7 @@ private:
         LOG_INFO_IF(!IsRecovery(), "Chunk created (ChunkId: %s)",
             ~chunkId.ToString());
 
-        auto transactionId = TTransactionId::FromProto(message.GetTransactionId());
+        auto transactionId = TTransactionId::FromProto(message.transactionid());
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.RegisteredChunks().push_back(chunkId);
 
@@ -347,8 +347,8 @@ private:
 
     THolderId RegisterHolder(const TMsgRegisterHolder& message)
     {
-        Stroka address = message.GetAddress();
-        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.GetStatistics());
+        Stroka address = message.address();
+        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.statistics());
     
         THolderId holderId = HolderIdGenerator.Next();
     
@@ -383,7 +383,7 @@ private:
 
     TVoid UnregisterHolder(const TMsgUnregisterHolder& message)
     { 
-        auto holderId = message.GetHolderId();
+        auto holderId = message.holderid();
 
         const auto& holder = GetHolder(holderId);
 
@@ -395,8 +395,8 @@ private:
 
     TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
     {
-        auto holderId = message.GetHolderId();
-        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.GetStatistics());
+        auto holderId = message.holderid();
+        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.statistics());
 
         auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics() = statistics;
@@ -406,11 +406,11 @@ private:
             ChunkPlacement->OnHolderUpdated(holder);
         }
 
-        FOREACH(const auto& chunkInfo, message.GetAddedChunks()) {
+        FOREACH(const auto& chunkInfo, message.addedchunks()) {
             ProcessAddedChunk(holder, chunkInfo);
         }
 
-        FOREACH(auto protoChunkId, message.GetRemovedChunks()) {
+        FOREACH(auto protoChunkId, message.removedchunks()) {
             ProcessRemovedChunk(holder, TChunkId::FromProto(protoChunkId));
         }
 
@@ -424,22 +424,22 @@ private:
             holderId,
             ~ToString(isFirstHeartbeat),
             ~statistics.ToString(),
-            static_cast<int>(message.AddedChunksSize()),
-            static_cast<int>(message.RemovedChunksSize()));
+            static_cast<int>(message.addedchunks_size()),
+            static_cast<int>(message.removedchunks_size()));
 
         return TVoid();
     }
 
     TVoid HeartbeatResponse(const TMsgHeartbeatResponse& message)
     {
-        auto holderId = message.GetHolderId();
+        auto holderId = message.holderid();
         auto& holder = GetHolderForUpdate(holderId);
 
-        FOREACH(const auto& startInfo, message.GetStartedJobs()) {
+        FOREACH(const auto& startInfo, message.startedjobs()) {
             DoAddJob(holder, startInfo);
         }
 
-        FOREACH(auto protoJobId, message.GetStoppedJobs()) {
+        FOREACH(auto protoJobId, message.stoppedjobs()) {
             const auto& job = GetJob(TJobId::FromProto(protoJobId));
             DoRemoveJob(holder, job);
         }
@@ -447,8 +447,8 @@ private:
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
             ~holder.GetAddress(),
             holderId,
-            static_cast<int>(message.StartedJobsSize()),
-            static_cast<int>(message.StoppedJobsSize()));
+            static_cast<int>(message.startedjobs_size()),
+            static_cast<int>(message.stoppedjobs_size()));
 
         return TVoid();
     }
@@ -663,10 +663,10 @@ private:
 
     void DoAddJob(THolder& holder, const TJobStartInfo& jobInfo)
     {
-        auto chunkId = TChunkId::FromProto(jobInfo.GetChunkId());
-        auto jobId = TJobId::FromProto(jobInfo.GetJobId());
-        auto targetAddresses = FromProto<Stroka>(jobInfo.GetTargetAddresses());
-        auto jobType = EJobType(jobInfo.GetType());
+        auto chunkId = TChunkId::FromProto(jobInfo.chunkid());
+        auto jobId = TJobId::FromProto(jobInfo.jobid());
+        auto targetAddresses = FromProto<Stroka>(jobInfo.targetaddresses());
+        auto jobType = EJobType(jobInfo.type());
 
         auto* job = new TJob(
             jobType,
@@ -735,8 +735,8 @@ private:
         const TChunkInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
-        auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
-        i64 size = chunkInfo.GetSize();
+        auto chunkId = TChunkId::FromProto(chunkInfo.id());
+        i64 size = chunkInfo.size();
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
@@ -766,8 +766,8 @@ private:
         }
 
         TRef masterMeta(
-            const_cast<char*>(chunkInfo.GetMasterMeta().begin()),
-            chunkInfo.GetMasterMeta().size());
+            const_cast<char*>(chunkInfo.mastermeta().begin()),
+            chunkInfo.mastermeta().size());
 
         if (chunk->GetMasterMeta() != TSharedRef() &&
             !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))

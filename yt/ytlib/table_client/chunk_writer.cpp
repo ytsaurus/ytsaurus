@@ -35,7 +35,7 @@ TChunkWriter::TChunkWriter(
     
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
-        *ChunkMeta.AddChannels() = channel.ToProto();
+        *ChunkMeta.add_channels() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 }
@@ -101,9 +101,9 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     auto channel = ChannelWriters[channelIndex];
 
-    NProto::TBlockInfo* blockInfo = ChunkMeta.MutableChannels(channelIndex)->AddBlocks();
-    blockInfo->SetBlockIndex(CurrentBlockIndex);
-    blockInfo->SetRowCount(channel->GetCurrentRowCount());
+    NProto::TBlockInfo* blockInfo = ChunkMeta.mutable_channels(channelIndex)->add_blocks();
+    blockInfo->set_blockindex(CurrentBlockIndex);
+    blockInfo->set_rowcount(channel->GetCurrentRowCount());
 
     auto& codec = ICodec::GetCodec(CodecId);
     auto data = codec.Encode(channel->FlushBlock());
@@ -157,7 +157,7 @@ void TChunkWriter::ContinueClose(
         }
     }
 
-    ChunkMeta.SetCodecId(CodecId);
+    ChunkMeta.set_codecid(CodecId);
 
     TBlob metaBlob;
     if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {

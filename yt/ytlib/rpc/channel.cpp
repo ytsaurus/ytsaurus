@@ -167,7 +167,7 @@ private:
             LOG_FATAL("Error deserializing response header");
         }
 
-        auto requestId = TRequestId::FromProto(header.GetRequestId());
+        auto requestId = TRequestId::FromProto(header.requestid());
     
         IClientResponseHandler::TPtr responseHandler;
         {
@@ -192,12 +192,12 @@ private:
             UnregisterRequest(it);
         }
 
-        if (header.GetErrorCode() == TError::OK) {
+        if (header.errorcode() == TError::OK) {
             responseHandler->OnResponse(~message);
         } else {
             responseHandler->OnError(TError(
-                header.GetErrorCode(),
-                header.GetErrorMessage()));
+                header.errorcode(),
+                header.errormessage()));
         }
     }
 

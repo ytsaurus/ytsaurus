@@ -91,9 +91,9 @@ public:
             proxy->SetTimeout(Committer->Config.RpcTimeout);
 
             auto request = proxy->ApplyChanges();
-            request->SetSegmentId(Version.SegmentId);
-            request->SetRecordCount(Version.RecordCount);
-            request->SetEpoch(Committer->Epoch.ToProto());
+            request->set_segmentid(Version.SegmentId);
+            request->set_recordcount(Version.RecordCount);
+            request->set_epoch(Committer->Epoch.ToProto());
             FOREACH(const auto& change, BatchedChanges) {
                 request->Attachments().push_back(change);
             }
@@ -147,7 +147,7 @@ private:
             return;
         }
 
-        if (response->GetCommitted()) {
+        if (response->committed()) {
             LOG_DEBUG("Changes are committed by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
                 ~Version.ToString(),
                 BatchedChanges.ysize(),

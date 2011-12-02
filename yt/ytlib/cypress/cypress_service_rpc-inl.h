@@ -19,7 +19,7 @@ TCypressServiceProxy::Execute(
 {
     innerRequest->SetPath(path);
     auto outerRequest = Execute();
-    outerRequest->SetTransactionId(transactionId.ToProto());
+    outerRequest->set_transactionid(transactionId.ToProto());
     return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
         ~outerRequest,
         innerRequest);
@@ -34,8 +34,8 @@ TCypressServiceProxy::Execute(
 {
     innerRequest->SetPath("/");
     auto outerRequest = Execute();
-    outerRequest->SetRootNodeId(rootNodeId.ToProto());
-    outerRequest->SetTransactionId(transactionId.ToProto());
+    outerRequest->set_rootnodeid(rootNodeId.ToProto());
+    outerRequest->set_transactionid(transactionId.ToProto());
     return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
         ~outerRequest,
         innerRequest);

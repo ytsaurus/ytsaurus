@@ -35,18 +35,18 @@ TColumn TRange::End() const
 NProto::TRange TRange::ToProto() const
 {
     NProto::TRange protoRange;
-    protoRange.SetBegin(Begin_);
-    protoRange.SetEnd(End_);
-    protoRange.SetIsInfinite(IsInfinite_);
+    protoRange.set_begin(Begin_);
+    protoRange.set_end(End_);
+    protoRange.set_isinfinite(IsInfinite_);
     return protoRange;
 }
 
 TRange TRange::FromProto(const NProto::TRange& protoRange)
 {
-    if (protoRange.GetIsInfinite()) {
-        return TRange(protoRange.GetBegin());
+    if (protoRange.isinfinite()) {
+        return TRange(protoRange.begin());
     } else {
-        return TRange(protoRange.GetBegin(), protoRange.GetEnd());
+        return TRange(protoRange.begin(), protoRange.end());
     }
 }
 
@@ -116,11 +116,11 @@ NProto::TChannel TChannel::ToProto() const
 {
     NProto::TChannel protoChannel;
     FOREACH(auto column, Columns) {
-        protoChannel.AddColumns(~column);
+        protoChannel.add_columns(~column);
     }
 
     FOREACH(const auto& range, Ranges) {
-        *protoChannel.AddRanges() = range.ToProto();
+        *protoChannel.add_ranges() = range.ToProto();
     }
     return protoChannel;
 }
@@ -129,11 +129,11 @@ NYT::NTableClient::TChannel TChannel::FromProto( const NProto::TChannel& protoCh
 {
     TChannel result;
     for (int i = 0; i < protoChannel.columns_size(); ++i) {
-        result.AddColumn(protoChannel.GetColumns(i));
+        result.AddColumn(protoChannel.columns(i));
     }
 
     for (int i = 0; i < protoChannel.ranges_size(); ++i) {
-        result.AddRange(TRange::FromProto(protoChannel.GetRanges(i)));
+        result.AddRange(TRange::FromProto(protoChannel.ranges(i)));
     }
     return result;
 }

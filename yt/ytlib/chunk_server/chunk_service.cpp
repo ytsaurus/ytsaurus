@@ -70,8 +70,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
 {
     UNUSED(response);
 
-    Stroka address = request->GetAddress();
-    auto statistics = THolderStatistics::FromProto(request->GetStatistics());
+    Stroka address = request->address();
+    auto statistics = THolderStatistics::FromProto(request->statistics());
     
     context->SetRequestInfo("Address: %s, %s",
         ~address,
@@ -83,7 +83,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
         ->InitiateRegisterHolder(address, statistics)
         ->OnSuccess(~FromFunctor([=] (THolderId id)
             {
-                response->SetHolderId(id);
+                response->set_holderid(id);
                 context->SetResponseInfo("HolderId: %d", id);
                 context->Reply();
             }))
@@ -95,7 +95,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 {
     UNUSED(response);
 
-    auto holderId = request->GetHolderId();
+    auto holderId = request->holderid();
 
     context->SetRequestInfo("HolderId: %d", holderId);
 
@@ -105,13 +105,13 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
     const auto& holder = ChunkManager->GetHolder(holderId);
 
     NProto::TMsgHeartbeatRequest requestMessage;
-    requestMessage.SetHolderId(holderId);
-    *requestMessage.MutableStatistics() = request->GetStatistics();
+    requestMessage.set_holderid(holderId);
+    *requestMessage.mutable_statistics() = request->statistics();
 
-    FOREACH(const auto& chunkInfo, request->GetAddedChunks()) {
-        auto chunkId = TChunkId::FromProto(chunkInfo.GetId());
+    FOREACH(const auto& chunkInfo, request->addedchunks()) {
+        auto chunkId = TChunkId::FromProto(chunkInfo.id());
         if (holder.ChunkIds().find(chunkId) == holder.ChunkIds().end()) {
-            *requestMessage.AddAddedChunks() = chunkInfo;
+            *requestMessage.add_addedchunks() = chunkInfo;
         } else {
             LOG_WARNING("Chunk replica is already added (ChunkId: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
@@ -120,10 +120,10 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         }
     }
 
-    FOREACH(const auto& protoChunkId, request->GetRemovedChunks()) {
+    FOREACH(const auto& protoChunkId, request->removedchunks()) {
         auto chunkId = TChunkId::FromProto(protoChunkId);
         if (holder.ChunkIds().find(chunkId) != holder.ChunkIds().end()) {
-            requestMessage.AddRemovedChunks(chunkId.ToProto());
+            requestMessage.add_removedchunks(chunkId.ToProto());
         } else if (ChunkManager->FindChunk(chunkId) != NULL) {
             LOG_WARNING("Chunk replica is already removed (ChunkId: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
@@ -137,16 +137,16 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         ->Commit();
 
     yvector<NProto::TJobInfo> runningJobs;
-    runningJobs.reserve(request->JobsSize());
-    FOREACH(const auto& jobInfo, request->GetJobs()) {
-        auto jobId = TJobId::FromProto(jobInfo.GetJobId());
+    runningJobs.reserve(request->jobs_size());
+    FOREACH(const auto& jobInfo, request->jobs()) {
+        auto jobId = TJobId::FromProto(jobInfo.jobid());
         const TJob* job = ChunkManager->FindJob(jobId);
         if (job == NULL) {
             LOG_INFO("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
-            response->AddJobsToStop(jobId.ToProto());
+            response->add_jobstostop(jobId.ToProto());
         } else {
             runningJobs.push_back(jobInfo);
         }
@@ -161,17 +161,17 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         &jobsToStop);
 
     NProto::TMsgHeartbeatResponse responseMessage;
-    responseMessage.SetHolderId(holderId);
+    responseMessage.set_holderid(holderId);
 
     FOREACH (const auto& jobInfo, jobsToStart) {
-        *response->AddJobsToStart() = jobInfo;
-        *responseMessage.AddStartedJobs() = jobInfo;
+        *response->add_jobstostart() = jobInfo;
+        *responseMessage.add_startedjobs() = jobInfo;
     }
 
     FOREACH (const auto& jobId, jobsToStop) {
         auto protoJobId = jobId.ToProto();
-        response->AddJobsToStop(protoJobId);
-        responseMessage.AddStoppedJobs(protoJobId);
+        response->add_jobstostop(protoJobId);
+        responseMessage.add_stoppedjobs(protoJobId);
     }
 
     ChunkManager
@@ -179,8 +179,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         ->OnSuccess(~FromFunctor([=] (TVoid)
             {
                 context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
-                    static_cast<int>(response->JobsToStartSize()),
-                    static_cast<int>(response->JobsToStopSize()));
+                    static_cast<int>(response->jobstostart_size()),
+                    static_cast<int>(response->jobstostop_size()));
 
                 context->Reply();
             }))
@@ -190,8 +190,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
 
 DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 {
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    int replicaCount = request->GetReplicaCount();
+    auto transactionId = TTransactionId::FromProto(request->transactionid());
+    int replicaCount = request->replicacount();
 
     context->SetRequestInfo("TransactionId: %s, ReplicaCount: %d",
         ~transactionId.ToString(),
@@ -208,7 +208,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 
     FOREACH(auto holderId, holderIds) {
         const THolder& holder = ChunkManager->GetHolder(holderId);
-        response->AddHolderAddresses(holder.GetAddress());
+        response->add_holderaddresses(holder.GetAddress());
     }
 
     auto chunkId = TChunkId::Create();
@@ -217,11 +217,11 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
         ->InitiateCreateChunk(transactionId)
         ->OnSuccess(~FromFunctor([=] (TChunkId id)
             {
-                response->SetChunkId(id.ToProto());
+                response->set_chunkid(id.ToProto());
 
                 context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
                     ~id.ToString(),
-                    ~JoinToString(response->GetHolderAddresses(), ", "));
+                    ~JoinToString(response->holderaddresses(), ", "));
 
                 context->Reply();
             }))
@@ -231,8 +231,8 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
 
 DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
 {
-    auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    auto chunkId = TChunkId::FromProto(request->GetChunkId());
+    auto transactionId = TTransactionId::FromProto(request->transactionid());
+    auto chunkId = TChunkId::FromProto(request->chunkid());
 
     context->SetRequestInfo("TransactionId: %s, ChunkId: %s",
         ~transactionId.ToString(),
@@ -247,11 +247,11 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
     // TODO: sort w.r.t. proximity
     FOREACH(auto holderId, chunk.Locations()) {
         const THolder& holder = ChunkManager->GetHolder(holderId);
-        response->AddHolderAddresses(holder.GetAddress());
+        response->add_holderaddresses(holder.GetAddress());
     }
 
     context->SetResponseInfo("HolderCount: %d",
-        static_cast<int>(response->HolderAddressesSize()));
+        static_cast<int>(response->holderaddresses_size()));
 
     context->Reply();
 }
