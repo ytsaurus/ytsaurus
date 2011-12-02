@@ -23,7 +23,7 @@ TCypressService::TCypressService(
     IInvoker* invoker,
     TCypressManager* cypressManager,
     TTransactionManager* transactionManager,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : NRpc::TServiceBase(
         invoker,
         TCypressServiceProxy::GetServiceName(),

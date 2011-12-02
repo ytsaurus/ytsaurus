@@ -34,9 +34,9 @@ class TBusClient::TBus
 public:
     typedef TIntrusivePtr<TBus> TPtr;
 
-    TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler);
+    TBus(TBusClient* client, IMessageHandler* handler);
 
-    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId);
+    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId);
 
     virtual TSendResult::TPtr Send(IMessage::TPtr message);
     virtual void Terminate();
@@ -59,7 +59,7 @@ private:
     //! Protects #Terminated.
     TSpinLock SpinLock;
 
-    void OnMessageDequeued(IMessage::TPtr message);
+    void OnMessageDequeued(IMessage* message);
 
 };
 
@@ -131,7 +131,7 @@ class TClientDispatcher
         TBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
             result = true;
-            RegisterBus(bus);
+            RegisterBus(~bus);
         }
         return result;
     }
@@ -144,22 +144,26 @@ class TClientDispatcher
         TBusClient::TBus::TPtr bus;
         while (BusUnregisterQueue.Dequeue(&bus)) {
             result = true;
-            UnregisterBus(bus);
+            UnregisterBus(~bus);
         }
         return result;
     }
 
-    void RegisterBus(TBusClient::TBus::TPtr bus)
+    void RegisterBus(TBusClient::TBus* bus)
     {
         BusMap.insert(MakePair(bus->SessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p)",
-            ~bus->SessionId.ToString(),
-            ~bus);
+            bus->SessionId.ToString(),
+            bus);
     }
 
-    void UnregisterBus(TBusClient::TBus::TPtr bus)
+    void UnregisterBus(TBusClient::TBus* bus)
     {
-        BusMap.erase(bus->SessionId);
+        auto sessionId = bus->SessionId;
+
+        LOG_DEBUG("Bus is unregistered (SessionId: %s, Bus: %p)",
+            ~sessionId.ToString(),
+            bus);
 
         FOREACH(const auto& requestId, bus->RequestIds) {
             Requester->CancelRequest((TGUID) requestId);
@@ -175,9 +179,7 @@ class TClientDispatcher
         }
         bus->PingIds.clear();
 
-        LOG_DEBUG("Bus is unregistered (SessionId: %s, Bus: %p)",
-            ~bus->SessionId.ToString(),
-            ~bus);
+        BusMap.erase(sessionId);
     }
 
     bool ProcessIncomingNLResponses()
@@ -299,7 +301,7 @@ class TClientDispatcher
             ~header->SessionId.ToString(),
             ~requestId.ToString());
 
-        TRequest::TPtr request = requestIt->Second();
+        auto request = requestIt->Second();
         request->Result->Set(IBus::ESendResult::OK);
         RequestMap.erase(requestIt);
     }
@@ -339,7 +341,7 @@ class TClientDispatcher
             dataSize);
 
         auto& bus = busIt->Second();
-        bus->ProcessIncomingMessage(message, sequenceId);
+        bus->ProcessIncomingMessage(~message, sequenceId);
 
         if (!isRequest) {
             RequestMap.erase(requestId);
@@ -532,7 +534,7 @@ Stroka GetClientDispatcherDebugInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
+TBusClient::TBus::TBus(TBusClient* client, IMessageHandler* handler)
     : Client(client)
     , Handler(handler)
     , Terminated(false)
@@ -575,7 +577,7 @@ TSequenceId TBusClient::TBus::GenerateSequenceId()
     return AtomicIncrement(SequenceId);
 }
 
-void TBusClient::TBus::ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
+void TBusClient::TBus::ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
 {
     UNUSED(sequenceId);
     // TODO: rearrangement is switched off, see YT-95
@@ -583,7 +585,7 @@ void TBusClient::TBus::ProcessIncomingMessage(IMessage::TPtr message, TSequenceI
     Handler->OnMessage(message, this);
 }
 
-void TBusClient::TBus::OnMessageDequeued(IMessage::TPtr message)
+void TBusClient::TBus::OnMessageDequeued(IMessage* message)
 {
     Handler->OnMessage(message, this);
 }
@@ -601,10 +603,10 @@ TBusClient::TBusClient(const Stroka& address)
     }
 }
 
-IBus::TPtr TBusClient::CreateBus(IMessageHandler::TPtr handler)
+IBus::TPtr TBusClient::CreateBus(IMessageHandler* handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(~handler != NULL);
+    YASSERT(handler != NULL);
 
     auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);

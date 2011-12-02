@@ -8,7 +8,7 @@
 namespace NYT {
 
 namespace NRpc {
-    struct IServer;
+    struct IRpcServer;
 }
 
 namespace NMetaState {

@@ -22,7 +22,7 @@ TElectionManager::TElectionManager(
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),

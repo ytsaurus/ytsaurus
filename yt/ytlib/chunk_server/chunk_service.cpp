@@ -20,7 +20,7 @@ TChunkService::TChunkService(
     NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TChunkServiceProxy::GetServiceName(),

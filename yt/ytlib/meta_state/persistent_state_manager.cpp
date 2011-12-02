@@ -43,12 +43,13 @@ public:
     typedef TIntrusivePtr<TPersistentStateManager> TPtr;
 
     class TElectionCallbacks
-            : public IElectionCallbacks
+        : public IElectionCallbacks
     {
     public:
-        TElectionCallbacks(TPersistentStateManager::TPtr owner)
+        TElectionCallbacks(TPersistentStateManager* owner)
             : Owner(owner)
         { }
+
     private:
         TPersistentStateManager::TPtr Owner;
 
@@ -88,7 +89,7 @@ public:
         const TConfig& config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
-        IServer* server)
+        IRpcServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , ControlStatus(EPeerStatus::Stopped)
         , StateStatus(EPeerStatus::Stopped)
@@ -135,7 +136,7 @@ public:
             NElection::TElectionManager::TConfig(),
             ~CellManager,
             controlInvoker,
-            ~ElectionCallbacks,
+            ~New<TElectionCallbacks>(this),
             server);
 
         server->RegisterService(this);
@@ -269,8 +270,6 @@ public:
     typedef TPersistentStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-
-    TElectionCallbacks::TPtr ElectionCallbacks;
 
     EPeerStatus ControlStatus;
     EPeerStatus StateStatus;
@@ -1265,7 +1264,7 @@ IMetaStateManager::TPtr CreatePersistentStateManager(
     const IMetaStateManager::TConfig& config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
 {
     return New<TPersistentStateManager>(
         config, controlInvoker, metaState, server);

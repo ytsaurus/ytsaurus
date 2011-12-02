@@ -151,20 +151,26 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 class TRpcTest
     : public ::testing::Test
 {
-    IServer::TPtr Server;
+    IRpcServer::TPtr RpcServer;
 
 public:
     virtual void SetUp()
     {
-        Server = CreateRpcServer(2000);
+        NBus::TNLBusServerConfig busConfig;
+        busConfig.Port = 2000;
+        auto busServer = NBus::CreateNLBusServer(busConfig);
+
+        RpcServer = CreateRpcServer(~busServer);
+
         auto queue = New<TActionQueue>();
-        Server->RegisterService(~New<TMyService>(~queue->GetInvoker()));
-        Server->Start();
+
+        RpcServer->RegisterService(~New<TMyService>(~queue->GetInvoker()));
+        RpcServer->Start();
     }
 
     virtual void TearDown()
     {
-        Server->Stop();
+        RpcServer->Stop();
     }
 };
 

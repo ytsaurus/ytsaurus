@@ -24,7 +24,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolder::TChunkHolder(
     const TConfig& config,
     IInvoker* serviceInvoker,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : NRpc::TServiceBase(
         serviceInvoker,
         TProxy::GetServiceName(),

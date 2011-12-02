@@ -6,6 +6,7 @@
 #include "../misc/assert.h"
 #include "../logging/log.h"
 #include "../bus/bus_server.h"
+#include "../ytree/fluent.h"
 
 namespace NYT {
 namespace NRpc {
@@ -95,17 +96,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServer
-    : public IServer
+class TRpcServer
+    : public IRpcServer
     , public IMessageHandler
 {
 public:
-    typedef TIntrusivePtr<TServer> TPtr;
+    typedef TIntrusivePtr<TRpcServer> TPtr;
 
-    TServer(int port)
-        : BusServer(New<TBusServer>(port, this))
+    TRpcServer(IBusServer* busServer)
+        : BusServer(busServer)
         , Started(false)
-    { }
+    {
+    }
 
     virtual void RegisterService(IService* service)
     {
@@ -118,7 +120,10 @@ public:
     virtual void Start()
     {
         YASSERT(!Started);
+
         Started = true;
+        BusServer->Start(this);
+
         LOG_INFO("RPC server started");
     }
 
@@ -126,18 +131,24 @@ public:
     {
         if (!Started)
             return;
+
         Started = false;
-        BusServer->Terminate();
+        BusServer->Stop();
+        BusServer.Reset();
+
         LOG_INFO("RPC server stopped");
     }
 
-    virtual Stroka GetDebugInfo()
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
-        return BusServer->GetDebugInfo();
+        // TODO: more
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .EndMap();
     }
 
 private:
-    TBusServer::TPtr BusServer;
+    IBusServer::TPtr BusServer;
     yhash_map<Stroka, IService::TPtr> Services;
     volatile bool Started;
 
@@ -217,9 +228,9 @@ private:
 
 };
 
-IServer::TPtr CreateRpcServer(int port)
+IRpcServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
 {
-    return New<TServer>(port);
+    return New<TRpcServer>(busServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
