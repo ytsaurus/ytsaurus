@@ -242,8 +242,9 @@ void TCellMasterServer::Run()
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
                         return NULL;
                     }
-                    return IYPathService::FromNode(
-                        ~cypressManager->GetNodeProxy(RootNodeId, NTransactionServer::NullTransactionId));
+                    return IYPathService::FromNode(~cypressManager->GetNodeProxy(
+                        RootNodeId,
+                        NTransactionServer::NullTransactionId));
                 })
             ->AsyncVia(metaStateManager->GetStateInvoker())));            
 
