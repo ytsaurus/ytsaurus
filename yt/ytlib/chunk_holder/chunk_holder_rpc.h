@@ -30,13 +30,13 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, StartChunk);
-    RPC_PROXY_METHOD(NProto, FinishChunk);
-    RPC_PROXY_METHOD(NProto, PutBlocks);
-    RPC_PROXY_METHOD(NProto, SendBlocks);
-    RPC_PROXY_METHOD(NProto, FlushBlock);
-    RPC_PROXY_METHOD(NProto, GetBlocks);
-    RPC_PROXY_METHOD(NProto, PingSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, StartChunk);
+    DEFINE_RPC_PROXY_METHOD(NProto, FinishChunk);
+    DEFINE_RPC_PROXY_METHOD(NProto, PutBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, SendBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, FlushBlock);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

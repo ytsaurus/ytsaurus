@@ -26,12 +26,12 @@ public:
         : TProxyBase(channel, ServiceName)
     { }
 
-    RPC_PROXY_METHOD(NMyRpc, SomeCall);
-    RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
-    RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
-    RPC_PROXY_METHOD(NMyRpc, EmptyCall);
-    RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
 };
 
 const Stroka TMyProxy::ServiceName = "MyService";
@@ -50,7 +50,7 @@ public:
         : TProxyBase(channel, ServiceName)
     { }
 
-    RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
 };
 
 const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";

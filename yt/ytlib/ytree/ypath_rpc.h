@@ -11,10 +11,10 @@ namespace NYTree {
 
 struct TYPathProxy
 {
-    YPATH_PROXY_METHOD(NProto, Get);
-    YPATH_PROXY_METHOD(NProto, Set);
-    YPATH_PROXY_METHOD(NProto, Remove);
-    YPATH_PROXY_METHOD(NProto, List);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Get);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Set);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Remove);
+    DEFINE_YPATH_PROXY_METHOD(NProto, List);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

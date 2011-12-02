@@ -13,8 +13,8 @@ namespace NFileServer {
 struct TFileYPathProxy
     : NYTree::TYPathProxy
 {
-    YPATH_PROXY_METHOD(NProto, GetFileChunk);
-    YPATH_PROXY_METHOD(NProto, SetFileChunk);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetFileChunk);
+    DEFINE_YPATH_PROXY_METHOD(NProto, SetFileChunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
