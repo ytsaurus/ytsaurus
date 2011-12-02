@@ -97,6 +97,7 @@ public:
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
+        , CommitInProgress(false)
     {
         YASSERT(controlInvoker != NULL);
         YASSERT(metaState != NULL);
@@ -235,6 +236,7 @@ public:
         IAction* changeAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+        YASSERT(!CommitInProgress);
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
@@ -244,26 +246,27 @@ public:
             return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
         }
 
-        IAction::TPtr changeAction_;
-        if (changeAction == NULL) {
-            changeAction_ = FromMethod(
-                &IMetaState::ApplyChange,
-                MetaState->GetState(),
-                changeData);
-        } else {
-            changeAction_ = changeAction;
-        }
-
         // FollowerTracker is modified concurrently from the ControlThread.
         auto followerTracker = FollowerTracker;
         if (~followerTracker == NULL || !followerTracker->HasActiveQuorum()) {
             return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
         }
 
-        return
+        CommitInProgress = true;
+
+        auto changeAction_ =
+            changeAction == NULL
+            ? FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData)
+            : changeAction;
+
+        auto result =
             LeaderCommitter
             ->Commit(changeAction, changeData)
             ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
+
+        CommitInProgress = false;
+
+        return result;
     }
 
  private:
@@ -278,6 +281,7 @@ public:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     bool ReadOnly;
+    bool CommitInProgress;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
