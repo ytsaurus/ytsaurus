@@ -19,7 +19,7 @@ TMessageRearranger::TMessageRearranger(
     , Timeout(timeout)
     , ExpectedSequenceId(-1)
 {
-    YASSERT(~onMessage != NULL);
+    YASSERT(onMessage != NULL);
 }
 
 void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequenceId)

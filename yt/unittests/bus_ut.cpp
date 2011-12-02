@@ -128,7 +128,7 @@ void TestReplies(int numRequests, int numParts)
 
 TEST(TBusTest, OK)
 {
-    auto listener = New<TBusServer>(2000, New<TEmptyBusHandler>());
+    auto listener = New<TBusServer>(2000, ~New<TEmptyBusHandler>());
     auto client = New<TBusClient>("localhost:2000");
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);

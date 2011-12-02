@@ -538,7 +538,7 @@ TBusClient::TBus::TBus(TBusClient::TPtr client, IMessageHandler::TPtr handler)
     , Terminated(false)
     , SequenceId(0)
     , MessageRearranger(New<TMessageRearranger>(
-        FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
+        ~FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
 {
     VERIFY_THREAD_AFFINITY_ANY();
