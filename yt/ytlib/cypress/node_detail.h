@@ -511,5 +511,21 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+class TRootNodeTypeHandler
+    : public TMapNodeTypeHandler
+{
+public:
+    TRootNodeTypeHandler(TCypressManager* cypressManager);
+
+    virtual ERuntimeNodeType GetRuntimeType();
+    virtual Stroka GetTypeName();
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId);
+};
+
+//////////////////////////////////////////////////////////////////////////////// 
+
 } // namespace NCypress
 } // namespace NYT

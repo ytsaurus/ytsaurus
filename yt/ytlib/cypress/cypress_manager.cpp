@@ -50,6 +50,7 @@ TCypressManager::TCypressManager(
     RegisterNodeType(~New<TDoubleNodeTypeHandler>(this));
     RegisterNodeType(~New<TMapNodeTypeHandler>(this));
     RegisterNodeType(~New<TListNodeTypeHandler>(this));
+    RegisterNodeType(~New<TRootNodeTypeHandler>(this));
 
     RegisterMethod(this, &TThis::DoExecuteLoggedVerb);
 
@@ -581,7 +582,7 @@ void TCypressManager::Clear()
     // Create the root.
     auto* rootImpl = new TMapNode(
         TBranchedNodeId(RootNodeId, NullTransactionId),
-        ERuntimeNodeType::Map);
+        ERuntimeNodeType::Root);
     rootImpl->SetState(ENodeState::Committed);
     RefNode(*rootImpl);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);

@@ -33,6 +33,7 @@ DECLARE_ENUM(ERuntimeNodeType,
     ((Holder)(17))
     ((HolderMap)(18))
     ((Orchid)(19))
+    ((Root)(20))
 
     // Denotes some uninitialized value.
     ((Invalid)(-1))
