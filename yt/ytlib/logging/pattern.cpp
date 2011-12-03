@@ -38,11 +38,27 @@ static Stroka FormatLevel(ELogLevel level)
     }
 }
 
+static Stroka MangleMessage(const Stroka& message)
+{
+    Stroka result;
+    result.reserve(message.length() + 10);
+    for (int index = 0; index < static_cast<int>(message.length()); ++index) {
+        switch (message[index]) {
+        case '\n':
+            result.append("\\n");
+        default:
+            result.append(message[index]);
+            break;
+        }
+    }
+    return result;
+}
+
 static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
 {
     formatter.AddProperty("level", FormatLevel(event.GetLevel()));
     formatter.AddProperty("datetime", FormatDateTime(event.GetDateTime()));
-    formatter.AddProperty("message", event.GetMessage());
+    formatter.AddProperty("message", MangleMessage(event.GetMessage()));
     formatter.AddProperty("category", event.GetCategory());
     formatter.AddProperty("tab", "\t");
 
