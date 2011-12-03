@@ -8,7 +8,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkClient::NProto;
+using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ TFileWriter::TFileWriter(const TChunkId& id, const Stroka& fileName)
     , FileName(fileName)
     , Result(New<TAsyncStreamState::TAsyncResult>())
 {
-    ChunkInfo.SetId(id.ToProto());
+    ChunkMeta.SetId(id.ToProto());
     DataFile.Reset(
         new TFile(FileName + NFS::TempFileSuffix, CreateAlways | WrOnly | Seq));
     Result->Set(TAsyncStreamState::TResult());
@@ -30,7 +30,7 @@ TFileWriter::TFileWriter(const TChunkId& id, const Stroka& fileName)
 TAsyncStreamState::TAsyncResult::TPtr 
 TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 {
-    TBlockInfo* blockInfo = ChunkInfo.AddBlocks();
+    TBlockInfo* blockInfo = ChunkMeta.AddBlocks();
     blockInfo->SetOffset(DataFile->GetPosition());
     blockInfo->SetSize(static_cast<int>(data.Size()));
     blockInfo->SetChecksum(GetChecksum(data));
@@ -40,22 +40,22 @@ TFileWriter::AsyncWriteBlock(const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TFileWriter::AsyncClose(const NProto::TChunkAttributes& chunkAttributes)
+TFileWriter::AsyncClose(const TChunkAttributes& chunkAttributes)
 {
     DataFile->Close();
     DataFile.Reset(NULL);
 
-    *ChunkInfo.MutableAttributes() = chunkAttributes;
+    *ChunkMeta.MutableAttributes() = chunkAttributes;
     
-    TBlob infoBlob(ChunkInfo.ByteSize());
-    if (!ChunkInfo.SerializeToArray(infoBlob.begin(), infoBlob.ysize())) {
+    TBlob metaBlob(ChunkMeta.ByteSize());
+    if (!ChunkMeta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
         LOG_FATAL("Failed to serialize chunk info in %s",
             ~FileName.Quote());
     }
 
     TChunkInfoHeader header;
     header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(infoBlob);
+    header.Checksum = GetChecksum(metaBlob);
 
     // Writing metainfo
     Stroka chunkInfoFileName = FileName + ChunkInfoSuffix;
@@ -63,7 +63,7 @@ TFileWriter::AsyncClose(const NProto::TChunkAttributes& chunkAttributes)
         chunkInfoFileName + NFS::TempFileSuffix,
         CreateAlways | WrOnly | Seq);
     Write(chunkInfoFile, header);
-    chunkInfoFile.Write(infoBlob.begin(), infoBlob.ysize());
+    chunkInfoFile.Write(metaBlob.begin(), metaBlob.ysize());
     chunkInfoFile.Close();
 
     if (!NFS::Rename(chunkInfoFileName + NFS::TempFileSuffix, chunkInfoFileName)) {

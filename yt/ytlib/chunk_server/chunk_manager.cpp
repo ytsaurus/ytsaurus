@@ -617,14 +617,14 @@ private:
         chunk.AddLocation(holder.GetId());
 
         YASSERT(chunk.GetSize() != TChunk::UnknownSize);
-        YASSERT(chunk.GetMasterMeta() != TSharedRef());
+        YASSERT(chunk.GetChunkInfo() != TSharedRef());
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, ChunkSize: %" PRId64 ", MetaSize: %" PRISZT")",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
             chunk.GetSize(),
-            chunk.GetMasterMeta().Size());
+            chunk.GetChunkInfo().Size());
 
         if (IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -751,19 +751,22 @@ private:
             return;
         }
 
-        if (chunk->GetSize() != TChunk::UnknownSize &&
-            chunk->GetSize() != size)
-        {
-            LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-                ~chunkId.ToString(),
-                chunk->GetSize(),
-                size);
-            return;
-        }
+        
+        //if (chunk->GetSize() != TChunk::UnknownSize &&
+        //    chunk->GetSize() != size)
+        //{
+        //    LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
+        //        ~chunkId.ToString(),
+        //        chunk->GetSize(),
+        //        size);
+        //    return;
+        //}
 
-        if (chunk->GetSize() == TChunk::UnknownSize) {
-            chunk->SetSize(size);
-        }
+        //if (chunk->GetSize() == TChunk::UnknownSize) {
+        //    chunk->SetSize(size);
+        //}
+
+        // serialize !
 
         TRef masterMeta(
             const_cast<char*>(chunkInfo.GetMasterMeta().begin()),

@@ -1,6 +1,8 @@
 SET(YT_SOURCE_FILES
     common.cpp
 
+    chunk_holder.proto
+    chunk.proto
     chunk_service_rpc.proto
     chunk_service_rpc.h
     chunk_service.cpp

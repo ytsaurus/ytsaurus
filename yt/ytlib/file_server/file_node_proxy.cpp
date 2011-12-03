@@ -79,7 +79,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
             response->AddHolderAddresses(holder.GetAddress());
         }   
 
-        auto meta = chunk.DeserializeMasterMeta<TChunkServerMeta>();
+        auto meta = chunk.DeserializeChunkInfo<TChunkServerMeta>();
         response->SetBlockCount(meta.GetBlockCount());
         response->SetSize(meta.GetSize());
 

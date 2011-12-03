@@ -24,6 +24,21 @@ public:
     //! Opens the files, reads chunk info. Must call this before reading blocks.
     void Open();
 
+    //! Returns the info file size.
+    i64 GetInfoSize() const;
+
+    //! Returns the data file size.
+    i64 GetDataSize() const;
+
+    //! Returns the full chunk size.
+    i64 GetFullSize() const;
+
+    //! Returns the number of blocks in the chunk.
+    i32 GetBlockCount() const;
+
+    //! Returns the chunk typed info.
+    const NChunkServer::NProto::TChunkInfo& GetChunkInfo() const;
+
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
@@ -36,7 +51,9 @@ public:
 private:
     Stroka FileName;
     THolder<TFile> DataFile;
-    NProto::TChunkInfo ChunkInfo;
+    i64 InfoSize;
+    i64 DataSize;
+    NChunkServer::NProto::TChunkInfo ChunkInfo;
 };
 
 

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "session.h"
 
+#include <chunk.pb.h>
+
 #include "../misc/fs.h"
 #include "../misc/assert.h"
 #include "../misc/sync.h"
@@ -15,6 +17,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NChunkClient;
+using namespace NYT::NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,13 +88,13 @@ void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorM
 
 TFuture<TVoid>::TPtr TSessionManager::FinishSession(
     TSession::TPtr session, 
-    const TSharedRef& masterMeta)
+    const TChunkAttributes& chunkAttributes)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(masterMeta)->Apply(
+    return session->Finish(chunkAttributes)->Apply(
         FromMethod(
             &TSessionManager::OnSessionFinished,
             TPtr(this),
@@ -337,7 +340,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
+TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& chunkAttributes)
 {
     CloseLease();
 
@@ -353,7 +356,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
         }
     }
 
-    return CloseFile(masterMeta);
+    return CloseFile(chunkAttributes);
 }
 
 void TSession::Cancel(const Stroka& errorMessage)
@@ -371,7 +374,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileWriter>(FileName);
+    Writer = New<TFileWriter>(ChunkId, FileName);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -394,21 +397,21 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
         ~errorMessage);
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile(const TSharedRef& masterMeta)
+TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& chunkAttributes)
 {
     return
         FromMethod(
             &TSession::DoCloseFile,
             TPtr(this),
-            masterMeta)
+            chunkAttributes)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
 
-NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
+NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& chunkAttributes)
 {
     try {
-        Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
+        Sync(~Writer, &TFileWriter::AsyncClose, chunkAttributes);
     } catch (...) {
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
             ~ChunkId.ToString(),

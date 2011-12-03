@@ -1,5 +1,7 @@
 package NYT.NChunkHolder.NProto;
 
+import "chunk.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqStartChunk
@@ -17,7 +19,7 @@ message TRspStartChunk
 message TReqFinishChunk
 {
     required bytes ChunkId = 1;
-    required bytes Meta = 2;
+    required NYT.NChunkServer.NProto.TChunkAttributes Attributes = 2;
 }
 
 message TRspFinishChunk

@@ -1,5 +1,4 @@
 SET(YT_SOURCE_FILES
-    chunk.proto
     common.cpp
     format.h
     async_writer.h

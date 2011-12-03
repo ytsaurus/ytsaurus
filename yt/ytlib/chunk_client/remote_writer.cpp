@@ -22,6 +22,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
+using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -554,7 +555,7 @@ void TRemoteWriter::ReleaseSlots(int count)
     }
 }
 
-void TRemoteWriter::DoClose(const TSharedRef& masterMeta)
+void TRemoteWriter::DoClose(const TChunkAttributes& chunkAttributes)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -568,7 +569,7 @@ void TRemoteWriter::DoClose(const TSharedRef& masterMeta)
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    MasterMeta = masterMeta;
+    ChunkAttributes.CopyFrom(chunkAttributes);
 
     if (Window.empty() && IsInitComplete) {
         CloseSession();
@@ -767,7 +768,7 @@ TRemoteWriter::FinishChunk(int node)
 
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
-    req->SetMeta(MasterMeta.Begin(), MasterMeta.Size());
+    req->MutableAttributes()->CopyFrom(ChunkAttributes);
     return req->Invoke();
 }
 
@@ -896,7 +897,7 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TRemoteWriter::AsyncClose(const TSharedRef& masterMeta)
+TRemoteWriter::AsyncClose(const TChunkAttributes& chunkAttributes)
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
@@ -921,7 +922,7 @@ TRemoteWriter::AsyncClose(const TSharedRef& masterMeta)
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteWriter::DoClose, 
         TPtr(this),
-        masterMeta));
+        chunkAttributes));
 
     return State.GetOperationResult();
 }

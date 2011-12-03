@@ -25,7 +25,7 @@ public:
     AsyncWriteBlock(const TSharedRef& data);
 
     TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const NProto::TChunkAttributes& chunkAttributes);
+    AsyncClose(const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
 
     void Cancel(const Stroka& errorMessage);
 
@@ -35,7 +35,7 @@ private:
     TChunkId Id;
     Stroka FileName;
     THolder<TFile> DataFile;
-    NProto::TChunkInfo ChunkInfo;
+    NChunkServer::NProto::TChunkMeta ChunkMeta;
     TAsyncStreamState::TAsyncResult::TPtr Result;
 };
 

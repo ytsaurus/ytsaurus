@@ -11,6 +11,7 @@ namespace NTableClient {
 
 using NChunkClient::WriterThread;
 using NChunkClient::TChunkId;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,8 +209,8 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
 
     // ToDo: create real master meta!!!
     // At least: number of rows (required for job distribution in maps).
-    TSharedRef masterMeta;
-    ChunkWriter->AsyncClose(masterMeta)->Subscribe(FromMethod(
+    TChunkAttributes attributes;
+    ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,
         TPtr(this)));
 }
