@@ -46,6 +46,8 @@ static Stroka MangleMessage(const Stroka& message)
         switch (message[index]) {
         case '\n':
             result.append("\\n");
+            break;
+
         default:
             result.append(message[index]);
             break;
