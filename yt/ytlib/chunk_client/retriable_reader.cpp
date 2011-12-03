@@ -71,9 +71,9 @@ void TRetriableReader::Retry()
         return;
     }
 
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
-        TInstant::Now() + Config.BackoffTime);
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
+        Config.BackoffTime);
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr 
@@ -96,7 +96,7 @@ void TRetriableReader::DoReadBlocks(
 {
     if (~reader == NULL) {
         TReadResult result;
-        result.Error = NRpc::TError(
+        result.Error = TError(
             NRpc::EErrorCode::Unavailable, 
             CumulativeError);
         asyncResult->Set(result);

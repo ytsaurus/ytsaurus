@@ -134,7 +134,7 @@ private:
         if (State == EState::Done)
             return;
 
-        if (error.IsRpcError()) {
+        if (IsRpcError(error)) {
             int count = AtomicIncrement(CurrentAttempt);
 
             CumulativeErrorMessage.append(Sprintf("\n[%d]: %s",
@@ -142,9 +142,9 @@ private:
                 ~error.ToString()));
 
             if (count < Channel->GetRetryCount()) {
-                TDelayedInvoker::Get()->Submit(
-                    FromMethod(&TRetriableRequest::Send, TPtr(this)),
-                    TInstant::Now() + Channel->GetBackoffTime());
+                TDelayedInvoker::Submit(
+                    ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
+                    Channel->GetBackoffTime());
             } else {
                 State = EState::Done;
                 guard.Release();

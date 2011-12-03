@@ -73,7 +73,7 @@ class TYPathResponse
     : public TRefCountedBase
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(NRpc::TError, Error);
+    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;
@@ -110,7 +110,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YPATH_PROXY_METHOD(ns, method) \
+#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \

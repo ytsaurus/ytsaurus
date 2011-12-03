@@ -23,7 +23,7 @@ TCypressService::TCypressService(
     IInvoker* invoker,
     TCypressManager* cypressManager,
     TTransactionManager* transactionManager,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : NRpc::TServiceBase(
         invoker,
         TCypressServiceProxy::GetServiceName(),
@@ -51,7 +51,7 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TCypressService, Execute)
+DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 {
     UNUSED(response);
 

@@ -825,12 +825,12 @@ void TRemoteWriter::SchedulePing(int node)
     }
 
     auto cookie = Nodes[node]->Cookie;
-    if (cookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(cookie);
+    if (cookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::Cancel(cookie);
     }
 
-    Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(
+    Nodes[node]->Cookie = TDelayedInvoker::Submit(
+        ~FromMethod(
             &TRemoteWriter::PingSession,
             TPtr(this),
             node)
@@ -843,9 +843,8 @@ void TRemoteWriter::CancelPing(int node)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& cookie = Nodes[node]->Cookie;
-    if (cookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(cookie);
-        cookie = TDelayedInvoker::TCookie();
+    if (cookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::CancelAndClear(cookie);
     }
 }
 

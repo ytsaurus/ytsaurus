@@ -13,7 +13,7 @@ ClassMethodType = get_classmethod_type()
 
 class Subclass(object):
     def __init__(self, iterable):
-        self._data  = [x for x in iterable]
+        self._data  = iterable
         
     def __iter__(self):
         for x in self._data:

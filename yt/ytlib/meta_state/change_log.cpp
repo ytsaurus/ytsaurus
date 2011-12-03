@@ -454,6 +454,8 @@ void TChangeLog::TImpl::Flush()
     TGuard<TMutex> guard(Mutex);
     FileOutput->Flush();
     File->Flush();
+
+    LOG_DEBUG("Changelog is flushed (SegmentId: %d)", Id);
 }
 
 void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)

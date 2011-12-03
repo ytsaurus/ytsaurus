@@ -26,7 +26,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, Execute);
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
 };
 

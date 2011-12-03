@@ -3,6 +3,7 @@
 #include "common.h"
 #include "chunk_manager.h"
 
+#include "../meta_state/meta_state_manager.h"
 #include "../cypress/cypress_manager.h"
 #include "../cypress/node.h"
 
@@ -27,6 +28,7 @@ NCypress::INodeTypeHandler::TPtr CreateHolderTypeHandler(
     TChunkManager* chunkManager);
 
 NCypress::INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
+    NMetaState::IMetaStateManager* metaStateManager,
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 

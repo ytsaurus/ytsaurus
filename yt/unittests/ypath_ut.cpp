@@ -60,8 +60,8 @@ public:
     void Check(TYPath path, TYson expected)
     {
         TYson output = Get(path);
-//        Cout << output << Endl;
-//        Cout << expected << Endl;
+        //Cout << output << Endl;
+        //Cout << expected << Endl;
         EXPECT_EQ(expected, output);
     }
 
@@ -176,6 +176,17 @@ TEST_F(TYPathTest, Ls)
     expected.push_back("e");
 
     EXPECT_EQ(expected, result);
+}
+
+TEST_F(TYPathTest, Attributes)
+{
+    Set("/root/node", "{nodes=[\"1\"; \"2\"]} <attr=100>");
+    Set("/root/node/2", "<author=\"ignat\">");
+    Check("/root/node@attr", "100");
+    Check("/root/node/2@author", "\"ignat\"");
+    
+    Set("/root/node/2@some/path", "[15;11]");
+    Check("/root/node/2@some/path/0", "15");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

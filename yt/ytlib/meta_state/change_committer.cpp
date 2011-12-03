@@ -287,9 +287,9 @@ void TLeaderCommitter::FlushCurrentBatch()
     YASSERT(~CurrentBatch != NULL);
 
     CurrentBatch->SendChanges();
-    TDelayedInvoker::Get()->Cancel(BatchTimeoutCookie);
+    TDelayedInvoker::Cancel(BatchTimeoutCookie);
     CurrentBatch.Reset();
-    BatchTimeoutCookie = TDelayedInvoker::TCookie();
+    BatchTimeoutCookie = TDelayedInvoker::NullCookie;
 }
 
 TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
@@ -301,8 +301,8 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
     if (~CurrentBatch == NULL) {
         YASSERT(~BatchTimeoutCookie == NULL);
         CurrentBatch = New<TBatch>(TPtr(this), version);
-        BatchTimeoutCookie = TDelayedInvoker::Get()->Submit(
-            FromMethod(
+        BatchTimeoutCookie = TDelayedInvoker::Submit(
+            ~FromMethod(
                 &TLeaderCommitter::DelayedFlush,
                 TPtr(this),
                 CurrentBatch)

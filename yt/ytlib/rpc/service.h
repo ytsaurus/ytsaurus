@@ -171,7 +171,7 @@ public:
     // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
     void Reply()
     {
-        Reply(TError(EErrorCode::OK, ""));
+        Reply(TError(NYT::TError::OK, ""));
     }
 
     void Reply(int code, const Stroka& message)
@@ -374,7 +374,7 @@ private:
         TRsp##method* response, \
         TCtx##method::TPtr context)
 
-#define DEFINE_RPC_SERVICE_METHOD_IMPL(type, method) \
+#define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \

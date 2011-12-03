@@ -36,14 +36,13 @@ public:
         (SnapshotUnavailable)
         (RemoteError)
         (IOError)
-        //(IncorrectChecksum)
     );
 
     TSnapshotDownloader(
         const TConfig& config,
         TCellManager::TPtr cellManager);
 
-    EResult GetSnapshot(i32 segmentId, TAutoPtr<TFile> snapshotFile);
+    EResult GetSnapshot(i32 segmentId, TFile* snapshotFile);
 
 private:
     struct TSnapshotInfo
@@ -77,7 +76,7 @@ private:
     EResult DownloadSnapshot(
         i32 segmentId,
         TSnapshotInfo snapshotInfo,
-        TAutoPtr<TFile> snapshotFile);
+        TFile* snapshotFile);
     EResult WriteSnapshot(
         i32 segmentId,
         i64 snapshotLength,

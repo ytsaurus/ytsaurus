@@ -28,9 +28,9 @@ TSnapshotDownloader::TSnapshotDownloader(
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
-    TAutoPtr<TFile> snapshotFile)
+    TFile* snapshotFile)
 {
-    YASSERT(~snapshotFile != NULL);
+    YASSERT(snapshotFile != NULL);
 
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;
@@ -110,7 +110,7 @@ void TSnapshotDownloader::OnComplete(
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TSnapshotInfo snapshotInfo,
-    TAutoPtr<TFile> snapshotFile)
+    TFile* snapshotFile)
 {
     YASSERT(snapshotInfo.Length >= 0);
     
@@ -129,7 +129,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         snapshotFile->Flush();
         snapshotFile->Close();
     } catch (const yexception& ex) {
-        LOG_ERROR("Could not close snapshot writer\n%s", ex.what());
+        LOG_ERROR("Error closing snapshot writer (SnapshotId: %d)\n%s",
+            segmentId,
+            ex.what());
         return EResult::IOError;
     }
 
@@ -161,7 +163,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
         if (!response->IsOK()) {
             auto error = response->GetError();
-            if (error.IsServiceError()) {
+            if (NRpc::IsServiceError(error)) {
                 switch (error.GetCode()) {
                     case EErrorCode::InvalidSegmentId:
                         LOG_WARNING(

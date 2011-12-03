@@ -27,7 +27,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, Execute);
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >

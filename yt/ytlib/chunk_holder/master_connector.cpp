@@ -64,8 +64,9 @@ TMasterConnector::TMasterConnector(
 
 void TMasterConnector::ScheduleHeartbeat()
 {
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))->Via(ServiceInvoker),
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
+        ->Via(ServiceInvoker),
         Config.HeartbeatPeriod);
 }
 
@@ -183,7 +184,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     ScheduleHeartbeat();
     
     auto errorCode = response->GetErrorCode();
-    if (errorCode != NRpc::EErrorCode::OK) {
+    if (errorCode != NYT::TError::OK) {
         LOG_WARNING("Error sending heartbeat to master (Error: %s)",
             ~response->GetError().ToString());
 

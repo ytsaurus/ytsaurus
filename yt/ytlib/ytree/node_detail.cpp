@@ -6,6 +6,7 @@
 #include "tree_builder.h"
 #include "yson_writer.h"
 #include "ypath_client.h"
+#include "serialize.h"
 
 namespace NYT {
 namespace NYTree {
@@ -45,7 +46,7 @@ void TNodeBase::DoInvoke(IServiceContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -106,7 +107,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Get)
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
 {
     UNUSED(request);
-
+    
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
     TTreeVisitor visitor(&writer, false);
@@ -126,7 +127,7 @@ void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, T
     ythrow yexception() << "Path must be final";
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Set)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -186,7 +187,7 @@ void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, T
     ythrow yexception() << "Path must be final";
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TNodeBase, Remove)
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
 {
     Stroka path = context->GetPath();
     if (IsFinalYPath(path)) {
@@ -265,7 +266,7 @@ bool TMapNodeMixin::DoInvoke(IServiceContext* context)
     return false;
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMapNodeMixin, List)
+DEFINE_RPC_SERVICE_METHOD(TMapNodeMixin, List)
 {
     UNUSED(request);
 
@@ -296,13 +297,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const
 
 void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    builder->BeginTree();
-    TStringInput input(request->GetValue());
-    TYsonReader reader(~builder);
-    reader.Read(&input);
-    auto value = builder->EndTree();
-
+    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
     TMapNodeMixin::SetRecursive(path, ~value);
 }
 
@@ -360,13 +355,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, cons
 
 void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
 {
-    auto builder = CreateBuilderFromFactory(GetFactory());
-    builder->BeginTree();
-    TStringInput input(request->GetValue());
-    TYsonReader reader(~builder);
-    reader.Read(&input);
-    auto value = builder->EndTree();
-
+    auto value = DeserializeFromYson(request->GetValue(), GetFactory());
     SetRecursive(path, ~value);
 }
 
