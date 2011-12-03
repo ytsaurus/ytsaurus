@@ -616,14 +616,14 @@ private:
         YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
-        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
+        YASSERT(chunk.GetMetaChecksum() != TChunk::UnknownChecksum);
         YASSERT(chunk.GetChunkInfo() != TSharedRef());
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, ChunkSize: %" PRId64 ", MetaSize: %" PRISZT")",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, MetaChecksum: %" PRIx64 ", ChunkInfoSize: %" PRISZT")",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
-            chunk.GetSize(),
+            chunk.GetMetaChecksum(),
             chunk.GetChunkInfo().Size());
 
         if (IsLeader()) {
@@ -751,36 +751,21 @@ private:
             return;
         }
 
-        
-        //if (chunk->GetSize() != TChunk::UnknownSize &&
-        //    chunk->GetSize() != size)
-        //{
-        //    LOG_ERROR("Chunk size mismatch (ChunkId: %s, OldSize: %" PRId64 ", NewSize: %" PRId64 ")",
-        //        ~chunkId.ToString(),
-        //        chunk->GetSize(),
-        //        size);
-        //    return;
-        //}
-
-        //if (chunk->GetSize() == TChunk::UnknownSize) {
-        //    chunk->SetSize(size);
-        //}
-
-        // serialize !
-
-        TRef masterMeta(
-            const_cast<char*>(chunkInfo.GetMasterMeta().begin()),
-            chunkInfo.GetMasterMeta().size());
-
-        if (chunk->GetMasterMeta() != TSharedRef() &&
-            !TRef::CompareContent(chunk->GetMasterMeta(), masterMeta))
-        {
-            LOG_ERROR("Chunk server meta mismatch (ChunkId: %s)", ~chunkId.ToString());
+        TChecksum checksum = chunkInfo.GetMetaChecksum();
+        if (chunk->GetMetaChecksum() == TChunk::UnknownChecksum) {
+            chunk->SetMetaChecksum(checksum);
+        } else if (chunk->GetMetaChecksum() != checksum) {
+            LOG_ERROR("Chunk meta checksum mismatch (ChunkId: %s, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
+                ~chunkId.ToString(),
+                checksum,
+                chunk->GetMetaChecksum());
             return;
         }
-
-        if (chunk->GetMasterMeta() == TSharedRef()) {
-            chunk->SetMasterMeta(MoveRV(masterMeta.ToBlob()));
+       
+        if (chunk->GetChunkInfo() == TSharedRef()) {
+            TBlob infoBlob(chunkInfo.ByteSize());
+            chunkInfo.SerializeToArray(infoBlob.begin(), infoBlob.size());
+            chunk->SetChunkInfo(MoveRV(infoBlob));
         }
 
         DoAddChunkReplica(holder, *chunk);

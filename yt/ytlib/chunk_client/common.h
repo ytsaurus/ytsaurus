@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/enum.h"
 #include "../misc/guid.h"
 
 namespace NYT {
@@ -16,6 +17,11 @@ typedef TGuid TChunkId;
 
 //! Means "no chunk".
 extern TChunkId NullChunkId;
+
+DECLARE_ENUM(EChunkType,
+    ((File)(1))
+    ((Table)(2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

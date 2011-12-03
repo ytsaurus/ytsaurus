@@ -97,7 +97,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
             auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
             auto snapshotResult = snapshotDownloader.GetSnapshot(
                 snapshotId,
-                snapshotWriter);
+                ~snapshotWriter);
 
             if (snapshotResult != TSnapshotDownloader::EResult::OK) {
                 LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",

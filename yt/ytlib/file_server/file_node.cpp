@@ -134,9 +134,9 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
         return;
     }
 
-    auto meta = chunk->DeserializeChunkInfo<TChunkServerMeta>();
+    auto info = chunk->DeserializeChunkInfo();
     BuildYsonFluently(param.Consumer)
-        .Scalar(meta.GetSize());
+        .Scalar(info.GetSize());
 }
 
 void TFileNodeTypeHandler::GetBlockCount(const TGetAttributeParam& param)
@@ -149,9 +149,9 @@ void TFileNodeTypeHandler::GetBlockCount(const TGetAttributeParam& param)
         return;
     }
 
-    auto meta = chunk->DeserializeChunkInfo<TChunkServerMeta>();
+    auto info = chunk->DeserializeChunkInfo();
     BuildYsonFluently(param.Consumer)
-        .Scalar(meta.GetBlockCount());
+        .Scalar(info.BlocksSize());
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)

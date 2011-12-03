@@ -17,6 +17,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
 using namespace NProto;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,18 +162,17 @@ void TFileWriter::Close()
     FlushBlock();
 
     // Construct server meta.
-    TChunkServerMeta meta;
-    meta.SetBlockCount(BlockCount);
-    meta.SetSize(Size);
-    meta.SetCodecId(Config.CodecId);
-    TBlob metaBlob;
-    SerializeProtobuf(&meta, &metaBlob);
-
+    TChunkAttributes attributes;
+    attributes.SetType(EChunkType::File);
+    TFileAttributes* fileAttributes = attributes.MutableExtension(TFileAttributes::FileAttributes);
+    fileAttributes->SetSize(Size);
+    fileAttributes->SetCodecId(Config.CodecId);
+    
     // Close the chunk.
     LOG_INFO("Closing file chunk");
 
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncClose, TSharedRef(MoveRV(metaBlob)));
+        Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error closing file chunk\n%s",
             ~CurrentExceptionMessage());
