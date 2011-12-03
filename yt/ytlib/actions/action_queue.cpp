@@ -15,51 +15,37 @@ static TDuration SleepQuantum = TDuration::MilliSeconds(100);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TQueueInvoker
-    : public IInvoker
+TQueueInvoker::TQueueInvoker(TActionQueueBase* owner)
+    : Owner(owner)
+{ }
+
+void TQueueInvoker::Invoke(IAction::TPtr action)
 {
-public:
-    typedef TIntrusivePtr<TQueueInvoker> TPtr;
-
-    typedef TLockFreeQueue<IAction::TPtr> TQueue;
-
-    TQueueInvoker(TActionQueueBase::TPtr owner)
-        : Owner(owner)
-    { }
-
-    void Invoke(IAction::TPtr action)
-    {
-        if (Owner->Finished) {
-            LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
-        } else {
-            LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
-            Queue.Enqueue(action);
-            Owner->WakeupEvent.Signal();
-        }
+    if (Owner->Finished) {
+        LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
+    } else {
+        LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
+        Queue.Enqueue(action);
+        Owner->WakeupEvent.Signal();
     }
+}
 
-    void Shutdown()
-    {
-        Owner.Reset();
-    }
+void TQueueInvoker::Shutdown()
+{
+    Owner.Reset();
+}
 
-    bool DequeueAndExecute()
-    {
-        IAction::TPtr action;
-        if (!Queue.Dequeue(&action))
-            return false;
+bool TQueueInvoker::DequeueAndExecute()
+{
+    IAction::TPtr action;
+    if (!Queue.Dequeue(&action))
+        return false;
 
-        LOG_TRACE_IF(Owner->EnableLogging, "Running action (Action: %p)", ~action);
-        action->Do();
+    LOG_TRACE_IF(Owner->EnableLogging, "Running action (Action: %p)", ~action);
+    action->Do();
 
-        return true;
-    }
-
-private:
-    TQueue Queue;
-    TActionQueueBase::TPtr Owner;
-
-};
+    return true;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

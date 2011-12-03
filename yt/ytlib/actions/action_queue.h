@@ -14,7 +14,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueInvoker;
+class TActionQueueBase;
+
+class TQueueInvoker
+    : public IInvoker
+{
+public:
+    typedef TIntrusivePtr<TQueueInvoker> TPtr;
+
+    TQueueInvoker(TActionQueueBase* owner);
+
+    void Invoke(IAction::TPtr action);
+    void Shutdown();
+    bool DequeueAndExecute();
+
+private:
+    TLockFreeQueue<IAction::TPtr> Queue;
+    TIntrusivePtr<TActionQueueBase> Owner;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueueBase
     : public TRefCountedBase
