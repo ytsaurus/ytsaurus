@@ -386,20 +386,17 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
         ~currentVersion.ToString(),
         changes.ysize());
 
-    TResult::TPtr result;
+    TAsyncChangeLog::TAppendResult::TPtr result;
     FOREACH (const auto& change, changes) {
-        result = MetaState
-            ->LogChange(currentVersion, change)
-            ->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
-                {
-                    return TCommitterBase::EResult::Committed;
-                }));
-
+        result = MetaState->LogChange(currentVersion, change);
         MetaState->ApplyChange(change);
         ++currentVersion.RecordCount;
     }
 
-    return result;
+    return result->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
+        {
+            return TCommitterBase::EResult::Committed;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
