@@ -45,7 +45,7 @@ public:
 private:
     bool NodeExists(const Stroka& nodePath);
     void CreateTableNode(const Stroka& nodePath);
-    void OnTransactionAborted();
+    void OnAborted();
 
     const TConfig Config;
     const Stroka Path;
@@ -54,7 +54,7 @@ private:
     NRpc::IChannel::TPtr MasterChannel;
     TChunkSequenceWriter::TPtr Writer;
     NCypress::TCypressServiceProxy Proxy;
-    IAction::TPtr OnAborted;
+    IAction::TPtr OnAborted_;
 
 };
 

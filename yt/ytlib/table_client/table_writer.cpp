@@ -39,10 +39,10 @@ TTableWriter::TTableWriter(
 
     Proxy.SetTimeout(Config.RpcTimeout);
 
-    OnAborted = FromMethod(
-        &TTableWriter::OnTransactionAborted,
+    OnAborted_ = FromMethod(
+        &TTableWriter::OnAborted,
         TPtr(this));
-    Transaction->SubscribeAborted(OnAborted);
+    Transaction->SubscribeAborted(OnAborted_);
 
     if (!NodeExists(path)) {
         CreateTableNode(path);
@@ -122,15 +122,14 @@ void TTableWriter::Close()
             ~error.ToString());
     }
 
-    Transaction->UnsubscribeAborted(OnAborted);
-    // Drop cyclic reference.
-    OnAborted.Reset();
+    Transaction->UnsubscribeAborted(OnAborted_);
+    OnAborted_.Reset();
 }
 
-void TTableWriter::OnTransactionAborted()
+void TTableWriter::OnAborted()
 {
     Writer->Cancel("Transaction aborted");
-    OnAborted.Reset();
+    OnAborted_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -253,6 +253,7 @@ public:
     virtual void Destroy()
     {
         ChunkManager->HolderRegistered().Unsubscribe(OnRegistered_);
+        OnRegistered_.Reset();
     }
 
 private:

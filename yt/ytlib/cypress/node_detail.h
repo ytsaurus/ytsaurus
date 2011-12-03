@@ -31,7 +31,6 @@ public:
     virtual void Destroy()
     { }
 
-
 protected:
     TCypressManager::TPtr CypressManager;
     TNodeId NodeId;
