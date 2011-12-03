@@ -5,6 +5,7 @@ SET(YT_SOURCE_FILES
     chunk.proto
     chunk_service_rpc.proto
     file_chunk_server_meta.proto
+    table_chunk_meta.proto
 
     chunk_service_rpc.h
     chunk_service.cpp

@@ -63,7 +63,7 @@ private:
 
     void ContinueClose(
         TAsyncStreamState::TResult result, 
-        int channelIndex);
+        int startChannelIndex = 0);
     void FinishClose(TAsyncStreamState::TResult result);
     void OnClosed(TAsyncStreamState::TResult result);
 
@@ -89,7 +89,7 @@ private:
     //! Current size of written data
     i64 CurrentSize;
 
-    NProto::TChunkMeta ChunkMeta;
+    NProto::TTableChunkAttributes Attributes;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
