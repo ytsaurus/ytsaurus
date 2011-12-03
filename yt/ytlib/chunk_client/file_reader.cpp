@@ -135,6 +135,11 @@ i32 TFileReader::GetBlockCount() const
     return ChunkInfo.BlocksSize();
 }
 
+const NChunkServer::NProto::TChunkInfo& TFileReader::GetChunkInfo() const
+{
+    return ChunkInfo;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
