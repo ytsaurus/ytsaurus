@@ -447,6 +447,10 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
 
         HandleRecord(recordId, recordSize);
     }
+
+    LOG_TRACE("Changelog record added (ChangeLogId: %d, RecordId: %d)",
+        Id,
+        recordId);
 }
 
 void TChangeLog::TImpl::Flush()

@@ -74,6 +74,8 @@ public:
                 // Curse you, arcadia/util!
                 Records.ForEach(SweepRecord);
             }
+
+            LOG_DEBUG("Async changelog flushed (ChangeLogId: %d)", ~ChangeLog->GetId());
         }
 
         //! Checks if the queue is empty. Note that despite the fact that this call locks
@@ -131,8 +133,6 @@ public:
         //! Preserves the atomicity of the operations on the list.
         mutable TSpinLock SpinLock;
 
-
-
     private:
         //! Sweep operation performed during #Flush.
         static void SweepRecord(TRecord* record)
@@ -164,6 +164,7 @@ public:
             if (UnflushedBytes >= UnflushedBytesThreshold ||
                 UnflushedRecords >= UnflushedRecordsThreshold)
             {
+                LOG_DEBUG("Async changelog unflushed threshold reached (ChangeLogId: %d)", ChangeLog->GetId());
                 Flush();
             }
         }
@@ -178,19 +179,23 @@ public:
         const TSharedRef& data,
         TAppendResult::TPtr result)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-
-        auto it = ChangeLogQueues.find(changeLog);
         TChangeLogQueue::TPtr queue;
-
-        if (it == ChangeLogQueues.end()) {
-            queue = New<TChangeLogQueue>(changeLog);
-            it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
-        } else {
-            queue = it->second;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            auto it = ChangeLogQueues.find(changeLog);
+            if (it == ChangeLogQueues.end()) {
+                queue = New<TChangeLogQueue>(changeLog);
+                it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
+            } else {
+                queue = it->second;
+            }
         }
 
         GetInvoker()->Invoke(queue->Append(recordId, data, result));
+
+        LOG_TRACE("Async changelog record enqueued (ChangeLogId: %d, RecordId: %d)",
+            changeLog->GetId(),
+            recordId);
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
@@ -200,6 +205,9 @@ public:
             queue->Flush();
         }
         changeLog->Finalize();
+
+        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
+
         return TVoid();
     }
 
@@ -211,7 +219,7 @@ public:
         }
         changeLog->Flush();
 
-        LOG_DEBUG("Changelog flushed (ChangeLogId: %d)", changeLog->GetId());
+        LOG_DEBUG("Async changelog flushed (ChangeLogId: %d)", changeLog->GetId());
 
         return TVoid();
     }
@@ -225,6 +233,8 @@ public:
 
     virtual void OnIdle()
     {
+        LOG_DEBUG("Async changelog thread is idle");
+
         // Take a snapshot.
         yvector<TChangeLogQueue::TPtr> queues;
         {
@@ -242,7 +252,7 @@ public:
             }
         }
 
-        // Flush the queues in the snapshot.
+        // Flush the queues.
         FOREACH(auto& queue, queues) {
             queue->Flush();
         }
@@ -255,8 +265,10 @@ public:
             TChangeLogQueueMap::iterator it, jt;
             for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
                 jt = it++;
-                if (jt->second->IsEmpty()) {
+                auto queue = jt->second;
+                if (queue->IsEmpty()) {
                     ChangeLogQueues.erase(jt);
+                    LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", queue->ChangeLog->GetId());
                 }
             }
         }
