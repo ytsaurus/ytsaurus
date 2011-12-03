@@ -186,7 +186,11 @@ void TFileWriter::Close()
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
     setChunkRequest->SetChunkId(ChunkId.ToProto());
 
-    auto setChunkResponse = CypressProxy->Execute(NodeId, Transaction->GetId(), ~setChunkRequest)->Get();
+    auto setChunkResponse =
+        CypressProxy
+        ->Execute(GetYPathFromNodeId(NodeId), Transaction->GetId(), ~setChunkRequest)
+        ->Get();
+
     if (!setChunkResponse->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error setting file chunk\n%s",
             ~setChunkResponse->GetError().ToString());

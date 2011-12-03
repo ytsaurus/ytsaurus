@@ -20,7 +20,7 @@ struct TCypressYPathProxy
 
 extern const char NodeIdMarker;
 
-NYTree::TYPath GetPathFromNodeId(const TNodeId& nodeId);
+NYTree::TYPath GetYPathFromNodeId(const TNodeId& nodeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

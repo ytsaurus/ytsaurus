@@ -56,10 +56,6 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
     UNUSED(response);
 
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
-    auto rootNodeId =
-        request->HasRootNodeId()
-        ? TNodeId::FromProto(request->GetRootNodeId())
-        : RootNodeId;
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
     auto requestParts = requestMessage->GetParts();
@@ -72,21 +68,15 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
         &path,
         &verb);
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s, RootNodeId: %s",
+    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
         ~transactionId.ToString(),
         ~path,
-        ~verb,
-        ~rootNodeId.ToString());
+        ~verb);
 
     ValidateTransactionId(transactionId);
 
-    auto root = CypressManager->FindNodeProxy(rootNodeId, transactionId);
-    if (~root == NULL) {
-        ythrow TServiceException(EErrorCode::NoSuchRootNode) << Sprintf("Root node is not found (NodeId: %s)",
-            ~rootNodeId.ToString());
-    }
-
-    auto rootService = IYPathService::FromNode(~root);
+    auto rootNode = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootService = IYPathService::FromNode(~rootNode);
 
     ExecuteVerb(
         ~rootService,
