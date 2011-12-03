@@ -32,7 +32,7 @@ inline INode::TPtr DeserializeFromYson(
 }
 
 inline TOutputStream& SerializeToYson(
-    const INode* node,
+    INode* node,
     TOutputStream& output,
     TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
 {
@@ -43,7 +43,7 @@ inline TOutputStream& SerializeToYson(
 }
 
 inline TYson SerializeToYson(
-    const INode* node,
+    INode* node,
     TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
 {
     TStringStream output;
