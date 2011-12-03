@@ -41,8 +41,9 @@ bool TQueueInvoker::DequeueAndExecute()
     if (!Queue.Dequeue(&action))
         return false;
 
-    LOG_TRACE_IF(Owner->EnableLogging, "Running action (Action: %p)", ~action);
+    LOG_TRACE_IF(Owner->EnableLogging, "Action started (Action: %p)", ~action);
     action->Do();
+    LOG_TRACE_IF(Owner->EnableLogging, "Action stopped (Action: %p)", ~action);
 
     return true;
 }
