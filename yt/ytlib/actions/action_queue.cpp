@@ -110,6 +110,7 @@ void TActionQueueBase::Shutdown()
 TActionQueue::TActionQueue(bool enableLogging)
     : TActionQueueBase(enableLogging)
 {
+    QueueInvoker = New<TQueueInvoker>(this);
     Start();
 }
 
