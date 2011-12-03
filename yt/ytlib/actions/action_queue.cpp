@@ -54,9 +54,7 @@ TActionQueueBase::TActionQueueBase(bool enableLogging)
     , Finished(false)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
-{
-    Thread.Start();
-}
+{ }
 
 TActionQueueBase::~TActionQueueBase()
 {
