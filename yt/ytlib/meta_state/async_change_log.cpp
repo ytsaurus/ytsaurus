@@ -75,7 +75,7 @@ public:
                 Records.ForEach(SweepRecord);
             }
 
-            LOG_DEBUG("Async changelog flushed (ChangeLogId: %d)", ~ChangeLog->GetId());
+            LOG_DEBUG("Async changelog is flushed (ChangeLogId: %d)", ChangeLog->GetId());
         }
 
         //! Checks if the queue is empty. Note that despite the fact that this call locks

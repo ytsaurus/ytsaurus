@@ -10,6 +10,9 @@ namespace NYT {
 
 static NLog::TLogger Logger("ActionQueue");
 
+// TODO: make this configurable
+static TDuration SleepQuantum = TDuration::MilliSeconds(100);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TQueueInvoker
@@ -26,12 +29,10 @@ public:
 
     void Invoke(IAction::TPtr action)
     {
-        if (Owner->IsFinished) {
-            LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action %p is ignored",
-                ~action);
+        if (Owner->Finished) {
+            LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
         } else {
-            LOG_TRACE_IF(Owner->EnableLogging, "Enqueued action %p",
-                ~action);
+            LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
             Queue.Enqueue(action);
             Owner->WakeupEvent.Signal();
         }
@@ -42,14 +43,13 @@ public:
         Owner.Reset();
     }
 
-    bool ProcessQueue()
+    bool DequeueAndExecute()
     {
         IAction::TPtr action;
         if (!Queue.Dequeue(&action))
             return false;
 
-        LOG_TRACE_IF(Owner->EnableLogging, "Running action %p",
-            ~action);
+        LOG_TRACE_IF(Owner->EnableLogging, "Running action (Action: %p)", ~action);
         action->Do();
 
         return true;
@@ -65,64 +65,82 @@ private:
 
 TActionQueueBase::TActionQueueBase(bool enableLogging)
     : EnableLogging(enableLogging)
-    , IsFinished(false)
-    , WakeupEvent(Event::rAuto)
-{ }
-
-///////////////////////////////////////////////////////////////////////////////
-
-TActionQueue::TActionQueue(bool enableLogging)
-    : TActionQueueBase(enableLogging)
+    , Finished(false)
+    , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
-    , QueueInvoker(New<TQueueInvoker>(this))
 {
     Thread.Start();
 }
 
-TActionQueue::~TActionQueue()
+TActionQueueBase::~TActionQueueBase()
 {
     Shutdown();
 }
 
-void* TActionQueue::ThreadFunc(void* param)
+void TActionQueueBase::Start()
+{
+    Thread.Start();
+}
+
+void* TActionQueueBase::ThreadFunc(void* param)
 {
     auto* queue = (TActionQueue*) param;
     queue->ThreadMain();
     return NULL;
 }
 
-void TActionQueue::Shutdown()
+void TActionQueueBase::ThreadMain()
 {
-    if (IsFinished)
+    try {
+        while (!Finished) {
+            if (!DequeueAndExecute()) {
+                WakeupEvent.Reset();
+                if (!DequeueAndExecute()) {
+                    OnIdle();
+                    WakeupEvent.WaitT(SleepQuantum);
+                    if (Finished) {
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (...) {
+        LOG_FATAL("Unhandled exception in the action queue\n%s", ~CurrentExceptionMessage());
+    }
+
+    OnShutdown();
+}
+
+void TActionQueueBase::Shutdown()
+{
+    if (Finished)
         return;
 
-    IsFinished = true;
+    Finished = true;
     WakeupEvent.Signal();
     Thread.Join();
 }
 
-void TActionQueue::ThreadMain()
-{
-    try {
-        while (true) {
-            if (!QueueInvoker->ProcessQueue()) {
-                if (IsFinished)
-                    break;
-                OnIdle();
-                // TODO: make this configurable
-                WakeupEvent.WaitT(TDuration::MilliSeconds(10));
-            }
-        }
-    } catch (...) {
-        LOG_FATAL("Unhandled exception in the action queue\n%s",
-            ~CurrentExceptionMessage());
-    }
+///////////////////////////////////////////////////////////////////////////////
 
-    QueueInvoker->Shutdown();
+TActionQueue::TActionQueue(bool enableLogging)
+    : TActionQueueBase(enableLogging)
+{
+    Start();
+}
+
+bool TActionQueue::DequeueAndExecute()
+{
+    return QueueInvoker->DequeueAndExecute();
 }
 
 void TActionQueue::OnIdle()
 { }
+
+void TActionQueue::OnShutdown()
+{
+    QueueInvoker->Shutdown();
+}
 
 IInvoker::TPtr TActionQueue::GetInvoker()
 {
@@ -134,25 +152,16 @@ IInvoker::TPtr TActionQueue::GetInvoker()
 TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount)
     : TActionQueueBase(true)
     , QueueInvokers(priorityCount)
-    , Thread(ThreadFunc, (void*) this)
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
         QueueInvokers[priority] = New<TQueueInvoker>(this);
     }
-
-    Thread.Start();
+    Start();
 }
 
 TPrioritizedActionQueue::~TPrioritizedActionQueue()
 {
     Shutdown();
-}
-
-void* TPrioritizedActionQueue::ThreadFunc(void* param)
-{
-    auto* queue = (TPrioritizedActionQueue*) param;
-    queue->ThreadMain();
-    return NULL;
 }
 
 IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
@@ -161,49 +170,26 @@ IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
     return QueueInvokers[priority];
 }
 
-void TPrioritizedActionQueue::Shutdown()
+bool TPrioritizedActionQueue::DequeueAndExecute()
 {
-    if (IsFinished)
-        return;
-
-    IsFinished = true;
-    WakeupEvent.Signal();
-    Thread.Join();
-}
-
-void TPrioritizedActionQueue::ThreadMain()
-{
-    try {
-        while (true) {
-            bool anyLuck = false;
-            for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-                if (QueueInvokers[priority]->ProcessQueue()) {
-                    anyLuck = true;
-                    break;
-                }
-            }
-
-            if (!anyLuck) {
-                if (IsFinished)
-                    break;
-                OnIdle();
-                WakeupEvent.Wait();
-            }
-        }
-    } catch (...) {
-        LOG_FATAL("Unhandled exception in the action queue\n%s",
-            ~CurrentExceptionMessage());
-    }
-
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        QueueInvokers[priority]->Shutdown();
+        if (QueueInvokers[priority]->DequeueAndExecute()) {
+            return true;
+        }
     }
+    return false;
 }
 
 void TPrioritizedActionQueue::OnIdle()
 { }
 
-///////////////////////////////////////////////////////////////////////////////
+void TPrioritizedActionQueue::OnShutdown()
+{
+    for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
+        QueueInvokers[priority]->Shutdown();
+    }
+}
 
+///////////////////////////////////////////////////////////////////////////////
 
 }
