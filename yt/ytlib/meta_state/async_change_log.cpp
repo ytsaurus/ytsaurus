@@ -46,11 +46,11 @@ public:
 
         //! Lazily appends the record to the changelog.
         IAction::TPtr Append(
-            i32 recordId,
+            const TMetaVersion& version,
             const TSharedRef& data,
             TAppendResult::TPtr result)
         {
-            THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
+            THolder<TRecord> recordHolder(new TRecord(version, data, result));
             TRecord* record = recordHolder.Get();
 
             {
@@ -90,16 +90,16 @@ public:
         //! An unflushed record (auxiliary structure).
         struct TRecord : public TIntrusiveListItem<TRecord>
         {
-            i32 Id;
+            TMetaVersion Version;
             TSharedRef Data;
             TAsyncChangeLog::TAppendResult::TPtr Result;
             bool WaitingForSync;
 
             TRecord(
-                i32 id,
+                const TMetaVersion& version,
                 const TSharedRef& data,
                 const TAsyncChangeLog::TAppendResult::TPtr& result)
-                : Id(id)
+                : Version(version)
                 , Data(data)
                 , Result(result)
                 , WaitingForSync(false)
@@ -140,8 +140,10 @@ public:
             if (record->WaitingForSync) {
                 record->Result->Set(TVoid());
                 record->Unlink();
-
                 delete record;
+
+                LOG_TRACE("Async changelog record is committed (Version: %s)",
+                    ~record->Version.ToString());
             }
         }
 
@@ -151,7 +153,7 @@ public:
             YASSERT(record != NULL);
             YASSERT(!record->WaitingForSync);
 
-            ChangeLog->Append(record->Id, record->Data);
+            ChangeLog->Append(record->Version.RecordCount, record->Data);
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
@@ -191,11 +193,10 @@ public:
             }
         }
 
-        GetInvoker()->Invoke(queue->Append(recordId, data, result));
+        TMetaVersion version(changeLog->GetId(), recordId);
+        GetInvoker()->Invoke(queue->Append(version, data, result));
 
-        LOG_TRACE("Async changelog record enqueued (ChangeLogId: %d, RecordId: %d)",
-            changeLog->GetId(),
-            recordId);
+        LOG_TRACE("Async changelog record is enqueued (Version: %s)", ~version.ToString());
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
@@ -219,7 +220,7 @@ public:
         }
         changeLog->Flush();
 
-        LOG_DEBUG("Async changelog flushed (ChangeLogId: %d)", changeLog->GetId());
+        LOG_DEBUG("Async changelog is flushed (ChangeLogId: %d)", changeLog->GetId());
 
         return TVoid();
     }
@@ -346,13 +347,15 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     yvector<TSharedRef> unflushedRecords;
 
     FOREACH(const auto& record, queue->Records) {
-        if (record.Id >= lastRecordId)
+        i32 currentId = record.Version.RecordCount;
+
+        if (currentId >= lastRecordId)
             break;
 
-        if (record.Id < firstRecordId)
+        if (currentId  < firstRecordId)
             continue;
 
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, record.Id);
+        firstUnflushedRecordId = Min(firstUnflushedRecordId, currentId);
 
         unflushedRecords.push_back(record.Data);
     }
@@ -397,7 +400,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
     } else {
         auto it = queue->Records.End();
         --it;
-        return it->Id + 1;
+        return it->Version.RecordCount + 1;
     }
 }
 

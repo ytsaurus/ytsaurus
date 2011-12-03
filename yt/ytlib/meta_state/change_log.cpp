@@ -448,9 +448,7 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
         HandleRecord(recordId, recordSize);
     }
 
-    LOG_TRACE("Changelog record added (ChangeLogId: %d, RecordId: %d)",
-        Id,
-        recordId);
+    LOG_TRACE("Changelog record is added (Version: %s)", ~TMetaVersion(Id, recordId).ToString());
 }
 
 void TChangeLog::TImpl::Flush()
@@ -459,7 +457,7 @@ void TChangeLog::TImpl::Flush()
     FileOutput->Flush();
     File->Flush();
 
-    LOG_DEBUG("Changelog is flushed (SegmentId: %d)", Id);
+    LOG_DEBUG("Changelog is flushed (ChangeLogId: %d)", Id);
 }
 
 void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
@@ -516,7 +514,9 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     while (position < length) {
         i64 filePosition = lowerBound + position;
         if (position + sizeof(TRecordHeader) >= length) {
-            LOG_DEBUG("Can't read record header at %" PRId64, filePosition);
+            LOG_DEBUG("Can't read record header (ChangeLogId: %d, Offset: %" PRId64 ")",
+                Id,
+                filePosition);
             break;
         }
 
@@ -562,9 +562,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
     TGuard<TMutex> guard(Mutex);
 
-    LOG_DEBUG("Truncating changelog (SegmentId: %d, AtRecordId: %d)",
-        Id,
-        atRecordId);
+    LOG_DEBUG("Truncating changelog (Version: %s)", ~TMetaVersion(Id, atRecordId).ToString());
 
     i64 lowerBound, upperBound;
     i32 currentRecordId;
@@ -655,9 +653,8 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
                     Id,
                     ~CurrentExceptionMessage());
             }
-            LOG_DEBUG("Added record to index (SegmentId: %d, RecordId: %d, Offset: %d)",
-                Id,
-                record.RecordId,
+            LOG_DEBUG("Changelog record is added to index (Version: %s, Offset: %d)",
+                ~TMetaVersion(Id, record.RecordId).ToString(),
                 record.Offset);
         }
     }
