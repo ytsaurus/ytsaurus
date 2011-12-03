@@ -453,11 +453,15 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
 
 void TChangeLog::TImpl::Flush()
 {
-    TGuard<TMutex> guard(Mutex);
-    FileOutput->Flush();
-    File->Flush();
+    LOG_DEBUG("Changelog flush started (ChangeLogId: %d)", Id);
 
-    LOG_DEBUG("Changelog is flushed (ChangeLogId: %d)", Id);
+    {
+        TGuard<TMutex> guard(Mutex);
+        FileOutput->Flush();
+        File->Flush();
+    }
+
+    LOG_DEBUG("Changelog flush completed (ChangeLogId: %d)", Id);
 }
 
 void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)

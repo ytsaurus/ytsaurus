@@ -219,9 +219,6 @@ public:
             queue->Flush();
         }
         changeLog->Flush();
-
-        LOG_DEBUG("Async changelog is flushed (ChangeLogId: %d)", changeLog->GetId());
-
         return TVoid();
     }
 
