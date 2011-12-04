@@ -94,8 +94,10 @@ class ServerNode(Node):
         
 ##################################################################
     
-def make_aggregate(node, runcmd, footer=''):
+def make_aggregate(node, runcmd, footer='', pack_size=20):
     if node.__leafs:
+        node.__leafs.sort(key=lambda x:x.path)
+
         # make list of file descriptions
         names = set()
         for l in node.__leafs:
@@ -106,16 +108,21 @@ def make_aggregate(node, runcmd, footer=''):
 
         for name in names:
             with open(node.local_path(name + '.' + SCRIPT_EXT), 'w') as fd:
-                for l in node.__leafs:
+                leaf_count = len(node.__leafs) 
+                for i, l in enumerate(node.__leafs):
+                    if i % pack_size == 0:
+                        print >>fd, footer
+                        print >>fd, 'echo "=== %.2f%% done."' % (i * 100. / leaf_count)
                     for descr in l.files:
                         if name == descr.name:
                             print >>fd, runcmd(l.local_path(descr.filename))
                 if footer:
                     print >>fd, footer
+                    print >>fd, 'echo "=== 100%% done."'
             make_executable(fd.name)
 
     for scls in node.__subclasses__():
-        make_aggregate(scls, runcmd)
+        make_aggregate(scls, runcmd, footer, pack_size)
 
 def make_files(root):
     # make file for each node

@@ -21,8 +21,8 @@ cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
-cmd_ssh = 'ssh -o ConnectTimeout=5 %s %s'
-cmd_rsync = 'rsync --copy-links %s %s:%s'
+cmd_ssh = 'ssh -o ConnectTimeout=10 %s %s'
+cmd_rsync = 'rsync --timeout=10 --copy-links %s %s:%s'
 
 def wrap_cmd(cmd, silent=False):
     res = ['cmd="%s"' % cmd]
@@ -57,15 +57,12 @@ class RemoteNode(Node):
                 setattr(cls, '_'.join((descr.name, 'path')),
                         cls.local_path(descr.filename))
                         
-        
-    prepare_dir = Template('ssh %(host)s mkdir -p %(remote_dir)s')
-    prepare_bin = Template('rsync --copy-links %(bin_path)s %(host)s:%(remote_dir)s')
     export_ld_path = Template('export LD_LIBRARY_PATH=%(remote_dir)s')
     
     def prepare(cls, fd):
         print >>fd, shebang
-        print >>fd, wrap_cmd(cls.prepare_dir)
-        print >>fd, wrap_cmd(cls.prepare_bin)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, "mkdir -p %s" % cls.remote_dir))
+        print >>fd, wrap_cmd(cmd_rsync % (cls.bin_path, cls.host, cls.remote_dir))
 
         libs = getattr(cls, 'libs', None)
         if (libs):
@@ -93,7 +90,7 @@ class RemoteNode(Node):
     
     def run(cls, fd):
         print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, cls.do_run_path)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_run_path))
         
     stop_tmpl = Template(cmd_stop)
     def do_stop(cls, fd):
@@ -111,15 +108,15 @@ class RemoteNode(Node):
     
     def stop(cls, fd):
         print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, cls.do_stop_path)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_stop_path))
 
     def test(cls, fd):
         print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, cls.do_test_path)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_test_path))
         
     def clean(cls, fd):
         print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, cls.do_clean_path)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_clean_path))
 
 
 class RemoteServer(RemoteNode, ServerNode):
@@ -144,6 +141,6 @@ def configure(root):
     with open(root.local_path('remove_all.' + SCRIPT_EXT), 'w') as fd:
         print >>fd, shebang
         for host, node in hosts:
-            print >>fd, 'ssh %s rm -rf %s' % (host, os.path.join(node.base_dir, root.path))
+            print >>fd, cmd_ssh % (host, 'rm -rf %s' % os.path.join(node.base_dir, root.path))
     make_executable(fd.name)
         

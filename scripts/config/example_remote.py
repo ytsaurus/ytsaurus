@@ -16,6 +16,11 @@ Logging = {
             'Categories' : [ "*" ], 
             'MinLevel' : "Debug", 
             'Writers' : [ "File" ] 
+        },
+        {
+           'Categories' : [ "MetaState" ],
+           'MinLevel' : "Trace",
+           'Writers' : [ "File" ]
         } 
     ]
 }
@@ -48,7 +53,7 @@ class Master(Server):
         	},
             'SnapshotLocation' : '%(work_dir)s/snapshots',
             'LogLocation' : '%(work_dir)s/logs',
-            'MaxChangesBetweenSnapshots' : 100000
+            'MaxChangesBetweenSnapshots' : 1000
         },            
         'Logging' : Logging
     })
@@ -69,8 +74,8 @@ class Master(Server):
     
     
 class Holder(Server):
-    groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(10))
+    groupid = Subclass(xrange(10))
     host = Template('n01-04%(groupid)d%(nodeid)dg')
     port = Port
     
