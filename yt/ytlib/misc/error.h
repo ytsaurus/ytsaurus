@@ -1,10 +1,10 @@
 #pragma once
 
 #include "common.h"
-
-#include "../actions/future.h"
 #include "enum.h"
 #include "property.h"
+
+#include "../actions/future.h"
 
 namespace NYT {
 
@@ -48,16 +48,7 @@ public:
     static const int Fail;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 typedef TFuture<TError> TAsyncError;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: get rid of this
-#ifdef _win_
-#undef GetMessage
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

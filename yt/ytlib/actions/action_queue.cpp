@@ -10,9 +10,6 @@ namespace NYT {
 
 static NLog::TLogger Logger("ActionQueue");
 
-// TODO: make this configurable
-static TDuration SleepQuantum = TDuration::MilliSeconds(100);
-
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueueInvoker::TQueueInvoker(TActionQueueBase* owner)
@@ -82,7 +79,7 @@ void TActionQueueBase::ThreadMain()
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
                     OnIdle();
-                    WakeupEvent.WaitT(SleepQuantum);
+                    WakeupEvent.Wait();
                     if (Finished) {
                         break;
                     }
