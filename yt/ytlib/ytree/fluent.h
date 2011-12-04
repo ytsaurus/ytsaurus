@@ -117,6 +117,12 @@ public:
             return this->Parent;
         }
 
+        TParent Scalar(size_t value)
+        {
+            this->Consumer->OnInt64Scalar(static_cast<i64>(value), HasAttributes);
+            return this->Parent;
+        }
+
         TParent Scalar(float value)
         {
             return Scalar(static_cast<double>(value));
