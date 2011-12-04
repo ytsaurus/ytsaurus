@@ -150,7 +150,7 @@ void TMasterConnector::SendHeartbeat()
         ReportedRemoved = RemovedSinceLastSuccess;
 
         FOREACH (const auto& chunk, ReportedAdded) {
-            *request->AddAddedChunks() = GetInfo(~chunk);
+            *request->AddAddedChunks() = chunk->Info();
         }
 
         FOREACH (const auto& chunk, ReportedRemoved) {
@@ -158,7 +158,7 @@ void TMasterConnector::SendHeartbeat()
         }
     } else {
         FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
-            *request->AddAddedChunks() = GetInfo(~chunk);
+            *request->AddAddedChunks() = chunk->Info();
         }
     }
 
@@ -264,16 +264,6 @@ void TMasterConnector::OnDisconnected()
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
     RemovedSinceLastSuccess.clear();
-}
-
-NChunkServer::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk* chunk)
-{
-    NChunkServer::NProto::TChunkInfo result;
-    result.SetId(chunk->GetId().ToProto());
-    result.SetSize(chunk->GetSize());
-    auto meta = chunk->GetMasterMeta();
-    result.SetMasterMeta(meta.Begin(), meta.Size());
-    return result;
 }
 
 void TMasterConnector::OnChunkAdded(TChunk* chunk)

@@ -95,7 +95,8 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    TFuture<TVoid>::TPtr Finish(const TSharedRef& masterMeta);
+    TFuture<TVoid>::TPtr Finish(
+        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
     void Cancel(const Stroka& errorMessage);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -114,8 +115,10 @@ private:
     void DeleteFile(const Stroka& errorMessage);
     void DoDeleteFile(const Stroka& errorMessage);
 
-    TFuture<TVoid>::TPtr CloseFile(const TSharedRef& masterMeta);
-    TVoid DoCloseFile(const TSharedRef& masterMeta);
+    TFuture<TVoid>::TPtr CloseFile(
+        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
+    TVoid DoCloseFile(
+        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
@@ -149,7 +152,9 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TVoid>::TPtr FinishSession(TSession::TPtr session, const TSharedRef& masterMeta);
+    TFuture<TVoid>::TPtr FinishSession(
+        TSession::TPtr session,
+        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
 
     //! Cancels an earlier opened upload session.
     /*!

@@ -74,11 +74,11 @@ private:
         NChunkClient::IAsyncReader::TPtr chunkReader);
 
     yvector<int> SelectChannels(const yvector<TChannel>& channels);
-    int SelectSingleChannel(const yvector<TChannel>& channels, const NProto::TChunkMeta& protoMeta);
+    int SelectSingleChannel(const yvector<TChannel>& channels, const NProto::TTableChunkAttributes& chunkAttributes);
 
     yvector<int> GetBlockReadingOrder(
         const yvector<int>& selectedChannels, 
-        const NProto::TChunkMeta& protoMeta);
+        const NProto::TTableChunkAttributes& chunkAttributes);
 
     void ContinueNextRow(TAsyncStreamState::TResult result, int channelIndex);
 

@@ -110,9 +110,6 @@ private:
     //! Handles error during a registration or a heartbeat.
     void OnDisconnected();
 
-    //! Constructs a protobuf chunk info for a given chunk.
-    static NChunkServer::NProto::TChunkInfo GetInfo(TChunk* chunk);
-
     //! Handles registration of new chunks.
     /*!
      *  Places the chunk into a list and reports its arrival

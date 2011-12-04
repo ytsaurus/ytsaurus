@@ -67,22 +67,27 @@ class TChunk
 {
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TLocation::TPtr, Location);
-    DEFINE_BYVAL_RO_PROPERTY(i64, Size);
-    DEFINE_BYVAL_RO_PROPERTY(i32, BlockCount);
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, MasterMeta);
+    DEFINE_BYREF_RO_PROPERTY(NChunkServer::NProto::TChunkInfo, Info);
 
 public:
+    i64 GetSize() const
+    {
+        return Info_.GetSize();
+    }
+
+    i32 GetBlockCount() const
+    {
+        return Info_.BlocksSize();
+    }
+
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
-        const NChunkClient::TChunkId& id,
         NChunkClient::TFileReader* reader,
         TLocation* location)
-        : Id_(id)
+        : Id_(TGuid::FromProto(reader->GetChunkInfo().GetId()))
         , Location_(location)
-        , Size_(reader->GetSize())
-        , BlockCount_(reader->GetBlockCount())
-        , MasterMeta_(reader->GetMasterMeta())
+        , Info_(reader->GetChunkInfo())
     { }
 
 private:

@@ -7,19 +7,23 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(const TChunkId& id)
     : Id_(id)
-    , Size_(UnknownSize)
+    //, Size_(UnknownSize)
+    , MetaChecksum_(UnknownChecksum)
     , RefCounter(0)
 { }
 
 TChunk::TChunk(const TChunk& other)
     : Id_(other.Id_)
     , ChunkListId_(other.ChunkListId_)
-    , Size_(other.Size_)
+    //, Size_(other.Size_)
+    // ? Don't we need to copy ChunkInfo as well?
+    , MetaChecksum_(other.MetaChecksum_)
     , Locations_(other.Locations_)
     , RefCounter(other.RefCounter)
 { }
@@ -32,8 +36,8 @@ TAutoPtr<TChunk> TChunk::Clone() const
 void TChunk::Save(TOutputStream* output) const
 {
     ::Save(output, ChunkListId_);
-    ::Save(output, Size_);
-    ::Save(output, MasterMeta_);
+    ::Save(output, MetaChecksum_);
+    ::Save(output, ChunkInfo_);
     ::Save(output, Locations_);
     ::Save(output, RefCounter);
 
@@ -43,8 +47,8 @@ TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
 {
     TAutoPtr<TChunk> chunk = new TChunk(id);
     ::Load(input, chunk->ChunkListId_);
-    ::Load(input, chunk->Size_);
-    ::Load(input, chunk->MasterMeta_);
+    ::Load(input, chunk->MetaChecksum_);
+    ::Load(input, chunk->ChunkInfo_);
     ::Load(input, chunk->Locations_);
     ::Load(input, chunk->RefCounter);
     return chunk;
@@ -76,6 +80,18 @@ i32 TChunk::Unref()
 i32 TChunk::GetRefCounter() const
 {
     return RefCounter;
+}
+
+TChunkInfo TChunk::DeserializeChunkInfo() const
+{
+    TChunkInfo chunkInfo;
+    if (!DeserializeProtobuf(&chunkInfo, ChunkInfo_)) {
+        NLog::TLogger& Logger = ChunkServerLogger;
+        LOG_FATAL("Error deserializing chunk meta (ChunkId: %s, TypeName: %s)",
+            ~Id_.ToString(),
+            chunkInfo.GetTypeName().c_str());
+    }
+    return chunkInfo;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

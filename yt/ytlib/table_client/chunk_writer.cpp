@@ -5,12 +5,16 @@
 #include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
 #include "../misc/serialize.h"
+#include "table_chunk_meta.pb.h"
 
 namespace NYT {
 namespace NTableClient {
 
 using NChunkClient::WriterThread;
 using NChunkClient::TChunkId;
+using NChunkClient::EChunkType;
+using namespace NChunkServer::NProto;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,9 +37,12 @@ TChunkWriter::TChunkWriter(
 {
     YASSERT(~chunkWriter != NULL);
     
+    Attributes.SetCodecId(codecId);
+    Attributes.SetRowCount(0);
+
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
-        *ChunkMeta.AddChannels() = channel.ToProto();
+        *Attributes.AddChannels() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 }
@@ -89,6 +96,8 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncEndRow()
     CurrentSize = SentSize;
     UsedColumns.clear();
 
+    Attributes.SetRowCount(Attributes.GetRowCount() + 1);
+
     State.StartOperation();
     ContinueEndRow(State.GetCurrentResult(), 0);
 
@@ -101,7 +110,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     auto channel = ChannelWriters[channelIndex];
 
-    NProto::TBlockInfo* blockInfo = ChunkMeta.MutableChannels(channelIndex)->AddBlocks();
+    NProto::TBlockInfo* blockInfo = Attributes.MutableChannels(channelIndex)->AddBlocks();
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
@@ -132,7 +141,7 @@ void TChunkWriter::OnClosed(TAsyncStreamState::TResult result)
 
 void TChunkWriter::ContinueClose(
     TAsyncStreamState::TResult result,
-    int channelIndex)
+    int startChannelIndex /* = 0 */)
 {
     // ToDo: consider separate thread for this background blocks 
     // processing. As far as this function is usually driven by 
@@ -145,27 +154,33 @@ void TChunkWriter::ContinueClose(
         return;
     }
 
-    for (; channelIndex < ChannelWriters.ysize(); ++ channelIndex) {
+    // Flushing blocks
+    int channelIndex = startChannelIndex;
+    while (channelIndex < ChannelWriters.ysize()) {
         auto channel = ChannelWriters[channelIndex];
         if (channel->HasUnflushedData()) {
-            auto data = PrepareBlock(channelIndex);
-            ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
-                &TChunkWriter::ContinueClose,
-                TPtr(this),
-                channelIndex + 1));
-            return;
+            break;
         }
+        ++channelIndex;
     }
 
-    ChunkMeta.SetCodecId(CodecId);
-
-    TBlob metaBlob;
-    if (!SerializeProtobuf(&ChunkMeta, &metaBlob)) {
-        LOG_FATAL("Failed to serialize table chunk meta");
+    if (channelIndex < ChannelWriters.ysize()) {
+        auto data = PrepareBlock(channelIndex);
+        ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
+            &TChunkWriter::ContinueClose,
+            TPtr(this),
+            channelIndex + 1));
+        return;
     }
+
+    // Writing chunkInfo
+    TChunkAttributes attributes;
+    attributes.SetType(EChunkType::Table);
+    *attributes.MutableExtension(TTableChunkAttributes::TableAttributes)
+        = Attributes;
     
-    ChunkWriter->AsyncWriteBlock(MoveRV(metaBlob))->Subscribe(FromMethod(
-        &TChunkWriter::FinishClose,
+    ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
+        &TChunkWriter::OnClosed,
         TPtr(this)));
 }
 
@@ -208,10 +223,7 @@ void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
 
     // ToDo: create real master meta!!!
     // At least: number of rows (required for job distribution in maps).
-    TSharedRef masterMeta;
-    ChunkWriter->AsyncClose(masterMeta)->Subscribe(FromMethod(
-        &TChunkWriter::OnClosed,
-        TPtr(this)));
+
 }
 
 TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncOpen()

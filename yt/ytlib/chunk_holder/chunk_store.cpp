@@ -202,7 +202,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     auto fileName = GetChunkFileName(chunkId, location);
     auto reader = New<TFileReader>(fileName);
 
-    auto chunk = New<TChunk>(chunkId, ~reader, location);
+    auto chunk = New<TChunk>(~reader, location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     location->RegisterChunk(chunk);

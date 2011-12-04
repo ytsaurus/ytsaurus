@@ -129,14 +129,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FinishChunk)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->GetChunkId());
-    TSharedRef masterMeta(TBlob(request->GetMeta().begin(), request->GetMeta().end()));
-
+    auto& attributes = request->GetAttributes();
+    
     context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
 
     auto session = GetSession(chunkId);
 
-    SessionManager->FinishSession(session, masterMeta)->Subscribe(FromMethod(
+    SessionManager->FinishSession(session, attributes)->Subscribe(FromMethod(
         &TChunkHolder::OnFinishedChunk,
         TPtr(this),
         context));
