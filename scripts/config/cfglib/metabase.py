@@ -77,6 +77,14 @@ class Template(object):
                     #if key == '__name__':
                     #    import pdb
                     #    pdb.set_trace()
+                    if key in self.cls.__dict__:
+                        return self.cls.__dict__[key]
+
+                    if key in self.cls._templates or \
+                       key in self.cls._initmethods or \
+                       key in self.cls._propmethods:
+                       raise "Property not evaluated yet: %s" % key
+
                     x =  getattr(self.cls, key, None)
                     return x
 
@@ -170,10 +178,10 @@ class ConfigMeta(type):
         return d
 
     def __new__(mcls, name, bases, props):             
-        initmethods = ConfigMeta.initdict(props, bases, InitMethod, '__initmethods')
-        propmethods = ConfigMeta.initdict(props, bases, PropMethod, '__propmethods')
-        templates = ConfigMeta.initdict(props, bases, Template, '__templates')
-        subclasses = ConfigMeta.initdict(props, bases, Subclass, '__subclasses')
+        initmethods = ConfigMeta.initdict(props, bases, InitMethod, '_initmethods')
+        propmethods = ConfigMeta.initdict(props, bases, PropMethod, '_propmethods')
+        templates = ConfigMeta.initdict(props, bases, Template, '_templates')
+        subclasses = ConfigMeta.initdict(props, bases, Subclass, '_subclasses')
         
         # bind base propmethods to current class
         props.update(propmethods)
@@ -190,10 +198,10 @@ class ConfigMeta(type):
         
         #print name, propmethods
         
-        setattr(cls, '__templates', templates)
-        setattr(cls, '__initmethods', initmethods)
-        setattr(cls, '__propmethods', propmethods)
-        setattr(cls, '__subclasses', subclasses)
+        setattr(cls, '_templates', templates)
+        setattr(cls, '_initmethods', initmethods)
+        setattr(cls, '_propmethods', propmethods)
+        setattr(cls, '_subclasses', subclasses)
         
         ConfigMeta.process_initmethods(cls, initmethods.keys())
         ConfigMeta.process_propmethods(cls, propmethods.keys())
