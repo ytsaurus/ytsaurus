@@ -163,7 +163,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount);
         }
 
-        LOG_DEBUG("Found changelog (Id: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),

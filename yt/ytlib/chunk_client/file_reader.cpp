@@ -15,59 +15,68 @@ using namespace NChunkServer::NProto;
 
 TFileReader::TFileReader(const Stroka& fileName)
     : FileName(fileName)
+    , Opened(false)
     , InfoSize(-1)
     , DataSize(-1)
 { }
 
 void TFileReader::Open()
 {
-    Stroka chunkInfoFileName = FileName + ChunkInfoSuffix;
+    YASSERT(!Opened);
+
+    Stroka chunkInfoFileName = FileName + ChunkMetaSuffix;
     TFile chunkInfoFile(
-        chunkInfoFileName + NFS::TempFileSuffix, OpenExisting | RdOnly | Seq);
+        chunkInfoFileName,
+        OpenExisting | RdOnly | Seq);
     InfoSize = chunkInfoFile.GetLength();
     TBufferedFileInput chunkInfoInput(chunkInfoFile);
         
-    TChunkInfoHeader header;
-    Read(chunkInfoInput, &header);
-    if (header.Signature != TChunkInfoHeader::ExpectedSignature) {
+    TChunkMetaHeader metaHeader;
+    Read(chunkInfoInput, &metaHeader);
+    if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
         ythrow yexception()
             << Sprintf("Incorrect signature in chunk info header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
                 ~FileName,
-                TChunkInfoHeader::ExpectedSignature,
-                header.Signature);
+                TChunkMetaHeader::ExpectedSignature,
+                metaHeader.Signature);
     }
 
-    Stroka metaBlob = chunkInfoInput.ReadAll();
-    TRef metaRef(metaBlob.begin(), metaBlob.size());
-    TChecksum checksum = GetChecksum(metaRef);
-    if (checksum != header.Checksum) {
+    Stroka chunkMetaBlob = chunkInfoInput.ReadAll();
+    TRef chunkMetaRef(chunkMetaBlob.begin(), chunkMetaBlob.size());
+
+    auto checksum = GetChecksum(chunkMetaRef);
+    if (checksum != metaHeader.Checksum) {
         ythrow yexception()
             << Sprintf("Incorrect checksum in chunk info file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
                 ~FileName,
-                header.Checksum,
+                metaHeader.Checksum,
                 checksum);
     }
 
-    TChunkMeta meta;
-    if (!DeserializeProtobuf(&meta, metaRef)) {
+    TChunkMeta chunkMeta;
+    if (!DeserializeProtobuf(&chunkMeta, chunkMetaRef)) {
         ythrow yexception() << Sprintf("Failed to parse chunk info (FileName: %s)",
             ~FileName);
     }
 
-    ChunkInfo.SetId(meta.GetId());
+    ChunkInfo.SetId(chunkMeta.GetId());
     ChunkInfo.SetMetaChecksum(checksum);
-    ChunkInfo.MutableBlocks()->MergeFrom(meta.GetBlocks()); // is it a proper way of using MergeFrom?
-    ChunkInfo.MutableAttributes()->CopyFrom(meta.GetAttributes());
+    ChunkInfo.MutableBlocks()->MergeFrom(chunkMeta.GetBlocks());
+    ChunkInfo.MutableAttributes()->CopyFrom(chunkMeta.GetAttributes());
 
     DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly));
     DataSize = DataFile->GetLength();
 
     ChunkInfo.SetSize(DataSize + InfoSize);
+
+    Opened = true;
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr
 TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
+    YASSERT(Opened);
+
     TReadResult result;
     result.Blocks.reserve(blockIndexes.ysize());
 
@@ -81,6 +90,8 @@ TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
+    YASSERT(Opened);
+
     i32 blockCount = ChunkInfo.BlocksSize();
 
     if (blockIndex > blockCount || blockIndex < -blockCount) {
@@ -117,26 +128,25 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
 i64 TFileReader::GetInfoSize() const
 {
+    YASSERT(Opened);
     return InfoSize;
 }
 
 i64 TFileReader::GetDataSize() const
 {
+    YASSERT(Opened);
     return DataSize;
 }
 
 i64 TFileReader::GetFullSize() const
 {
+    YASSERT(Opened);
     return InfoSize + DataSize;
-}
-
-i32 TFileReader::GetBlockCount() const
-{
-    return ChunkInfo.BlocksSize();
 }
 
 const NChunkServer::NProto::TChunkInfo& TFileReader::GetChunkInfo() const
 {
+    YASSERT(Opened);
     return ChunkInfo;
 }
 

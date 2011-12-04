@@ -67,7 +67,7 @@ void TLeaderLookup::OnResponse(
     auto voteId = response->GetVoteId();
     auto epoch = TEpoch::FromProto(response->GetVoteEpoch());
 
-    LOG_DEBUG("Received status from peer (Address: %s, Id: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
+    LOG_DEBUG("Received status from peer (Address: %s, PeerId: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
         ~address,
         response->GetSelfId(),
         ~TProxy::EState(response->GetState()).ToString(),
@@ -92,7 +92,7 @@ void TLeaderLookup::OnResponse(
 
     awaiter->Cancel();
 
-    LOG_INFO("Leader found (Address: %s, Id: %d, Epoch: %s)",
+    LOG_INFO("Leader found (Address: %s, PeerId: %d, Epoch: %s)",
         ~address,
         response->GetSelfId(),
         ~epoch.ToString());

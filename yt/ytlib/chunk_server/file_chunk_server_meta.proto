@@ -4,20 +4,20 @@ import "chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TFileAttributes
+message TFileChunkAttributes
 {
     extend NYT.NChunkServer.NProto.TChunkAttributes
     {
-        required TFileAttributes FileAttributes = 100;
+        required TFileChunkAttributes FileAttributes = 100;
     }
 
     // Number of blocks in chunk.
     //required int32 BlockCount = 1;
 
-    // The real (user-visible) size of the file.
+    // The real size of the file (as uploaded by the client).
     required int64 Size = 1;
 
-    // Id of the codec used during writing
+    // Id of the codec using for storing blocks.
     required int32 CodecId = 2;
 }
 

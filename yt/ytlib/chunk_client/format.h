@@ -14,19 +14,19 @@ typedef i64 TChunkOffset;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* const ChunkInfoSuffix = ".meta";
+const char* const ChunkMetaSuffix = ".meta";
 
 ////////////////////////////////////////////////////////////////////////////////
-
+    
 //! Describes a chunk info header.
-struct TChunkInfoHeader
+struct TChunkMetaHeader
 {
     static const ui64 ExpectedSignature = 0x3130304849435459ull; // YTCIH001
 
     //! Signature, must be #ExpectedSignature for valid chunks.
     ui64 Signature;
     
-    //! Chunk info checksum.
+    //! Chunk meta checksum.
     TChecksum Checksum;
 };
 

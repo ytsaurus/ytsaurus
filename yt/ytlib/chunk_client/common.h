@@ -4,8 +4,14 @@
 #include "../misc/enum.h"
 #include "../misc/guid.h"
 
+#include "../logging/log.h"
+
 namespace NYT {
 namespace NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern NLog::TLogger ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +25,7 @@ typedef TGuid TChunkId;
 extern TChunkId NullChunkId;
 
 DECLARE_ENUM(EChunkType,
+    ((Unknown)(0))
     ((File)(1))
     ((Table)(2))
 );

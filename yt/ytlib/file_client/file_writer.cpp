@@ -96,9 +96,11 @@ TFileWriter::TFileWriter(
 
     // Initialize a writer.
     Writer = New<TRemoteWriter>(
-        config.Writer,
+        config.RemoteWriter,
         ChunkId,
         addresses);
+
+    Codec = GetCodec(Config.CodecId);
 
     // Bind to the transaction.
     OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
@@ -161,10 +163,10 @@ void TFileWriter::Close()
     // Flush the last block.
     FlushBlock();
 
-    // Construct server meta.
-    TChunkAttributes attributes;
-    attributes.SetType(EChunkType::File);
-    TFileAttributes* fileAttributes = attributes.MutableExtension(TFileAttributes::FileAttributes);
+    // Construct chunk attributes.
+    TChunkAttributes chunkAttributes;
+    chunkAttributes.SetType(EChunkType::File);
+    auto* fileAttributes = chunkAttributes.MutableExtension(TFileChunkAttributes::FileAttributes);
     fileAttributes->SetSize(Size);
     fileAttributes->SetCodecId(Config.CodecId);
     
@@ -172,7 +174,7 @@ void TFileWriter::Close()
     LOG_INFO("Closing file chunk");
 
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);
+        Sync(~Writer, &TRemoteWriter::AsyncClose, chunkAttributes);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error closing file chunk\n%s",
             ~CurrentExceptionMessage());
@@ -207,15 +209,14 @@ void TFileWriter::FlushBlock()
     LOG_INFO("Writing file block (BlockIndex: %d)", BlockCount);
 
     try {
-        auto& codec = ICodec::GetCodec(Config.CodecId);
-        auto compressedBlock = codec.Encode(MoveRV(Buffer));
+        auto compressedBlock = Codec->Compress(MoveRV(Buffer));
         Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBlock);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ~CurrentExceptionMessage());
     }
     
-    LOG_INFO("File block written");
+    LOG_INFO("File block written (BlockIndex: %d)", BlockCount);
 
     // AsyncWriteBlock should have done this already, so this is just a precaution.
     Buffer.clear();

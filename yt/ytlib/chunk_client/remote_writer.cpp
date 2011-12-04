@@ -26,7 +26,7 @@ using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkWriter");
+static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -555,7 +555,7 @@ void TRemoteWriter::ReleaseSlots(int count)
     }
 }
 
-void TRemoteWriter::DoClose(const TChunkAttributes& chunkAttributes)
+void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -569,7 +569,7 @@ void TRemoteWriter::DoClose(const TChunkAttributes& chunkAttributes)
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    ChunkAttributes.CopyFrom(chunkAttributes);
+    Attributes.CopyFrom(attributes);
 
     if (Window.empty() && IsInitComplete) {
         CloseSession();
@@ -768,7 +768,7 @@ TRemoteWriter::FinishChunk(int node)
 
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->SetChunkId(ChunkId.ToProto());
-    req->MutableAttributes()->CopyFrom(ChunkAttributes);
+    req->MutableAttributes()->CopyFrom(Attributes);
     return req->Invoke();
 }
 
@@ -896,15 +896,14 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TRemoteWriter::AsyncClose(const TChunkAttributes& chunkAttributes)
+TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
     State.StartOperation();
 
-    LOG_DEBUG("Requesting close (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Requesting close (ChunkId: %s)", ~ChunkId.ToString());
 
     if (CurrentGroup->GetSize() > 0) {
         WriterThread->GetInvoker()->Invoke(FromMethod(
@@ -921,7 +920,7 @@ TRemoteWriter::AsyncClose(const TChunkAttributes& chunkAttributes)
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteWriter::DoClose, 
         TPtr(this),
-        chunkAttributes));
+        attributes));
 
     return State.GetOperationResult();
 }
@@ -932,8 +931,7 @@ void TRemoteWriter::Cancel(const Stroka& errorMessage)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Requesting cancel (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Requesting cancel (ChunkId: %s)", ~ChunkId.ToString());
 
     // Drop the cyclic reference.
     CurrentGroup.Reset();

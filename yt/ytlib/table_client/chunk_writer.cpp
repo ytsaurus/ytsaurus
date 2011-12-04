@@ -25,11 +25,9 @@ static NLog::TLogger& Logger = TableClientLogger;
 TChunkWriter::TChunkWriter(
     const TConfig& config, 
     NChunkClient::IAsyncWriter::TPtr chunkWriter,
-    const TSchema& schema,
-    ECodecId codecId)
+    const TSchema& schema)
     : Config(config)
     , Schema(schema)
-    , CodecId(codecId)
     , ChunkWriter(chunkWriter)
     , CurrentBlockIndex(0)
     , SentSize(0)
@@ -37,7 +35,7 @@ TChunkWriter::TChunkWriter(
 {
     YASSERT(~chunkWriter != NULL);
     
-    Attributes.SetCodecId(codecId);
+    Attributes.SetCodecId(Config.CodecId);
     Attributes.SetRowCount(0);
 
     // Fill protobuf chunk meta.
@@ -45,6 +43,8 @@ TChunkWriter::TChunkWriter(
         *Attributes.AddChannels() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
+
+    Codec = GetCodec(Config.CodecId);
 }
 
 void TChunkWriter::Write(const TColumn& column, TValue value)
@@ -95,7 +95,7 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncEndRow()
 
     CurrentSize = SentSize;
     UsedColumns.clear();
-
+    
     Attributes.SetRowCount(Attributes.GetRowCount() + 1);
 
     State.StartOperation();
@@ -114,8 +114,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     blockInfo->SetBlockIndex(CurrentBlockIndex);
     blockInfo->SetRowCount(channel->GetCurrentRowCount());
 
-    auto& codec = ICodec::GetCodec(CodecId);
-    auto data = codec.Encode(channel->FlushBlock());
+    auto data = Codec->Compress(channel->FlushBlock());
 
     SentSize += data.Size();
     ++CurrentBlockIndex;
@@ -154,7 +153,7 @@ void TChunkWriter::ContinueClose(
         return;
     }
 
-    // Flushing blocks
+    // Flush trailing blocks.
     int channelIndex = startChannelIndex;
     while (channelIndex < ChannelWriters.ysize()) {
         auto channel = ChannelWriters[channelIndex];
@@ -173,11 +172,10 @@ void TChunkWriter::ContinueClose(
         return;
     }
 
-    // Writing chunkInfo
+    // Write attributes.
     TChunkAttributes attributes;
     attributes.SetType(EChunkType::Table);
-    *attributes.MutableExtension(TTableChunkAttributes::TableAttributes)
-        = Attributes;
+    *attributes.MutableExtension(TTableChunkAttributes::TableAttributes) = Attributes;
     
     ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,
@@ -210,20 +208,6 @@ void TChunkWriter::Cancel(const Stroka& errorMessage)
 TChunkId TChunkWriter::GetChunkId() const
 {
     return ChunkWriter->GetChunkId();
-}
-
-void TChunkWriter::FinishClose(TAsyncStreamState::TResult result)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!result.IsOK) {
-        State.FinishOperation(result);
-        return;
-    }
-
-    // ToDo: create real master meta!!!
-    // At least: number of rows (required for job distribution in maps).
-
 }
 
 TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncOpen()

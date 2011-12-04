@@ -44,10 +44,12 @@ private:
 
         return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
             {
+                auto chunkInfo = chunk->DeserializeChunkInfo();
                 // TODO: locations
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("chunk_size").Scalar(chunk->DeserializeChunkInfo().GetSize())
+                        .Item("chunk_type").Scalar(EChunkType(chunkInfo.GetAttributes().GetType()).ToString())
+                        .Item("chunk_size").Scalar(chunkInfo.GetSize())
                         .Item("meta_size").Scalar(
                             chunk->GetChunkInfo() == TSharedRef()
                             ? -1

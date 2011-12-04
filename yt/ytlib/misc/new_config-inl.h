@@ -15,8 +15,7 @@ T CheckedStaticCast(i64 value)
 {
     if (value < Min<T>() || value > Max<T>()) {
         ythrow yexception()
-            << Sprintf("Argument is out of integral range (Value: %" PRId64 ")",
-                value);
+            << Sprintf("Argument is out of integral range (Value: %" PRId64 ")", value);
     }
     return static_cast<T>(value);
 }

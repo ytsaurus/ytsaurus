@@ -4,16 +4,17 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NProto;
+using namespace NChunkClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TChunkId;
-using namespace NProto;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(const TChunkId& id)
     : Id_(id)
-    //, Size_(UnknownSize)
     , MetaChecksum_(UnknownChecksum)
     , RefCounter(0)
 { }
@@ -21,9 +22,8 @@ TChunk::TChunk(const TChunkId& id)
 TChunk::TChunk(const TChunk& other)
     : Id_(other.Id_)
     , ChunkListId_(other.ChunkListId_)
-    //, Size_(other.Size_)
-    // ? Don't we need to copy ChunkInfo as well?
     , MetaChecksum_(other.MetaChecksum_)
+    , ChunkInfo_(ChunkInfo_)
     , Locations_(other.Locations_)
     , RefCounter(other.RefCounter)
 { }
@@ -85,11 +85,16 @@ i32 TChunk::GetRefCounter() const
 TChunkInfo TChunk::DeserializeChunkInfo() const
 {
     TChunkInfo chunkInfo;
-    if (!DeserializeProtobuf(&chunkInfo, ChunkInfo_)) {
-        NLog::TLogger& Logger = ChunkServerLogger;
-        LOG_FATAL("Error deserializing chunk meta (ChunkId: %s, TypeName: %s)",
-            ~Id_.ToString(),
-            chunkInfo.GetTypeName().c_str());
+    if (ChunkInfo_ == TSharedRef()) {
+        // Did not receive metainfo from the holders, let's make a fake one.
+        chunkInfo.SetId(Id_.ToProto());
+        chunkInfo.SetSize(-1);
+        chunkInfo.MutableAttributes()->SetType(EChunkType::Unknown);
+    } else {
+        // Deserialize the blob received from the holders.
+        if (!DeserializeProtobuf(&chunkInfo, ChunkInfo_)) {
+            LOG_FATAL("Error deserializing chunk info (ChunkId: %s)", ~Id_.ToString());
+        }
     }
     return chunkInfo;
 }

@@ -59,6 +59,7 @@ private:
 
     typedef TChunkHolderProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
+    typedef NChunkServer::NProto::TChunkAttributes TChunkAttributes;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -95,8 +96,7 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    TFuture<TVoid>::TPtr Finish(
-        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
+    TFuture<TVoid>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const Stroka& errorMessage);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -115,10 +115,8 @@ private:
     void DeleteFile(const Stroka& errorMessage);
     void DoDeleteFile(const Stroka& errorMessage);
 
-    TFuture<TVoid>::TPtr CloseFile(
-        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
-    TVoid DoCloseFile(
-        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
+    TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
+    TVoid DoCloseFile(const TChunkAttributes& attributes);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
@@ -154,13 +152,13 @@ public:
      */
     TFuture<TVoid>::TPtr FinishSession(
         TSession::TPtr session,
-        const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
+        const NChunkServer::NProto::TChunkAttributes& attributes);
 
     //! Cancels an earlier opened upload session.
     /*!
      * Chunk file is closed asynchronously, however the call returns immediately.
      */
-    void CancelSession(TSession::TPtr session, const Stroka& errorMessage);
+    void CancelSession(TSession* session, const Stroka& errorMessage);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId);

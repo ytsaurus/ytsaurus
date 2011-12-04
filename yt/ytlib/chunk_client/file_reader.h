@@ -21,7 +21,7 @@ public:
     //! Creates a new reader.
     TFileReader(const Stroka& fileName);
 
-    //! Opens the files, reads chunk info. Must call this before reading blocks.
+    //! Opens the files, reads chunk info. Must be called before reading blocks.
     void Open();
 
     //! Returns the info file size.
@@ -33,10 +33,7 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    //! Returns the number of blocks in the chunk.
-    i32 GetBlockCount() const;
-
-    //! Returns the chunk typed info.
+    //! Returns the typed chunk info.
     const NChunkServer::NProto::TChunkInfo& GetChunkInfo() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
@@ -44,16 +41,18 @@ public:
 
     //! Synchronously reads a given block from the file.
     /*!
-     *  Returns empty block if the block does not exist.
+     *  Returns NULL reference if the block does not exist.
      */
     TSharedRef ReadBlock(int blockIndex);
 
 private:
     Stroka FileName;
+    bool Opened;
     THolder<TFile> DataFile;
     i64 InfoSize;
     i64 DataSize;
     NChunkServer::NProto::TChunkInfo ChunkInfo;
+
 };
 
 

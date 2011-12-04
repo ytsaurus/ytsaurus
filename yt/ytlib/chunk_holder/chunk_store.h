@@ -83,11 +83,11 @@ public:
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
-        NChunkClient::TFileReader* reader,
+        const NChunkServer::NProto::TChunkInfo& info,
         TLocation* location)
-        : Id_(TGuid::FromProto(reader->GetChunkInfo().GetId()))
+        : Id_(TGuid::FromProto(info.GetId()))
         , Location_(location)
-        , Info_(reader->GetChunkInfo())
+        , Info_(info)
     { }
 
 private:
@@ -121,6 +121,8 @@ public:
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
      *  A common rule is to invoke it only from IO thread.
+     *  
+     *  The returned reader is already open.
      */
     NChunkClient::TFileReader::TPtr GetChunkReader(TChunk* chunk);
 

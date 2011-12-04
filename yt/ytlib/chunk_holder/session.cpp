@@ -74,7 +74,7 @@ TSession::TPtr TSessionManager::StartSession(
     return session;
 }
 
-void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorMessage)
+void TSessionManager::CancelSession(TSession* session, const Stroka& errorMessage)
 {
     auto chunkId = session->GetChunkId();
 
@@ -82,19 +82,20 @@ void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorM
 
     session->Cancel(errorMessage);
 
-    LOG_INFO("Session canceled (ChunkId: %s)",
-        ~chunkId.ToString());
+    LOG_INFO("Session canceled (ChunkId: %s)\n%s",
+        ~chunkId.ToString(),
+        ~errorMessage);
 }
 
 TFuture<TVoid>::TPtr TSessionManager::FinishSession(
     TSession::TPtr session, 
-    const TChunkAttributes& chunkAttributes)
+    const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(chunkAttributes)->Apply(
+    return session->Finish(attributes)->Apply(
         FromMethod(
             &TSessionManager::OnSessionFinished,
             TPtr(this),
@@ -104,12 +105,9 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
-    LOG_INFO("Session finished (ChunkId: %s)",
-        ~session->GetChunkId().ToString());
+    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
 
-    ChunkStore->RegisterChunk(
-        session->GetChunkId(),
-        ~session->GetLocation());
+    ChunkStore->RegisterChunk(session->GetChunkId(), ~session->GetLocation());
 
     return TVoid();
 }
@@ -120,7 +118,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session, "Session lease expired");
+        CancelSession(~session, "Session lease expired");
     }
 }
 
@@ -340,7 +338,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& chunkAttributes)
+TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -356,7 +354,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& chunkAttributes)
         }
     }
 
-    return CloseFile(chunkAttributes);
+    return CloseFile(attributes);
 }
 
 void TSession::Cancel(const Stroka& errorMessage)
@@ -397,21 +395,21 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
         ~errorMessage);
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& chunkAttributes)
+TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         FromMethod(
             &TSession::DoCloseFile,
             TPtr(this),
-            chunkAttributes)
+            attributes)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
 
-NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& chunkAttributes)
+NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
-        Sync(~Writer, &TFileWriter::AsyncClose, chunkAttributes);
+        Sync(~Writer, &TFileWriter::AsyncClose, attributes);
     } catch (...) {
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
             ~ChunkId.ToString(),

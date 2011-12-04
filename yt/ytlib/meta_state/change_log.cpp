@@ -237,7 +237,7 @@ void TChangeLog::TImpl::Open()
 {
     YASSERT(State == EState::Closed);
 
-    LOG_DEBUG("Opening changelog (Id: %d, FileName: %s)",
+    LOG_DEBUG("Opening changelog (ChangeLogId: %d, FileName: %s)",
         Id,
         ~FileName);
 

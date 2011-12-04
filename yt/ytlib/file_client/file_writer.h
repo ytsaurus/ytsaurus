@@ -26,14 +26,14 @@ public:
         i64 BlockSize;
         TDuration MasterRpcTimeout;
         ECodecId CodecId;
-        NChunkClient::TRemoteWriter::TConfig Writer;
+        NChunkClient::TRemoteWriter::TConfig RemoteWriter;
 
         TConfig()
         {
             Register("block_size", BlockSize).Default(1024 * 1024).GreaterThan(0);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
             Register("codec_id", CodecId).Default(ECodecId::None);
-            Register("writer", Writer);
+            Register("remote_writer", RemoteWriter);
 
             SetDefaults();
         }
@@ -65,6 +65,7 @@ private:
     NChunkClient::TRemoteWriter::TPtr Writer;
     NCypress::TNodeId NodeId;
     NChunkClient::TChunkId ChunkId;
+    ICodec* Codec;
 
     i64 Size;
     i32 BlockCount;

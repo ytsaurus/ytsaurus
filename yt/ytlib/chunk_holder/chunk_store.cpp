@@ -124,16 +124,18 @@ public:
 
     TCachedReader::TPtr Get(TChunk* chunk)
     {
-        TInsertCookie cookie(chunk->GetId());
+        auto chunkId = chunk->GetId();
+        TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             try {
-                auto file = New<TCachedReader>(
+                auto reader = New<TCachedReader>(
                     chunk->GetId(),
                     ChunkStore->GetChunkFileName(chunk));
-                cookie.EndInsert(file);
+                reader->Open();
+                cookie.EndInsert(reader);
             } catch (...) {
                 LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
-                    ~chunk->GetId().ToString(),
+                    ~chunkId.ToString(),
                     ~CurrentExceptionMessage());
             }
         }
@@ -162,14 +164,15 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
 
 void TChunkStore::ScanChunks()
 {
+    LOG_INFO("Storage scan started");
+
     try {
         FOREACH(const auto& location, Locations_) {
-            auto path = location->GetPath();
+            Stroka path = location->GetPath();
+            LOG_INFO("Scanning storage location %s", ~path);
 
             NFS::ForcePath(path);
             NFS::CleanTempFiles(path);
-
-            LOG_INFO("Scanning location %s", ~path);
 
             TFileList fileList;
             fileList.Fill(path);
@@ -185,7 +188,7 @@ void TChunkStore::ScanChunks()
         LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
     }
 
-    LOG_INFO("%d chunks found", ChunkMap.ysize());
+    LOG_INFO("Storage scan completed (ChunkCount: %d)", ChunkMap.ysize());
 }
 
 void TChunkStore::InitLocations()
@@ -200,14 +203,16 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     TLocation* location)
 {
     auto fileName = GetChunkFileName(chunkId, location);
+    
     auto reader = New<TFileReader>(fileName);
+    reader->Open();
 
-    auto chunk = New<TChunk>(~reader, location);
+    auto chunk = New<TChunk>(reader->GetChunkInfo(), location);
     ChunkMap.insert(MakePair(chunkId, chunk));
 
     location->RegisterChunk(chunk);
 
-    LOG_DEBUG("Chunk registered (Id: %s)", ~chunkId.ToString());
+    LOG_DEBUG("Chunk registered (ChunkId: %s)", ~chunkId.ToString());
 
     ChunkAdded_.Fire(~chunk);
 
@@ -224,20 +229,22 @@ void TChunkStore::RemoveChunk(TChunk* chunk)
 {
     // Hold the chunk during removal.
     TChunk::TPtr chunk_ = chunk;
+    auto chunkId = chunk->GetId();
 
-    YVERIFY(ChunkMap.erase(chunk->GetId()) == 1);
+    YVERIFY(ChunkMap.erase(chunkId) == 1);
 
     ReaderCache->Remove(chunk);
     chunk->GetLocation()->UnregisterChunk(chunk);
         
-    auto fileName = GetChunkFileName(chunk);
+    Stroka fileName = GetChunkFileName(chunk);
+    if (!NFS::Remove(fileName + ChunkMetaSuffix)) {
+        LOG_FATAL("Error removing chunk meta file (ChunkId: %s)", ~chunkId.ToString());
+    }
     if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error removing chunk file (ChunkId: %s)",
-            ~chunk->GetId().ToString());
+        LOG_FATAL("Error removing chunk file (ChunkId: %s)", ~chunkId.ToString());
     }
 
-    LOG_INFO("Chunk removed (Id: %s)",
-        ~chunk->GetId().ToString());
+    LOG_INFO("Chunk removed (ChunkId: %s)", ~chunkId.ToString());
 
     ChunkRemoved_.Fire(chunk);
 }

@@ -135,8 +135,9 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
     }
 
     auto info = chunk->DeserializeChunkInfo();
+    const auto& attributes = info.GetAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
     BuildYsonFluently(param.Consumer)
-        .Scalar(info.GetSize());
+        .Scalar(attributes.GetSize());
 }
 
 void TFileNodeTypeHandler::GetBlockCount(const TGetAttributeParam& param)

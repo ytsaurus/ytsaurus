@@ -25,7 +25,7 @@ public:
     AsyncWriteBlock(const TSharedRef& data);
 
     TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const NChunkServer::NProto::TChunkAttributes& chunkAttributes);
+    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes);
 
     void Cancel(const Stroka& errorMessage);
 

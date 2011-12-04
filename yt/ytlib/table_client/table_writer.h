@@ -33,7 +33,6 @@ public:
         const TConfig& config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
-        ECodecId codecId,
         const TSchema& schema,
         const Stroka& path);
 
@@ -45,11 +44,14 @@ public:
 private:
     bool NodeExists(const Stroka& nodePath);
     void CreateTableNode(const Stroka& nodePath);
+
+    void Finish();
+
     void OnAborted();
 
     const TConfig Config;
     const Stroka Path;
-    Stroka NodeId;
+    NCypress::TNodeId NodeId;
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
     TChunkSequenceWriter::TPtr Writer;
