@@ -86,8 +86,8 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
         context->SetResponseInfo("ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s]",
             ~chunkId.ToString(),
             response->GetBlockCount(),
-            ~JoinToString(response->GetHolderAddresses()),
-            response->GetSize());
+            response->GetSize(),
+            ~JoinToString(response->GetHolderAddresses()));
     }
 
     context->Reply();

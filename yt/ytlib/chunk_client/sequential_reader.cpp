@@ -63,7 +63,10 @@ TSequentialReader::AsyncNextBlock()
         &State,
         TAsyncStreamState::TResult())->ToParamAction<TSharedRef>());
 
-    ShiftWindow();
+    if (NextSequenceIndex > 0)
+        ShiftWindow();
+
+    ++NextSequenceIndex;
 
     return State.GetOperationResult();
 }
