@@ -16,10 +16,10 @@ function( PROTOC proto srcgen )
   string( REPLACE "${CMAKE_SOURCE_DIR}" "" notop "${rp}" )
 
   # command "protoc blah-blah-blah"
-  if (NOT WIN32)
+  if (NOT MSVC)
     SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/protoc -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} ${ap_proto} )
   else()
-    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}/protoc.exe -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} ${ap_proto} )
+    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/\$\(Configuration\)/protoc.exe -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} ${ap_proto} )
   endif()
 
   # add generated .pb.h and .pb.cc into source list ${${srcgen}}
