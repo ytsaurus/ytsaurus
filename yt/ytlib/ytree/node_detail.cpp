@@ -59,7 +59,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 
             writer.OnBeginMap();
 
-            FOREACH (const auto& attributeName, GetVirtualAttributeNames()) {
+            auto virtualNames = GetVirtualAttributeNames();
+            std::sort(virtualNames.begin(), virtualNames.end());
+            FOREACH (const auto& attributeName, virtualNames) {
                 auto attributeService = GetVirtualAttributeService(attributeName);
                 auto attributeValue = SyncExecuteYPathGet(~attributeService, "/");
                 writer.OnMapItem(attributeName);
@@ -68,10 +70,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 
             auto attributes = GetAttributes();
             if (~attributes != NULL) {
-                FOREACH (const auto& pair, attributes->GetChildren()) {
-                    writer.OnMapItem(pair.first);
+                auto sortedChildren = GetSortedIterators(attributes->GetChildren());
+                FOREACH (const auto& pair, sortedChildren) {
+                    writer.OnMapItem(pair->first);
                     TTreeVisitor visitor(&writer);
-                    visitor.Visit(pair.second);
+                    visitor.Visit(pair->second);
                 }
             }
 
