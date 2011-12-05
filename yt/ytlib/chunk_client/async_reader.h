@@ -1,5 +1,7 @@
 #pragma once
 
+#include "chunk.pb.h"
+
 #include "../misc/common.h"
 #include "../misc/ref.h"
 #include "../actions/future.h"
@@ -10,6 +12,8 @@
 
 namespace NYT {
 namespace NChunkClient {
+
+using NChunkServer::NProto::TChunkInfo;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -28,12 +32,21 @@ struct IAsyncReader
         TError Error;
     };
 
+    //! Describes a result of #GetChunkInfo
+    struct TGetInfoResult
+    {
+        TChunkInfo ChunkInfo;
+        TError Error;
+    };
+
     //! Reads (asynchronously) a given set of blocks.
     /*!
      *  Negative indexes indicate that blocks are numbered from the end.
      *  I.e. -1 means the last block.
      */
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
+
+    virtual TFuture<TGetInfoResult>::TPtr AsyncGetChunkInfo() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

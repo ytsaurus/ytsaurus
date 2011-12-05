@@ -45,6 +45,7 @@ public:
         NRpc::IChannel* masterChannel);
 
     TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TFuture<TGetInfoResult>::TPtr AsyncGetChunkInfo();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -52,15 +53,25 @@ private:
     void RequestHolders();
     void OnGotHolders(TProxy::TRspFindChunk::TPtr rsp);
     void Retry();
+    
     void DoReadBlocks(
         TRemoteReader::TPtr reader,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult);
-
+    
     void OnBlocksRead(
         TReadResult result,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult,
+        int requestFailCount);
+
+    void DoGetChunkInfo(
+        TRemoteReader::TPtr reader,
+        TFuture<TGetInfoResult>::TPtr result);
+    
+    void OnGotChunkInfo(
+        TGetInfoResult infoResult,
+        TFuture<TGetInfoResult>::TPtr result,
         int requestFailCount);
 
     const TConfig Config;

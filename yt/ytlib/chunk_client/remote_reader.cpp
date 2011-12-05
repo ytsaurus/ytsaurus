@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NChunkServer::NProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 // TODO: use ChunkClientLogger
@@ -36,6 +38,16 @@ TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 
     DoReadBlocks(blockIndexes, result);
 
+    return result;
+}
+
+
+TFuture<IAsyncReader::TGetInfoResult>::TPtr TRemoteReader::AsyncGetChunkInfo()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto result = New< TFuture<TGetInfoResult> >();
+    DoGetChunkInfo(result);
     return result;
 }
 
@@ -84,6 +96,42 @@ void TRemoteReader::OnBlocksRead(
         TReadResult readResult;
         readResult.Error = rsp->GetError();
         result->Set(readResult);
+    }
+}
+
+
+void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    
+    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    proxy.SetTimeout(Config.HolderRpcTimeout);
+    
+    auto request = proxy.GetChunkInfo();
+    request->set_chunkid(ChunkId.ToProto());
+
+    return request->Invoke()->Subscribe(FromMethod(
+        &TRemoteReader::OnGotChunkInfo,
+        TPtr(this),
+        result));
+}
+
+void TRemoteReader::OnGotChunkInfo(
+    TProxy::TRspGetChunkInfo::TPtr response,
+    TFuture<TGetInfoResult>::TPtr result)
+{
+    VERIFY_THREAD_AFFINITY(Response);
+
+    if (response->IsOK()) {
+        TGetInfoResult infoResult;
+        infoResult.ChunkInfo = response->chunkinfo();
+        result->Set(infoResult);
+    } else if (ChangeCurrentHolder()) {
+        DoGetChunkInfo(result);
+    } else {
+        TGetInfoResult infoResult;
+        infoResult.Error = response->GetError();
+        result->Set(infoResult);
     }
 }
 
