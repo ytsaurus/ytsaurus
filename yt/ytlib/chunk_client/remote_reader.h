@@ -38,6 +38,8 @@ public:
 
     TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
+    TFuture<IAsyncReader::TGetInfoResult>::TPtr AsyncGetChunkInfo();
+
 private:
     typedef NChunkHolder::TChunkHolderProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
@@ -50,6 +52,13 @@ private:
         TRspGetBlocks::TPtr rsp, 
         TFuture<TReadResult>::TPtr result,
         const yvector<int>& blockIndexes);
+
+    void DoGetChunkInfo(
+        TFuture<TGetInfoResult>::TPtr result);
+
+    void OnGotChunkInfo(
+        TProxy::TRspGetChunkInfo::TPtr response,
+        TFuture<TGetInfoResult>::TPtr result);
 
     bool ChangeCurrentHolder();
 

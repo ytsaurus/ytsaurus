@@ -144,10 +144,17 @@ i64 TFileReader::GetFullSize() const
     return InfoSize + DataSize;
 }
 
-const NChunkServer::NProto::TChunkInfo& TFileReader::GetChunkInfo() const
+const TChunkInfo& TFileReader::GetChunkInfo() const
 {
     YASSERT(Opened);
     return ChunkInfo;
+}
+
+TFuture<IAsyncReader::TGetInfoResult>::TPtr TFileReader::AsyncGetChunkInfo()
+{
+    TGetInfoResult result;
+    result.ChunkInfo = GetChunkInfo();
+    return ToFuture(result);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

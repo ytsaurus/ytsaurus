@@ -89,6 +89,18 @@ TRetriableReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return asyncResult;
 }
 
+TFuture<IAsyncReader::TGetInfoResult>::TPtr TRetriableReader::AsyncGetChunkInfo()
+{
+    TFuture<TGetInfoResult>::TPtr result = New< TFuture<TGetInfoResult> >();
+    UnderlyingReader->Subscribe(FromMethod(
+        &TRetriableReader::DoGetChunkInfo,
+        TPtr(this),
+        result));
+
+    return result;
+}
+
+
 void TRetriableReader::DoReadBlocks(
     TRemoteReader::TPtr reader,
     const yvector<int>& blockIndexes,
@@ -138,6 +150,53 @@ void TRetriableReader::OnBlocksRead(
         TPtr(this), 
         blockIndexes,
         asyncResult));
+}
+
+void TRetriableReader::DoGetChunkInfo(
+    TRemoteReader::TPtr reader,
+    TFuture<TGetInfoResult>::TPtr result)
+{
+    if (~reader == NULL) {
+        TGetInfoResult infoResult;
+        infoResult.Error = TError(
+            NRpc::EErrorCode::Unavailable, 
+            CumulativeError);
+        result->Set(infoResult);
+    }
+
+    // Protects FailCount in the next statement.
+    TGuard<TSpinLock> guard(SpinLock);
+    reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+        &TRetriableReader::OnGotChunkInfo,
+        TPtr(this),
+        result,
+        FailCount));
+}
+
+void TRetriableReader::OnGotChunkInfo(
+    TGetInfoResult infoResult,
+    TFuture<TGetInfoResult>::TPtr result,
+    int requestFailCount)
+{
+    if (infoResult.Error.IsOK()) {
+        result->Set(infoResult);
+        return;
+    }
+
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (requestFailCount == FailCount) {
+            CumulativeError.append(Sprintf("\n[%d]: %s",
+                FailCount,
+                ~infoResult.Error.GetMessage()));
+            Retry();
+        }
+    }
+
+    UnderlyingReader->Subscribe(FromMethod(
+        &TRetriableReader::DoGetChunkInfo,
+        TPtr(this), 
+        result));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -39,6 +39,8 @@ public:
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
 
+    virtual TFuture<TGetInfoResult>::TPtr AsyncGetChunkInfo();
+
     //! Synchronously reads a given block from the file.
     /*!
      *  Returns NULL reference if the block does not exist.
