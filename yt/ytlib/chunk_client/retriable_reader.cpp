@@ -50,7 +50,7 @@ void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
         rsp->holderaddresses().begin(),
         rsp->holderaddresses().end());
     TRemoteReader::TPtr reader = 
-        New<TRemoteReader>(Config.RemoteReaderConfig, ChunkId, holders);
+        New<TRemoteReader>(Config.RemoteReader, ChunkId, holders);
     UnderlyingReader->Set(reader);
 }
 

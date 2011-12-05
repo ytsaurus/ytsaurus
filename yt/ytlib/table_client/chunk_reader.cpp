@@ -16,6 +16,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = TableClientLogger;
 using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +84,9 @@ private:
 
         auto& metaBlob = readResult.Blocks.front();
 
-        DeserializeProtobuf(&ProtoMeta, metaBlob);
+        // ToDo: log chunk id here.
+        LOG_FATAL_IF(DeserializeProtobuf(&ProtoMeta, metaBlob),
+            "Unable to deserialize chunk meta.");
 
         SelectChannels();
         YASSERT(SelectedChannels.size() > 0);
