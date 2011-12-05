@@ -60,8 +60,9 @@ public:
     void Check(TYPath path, TYson expected)
     {
         TYson output = Get(path);
-        //Cout << output << Endl;
-        //Cout << expected << Endl;
+//        Cout << Endl;
+//        Cout << "output:   " << output << Endl;
+//        Cout << "expected: " << expected << Endl;
         EXPECT_EQ(expected, output);
     }
 
@@ -180,14 +181,46 @@ TEST_F(TYPathTest, Ls)
 
 TEST_F(TYPathTest, Attributes)
 {
-    Set("/root/node", "{nodes=[\"1\"; \"2\"]} <attr=100>");
-    Set("/root/node/2", "<author=\"ignat\">");
-    Check("/root/node@attr", "100");
-    Check("/root/node/2@author", "\"ignat\"");
-    
-    Set("/root/node/2@some/path", "[15;11]");
-    Check("/root/node/2@some/path/0", "15");
+    Set("/root", "{nodes=[\"1\"; \"2\"]} <attr=100;mode=\"rw\">");
+    Check("/root@", "{\"attr\"=100;\"mode\"=\"rw\"}");
+    Check("/root@attr", "100");
+
+    Remove("/root@");
+    Check("/root@", "{}");
+
+    Remove("/root/nodes");
+    Check("/", "{\"root\"={}}");
+
+    Set("/root/2", "<author=\"ignat\">");
+    Check("/", "{\"root\"={\"2\"=<>}}");
+    Check("/root/2@", "{\"author\"=\"ignat\"}");
+    Check("/root/2@author", "\"ignat\"");
+
+//  TODO: nested attributes currently are not supported
+//    Set("/root/3", "<\"dir\"=<\"file\"=-100<>>>");
+//    Check("/root/3@", "{\"dir\"=<>}");
+//    Check("/root/3@dir@", "{\"file\"=-100}");
+//    Check("/root/3@dir@file", "-100");
+//    Check("/root/3@dir@file@", "{}");
 }
+
+TEST_F(TYPathTest, InvalidCases)
+{
+    // empty path
+    EXPECT_ANY_THROW(Set("", "{}"));
+
+    // change the type of root
+    EXPECT_ANY_THROW(Set("/", "[]"));
+
+    // remove the root
+    EXPECT_ANY_THROW(Remove("/"));
+
+    // remove non-existing child
+    EXPECT_ANY_THROW(Remove("/a"));
+
+//    EXPECT_ANY_THROW(Set("/@/some", "{}"));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

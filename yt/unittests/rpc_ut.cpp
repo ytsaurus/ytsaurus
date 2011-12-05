@@ -226,7 +226,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
     int numSends = 1000;
     auto handler = New<TResponseHandler>(numSends);
 
-    auto proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
 
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy->SomeCall();
