@@ -46,12 +46,12 @@ TFileWriter::AsyncClose(const TChunkAttributes& attributes)
     DataFile->Close();
     DataFile.Destroy();
 
-    // Write metainfo.
+    // Write meta.
     *ChunkMeta.MutableAttributes() = attributes;
     
     TBlob metaBlob(ChunkMeta.ByteSize());
     if (!ChunkMeta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
-        LOG_FATAL("Failed to serialize chunk info (FileName: %s)",
+        LOG_FATAL("Failed to serialize chunk meta (FileName: %s)",
             ~FileName);
     }
 
@@ -59,16 +59,16 @@ TFileWriter::AsyncClose(const TChunkAttributes& attributes)
     header.Signature = header.ExpectedSignature;
     header.Checksum = GetChecksum(metaBlob);
 
-    Stroka chunkInfoFileName = FileName + ChunkMetaSuffix;
-    TFile chunkInfoFile(
-        chunkInfoFileName + NFS::TempFileSuffix,
+    Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
+    TFile chunkMetaFile(
+        chunkMetaFileName + NFS::TempFileSuffix,
         CreateAlways | WrOnly | Seq);
-    Write(chunkInfoFile, header);
-    chunkInfoFile.Write(metaBlob.begin(), metaBlob.ysize());
-    chunkInfoFile.Close();
+    Write(chunkMetaFile, header);
+    chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
+    chunkMetaFile.Close();
 
-    if (!NFS::Rename(chunkInfoFileName + NFS::TempFileSuffix, chunkInfoFileName)) {
-        LOG_FATAL("Error renaming temp chunk info file (FileName: %s)", ~chunkInfoFileName);
+    if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
+        LOG_FATAL("Error renaming temp chunk meta file (FileName: %s)", ~chunkMetaFileName);
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
