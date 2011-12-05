@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "transaction.h"
 
+#include <util/ysaveload.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -19,10 +21,10 @@ void TTransaction::Save(TOutputStream* output) const
 {
     YASSERT(output != NULL);
 
-    //::Save(output, Id_);
     ::Save(output, RegisteredChunks_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodes_);
+    ::Save(output, CreatedNodes_);
 }
 
 TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream* input)
@@ -33,6 +35,7 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
     ::Load(input, transaction->RegisteredChunks_);
     ::Load(input, transaction->LockIds_);
     ::Load(input, transaction->BranchedNodes_);
+    ::Load(input, transaction->CreatedNodes_);
     return transaction;
 }
 
@@ -41,6 +44,7 @@ TTransaction::TTransaction(const TTransaction& other)
     , RegisteredChunks_(other.RegisteredChunks_)
     , LockIds_(other.LockIds_)
     , BranchedNodes_(other.BranchedNodes_)
+    , CreatedNodes_(other.CreatedNodes_)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
