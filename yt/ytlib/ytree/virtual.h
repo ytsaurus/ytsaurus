@@ -30,6 +30,10 @@ INode::TPtr CreateVirtualNode(
     TYPathServiceProvider* provider,
     INodeFactory* factory);
 
+INode::TPtr CreateVirtualNode(
+    IYPathService* service,
+    INodeFactory* factory);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
