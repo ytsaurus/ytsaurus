@@ -14,27 +14,20 @@ typedef i64 TChunkOffset;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a chunk footer.
-/*!
- *  Every chunk has the following layout:
- *  1. Sequence of blocks written without padding or delimiters.
- *  2. Protobuf-serialized meta.
- *  3. Footer.
- */
-struct TChunkFooter
+const char* const ChunkMetaSuffix = ".meta";
+
+////////////////////////////////////////////////////////////////////////////////
+    
+//! Describes a chunk info header.
+struct TChunkMetaHeader
 {
-    static const ui32 ExpectedSignature = 0x46435459; // YTCF
+    static const ui64 ExpectedSignature = 0x3130304849435459ull; // YTCIH001
 
     //! Signature, must be #ExpectedSignature for valid chunks.
-    ui32 Signature;
+    ui64 Signature;
     
-    //! The size of the meta, in bytes.
-    i32 MetaSize;
-
-    //! The offset of the holder meta inside the file.
-    TChunkOffset MetaOffset;
-
-    // TODO: add MetaChecksum
+    //! Chunk meta checksum.
+    TChecksum Checksum;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

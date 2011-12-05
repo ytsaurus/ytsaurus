@@ -16,6 +16,11 @@ namespace NYT {
 
 static NLog::TLogger Logger("ChunkHolder");
 
+using NBus::IBusServer;
+using NBus::TNLBusServerConfig;
+using NBus::CreateNLBusServer;
+
+using NRpc::IRpcServer;
 using NRpc::CreateRpcServer;
 
 using NMonitoring::TMonitoringManager;
@@ -35,13 +40,20 @@ void TChunkHolderServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto rpcServer = CreateRpcServer(Config.Port);
+    auto busServer = CreateNLBusServer(TNLBusServerConfig(Config.Port));
+
+    auto rpcServer = CreateRpcServer(~busServer);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo));
-    // TODO: register more monitoring infos
+    monitoringManager->Register(
+        "/bus_server",
+        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+    monitoringManager->Register(
+        "/rpc_server",
+        FromMethod(&IRpcServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     // TODO: refactor

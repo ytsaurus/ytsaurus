@@ -22,7 +22,7 @@ TElectionManager::TElectionManager(
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),
@@ -130,8 +130,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
-        TDelayedInvoker::Get()->Submit(
-            FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
+        TDelayedInvoker::Submit(
+            ~FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
             ->Via(EpochInvoker),
             ElectionManager->Config.FollowerPingInterval);
     }
@@ -475,7 +475,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
+DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
 {
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -510,17 +510,17 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TElectionManager, PingFollower)
                    ~epoch.ToString());
     }
 
-    TDelayedInvoker::Get()->Cancel(PingTimeoutCookie);
+    TDelayedInvoker::Cancel(PingTimeoutCookie);
 
-    PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
+    PingTimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
         Config.FollowerPingTimeout);
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TElectionManager, GetStatus)
+DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
 {
     UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -658,8 +658,8 @@ void TElectionManager::StartFollowing(
 
     StartEpoch(leaderId, epoch);
 
-    PingTimeoutCookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
+    PingTimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
         Config.ReadyToFollowTimeout);
 

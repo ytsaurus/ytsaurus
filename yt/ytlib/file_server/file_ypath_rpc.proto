@@ -11,6 +11,7 @@ message TRspGetFileChunk
     repeated bytes HolderAddresses = 2;
     required int32 BlockCount = 3;
     required int64 Size = 4;
+    required int32 CodecId = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

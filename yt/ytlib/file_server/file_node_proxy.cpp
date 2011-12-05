@@ -54,7 +54,7 @@ void TFileNodeProxy::DoInvoke(IServiceContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
+DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
 {
     UNUSED(request);
 
@@ -79,21 +79,24 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, GetFileChunk)
             response->AddHolderAddresses(holder.GetAddress());
         }   
 
-        auto meta = chunk.DeserializeMasterMeta<TChunkServerMeta>();
-        response->SetBlockCount(meta.GetBlockCount());
-        response->SetSize(meta.GetSize());
+        auto chunkInfo = chunk.DeserializeChunkInfo();
+        response->SetBlockCount(chunkInfo.BlocksSize());
+        response->SetSize(chunkInfo.GetSize());
+
+        const auto& attributes = chunkInfo.GetAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
+        response->SetCodecId(attributes.GetCodecId());
 
         context->SetResponseInfo("ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s]",
             ~chunkId.ToString(),
             response->GetBlockCount(),
-            ~JoinToString(response->GetHolderAddresses()),
-            response->GetSize());
+            response->GetSize(),
+            ~JoinToString(response->GetHolderAddresses()));
     }
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TFileNodeProxy, SetFileChunk)
+DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, SetFileChunk)
 {
     UNUSED(response);
 

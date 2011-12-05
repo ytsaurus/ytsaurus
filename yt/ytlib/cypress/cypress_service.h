@@ -22,7 +22,7 @@ public:
         IInvoker* invoker,
         TCypressManager* cypressManager,
         NTransactionServer::TTransactionManager* transactionManager,
-        NRpc::IServer* server);
+        NRpc::IRpcServer* server);
 
 private:
     typedef TCypressService TThis;

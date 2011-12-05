@@ -38,7 +38,14 @@ namespace NYT {
 
 static NLog::TLogger Logger("CellMaster");
 
+using NBus::IBusServer;
+using NBus::TNLBusServerConfig;
+using NBus::CreateNLBusServer;
+
+using NRpc::IRpcServer;
 using NRpc::CreateRpcServer;
+
+using NYTree::IYPathService;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionService;
@@ -53,22 +60,22 @@ using NChunkServer::CreateHolderRegistry;
 using NChunkServer::CreateHolderMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
+using NMetaState::EPeerStatus;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
 using NCypress::CreateLockMapTypeHandler;
+using NCypress::RootNodeId;
 
-using namespace NMonitoring;
+using NMonitoring::TMonitoringManager;
+using NMonitoring::THttpTreeServer;
+using NMonitoring::GetYPathHttpHandler;
 
 using NOrchid::CreateOrchidTypeHandler;
 
 using NFileServer::CreateFileTypeHandler;
 
 using NTableServer::CreateTableTypeHandler;
-
-using namespace NCypress;
-using namespace NMetaState;
-using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +111,9 @@ void TCellMasterServer::Run()
 
     auto controlQueue = New<TActionQueue>();
 
-    auto rpcServer = CreateRpcServer(port);
+    auto busServer = CreateNLBusServer(TNLBusServerConfig(port));
+
+    auto rpcServer = CreateRpcServer(~busServer);
 
     auto metaStateManager = CreatePersistentStateManager(
         Config.MetaState,
@@ -155,7 +164,12 @@ void TCellMasterServer::Run()
     monitoringManager->Register(
         "/meta_state",
         FromMethod(&IMetaStateManager::GetMonitoringInfo, metaStateManager));
-    // TODO: register more monitoring infos
+    monitoringManager->Register(
+        "/bus_server",
+        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+    monitoringManager->Register(
+        "/rpc_server",
+        FromMethod(&IRpcServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     // TODO: refactor
@@ -198,6 +212,7 @@ void TCellMasterServer::Run()
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
+        ~metaStateManager,
         ~cypressManager,
         ~chunkManager));
 
@@ -227,8 +242,9 @@ void TCellMasterServer::Run()
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
                         return NULL;
                     }
-                    return IYPathService::FromNode(
-                        ~cypressManager->GetNodeProxy(RootNodeId, NullTransactionId));
+                    return IYPathService::FromNode(~cypressManager->GetNodeProxy(
+                        RootNodeId,
+                        NTransactionServer::NullTransactionId));
                 })
             ->AsyncVia(metaStateManager->GetStateInvoker())));            
 

@@ -17,31 +17,31 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO: consider getting rid of these functions and using analogs from ysaveload.h
-template<class T>
+template <class T>
 bool Read(TInputStream& input, T* data)
 {
     return input.Load(data, sizeof(T)) == sizeof(T);
 }
 
-template<class T>
+template <class T>
 bool Read(TFile& file, T* data)
 {
     return file.Read(data, sizeof(T)) == sizeof(T);
 }
 
-template<class T>
+template <class T>
 void Write(TOutputStream& output, const T& data)
 {
     output.Write(&data, sizeof(T));
 }
 
-template<class T>
+template <class T>
 void Write(TFile& file, const T& data)
 {
     file.Write(&data, sizeof(T));
 }
 
-template<class TSet>
+template <class TSet>
 void SaveSet(TOutputStream* output, const TSet& set)
 {
     typedef typename TSet::key_type TKey;
@@ -62,7 +62,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
     }
 }
 
-template<class TMap>
+template <class TMap>
 yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
 {
     typedef typename TMap::const_iterator TIterator;
@@ -80,7 +80,7 @@ yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
     return iterators;
 }
 
-template<class TMap>
+template <class TMap>
 void SaveMap(TOutputStream* output, const TMap& map)
 {
     auto iterators = GetSortedIterators(map);
@@ -116,7 +116,7 @@ void WritePadding(TFile& file, i64 recordSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 struct TProtoTraits
 {
     static const T& ToProto(const T& value)
@@ -131,7 +131,7 @@ struct TProtoTraits
 };
 
 // TODO: generify for other classes providing their own ToProto/FromProto methods
-template<>
+template <>
 struct TProtoTraits<TGuid>
 {
     static Stroka ToProto(const TGuid& value)
@@ -147,7 +147,7 @@ struct TProtoTraits<TGuid>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TArrayItem, class TProtoItem>
+template <class TArrayItem, class TProtoItem>
 inline void ToProto(
     ::google::protobuf::RepeatedPtrField<TProtoItem>& proto,
     const yvector<TArrayItem>& array,
@@ -161,7 +161,7 @@ inline void ToProto(
     }
 }
 
-template<class TArrayItem, class TProtoItem>
+template <class TArrayItem, class TProtoItem>
 inline yvector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
 {

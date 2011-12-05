@@ -17,38 +17,16 @@ TCypressServiceProxy::Execute(
     const NTransactionServer::TTransactionId& transactionId,
     TTypedRequest* innerRequest)
 {
+    typedef typename TTypedRequest::TTypedResponse TTypedResponse;
+
     innerRequest->SetPath(path);
+
     auto outerRequest = Execute();
     outerRequest->SetTransactionId(transactionId.ToProto());
-    return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
-        ~outerRequest,
-        innerRequest);
-}
 
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    const TNodeId& rootNodeId,
-    const NTransactionServer::TTransactionId& transactionId,
-    TTypedRequest* innerRequest)
-{
-    innerRequest->SetPath("/");
-    auto outerRequest = Execute();
-    outerRequest->SetRootNodeId(rootNodeId.ToProto());
-    outerRequest->SetTransactionId(transactionId.ToProto());
-    return Execute<TTypedRequest, typename TTypedRequest::TTypedResponse>(
-        ~outerRequest,
-        innerRequest);
-}
-
-template <class TTypedRequest, class TTypedResponse>
-TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    TCypressServiceProxy::TReqExecute* outerRequest,
-    TTypedRequest* innerRequest)
-{
     auto innerRequestMessage = innerRequest->Serialize();
-    NYTree::WrapYPathRequest(outerRequest, ~innerRequestMessage);
+    NYTree::WrapYPathRequest(~outerRequest, ~innerRequestMessage);
+
     return outerRequest->Invoke()->Apply(FromFunctor(
         [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
         {

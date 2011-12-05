@@ -20,14 +20,13 @@ public:
 
     RPC_DECLARE_PROXY(CypressService,
         ((NoSuchTransaction)(1))
-        ((NoSuchRootNode)(2))
     );
 
     TCypressServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, Execute);
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
@@ -36,19 +35,6 @@ public:
         const NTransactionServer::TTransactionId& transactionId,
         TTypedRequest* innerRequest);
 
-    template <class TTypedRequest>
-    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(
-        const TNodeId& rootNodeId,
-        const NTransactionServer::TTransactionId& transactionId,
-        TTypedRequest* innerRequest);
-
-private:
-    template <class TTypedRequest, class TTypedResponse>
-    TIntrusivePtr< TFuture< TIntrusivePtr<TTypedResponse> > >
-    Execute(
-        TCypressServiceProxy::TReqExecute* outerRequest,
-        TTypedRequest* innerRequest);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

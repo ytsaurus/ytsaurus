@@ -79,9 +79,8 @@ public:
      * \note Thread affinity: ClientThread.
      */
     TAsyncStreamState::TAsyncResult::TPtr
-    AsyncClose(const TSharedRef& masterMeta);
-
-
+    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes);
+    
     /*!
      * \note Thread affinity: any.
      */
@@ -127,7 +126,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
-    TSharedRef MasterMeta;
+    NChunkServer::NProto::TChunkAttributes Attributes;
 
     // ToDo: replace by cyclic buffer
     TWindow Window;
@@ -155,7 +154,7 @@ private:
      * Invoked from #Close.
      * Sets #IsCloseRequested.
      */
-    void DoClose(const TSharedRef& masterMeta);
+    void DoClose(const NChunkServer::NProto::TChunkAttributes& attributes);
     
     /*!
      * Invoked from #Cancel

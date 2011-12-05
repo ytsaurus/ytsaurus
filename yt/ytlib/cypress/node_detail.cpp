@@ -226,7 +226,7 @@ TAutoPtr<ICypressNode> TListNode::Clone() const
     return new TListNode(Id, *this);
 }
 
-TIntrusivePtr<ICypressNodeProxy> TMapNodeTypeHandler::GetProxy(
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(
     const ICypressNode& node,
     const TTransactionId& transactionId)
 {
@@ -275,7 +275,7 @@ Stroka TListNodeTypeHandler::GetTypeName()
     return "list";
 }
 
-TIntrusivePtr<ICypressNodeProxy> TListNodeTypeHandler::GetProxy(
+ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
     const ICypressNode& node,
     const TTransactionId& transactionId)
 {
@@ -333,6 +333,33 @@ void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 {
     BuildYsonFluently(param.Consumer)
         .Scalar(param.Node->IndexToChild().ysize());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRootNodeTypeHandler::TRootNodeTypeHandler(TCypressManager* cypressManager)
+    : TMapNodeTypeHandler(cypressManager)
+{ }
+
+ERuntimeNodeType TRootNodeTypeHandler::GetRuntimeType()
+{
+    return ERuntimeNodeType::Root;
+}
+
+Stroka TRootNodeTypeHandler::GetTypeName()
+{
+    return "root";
+}
+
+ICypressNodeProxy::TPtr TRootNodeTypeHandler::GetProxy(
+    const ICypressNode& node,
+    const TTransactionId& transactionId)
+{
+    return New<TRootNodeProxy>(
+        this,
+        ~CypressManager,
+        transactionId,
+        node.GetId().NodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

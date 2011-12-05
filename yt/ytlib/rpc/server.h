@@ -3,25 +3,29 @@
 #include "common.h"
 #include "service.h"
 
+#include "../bus/bus_server.h"
+#include "../ytree/ytree_fwd.h"
+
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IServer
+struct IRpcServer
     : public virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IServer> TPtr;
+    typedef TIntrusivePtr<IRpcServer> TPtr;
 
     virtual void RegisterService(IService* service) = 0;
     
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
-    virtual Stroka GetDebugInfo() = 0;
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
+
 };
 
-IServer::TPtr CreateRpcServer(int port);
+IRpcServer::TPtr CreateRpcServer(NBus::IBusServer* busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

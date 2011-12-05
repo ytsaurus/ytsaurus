@@ -5,6 +5,7 @@
 #include <contrib/testing/framework.h>
 
 using NYT::NYTree::INode;
+using NYT::NYTree::TYson;
 using NYT::NYTree::TYsonWriter;
 using NYT::NYTree::DeserializeFromYson;
 using NYT::NYTree::SerializeToYson;
@@ -27,7 +28,7 @@ TEST(TYTreeSerializationTest, All)
                       "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
                       "\"lock_scope\"=\"mytables\">";
     INode::TPtr root = DeserializeFromYson(someYson);
-    Stroka deserializedYson = SerializeToYson(root, TYsonWriter::EFormat::Text);
+    TYson deserializedYson = SerializeToYson(root.Get(), TYsonWriter::EFormat::Text);
     EXPECT_EQ(deleteSpaces(someYson), deserializedYson) <<
         "Before deserialize/serialize: " << someYson << "\n" <<
         "After: " << deserializedYson;

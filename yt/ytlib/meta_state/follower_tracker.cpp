@@ -70,7 +70,7 @@ void TFollowerTracker::ResetFollowerState(int followerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ChangeFollowerStatus(followerId, EPeerStatus::Stopped);
-    FollowerStates[followerId].Lease = TLeaseManager::TLease();
+    FollowerStates[followerId].Lease = TLeaseManager::NullLease;
 }
 
 void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
@@ -101,13 +101,13 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
     ChangeFollowerStatus(followerId, status);
 
     auto& followerState = FollowerStates[followerId];
-    if (followerState.Lease == TLeaseManager::TLease()) {
-        followerState.Lease = TLeaseManager::Get()->CreateLease(
+    if (followerState.Lease == TLeaseManager::NullLease) {
+        followerState.Lease = TLeaseManager::CreateLease(
             Config.PingTimeout,
-            FromMethod(&TFollowerTracker::OnLeaseExpired, TPtr(this), followerId)
+            ~FromMethod(&TFollowerTracker::OnLeaseExpired, TPtr(this), followerId)
             ->Via(~EpochInvoker));
     } else {
-        TLeaseManager::Get()->RenewLease(followerState.Lease);
+        TLeaseManager::RenewLease(followerState.Lease);
     }
 }
 

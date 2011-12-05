@@ -28,18 +28,19 @@ public:
     struct TConfig
     {
         i64 BlockSize;
+        ECodecId CodecId;
 
         TConfig()
             // ToDo: make configurable
             : BlockSize(1024 * 1024)
+            , CodecId(ECodecId::None)
         { }
     };
 
     TChunkWriter(
         const TConfig& config, 
         NChunkClient::IAsyncWriter::TPtr chunkWriter, 
-        const TSchema& schema,
-        ECodecId codecId);
+        const TSchema& schema);
     ~TChunkWriter();
 
     TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
@@ -63,14 +64,14 @@ private:
 
     void ContinueClose(
         TAsyncStreamState::TResult result, 
-        int channelIndex);
-    void FinishClose(TAsyncStreamState::TResult result);
+        int startChannelIndex = 0);
     void OnClosed(TAsyncStreamState::TResult result);
 
 private:
     const TConfig Config;
     const TSchema Schema;
-    ECodecId CodecId;
+
+    ICodec* Codec;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 
@@ -89,7 +90,7 @@ private:
     //! Current size of written data
     i64 CurrentSize;
 
-    NProto::TChunkMeta ChunkMeta;
+    NProto::TTableChunkAttributes Attributes;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

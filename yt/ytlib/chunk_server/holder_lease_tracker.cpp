@@ -33,9 +33,9 @@ void THolderLeaseTracker::RegisterHolder(const THolder& holder)
     YASSERT(pair.Second());
 
     auto& holderInfo = pair.First()->Second();
-    holderInfo.Lease = TLeaseManager::Get()->CreateLease(
+    holderInfo.Lease = TLeaseManager::CreateLease(
         Config.HolderLeaseTimeout,
-        FromMethod(
+        ~FromMethod(
             &THolderLeaseTracker::OnExpired,
             TPtr(this),
             holder.GetId())
@@ -45,7 +45,7 @@ void THolderLeaseTracker::RegisterHolder(const THolder& holder)
 void THolderLeaseTracker::UnregisterHolder(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
-    TLeaseManager::Get()->CloseLease(holderInfo.Lease);
+    TLeaseManager::CloseLease(holderInfo.Lease);
     YASSERT(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
@@ -53,7 +53,7 @@ void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
     auto& holderInfo = GetHolderInfo(holder.GetId());
-    TLeaseManager::Get()->RenewLease(holderInfo.Lease);
+    TLeaseManager::RenewLease(holderInfo.Lease);
 }
 
 void THolderLeaseTracker::OnExpired(THolderId holderId)

@@ -100,19 +100,23 @@ public:
 
     virtual NYTree::ICompositeNode::TPtr GetParent() const
     {
-        return GetProxy<NYTree::ICompositeNode>(GetImpl().GetParentId());
+        auto nodeId = GetImpl().GetParentId();
+        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNode::TPtr parent)
     {
-        auto* proxy = ToProxy(~parent);
-        GetImplForUpdate().SetParentId(proxy == NULL ? NullNodeId : proxy->GetNodeId());
+        GetImplForUpdate().SetParentId(
+            ~parent == NULL
+            ? NullNodeId
+            : ToProxy(~parent)->GetNodeId());
     }
 
 
     virtual NYTree::IMapNode::TPtr GetAttributes() const
     {
-        return GetProxy<NYTree::IMapNode>(GetImpl().GetAttributesId());
+        auto nodeId = GetImpl().GetAttributesId();
+        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsMap();
     }
 
     virtual void SetAttributes(NYTree::IMapNode::TPtr attributes)
@@ -256,20 +260,16 @@ protected:
     }
 
 
-    template <class T>
-    TIntrusivePtr<T> GetProxy(const TNodeId& nodeId) const
+    ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
     {
-        if (nodeId == NullNodeId) {
-            return NULL;
-        } else {
-            auto proxy = CypressManager->GetNodeProxy(nodeId, TransactionId);
-            return dynamic_cast<T*>(~proxy);
-        }
+        YASSERT(nodeId != NullNodeId);
+        return CypressManager->GetNodeProxy(nodeId, TransactionId);
     }
 
     static ICypressNodeProxy* ToProxy(INode* node)
     {
-        return dynamic_cast<ICypressNodeProxy*>(node);
+        YASSERT(node != NULL);
+        return &dynamic_cast<ICypressNodeProxy&>(*node);
     }
 
 
@@ -438,7 +438,7 @@ protected:
         }
     }
 
-private:
+protected:
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         if (NYTree::IsFinalYPath(context->GetPath())) {
@@ -449,9 +449,7 @@ private:
 
         Stroka typeName = request->GetType();
 
-        auto manifest = NYTree::DeserializeFromYson(request->GetManifest(),
-            NYTree::GetEphemeralNodeFactory());
-
+        auto manifest = NYTree::DeserializeFromYson(request->GetManifest());
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             typeName,
@@ -490,7 +488,7 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
     virtual Stroka GetChildKey(INode* child);
 
-private:
+protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
@@ -523,10 +521,27 @@ public:
     virtual void RemoveChild(NYTree::INode::TPtr child);
     virtual int GetChildIndex(INode* child);
 
-private:
+protected:
     virtual void CreateRecursive(NYTree::TYPath path, INode* value);
     virtual TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
     virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRootNodeProxy
+    : public TMapNodeProxy
+{
+public:
+    TRootNodeProxy(
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId);
+
+protected:
+    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
 
 };
 

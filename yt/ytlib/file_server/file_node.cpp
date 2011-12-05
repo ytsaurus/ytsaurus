@@ -3,6 +3,7 @@
 #include "file_node_proxy.h"
 #include "file_chunk_server_meta.pb.h"
 
+#include "../misc/codec.h"
 #include "../cypress/node_proxy.h"
 #include "../ytree/fluent.h"
 
@@ -92,6 +93,7 @@ private:
     TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
 
     void GetSize(const TGetAttributeParam& param);
+    void GetCodecId(const TGetAttributeParam& param);
     void GetBlockCount(const TGetAttributeParam& param);
     static void GetChunkListId(const TGetAttributeParam& param);
     void GetChunkId(const TGetAttributeParam& param);
@@ -119,6 +121,7 @@ TFileNodeTypeHandler::TFileNodeTypeHandler(
 {
     // NB: No smartpointer for this here.
     RegisterGetter("size", FromMethod(&TThis::GetSize, this));
+    RegisterGetter("codec_id", FromMethod(&TThis::GetCodecId, this));
     RegisterGetter("block_count", FromMethod(&TThis::GetBlockCount, this));
     RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
@@ -128,30 +131,47 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
 
-    if (chunk == NULL || chunk->GetMasterMeta() == TSharedRef()) {
+    if (chunk == NULL || chunk->GetChunkInfo() == TSharedRef()) {
         BuildYsonFluently(param.Consumer)
             .Scalar(-1);
         return;
     }
 
-    auto meta = chunk->DeserializeMasterMeta<TChunkServerMeta>();
+    auto info = chunk->DeserializeChunkInfo();
+    const auto& attributes = info.GetAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
     BuildYsonFluently(param.Consumer)
-        .Scalar(meta.GetSize());
+        .Scalar(attributes.GetSize());
+}
+
+void TFileNodeTypeHandler::GetCodecId(const TGetAttributeParam& param)
+{
+    const auto* chunk = GetChunk(*param.Node);
+
+    if (chunk == NULL || chunk->GetChunkInfo() == TSharedRef()) {
+        BuildYsonFluently(param.Consumer)
+            .Scalar(-1);
+        return;
+    }
+
+    auto info = chunk->DeserializeChunkInfo();
+    const auto& attributes = info.GetAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
+    BuildYsonFluently(param.Consumer)
+        .Scalar(ECodecId(attributes.GetCodecId()).ToString());
 }
 
 void TFileNodeTypeHandler::GetBlockCount(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
 
-    if (chunk == NULL || chunk->GetMasterMeta() == TSharedRef()) {
+    if (chunk == NULL || chunk->GetChunkInfo() == TSharedRef()) {
         BuildYsonFluently(param.Consumer)
             .Scalar(-1);
         return;
     }
 
-    auto meta = chunk->DeserializeMasterMeta<TChunkServerMeta>();
+    auto info = chunk->DeserializeChunkInfo();
     BuildYsonFluently(param.Consumer)
-        .Scalar(meta.GetBlockCount());
+        .Scalar(static_cast<i32>(info.BlocksSize()));
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)

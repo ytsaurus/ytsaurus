@@ -2,6 +2,7 @@
 #include "message_rearranger.h"
 
 #include "../misc/assert.h"
+#include "../misc/thread_affinity.h"
 
 namespace NYT {
 namespace NBus {
@@ -13,27 +14,28 @@ static NLog::TLogger& Logger = BusLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMessageRearranger::TMessageRearranger(
-    IParamAction<IMessage::TPtr>::TPtr onMessage,
+    IParamAction<IMessage*>* onMessage,
     TDuration timeout)
     : OnMessageDequeued(onMessage)
     , Timeout(timeout)
     , ExpectedSequenceId(-1)
 {
-    YASSERT(~onMessage != NULL);
+    YASSERT(onMessage != NULL);
 }
 
-void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequenceId)
+void TMessageRearranger::EnqueueMessage(IMessage* message, TSequenceId sequenceId)
 {
-    YASSERT(~message != NULL);
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(message != NULL);
 
     TGuard<TSpinLock> guard(SpinLock);
 
     if (sequenceId == ExpectedSequenceId || ExpectedSequenceId < 0) {
         LOG_DEBUG("Pass-through message (Message: %p, SequenceId: %" PRId64 ")",
-            ~message,
+            message,
             sequenceId);
 
-        ScheduleTimeout();
+        RescheduleTimeout();
         ExpectedSequenceId = sequenceId + 1;
 
         OnMessageDequeued->Do(message);
@@ -41,28 +43,27 @@ void TMessageRearranger::EnqueueMessage(IMessage::TPtr message, TSequenceId sequ
     }
 
     if (sequenceId < ExpectedSequenceId) {
-        LOG_DEBUG("Late message (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
-            ~message,
+        LOG_DEBUG("Message is late (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
+            message,
             sequenceId,
             ExpectedSequenceId);
         // Just drop the message.
         return;
     }
     
-    LOG_DEBUG("Postponed message (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
-        ~message,
+    LOG_DEBUG("Message postponed (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
+        message,
         sequenceId,
         ExpectedSequenceId);
 
-    if (MessageMap.empty()) {
-        ScheduleTimeout();
-    }
-
     YVERIFY(MessageMap.insert(MakePair(sequenceId, message)).second);
+    RescheduleTimeout();
 }
 
 void TMessageRearranger::OnTimeout()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(SpinLock);
     
     if (MessageMap.empty())
@@ -81,28 +82,33 @@ void TMessageRearranger::OnTimeout()
 
         auto message = it->second;
         
-        LOG_DEBUG("Flushed message (Message: %p, SequenceId: %" PRId64 ")",
+        LOG_DEBUG("Message flushed (Message: %p, SequenceId: %" PRId64 ")",
             ~message,
             sequenceId);
 
-        OnMessageDequeued->Do(message);
+        OnMessageDequeued->Do(~message);
+
         MessageMap.erase(it);
 
         ++ExpectedSequenceId;
     }
    
-    ScheduleTimeout();
+    RescheduleTimeout();
 }
 
-void TMessageRearranger::ScheduleTimeout()
+void TMessageRearranger::RescheduleTimeout()
 {
-    if (TimeoutCookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(TimeoutCookie);
-        TimeoutCookie = TDelayedInvoker::TCookie();
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+    if (TimeoutCookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::CancelAndClear(TimeoutCookie);
     }
-    TimeoutCookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
-        Timeout);
+
+    if (!MessageMap.empty()) {
+        TimeoutCookie = TDelayedInvoker::Submit(
+            ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
+            Timeout);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

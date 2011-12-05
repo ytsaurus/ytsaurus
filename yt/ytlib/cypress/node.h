@@ -81,11 +81,20 @@ DECLARE_ENUM(ENodeState,
 struct ICypressNode;
 struct ICypressNodeProxy;
 
+//! Describes a behavior object that lives as long as the node
+//! exists in Cypress.
+/*!
+ *  \note
+ *  Behaviors are only created at leader.
+ *  Behaviors are only created for non-branched nodes.
+ */
 struct INodeBehavior
     : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<INodeBehavior> TPtr;
 
+    //! Called when the node owning the behavior object is about to
+    //! be destroyed.
     virtual void Destroy() = 0;
 };
 
@@ -130,7 +139,9 @@ struct INodeTypeHandler
 
     //! Create a empty instance of the node.
     /*!
-     *  This is called when a node is being loaded from a snapshot.
+     *  This method is called when:
+     *  - a static node is being created
+     *  - a node (possibly dynamic) is being loaded from a snapshot
      */
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id) = 0;
@@ -178,19 +189,14 @@ struct INodeTypeHandler
         const Stroka& name) = 0;
 
 
-    //! Creates a behavior object that lives as long as the node
-    //! exists in Cypress.
+    //! Creates a behavior object.
     /*!
      *  \note
-     *  The callee may return NULL if no behavior is needed.
+     *  The method may return NULL if no behavior is needed.
      *  
-     *  Behaviors are only created at leader.
-     *  
-     *  Behaviors are only created for non-branched nodes.
-     *  
-     *  The callee must not keep the node reference since node's
+     *  The implementation must not keep the node reference since node's
      *  content may get eventually destroyed by TMetaStateMap.
-     *  Instead it should keep the node id.
+     *  It should keep node id instead.
      */
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node) = 0;
 };

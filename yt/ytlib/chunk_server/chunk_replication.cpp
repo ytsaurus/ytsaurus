@@ -552,10 +552,8 @@ void TChunkReplication::ScheduleRefresh(const TChunkId& chunkId)
 
 void TChunkReplication::ScheduleNextRefresh()
 {
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(
-            &TChunkReplication::OnRefresh,
-            TPtr(this))
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
         ->Via(Invoker),
         ChunkRefreshQuantum);
 }

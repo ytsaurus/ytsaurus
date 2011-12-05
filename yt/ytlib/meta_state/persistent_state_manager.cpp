@@ -43,12 +43,13 @@ public:
     typedef TIntrusivePtr<TPersistentStateManager> TPtr;
 
     class TElectionCallbacks
-            : public IElectionCallbacks
+        : public IElectionCallbacks
     {
     public:
-        TElectionCallbacks(TPersistentStateManager::TPtr owner)
+        TElectionCallbacks(TPersistentStateManager* owner)
             : Owner(owner)
         { }
+
     private:
         TPersistentStateManager::TPtr Owner;
 
@@ -88,7 +89,7 @@ public:
         const TConfig& config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
-        IServer* server)
+        IRpcServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , ControlStatus(EPeerStatus::Stopped)
         , StateStatus(EPeerStatus::Stopped)
@@ -96,6 +97,7 @@ public:
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
+        , CommitInProgress(false)
     {
         YASSERT(controlInvoker != NULL);
         YASSERT(metaState != NULL);
@@ -135,7 +137,7 @@ public:
             NElection::TElectionManager::TConfig(),
             ~CellManager,
             controlInvoker,
-            ~ElectionCallbacks,
+            ~New<TElectionCallbacks>(this),
             server);
 
         server->RegisterService(this);
@@ -234,6 +236,7 @@ public:
         IAction* changeAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+        YASSERT(!CommitInProgress);
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
@@ -243,34 +246,33 @@ public:
             return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
         }
 
-        IAction::TPtr changeAction_;
-        if (changeAction == NULL) {
-            changeAction_ = FromMethod(
-                &IMetaState::ApplyChange,
-                MetaState->GetState(),
-                changeData);
-        } else {
-            changeAction_ = changeAction;
-        }
-
         // FollowerTracker is modified concurrently from the ControlThread.
         auto followerTracker = FollowerTracker;
         if (~followerTracker == NULL || !followerTracker->HasActiveQuorum()) {
             return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
         }
 
-        return
+        CommitInProgress = true;
+
+        auto changeAction_ =
+            changeAction == NULL
+            ? FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData)
+            : changeAction;
+
+        auto result =
             LeaderCommitter
             ->Commit(changeAction, changeData)
             ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
+
+        CommitInProgress = false;
+
+        return result;
     }
 
  private:
     typedef TPersistentStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-
-    TElectionCallbacks::TPtr ElectionCallbacks;
 
     EPeerStatus ControlStatus;
     EPeerStatus StateStatus;
@@ -279,6 +281,7 @@ public:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     bool ReadOnly;
+    bool CommitInProgress;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -1265,7 +1268,7 @@ IMetaStateManager::TPtr CreatePersistentStateManager(
     const IMetaStateManager::TConfig& config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
 {
     return New<TPersistentStateManager>(
         config, controlInvoker, metaState, server);

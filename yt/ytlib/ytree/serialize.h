@@ -12,41 +12,43 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline INode::TPtr DeserializeFromYson(TInputStream* istream,
+inline INode::TPtr DeserializeFromYson(
+    TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory())
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
     TYsonReader reader(~builder);
-    reader.Read(istream);
+    reader.Read(input);
     return builder->EndTree();
 }
 
-inline INode::TPtr DeserializeFromYson(const Stroka& string,
+inline INode::TPtr DeserializeFromYson(
+    const TYson& yson,
     INodeFactory* factory = GetEphemeralNodeFactory())
 {
-    TStringInput stream(string);
-    return DeserializeFromYson(&stream, factory);
+    TStringInput input(yson);
+    return DeserializeFromYson(&input, factory);
 }
 
 inline TOutputStream& SerializeToYson(
-    const INode::TPtr& node,
-    const TYsonWriter::EFormat& format,
-    TOutputStream& ostream)
+    INode* node,
+    TOutputStream& output,
+    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
 {
-    TYsonWriter writer(&ostream, format);
+    TYsonWriter writer(&output, format);
     TTreeVisitor visitor(&writer);
     visitor.Visit(node);
-    return ostream;
+    return output;
 }
 
-inline Stroka SerializeToYson(
-    const INode::TPtr& node,
-    const TYsonWriter::EFormat& format)
+inline TYson SerializeToYson(
+    INode* node,
+    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
 {
-    TStringStream stream;
-    SerializeToYson(node, format, stream);
-    return stream.Str();
+    TStringStream output;
+    SerializeToYson(node, output, format);
+    return output.Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

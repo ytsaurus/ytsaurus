@@ -374,7 +374,7 @@ private:
         TRsp##method* response, \
         TCtx##method::TPtr context)
 
-#define DEFINE_RPC_SERVICE_METHOD_IMPL(type, method) \
+#define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \

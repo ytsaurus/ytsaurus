@@ -20,7 +20,7 @@ TChunkService::TChunkService(
     NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
     TTransactionManager* transactionManager,
-    NRpc::IServer* server)
+    NRpc::IRpcServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
         TChunkServiceProxy::GetServiceName(),
@@ -66,7 +66,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 {
     UNUSED(response);
 
@@ -91,7 +91,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, RegisterHolder)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
 {
     UNUSED(response);
 
@@ -188,7 +188,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, HolderHeartbeat)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunk)
 {
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     int replicaCount = request->GetReplicaCount();
@@ -229,7 +229,7 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, CreateChunk)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TChunkService, FindChunk)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, FindChunk)
 {
     auto transactionId = TTransactionId::FromProto(request->GetTransactionId());
     auto chunkId = TChunkId::FromProto(request->GetChunkId());

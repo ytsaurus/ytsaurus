@@ -256,7 +256,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_PROXY_METHOD(ns, method) \
+#define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \

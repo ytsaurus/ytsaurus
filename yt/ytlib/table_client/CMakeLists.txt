@@ -14,7 +14,3 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/reader.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/writer.h 
 )
-
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/table_chunk_meta.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/table_chunk_server_meta.proto YT_SOURCE_FILES )
-
