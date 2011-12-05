@@ -14,7 +14,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueInvoker;
+class TActionQueueBase;
+
+class TQueueInvoker
+    : public IInvoker
+{
+public:
+    typedef TIntrusivePtr<TQueueInvoker> TPtr;
+
+    TQueueInvoker(TActionQueueBase* owner);
+
+    void Invoke(IAction::TPtr action);
+    void Shutdown();
+    bool DequeueAndExecute();
+
+private:
+    TLockFreeQueue<IAction::TPtr> Queue;
+    TIntrusivePtr<TActionQueueBase> Owner;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueueBase
     : public TRefCountedBase
@@ -22,14 +42,29 @@ class TActionQueueBase
 public:
     typedef TIntrusivePtr<TActionQueueBase> TPtr;
 
-protected:
-    friend class TQueueInvoker;
+    virtual ~TActionQueueBase();
 
+    void Shutdown();
+
+protected:
     TActionQueueBase(bool enableLogging);
 
+    void Start();
+
+    virtual bool DequeueAndExecute() = 0;
+    virtual void OnIdle() = 0;
+    virtual void OnShutdown() = 0;
+
+private:
+    friend class TQueueInvoker;
+
+    static void* ThreadFunc(void* param);
+    void ThreadMain();
+
     bool EnableLogging;
-    volatile bool IsFinished;
+    volatile bool Finished;
     Event WakeupEvent;
+    TThread Thread;
 
 };
 
@@ -45,23 +80,15 @@ public:
     // which passes enableLogging = false to prevent infinite recursion.
     TActionQueue(bool enableLogging = true);
 
-    virtual ~TActionQueue();
-
     IInvoker::TPtr GetInvoker();
 
-    void Shutdown();
-
 protected:
+    virtual bool DequeueAndExecute();
     virtual void OnIdle();
+    virtual void OnShutdown();
 
 private:
-    TThread Thread;
-    
-    // Don't move it above: we need it to be initialized after #Thread and #WakeupEvent.
     TIntrusivePtr<TQueueInvoker> QueueInvoker;
-
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
 
 };
 
@@ -78,18 +105,15 @@ public:
     ~TPrioritizedActionQueue();
 
     IInvoker::TPtr GetInvoker(int priority);
-    void Shutdown();
 
 protected:
+    virtual bool DequeueAndExecute();
     virtual void OnIdle();
+    virtual void OnShutdown();
 
 private:
     autoarray< TIntrusivePtr<TQueueInvoker> > QueueInvokers;
 
-    TThread Thread;
-
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

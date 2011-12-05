@@ -53,7 +53,6 @@ public:
     TChunkSequenceWriter(
         const TConfig& config,
         const TSchema& schema,
-        ECodecId codecId,
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
@@ -86,7 +85,6 @@ private:
 
     const TConfig Config;
     const TSchema Schema;
-    const ECodecId CodecId;
 
     const NTransactionClient::TTransactionId TransactionId;
 

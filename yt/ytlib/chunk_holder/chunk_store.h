@@ -67,22 +67,27 @@ class TChunk
 {
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TLocation::TPtr, Location);
-    DEFINE_BYVAL_RO_PROPERTY(i64, Size);
-    DEFINE_BYVAL_RO_PROPERTY(i32, BlockCount);
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, MasterMeta);
+    DEFINE_BYREF_RO_PROPERTY(NChunkServer::NProto::TChunkInfo, Info);
 
 public:
+    i64 GetSize() const
+    {
+        return Info_.size();
+    }
+
+    i32 GetBlockCount() const
+    {
+        return Info_.blocks_size();
+    }
+
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
-        const NChunkClient::TChunkId& id,
-        NChunkClient::TFileReader* reader,
+        const NChunkServer::NProto::TChunkInfo& info,
         TLocation* location)
-        : Id_(id)
+        : Id_(TGuid::FromProto(info.id()))
         , Location_(location)
-        , Size_(reader->GetSize())
-        , BlockCount_(reader->GetBlockCount())
-        , MasterMeta_(reader->GetMasterMeta())
+        , Info_(info)
     { }
 
 private:
@@ -116,6 +121,8 @@ public:
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
      *  A common rule is to invoke it only from IO thread.
+     *  
+     *  The returned reader is already open.
      */
     NChunkClient::TFileReader::TPtr GetChunkReader(TChunk* chunk);
 

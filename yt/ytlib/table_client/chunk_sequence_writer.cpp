@@ -15,12 +15,10 @@ using namespace NChunkClient;
 TChunkSequenceWriter::TChunkSequenceWriter(
     const TConfig& config,
     const TSchema& schema,
-    ECodecId codecId,
     const TTransactionId& transactionId,
     NRpc::IChannel::TPtr masterChannel)
     : Config(config)
     , Schema(schema)
-    , CodecId(codecId)
     , TransactionId(transactionId)
     , Proxy(~masterChannel)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
@@ -59,7 +57,7 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
         const auto& protoAddresses = rsp->holderaddresses();
         yvector<Stroka> addresses(protoAddresses.begin(), protoAddresses.end());
 
-        //ToDo: consider using iterators in constructor to 
+        // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
             Config.ChunkWriterConfig,
@@ -69,8 +67,7 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
         NextChunk->Set(new TChunkWriter(
             Config.TableChunkConfig,
             chunkWriter,
-            Schema,
-            CodecId));
+            Schema));
 
     } else {
         State.Fail(rsp->GetError().ToString());

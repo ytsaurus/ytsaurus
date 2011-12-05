@@ -82,9 +82,7 @@ struct TCellConfig
         TConfigBase::Validate(path);
 
         if (Id >= Addresses.ysize()) {
-            ythrow yexception()
-                << Sprintf("Id must be less than size of Addresses (Path: %s, Id: %d, Addresses.size(): %d)",
-                    ~path, Id, Addresses.ysize());
+            ythrow yexception() << Sprintf("Id must be between 0 and %d", Addresses.ysize() - 1);
         }
     }
 

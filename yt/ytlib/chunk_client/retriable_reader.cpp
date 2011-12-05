@@ -71,9 +71,9 @@ void TRetriableReader::Retry()
         return;
     }
 
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
-        TInstant::Now() + Config.BackoffTime);
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
+        Config.BackoffTime);
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr 

@@ -26,12 +26,12 @@ public:
         : TProxyBase(channel, ServiceName)
     { }
 
-    RPC_PROXY_METHOD(NMyRpc, SomeCall);
-    RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
-    RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
-    RPC_PROXY_METHOD(NMyRpc, EmptyCall);
-    RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
 };
 
 const Stroka TMyProxy::ServiceName = "MyService";
@@ -50,7 +50,7 @@ public:
         : TProxyBase(channel, ServiceName)
     { }
 
-    RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
 };
 
 const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
@@ -101,21 +101,21 @@ public:
 
 };
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, SomeCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
 {
     int a = request->a();
     response->set_b(a + 100);
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ReplyingCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, ReplyingCall)
 {
     UNUSED(request);
     UNUSED(response);
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
+DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
     for (int i = 0; i < request->Attachments().ysize(); ++i) {
         auto blob = request->Attachments()[i].ToBlob();
@@ -126,21 +126,21 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, ModifyAttachments)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, EmptyCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, NotRegistredCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegistredCall)
 {
     UNUSED(request);
     UNUSED(response);
     UNUSED(context);
 }
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
+DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 {
 
     UNUSED(request);
@@ -151,20 +151,26 @@ DEFINE_RPC_SERVICE_METHOD_IMPL(TMyService, CustomMessageError)
 class TRpcTest
     : public ::testing::Test
 {
-    IServer::TPtr Server;
+    IRpcServer::TPtr RpcServer;
 
 public:
     virtual void SetUp()
     {
-        Server = CreateRpcServer(2000);
+        NBus::TNLBusServerConfig busConfig;
+        busConfig.Port = 2000;
+        auto busServer = NBus::CreateNLBusServer(busConfig);
+
+        RpcServer = CreateRpcServer(~busServer);
+
         auto queue = New<TActionQueue>();
-        Server->RegisterService(~New<TMyService>(~queue->GetInvoker()));
-        Server->Start();
+
+        RpcServer->RegisterService(~New<TMyService>(~queue->GetInvoker()));
+        RpcServer->Start();
     }
 
     virtual void TearDown()
     {
-        Server->Stop();
+        RpcServer->Stop();
     }
 };
 

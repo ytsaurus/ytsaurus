@@ -46,11 +46,11 @@ public:
 
         //! Lazily appends the record to the changelog.
         IAction::TPtr Append(
-            i32 recordId,
+            const TMetaVersion& version,
             const TSharedRef& data,
             TAppendResult::TPtr result)
         {
-            THolder<TRecord> recordHolder(new TRecord(recordId, data, result));
+            THolder<TRecord> recordHolder(new TRecord(version, data, result));
             TRecord* record = recordHolder.Get();
 
             {
@@ -74,6 +74,8 @@ public:
                 // Curse you, arcadia/util!
                 Records.ForEach(SweepRecord);
             }
+
+            LOG_DEBUG("Async changelog is flushed (ChangeLogId: %d)", ChangeLog->GetId());
         }
 
         //! Checks if the queue is empty. Note that despite the fact that this call locks
@@ -88,16 +90,16 @@ public:
         //! An unflushed record (auxiliary structure).
         struct TRecord : public TIntrusiveListItem<TRecord>
         {
-            i32 Id;
+            TMetaVersion Version;
             TSharedRef Data;
             TAsyncChangeLog::TAppendResult::TPtr Result;
             bool WaitingForSync;
 
             TRecord(
-                i32 id,
+                const TMetaVersion& version,
                 const TSharedRef& data,
                 const TAsyncChangeLog::TAppendResult::TPtr& result)
-                : Id(id)
+                : Version(version)
                 , Data(data)
                 , Result(result)
                 , WaitingForSync(false)
@@ -131,8 +133,6 @@ public:
         //! Preserves the atomicity of the operations on the list.
         mutable TSpinLock SpinLock;
 
-
-
     private:
         //! Sweep operation performed during #Flush.
         static void SweepRecord(TRecord* record)
@@ -140,8 +140,10 @@ public:
             if (record->WaitingForSync) {
                 record->Result->Set(TVoid());
                 record->Unlink();
-
                 delete record;
+
+                LOG_TRACE("Async changelog record is committed (Version: %s)",
+                    ~record->Version.ToString());
             }
         }
 
@@ -151,7 +153,7 @@ public:
             YASSERT(record != NULL);
             YASSERT(!record->WaitingForSync);
 
-            ChangeLog->Append(record->Id, record->Data);
+            ChangeLog->Append(record->Version.RecordCount, record->Data);
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
@@ -164,6 +166,7 @@ public:
             if (UnflushedBytes >= UnflushedBytesThreshold ||
                 UnflushedRecords >= UnflushedRecordsThreshold)
             {
+                LOG_DEBUG("Async changelog unflushed threshold reached (ChangeLogId: %d)", ChangeLog->GetId());
                 Flush();
             }
         }
@@ -178,19 +181,22 @@ public:
         const TSharedRef& data,
         TAppendResult::TPtr result)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-
-        auto it = ChangeLogQueues.find(changeLog);
         TChangeLogQueue::TPtr queue;
-
-        if (it == ChangeLogQueues.end()) {
-            queue = New<TChangeLogQueue>(changeLog);
-            it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
-        } else {
-            queue = it->second;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            auto it = ChangeLogQueues.find(changeLog);
+            if (it == ChangeLogQueues.end()) {
+                queue = New<TChangeLogQueue>(changeLog);
+                it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
+            } else {
+                queue = it->second;
+            }
         }
 
-        GetInvoker()->Invoke(queue->Append(recordId, data, result));
+        TMetaVersion version(changeLog->GetId(), recordId);
+        GetInvoker()->Invoke(queue->Append(version, data, result));
+
+        LOG_TRACE("Async changelog record is enqueued (Version: %s)", ~version.ToString());
     }
 
     TVoid Finalize(TChangeLog::TPtr changeLog)
@@ -200,6 +206,9 @@ public:
             queue->Flush();
         }
         changeLog->Finalize();
+
+        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
+
         return TVoid();
     }
 
@@ -210,9 +219,6 @@ public:
             queue->Flush();
         }
         changeLog->Flush();
-
-        LOG_DEBUG("Changelog flushed (ChangeLogId: %d)", changeLog->GetId());
-
         return TVoid();
     }
 
@@ -225,6 +231,8 @@ public:
 
     virtual void OnIdle()
     {
+        LOG_DEBUG("Async changelog thread is idle");
+
         // Take a snapshot.
         yvector<TChangeLogQueue::TPtr> queues;
         {
@@ -242,7 +250,7 @@ public:
             }
         }
 
-        // Flush the queues in the snapshot.
+        // Flush the queues.
         FOREACH(auto& queue, queues) {
             queue->Flush();
         }
@@ -255,8 +263,10 @@ public:
             TChangeLogQueueMap::iterator it, jt;
             for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
                 jt = it++;
-                if (jt->second->IsEmpty()) {
+                auto queue = jt->second;
+                if (queue->IsEmpty()) {
                     ChangeLogQueues.erase(jt);
+                    LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", queue->ChangeLog->GetId());
                 }
             }
         }
@@ -334,13 +344,15 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
     yvector<TSharedRef> unflushedRecords;
 
     FOREACH(const auto& record, queue->Records) {
-        if (record.Id >= lastRecordId)
+        i32 currentId = record.Version.RecordCount;
+
+        if (currentId >= lastRecordId)
             break;
 
-        if (record.Id < firstRecordId)
+        if (currentId  < firstRecordId)
             continue;
 
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, record.Id);
+        firstUnflushedRecordId = Min(firstUnflushedRecordId, currentId);
 
         unflushedRecords.push_back(record.Data);
     }
@@ -385,7 +397,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
     } else {
         auto it = queue->Records.End();
         --it;
-        return it->Id + 1;
+        return it->Version.RecordCount + 1;
     }
 }
 

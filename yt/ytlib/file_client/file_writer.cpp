@@ -17,6 +17,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
 using namespace NProto;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,13 +47,15 @@ TFileWriter::TFileWriter(
     // TODO: use totalReplicaCount
     UNUSED(totalReplicaCount);
 
-    // Create a file node.
-    LOG_INFO("Creating file node (Path: %s, TransactionId: %s)",
+    LOG_INFO("File writer is open (Path: %s, TransactionId: %s)",
         ~Path,
         ~Transaction->GetId().ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
     CypressProxy->SetTimeout(config.MasterRpcTimeout);
+
+    // Create a file node.
+    LOG_INFO("Creating node");
 
     auto createNodeRequest = TCypressYPathProxy::Create();
     createNodeRequest->set_type("file");
@@ -64,16 +67,16 @@ TFileWriter::TFileWriter(
         ~createNodeRequest)->Get();
 
     if (!createNodeResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error creating node\n%s",
             ~createNodeResponse->GetError().ToString());
     }
 
     NodeId = TNodeId::FromProto(createNodeResponse->nodeid());
 
-    LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
+    LOG_INFO("Node is created (NodeId: %s)", ~NodeId.ToString());
 
     // Create a chunk.
-    LOG_INFO("Creating file chunk (UploadReplicaCount: %d)", uploadReplicaCount);
+    LOG_INFO("Creating chunk (UploadReplicaCount: %d)", uploadReplicaCount);
 
     TChunkServiceProxy chunkProxy(masterChannel);
     auto createChunkRequest = chunkProxy.CreateChunk();
@@ -82,22 +85,24 @@ TFileWriter::TFileWriter(
 
     auto createChunkResponse = createChunkRequest->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error creating chunk\n%s",
             ~createChunkResponse->GetError().ToString());
     }
 
     ChunkId = TChunkId::FromProto(createChunkResponse->chunkid());
     auto addresses = FromProto<Stroka>(createChunkResponse->holderaddresses());
 
-    LOG_INFO("File chunk created (ChunkId: %s, HolderAddresses: [%s])",
+    LOG_INFO("Chunk is created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
         ~JoinToString(addresses));
 
     // Initialize a writer.
     Writer = New<TRemoteWriter>(
-        config.Writer,
+        config.RemoteWriter,
         ChunkId,
         addresses);
+
+    Codec = GetCodec(Config.CodecId);
 
     // Bind to the transaction.
     OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
@@ -147,7 +152,7 @@ void TFileWriter::Cancel()
 
     Finish();
 
-    LOG_INFO("File writing canceled");
+    LOG_INFO("File writer is canceled");
 }
 
 void TFileWriter::Close()
@@ -160,39 +165,44 @@ void TFileWriter::Close()
     // Flush the last block.
     FlushBlock();
 
-    // Construct server meta.
-    TChunkServerMeta meta;
-    meta.set_blockcount(BlockCount);
-    meta.set_size(Size);
-    meta.set_codecid(Config.CodecId);
-    TBlob metaBlob;
-    SerializeProtobuf(&meta, &metaBlob);
-
+    // Construct chunk attributes.
+    TChunkAttributes chunkAttributes;
+    chunkAttributes.set_type(EChunkType::File);
+    auto* fileAttributes = chunkAttributes.MutableExtension(TFileChunkAttributes::FileAttributes);
+    fileAttributes->set_size(Size);
+    fileAttributes->set_codecid(Config.CodecId);
+    
     // Close the chunk.
-    LOG_INFO("Closing file chunk");
+    LOG_INFO("Closing chunk");
 
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncClose, TSharedRef(MoveRV(metaBlob)));
+        Sync(~Writer, &TRemoteWriter::AsyncClose, chunkAttributes);
     } catch (...) {
-        LOG_ERROR_AND_THROW(yexception(), "Error closing file chunk\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s",
             ~CurrentExceptionMessage());
     }
 
-    LOG_INFO("File chunk closed");
+    LOG_INFO("Chunk is closed");
 
     // Associate the chunk with the file.
-    LOG_INFO("Attaching file chunk to file node");
+    LOG_INFO("Setting chunk");
 
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
     setChunkRequest->set_chunkid(ChunkId.ToProto());
 
-    auto setChunkResponse = CypressProxy->Execute(NodeId, Transaction->GetId(), ~setChunkRequest)->Get();
+    auto setChunkResponse =
+        CypressProxy
+        ->Execute(GetYPathFromNodeId(NodeId), Transaction->GetId(), ~setChunkRequest)
+        ->Get();
+
     if (!setChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error setting file chunk\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error setting chunk\n%s",
             ~setChunkResponse->GetError().ToString());
     }
+    
+    LOG_INFO("Chunk is set");
 
-    LOG_INFO("File chunk is attached");
+    LOG_INFO("File writer is closed");
 }
 
 void TFileWriter::FlushBlock()
@@ -200,18 +210,17 @@ void TFileWriter::FlushBlock()
     if (Buffer.empty())
         return;
 
-    LOG_INFO("Writing file block (BlockIndex: %d)", BlockCount);
+    LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
 
     try {
-        auto& codec = ICodec::GetCodec(Config.CodecId);
-        auto compressedBlock = codec.Encode(MoveRV(Buffer));
+        auto compressedBlock = Codec->Compress(MoveRV(Buffer));
         Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBlock);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ~CurrentExceptionMessage());
     }
     
-    LOG_INFO("File block written");
+    LOG_INFO("Block is written (BlockIndex: %d)", BlockCount);
 
     // AsyncWriteBlock should have done this already, so this is just a precaution.
     Buffer.clear();
@@ -231,7 +240,7 @@ void TFileWriter::CheckAborted()
     if (Aborted) {
         Finish();
 
-        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file writing canceled");
+        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file writer canceled");
     }
 }
 

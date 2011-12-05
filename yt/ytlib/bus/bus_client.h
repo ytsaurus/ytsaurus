@@ -42,7 +42,7 @@ public:
      *  \return A new bus.
      *
      */
-    IBus::TPtr CreateBus(IMessageHandler::TPtr handler);
+    IBus::TPtr CreateBus(IMessageHandler* handler);
 
 private:
     class TBus;

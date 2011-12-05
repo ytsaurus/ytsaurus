@@ -25,10 +25,10 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NProto, StartTransaction);
-    RPC_PROXY_METHOD(NProto, CommitTransaction);
-    RPC_PROXY_METHOD(NProto, AbortTransaction);
-    RPC_PROXY_METHOD(NProto, RenewTransactionLease);
+    DEFINE_RPC_PROXY_METHOD(NProto, StartTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto, CommitTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto, AbortTransaction);
+    DEFINE_RPC_PROXY_METHOD(NProto, RenewTransactionLease);
 
 };
 

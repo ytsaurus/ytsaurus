@@ -31,7 +31,6 @@ public:
     virtual void Destroy()
     { }
 
-
 protected:
     TCypressManager::TPtr CypressManager;
     TNodeId NodeId;
@@ -507,6 +506,22 @@ private:
 
     static void GetSize(const TGetAttributeParam& param);
 
+};
+
+//////////////////////////////////////////////////////////////////////////////// 
+
+class TRootNodeTypeHandler
+    : public TMapNodeTypeHandler
+{
+public:
+    TRootNodeTypeHandler(TCypressManager* cypressManager);
+
+    virtual ERuntimeNodeType GetRuntimeType();
+    virtual Stroka GetTypeName();
+
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId);
 };
 
 //////////////////////////////////////////////////////////////////////////////// 

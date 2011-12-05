@@ -110,7 +110,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YPATH_PROXY_METHOD(ns, method) \
+#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \

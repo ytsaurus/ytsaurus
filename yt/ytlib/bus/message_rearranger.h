@@ -17,24 +17,22 @@ public:
     typedef TIntrusivePtr<TMessageRearranger> TPtr;
 
     TMessageRearranger(
-        IParamAction<IMessage::TPtr>::TPtr onDequeuedMessage,
+        IParamAction<IMessage*>* onDequeuedMessage,
         TDuration timeout);
 
-    void EnqueueMessage(
-        IMessage::TPtr message,
-        TSequenceId sequenceId);
+    void EnqueueMessage(IMessage* message, TSequenceId sequenceId);
 
 private:
     typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
 
     TSpinLock SpinLock;
-    IParamAction<IMessage::TPtr>::TPtr OnMessageDequeued;
+    IParamAction<IMessage*>::TPtr OnMessageDequeued;
     TDuration Timeout;
     TDelayedInvoker::TCookie TimeoutCookie;
     TSequenceId ExpectedSequenceId;
     TMessageMap MessageMap;
 
-    void ScheduleTimeout();
+    void RescheduleTimeout();
     void OnTimeout();
     void FlushRearrangedMessages();
 };

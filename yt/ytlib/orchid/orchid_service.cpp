@@ -19,7 +19,7 @@ static NLog::TLogger& Logger(OrchidLogger);
 
 TOrchidService::TOrchidService(
     NYTree::INode* root,
-    NRpc::IServer* server,
+    NRpc::IRpcServer* server,
     IInvoker* invoker)
     : NRpc::TServiceBase(
         invoker,
@@ -37,7 +37,7 @@ TOrchidService::TOrchidService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD_IMPL(TOrchidService, Execute)
+DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 {
     UNUSED(request);
     UNUSED(response);

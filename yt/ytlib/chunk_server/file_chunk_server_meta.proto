@@ -1,0 +1,24 @@
+package NYT.NFileClient.NProto;
+
+import "chunk.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFileChunkAttributes
+{
+    extend NYT.NChunkServer.NProto.TChunkAttributes
+    {
+        required TFileChunkAttributes FileAttributes = 100;
+    }
+
+    // Number of blocks in chunk.
+    //required int32 BlockCount = 1;
+
+    // The real size of the file (as uploaded by the client).
+    required int64 Size = 1;
+
+    // Id of the codec using for storing blocks.
+    required int32 CodecId = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

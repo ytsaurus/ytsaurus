@@ -22,10 +22,11 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
+using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkWriter");
+static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -554,7 +555,7 @@ void TRemoteWriter::ReleaseSlots(int count)
     }
 }
 
-void TRemoteWriter::DoClose(const TSharedRef& masterMeta)
+void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -568,7 +569,7 @@ void TRemoteWriter::DoClose(const TSharedRef& masterMeta)
         ~ChunkId.ToString());
 
     IsCloseRequested = true;
-    MasterMeta = masterMeta;
+    Attributes.CopyFrom(attributes);
 
     if (Window.empty() && IsInitComplete) {
         CloseSession();
@@ -767,7 +768,7 @@ TRemoteWriter::FinishChunk(int node)
 
     auto req = Nodes[node]->Proxy.FinishChunk();
     req->set_chunkid(ChunkId.ToProto());
-    req->set_meta(MasterMeta.Begin(), MasterMeta.Size());
+    req->mutable_attributes()->CopyFrom(Attributes);
     return req->Invoke();
 }
 
@@ -824,12 +825,12 @@ void TRemoteWriter::SchedulePing(int node)
     }
 
     auto cookie = Nodes[node]->Cookie;
-    if (cookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(cookie);
+    if (cookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::Cancel(cookie);
     }
 
-    Nodes[node]->Cookie = TDelayedInvoker::Get()->Submit(
-        FromMethod(
+    Nodes[node]->Cookie = TDelayedInvoker::Submit(
+        ~FromMethod(
             &TRemoteWriter::PingSession,
             TPtr(this),
             node)
@@ -842,9 +843,8 @@ void TRemoteWriter::CancelPing(int node)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& cookie = Nodes[node]->Cookie;
-    if (cookie != TDelayedInvoker::TCookie()) {
-        TDelayedInvoker::Get()->Cancel(cookie);
-        cookie = TDelayedInvoker::TCookie();
+    if (cookie != TDelayedInvoker::NullCookie) {
+        TDelayedInvoker::CancelAndClear(cookie);
     }
 }
 
@@ -896,15 +896,14 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 }
 
 TAsyncStreamState::TAsyncResult::TPtr 
-TRemoteWriter::AsyncClose(const TSharedRef& masterMeta)
+TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
     State.StartOperation();
 
-    LOG_DEBUG("Requesting close (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Requesting close (ChunkId: %s)", ~ChunkId.ToString());
 
     if (CurrentGroup->GetSize() > 0) {
         WriterThread->GetInvoker()->Invoke(FromMethod(
@@ -921,7 +920,7 @@ TRemoteWriter::AsyncClose(const TSharedRef& masterMeta)
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteWriter::DoClose, 
         TPtr(this),
-        masterMeta));
+        attributes));
 
     return State.GetOperationResult();
 }
@@ -932,8 +931,7 @@ void TRemoteWriter::Cancel(const Stroka& errorMessage)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Requesting cancel (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Requesting cancel (ChunkId: %s)", ~ChunkId.ToString());
 
     // Drop the cyclic reference.
     CurrentGroup.Reset();

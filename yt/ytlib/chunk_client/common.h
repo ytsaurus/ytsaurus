@@ -1,10 +1,17 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/enum.h"
 #include "../misc/guid.h"
+
+#include "../logging/log.h"
 
 namespace NYT {
 namespace NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern NLog::TLogger ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +23,12 @@ typedef TGuid TChunkId;
 
 //! Means "no chunk".
 extern TChunkId NullChunkId;
+
+DECLARE_ENUM(EChunkType,
+    ((Unknown)(0))
+    ((File)(1))
+    ((Table)(2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

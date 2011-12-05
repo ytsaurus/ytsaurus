@@ -37,6 +37,15 @@ Stroka Deserialize(IMessage::TPtr message)
     return Stroka(part.Begin(), part.Size());
 }
 
+IBusServer::TPtr StartBusServer(IMessageHandler* handler)
+{
+    TNLBusServerConfig config;
+    config.Port = 2000;
+    auto server = CreateNLBusServer(config);
+    server->Start(handler);
+    return server;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEmptyBusHandler
@@ -105,7 +114,7 @@ private:
 
 void TestReplies(int numRequests, int numParts)
 {
-    auto listener = New<TBusServer>(2000, ~New<TReplying42BusHandler>(numParts));
+    auto server = StartBusServer(~New<TReplying42BusHandler>(numParts));
     auto client = New<TBusClient>("localhost:2000");
     auto handler = New<TChecking42BusHandler>(numRequests);
     auto bus = client->CreateBus(~handler);
@@ -121,20 +130,20 @@ void TestReplies(int numRequests, int numParts)
         EXPECT_IS_TRUE(false); // timeout occured
     }
 
-    listener->Terminate();
+    server->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TBusTest, OK)
 {
-    auto listener = New<TBusServer>(2000, New<TEmptyBusHandler>());
+    auto server = StartBusServer(~New<TEmptyBusHandler>());
     auto client = New<TBusClient>("localhost:2000");
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message)->Get();
     EXPECT_EQ(IBus::ESendResult::OK, result);
-    listener->Terminate();
+    server->Stop();
 }
 
 TEST(TBusTest, Failed)

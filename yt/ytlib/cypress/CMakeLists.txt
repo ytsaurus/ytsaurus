@@ -20,6 +20,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_integration.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.cpp
 )
 
 PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.proto YT_SOURCE_FILES )

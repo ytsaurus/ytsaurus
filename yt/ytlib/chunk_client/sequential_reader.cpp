@@ -63,7 +63,10 @@ TSequentialReader::AsyncNextBlock()
         &State,
         TAsyncStreamState::TResult())->ToParamAction<TSharedRef>());
 
-    ShiftWindow();
+    if (NextSequenceIndex > 0)
+        ShiftWindow();
+
+    ++NextSequenceIndex;
 
     return State.GetOperationResult();
 }
@@ -76,15 +79,15 @@ void TSequentialReader::OnGotBlocks(
     if (!State.IsActive())
         return;
 
-    if (readResult.Error.IsOK()) {
-        int sequenceIndex = firstSequenceIndex;
-        FOREACH(auto& block, readResult.Blocks) {
-            Window[sequenceIndex].AsyncBlock->Set(block);
-            ++sequenceIndex;
-        }
-    } else {
-        // ToDo: errorMessage.
-        State.Fail("");
+    if (!readResult.Error.IsOK()) {
+        State.Fail(readResult.Error.ToString());
+        return;
+    }
+
+    int sequenceIndex = firstSequenceIndex;
+    FOREACH(auto& block, readResult.Blocks) {
+        Window[sequenceIndex].AsyncBlock->Set(block);
+        ++sequenceIndex;
     }
 }
 

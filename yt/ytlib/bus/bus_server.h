@@ -1,81 +1,51 @@
 #pragma once
 
 #include "common.h"
-#include "message.h"
 #include "bus.h"
-#include "packet.h"
 
-#include <quality/NetLiba/UdpHttp.h>
+#include "../misc/config.h"
+#include "../ytree/ytree_fwd.h"
 
 namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBusServer
-    : public TRefCountedBase
+struct IBusServer
+    : virtual TRefCountedBase
 {
-public:
-    typedef TIntrusivePtr<TBusServer> TPtr;
+    typedef TIntrusivePtr<IBusServer> TPtr;
 
-    TBusServer(
-        int port,
-        IMessageHandler::TPtr handler);
-    virtual ~TBusServer();
-
-    void Terminate();
-    Stroka GetDebugInfo();
-
-private:
-    class TSession;
-    struct TOutcomingResponse;
-
-    friend class TSession;
-
-    typedef yhash_map<TSessionId, TIntrusivePtr<TSession> > TSessionMap;
-    typedef yhash_map<TGuid, TIntrusivePtr<TSession> > TPingMap;
-
-    IMessageHandler::TPtr Handler;
-    volatile bool Terminated;
-    TIntrusivePtr<IRequester> Requester;
-    TThread Thread;
-    TSessionMap SessionMap;
-    TPingMap PingMap;
-    TLockFreeQueue< TIntrusivePtr<TSession> > SessionsWithPendingResponses;
-
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
-
-    Event& GetEvent();
-
-    bool ProcessIncomingNLRequests();
-    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest);
-
-    bool ProcessIncomingNLResponses();
-    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse);
-    void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
-
-    void EnqueueOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
-    bool ProcessOutcomingResponses();
-    void ProcessOutcomingResponse(TIntrusivePtr<TSession> session, TIntrusivePtr<TOutcomingResponse> response);
-
-    void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
-    void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
-    void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest);
-    void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse);
-
-    TIntrusivePtr<TSession> DoProcessMessage(
-        TPacketHeader* header,
-        const TGuid& requestId,
-        const TUdpAddress& address,
-        TBlob&& data,
-        bool isRequest);
-
-    TIntrusivePtr<TSession> RegisterSession(
-        const TSessionId& sessionId,
-        const TUdpAddress& clientAddress);
-    void UnregisterSession(TIntrusivePtr<TSession> session);
+    virtual void Start(IMessageHandler* handler) = 0;
+    virtual void Stop() = 0;
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: place into a separate file (nl_bus_server.h/cpp?)
+
+struct TNLBusServerConfig
+    : TConfigBase
+{
+    int Port;
+    int MaxNLCallsPerIteration;
+    TDuration SleepQuantum;
+    TDuration MessageRearrangeTimeout;
+
+    explicit TNLBusServerConfig(int port = -1)
+        : Port(port)
+    {
+        Register("port", Port);
+        Register("max_nl_calls_per_iteration", MaxNLCallsPerIteration).Default(10);
+        Register("sleep_quantum", SleepQuantum).Default(TDuration::MilliSeconds(10));
+        Register("message_rearrange_timeout", MessageRearrangeTimeout).Default(TDuration::MilliSeconds(100));
+
+        SetDefaults();
+    }
+};
+
+IBusServer::TPtr CreateNLBusServer(const TNLBusServerConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

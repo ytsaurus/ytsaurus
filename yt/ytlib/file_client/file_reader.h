@@ -70,7 +70,7 @@ private:
     i32 BlockCount;
     i32 BlockIndex;
     i64 Size;
-    ECodecId CodecId;
+    ICodec* Codec;
 
     IAction::TPtr OnAborted_;
 

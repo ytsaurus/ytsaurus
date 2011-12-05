@@ -1,6 +1,8 @@
 #pragma once
 
 #include "common.h"
+#include "chunk.pb.h"
+
 #include "../misc/common.h"
 #include "../misc/assert.h"
 #include "../misc/enum.h"
@@ -47,7 +49,7 @@ struct IAsyncWriter
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
     virtual TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const TSharedRef& masterMeta) = 0;
+    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes) = 0;
 
     //! Cancels the current upload. 
     //! This method is safe to call at any time.

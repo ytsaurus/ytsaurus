@@ -30,13 +30,13 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NMetaState::NProto, ReadSnapshot);
-    RPC_PROXY_METHOD(NMetaState::NProto, ReadChangeLog);
-    RPC_PROXY_METHOD(NMetaState::NProto, GetSnapshotInfo);
-    RPC_PROXY_METHOD(NMetaState::NProto, GetChangeLogInfo);
-    RPC_PROXY_METHOD(NMetaState::NProto, ApplyChanges);
-    RPC_PROXY_METHOD(NMetaState::NProto, AdvanceSegment);
-    RPC_PROXY_METHOD(NMetaState::NProto, PingFollower);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ReadSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ReadChangeLog);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, GetSnapshotInfo);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, GetChangeLogInfo);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ApplyChanges);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, AdvanceSegment);
+    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, PingFollower);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

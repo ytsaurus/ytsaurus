@@ -9,23 +9,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTrivialCodec
+class TNoneCodec
     : public ICodec
 {
 public:
-    virtual TSharedRef Encode(const TSharedRef& block) const
+    virtual TSharedRef Compress(const TSharedRef& block)
     {
         return block;
     }
 
-    virtual TSharedRef Decode(const TSharedRef& block) const
+    virtual TSharedRef Decompress(const TSharedRef& block)
     {
         return block;
-    }
-
-    static const TTrivialCodec* GetInstance()
-    {
-        return Singleton<TTrivialCodec>();
     }
 };
 
@@ -35,7 +30,7 @@ class TSnappyCodec
     : public ICodec
 {
 public:
-    virtual TSharedRef Encode(const TSharedRef& block) const
+    virtual TSharedRef Compress(const TSharedRef& block)
     {
         auto maxSize = snappy::MaxCompressedLength(block.Size());
         TBlob blob(maxSize);
@@ -45,7 +40,7 @@ public:
         return TSharedRef(MoveRV(blob), ref);
     }
 
-    virtual TSharedRef Decode(const TSharedRef& block) const
+    virtual TSharedRef Decompress(const TSharedRef& block)
     {
         size_t size = 0;
         YVERIFY(snappy::GetUncompressedLength(block.Begin(), block.Size(), &size));
@@ -53,23 +48,18 @@ public:
         snappy::RawUncompress(block.Begin(), block.Size(), blob.begin());
         return TSharedRef(MoveRV(blob));
     }
-
-    static const TSnappyCodec* GetInstance()
-    {
-        return Singleton<TSnappyCodec>();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ICodec& ICodec::GetCodec(ECodecId id)
+ICodec* GetCodec(ECodecId id)
 {
     switch (id) {
         case ECodecId::None:
-            return *TTrivialCodec::GetInstance();
+            return Singleton<TNoneCodec>();
 
         case ECodecId::Snappy:
-            return *TSnappyCodec::GetInstance();
+            return Singleton<TSnappyCodec>();
 
         default:
             YUNREACHABLE();

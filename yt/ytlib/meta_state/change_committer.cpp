@@ -46,7 +46,7 @@ public:
         : Committer(committer)
         , Result(New<TResult>())
         , Awaiter(New<TParallelAwaiter>(~committer->CancelableControlInvoker))
-        , Version(version)
+        , StartVersion(version)
         // Count the local commit.
         , CommitCount(0)
         , IsSent(false)
@@ -57,9 +57,13 @@ public:
         VERIFY_THREAD_AFFINITY(Committer->StateThread);
         YASSERT(!IsSent);
 
+        TMetaVersion currentVersion(
+            StartVersion.SegmentId,
+            StartVersion.RecordCount + BatchedChanges.ysize());
         BatchedChanges.push_back(changeData);
-        LOG_DEBUG("Change added to batch (Version: %s)",
-            ~Version.ToString());
+
+        LOG_DEBUG("Change is added to batch (Version: %s)", ~currentVersion.ToString());
+
         return Result;
     }
 
@@ -75,7 +79,7 @@ public:
         IsSent = true;
 
         LOG_DEBUG("Sending batched changes (Version: %s, ChangeCount: %d)",
-            ~Version.ToString(),
+            ~StartVersion.ToString(),
             BatchedChanges.ysize());
 
         YASSERT(~LogResult != NULL);
@@ -91,8 +95,8 @@ public:
             proxy->SetTimeout(Committer->Config.RpcTimeout);
 
             auto request = proxy->ApplyChanges();
-            request->set_segmentid(Version.SegmentId);
-            request->set_recordcount(Version.RecordCount);
+            request->set_segmentid(StartVersion.SegmentId);
+            request->set_recordcount(StartVersion.RecordCount);
             request->set_epoch(Committer->Epoch.ToProto());
             FOREACH(const auto& change, BatchedChanges) {
                 request->Attachments().push_back(change);
@@ -128,7 +132,7 @@ private:
         Awaiter->Cancel();
         
         LOG_DEBUG("Changes are committed by quorum (Version: %s, ChangeCount: %d)",
-            ~Version.ToString(),
+            ~StartVersion.ToString(),
             BatchedChanges.ysize());
 
         return true;
@@ -140,7 +144,7 @@ private:
 
         if (!response->IsOK()) {
             LOG_WARNING("Error committing changes by follower (Version: %s, ChangeCount: %d, FollowerId: %d, Error: %s)",
-                ~Version.ToString(),
+                ~StartVersion.ToString(),
                 BatchedChanges.ysize(),
                 peerId,
                 ~response->GetError().ToString());
@@ -149,7 +153,7 @@ private:
 
         if (response->committed()) {
             LOG_DEBUG("Changes are committed by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
-                ~Version.ToString(),
+                ~StartVersion.ToString(),
                 BatchedChanges.ysize(),
                 peerId);
 
@@ -157,7 +161,7 @@ private:
             CheckCommitQuorum();
         } else {
             LOG_DEBUG("Changes are acknowledged by follower (Version: %s, ChangeCount: %d, FollowerId: %d)",
-                ~Version.ToString(),
+                ~StartVersion.ToString(),
                 BatchedChanges.ysize(),
                 peerId);
         }
@@ -168,7 +172,7 @@ private:
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         LOG_DEBUG("Changes are committed locally (Version: %s, ChangeCount: %d)",
-            ~Version.ToString(),
+            ~StartVersion.ToString(),
             BatchedChanges.ysize());
         ++CommitCount;
         CheckCommitQuorum();
@@ -183,7 +187,7 @@ private:
             return;
 
         LOG_WARNING("Changes are uncertain (Version: %s, ChangeCount: %d, CommitCount: %d)",
-            ~Version.ToString(),
+            ~StartVersion.ToString(),
             BatchedChanges.ysize(),
             CommitCount);
 
@@ -194,7 +198,7 @@ private:
     TLeaderCommitter::TPtr Committer;
     TResult::TPtr Result;
     TParallelAwaiter::TPtr Awaiter;
-    TMetaVersion Version;
+    TMetaVersion StartVersion;
     i32 CommitCount;
     volatile bool IsSent;
     yvector<TSharedRef> BatchedChanges;
@@ -287,9 +291,9 @@ void TLeaderCommitter::FlushCurrentBatch()
     YASSERT(~CurrentBatch != NULL);
 
     CurrentBatch->SendChanges();
-    TDelayedInvoker::Get()->Cancel(BatchTimeoutCookie);
+    TDelayedInvoker::Cancel(BatchTimeoutCookie);
     CurrentBatch.Reset();
-    BatchTimeoutCookie = TDelayedInvoker::TCookie();
+    BatchTimeoutCookie = TDelayedInvoker::NullCookie;
 }
 
 TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
@@ -301,8 +305,8 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
     if (~CurrentBatch == NULL) {
         YASSERT(~BatchTimeoutCookie == NULL);
         CurrentBatch = New<TBatch>(TPtr(this), version);
-        BatchTimeoutCookie = TDelayedInvoker::Get()->Submit(
-            FromMethod(
+        BatchTimeoutCookie = TDelayedInvoker::Submit(
+            ~FromMethod(
                 &TLeaderCommitter::DelayedFlush,
                 TPtr(this),
                 CurrentBatch)
@@ -386,20 +390,17 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
         ~currentVersion.ToString(),
         changes.ysize());
 
-    TResult::TPtr result;
+    TAsyncChangeLog::TAppendResult::TPtr result;
     FOREACH (const auto& change, changes) {
-        result = MetaState
-            ->LogChange(currentVersion, change)
-            ->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
-                {
-                    return TCommitterBase::EResult::Committed;
-                }));
-
+        result = MetaState->LogChange(currentVersion, change);
         MetaState->ApplyChange(change);
         ++currentVersion.RecordCount;
     }
 
-    return result;
+    return result->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
+        {
+            return TCommitterBase::EResult::Committed;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,39 @@
+package NYT.NChunkServer.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TBlockInfo
+{
+    required int64 Offset = 1;
+    required int32 Size = 2;
+    required uint64 Checksum = 3;
+}
+
+message TChunkAttributes
+{
+    extensions 100 to max;
+
+    required int32 Type = 1;
+}
+
+// TChunkMeta is stored in *.meta files on chunk holders.
+message TChunkMeta
+{
+    required bytes Id = 1;
+    repeated TBlockInfo Blocks = 2;
+    required TChunkAttributes Attributes = 3;   
+}
+
+// TChunkInfo is transfered to the server during chunk registration
+// and in reply to various GetChunkInfo requests.
+message TChunkInfo
+{
+    required bytes Id = 1;
+    // Full chunk size (including both data and meta).
+    required int64 Size = 2;
+    required uint64 MetaChecksum = 3;
+    repeated TBlockInfo Blocks = 4;
+    required TChunkAttributes Attributes = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -64,8 +64,9 @@ TMasterConnector::TMasterConnector(
 
 void TMasterConnector::ScheduleHeartbeat()
 {
-    TDelayedInvoker::Get()->Submit(
-        FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))->Via(ServiceInvoker),
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
+        ->Via(ServiceInvoker),
         Config.HeartbeatPeriod);
 }
 
@@ -149,7 +150,7 @@ void TMasterConnector::SendHeartbeat()
         ReportedRemoved = RemovedSinceLastSuccess;
 
         FOREACH (const auto& chunk, ReportedAdded) {
-            *request->add_addedchunks() = GetInfo(~chunk);
+            *request->add_addedchunks() = chunk->Info();
         }
 
         FOREACH (const auto& chunk, ReportedRemoved) {
@@ -157,7 +158,7 @@ void TMasterConnector::SendHeartbeat()
         }
     } else {
         FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
-            *request->add_addedchunks() = GetInfo(~chunk);
+            *request->add_addedchunks() = chunk->Info();
         }
     }
 
@@ -263,16 +264,6 @@ void TMasterConnector::OnDisconnected()
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
     RemovedSinceLastSuccess.clear();
-}
-
-NChunkServer::NProto::TChunkInfo TMasterConnector::GetInfo(TChunk* chunk)
-{
-    NChunkServer::NProto::TChunkInfo result;
-    result.set_id(chunk->GetId().ToProto());
-    result.set_size(chunk->GetSize());
-    auto meta = chunk->GetMasterMeta();
-    result.set_mastermeta(meta.Begin(), meta.Size());
-    return result;
 }
 
 void TMasterConnector::OnChunkAdded(TChunk* chunk)

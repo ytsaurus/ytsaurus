@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
+#include "cypress_ypath_rpc.h"
 
 namespace NYT {
 namespace NCypress {
@@ -69,7 +70,7 @@ void TMapNodeProxy::Clear()
     auto& impl = GetTypedImplForUpdate();
 
     FOREACH(const auto& pair, impl.NameToChild()) {
-        auto& childImpl = GetImplForUpdate(pair.Second());
+        auto& childImpl = GetImplForUpdate(pair.second);
         DetachChild(childImpl);
     }
 
@@ -88,9 +89,7 @@ yvector< TPair<Stroka, INode::TPtr> > TMapNodeProxy::GetChildren() const
     const auto& map = GetTypedImpl().NameToChild();
     result.reserve(map.ysize());
     FOREACH (const auto& pair, map) {
-        result.push_back(MakePair(
-            pair.First(),
-            GetProxy<INode>(pair.Second())));
+        result.push_back(MakePair(pair.first, GetProxy(pair.second)));
     }
     return result;
 }
@@ -99,7 +98,7 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 {
     const auto& map = GetTypedImpl().NameToChild();
     auto it = map.find(name);
-    return it == map.end() ? NULL : GetProxy<INode>(it->Second());
+    return it == map.end() ? NULL : GetProxy(it->second);
 }
 
 bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
@@ -113,11 +112,11 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
     auto* childProxy = ToProxy(~child);
     auto childId = childProxy->GetNodeId();
 
-    if (!impl.NameToChild().insert(MakePair(name, childId)).Second())
+    if (!impl.NameToChild().insert(MakePair(name, childId)).second)
         return false;
 
     auto& childImpl = childProxy->GetImplForUpdate();
-    YVERIFY(impl.ChildToName().insert(MakePair(childId, name)).Second());
+    YVERIFY(impl.ChildToName().insert(MakePair(childId, name)).second);
     AttachChild(childImpl);
 
     return true;
@@ -133,8 +132,8 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
     if (it == impl.NameToChild().end())
         return false;
 
-    const auto& childId = it->Second();
-    auto childProxy = GetProxy<ICypressNodeProxy>(childId);
+    const auto& childId = it->second;
+    auto childProxy = GetProxy(childId);
     auto& childImpl = childProxy->GetImplForUpdate();
     
     impl.NameToChild().erase(it);
@@ -157,7 +156,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
 
-    Stroka name = it->Second();
+    Stroka name = it->second;
     impl.ChildToName().erase(it);
     YVERIFY(impl.NameToChild().erase(name) == 1);
 
@@ -181,13 +180,13 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     auto it = impl.ChildToName().find(oldChildProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
 
-    Stroka name = it->Second();
+    Stroka name = it->second;
 
     impl.ChildToName().erase(it);
     DetachChild(oldChildImpl);
 
     impl.NameToChild()[name] = newChildProxy->GetNodeId();
-    YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).Second());
+    YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).second);
     AttachChild(newChildImpl);
 }
 
@@ -200,7 +199,7 @@ Stroka TMapNodeProxy::GetChildKey(INode* child)
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToName().end());
 
-    return it->Second();
+    return it->second;
 }
 
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
@@ -270,7 +269,7 @@ yvector<INode::TPtr> TListNodeProxy::GetChildren() const
     const auto& list = GetTypedImpl().IndexToChild();
     result.reserve(list.ysize());
     FOREACH (const auto& nodeId, list) {
-        result.push_back(GetProxy<INode>(nodeId));
+        result.push_back(GetProxy(nodeId));
     }
     return result;
 }
@@ -278,7 +277,7 @@ yvector<INode::TPtr> TListNodeProxy::GetChildren() const
 INode::TPtr TListNodeProxy::FindChild(int index) const
 {
     const auto& list = GetTypedImpl().IndexToChild();
-    return index >= 0 && index < list.ysize() ? GetProxy<INode>(list[index]) : NULL;
+    return index >= 0 && index < list.ysize() ? GetProxy(list[index]) : NULL;
 }
 
 void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
@@ -293,7 +292,7 @@ void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
     auto& childImpl = childProxy->GetImplForUpdate();
 
     if (beforeIndex < 0) {
-        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, list.ysize())).Second());
+        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, list.ysize())).second);
         list.push_back(childId);
     } else {
         // Update the indices.
@@ -302,9 +301,8 @@ void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
         }
 
         // Insert the new child.
-        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, beforeIndex)).Second());
+        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, beforeIndex)).second);
         list.insert(list.begin() + beforeIndex, childId);
-
     }
 
     AttachChild(childImpl);
@@ -320,7 +318,7 @@ bool TListNodeProxy::RemoveChild(int index)
     if (index < 0 || index >= list.ysize())
         return false;
 
-    auto childProxy = GetProxy<ICypressNodeProxy>(list[index]);
+    auto childProxy = GetProxy(list[index]);
     auto& childImpl = childProxy->GetImplForUpdate();
 
     // Update the indices.
@@ -359,13 +357,13 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     auto it = impl.ChildToIndex().find(oldChildProxy->GetNodeId());
     YASSERT(it != impl.ChildToIndex().end());
 
-    int index = it->Second();
+    int index = it->second;
 
     DetachChild(oldChildImpl);
 
     impl.IndexToChild()[index] = newChildProxy->GetNodeId();
     impl.ChildToIndex().erase(it);
-    YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetNodeId(), index)).Second());
+    YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetNodeId(), index)).second);
     AttachChild(newChildImpl);
 }
 
@@ -378,7 +376,7 @@ int TListNodeProxy::GetChildIndex(INode* child)
     auto it = impl.ChildToIndex().find(childProxy->GetNodeId());
     YASSERT(it != impl.ChildToIndex().end());
 
-    return it->Second();
+    return it->second;
 }
 
 void TListNodeProxy::CreateRecursive(TYPath path, INode* value)
@@ -397,6 +395,35 @@ void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* respon
 
     TListNodeMixin::SetRecursive(path, request);
     context->Reply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRootNodeProxy::TRootNodeProxy(
+    INodeTypeHandler* typeHandler,
+    TCypressManager* cypressManager,
+    const TTransactionId& transactionId,
+    const TNodeId& nodeId)
+    : TMapNodeProxy(typeHandler, cypressManager, transactionId, nodeId)
+{ }
+
+IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
+{
+    if (!path.empty() && path[0] == NodeIdMarker) {
+        TYPath suffixPath;
+        Stroka prefix;
+        ChopYPathToken(path.substr(1), &prefix, &suffixPath);
+
+        TNodeId nodeId;
+        if (!TNodeId::FromString(prefix, &nodeId)) {
+            ythrow yexception() << Sprintf("Error parsing node id %s", ~prefix.Quote());
+        }
+
+        auto node = GetProxy(nodeId);
+        return TResolveResult::There(~IYPathService::FromNode(~node), suffixPath);
+    } else {
+        return TMapNodeProxy::ResolveRecursive(path, verb);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

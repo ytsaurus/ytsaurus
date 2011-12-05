@@ -8,5 +8,3 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/master_connector.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/replicator.cpp
 )
-
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk_holder.proto YT_SOURCE_FILES )

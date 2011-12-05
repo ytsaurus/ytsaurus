@@ -51,10 +51,11 @@ public:
         activeRequest.ResponseHandler = responseHandler;
 
         if (timeout != TDuration::Zero()) {
-            activeRequest.TimeoutCookie = TDelayedInvoker::Get()->Submit(FromMethod(
-                &TChannel::OnTimeout,
-                TPtr(this),
-                requestId),
+            activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
+                ~FromMethod(
+                    &TChannel::OnTimeout,
+                    TPtr(this),
+                    requestId),
                 timeout);
         }
 
@@ -232,9 +233,8 @@ private:
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
         auto& activeRequest = it->Second();
-        if (activeRequest.TimeoutCookie != TDelayedInvoker::TCookie()) {
-            TDelayedInvoker::Get()->Cancel(activeRequest.TimeoutCookie);
-            activeRequest.TimeoutCookie = TDelayedInvoker::TCookie();
+        if (activeRequest.TimeoutCookie != TDelayedInvoker::NullCookie) {
+            TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
         }
 
         ActiveRequests.erase(it);

@@ -39,13 +39,15 @@ TFileReader::TFileReader(
         ? NullTransactionId
         : Transaction->GetId();
 
-    // Get file chunk information.
-    LOG_INFO("Getting file chunk information (Path: %s, TransactionId: %s)",
+    LOG_INFO("File reader is open (Path: %s, TransactionId: %s)",
         ~Path,
         ~transactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
     CypressProxy->SetTimeout(config.MasterRpcTimeout);
+
+    // Get chunk info.
+    LOG_INFO("Getting chunk info");
 
     auto getChunkRequest = TFileYPathProxy::GetFileChunk();
     auto getChunkResponse = CypressProxy->Execute(
@@ -54,7 +56,7 @@ TFileReader::TFileReader(
         ~getChunkRequest)->Get();
 
     if (!getChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting file chunk information\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info\n%s",
             ~getChunkResponse->GetError().ToString());
     }
 
@@ -62,19 +64,21 @@ TFileReader::TFileReader(
     BlockCount = getChunkResponse->blockcount();
     Size = getChunkResponse->size();
     auto addresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
+    auto codecId = ECodecId(getChunkResponse->codecid());
 
-    CodecId = ECodecId::None; // TODO: fill in CodecId from server meta
-
-    LOG_INFO("File chunk information received (ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s])",
+    LOG_INFO("Chunk info is received (ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s], CodecId: %s)",
         ~ChunkId.ToString(),
         BlockCount,
         Size,
-        ~JoinToString(addresses));
+        ~JoinToString(addresses),
+        ~codecId.ToString());
 
     if (addresses.empty()) {
         // TODO: Monster says we should wait here
-        LOG_ERROR_AND_THROW(yexception(), "File chunk is not available (ChunkId: %s)", ~ChunkId.ToString());
+        LOG_ERROR_AND_THROW(yexception(), "Chunk is not available (ChunkId: %s)", ~ChunkId.ToString());
     }
+
+    Codec = GetCodec(codecId);
 
     // Take all blocks.
     yvector<int> blockIndexes;
@@ -111,19 +115,20 @@ TSharedRef TFileReader::Read()
     CheckAborted();
 
     if (!SequentialReader->HasNext()) {
+        Close();
         return TSharedRef();
     }
 
-    LOG_INFO("Reading file block (BlockIndex: %d)", BlockIndex);
+    LOG_INFO("Reading block (BlockIndex: %d)", BlockIndex);
     Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
 
-    auto& codec = ICodec::GetCodec(CodecId);
-    auto decompressedBlock = codec.Decode(SequentialReader->GetBlock());
+    auto compressedBlock = SequentialReader->GetBlock();
+    auto block = Codec->Decompress(compressedBlock);
 
-    LOG_INFO("File block is read");
+    LOG_INFO("Block is read (BlockIndex: %d)", BlockIndex);
 
     ++BlockIndex;
-    return decompressedBlock;
+    return block;
 }
 
 i64 TFileReader::GetSize() const
@@ -139,6 +144,8 @@ void TFileReader::Close()
     CheckAborted();
 
     Finish();
+
+    LOG_INFO("File reader is closed");
 }
 
 void TFileReader::Finish()
@@ -156,7 +163,7 @@ void TFileReader::CheckAborted()
     if (Aborted) {
         Finish();
 
-        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file reading canceled");
+        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file reader canceled");
     }
 }
 

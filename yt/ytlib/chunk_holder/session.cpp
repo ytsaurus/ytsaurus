@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "session.h"
 
+#include <chunk.pb.h>
+
 #include "../misc/fs.h"
 #include "../misc/assert.h"
 #include "../misc/sync.h"
@@ -15,6 +17,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NChunkClient;
+using namespace NYT::NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,9 +55,9 @@ TSession::TPtr TSessionManager::StartSession(
 
     auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
-    auto lease = TLeaseManager::Get()->CreateLease(
+    auto lease = TLeaseManager::CreateLease(
         Config.SessionTimeout,
-        FromMethod(
+        ~FromMethod(
             &TSessionManager::OnLeaseExpired,
             TPtr(this),
             session)
@@ -71,7 +74,7 @@ TSession::TPtr TSessionManager::StartSession(
     return session;
 }
 
-void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorMessage)
+void TSessionManager::CancelSession(TSession* session, const Stroka& errorMessage)
 {
     auto chunkId = session->GetChunkId();
 
@@ -79,19 +82,20 @@ void TSessionManager::CancelSession(TSession::TPtr session, const Stroka& errorM
 
     session->Cancel(errorMessage);
 
-    LOG_INFO("Session canceled (ChunkId: %s)",
-        ~chunkId.ToString());
+    LOG_INFO("Session canceled (ChunkId: %s)\n%s",
+        ~chunkId.ToString(),
+        ~errorMessage);
 }
 
 TFuture<TVoid>::TPtr TSessionManager::FinishSession(
     TSession::TPtr session, 
-    const TSharedRef& masterMeta)
+    const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(masterMeta)->Apply(
+    return session->Finish(attributes)->Apply(
         FromMethod(
             &TSessionManager::OnSessionFinished,
             TPtr(this),
@@ -101,12 +105,9 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
-    LOG_INFO("Session finished (ChunkId: %s)",
-        ~session->GetChunkId().ToString());
+    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
 
-    ChunkStore->RegisterChunk(
-        session->GetChunkId(),
-        ~session->GetLocation());
+    ChunkStore->RegisterChunk(session->GetChunkId(), ~session->GetLocation());
 
     return TVoid();
 }
@@ -117,7 +118,7 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
         LOG_INFO("Session lease expired (ChunkId: %s)",
             ~session->GetChunkId().ToString());
 
-        CancelSession(session, "Session lease expired");
+        CancelSession(~session, "Session lease expired");
     }
 }
 
@@ -166,12 +167,12 @@ void TSession::SetLease(TLeaseManager::TLease lease)
 
 void TSession::RenewLease()
 {
-    TLeaseManager::Get()->RenewLease(Lease);
+    TLeaseManager::RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
-    TLeaseManager::Get()->CloseLease(Lease);
+    TLeaseManager::CloseLease(Lease);
 }
 
 IInvoker::TPtr TSession::GetInvoker()
@@ -337,7 +338,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
+TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -353,7 +354,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TSharedRef& masterMeta)
         }
     }
 
-    return CloseFile(masterMeta);
+    return CloseFile(attributes);
 }
 
 void TSession::Cancel(const Stroka& errorMessage)
@@ -371,7 +372,7 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileWriter>(FileName + NFS::TempFileSuffix);
+    Writer = New<TFileWriter>(ChunkId, FileName);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
@@ -389,40 +390,30 @@ void TSession::DoDeleteFile(const Stroka& errorMessage)
 {
     Writer->Cancel(errorMessage);
 
-    if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
-        LOG_FATAL("Error deleting chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
-    }
-
     LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
         ~errorMessage);
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile(const TSharedRef& masterMeta)
+TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         FromMethod(
             &TSession::DoCloseFile,
             TPtr(this),
-            masterMeta)
+            attributes)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
 
-NYT::TVoid TSession::DoCloseFile(const TSharedRef& masterMeta)
+NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
-        Sync(~Writer, &TFileWriter::AsyncClose, masterMeta);
+        Sync(~Writer, &TFileWriter::AsyncClose, attributes);
     } catch (...) {
         LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
             ~ChunkId.ToString(),
             ~CurrentExceptionMessage());
-    }
-
-    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        LOG_FATAL("Error renaming temp chunk file (ChunkId: %s)",
-            ~ChunkId.ToString());
     }
 
     LOG_DEBUG("Chunk file closed (ChunkId: %s)",

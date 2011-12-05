@@ -34,8 +34,8 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    RPC_PROXY_METHOD(NElection::NProto, PingFollower)
-    RPC_PROXY_METHOD(NElection::NProto, GetStatus)
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower)
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus)
 
 };
 

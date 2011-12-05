@@ -262,7 +262,7 @@ private:
     NChunkClient::IAsyncReader::TPtr AsyncReader;
     TChunkReader::TPtr ChunkReader;
 
-    NProto::TChunkMeta ProtoMeta;
+    NProto::TTableChunkAttributes ProtoMeta;
     yvector<TChannel> ChunkChannels;
     yvector<int> SelectedChannels;
 

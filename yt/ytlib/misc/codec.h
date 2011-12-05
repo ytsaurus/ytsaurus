@@ -14,15 +14,24 @@ DECLARE_ENUM(ECodecId,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A generic interface for compression/decompression.
 struct ICodec
 {
-    virtual TSharedRef Encode(const TSharedRef& block) const = 0;
-    virtual TSharedRef Decode(const TSharedRef& block) const = 0;
+    //! Compress a given block.
+    virtual TSharedRef Compress(const TSharedRef& block) = 0;
+
+    //! Decompress a given block.
+    virtual TSharedRef Decompress(const TSharedRef& block) = 0;
 
     virtual ~ICodec() { }
 
-    static const ICodec& GetCodec(ECodecId id);
 };
+
+//! Returns a codec for the registered id.
+/*!
+ *  Codec instances are singletons.
+ */
+ICodec* GetCodec(ECodecId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

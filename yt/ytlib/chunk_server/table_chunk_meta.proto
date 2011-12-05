@@ -1,5 +1,7 @@
 package NYT.NTableClient.NProto;
 
+import "chunk.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TRange
@@ -22,10 +24,16 @@ message TChannel
     repeated TBlockInfo Blocks = 3;
 }
 
-message TChunkMeta
+message TTableChunkAttributes
 {
+    extend NYT.NChunkServer.NProto.TChunkAttributes
+    {
+        required TTableChunkAttributes TableAttributes = 101;
+    }
+
     repeated TChannel Channels = 1;
     required int32 CodecId = 2;
+    required int64 RowCount = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

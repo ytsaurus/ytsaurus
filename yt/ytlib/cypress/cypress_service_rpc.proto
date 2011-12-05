@@ -5,7 +5,6 @@ package NYT.NCypress.NProto;
 message TReqExecute
 {
     required bytes TransactionId = 1;
-    optional bytes RootNodeId = 2;
 }
 
 message TRspExecute
