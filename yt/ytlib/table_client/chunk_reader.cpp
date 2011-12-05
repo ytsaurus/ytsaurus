@@ -14,13 +14,12 @@
 namespace NYT {
 namespace NTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
-using namespace NYT::NChunkClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBlockInfo {
+struct TBlockInfo
+{
     int ChunkBlockIndex;
     int ChannelBlockIndex;
     int ChannelIndex;
@@ -47,8 +46,8 @@ struct TBlockInfo {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper class aimed to asynchronously initialize the internals of TChunkReader.
-class TChunkReader::TInitializer:
-    public TRefCountedBase
+class TChunkReader::TInitializer
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TInitializer> TPtr;
@@ -56,7 +55,7 @@ public:
     TInitializer(
         const TSequentialReader::TConfig& config,
         TChunkReader::TPtr chunkReader, 
-        NChunkClient::IAsyncReader::TPtr asyncReader)
+        NChunkClient::IAsyncReader* asyncReader)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -76,12 +75,12 @@ public:
 private:
     void OnGotMeta(NChunkClient::IAsyncReader::TReadResult readResult)
     {
-        if (!readResult.Error.IsOK()) {
-            ChunkReader->State.Fail(readResult.Error.GetMessage());
+        if (!readResult.IsOK()) {
+            ChunkReader->State.Fail(readResult.GetMessage());
             return;
         }
 
-        auto& metaBlob = readResult.Blocks.front();
+        auto& metaBlob = readResult.Value().front();
 
         DeserializeProtobuf(&ProtoMeta, metaBlob);
 
@@ -278,7 +277,7 @@ private:
 TChunkReader::TChunkReader(
     const TSequentialReader::TConfig& config,
     const TChannel& channel,
-    NChunkClient::IAsyncReader::TPtr chunkReader,
+    NChunkClient::IAsyncReader* chunkReader,
     int startRow,
     int endRow)
     : SequentialReader(NULL)
@@ -290,7 +289,7 @@ TChunkReader::TChunkReader(
     , EndRow(endRow)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(~chunkReader != NULL);
+    YASSERT(chunkReader != NULL);
 
     Initializer = New<TInitializer>(config, this, chunkReader);
 }
