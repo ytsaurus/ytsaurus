@@ -62,6 +62,7 @@ TChunkHolder::TChunkHolder(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
     
     server->RegisterService(this);
 }
@@ -93,10 +94,19 @@ TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
     auto session = SessionManager->FindSession(chunkId);
     if (~session == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Session %s is invalid or expired",
-                ~chunkId.ToString());
+            Sprintf("Session is invalid or expired (ChunkId: %s)", ~chunkId.ToString());
     }
     return session;
+}
+
+TChunk::TPtr TChunkHolder::GetChunk(const TChunkId& chunkId)
+{
+    auto chunk = ChunkStore->FindChunk(chunkId);
+    if (~chunk == NULL) {
+        ythrow TServiceException(EErrorCode::NoSuchSession) <<
+            Sprintf("Chunk it not found (ChunkId: %s)", ~chunkId.ToString());
+    }
+    return chunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,17 +142,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FinishChunk)
 
     auto session = GetSession(chunkId);
 
-    SessionManager->FinishSession(session, attributes)->Subscribe(FromMethod(
-        &TChunkHolder::OnFinishedChunk,
-        TPtr(this),
-        context));
-}
-
-void TChunkHolder::OnFinishedChunk(
-    TVoid,
-    TCtxFinishChunk::TPtr context)
-{
-    context->Reply();
+    SessionManager
+        ->FinishSession(session, attributes)
+        ->Subscribe(FromFunctor([=] (TVoid)
+            {
+                context->Reply();
+            }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PutBlocks)
@@ -201,26 +206,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke()->Subscribe(FromMethod(
-        &TChunkHolder::OnSentBlocks,
-        TPtr(this),
-        context));
-}
+    putRequest->Invoke()->Subscribe(FromFunctor([=] (TProxy::TRspPutBlocks::TPtr putResponse)
+        {
+            if (putResponse->IsOK()) {
+                context->Reply();
+            } else {
+                Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
+                    ~address,
+                    ~putResponse->GetError().ToString());
 
-void TChunkHolder::OnSentBlocks(
-    TProxy::TRspPutBlocks::TPtr putResponse,
-    TCtxSendBlocks::TPtr context)
-{
-    if (putResponse->IsOK()) {
-        context->Reply();
-    } else {
-        Stroka message = Sprintf(
-            "SendBlocks: Cannot put blocks on the remote chunk holder\n%s",
-            ~putResponse->GetError().ToString());
-
-        LOG_WARNING("%s", ~message);
-        context->Reply(EErrorCode::RemoteCallFailed, message);
-    }
+                LOG_WARNING("%s", ~message);
+                context->Reply(TChunkHolderProxy::EErrorCode::RemoteCallFailed, message);
+            }
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetBlocks)
@@ -282,15 +280,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session->FlushBlock(blockIndex)->Subscribe(FromMethod(
-        &TChunkHolder::OnFlushedBlock,
-        TPtr(this),
-        context));
-}
-
-void TChunkHolder::OnFlushedBlock(TVoid, TCtxFlushBlock::TPtr context)
-{
-    context->Reply();
+    session->FlushBlock(blockIndex)->Subscribe(FromFunctor([=] (TVoid)
+        {
+            context->Reply();
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PingSession)
@@ -300,6 +293,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PingSession)
     auto chunkId = TChunkId::FromProto(request->GetChunkId());
     auto session = GetSession(chunkId);
     session->RenewLease();
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetChunkInfo)
+{
+    auto chunkId = TChunkId::FromProto(request->GetChunkId());
+
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+
+    auto chunk = GetChunk(chunkId);
+
+    *response->MutableChunkInfo() = chunk->Info();
 
     context->Reply();
 }

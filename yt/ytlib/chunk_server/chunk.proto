@@ -24,7 +24,8 @@ message TChunkMeta
     required TChunkAttributes Attributes = 3;   
 }
 
-// TChunkInfo is transfered to the server.
+// TChunkInfo is transfered to the server during chunk registration
+// and in reply to various GetChunkInfo requests.
 message TChunkInfo
 {
     required bytes Id = 1;

@@ -79,9 +79,12 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
             response->AddHolderAddresses(holder.GetAddress());
         }   
 
-        auto meta = chunk.DeserializeChunkInfo();
-        response->SetBlockCount(meta.BlocksSize());
-        response->SetSize(meta.GetSize());
+        auto chunkInfo = chunk.DeserializeChunkInfo();
+        response->SetBlockCount(chunkInfo.BlocksSize());
+        response->SetSize(chunkInfo.GetSize());
+
+        const auto& attributes = chunkInfo.GetAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
+        response->SetCodecId(attributes.GetCodecId());
 
         context->SetResponseInfo("ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s]",
             ~chunkId.ToString(),

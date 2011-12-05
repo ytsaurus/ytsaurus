@@ -63,11 +63,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, FlushBlock);
     DECLARE_RPC_SERVICE_METHOD(NProto, GetBlocks);
     DECLARE_RPC_SERVICE_METHOD(NProto, PingSession);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkInfo);
 
     void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
     void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);
 
     TSession::TPtr GetSession(const NChunkClient::TChunkId& chunkId);
+    TChunk::TPtr GetChunk(const NChunkClient::TChunkId& chunkId);
 
     void OnFinishedChunk(
         TVoid,
