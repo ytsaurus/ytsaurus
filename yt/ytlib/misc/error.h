@@ -25,6 +25,11 @@ public:
         , Message_(message)
     { }
 
+    TError(const TError& other)
+        : Code_(other.Code_)
+        , Message_(other.Message_)
+    { }
+
     TError(int code, const Stroka& message)
         : Code_(code)
         , Message_(message)
@@ -49,6 +54,44 @@ public:
 };
 
 typedef TFuture<TError> TAsyncError;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TValuedError
+    : public TError
+{
+    DEFINE_BYREF_RW_PROPERTY(T, Value);
+
+public:
+    TValuedError()
+    { }
+
+    explicit TValuedError(const Stroka& message)
+        : TError(message)
+    { }
+
+    explicit TValuedError(const T& value)
+        : Value_(value)
+    { }
+
+    explicit TValuedError(T&& value)
+        : Value_(MoveRV(value))
+    { }
+
+    TValuedError(const TValuedError<T>& other)
+        : TError(other)
+        , Value_(other.Value_)
+    { }
+
+    TValuedError(const TError& other)
+        : TError(other)
+    { }
+
+    TValuedError(int code, const Stroka& message)
+        : TError(code, message)
+    { }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
