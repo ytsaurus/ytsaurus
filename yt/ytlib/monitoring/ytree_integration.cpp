@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "ytree_integration.h"
 
-#include "../cypress/virtual.h"
-
 namespace NYT {
 namespace NMonitoring {
 

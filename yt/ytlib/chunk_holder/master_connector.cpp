@@ -44,9 +44,9 @@ TMasterConnector::TMasterConnector(
 
     auto channel = CreateCellChannel(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
-    Proxy->SetTimeout(Config.RpcTimeout);
+    Proxy->SetTimeout(Config.MasterRpcTimeout);
 
-    Address = Sprintf("%s:%d", ~HostName(), Config.Port);
+    Address = Sprintf("%s:%d", ~HostName(), Config.RpcPort);
 
     ChunkStore->ChunkAdded().Subscribe(FromMethod(
         &TMasterConnector::OnChunkAdded,

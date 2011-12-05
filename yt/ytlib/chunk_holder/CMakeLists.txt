@@ -7,6 +7,7 @@ SET(YT_SOURCE_FILES
     session.cpp
     master_connector.cpp
     replicator.cpp
+    ytree_integration.cpp
 )
 
 

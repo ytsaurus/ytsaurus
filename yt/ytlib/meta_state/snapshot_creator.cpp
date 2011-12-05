@@ -137,7 +137,7 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , LocalProgress(New< TFuture<TVoid> >(TVoid()))
+    , LocalProgress(ToFuture(TVoid()))
 {
     YASSERT(~cellManager != NULL);
     YASSERT(~metaState != NULL);

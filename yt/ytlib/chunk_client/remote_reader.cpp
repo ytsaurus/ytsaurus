@@ -71,19 +71,17 @@ void TRemoteReader::OnBlocksRead(
     if (rsp->IsOK()) {
         ExecutionTime.AddDelta(rsp->GetStartTime());
 
-        TReadResult readResult;
+        yvector<TSharedRef> blocks;
         for (int i = 0; i < rsp->Attachments().ysize(); i++) {
             // Since all attachments reference the same RPC response
             // memory will be freed only when all the blocks die.
-            readResult.Blocks.push_back(rsp->Attachments()[i]);
+            blocks.push_back(rsp->Attachments()[i]);
         }
-        result->Set(readResult);
+        result->Set(TReadResult(MoveRV(blocks)));
     } else if (ChangeCurrentHolder()) {
         DoReadBlocks(blockIndexes, result);
     } else {
-        TReadResult readResult;
-        readResult.Error = rsp->GetError();
-        result->Set(readResult);
+        result->Set(rsp->GetError());
     }
 }
 

@@ -77,15 +77,15 @@ TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
-    TReadResult result;
-    result.Blocks.reserve(blockIndexes.ysize());
+    yvector<TSharedRef> blocks;
+    blocks.reserve(blockIndexes.ysize());
 
     for (int index = 0; index < blockIndexes.ysize(); ++index) {
         i32 blockIndex = blockIndexes[index];
-        result.Blocks.push_back(ReadBlock(blockIndex));
+        blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return New< TFuture<TReadResult> >(result);
+    return ToFuture(TReadResult(MoveRV(blocks)));
 }
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)

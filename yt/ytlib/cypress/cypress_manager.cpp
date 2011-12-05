@@ -788,7 +788,6 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
     ::Save(output, value->GetRuntimeType());
-    //::Save(output, value->GetId());
     value->Save(output);
 }
 

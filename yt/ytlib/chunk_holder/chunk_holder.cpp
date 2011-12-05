@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "chunk_holder.h"
+#include "chunk_store.h"
+#include "block_store.h"
+#include "session.h"
 
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
@@ -20,40 +23,20 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolder::TChunkHolder(
     const TConfig& config,
     IInvoker* serviceInvoker,
-    NRpc::IRpcServer* server)
+    NRpc::IRpcServer* server,
+    TChunkStore* chunkStore,
+    TBlockStore* blockStore,
+    TSessionManager* sessionManager)
     : NRpc::TServiceBase(
         serviceInvoker,
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
+    , ChunkStore(chunkStore)
+    , BlockStore(blockStore)
+    , SessionManager(sessionManager)
 {
-    YASSERT(serviceInvoker != NULL);
     YASSERT(server != NULL);
-
-    ChunkStore = New<TChunkStore>(Config);
-    BlockStore = New<TBlockStore>(Config, ChunkStore);
-
-    SessionManager = New<TSessionManager>(
-        Config,
-        BlockStore,
-        ChunkStore,
-        serviceInvoker);
-
-    Replicator = New<TReplicator>(
-        ChunkStore,
-        BlockStore,
-        serviceInvoker);
-
-    if (!Config.Masters.Addresses.empty()) {
-        MasterConnector = New<TMasterConnector>(
-            Config,
-            ChunkStore,
-            SessionManager,
-            Replicator,
-            serviceInvoker);
-    } else {
-        LOG_INFO("Running in standalone mode");
-    }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
@@ -76,8 +59,7 @@ void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
 {
     if (~SessionManager->FindSession(chunkId) != NULL) {
         ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
-            Sprintf("Session %s already exists",
-                ~chunkId.ToString());
+            Sprintf("Session %s already exists", ~chunkId.ToString());
     }
 }
 
@@ -196,7 +178,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, SendBlocks)
     auto startBlock = session->GetBlock(startBlockIndex);
 
     TProxy proxy(~ChannelCache.GetChannel(address));
-    proxy.SetTimeout(Config.RpcTimeout);
+    proxy.SetTimeout(Config.MasterRpcTimeout);
     auto putRequest = proxy.PutBlocks();
     putRequest->SetChunkId(chunkId.ToProto());
     putRequest->SetStartBlockIndex(startBlockIndex);

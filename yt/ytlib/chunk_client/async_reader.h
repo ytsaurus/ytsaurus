@@ -15,18 +15,10 @@ namespace NChunkClient {
 
 //! Provides a basic interface for readings chunks from holders.
 struct IAsyncReader
-    : virtual public TRefCountedBase
+    : virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IAsyncReader> TPtr;
-
-    //ToDo: pretty heavy obj. May be RefCounted?
-    //! Describes a result of #ReadBlocks.
-    struct TReadResult
-    {
-        //! Blocks data.
-        yvector<TSharedRef> Blocks;
-        TError Error;
-    };
+    typedef TValuedError< yvector<TSharedRef> > TReadResult;
 
     //! Reads (asynchronously) a given set of blocks.
     /*!

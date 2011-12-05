@@ -123,7 +123,7 @@ void TJob::ReplicateBlock(TAsyncStreamState::TResult result, int blockIndex)
         return;
     }
 
-    if (blockIndex >= Chunk->GetBlockCount()) {
+    if (blockIndex >= static_cast<int>(Chunk->Info().BlocksSize())) {
         LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
             ~JobId.ToString());
 

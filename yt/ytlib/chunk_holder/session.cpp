@@ -1,23 +1,17 @@
 #include "stdafx.h"
 #include "session.h"
-
-#include <chunk.pb.h>
+#include "chunk.pb.h"
 
 #include "../misc/fs.h"
 #include "../misc/assert.h"
 #include "../misc/sync.h"
 
-#include <util/generic/yexception.h>
-
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using namespace NYT::NChunkClient;
-using namespace NYT::NChunkServer::NProto;
+using namespace NChunkClient;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +30,7 @@ TSessionManager::TSessionManager(
     , ServiceInvoker(serviceInvoker)
 { }
 
-TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId)
+TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 {
     auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
@@ -122,9 +116,19 @@ void TSessionManager::OnLeaseExpired(TSession::TPtr session)
     }
 }
 
-int TSessionManager::GetSessionCount()
+int TSessionManager::GetSessionCount() const
 {
     return SessionMap.ysize();
+}
+
+TSessionManager::TSessions TSessionManager::GetSessions() const
+{
+    TSessions result;
+    result.reserve(SessionMap.ysize());
+    FOREACH(const auto& pair, SessionMap) {
+        result.push_back(pair.Second());
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

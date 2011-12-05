@@ -35,7 +35,7 @@ public:
     //! Returns target chunk location.
     TLocation::TPtr GetLocation() const;
 
-    //! Returns the size of blocks received so far.
+    //! Returns the total data size received so far.
     i64 GetSize() const;
 
     //! Returns a cached block that is still in the session window.
@@ -133,6 +133,7 @@ class TSessionManager
 {
 public:
     typedef TIntrusivePtr<TSessionManager> TPtr;
+    typedef yvector<TSession::TPtr> TSessions;
 
     //! Constructs a manager.
     TSessionManager(
@@ -161,10 +162,13 @@ public:
     void CancelSession(TSession* session, const Stroka& errorMessage);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
-    TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId);
+    TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId) const;
 
     //! Returns the number of currently active session.
-    int GetSessionCount();
+    int GetSessionCount() const;
+
+    //! Returns the list of all registered sessions.
+    TSessions GetSessions() const;
 
 private:
     friend class TSession;
