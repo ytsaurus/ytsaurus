@@ -5,7 +5,7 @@
 
 #include "../misc/assert.h"
 #include "../logging/log.h"
-#include "../bus/bus_server.h"
+#include "../bus/server.h"
 #include "../ytree/fluent.h"
 
 namespace NYT {

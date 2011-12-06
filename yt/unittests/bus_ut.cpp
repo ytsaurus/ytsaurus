@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
 #include "../ytlib/bus/bus.h"
-#include "../ytlib/bus/bus_server.h"
-#include "../ytlib/bus/bus_client.h"
+#include "../ytlib/bus/nl_server.h"
+#include "../ytlib/bus/nl_client.h"
 #include "../ytlib/misc/singleton.h"
 
 #include <contrib/testing/framework.h>

@@ -6,7 +6,7 @@
 #include "../misc/delayed_invoker.h"
 #include "../misc/metric.h"
 #include "../misc/serialize.h"
-#include "../bus/bus_client.h"
+#include "../bus/client.h"
 #include "../actions/future.h"
 
 namespace NYT {

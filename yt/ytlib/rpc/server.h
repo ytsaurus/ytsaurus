@@ -3,7 +3,7 @@
 #include "common.h"
 #include "service.h"
 
-#include "../bus/bus_server.h"
+#include "../bus/server.h"
 #include "../ytree/ytree_fwd.h"
 
 namespace NYT {

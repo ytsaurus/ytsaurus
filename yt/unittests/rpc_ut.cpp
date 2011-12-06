@@ -5,6 +5,9 @@
 #include <yt/ytlib/misc/error.h>
 
 #include <yt/ytlib/bus/bus.h>
+#include <yt/ytlib/bus/nl_client.h>
+#include <yt/ytlib/bus/nl_server.h>
+
 #include <yt/ytlib/rpc/client.h>
 #include <yt/ytlib/rpc/server.h>
 #include <yt/ytlib/rpc/service.h>

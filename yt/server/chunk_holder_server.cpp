@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/ytree/yson_file_service.h>
 
+#include <yt/ytlib/bus/nl_server.h>
+
 namespace NYT {
 
 static NLog::TLogger Logger("ChunkHolder");

@@ -2,7 +2,7 @@
 #include "retry.h"
 #include "client.h"
 
-#include "../bus/bus_client.h"
+#include "../bus/client.h"
 #include "../misc/assert.h"
 
 #include <util/system/spinlock.h>
