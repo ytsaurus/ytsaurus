@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_holder.h"
+#include "chunk_holder_service.h"
 
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"
@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolder::TChunkHolder(
+TChunkHolderService::TChunkHolderService(
     const TConfig& config,
     IInvoker* serviceInvoker,
     NRpc::IRpcServer* server)
@@ -69,10 +69,10 @@ TChunkHolder::TChunkHolder(
 
 // Do not remove this!
 // Required for TInstusivePtr with an incomplete type.
-TChunkHolder::~TChunkHolder() 
+TChunkHolderService::~TChunkHolderService() 
 { }
 
-void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
+void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 {
     if (~SessionManager->FindSession(chunkId) != NULL) {
         ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
@@ -81,7 +81,7 @@ void TChunkHolder::ValidateNoSession(const TChunkId& chunkId)
     }
 }
 
-void TChunkHolder::ValidateNoChunk(const TChunkId& chunkId)
+void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (~ChunkStore->FindChunk(chunkId) != NULL) {
         ythrow TServiceException(EErrorCode::ChunkAlreadyExists) <<
@@ -89,7 +89,7 @@ void TChunkHolder::ValidateNoChunk(const TChunkId& chunkId)
     }
 }
 
-TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
+TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 {
     auto session = SessionManager->FindSession(chunkId);
     if (~session == NULL) {
@@ -99,7 +99,7 @@ TSession::TPtr TChunkHolder::GetSession(const TChunkId& chunkId)
     return session;
 }
 
-TChunk::TPtr TChunkHolder::GetChunk(const TChunkId& chunkId)
+TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = ChunkStore->FindChunk(chunkId);
     if (~chunk == NULL) {
@@ -111,7 +111,7 @@ TChunk::TPtr TChunkHolder::GetChunk(const TChunkId& chunkId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, StartChunk)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
 {
     UNUSED(response);
 
@@ -130,7 +130,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, StartChunk)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FinishChunk)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 {
     UNUSED(response);
 
@@ -150,7 +150,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FinishChunk)
             }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PutBlocks)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
 {
     UNUSED(response);
 
@@ -176,7 +176,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PutBlocks)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, SendBlocks)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 {
     UNUSED(response);
 
@@ -216,12 +216,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, SendBlocks)
                     ~putResponse->GetError().ToString());
 
                 LOG_WARNING("%s", ~message);
-                context->Reply(TChunkHolderProxy::EErrorCode::RemoteCallFailed, message);
+                context->Reply(TChunkHolderServiceProxy::EErrorCode::RemoteCallFailed, message);
             }
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetBlocks)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 {
     UNUSED(response);
 
@@ -249,7 +249,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetBlocks)
                     if (~block == NULL) {
                         awaiter->Cancel();
                         context->Reply(
-                            TChunkHolderProxy::EErrorCode::NoSuchBlock,
+                            TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
                             Sprintf("Block not found (ChunkId: %s, Index: %d)",
                                 ~chunkId.ToString(),
                                 blockIndex));
@@ -267,7 +267,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetBlocks)
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FlushBlock)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 {
     UNUSED(response);
 
@@ -286,7 +286,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, FlushBlock)
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PingSession)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
 {
     UNUSED(response);
 
@@ -297,7 +297,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolder, PingSession)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolder, GetChunkInfo)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 {
     auto chunkId = TChunkId::FromProto(request->chunkid());
 

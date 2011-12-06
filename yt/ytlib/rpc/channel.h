@@ -40,7 +40,7 @@ struct IChannel
 };
 
 //! Creates a channel implemented via NBus.
-IChannel::TPtr CreateBusChannel(NBus::TBusClient* client);
+IChannel::TPtr CreateBusChannel(NBus::IBusClient* client);
 
 //! Creates a channel implemented via NBus.
 IChannel::TPtr CreateBusChannel(const Stroka& address);

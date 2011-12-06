@@ -2,7 +2,7 @@
 
 #include "block_store.h"
 #include "chunk_store.h"
-#include "chunk_holder_rpc.h"
+#include "chunk_holder_service_rpc.h"
 
 #include "../chunk_client/file_writer.h"
 #include "../misc/lease_manager.h"
@@ -57,7 +57,7 @@ public:
 private:
     friend class TSessionManager;
 
-    typedef TChunkHolderProxy TProxy;
+    typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
     typedef NChunkServer::NProto::TChunkAttributes TChunkAttributes;
 

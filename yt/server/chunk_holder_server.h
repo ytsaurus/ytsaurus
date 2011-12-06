@@ -1,11 +1,11 @@
 #pragma once
 
-#include <yt/ytlib/chunk_holder/chunk_holder.h>
+#include <yt/ytlib/chunk_holder/chunk_holder_service.h>
 
 namespace NYT {
 
 using NChunkHolder::TChunkHolderConfig;
-using NChunkHolder::TChunkHolder;
+using NChunkHolder::TChunkHolderService;
 
 ////////////////////////////////////////////////////////////////////////////////
 

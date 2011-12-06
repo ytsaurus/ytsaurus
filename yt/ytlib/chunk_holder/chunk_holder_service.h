@@ -1,11 +1,11 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_holder.pb.h"
+#include "chunk_holder_service_rpc.pb.h"
 #include "block_store.h"
-#include "session.h"
+#include "session_manager.h"
 #include "chunk_store.h"
-#include "chunk_holder_rpc.h"
+#include "chunk_holder_service_rpc.h"
 #include "master_connector.h"
 #include "replicator.h"
 
@@ -16,23 +16,23 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkHolder
+class TChunkHolderService
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TChunkHolder> TPtr;
+    typedef TIntrusivePtr<TChunkHolderService> TPtr;
     typedef TChunkHolderConfig TConfig;
 
     //! Creates an instance.
-    TChunkHolder(
+    TChunkHolderService(
         const TConfig& config,
         IInvoker* serviceInvoker,
         NRpc::IRpcServer* server);
-    ~TChunkHolder();
+    ~TChunkHolderService();
 
 private:
-    typedef TChunkHolder TThis;
-    typedef TChunkHolderProxy TProxy;
+    typedef TChunkHolderService TThis;
+    typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
     //! Configuration.

@@ -1,6 +1,6 @@
 #include "../misc/stdafx.h"
 #include "chunk_reader.h"
-#include "chunk_holder.pb.h"
+#include "chunk_holder_service_rpc.pb.h"
 
 #include "../misc/serialize.h"
 #include "../logging/log.h"

@@ -28,13 +28,49 @@ static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBusClient::TBus
+class TClientDispatcher;
+
+class TNLBusClient
+    : public IBusClient
+{
+public:
+    typedef TIntrusivePtr<TNLBusClient> TPtr;
+
+    //! Initializes a new client for communicating with a given address.
+    /*!
+     *  DNS resolution is performed upon construction, the resulting
+     *  IP address is cached.
+     *
+     *  \param address An address where all buses will point to.
+     */
+    TNLBusClient(const TNLBusClientConfig& config);
+    virtual ~TNLBusClient()
+    { }
+
+    virtual IBus::TPtr CreateBus(IMessageHandler* handler);
+
+private:
+    class TBus;
+    friend class TClientDispatcher;
+
+    TNLBusClientConfig Config;
+    TUdpAddress ServerAddress;
+};
+
+IBusClient::TPtr CreateNLBusClient(const TNLBusClientConfig& config)
+{
+    return New<TNLBusClient>(config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNLBusClient::TBus
     : public IBus
 {
 public:
     typedef TIntrusivePtr<TBus> TPtr;
 
-    TBus(TBusClient* client, IMessageHandler* handler);
+    TBus(TNLBusClient* client, IMessageHandler* handler);
 
     void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId);
 
@@ -48,7 +84,7 @@ private:
 
     typedef yhash_set<TGuid> TRequestIdSet;
 
-    TBusClient::TPtr Client;
+    TNLBusClient::TPtr Client;
     IMessageHandler::TPtr Handler;
     volatile bool Terminated;
     TAtomic SequenceId;
@@ -60,7 +96,6 @@ private:
     TSpinLock SpinLock;
 
     void OnMessageDequeued(IMessage* message);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +121,7 @@ class TClientDispatcher
         TBlob Data;
     };
 
-    typedef yhash_map<TSessionId, TBusClient::TBus::TPtr> TBusMap;
+    typedef yhash_map<TSessionId, TNLBusClient::TBus::TPtr> TBusMap;
     typedef yhash_map<TGuid, TRequest::TPtr> TRequestMap;
 
     TThread Thread;
@@ -97,8 +132,8 @@ class TClientDispatcher
     TRequestMap RequestMap;
 
     TLockFreeQueue<TRequest::TPtr> RequestQueue;
-    TLockFreeQueue<TBusClient::TBus::TPtr> BusRegisterQueue;
-    TLockFreeQueue<TBusClient::TBus::TPtr> BusUnregisterQueue;
+    TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
+    TLockFreeQueue<TNLBusClient::TBus::TPtr> BusUnregisterQueue;
 
     static void* ThreadFunc(void* param)
     {
@@ -128,7 +163,7 @@ class TClientDispatcher
         LOG_TRACE("Processing client bus registrations");
 
         bool result = false;
-        TBusClient::TBus::TPtr bus;
+        TNLBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
             result = true;
             RegisterBus(~bus);
@@ -141,7 +176,7 @@ class TClientDispatcher
         LOG_TRACE("Processing client bus unregistrations");
 
         bool result = false;
-        TBusClient::TBus::TPtr bus;
+        TNLBusClient::TBus::TPtr bus;
         while (BusUnregisterQueue.Dequeue(&bus)) {
             result = true;
             UnregisterBus(~bus);
@@ -149,7 +184,7 @@ class TClientDispatcher
         return result;
     }
 
-    void RegisterBus(TBusClient::TBus* bus)
+    void RegisterBus(TNLBusClient::TBus* bus)
     {
         BusMap.insert(MakePair(bus->SessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p)",
@@ -157,7 +192,7 @@ class TClientDispatcher
             bus);
     }
 
-    void UnregisterBus(TBusClient::TBus* bus)
+    void UnregisterBus(TNLBusClient::TBus* bus)
     {
         auto sessionId = bus->SessionId;
 
@@ -191,7 +226,7 @@ class TClientDispatcher
             TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
             if (~nlResponse == NULL)
                 break;
-            
+
             ++callCount;
             ProcessIncomingNLResponse(~nlResponse);
         }
@@ -470,7 +505,7 @@ public:
         // NB: cannot use log here
     }
 
-    IBus::TSendResult::TPtr EnqueueRequest(TBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult::TPtr EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
     {
         auto sequenceId = bus->GenerateSequenceId();
 
@@ -491,7 +526,7 @@ public:
         return request->Result;
     }
 
-    void EnqueueBusRegister(TBusClient::TBus::TPtr bus)
+    void EnqueueBusRegister(TNLBusClient::TBus::TPtr bus)
     {
         BusRegisterQueue.Enqueue(bus);
         GetEvent().Signal();
@@ -501,7 +536,7 @@ public:
             ~bus);
     }
 
-    void EnqueueBusUnregister(TBusClient::TBus::TPtr bus)
+    void EnqueueBusUnregister(TNLBusClient::TBus::TPtr bus)
     {
         BusUnregisterQueue.Enqueue(bus);
         GetEvent().Signal();
@@ -534,7 +569,31 @@ Stroka GetClientDispatcherDebugInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBusClient::TBus::TBus(TBusClient* client, IMessageHandler* handler)
+TNLBusClient::TNLBusClient(const TNLBusClientConfig& config)
+    : Config(config)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ServerAddress = CreateAddress(config.Address, 0);
+    if (ServerAddress == TUdpAddress()) {
+        ythrow yexception() << Sprintf("Failed to resolve the address %s",
+            ~config.Address.Quote());
+    }
+}
+
+IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(handler != NULL);
+
+    auto bus = New<TBus>(this, handler);
+    TClientDispatcher::Get()->EnqueueBusRegister(bus);
+    return bus;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNLBusClient::TBus::TBus(TNLBusClient* client, IMessageHandler* handler)
     : Client(client)
     , Handler(handler)
     , Terminated(false)
@@ -548,7 +607,7 @@ TBusClient::TBus::TBus(TBusClient* client, IMessageHandler* handler)
     SessionId = TSessionId::Create();
 }
 
-IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
+IBus::TSendResult::TPtr TNLBusClient::TBus::Send(IMessage::TPtr message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     // NB: We may actually need a barrier here but
@@ -558,7 +617,7 @@ IBus::TSendResult::TPtr TBusClient::TBus::Send(IMessage::TPtr message)
     return TClientDispatcher::Get()->EnqueueRequest(this, ~message);
 }
 
-void TBusClient::TBus::Terminate()
+void TNLBusClient::TBus::Terminate()
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -572,12 +631,12 @@ void TBusClient::TBus::Terminate()
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
 }
 
-TSequenceId TBusClient::TBus::GenerateSequenceId()
+TSequenceId TNLBusClient::TBus::GenerateSequenceId()
 {
     return AtomicIncrement(SequenceId);
 }
 
-void TBusClient::TBus::ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
+void TNLBusClient::TBus::ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
 {
     UNUSED(sequenceId);
     // TODO: rearrangement is switched off, see YT-95
@@ -585,32 +644,9 @@ void TBusClient::TBus::ProcessIncomingMessage(IMessage* message, TSequenceId seq
     Handler->OnMessage(message, this);
 }
 
-void TBusClient::TBus::OnMessageDequeued(IMessage* message)
+void TNLBusClient::TBus::OnMessageDequeued(IMessage* message)
 {
     Handler->OnMessage(message, this);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TBusClient::TBusClient(const Stroka& address)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    ServerAddress = CreateAddress(address, 0);
-    if (ServerAddress == TUdpAddress()) {
-        ythrow yexception() << Sprintf("Failed to resolve the address %s",
-            ~address.Quote());
-    }
-}
-
-IBus::TPtr TBusClient::CreateBus(IMessageHandler* handler)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(handler != NULL);
-
-    auto bus = New<TBus>(this, handler);
-    TClientDispatcher::Get()->EnqueueBusRegister(bus);
-    return bus;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
