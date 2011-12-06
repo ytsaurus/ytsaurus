@@ -13,12 +13,12 @@ TTreeVisitor::TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes)
     , VisitAttributes_(visitAttributes)
 { }
 
-void TTreeVisitor::Visit(INode::TPtr root)
+void TTreeVisitor::Visit(const INode* root)
 {
     VisitAny(root);
 }
 
-void TTreeVisitor::VisitAny(INode::TPtr node)
+void TTreeVisitor::VisitAny(const INode* node)
 {
     auto attributes = node->GetAttributes();
     bool hasAttributes = ~attributes != NULL && VisitAttributes_;
@@ -35,11 +35,11 @@ void TTreeVisitor::VisitAny(INode::TPtr node)
             break;
 
         case ENodeType::List:
-            VisitList(node->AsList(), hasAttributes);
+            VisitList(~node->AsList(), hasAttributes);
             break;
 
         case ENodeType::Map:
-            VisitMap(node->AsMap(), hasAttributes);
+            VisitMap(~node->AsMap(), hasAttributes);
             break;
 
         default:
@@ -47,11 +47,11 @@ void TTreeVisitor::VisitAny(INode::TPtr node)
     }
 
     if (hasAttributes) {
-        VisitAttributes(node->GetAttributes());
+        VisitAttributes(~node->GetAttributes());
     }
 }
 
-void TTreeVisitor::VisitScalar(INode::TPtr node, bool hasAttributes)
+void TTreeVisitor::VisitScalar(const INode* node, bool hasAttributes)
 {
     switch (node->GetType()) {
         case ENodeType::String:
@@ -71,43 +71,43 @@ void TTreeVisitor::VisitScalar(INode::TPtr node, bool hasAttributes)
     }
 }
 
-void TTreeVisitor::VisitEntity(INode::TPtr node, bool hasAttributes)
+void TTreeVisitor::VisitEntity(const INode* node, bool hasAttributes)
 {
     UNUSED(node);
     Consumer->OnEntity(hasAttributes);
 }
 
-void TTreeVisitor::VisitList(IListNode::TPtr node, bool hasAttributes)
+void TTreeVisitor::VisitList(const IListNode* node, bool hasAttributes)
 {
     Consumer->OnBeginList();
     for (int i = 0; i < node->GetChildCount(); ++i) {
-        auto child = node->GetChild(i);
+        auto child = ~node->GetChild(i);
         Consumer->OnListItem();
         VisitAny(child);
     }
     Consumer->OnEndList(hasAttributes);
 }
 
-void TTreeVisitor::VisitMap(IMapNode::TPtr node, bool hasAttributes)
+void TTreeVisitor::VisitMap(const IMapNode* node, bool hasAttributes)
 {
     Consumer->OnBeginMap();
     auto children = node->GetChildren();
     auto sortedChildren = GetSortedIterators(children);
     FOREACH(const auto& pair, sortedChildren) {
         Consumer->OnMapItem(pair->First());
-        VisitAny(pair->Second());
+        VisitAny(~pair->Second());
     }
     Consumer->OnEndMap(hasAttributes);
 }
 
-void TTreeVisitor::VisitAttributes(IMapNode::TPtr node)
+void TTreeVisitor::VisitAttributes(const IMapNode* node)
 {
     Consumer->OnBeginAttributes();
     auto children = node->GetChildren();
     auto sortedChildren = GetSortedIterators(children);
     FOREACH(const auto& pair, sortedChildren) {
         Consumer->OnAttributesItem(pair->First());
-        VisitAny(pair->Second());
+        VisitAny(~pair->Second());
     }
     Consumer->OnEndAttributes();
 }

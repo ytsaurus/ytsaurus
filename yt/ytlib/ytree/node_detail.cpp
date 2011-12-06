@@ -74,7 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
                 FOREACH (const auto& pair, sortedChildren) {
                     writer.OnMapItem(pair->first);
                     TTreeVisitor visitor(&writer);
-                    visitor.Visit(pair->second);
+                    visitor.Visit(~pair->second);
                 }
             }
 

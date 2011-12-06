@@ -40,7 +40,7 @@ TEST_F(TTreeBuilderTest, EmptyMap)
     auto root = builder->EndTree();
 
     TTreeVisitor visitor(&Mock);
-    visitor.Visit(root);
+    visitor.Visit(~root);
 }
 
 TEST_F(TTreeBuilderTest, NestedMaps)
@@ -73,7 +73,7 @@ TEST_F(TTreeBuilderTest, NestedMaps)
     auto root = builder->EndTree();
 
     TTreeVisitor visitor(&Mock);
-    visitor.Visit(root);
+    visitor.Visit(~root);
 }
 
 TEST_F(TTreeBuilderTest, MapWithAttributes)
@@ -150,7 +150,7 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
     auto root = builder->EndTree();
 
     TTreeVisitor visitor(&Mock);
-    visitor.Visit(root);
+    visitor.Visit(~root);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

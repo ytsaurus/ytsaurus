@@ -91,7 +91,7 @@ void TMonitoringManager::Update()
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
     TTreeVisitor visitor(consumer);
-    visitor.Visit(GetRoot());
+    visitor.Visit(~GetRoot());
 }
 
 TYsonProducer::TPtr TMonitoringManager::GetProducer()
