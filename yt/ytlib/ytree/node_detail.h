@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "ytree.h"
+#include "serialize.h"
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "yson_reader.h"
@@ -49,8 +50,8 @@ protected:
     void DoSetSelf(TNode* node, const Stroka& value)
     {
         auto builder = CreateBuilderFromFactory(GetFactory());
-        TStringInput stream(value);
-        SetNodeFromProducer(node, ~TYsonReader::GetProducer(&stream), ~builder);
+        TStringInput input(value);
+        SetNodeFromProducer(node, ~ProducerFromYson(&input), ~builder);
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);

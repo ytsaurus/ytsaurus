@@ -25,6 +25,7 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/json_adapter.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/serialize.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/serialize.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/virtual.cpp
 

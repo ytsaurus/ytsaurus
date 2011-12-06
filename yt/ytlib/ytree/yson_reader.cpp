@@ -493,17 +493,6 @@ void TYsonReader::ParseBinaryDouble()
     }
 }
 
-TYsonProducer::TPtr TYsonReader::GetProducer(TInputStream* stream)
-{
-    return FromMethod(&TYsonReader::GetProducerThunk, stream);
-}
-
-void TYsonReader::GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream)
-{
-    TYsonReader reader(consumer);
-    reader.Read(stream);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
