@@ -2,7 +2,7 @@
 
 #include "../misc/common.h"
 
-#include "chunk_holder.pb.h"
+#include "chunk_holder_service_rpc.pb.h"
 #include "chunk_service_rpc.pb.h"
 
 #include "../chunk_client/common.h"

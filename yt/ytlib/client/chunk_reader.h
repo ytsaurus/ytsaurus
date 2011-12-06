@@ -4,7 +4,7 @@
 #include "user_indexes.h"
 #include "io_channels.h"
 
-#include "../holder/chunk_holder_rpc.h"
+#include "../holder/chunk_holder_service_rpc.h"
 #include "../holder/chunk.h"
 #include "../misc/common.h"
 #include "../misc/lazy_ptr.h"

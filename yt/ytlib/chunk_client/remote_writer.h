@@ -8,7 +8,7 @@
 #include "../misc/semaphore.h"
 #include "../misc/thread_affinity.h"
 
-#include "../chunk_holder/chunk_holder_rpc.h"
+#include "../chunk_holder/chunk_holder_service_rpc.h"
 #include "../actions/action_queue.h"
 
 #include <util/generic/deque.h>
@@ -106,7 +106,7 @@ private:
     
     typedef ydeque<TGroupPtr> TWindow;
 
-    typedef NChunkHolder::TChunkHolderProxy TProxy;
+    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
     USE_RPC_PROXY_METHOD(TProxy, StartChunk);

@@ -6,7 +6,7 @@
 #include "../misc/metric.h"
 #include "../misc/config.h"
 #include "../misc/thread_affinity.h"
-#include "../chunk_holder/chunk_holder_rpc.h"
+#include "../chunk_holder/chunk_holder_service_rpc.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -41,7 +41,7 @@ public:
     TFuture<IAsyncReader::TGetInfoResult>::TPtr AsyncGetChunkInfo();
 
 private:
-    typedef NChunkHolder::TChunkHolderProxy TProxy;
+    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
 
     void DoReadBlocks(

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_holder.pb.h"
+#include "chunk_holder_service_rpc.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"
@@ -10,11 +10,11 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkHolderProxy
+class TChunkHolderServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TChunkHolderProxy> TPtr;
+    typedef TIntrusivePtr<TChunkHolderServiceProxy> TPtr;
 
     RPC_DECLARE_PROXY(ChunkHolder,
         ((RemoteCallFailed)(1))
@@ -26,7 +26,7 @@ public:
         ((NoSuchBlock)(7))
     );
 
-    TChunkHolderProxy(NRpc::IChannel* channel)
+    TChunkHolderServiceProxy(NRpc::IChannel* channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -77,7 +77,7 @@ void TChunkHolderServer::Run()
         ~rpcServer,
         ~controlQueue->GetInvoker());
 
-    auto chunkHolder = New<TChunkHolder>(
+    auto chunkHolder = New<TChunkHolderService>(
         Config,
         ~controlQueue->GetInvoker(),
         ~rpcServer);
