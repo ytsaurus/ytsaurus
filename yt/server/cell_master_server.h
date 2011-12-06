@@ -5,10 +5,6 @@
 
 namespace NYT {
 
-using NMetaState::IMetaStateManager;
-
-using NMonitoring::THttpTreeServer;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterServer
@@ -18,7 +14,7 @@ public:
     struct TConfig
     {
         //! Meta state configuration.
-        IMetaStateManager::TConfig MetaState;
+        NMetaState::IMetaStateManager::TConfig MetaState;
 
         int MonitoringPort;
 

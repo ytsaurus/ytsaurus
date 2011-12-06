@@ -36,7 +36,7 @@ public:
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        yvector<NChunkHolder::TJobId>* jobsToStop);
 
 private:
     TChunkManager::TPtr ChunkManager;
@@ -70,7 +70,7 @@ private:
     void ProcessExistingJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<TJobId>* jobsToStop,
+        yvector<NChunkHolder::TJobId>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 

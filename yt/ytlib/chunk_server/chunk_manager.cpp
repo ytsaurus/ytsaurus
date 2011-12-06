@@ -21,6 +21,10 @@ namespace NChunkServer {
 using namespace NProto;
 using namespace NMetaState;
 using NChunkClient::TChunkId;
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransaction;
+using NChunkHolder::EJobType;
+using NChunkHolder::TJobId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

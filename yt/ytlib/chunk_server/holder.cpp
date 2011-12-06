@@ -10,7 +10,7 @@ THolder::THolder(
     THolderId id,
     const Stroka& address,
     EHolderState state,
-    const THolderStatistics& statistics)
+    const NChunkHolder::THolderStatistics& statistics)
     : Id_(id)
     , Address_(address)
     , State_(state)
@@ -44,7 +44,7 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
 {
     Stroka address;
     EHolderState state;
-    THolderStatistics statistics;
+    NChunkHolder::THolderStatistics statistics;
     ::Load(input, address);
     ::Load(input, state);
     ::Load(input, statistics);
@@ -54,12 +54,12 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
     return holder;
 }
 
-void THolder::AddJob(const TJobId& id)
+void THolder::AddJob(const NChunkHolder::TJobId& id)
 {
     JobIds_.push_back(id);
 }
 
-void THolder::RemoveJob(const TJobId& id)
+void THolder::RemoveJob(const NChunkHolder::TJobId& id)
 {
     auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
     if (it != JobIds_.end()) {

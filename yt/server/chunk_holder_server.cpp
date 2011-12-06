@@ -29,6 +29,9 @@ using NMonitoring::TMonitoringManager;
 
 using NOrchid::TOrchidService;
 
+using NChunkHolder::TChunkHolderService;
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolderServer::TChunkHolderServer(const TConfig &config)

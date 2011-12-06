@@ -23,9 +23,9 @@ class THolder
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
-    DEFINE_BYREF_RW_PROPERTY(THolderStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(NChunkHolder::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkClient::TChunkId>, ChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+    DEFINE_BYREF_RO_PROPERTY(yvector<NChunkHolder::TJobId>, JobIds);
 
 
 public:
@@ -33,7 +33,7 @@ public:
         THolderId id,
         const Stroka& address,
         EHolderState state,
-        const THolderStatistics& statistics);
+        const NChunkHolder::THolderStatistics& statistics);
 
     THolder(const THolder& other);
 
@@ -42,8 +42,8 @@ public:
     void Save(TOutputStream* output) const;
     static TAutoPtr<THolder> Load(THolderId id, TInputStream* input);
 
-    void AddJob(const TJobId& id);
-    void RemoveJob(const TJobId& id);
+    void AddJob(const NChunkHolder::TJobId& id);
+    void RemoveJob(const NChunkHolder::TJobId& id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ struct TReplicationSink
     { }
 
     Stroka Address;
-    yhash_set<TJobId> JobIds;
+    yhash_set<NChunkHolder::TJobId> JobIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

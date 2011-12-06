@@ -35,12 +35,12 @@ struct TJobList
         return jobList;
     }
 
-    void AddJob(const TJobId& id)
+    void AddJob(const NChunkHolder::TJobId& id)
     {
         JobIds_.push_back(id);
     }
 
-    void RemoveJob(const TJobId& id)
+    void RemoveJob(const NChunkHolder::TJobId& id)
     {
         auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
         if (it != JobIds_.end()) {
@@ -49,7 +49,7 @@ struct TJobList
     }
     
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+    DEFINE_BYREF_RO_PROPERTY(yvector<NChunkHolder::TJobId>, JobIds);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

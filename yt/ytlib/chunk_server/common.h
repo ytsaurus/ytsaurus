@@ -20,12 +20,6 @@ extern NLog::TLogger ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: get rid
-using NChunkHolder::THolderStatistics;
-using NChunkHolder::EJobState;
-using NChunkHolder::EJobType;
-using NChunkHolder::TJobId;
-
 typedef i32 THolderId;
 const i32 InvalidHolderId = -1;
 

@@ -9,6 +9,7 @@ namespace NChunkServer {
 using namespace NRpc;
 using namespace NMetaState;
 using NChunkClient::TChunkId;
+using NChunkHolder::TJobId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +20,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 TChunkService::TChunkService(
     NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
-    TTransactionManager* transactionManager,
+    NTransactionServer::TTransactionManager* transactionManager,
     NRpc::IRpcServer* server)
     : TMetaStateServiceBase(
         metaStateManager,
@@ -71,7 +72,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     UNUSED(response);
 
     Stroka address = request->address();
-    auto statistics = THolderStatistics::FromProto(request->statistics());
+    auto statistics = NChunkHolder::THolderStatistics::FromProto(request->statistics());
     
     context->SetRequestInfo("Address: %s, %s",
         ~address,

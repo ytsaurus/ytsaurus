@@ -18,12 +18,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: get rid
-using NMetaState::TMetaChange;
-using NMetaState::IMetaStateManager;
-using NMetaState::TCompositeMetaState;
-using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionId;
-using NTransactionServer::TTransaction;
 
 class TChunkManager
     : public TRefCountedBase
@@ -35,9 +30,9 @@ public:
     //! Creates an instance.
     TChunkManager(
         const TConfig& config,
-        IMetaStateManager* metaStateManager,
-        TCompositeMetaState* metaState,
-        TTransactionManager* transactionManager,
+        NMetaState::IMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        NTransactionServer::TTransactionManager* transactionManager,
         IHolderRegistry* holderRegistry);
 
     // TODO: provide Stop method
@@ -46,7 +41,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
     DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, NChunkClient::TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, NChunkHolder::TJobId);
 
     //! Fired when a holder gets registered.
     /*!
@@ -66,7 +61,8 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    TMetaChange<NChunkClient::TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId);
+    NMetaState::TMetaChange<NChunkClient::TChunkId>::TPtr InitiateCreateChunk(
+        const TTransactionId& transactionId);
 
     TChunkList& CreateChunkList();
     void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
@@ -81,19 +77,21 @@ public:
     void UnrefChunkList(const TChunkListId& chunkListId);
     void UnrefChunkList(TChunkList& chunkList);
 
-    TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+    NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         Stroka address,
         const NChunkHolder::THolderStatistics& statistics);
-    TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId);
+    NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId);
 
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(const NProto::TMsgHeartbeatRequest& message);
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(const NProto::TMsgHeartbeatResponse& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
+        const NProto::TMsgHeartbeatRequest& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
+        const NProto::TMsgHeartbeatResponse& message);
 
     void RunJobControl(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        yvector<NChunkHolder::TJobId>* jobsToStop);
 
 private:
     class TImpl;

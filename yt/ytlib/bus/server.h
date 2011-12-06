@@ -3,7 +3,6 @@
 #include "common.h"
 #include "bus.h"
 
-#include "../misc/config.h"
 #include "../ytree/ytree_fwd.h"
 
 namespace NYT {

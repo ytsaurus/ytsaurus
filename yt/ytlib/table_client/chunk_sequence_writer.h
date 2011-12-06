@@ -15,10 +15,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NChunkClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkSequenceWriter
     : public IWriter
 {
@@ -36,13 +32,13 @@ public:
         int ReplicationFactor;
 
         TChunkWriter::TConfig TableChunkConfig;
-        TRemoteWriter::TConfig ChunkWriterConfig;
+        NChunkClient::TRemoteWriter::TConfig ChunkWriterConfig;
 
         TConfig(
             i64 chunkSize, 
             double threshold,
             int repFactor, 
-            const TRemoteWriter::TConfig& chunkWriterConfig)
+            const NChunkClient::TRemoteWriter::TConfig& chunkWriterConfig)
             : MaxChunkSize(chunkSize)
             , NextChunkThreshold(threshold)
             , ReplicationFactor(repFactor)
@@ -62,7 +58,7 @@ public:
     TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
     void Cancel(const Stroka& errorMessage);
 
-    const yvector<TChunkId>& GetWrittenChunks() const;
+    const yvector<NChunkClient::TChunkId>& GetWrittenChunks() const;
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -78,7 +74,7 @@ private:
 
     void OnChunkClosed(
         TAsyncStreamState::TResult result, 
-        TChunkId chunkId);
+        NChunkClient::TChunkId chunkId);
 
     void OnRowEnded(TAsyncStreamState::TResult result);
     void OnClose();
@@ -98,7 +94,7 @@ private:
 
     //! Protects #WrittenChunks.
     TSpinLock WrittenSpinLock;
-    yvector<TChunkId> WrittenChunks;
+    yvector<NChunkClient::TChunkId> WrittenChunks;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
 

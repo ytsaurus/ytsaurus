@@ -63,6 +63,7 @@ using NChunkServer::CreateHolderMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
 using NMetaState::EPeerStatus;
+using NMetaState::IMetaStateManager;
 
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
