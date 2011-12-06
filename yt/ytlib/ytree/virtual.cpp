@@ -136,7 +136,10 @@ INode::TPtr CreateVirtualNode(
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualNode(
-        ~FromFunctor([=] () { return service_; }),
+        ~FromFunctor([=] () -> NYTree::IYPathService::TPtr
+            {
+                return service_;
+            }),
         factory);
 }
 
