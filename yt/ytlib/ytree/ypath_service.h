@@ -30,14 +30,14 @@ struct IYPathService
         DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
-        static TResolveResult Here(TYPath path)
+        static TResolveResult Here(const TYPath& path)
         {
             TResolveResult result;
             result.Path_ = path;
             return result;
         }
 
-        static TResolveResult There(IYPathService* service, TYPath path)
+        static TResolveResult There(IYPathService* service, const TYPath& path)
         {
             YASSERT(service != NULL);
 
@@ -53,7 +53,7 @@ struct IYPathService
         }
     };
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb) = 0;
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) = 0;
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
 
     static IYPathService::TPtr FromNode(INode* node);

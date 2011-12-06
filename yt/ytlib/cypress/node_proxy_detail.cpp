@@ -211,17 +211,17 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
-void TMapNodeProxy::CreateRecursive(TYPath path, INode* value)
+void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
     TMapNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TMapNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TMapNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 
@@ -379,17 +379,17 @@ int TListNodeProxy::GetChildIndex(INode* child)
     return it->second;
 }
 
-void TListNodeProxy::CreateRecursive(TYPath path, INode* value)
+void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
     TListNodeMixin::SetRecursive(path, value);
 }
 
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TListNodeProxy::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TListNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 
@@ -407,7 +407,7 @@ TRootNodeProxy::TRootNodeProxy(
     : TMapNodeProxy(typeHandler, cypressManager, transactionId, nodeId)
 { }
 
-IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     if (!path.empty() && path[0] == NodeIdMarker) {
         TYPath suffixPath;

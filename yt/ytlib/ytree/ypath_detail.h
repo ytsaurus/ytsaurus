@@ -18,13 +18,13 @@ class TYPathServiceBase
 {
 public:
     virtual void Invoke(NRpc::IServiceContext* context);
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb);
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
 
 protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual TResolveResult ResolveSelf(TYPath path, const Stroka& verb);
-    virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
-    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
+    virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
 
 };
 
@@ -245,33 +245,33 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(TYPath path);
+TYPath ChopYPathRootMarker(const TYPath& path);
 
 void ChopYPathToken(
-    TYPath path,
+    const TYPath& path,
     Stroka* prefix,
     TYPath* suffixPath);
 
 TYPath ComputeResolvedYPath(
-    TYPath wholePath,
-    TYPath unresolvedPath);
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath);
 
-bool IsEmptyYPath(TYPath path);
+bool IsEmptyYPath(const TYPath& path);
 
-bool IsFinalYPath(TYPath path);
+bool IsFinalYPath(const TYPath& path);
 
-bool IsAttributeYPath(TYPath path);
+bool IsAttributeYPath(const TYPath& path);
 
 // TODO: choose a better name
-bool IsLocalYPath(TYPath path);
+bool IsLocalYPath(const TYPath& path);
 
-TYPath ChopYPathAttributeMarker(TYPath path);
+TYPath ChopYPathAttributeMarker(const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ResolveYPath(
     IYPathService* rootService,
-    TYPath path,
+    const TYPath& path,
     const Stroka& verb,
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath);
@@ -291,7 +291,7 @@ void ParseYPathResponseHeader(
 
 NBus::IMessage::TPtr UpdateYPathRequestHeader(
     NBus::IMessage* message,
-    NYTree::TYPath path,
+    const TYPath& path,
     const Stroka& verb);
 
 NBus::IMessage::TPtr UpdateYPathResponseHeader(
@@ -307,7 +307,7 @@ NBus::IMessage::TPtr UnwrapYPathRequest(
     
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
-    TYPath path,
+    const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);

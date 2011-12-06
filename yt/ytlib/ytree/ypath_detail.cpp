@@ -20,7 +20,7 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TYPathServiceBase::Resolve(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
     if (IsFinalYPath(path)) {
         return ResolveSelf(path, verb);
@@ -31,20 +31,20 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(TYPath path, const Stro
     }
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(const TYPath& path, const Stroka& verb)
 {
     UNUSED(verb);
     return TResolveResult::Here(path);
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
     UNUSED(path);
     UNUSED(verb);
     ythrow yexception() << "YPath resolution for attributes is not supported";
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     UNUSED(path);
     UNUSED(verb);
@@ -179,7 +179,7 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(TYPath path)
+TYPath ChopYPathRootMarker(const TYPath& path)
 {
     if (path.empty()) {
         ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
@@ -193,7 +193,7 @@ TYPath ChopYPathRootMarker(TYPath path)
 }
 
 void ChopYPathToken(
-    TYPath path,
+    const TYPath& path,
     Stroka* prefix,
     TYPath* suffixPath)
 {
@@ -223,8 +223,8 @@ void ChopYPathToken(
 }
 
 TYPath ComputeResolvedYPath(
-    TYPath wholePath,
-    TYPath unresolvedPath)
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath)
 {
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
     YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
@@ -236,27 +236,27 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-bool IsEmptyYPath(TYPath path)
+bool IsEmptyYPath(const TYPath& path)
 {
     return path.empty();
 }
 
-bool IsFinalYPath(TYPath path)
+bool IsFinalYPath(const TYPath& path)
 {
     return path.empty() || path == "/";
 }
 
-bool IsAttributeYPath(TYPath path)
+bool IsAttributeYPath(const TYPath& path)
 {
     return !path.empty() && path[0] == '@';
 }
 
-TYPath ChopYPathAttributeMarker(TYPath path)
+TYPath ChopYPathAttributeMarker(const TYPath& path)
 {
     return path.substr(1);
 }
 
-bool IsLocalYPath(TYPath path)
+bool IsLocalYPath(const TYPath& path)
 {
     // The empty path is handled by the virtual node itself.
     // All other paths (including "/") are forwarded to the service.
@@ -333,7 +333,7 @@ protected:
 
 void ResolveYPath(
     IYPathService* rootService,
-    TYPath path,
+    const TYPath& path,
     const Stroka& verb,
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath)
@@ -403,7 +403,7 @@ void ParseYPathResponseHeader(
 
 IMessage::TPtr UpdateYPathRequestHeader(
     IMessage* message,
-    TYPath path,
+    const TYPath& path,
     const Stroka& verb)
 {
     YASSERT(message != NULL);
@@ -487,7 +487,7 @@ void WrapYPathResponse(
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
-    TYPath path,
+    const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler)

@@ -13,7 +13,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     UNUSED(verb);
 
@@ -104,7 +104,7 @@ public:
         Attributes = attributes;
     }
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         if (IsLocalYPath(path)) {
             return TNodeBase::Resolve(path, verb);

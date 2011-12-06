@@ -29,7 +29,7 @@ TFileWriter::TFileWriter(
     const TConfig& config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
-    NYTree::TYPath path,
+    const NYTree::TYPath& path,
     int totalReplicaCount,
     int uploadReplicaCount)
     : Config(config)

@@ -415,7 +415,7 @@ protected:
     { }
 
     virtual void CreateRecursive(
-        NYTree::TYPath path,
+        const NYTree::TYPath& path,
         NYTree::INode* value) = 0;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
@@ -490,9 +490,9 @@ public:
 
 protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
-    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
+    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
+    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
 };
 
@@ -522,9 +522,9 @@ public:
     virtual int GetChildIndex(INode* child);
 
 protected:
-    virtual void CreateRecursive(NYTree::TYPath path, INode* value);
-    virtual TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
-    virtual void SetRecursive(NYTree::TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
+    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
+    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
 };
 
@@ -541,7 +541,7 @@ public:
         const TNodeId& nodeId);
 
 protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(NYTree::TYPath path, const Stroka& verb);
+    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
 };
 

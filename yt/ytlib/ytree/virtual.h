@@ -17,7 +17,7 @@ protected:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) = 0;
 
 private:
-    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Get);

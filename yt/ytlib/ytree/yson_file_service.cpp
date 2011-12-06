@@ -18,7 +18,7 @@ public:
         : FileName(fileName)
     { }
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         UNUSED(verb);
 

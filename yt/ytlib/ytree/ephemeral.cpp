@@ -118,8 +118,8 @@ private:
     yhash_map<INode::TPtr, Stroka> ChildToName;
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual IYPathService::TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
-    virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
 };
 
@@ -146,8 +146,8 @@ private:
     yvector<INode::TPtr> IndexToChild;
     yhash_map<INode::TPtr, int> ChildToIndex;
 
-    virtual TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
-    virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
 };
 
@@ -300,12 +300,12 @@ void TMapNode::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
-IYPathService::TResolveResult TMapNode::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TMapNode::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TMapNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TMapNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 
@@ -401,12 +401,12 @@ int TListNode::GetChildIndex(INode* child)
     return it->Second();
 }
 
-IYPathService::TResolveResult TListNode::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TListNode::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TListNode::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TListNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(response);
 

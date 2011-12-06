@@ -46,7 +46,7 @@ public:
         Proxy->SetTimeout(Manifest.Timeout);
     }
 
-    TResolveResult Resolve(TYPath path, const Stroka& verb)
+    TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         UNUSED(verb);
         return TResolveResult::Here(path);
@@ -107,7 +107,7 @@ private:
         }
     }
 
-    Stroka GetRedirectPath(TYPath path)
+    Stroka GetRedirectPath(const TYPath& path)
     {
         // TODO: use CombineYPath
         return path == "/" ? Manifest.RemoteRoot : Manifest.RemoteRoot + path;

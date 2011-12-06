@@ -15,7 +15,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TNodeBase::ResolveAttributes(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
     Stroka attributePath = ChopYPathAttributeMarker(path);
     if (IsFinalYPath(attributePath) &&
@@ -120,7 +120,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr conte
     context->Reply();
 }
 
-void TNodeBase::GetRecursive(TYPath path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
+void TNodeBase::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -180,7 +180,7 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
         "Verb is not supported";
 }
 
-void TNodeBase::SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TNodeBase::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -236,7 +236,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     context->Reply();
 }
 
-void TNodeBase::RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
+void TNodeBase::RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -280,7 +280,7 @@ DEFINE_RPC_SERVICE_METHOD(TMapNodeMixin, List)
     context->Reply();
 }
 
-IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -298,13 +298,13 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(TYPath path, const
     ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
 }
 
-void TMapNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
+void TMapNodeMixin::SetRecursive(const TYPath& path, NProto::TReqSet* request)
 {
     auto value = DeserializeFromYson(request->value(), GetFactory());
     TMapNodeMixin::SetRecursive(path, ~value);
 }
 
-void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
+void TMapNodeMixin::SetRecursive(const TYPath& path, INode* value)
 {
     IMapNode::TPtr currentNode = this;
     TYPath currentPath = path;
@@ -333,7 +333,7 @@ void TMapNodeMixin::SetRecursive(TYPath path, INode* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, const Stroka& verb)
+IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -356,13 +356,13 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(TYPath path, cons
     }
 }
 
-void TListNodeMixin::SetRecursive(TYPath path, NProto::TReqSet* request)
+void TListNodeMixin::SetRecursive(const TYPath& path, NProto::TReqSet* request)
 {
     auto value = DeserializeFromYson(request->value(), GetFactory());
     SetRecursive(path, ~value);
 }
 
-void TListNodeMixin::SetRecursive(TYPath path, INode* value)
+void TListNodeMixin::SetRecursive(const TYPath& path, INode* value)
 {
     INode::TPtr currentNode = this;
     TYPath currentPath = path;
@@ -400,7 +400,7 @@ void TListNodeMixin::SetRecursive(TYPath path, INode* value)
     }
 }
 
-void TListNodeMixin::CreateChild(int beforeIndex, TYPath path, INode* value)
+void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* value)
 {
     if (IsFinalYPath(path)) {
         AddChild(value, beforeIndex);

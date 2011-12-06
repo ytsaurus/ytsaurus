@@ -42,7 +42,7 @@ public:
         const TConfig& config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
-        NYTree::TYPath path);
+        const NYTree::TYPath& path);
 
     //! Returns the size of the file.
     i64 GetSize() const;

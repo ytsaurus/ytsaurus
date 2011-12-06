@@ -28,13 +28,13 @@ TMonitoringManager::TMonitoringManager()
         Period);
 }
 
-void TMonitoringManager::Register(TYPath path, TYsonProducer::TPtr producer)
+void TMonitoringManager::Register(const TYPath& path, TYsonProducer::TPtr producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YVERIFY(MonitoringMap.insert(MakePair(path, producer)).Second());
 }
 
-void TMonitoringManager::Unregister(TYPath path)
+void TMonitoringManager::Unregister(const TYPath& path)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YVERIFY(MonitoringMap.erase(Stroka(path)));
