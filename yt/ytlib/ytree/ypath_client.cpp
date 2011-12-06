@@ -94,7 +94,7 @@ void OnYPathResponse(
     IMessage::TPtr responseMessage,
     TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,
     const Stroka& verb,
-    TYPath resolvedPath)
+    const TYPath& resolvedPath)
 {
     auto parts = responseMessage->GetParts();
     YASSERT(!parts.empty());
@@ -164,7 +164,7 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
+TYson SyncExecuteYPathGet(IYPathService* rootService, const TYPath& path)
 {
     auto request = TYPathProxy::Get();
     request->SetPath(path);
@@ -173,7 +173,7 @@ TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path)
     return response->value();
 }
 
-void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value)
+void SyncExecuteYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value)
 {
     auto request = TYPathProxy::Set();
     request->SetPath(path);
@@ -182,7 +182,7 @@ void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& v
     response->ThrowIfError();
 }
 
-void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
+void SyncExecuteYPathRemove(IYPathService* rootService, const TYPath& path)
 {
     auto request = TYPathProxy::Remove();
     request->SetPath(path);
@@ -190,7 +190,7 @@ void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path)
     response->ThrowIfError();
 }
 
-yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path)
+yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, const TYPath& path)
 {
     auto request = TYPathProxy::List();
     request->SetPath(path);

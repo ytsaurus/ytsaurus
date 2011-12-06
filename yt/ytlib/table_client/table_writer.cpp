@@ -105,7 +105,7 @@ void TTableWriter::Close()
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
     auto req = TTableYPathProxy::AddTableChunks();
-    ToProto<TChunkId, Stroka>(*req->mutable_chunkids(), Writer->GetWrittenChunks());
+    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunkids(), Writer->GetWrittenChunks());
 
     auto rsp = Proxy.Execute(
         GetYPathFromNodeId(NodeId),

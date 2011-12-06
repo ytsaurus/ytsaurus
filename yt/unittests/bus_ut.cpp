@@ -142,7 +142,7 @@ TEST(TBusTest, OK)
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message)->Get();
-    EXPECT_EQ(IBus::ESendResult::OK, result);
+    EXPECT_EQ(ESendResult::OK, result);
     server->Stop();
 }
 
@@ -152,7 +152,7 @@ TEST(TBusTest, Failed)
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message)->Get();
-    EXPECT_EQ(IBus::ESendResult::Failed, result);
+    EXPECT_EQ(ESendResult::Failed, result);
 }
 
 TEST(TBusTest, OneReply)

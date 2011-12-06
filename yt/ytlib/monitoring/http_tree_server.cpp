@@ -134,7 +134,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     return output.Str();
 }
 
-TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
+TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, const TYPath& path)
 {
     if (~pathService == NULL) {
         return ToFuture(Stroka(

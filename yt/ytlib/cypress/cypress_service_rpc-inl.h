@@ -13,7 +13,7 @@ namespace NCypress {
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
-    NYTree::TYPath path,
+    const NYTree::TYPath& path,
     const NTransactionServer::TTransactionId& transactionId,
     TTypedRequest* innerRequest)
 {

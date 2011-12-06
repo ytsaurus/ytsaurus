@@ -4,15 +4,12 @@
 
 namespace NYT {
 
-using NChunkHolder::TChunkHolderConfig;
-using NChunkHolder::TChunkHolderService;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkHolderServer
 {
 public:
-    typedef TChunkHolderConfig TConfig;
+    typedef NChunkHolder::TChunkHolderConfig TConfig;
 
     TChunkHolderServer(const TConfig& config);
     void Run();

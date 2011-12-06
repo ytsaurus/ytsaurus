@@ -30,7 +30,7 @@ private:
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
 
     TChunkManager::TPtr ChunkManager;
-    TTransactionManager::TPtr TransactionManager;
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);

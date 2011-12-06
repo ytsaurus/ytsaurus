@@ -75,7 +75,7 @@ public:
         , Service(service)
     { }
 
-    virtual TResolveResult Resolve(TYPath path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         if (IsLocalYPath(path)) {
             return TBase::Resolve(path, verb);

@@ -55,19 +55,19 @@ protected:
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual TResolveResult ResolveAttributes(TYPath path, const Stroka& verb);
+    virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Get);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
-    virtual void GetRecursive(TYPath path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
+    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Set);
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetRecursive(TYPath path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
-    virtual void RemoveRecursive(TYPath path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
+    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
 
     virtual yvector<Stroka> GetVirtualAttributeNames();
     virtual IYPathService::TPtr GetVirtualAttributeService(const Stroka& name);
@@ -81,9 +81,9 @@ class TMapNodeMixin
 {
 protected:
     bool DoInvoke(NRpc::IServiceContext* context);
-    IYPathService::TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
-    void SetRecursive(TYPath path, NProto::TReqSet* request);
-    void SetRecursive(TYPath path, INode* value);
+    IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    void SetRecursive(const TYPath& path, NProto::TReqSet* request);
+    void SetRecursive(const TYPath& path, INode* value);
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NProto, List);
@@ -96,13 +96,13 @@ class TListNodeMixin
     : public virtual IListNode
 {
 protected:
-    IYPathService::TResolveResult ResolveRecursive(TYPath path, const Stroka& verb);
-    void SetRecursive(TYPath path, NProto::TReqSet* request);
-    void SetRecursive(TYPath path, INode* value);
+    IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    void SetRecursive(const TYPath& path, NProto::TReqSet* request);
+    void SetRecursive(const TYPath& path, INode* value);
 
 private:
     int ParseChildIndex(TStringBuf str);
-    void CreateChild(int beforeIndex, TYPath path, INode* value);
+    void CreateChild(int beforeIndex, const TYPath& path, INode* value);
 
 };
 

@@ -8,16 +8,16 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ESendResult,
+    (OK)
+    (Failed)
+);
+
 //! A bus, i.e. something capable of transmitting messages.
 struct IBus
     : public virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IBus> TPtr;
-
-    DECLARE_ENUM(ESendResult,
-        (OK)
-        (Failed)
-    );
 
     typedef TFuture<ESendResult> TSendResult;
 

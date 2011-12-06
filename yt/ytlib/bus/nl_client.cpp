@@ -278,7 +278,7 @@ class TClientDispatcher
             ~request->SessionId.ToString(),
             ~requestId.ToString());
 
-        request->Result->Set(IBus::ESendResult::Failed);
+        request->Result->Set(ESendResult::Failed);
         RequestMap.erase(requestIt);
     }
 
@@ -337,7 +337,7 @@ class TClientDispatcher
             ~requestId.ToString());
 
         auto request = requestIt->Second();
-        request->Result->Set(IBus::ESendResult::OK);
+        request->Result->Set(ESendResult::OK);
         RequestMap.erase(requestIt);
     }
 

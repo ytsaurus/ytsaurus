@@ -137,16 +137,16 @@ ExecuteVerb(
     IYPathExecutor* executor = ~GetDefaultExecutor());
 
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
-TYson SyncExecuteYPathGet(IYPathService* rootService, TYPath path);
+TYson SyncExecuteYPathGet(IYPathService* rootService, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
-void SyncExecuteYPathSet(IYPathService* rootService, TYPath path, const TYson& value);
+void SyncExecuteYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value);
 
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
-void SyncExecuteYPathRemove(IYPathService* rootService, TYPath path);
+void SyncExecuteYPathRemove(IYPathService* rootService, const TYPath& path);
 
 //! Synchronously executes "List" verb. Throws if an error has occurred.
-yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, TYPath path);
+yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

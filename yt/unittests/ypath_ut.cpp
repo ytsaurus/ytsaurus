@@ -37,27 +37,27 @@ public:
         return outputStream.Str();
     }
 
-    void Set(TYPath path, const TYson& value)
+    void Set(const TYPath& path, const TYson& value)
     {
         SyncExecuteYPathSet(~RootService, path, value);
     }
 
-    void Remove(TYPath path)
+    void Remove(const TYPath& path)
     {
         SyncExecuteYPathRemove(~RootService, path);
     }
 
-    TYson Get(TYPath path)
+    TYson Get(const TYPath& path)
     {
         return TextifyYson(SyncExecuteYPathGet(~RootService, path));
     }
 
-    yvector<Stroka> List(TYPath path)
+    yvector<Stroka> List(const TYPath& path)
     {
         return SyncExecuteYPathList(~RootService, path);
     }
 
-    void Check(TYPath path, TYson expected)
+    void Check(const TYPath& path, TYson expected)
     {
         TYson output = Get(path);
 //        Cout << Endl;
@@ -66,7 +66,7 @@ public:
         EXPECT_EQ(expected, output);
     }
 
-    void CheckList(TYPath path, TYson expected)
+    void CheckList(const TYPath& path, TYson expected)
     {
         VectorStrok result;
         SplitStroku(&result, expected, ";");
