@@ -66,27 +66,21 @@ public:
     void Initialize()
     {
         // The last block contains meta.
-        yvector<int> metaIndex(1, -1);
-        AsyncReader->AsyncReadBlocks(metaIndex)
-            ->Subscribe(FromMethod(
-                &TInitializer::OnGotMeta, 
-                TPtr(this))
-            ->Via(ReaderThread->GetInvoker()));
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+            &TInitializer::OnGotMeta, 
+            TPtr(this))->Via(ReaderThread->GetInvoker()));
     }
 
 private:
-    void OnGotMeta(NChunkClient::IAsyncReader::TReadResult readResult)
+    void OnGotMeta(NChunkClient::IAsyncReader::TGetInfoResult result)
     {
-        if (!readResult.Error.IsOK()) {
-            ChunkReader->State.Fail(readResult.Error.GetMessage());
+        if (!result.Error.IsOK()) {
+            ChunkReader->State.Fail(result.Error.GetMessage());
             return;
         }
 
-        auto& metaBlob = readResult.Blocks.front();
-
-        // ToDo: log chunk id here.
-        LOG_FATAL_IF(DeserializeProtobuf(&ProtoMeta, metaBlob),
-            "Unable to deserialize chunk meta.");
+        ProtoMeta = result.ChunkInfo.attributes().GetExtension(
+            NProto::TTableChunkAttributes::TableAttributes);
 
         SelectChannels();
         YASSERT(SelectedChannels.size() > 0);
@@ -312,7 +306,7 @@ bool TChunkReader::HasNextRow() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer != NULL);
+    YASSERT(~Initializer == NULL);
 
     return CurrentRow < EndRow - 1;
 }
@@ -349,8 +343,9 @@ void TChunkReader::ContinueNextRow(
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
         channel.SetBlock(SequentialReader->GetBlock());
-        ++channelIndex;
     }
+
+    ++channelIndex;
 
     while (channelIndex < ChannelReaders.ysize()) {
         auto& channel = ChannelReaders[channelIndex];

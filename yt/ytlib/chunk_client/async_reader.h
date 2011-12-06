@@ -6,14 +6,11 @@
 #include "../misc/ref.h"
 #include "../actions/future.h"
 #include "../misc/enum.h"
-#include "../rpc/error.h"
 
 #include "../misc/error.h"
 
 namespace NYT {
 namespace NChunkClient {
-
-using NChunkServer::NProto::TChunkInfo;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +32,7 @@ struct IAsyncReader
     //! Describes a result of #GetChunkInfo
     struct TGetInfoResult
     {
-        TChunkInfo ChunkInfo;
+        NChunkServer::NProto::TChunkInfo ChunkInfo;
         TError Error;
     };
 

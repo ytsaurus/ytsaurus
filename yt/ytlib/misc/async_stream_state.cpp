@@ -133,6 +133,9 @@ void TAsyncStreamState::FinishOperation(TResult result)
         if (IsActive_ && ~CurrentResult != NULL) {
             auto result = CurrentResult;
             CurrentResult.Reset();
+            // Always release guard before setting future with 
+            // unknown subscribers.
+            guard.Release();
 
             result->Set(TResult());
         }
