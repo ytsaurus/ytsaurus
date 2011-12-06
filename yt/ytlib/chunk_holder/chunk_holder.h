@@ -3,7 +3,7 @@
 #include "common.h"
 #include "chunk_holder.pb.h"
 #include "block_store.h"
-#include "session.h"
+#include "session_manager.h"
 #include "chunk_store.h"
 #include "chunk_holder_rpc.h"
 #include "master_connector.h"

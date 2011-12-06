@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "chunk_store.h"
-#include "session.h"
+#include "session_manager.h"
 #include "replicator.h"
 
 #include "../chunk_server/chunk_service_rpc.h"
