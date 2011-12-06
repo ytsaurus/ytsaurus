@@ -77,12 +77,9 @@ public:
 
     bool CancelAndClear(TCookie& cookie)
     {
-        if (!Cancel(cookie)) {
-            return false;
-        }
-
+        auto cookie_ = cookie;
         cookie.Reset();
-        return true;
+        return Cancel(cookie_);
     }
 
     void Shutdown()
