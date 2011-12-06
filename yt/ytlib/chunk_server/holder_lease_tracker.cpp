@@ -44,9 +44,10 @@ void THolderLeaseTracker::RegisterHolder(const THolder& holder)
 
 void THolderLeaseTracker::UnregisterHolder(const THolder& holder)
 {
-    auto& holderInfo = GetHolderInfo(holder.GetId());
+    auto holderId = holder.GetId();
+    auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
-    YASSERT(HolderInfoMap.erase(holder.GetId()) == 1);
+    YASSERT(HolderInfoMap.erase(holderId) == 1);
 }
 
 void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
