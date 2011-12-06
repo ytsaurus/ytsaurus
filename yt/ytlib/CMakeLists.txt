@@ -1,24 +1,30 @@
+SET( DIRS
+  actions
+  election
+  chunk_holder
+  chunk_client
+  chunk_server
+  transaction_server
+  transaction_client
+  logging
+  meta_state
+  misc
+  rpc
+  bus
+  ytree
+  cypress
+  orchid
+  file_server
+  file_client
+  table_server
+  table_client
+  monitoring
+)
 
-include(actions/CMakeLists.txt)
-include(election/CMakeLists.txt)
-include(chunk_holder/CMakeLists.txt)
-include(chunk_client/CMakeLists.txt)
-include(chunk_server/CMakeLists.txt)
-include(transaction_server/CMakeLists.txt)
-include(transaction_client/CMakeLists.txt)
-include(logging/CMakeLists.txt)
-include(meta_state/CMakeLists.txt)
-include(misc/CMakeLists.txt)
-include(rpc/CMakeLists.txt)
-include(bus/CMakeLists.txt)
-include(ytree/CMakeLists.txt)
-include(cypress/CMakeLists.txt)
-include(orchid/CMakeLists.txt)
-include(file_server/CMakeLists.txt)
-include(file_client/CMakeLists.txt)
-include(table_server/CMakeLists.txt)
-include(table_client/CMakeLists.txt)
-include(monitoring/CMakeLists.txt)
+foreach( _d_ ${DIRS} )
+  include( ${_d_}/CMakeLists.txt )
+  source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
+endforeach()
 
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}

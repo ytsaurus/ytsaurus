@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../bus/bus_client.h"
+#include "../bus/client.h"
 
 namespace NYT {
 namespace NRpc {
