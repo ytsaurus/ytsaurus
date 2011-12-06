@@ -23,7 +23,7 @@ SET( DIRS
 
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
-  source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))}")
+  source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
 add_library( ytlib STATIC
