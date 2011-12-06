@@ -17,7 +17,7 @@ using namespace NRpc;
 
 IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
-    Stroka attributePath = ChopYPathAttributeMarker(path);
+    TYPath attributePath = ChopYPathAttributeMarker(path);
     if (IsFinalYPath(attributePath) &&
         verb != "Get" &&
         verb != "List" &&
@@ -192,7 +192,7 @@ void TNodeBase::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* resp
 
 DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
 {
-    Stroka path = context->GetPath();
+    TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
         RemoveSelf(request, response, context);
     } else if (IsAttributeYPath(path)) {

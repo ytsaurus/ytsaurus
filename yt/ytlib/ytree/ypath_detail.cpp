@@ -272,7 +272,7 @@ class TServiceContext
 {
 public:
     TServiceContext(
-        const Stroka& path,
+        const TYPath& path,
         const Stroka& verb,
         NBus::IMessage* requestMessage,
         TYPathResponseHandler* responseHandler,
