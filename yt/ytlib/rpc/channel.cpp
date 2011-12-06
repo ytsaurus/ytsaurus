@@ -119,7 +119,7 @@ private:
     //! Protects #ActiveRequests and #Terminated.
     TSpinLock SpinLock;
 
-    void OnAcknowledgement(IBus::ESendResult sendResult, TRequestId requestId)
+    void OnAcknowledgement(ESendResult sendResult, TRequestId requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -137,7 +137,7 @@ private:
         auto& activeRequest = it->Second();
         auto responseHandler = activeRequest.ResponseHandler;
 
-        if (sendResult == IBus::ESendResult::Failed) {
+        if (sendResult == ESendResult::Failed) {
             UnregisterRequest(it);
         
             // Don't need the guard anymore.
