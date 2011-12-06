@@ -17,8 +17,6 @@ public:
 
     void Read(TInputStream* stream);
 
-    static TYsonProducer::TPtr GetProducer(TInputStream* stream);
-
 private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
@@ -31,8 +29,6 @@ private:
     int Position;
     int Offset;
     Stroka GetPositionInfo();
-
-    static void GetProducerThunk(IYsonConsumer* consumer, TInputStream* stream);
 
     void Reset();
 
