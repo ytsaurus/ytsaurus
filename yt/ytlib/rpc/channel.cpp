@@ -28,7 +28,7 @@ class TChannel
 public:
     typedef TIntrusivePtr<TChannel> TPtr;
 
-    TChannel(NBus::TBusClient* client)
+    TChannel(NBus::IBusClient* client)
         : Terminated(false)
     {
         Bus = client->CreateBus(this);
@@ -242,7 +242,7 @@ private:
 
 };          
 
-IChannel::TPtr CreateBusChannel(NBus::TBusClient* client)
+IChannel::TPtr CreateBusChannel(NBus::IBusClient* client)
 {
     YASSERT(client != NULL);
 
@@ -251,7 +251,7 @@ IChannel::TPtr CreateBusChannel(NBus::TBusClient* client)
 
 IChannel::TPtr CreateBusChannel(const Stroka& address)
 {
-    return New<TChannel>(~New<TBusClient>(address));
+    return New<TChannel>(~CreateNLBusClient(TNLBusClientConfig(address)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

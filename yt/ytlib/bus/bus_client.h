@@ -5,6 +5,8 @@
 #include "bus.h"
 #include "message.h"
 
+#include "../misc/config.h"
+
 #include <quality/NetLiba/UdpHttp.h>
 #include <quality/NetLiba/UdpAddress.h>
 
@@ -13,44 +15,44 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientDispatcher;
 
 //! A client IBus factory.
 /*!
  *  Thread affinity: any.
  */
-class TBusClient
-    : public TRefCountedBase
+struct IBusClient
+    : virtual TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TBusClient> TPtr;
-
-    //! Initializes a new client for communicating with a given address.
-    /*!
-     *  DNS resolution is performed upon construction, the resulting
-     *  IP address is cached.
-     *
-     *  \param address An address where all buses will point to.
-     */
-    TBusClient(const Stroka& address);
+    typedef TIntrusivePtr<IBusClient> TPtr;
 
     //! Creates a new bus.
     /*!
      *  The bus will point to the address supplied during construction.
-     *  
+     *
      *  \param handler A handler that will process incoming messages.
      *  \return A new bus.
      *
      */
-    IBus::TPtr CreateBus(IMessageHandler* handler);
-
-private:
-    class TBus;
-    friend class TClientDispatcher;
-
-    TUdpAddress ServerAddress;
-
+    virtual IBus::TPtr CreateBus(IMessageHandler* handler) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: place into a separate file (nl_bus_client.h/cpp?)
+
+struct TNLBusClientConfig
+    : TConfigBase
+{
+    Stroka Address;
+    // TODO: move here MaxNLCallsPerIteration, ClientSleepQuantum, MessageRearrangeTimeout;
+
+    explicit TNLBusClientConfig(const Stroka& address)
+        : Address(address)
+    { }
+};
+
+IBusClient::TPtr CreateNLBusClient(const TNLBusClientConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
