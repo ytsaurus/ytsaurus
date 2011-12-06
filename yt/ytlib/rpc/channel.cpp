@@ -4,6 +4,8 @@
 #include "message.h"
 #include "rpc.pb.h"
 
+#include "../bus/nl_client.h"
+
 #include "../misc/delayed_invoker.h"
 #include "../misc/assert.h"
 #include "../misc/thread_affinity.h"
