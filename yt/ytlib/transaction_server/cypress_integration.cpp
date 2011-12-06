@@ -6,7 +6,6 @@
 #include "../ytree/fluent.h"
 #include "../misc/string.h"
 
-
 namespace NYT {
 namespace NTransactionServer {
 

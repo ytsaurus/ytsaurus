@@ -70,16 +70,6 @@ class TChunk
     DEFINE_BYREF_RO_PROPERTY(NChunkServer::NProto::TChunkInfo, Info);
 
 public:
-    i64 GetSize() const
-    {
-        return Info_.size();
-    }
-
-    i32 GetBlockCount() const
-    {
-        return Info_.blocks_size();
-    }
-
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
@@ -115,7 +105,7 @@ public:
         TLocation* location);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);
+    TChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId) const;
 
     //! Returns a (cached) chunk reader.
     /*!
@@ -140,16 +130,16 @@ public:
     TLocation::TPtr GetNewChunkLocation();
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation* location);
+    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation* location) const;
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(TChunk* chunk);
+    Stroka GetChunkFileName(TChunk* chunk) const;
 
     //! Returns the list of all registered chunks.
-    TChunks GetChunks();
+    TChunks GetChunks() const;
 
     //! Returns the number of registered chunks.
-    int GetChunkCount();
+    int GetChunkCount() const;
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);

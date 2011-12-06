@@ -279,7 +279,7 @@ private:
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
-    THolderLeaseTracker::TPtr HolderExpiration;
+    THolderLeaseTracker::TPtr HolderLeaseTracking;
     
     TIdGenerator<TChunkId> ChunkIdGenerator;
     TIdGenerator<TChunkId> ChunkListIdGenerator;
@@ -406,7 +406,7 @@ private:
         holder.Statistics() = statistics;
 
         if (IsLeader()) {
-            HolderExpiration->RenewHolderLease(holder);
+            HolderLeaseTracking->RenewHolderLease(holder);
             ChunkPlacement->OnHolderUpdated(holder);
         }
 
@@ -530,7 +530,7 @@ private:
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
 
-        HolderExpiration = New<THolderLeaseTracker>(
+        HolderLeaseTracking = New<THolderLeaseTracker>(
             Config,
             ~ChunkManager,
             ~MetaStateManager->GetEpochStateInvoker());
@@ -544,7 +544,7 @@ private:
     {
         ChunkPlacement.Reset();
         ChunkReplication.Reset();
-        HolderExpiration.Reset();
+        HolderLeaseTracking.Reset();
     }
 
 
@@ -571,7 +571,7 @@ private:
 
     void StartHolderTracking(const THolder& holder)
     {
-        HolderExpiration->RegisterHolder(holder);
+        HolderLeaseTracking->RegisterHolder(holder);
         ChunkPlacement->OnHolderRegistered(holder);
         ChunkReplication->OnHolderRegistered(holder);
 
@@ -580,7 +580,7 @@ private:
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderExpiration->UnregisterHolder(holder);
+        HolderLeaseTracking->UnregisterHolder(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
         ChunkReplication->OnHolderUnregistered(holder);
 

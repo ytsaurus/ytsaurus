@@ -160,7 +160,7 @@ private:
             case EState::Connected:
                 YASSERT(~LookupResult == NULL);
                 YASSERT(~Channel != NULL);
-                return New< TFuture<IChannel::TPtr> >(~Channel);
+                return ToFuture(Channel);
 
             case EState::Connecting: {
                 YASSERT(~LookupResult != NULL);
@@ -192,13 +192,13 @@ private:
         if (result.Id == NElection::InvalidPeerId) {
             State = EState::Failed;
             LookupResult.Reset();
-            return New< TFuture<IChannel::TPtr> >(IChannel::TPtr(NULL));
+            return ToFuture(IChannel::TPtr(NULL));
         }
 
         State = EState::Connected;
         Channel = CreateBusChannel(result.Address);
         LookupResult.Reset();
-        return New< TFuture<IChannel::TPtr> >(~Channel);
+        return ToFuture(Channel);
     }
 
     TFuture<IChannel::TPtr>::TPtr OnSecondLookupResult(TLeaderLookup::TResult)

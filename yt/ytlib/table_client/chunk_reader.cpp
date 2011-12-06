@@ -14,14 +14,12 @@
 namespace NYT {
 namespace NTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& Logger = TableClientLogger;
-using namespace NYT::NChunkClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBlockInfo {
+struct TBlockInfo
+{
     int ChunkBlockIndex;
     int ChannelBlockIndex;
     int ChannelIndex;
@@ -48,8 +46,8 @@ struct TBlockInfo {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper class aimed to asynchronously initialize the internals of TChunkReader.
-class TChunkReader::TInitializer:
-    public TRefCountedBase
+class TChunkReader::TInitializer
+    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TInitializer> TPtr;
@@ -57,7 +55,7 @@ public:
     TInitializer(
         const TSequentialReader::TConfig& config,
         TChunkReader::TPtr chunkReader, 
-        NChunkClient::IAsyncReader::TPtr asyncReader)
+        NChunkClient::IAsyncReader* asyncReader)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -65,7 +63,6 @@ public:
 
     void Initialize()
     {
-        // The last block contains meta.
         AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
             &TInitializer::OnGotMeta, 
             TPtr(this))->Via(ReaderThread->GetInvoker()));
@@ -74,33 +71,35 @@ public:
 private:
     void OnGotMeta(NChunkClient::IAsyncReader::TGetInfoResult result)
     {
-        if (!result.Error.IsOK()) {
-            ChunkReader->State.Fail(result.Error.GetMessage());
+        if (!result.IsOK()) {
+            ChunkReader->State.Fail(result.GetMessage());
             return;
         }
 
-        ProtoMeta = result.ChunkInfo.attributes().GetExtension(
-            NProto::TTableChunkAttributes::TableAttributes);
+        Attributes = result.Value().attributes().GetExtension(NProto::TTableChunkAttributes::TableAttributes);
 
         SelectChannels();
         YASSERT(SelectedChannels.size() > 0);
 
         yvector<int> blockIndexSequence = GetBlockReadingOrder();
-        ChunkReader->SequentialReader = 
-            New<TSequentialReader>(SequentialConfig, blockIndexSequence, ~AsyncReader);
+        ChunkReader->SequentialReader = New<TSequentialReader>(
+            SequentialConfig,
+            blockIndexSequence,
+            ~AsyncReader);
 
         ChunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
-            FromMethod(&TInitializer::OnFirstBlock, TPtr(this), 0)
-        );
+        ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+            &TInitializer::OnFirstBlock,
+            TPtr(this),
+            0));
     }
 
     void SelectChannels()
     {
-        ChunkChannels.reserve(ProtoMeta.channels_size());
-        for(int i = 0; i < ProtoMeta.channels_size(); ++i) {
-            ChunkChannels.push_back(TChannel::FromProto(ProtoMeta.channels(i)));
+        ChunkChannels.reserve(Attributes.channels_size());
+        for(int i = 0; i < Attributes.channels_size(); ++i) {
+            ChunkChannels.push_back(TChannel::FromProto(Attributes.channels(i)));
         }
 
         // Heuristic: first try to find a channel that contain the whole read channel.
@@ -108,11 +107,11 @@ private:
         if (SelectSingleChannel())
             return;
 
-        TChannel remainder = ChunkReader->Channel;
+        auto remainder = ChunkReader->Channel;
         for (int channelIdx = 0; channelIdx < ChunkChannels.ysize(); ++channelIdx) {
-            auto& curChannel = ChunkChannels[channelIdx];
-            if (curChannel.Overlaps(remainder)) {
-                remainder -= curChannel;
+            auto& currentChannel = ChunkChannels[channelIdx];
+            if (currentChannel.Overlaps(remainder)) {
+                remainder -= currentChannel;
                 SelectedChannels.push_back(channelIdx);
                 if (remainder.IsEmpty()) {
                     break;
@@ -126,10 +125,10 @@ private:
         int resultIdx = -1;
         size_t minBlockCount = std::numeric_limits<size_t>::max();
 
-        for (int i = 0; i < ProtoMeta.channels_size(); ++i) {
+        for (int i = 0; i < Attributes.channels_size(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(ChunkReader->Channel)) {
-                size_t blockCount = ProtoMeta.channels(i).blocks_size();
+                size_t blockCount = Attributes.channels(i).blocks_size();
                 if (minBlockCount > blockCount) {
                     resultIdx = i;
                     minBlockCount = blockCount;
@@ -140,13 +139,13 @@ private:
         if (resultIdx < 0)
             return false;
 
-        SelectedChannels.push_back(resultIdx);
+        SelectedChannels.push_back(resultIdx); 
         return true;
     }
 
     void SelectOpeningBlocks(yvector<int>& result, yvector<TBlockInfo>& blockHeap) {
         FOREACH (auto channelIdx, SelectedChannels) {
-            const auto& protoChannel = ProtoMeta.channels(channelIdx);
+            const auto& protoChannel = Attributes.channels(channelIdx);
             int blockIndex = -1;
             int startRow = 0;
             int lastRow = 0;
@@ -187,7 +186,7 @@ private:
         while (true) {
             TBlockInfo currentBlock = blockHeap.front();
             int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-            const auto& protoChannel = ProtoMeta.channels(currentBlock.ChannelIndex);
+            const auto& protoChannel = Attributes.channels(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
@@ -259,7 +258,7 @@ private:
     NChunkClient::IAsyncReader::TPtr AsyncReader;
     TChunkReader::TPtr ChunkReader;
 
-    NProto::TTableChunkAttributes ProtoMeta;
+    NProto::TTableChunkAttributes Attributes;
     yvector<TChannel> ChunkChannels;
     yvector<int> SelectedChannels;
 
@@ -275,7 +274,7 @@ private:
 TChunkReader::TChunkReader(
     const TSequentialReader::TConfig& config,
     const TChannel& channel,
-    NChunkClient::IAsyncReader::TPtr chunkReader,
+    NChunkClient::IAsyncReader* chunkReader,
     int startRow,
     int endRow)
     : SequentialReader(NULL)
@@ -287,7 +286,7 @@ TChunkReader::TChunkReader(
     , EndRow(endRow)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(~chunkReader != NULL);
+    YASSERT(chunkReader != NULL);
 
     Initializer = New<TInitializer>(config, this, chunkReader);
 }

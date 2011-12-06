@@ -21,11 +21,11 @@ public:
     //! Creates a new reader.
     TFileReader(const Stroka& fileName);
 
-    //! Opens the files, reads chunk info. Must be called before reading blocks.
+    //! Opens the files, reads chunk meta. Must be called before reading blocks.
     void Open();
 
-    //! Returns the info file size.
-    i64 GetInfoSize() const;
+    //! Returns the meta file size.
+    i64 GetMetaSize() const;
 
     //! Returns the data file size.
     i64 GetDataSize() const;

@@ -30,14 +30,14 @@ TLocation::TLocation(Stroka path)
 
 void TLocation::RegisterChunk(TIntrusivePtr<TChunk> chunk)
 {
-    i64 size = chunk->GetSize();
+    i64 size = chunk->Info().size();
     UsedSpace += size;
     AvailableSpace -= size;
 }
 
 void TLocation::UnregisterChunk(TIntrusivePtr<TChunk> chunk)
 {
-    i64 size = chunk->GetSize();
+    i64 size = chunk->Info().size();
     UsedSpace -= size;
     AvailableSpace += size;
 }
@@ -219,7 +219,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     return chunk;
 }
 
-TChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId)
+TChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
     auto it = ChunkMap.find(chunkId);
     return it == ChunkMap.end() ? NULL : it->Second();
@@ -271,17 +271,17 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
     return candidates[RandomNumber(candidates.size())];
 }
 
-Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation* location)
+Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation* location) const
 {
     return location->GetPath() + "/" + chunkId.ToString();
 }
 
-Stroka TChunkStore::GetChunkFileName(TChunk* chunk)
+Stroka TChunkStore::GetChunkFileName(TChunk* chunk) const
 {
     return GetChunkFileName(chunk->GetId(), ~chunk->GetLocation());
 }
 
-TChunkStore::TChunks TChunkStore::GetChunks()
+TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
     result.reserve(ChunkMap.ysize());
@@ -291,7 +291,7 @@ TChunkStore::TChunks TChunkStore::GetChunks()
     return result;
 }
 
-int TChunkStore::GetChunkCount()
+int TChunkStore::GetChunkCount() const
 {
     return ChunkMap.ysize();
 }

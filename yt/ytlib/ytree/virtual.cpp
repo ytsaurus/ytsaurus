@@ -130,6 +130,16 @@ INode::TPtr CreateVirtualNode(
     return New<TVirtualEntityNode>(provider, factory);
 }
 
+INode::TPtr CreateVirtualNode(
+    IYPathService* service,
+    INodeFactory* factory)
+{
+    IYPathService::TPtr service_ = service;
+    return CreateVirtualNode(
+        ~FromFunctor([=] () { return service_; }),
+        factory);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

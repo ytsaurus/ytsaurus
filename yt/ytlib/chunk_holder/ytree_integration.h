@@ -1,19 +1,20 @@
 #pragma once
 
 #include "common.h"
-#include "monitoring_manager.h"
+#include "chunk_store.h"
+#include "session_manager.h"
 
 #include "../ytree/ypath_service.h"
 
 namespace NYT {
-namespace NMonitoring {
+namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPathServiceProvider::TPtr CreateMonitoringProvider(
-    TMonitoringManager* monitoringManager);
+NYTree::IYPathService::TPtr CreateChunkMapService(
+    TChunkStore* chunkStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMonitoring
+} // namespace NChunkHolder
 } // namespace NYT

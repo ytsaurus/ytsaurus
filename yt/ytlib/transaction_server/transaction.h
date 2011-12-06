@@ -6,8 +6,6 @@
 #include "../chunk_holder/common.h"
 #include "../cypress/common.h"
 
-#include <util/ysaveload.h>
-
 namespace NYT {
 namespace NTransactionServer {
 

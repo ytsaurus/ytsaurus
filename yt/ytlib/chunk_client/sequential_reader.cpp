@@ -79,13 +79,13 @@ void TSequentialReader::OnGotBlocks(
     if (!State.IsActive())
         return;
 
-    if (!readResult.Error.IsOK()) {
-        State.Fail(readResult.Error.ToString());
+    if (!readResult.IsOK()) {
+        State.Fail(readResult.ToString());
         return;
     }
 
     int sequenceIndex = firstSequenceIndex;
-    FOREACH(auto& block, readResult.Blocks) {
+    FOREACH(auto& block, readResult.Value()) {
         Window[sequenceIndex].AsyncBlock->Set(block);
         ++sequenceIndex;
     }

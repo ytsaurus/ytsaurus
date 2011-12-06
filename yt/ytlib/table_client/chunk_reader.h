@@ -31,7 +31,7 @@ public:
     TChunkReader(
         const NChunkClient::TSequentialReader::TConfig& config,
         const TChannel& channel,
-        NChunkClient::IAsyncReader::TPtr chunkReader,
+        NChunkClient::IAsyncReader* chunkReader,
         int startRow,
         int endRow);
 

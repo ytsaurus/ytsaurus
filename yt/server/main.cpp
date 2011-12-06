@@ -81,7 +81,7 @@ int main(int argc, const char *argv[])
             TChunkHolderServer::TConfig config;
             config.Read(configRoot);
             if (port >= 0) {
-                config.Port = port;
+                config.RpcPort = port;
             }
 
             // TODO: killme

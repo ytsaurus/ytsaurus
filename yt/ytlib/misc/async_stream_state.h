@@ -81,6 +81,7 @@ public:
      *  \note
      *  A stream is considered active if it is neither closed nor failed.
      */
+
     //! Returns if the stream is closed.
     /*!
      *  A stream must be closed by explicitly calling #Close.

@@ -73,6 +73,7 @@ using NCypress::RootNodeId;
 using NMonitoring::TMonitoringManager;
 using NMonitoring::THttpTreeServer;
 using NMonitoring::GetYPathHttpHandler;
+using NMonitoring::CreateMonitoringProvider;
 
 using NOrchid::CreateOrchidTypeHandler;
 
@@ -106,15 +107,15 @@ void TCellMasterServer::Run()
     // TODO: extract method
     Stroka address = Config.MetaState.Cell.Addresses.at(Config.MetaState.Cell.Id);
     size_t index = address.find_last_of(":");
-    int port = FromString<int>(address.substr(index + 1));
+    int rpcPort = FromString<int>(address.substr(index + 1));
 
-    LOG_INFO("Starting cell master on port %d", port);
+    LOG_INFO("Starting cell master");
 
     auto metaState = New<TCompositeMetaState>();
 
     auto controlQueue = New<TActionQueue>();
 
-    auto busServer = CreateNLBusServer(TNLBusServerConfig(port));
+    auto busServer = CreateNLBusServer(TNLBusServerConfig(rpcPort));
 
     auto rpcServer = CreateRpcServer(~busServer);
 
@@ -180,7 +181,7 @@ void TCellMasterServer::Run()
     auto orchidRoot = orchidFactory->CreateMap();  
     orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
-            ~NMonitoring::CreateMonitoringProvider(~monitoringManager),
+            ~CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
         "monitoring");
     if (!Config.NewConfigFileName.empty()) {
@@ -251,8 +252,12 @@ void TCellMasterServer::Run()
                 })
             ->AsyncVia(metaStateManager->GetStateInvoker())));            
 
-    httpServer->Start();
     metaStateManager->Start();
+
+    LOG_INFO("Listening for HTTP monitoring requests on port %d", Config.MonitoringPort);
+    httpServer->Start();
+
+    LOG_INFO("Listening for RPC requests on port %d", rpcPort);
     rpcServer->Start();
 
     Sleep(TDuration::Max());

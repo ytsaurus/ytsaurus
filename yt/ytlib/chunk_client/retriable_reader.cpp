@@ -79,7 +79,7 @@ void TRetriableReader::Retry()
 TFuture<IAsyncReader::TReadResult>::TPtr 
 TRetriableReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
-    TFuture<TReadResult>::TPtr asyncResult = New< TFuture<TReadResult> >();
+    auto asyncResult = New< TFuture<TReadResult> >();
     UnderlyingReader->Subscribe(FromMethod(
         &TRetriableReader::DoReadBlocks,
         TPtr(this), 
@@ -107,11 +107,7 @@ void TRetriableReader::DoReadBlocks(
     TFuture<TReadResult>::TPtr asyncResult)
 {
     if (~reader == NULL) {
-        TReadResult result;
-        result.Error = TError(
-            NRpc::EErrorCode::Unavailable, 
-            CumulativeError);
-        asyncResult->Set(result);
+        asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
     }
 
     // Protects FailCount in the next statement.
@@ -130,7 +126,7 @@ void TRetriableReader::OnBlocksRead(
     TFuture<TReadResult>::TPtr asyncResult,
     int requestFailCount)
 {
-    if (result.Error.IsOK()) {
+    if (result.IsOK()) {
         asyncResult->Set(result);
         return;
     }
@@ -140,7 +136,7 @@ void TRetriableReader::OnBlocksRead(
         if (requestFailCount == FailCount) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
                 FailCount,
-                ~result.Error.GetMessage()));
+                ~result.GetMessage()));
             Retry();
         }
     }
@@ -157,11 +153,8 @@ void TRetriableReader::DoGetChunkInfo(
     TFuture<TGetInfoResult>::TPtr result)
 {
     if (~reader == NULL) {
-        TGetInfoResult infoResult;
-        infoResult.Error = TError(
-            NRpc::EErrorCode::Unavailable, 
-            CumulativeError);
-        result->Set(infoResult);
+        result->Set(TError(NRpc::EErrorCode::Unavailable, CumulativeError));
+        return;
     }
 
     // Protects FailCount in the next statement.
@@ -174,12 +167,12 @@ void TRetriableReader::DoGetChunkInfo(
 }
 
 void TRetriableReader::OnGotChunkInfo(
-    TGetInfoResult infoResult,
-    TFuture<TGetInfoResult>::TPtr result,
+    TGetInfoResult result,
+    TFuture<TGetInfoResult>::TPtr asyncResult,
     int requestFailCount)
 {
-    if (infoResult.Error.IsOK()) {
-        result->Set(infoResult);
+    if (result.IsOK()) {
+        asyncResult->Set(result);
         return;
     }
 
@@ -188,7 +181,7 @@ void TRetriableReader::OnGotChunkInfo(
         if (requestFailCount == FailCount) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
                 FailCount,
-                ~infoResult.Error.GetMessage()));
+                ~result.GetMessage()));
             Retry();
         }
     }
@@ -196,7 +189,7 @@ void TRetriableReader::OnGotChunkInfo(
     UnderlyingReader->Subscribe(FromMethod(
         &TRetriableReader::DoGetChunkInfo,
         TPtr(this), 
-        result));
+        asyncResult));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

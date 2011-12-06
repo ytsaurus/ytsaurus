@@ -65,12 +65,14 @@ private:
     static void OnLeaseExpired(TLease lease)
     {
         TGuard<TSpinLock> guard(lease->SpinLock);
-        if (lease->IsValid) {
-            IAction::TPtr onExpired = lease->OnExpired;
-            InvalidateLease(lease);
-            guard.Release();
-            onExpired->Do();
-        }
+        if (!lease->IsValid)
+            return;
+        
+        auto onExpired = lease->OnExpired;
+        InvalidateLease(lease);
+        guard.Release();
+
+        onExpired->Do();
     }
 
     static void InvalidateLease(TLease lease)
@@ -93,7 +95,6 @@ TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction* onE
 bool TLeaseManager::RenewLease(TLease lease)
 {
     return TImpl::RenewLease(lease);
-
 }
 
 bool TLeaseManager::CloseLease(TLease lease)
@@ -103,5 +104,5 @@ bool TLeaseManager::CloseLease(TLease lease)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
 

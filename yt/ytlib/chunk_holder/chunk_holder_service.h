@@ -2,12 +2,7 @@
 
 #include "common.h"
 #include "chunk_holder_service_rpc.pb.h"
-#include "block_store.h"
-#include "session_manager.h"
-#include "chunk_store.h"
 #include "chunk_holder_service_rpc.h"
-#include "master_connector.h"
-#include "replicator.h"
 
 #include "../rpc/server.h"
 
@@ -15,6 +10,13 @@ namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore;
+class TChunk;
+class TBlockStore;
+class TSessionManager;
+class TSession;
+class TReplicator;
 
 class TChunkHolderService
     : public NRpc::TServiceBase
@@ -27,7 +29,10 @@ public:
     TChunkHolderService(
         const TConfig& config,
         IInvoker* serviceInvoker,
-        NRpc::IRpcServer* server);
+        NRpc::IRpcServer* server,
+        TChunkStore* chunkStore,
+        TBlockStore* blockStore,
+        TSessionManager* sessionManager);
     ~TChunkHolderService();
 
 private:
@@ -50,11 +55,6 @@ private:
     //! Caches channels that are used for sending blocks to other holders.
     NRpc::TChannelCache ChannelCache;
 
-    //! Manages chunk replication.
-    TReplicator::TPtr Replicator;
-
-    //! Manages connection between chunk holder and master.
-    TMasterConnector::TPtr MasterConnector;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NProto, FinishChunk);
@@ -68,8 +68,8 @@ private:
     void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
     void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);
 
-    TSession::TPtr GetSession(const NChunkClient::TChunkId& chunkId);
-    TChunk::TPtr GetChunk(const NChunkClient::TChunkId& chunkId);
+    TIntrusivePtr<TSession> GetSession(const NChunkClient::TChunkId& chunkId);
+    TIntrusivePtr<TChunk> GetChunk(const NChunkClient::TChunkId& chunkId);
 
     void OnFinishedChunk(
         TVoid,

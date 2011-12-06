@@ -44,11 +44,14 @@ struct TChunkHolderConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
-    //! Timeout for RPC requests.
-    TDuration RpcTimeout;
+    //! Timeout for RPC requests to masters.
+    TDuration MasterRpcTimeout;
 
-    //! Port number to listen.
-    int Port;
+    //! RPC interface port number.
+    int RpcPort;
+
+    //! HTTP monitoring interface port number.
+    int MonitoringPort;
 
     // TODO: consider making per/location limit
     //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
@@ -67,8 +70,9 @@ struct TChunkHolderConfig
         , MaxCachedFiles(10)
         , SessionTimeout(TDuration::Seconds(15))
         , HeartbeatPeriod(TDuration::Seconds(5))
-        , RpcTimeout(TDuration::Seconds(5))
-        , Port(9000)
+        , MasterRpcTimeout(TDuration::Seconds(5))
+        , RpcPort(9000)
+        , MonitoringPort(10001)
         , MaxChunksSpace(-1)
     {
         Locations.push_back(".");

@@ -25,29 +25,29 @@ void TFileReader::Open()
     YASSERT(!Opened);
 
     Stroka chunkInfoFileName = FileName + ChunkMetaSuffix;
-    TFile chunkInfoFile(
+    TFile chunkMetaFile(
         chunkInfoFileName,
         OpenExisting | RdOnly | Seq);
-    InfoSize = chunkInfoFile.GetLength();
-    TBufferedFileInput chunkInfoInput(chunkInfoFile);
+    InfoSize = chunkMetaFile.GetLength();
+    TBufferedFileInput chunkMetaInput(chunkMetaFile);
         
     TChunkMetaHeader metaHeader;
-    Read(chunkInfoInput, &metaHeader);
+    Read(chunkMetaInput, &metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
         ythrow yexception()
-            << Sprintf("Incorrect signature in chunk info header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
+            << Sprintf("Incorrect signature in chunk meta header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
                 ~FileName,
                 TChunkMetaHeader::ExpectedSignature,
                 metaHeader.Signature);
     }
 
-    Stroka chunkMetaBlob = chunkInfoInput.ReadAll();
+    Stroka chunkMetaBlob = chunkMetaInput.ReadAll();
     TRef chunkMetaRef(chunkMetaBlob.begin(), chunkMetaBlob.size());
 
     auto checksum = GetChecksum(chunkMetaRef);
     if (checksum != metaHeader.Checksum) {
         ythrow yexception()
-            << Sprintf("Incorrect checksum in chunk info file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
+            << Sprintf("Incorrect checksum in chunk meta file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
                 ~FileName,
                 metaHeader.Checksum,
                 checksum);
@@ -55,7 +55,7 @@ void TFileReader::Open()
 
     TChunkMeta chunkMeta;
     if (!DeserializeProtobuf(&chunkMeta, chunkMetaRef)) {
-        ythrow yexception() << Sprintf("Failed to parse chunk info (FileName: %s)",
+        ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
             ~FileName);
     }
 
@@ -77,15 +77,15 @@ TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
-    TReadResult result;
-    result.Blocks.reserve(blockIndexes.ysize());
+    yvector<TSharedRef> blocks;
+    blocks.reserve(blockIndexes.ysize());
 
     for (int index = 0; index < blockIndexes.ysize(); ++index) {
         i32 blockIndex = blockIndexes[index];
-        result.Blocks.push_back(ReadBlock(blockIndex));
+        blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return New< TFuture<TReadResult> >(result);
+    return ToFuture(TReadResult(MoveRV(blocks)));
 }
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)
@@ -126,7 +126,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     return result;
 }
 
-i64 TFileReader::GetInfoSize() const
+i64 TFileReader::GetMetaSize() const
 {
     YASSERT(Opened);
     return InfoSize;
@@ -152,9 +152,7 @@ const TChunkInfo& TFileReader::GetChunkInfo() const
 
 TFuture<IAsyncReader::TGetInfoResult>::TPtr TFileReader::AsyncGetChunkInfo()
 {
-    TGetInfoResult result;
-    result.ChunkInfo = GetChunkInfo();
-    return ToFuture(result);
+    return ToFuture(TGetInfoResult(GetChunkInfo()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

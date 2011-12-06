@@ -7,4 +7,5 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/session_manager.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/master_connector.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/replicator.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/ytree_integration.cpp
 )

@@ -23,6 +23,8 @@ namespace NTableClient {
 struct IAsyncReader
     : public virtual TRefCountedBase
 {
+    typedef TIntrusivePtr<IAsyncReader> TPtr;
+
     virtual TAsyncStreamState::TAsyncResult::TPtr AsyncOpen() = 0;
 
     virtual bool HasNextRow() const = 0;

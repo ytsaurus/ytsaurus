@@ -44,7 +44,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         return;
     }
 
-    TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
+    auto retriableReader = New<TRetriableReader>(
         Config.RetriableReaderConfig, 
         Chunks[NextChunkIndex],
         TransactionId,
@@ -54,10 +54,10 @@ void TChunkSequenceReader::PrepareNextChunk()
     int endRow = NextChunkIndex == Chunks.ysize() - 1 ? 
         EndRow : std::numeric_limits<int>::max();
 
-    TChunkReader::TPtr chunkReader = New<TChunkReader>(
+    auto chunkReader = New<TChunkReader>(
         Config.SequentialReaderConfig,
         Channel,
-        retriableReader,
+        ~retriableReader,
         startRow,
         endRow);
 
