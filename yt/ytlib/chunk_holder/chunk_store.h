@@ -51,6 +51,12 @@ public:
     void DecrementSessionCount();
     int GetSessionCount() const;
 
+    //! Returns a full path to a chunk file.
+    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
+
+    ////! Returns a full path to a chunk file.
+    //Stroka GetChunkFileName(TChunk* chunk) const; // Make static
+
 private:
     Stroka Path;
     i64 AvailableSpace;
@@ -79,6 +85,11 @@ public:
         , Location_(location)
         , Info_(info)
     { }
+
+    Stroka GetFileName()
+    {
+        return Location_->GetChunkFileName(Id_);
+    }
 
 private:
     friend class TChunkStore;
@@ -128,12 +139,6 @@ public:
      *  of active sessions.
      */
     TLocation::TPtr GetNewChunkLocation();
-
-    //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId, TLocation* location) const;
-
-    //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(TChunk* chunk) const;
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks() const;

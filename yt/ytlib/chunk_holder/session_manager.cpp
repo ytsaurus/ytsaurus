@@ -150,7 +150,9 @@ TSession::TSession(
 
     Location->IncrementSessionCount();
 
-    FileName = SessionManager->ChunkStore->GetChunkFileName(chunkId, location);
+    FileName = Location->GetChunkFileName(chunkId);
+    NFS::ForcePath(NFS::GetDirectoryName(FileName));
+    // TODO: ForcePath
 
     for (int index = 0; index < windowSize; ++index) {
         Window.push_back(TSlot());

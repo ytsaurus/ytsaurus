@@ -63,6 +63,18 @@ Stroka GetFileName(const Stroka& path)
     return (delimPos == Stroka::npos) ? path : path.substr(delimPos+1);
 }
 
+Stroka GetDirectoryName(const Stroka& path)
+{
+#ifdef _win_
+    // May be mixed style of filename ('/' and '\')
+    Stroka path_loc = path;
+    correctpath(path_loc);
+    return path_loc.substr(0, path_loc.find_last_of(LOCSLASH_C));
+#else
+    return path.substr(0, path.find_last_of(LOCSLASH_C));
+#endif
+}
+
 Stroka GetFileExtension(const Stroka& path)
 {
     i32 dotPosition = path.find_last_of('.');

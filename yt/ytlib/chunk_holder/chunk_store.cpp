@@ -91,6 +91,17 @@ int TLocation::GetSessionCount() const
     return SessionCount;
 }
 
+Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
+{
+    ui8 firstByte = chunkId.Parts[0];
+    return Sprintf("%s/%x/%s", ~Path, firstByte, ~chunkId.ToString());
+}
+
+//Stroka TChunkStore::GetChunkFileName(TChunk* chunk) const
+//{
+//    return GetChunkFileName(chunk->GetId(), ~chunk->GetLocation());
+//}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TCachedReader
@@ -130,7 +141,7 @@ public:
             try {
                 auto reader = New<TCachedReader>(
                     chunk->GetId(),
-                    ChunkStore->GetChunkFileName(chunk));
+                    chunk->GetFileName());
                 reader->Open();
                 cookie.EndInsert(reader);
             } catch (...) {
@@ -202,7 +213,7 @@ TChunk::TPtr TChunkStore::RegisterChunk(
     const TChunkId& chunkId,
     TLocation* location)
 {
-    auto fileName = GetChunkFileName(chunkId, location);
+    auto fileName = location->GetChunkFileName(chunkId);
     
     auto reader = New<TFileReader>(fileName);
     reader->Open();
@@ -236,7 +247,7 @@ void TChunkStore::RemoveChunk(TChunk* chunk)
     ReaderCache->Remove(chunk);
     chunk->GetLocation()->UnregisterChunk(chunk);
         
-    Stroka fileName = GetChunkFileName(chunk);
+    Stroka fileName = chunk->GetFileName();
     if (!NFS::Remove(fileName + ChunkMetaSuffix)) {
         LOG_FATAL("Error removing chunk meta file (ChunkId: %s)", ~chunkId.ToString());
     }
@@ -271,15 +282,6 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
     return candidates[RandomNumber(candidates.size())];
 }
 
-Stroka TChunkStore::GetChunkFileName(const TChunkId& chunkId, TLocation* location) const
-{
-    return location->GetPath() + "/" + chunkId.ToString();
-}
-
-Stroka TChunkStore::GetChunkFileName(TChunk* chunk) const
-{
-    return GetChunkFileName(chunk->GetId(), ~chunk->GetLocation());
-}
 
 TChunkStore::TChunks TChunkStore::GetChunks() const
 {
