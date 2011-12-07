@@ -4,6 +4,7 @@
 #include "../misc/string.h"
 #include "../misc/sync.h"
 #include "../file_server/file_ypath_rpc.h"
+#include "file_chunk_server_meta.pb.h"
 
 namespace NYT {
 namespace NFileClient {
@@ -12,6 +13,7 @@ using namespace NCypress;
 using namespace NFileServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +35,10 @@ TFileReader::TFileReader(
     , BlockIndex(0)
 {
     YASSERT(masterChannel != NULL);
+}
 
+void TFileReader::Open()
+{
     auto transactionId =
         ~Transaction == NULL 
         ? NullTransactionId
@@ -44,7 +49,7 @@ TFileReader::TFileReader(
         ~transactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
-    CypressProxy->SetTimeout(config.MasterRpcTimeout);
+    CypressProxy->SetTimeout(Config.MasterRpcTimeout);
 
     // Get chunk info.
     LOG_INFO("Getting chunk info");
@@ -56,28 +61,40 @@ TFileReader::TFileReader(
         ~getChunkRequest)->Get();
 
     if (!getChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from master\n%s",
             ~getChunkResponse->GetError().ToString());
     }
 
     ChunkId = TChunkId::FromProto(getChunkResponse->chunkid());
-    BlockCount = getChunkResponse->blockcount();
-    Size = getChunkResponse->size();
     auto addresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
-    auto codecId = ECodecId(getChunkResponse->codecid());
-
-    LOG_INFO("Chunk info is received (ChunkId: %s, BlockCount: %d, Size: %" PRId64 ", HolderAddresses: [%s], CodecId: %s)",
-        ~ChunkId.ToString(),
-        BlockCount,
-        Size,
-        ~JoinToString(addresses),
-        ~codecId.ToString());
 
     if (addresses.empty()) {
         // TODO: Monster says we should wait here
         LOG_ERROR_AND_THROW(yexception(), "Chunk is not available (ChunkId: %s)", ~ChunkId.ToString());
     }
 
+    LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",
+        ~ChunkId.ToString(),
+        ~JoinToString(addresses));
+
+    // ToDo: use TRetriableReader.
+    auto remoteReader = New<TRemoteReader>(
+        Config.RemoteReader,
+        ChunkId,
+        addresses);
+
+    auto getInfoResult = remoteReader->AsyncGetChunkInfo()->Get();
+    if (!getInfoResult.IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from holder\n%s",
+            ~getInfoResult.ToString());
+    }
+    auto& chunkInfo = getInfoResult.Value();
+
+    BlockCount = chunkInfo.blocks_size();
+    Size = chunkInfo.size();
+    TFileChunkAttributes fileAttributes =
+        chunkInfo.attributes().GetExtension(TFileChunkAttributes::FileAttributes);
+    auto codecId = ECodecId(fileAttributes.codecid());
     Codec = GetCodec(codecId);
 
     // Take all blocks.
@@ -87,22 +104,15 @@ TFileReader::TFileReader(
         blockIndexes.push_back(index);
     }
 
-    // Construct readers.
-    // ToDo: use TRetriableReader.
-    auto remoteReader = New<TRemoteReader>(
-        Config.RemoteReader,
-        ChunkId,
-        addresses);
-
     SequentialReader = New<TSequentialReader>(
-        config.SequentialReader,
+        Config.SequentialReader,
         blockIndexes,
         ~remoteReader);
 
     // Bind to the transaction.
     if (~Transaction != NULL) {
         OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
-        transaction->SubscribeAborted(OnAborted_);
+        Transaction->SubscribeAborted(OnAborted_);
     }
 }
 

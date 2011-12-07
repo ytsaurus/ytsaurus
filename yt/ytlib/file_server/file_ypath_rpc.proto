@@ -9,10 +9,6 @@ message TRspGetFileChunk
 {
     required bytes ChunkId = 1;
     repeated bytes HolderAddresses = 2;
-    // TODO: delete this
-    required int32 BlockCount = 3;
-    required int64 Size = 4;
-    required int32 CodecId = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
