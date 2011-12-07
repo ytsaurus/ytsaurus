@@ -487,6 +487,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   endif()
 endif()
 
-if (DARWIN)
+if (APPLE)
   add_definitions( -D_REENTRANT -D_XOPEN_SOURCE )
 endif()
