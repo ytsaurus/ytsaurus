@@ -21,11 +21,11 @@ public:
 
     struct TConfig {
         TDuration RpcTimeout;
-        TChunkSequenceWriter::TConfig ChunkSetConfig;
+        TChunkSequenceWriter::TConfig ChunkSequenceWriter;
 
         TConfig(const TChunkSequenceWriter::TConfig& config)
             : RpcTimeout(TDuration::Seconds(5))
-            , ChunkSetConfig(config)
+            , ChunkSequenceWriter(config)
         { }
     };
 

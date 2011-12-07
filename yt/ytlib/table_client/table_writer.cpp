@@ -24,7 +24,7 @@ TTableWriter::TTableWriter(
     , Transaction(transaction)
     , MasterChannel(masterChannel)
     , Writer(New<TChunkSequenceWriter>(
-        config.ChunkSetConfig, 
+        config.ChunkSequenceWriter, 
         schema, 
         Transaction->GetId(), 
         MasterChannel))

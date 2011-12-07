@@ -26,7 +26,7 @@ public:
         //! to get holder addresses from master.
         TDuration BackoffTime;
         int RetryCount;
-        TDuration MasterRpcTimeout;
+        TDuration ChunkServiceRpcTimeout;
 
         TRemoteReader::TConfig RemoteReader;
 
@@ -34,7 +34,7 @@ public:
         {
             Register("backoff_time", BackoffTime).Default(TDuration::Seconds(5));
             Register("retry_count", RetryCount).Default(5);
-            Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
+            Register("chunk_service_rpc_timeout", ChunkServiceRpcTimeout).Default(TDuration::Seconds(5));
             Register("remote_reader", RemoteReader);
 
             SetDefaults();

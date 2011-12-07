@@ -18,7 +18,7 @@ TRetriableReader::TRetriableReader(
     , UnderlyingReader(New< TFuture<TRemoteReader::TPtr> >())
     , FailCount(0)
 {
-    Proxy.SetTimeout(Config.MasterRpcTimeout);
+    Proxy.SetTimeout(Config.ChunkServiceRpcTimeout);
     RequestHolders();
 }
 
