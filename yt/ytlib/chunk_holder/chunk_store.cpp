@@ -168,9 +168,22 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
     ScanChunks(); 
 }
 
+namespace {
+
+void DeleteFile(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_ERROR("Error deleting file %s", ~fileName.Quote());
+    }
+}
+
+}
+
 void TChunkStore::ScanChunks()
 {
     LOG_INFO("Storage scan started");
+
+    Stroka metaSuffix = ChunkMetaSuffix;
 
     try {
         FOREACH(const auto& location, Locations_) {
@@ -181,13 +194,53 @@ void TChunkStore::ScanChunks()
             NFS::CleanTempFiles(path);
 
             TFileList fileList;
-            fileList.Fill(path);
-            const char* fileName;
-            while ((fileName = fileList.Next()) != NULL) {
-                auto chunkId = TChunkId::FromString(fileName);
-                if (!chunkId.IsEmpty()) {
-                    RegisterChunk(chunkId, ~location);
+            fileList.Fill(path, TStringBuf(), TStringBuf(), 2);
+            i32 size = fileList.Size();
+            yvector<Stroka> fileNames(size);
+            for (i32 i = 0; i < size; ++i) {
+                fileNames[i] = fileList.Next();
+            }
+            std::sort(fileNames.begin(), fileNames.end());
+
+            Stroka* lastDataFile = NULL;
+            FOREACH (auto& fileName, fileNames) {
+                bool isMeta = fileName.has_prefix(metaSuffix);
+                if (isMeta) {
+                    if (lastDataFile == NULL ||
+                        fileName != *lastDataFile + metaSuffix)
+                    {
+                        if (lastDataFile != NULL) {
+                            LOG_WARNING("Missing meta file for %s",
+                                ~lastDataFile->Quote());
+                            DeleteFile(*lastDataFile);
+                        }
+
+                        LOG_WARNING("Missing data file for %s",
+                            ~fileName.Quote());
+                        DeleteFile(fileName);
+                    } else {
+                        auto chunkId = TChunkId::FromString(NFS::GetFileName(*lastDataFile));
+                        if (!chunkId.IsEmpty()) {
+                            RegisterChunk(chunkId, ~location);
+                        } else {
+                            LOG_ERROR("Invalid chunk filename (FileName: %s)",
+                                ~lastDataFile->Quote());
+                        }
+                    }
+                } else {
+                    if (lastDataFile == NULL) {
+                        lastDataFile = &fileName;
+                    } else {
+                        LOG_WARNING("Missing meta file for %s",
+                            ~lastDataFile->Quote());
+                        DeleteFile(*lastDataFile);
+                    }
                 }
+            }
+            if (lastDataFile != NULL) {
+                LOG_WARNING("Missing meta file for %s",
+                    ~lastDataFile->Quote());
+                DeleteFile(*lastDataFile);
             }
         }
     } catch (...) {
