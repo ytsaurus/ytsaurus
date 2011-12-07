@@ -31,6 +31,8 @@ add_library( ytlib STATIC
   stdafx.cpp
 )
 
+add_native_precompiled_header( ytlib stdafx.h )
+
 target_link_libraries ( ytlib
   arcadia-utils
 

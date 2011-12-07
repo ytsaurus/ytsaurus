@@ -44,6 +44,8 @@ add_executable( unittester
   ${PROTO_SRC}
 )
 
+add_native_precompiled_header( unittester stdafx.h )
+
 target_link_libraries( unittester
   ytlib
 )

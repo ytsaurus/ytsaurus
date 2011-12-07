@@ -5,6 +5,8 @@ add_executable( server
   chunk_holder_server.cpp
 )
 
+add_native_precompiled_header( server stdafx.h )
+
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_BINARY_DIR}/include
