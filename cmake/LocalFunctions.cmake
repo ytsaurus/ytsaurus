@@ -1,37 +1,40 @@
+################################################################################
+# Generate C++ .h and .cc from the protobuf description.
+#
+#   proto  - Path to the .proto file
+#   output - Name of a CMake variable (usually list of sources)
+#      where names of .pb.h and .pb.cc will be appended
 
-# Generate C++ .h, .cc from ptotobuf description
-#   proto  - .proto file
-#   srcgen - name of CMake variable (possibly with list of sources)
-#            where names of .pb.h and .pb.cc will be added
+function( PROTOC proto output )
+  get_filename_component( _proto_realpath ${proto} REALPATH )
+  get_filename_component( _proto_dirname  ${_proto_realpath} PATH )
+  get_filename_component( _proto_basename ${_proto_realpath} NAME_WE )
+  string(REPLACE "${CMAKE_SOURCE_DIR}" "" _relative_path "${_proto_dirname}")
 
-function( PROTOC proto srcgen )
-  get_filename_component( rp ${proto} PATH )
-  if ( "${rp}" STREQUAL "" )
-    SET( rp ${CMAKE_CURRENT_SOURCE_DIR} )
-    SET( ap_proto ${rp}/${proto} )
-  else()
-    SET( ap_proto ${proto} )
-  endif()
-  get_filename_component( basename ${proto} NAME_WE )
-  string( REPLACE "${CMAKE_SOURCE_DIR}" "" notop "${rp}" )
+  # Append generated .pb.h and .pb.cc to the output variable.
+  SET(
+    ${output} ${${output}}
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
+    PARENT_SCOPE)
 
-  # command "protoc blah-blah-blah"
-  if (NOT MSVC)
-    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/protoc -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} ${ap_proto} )
-  else()
-    SET( _protoc_ ${CMAKE_BINARY_DIR}/bin/\$\(Configuration\)/protoc.exe -I${CMAKE_SOURCE_DIR}${notop} --cpp_out=${CMAKE_BINARY_DIR}${notop} ${ap_proto} )
-  endif()
-
-  # add generated .pb.h and .pb.cc into source list ${${srcgen}}
-  SET( ${srcgen} ${${srcgen}} ${CMAKE_BINARY_DIR}${notop}/${basename}.pb.h ${CMAKE_BINARY_DIR}${notop}/${basename}.pb.cc PARENT_SCOPE )
-
-  # custom command, how to generate .pb.h and .pb.cc
+  # Specify custom command how to generate .pb.h and .pb.cc.
   add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}${notop}/${basename}.pb.h ${CMAKE_BINARY_DIR}${notop}/${basename}.pb.cc
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${notop}
-    COMMAND ${_protoc_}
-    MAIN_DEPENDENCY ${proto}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating protobuf"
+    OUTPUT
+      ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h
+      ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
+    COMMAND
+      ${EXECUTABLE_OUTPUT_PATH}/${CMAKE_CFG_INTDIR}/protoc
+        -I${CMAKE_SOURCE_DIR}${_relative_path}
+        --cpp_out=${CMAKE_BINARY_DIR}${_relative_path}
+        ${_proto_realpath}
+    MAIN_DEPENDENCY
+      ${_proto_realpath}
+    DEPENDS
+      protoc
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating protobuf from ${proto}..."
   )
 endfunction( PROTOC )

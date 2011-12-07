@@ -25,24 +25,6 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   )
 endif()
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-  if (YT_BUILD_WITH_STLPORT)
-    set_target_properties( server PROPERTIES
-      LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
-    )
-  else()
-    set_target_properties( server PROPERTIES
-      LINK_FLAGS "-L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
-    )
-  endif()
-endif()
-
-if (MSVC)
-  set_target_properties( server PROPERTIES
-    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
-  )
-endif()
-
 target_link_libraries( server
   #-lprotoc_
   #-lprotobuf
@@ -62,16 +44,20 @@ target_link_libraries( server
 target_link_libraries( server arcadia-utils )
 
 if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( server
-    stlport
-  )
-
+  target_link_libraries( server stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
-    target_link_libraries( server -lc -lm -lpthread -ldl -lgcc_s )
+    set_target_properties( server PROPERTIES LINK_FLAGS "-nodefaultlibs" )
   endif()
-else()
+endif()
+
+if (YT_BUILD_WITH_STLPORT)
   if (CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries( server -ldl )
   endif()
 endif()
 
+if (MSVC)
+  set_target_properties( server PROPERTIES
+    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
+  )
+endif()

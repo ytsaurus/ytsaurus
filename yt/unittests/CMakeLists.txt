@@ -44,24 +44,6 @@ add_executable( unittester
     ${PROTO_SRC}
 )
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-  if (YT_BUILD_WITH_STLPORT)
-    set_target_properties( unittester PROPERTIES
-      LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
-    )
-  else()
-    set_target_properties( unittester PROPERTIES
-      LINK_FLAGS "-L${CMAKE_BINARY_DIR}/lib -Wl,-rpath=${CMAKE_BINARY_DIR}/lib"
-    )
-  endif()
-endif()
-
-if (MSVC)
-  set_target_properties( unittester PROPERTIES
-    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
-  )
-endif()
-
 target_link_libraries( unittester
   ytlib
   arcadia-utils
@@ -80,12 +62,19 @@ target_link_libraries( unittester
 target_link_libraries( unittester arcadia-utils )
 
 if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( unittester   
-    stlport
-  )
+  target_link_libraries( unittester stlport )
+  if (CMAKE_COMPILER_IS_GNUCXX)
+    set_target_properties( unittester PROPERTIES LINK_FLAGS "-nodefaultlibs" )
+  endif()
 endif()
 
 if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries( unittester -ldl )
-  target_link_libraries( unittester -lc -lm -lpthread -ldl -lgcc_s )
 endif()
+
+if (MSVC)
+  set_target_properties( unittester PROPERTIES
+    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
+  )
+endif()
+
