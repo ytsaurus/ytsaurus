@@ -97,11 +97,6 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     return Sprintf("%s/%x/%s", ~Path, firstByte, ~chunkId.ToString());
 }
 
-//Stroka TChunkStore::GetChunkFileName(TChunk* chunk) const
-//{
-//    return GetChunkFileName(chunk->GetId(), ~chunk->GetLocation());
-//}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TCachedReader

@@ -39,7 +39,7 @@ Stroka GetFileExtension(const Stroka& path);
 //! Returns name of file without extension.
 Stroka GetFileNameWithoutExtension(const Stroka& path);
 
-//! Returns path of directory containing the file
+//! Returns path of directory containing the file.
 Stroka GetDirectoryName(const Stroka& path);
 
 //! Deletes all files with extension #TempFileSuffix in a given directory.
