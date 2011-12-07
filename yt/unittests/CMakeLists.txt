@@ -48,8 +48,6 @@ target_link_libraries( unittester
   ytlib
 )
 
-target_link_libraries( unittester arcadia-utils )
-
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( unittester stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)

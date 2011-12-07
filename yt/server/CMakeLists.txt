@@ -29,8 +29,6 @@ target_link_libraries( server
   ytlib
 )
 
-target_link_libraries( server arcadia-utils )
-
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( server stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
