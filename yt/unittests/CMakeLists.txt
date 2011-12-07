@@ -46,17 +46,6 @@ add_executable( unittester
 
 target_link_libraries( unittester
   ytlib
-  arcadia-utils
-  snappy
-  lz4
-  fastlz
-  minilzo
-  arczlib
-  protobuf
-  qmisc
-  NetLiba
-  yajl
-  json
 )
 
 target_link_libraries( unittester arcadia-utils )
@@ -67,14 +56,3 @@ if (YT_BUILD_WITH_STLPORT)
     set_target_properties( unittester PROPERTIES LINK_FLAGS "-nodefaultlibs" )
   endif()
 endif()
-
-if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries( unittester -ldl )
-endif()
-
-if (MSVC)
-  set_target_properties( unittester PROPERTIES
-    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
-  )
-endif()
-
