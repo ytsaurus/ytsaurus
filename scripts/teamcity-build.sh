@@ -52,11 +52,16 @@ set -x
 
 cd $WORKING_DIRECTORY
 
+echo "* Running CMake..." >&2
 cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CHECKOUT_DIRECTORY
 
-make
+echo "* Running make (1/2; fast)..." >&2
+make -j 8 >/dev/null 2>/dev/null || true
 
-./yt/unittests/unittester \
+echo "* Running make (2/2; slow)..." >&2
+make -j 8
+
+./bin/unittester \
     --gtest_color=no \
     --gtest_output=xml:$WORKING_DIRECTORY/test_details.xml
 
