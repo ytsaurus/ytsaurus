@@ -1,14 +1,32 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/common.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/client.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/channel.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/channel_cache.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/service.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/server.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/server_detail.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/message.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/retry.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/error.h
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc )
+set( SRCS
+  ${BASE}/channel.cpp
+  ${BASE}/channel_cache.cpp
+  ${BASE}/client.cpp
+  ${BASE}/common.cpp
+  ${BASE}/message.cpp
+  ${BASE}/retry.cpp
+  ${BASE}/server.cpp
+  ${BASE}/server_detail.cpp
+  ${BASE}/service.cpp
+)
+set( HDRS
+  ${BASE}/channel.h
+  ${BASE}/channel_cache.h
+  ${BASE}/client.h
+  ${BASE}/common.h
+  ${BASE}/error.h
+  ${BASE}/message.h
+  ${BASE}/retry.h
+  ${BASE}/server.h
+  ${BASE}/server_detail.h
+  ${BASE}/service.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc/rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/rpc.proto YT_SOURCE_FILES )

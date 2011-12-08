@@ -1,9 +1,20 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client/file_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client/file_writer.cpp
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/file_reader.cpp
+  ${BASE}/file_writer.cpp
+)
+set( HDRS
+  ${BASE}/common.h
+  ${BASE}/file_reader.h
+  ${BASE}/file_writer.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client/file_chunk_meta.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/file_chunk_meta.proto YT_SOURCE_FILES )
 

@@ -1,15 +1,31 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/common.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk_holder_service.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk_holder_service_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/block_store.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk_store.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/session_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/master_connector.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/replicator.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/ytree_integration.cpp
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder )
+set( SRCS
+  ${BASE}/block_store.cpp
+  ${BASE}/chunk_holder_service.cpp
+  ${BASE}/chunk_store.cpp
+  ${BASE}/common.cpp
+  ${BASE}/master_connector.cpp
+  ${BASE}/replicator.cpp
+  ${BASE}/session_manager.cpp
+  ${BASE}/ytree_integration.cpp
+)
+set( HDRS
+  ${BASE}/block_store.h
+  ${BASE}/chunk_holder_service.h
+  ${BASE}/chunk_holder_service_rpc.h
+  ${BASE}/chunk_store.h
+  ${BASE}/common.h
+  ${BASE}/master_connector.h
+  ${BASE}/replicator.h
+  ${BASE}/session_manager.h
+  ${BASE}/ytree_integration.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder/chunk_holder_service_rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
 
+protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_holder_service_rpc.proto YT_SOURCE_FILES )

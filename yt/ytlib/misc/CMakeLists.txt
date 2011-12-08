@@ -1,65 +1,91 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/common.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/id_generator.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/lease_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/metric.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/config.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/cache.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/cache-inl.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/serialize.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/lazy_ptr.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/hash.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/fs.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/pattern_formatter.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/enum.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/checksum.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/backtrace.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/demangle.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref_counted_tracker.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/delayed_invoker.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/semaphore.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/guid.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/assert.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/string.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/foreach.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/thread_affinity.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/periodic_invoker.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/zigzag.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/property.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/ref_counted_base.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/intrusive_ptr.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/singleton.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/rvalue.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/codec.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/async_stream_state.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/cyclic_buffer.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/mpl.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new_config-inl.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/sync.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/blob_output.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/error.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/error.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/thread.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/thread.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
+set( SRCS
+  ${BASE}/async_stream_state.cpp
+  ${BASE}/backtrace.cpp
+  ${BASE}/blob_output.cpp
+  ${BASE}/checksum.cpp
+  ${BASE}/codec.cpp
+  ${BASE}/delayed_invoker.cpp
+  ${BASE}/demangle.cpp
+  ${BASE}/error.cpp
+  ${BASE}/fs.cpp
+  ${BASE}/guid.cpp
+  ${BASE}/lease_manager.cpp
+  ${BASE}/metric.cpp
+  ${BASE}/new_config.cpp
+  ${BASE}/pattern_formatter.cpp
+  ${BASE}/periodic_invoker.cpp
+  ${BASE}/ref.cpp
+  ${BASE}/ref_counted_tracker.cpp
+  ${BASE}/semaphore.cpp
+  ${BASE}/serialize.cpp
+  ${BASE}/thread.cpp
+)
+set( HDRS
+  ${BASE}/assert.h
+  ${BASE}/async_stream_state.h
+  ${BASE}/backtrace.h
+  ${BASE}/blob_output.h
+  ${BASE}/cache-inl.h
+  ${BASE}/cache.h
+  ${BASE}/checksum.h
+  ${BASE}/codec.h
+  ${BASE}/common.h
+  ${BASE}/config.h
+  ${BASE}/cyclic_buffer.h
+  ${BASE}/delayed_invoker.h
+  ${BASE}/demangle.h
+  ${BASE}/enum.h
+  ${BASE}/error.h
+  ${BASE}/foreach.h
+  ${BASE}/fs.h
+  ${BASE}/guid.h
+  ${BASE}/hash.h
+  ${BASE}/id_generator.h
+  ${BASE}/intrusive_ptr.h
+  ${BASE}/lazy_holder.h
+  ${BASE}/lazy_ptr.h
+  ${BASE}/lease_manager.h
+  ${BASE}/metric.h
+  ${BASE}/mpl.h
+  ${BASE}/new.h
+  ${BASE}/new_config-inl.h
+  ${BASE}/new_config.h
+  ${BASE}/pattern_formatter.h
+  ${BASE}/periodic_invoker.h
+  ${BASE}/preprocessor-gen.h
+  ${BASE}/preprocessor.h
+  ${BASE}/property.h
+  ${BASE}/ref.h
+  ${BASE}/ref_counted_base.h
+  ${BASE}/ref_counted_tracker.h
+  ${BASE}/rvalue.h
+  ${BASE}/semaphore.h
+  ${BASE}/serialize.h
+  ${BASE}/singleton.h
+  ${BASE}/string.h
+  ${BASE}/sync.h
+  ${BASE}/thread.h
+  ${BASE}/thread_affinity.h
+  ${BASE}/zigzag.h
 )
 
-ADD_CUSTOM_COMMAND(
-    OUTPUT  ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.py > ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
-    DEPENDS ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.py
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+add_custom_command(
+    OUTPUT  ${BASE}/preprocessor-gen.h
+    COMMAND ${PYTHON_EXECUTABLE} ${BASE}/preprocessor-gen.py > ${BASE}/preprocessor-gen.h
+    DEPENDS ${BASE}/preprocessor-gen.py
     COMMENT "Regenerating preprocessor-gen.h..."
 )
 
-ADD_CUSTOM_COMMAND(
-    OUTPUT  ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h.pump > ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h
-    DEPENDS ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h.pump
+add_custom_command(
+    OUTPUT  ${BASE}/new.h
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${BASE}/new.h.pump > ${BASE}/new.h
+    DEPENDS ${BASE}/new.h.pump
     COMMENT "Regenerating new.h..."
 )

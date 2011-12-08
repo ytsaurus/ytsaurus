@@ -1,4 +1,4 @@
-SET( DIRS
+set( DIRS
   actions
   election
   chunk_holder

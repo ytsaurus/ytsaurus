@@ -1,26 +1,36 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action.cpp
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action-inl.h
-
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_queue.cpp
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/invoker.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/invoker_util.cpp
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/future.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/future-inl.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/parallel_awaiter.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/parallel_awaiter-inl.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/signal.h
-
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/common.h
-
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util.h
-  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/actions )
+set( SRCS
+  ${BASE}/action.cpp
+  ${BASE}/action_queue.cpp
+  ${BASE}/invoker_util.cpp
+)
+set( HDRS
+  ${BASE}/action-inl.h
+  ${BASE}/action.h
+  ${BASE}/action_queue.h
+  ${BASE}/action_util-gen.h
+  ${BASE}/action_util.h
+  ${BASE}/common.h
+  ${BASE}/future-inl.h
+  ${BASE}/future.h
+  ${BASE}/invoker.h
+  ${BASE}/invoker_util.h
+  ${BASE}/parallel_awaiter-inl.h
+  ${BASE}/parallel_awaiter.h
+  ${BASE}/signal.h
 )
 
-ADD_CUSTOM_COMMAND(
-    OUTPUT  ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h.pump > ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h
-    DEPENDS ${CMAKE_SOURCE_DIR}/yt/ytlib/actions/action_util-gen.h.pump
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+
+  ${BASE}/action_util-gen.h
+)
+
+add_custom_command(
+    OUTPUT  ${BASE}/action_util-gen.h
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${BASE}/action_util-gen.h.pump > ${BASE}/action_util-gen.h
+    DEPENDS ${BASE}/action_util-gen.h.pump
     COMMENT "Regenerating action_util-gen.h..."
 )

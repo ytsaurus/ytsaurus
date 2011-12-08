@@ -1,9 +1,21 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/leader_lookup.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/common.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/election/cell_channel.cpp
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/election )
+set( SRCS
+  ${BASE}/cell_channel.cpp
+  ${BASE}/election_manager.cpp
+  ${BASE}/leader_lookup.cpp
+)
+set( HDRS
+  ${BASE}/cell_channel.h
+  ${BASE}/common.h
+  ${BASE}/election_manager.h
+  ${BASE}/election_manager_rpc.h
+  ${BASE}/leader_lookup.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/election/election_manager_rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/election_manager_rpc.proto YT_SOURCE_FILES )

@@ -1,41 +1,53 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ytree_fwd.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ytree.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_format.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_events.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_events-mock.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/forwarding_yson_events.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/null_yson_consumer.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_writer.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/tree_builder.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/tree_visitor.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/node_detail.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ephemeral.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/fluent.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/json_adapter.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/serialize.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/serialize.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/virtual.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_client.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_client-inl.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_service.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_detail.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/yson_file_service.cpp
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/ephemeral.cpp
+  ${BASE}/forwarding_yson_events.cpp
+  ${BASE}/json_adapter.cpp
+  ${BASE}/node_detail.cpp
+  ${BASE}/null_yson_consumer.cpp
+  ${BASE}/serialize.cpp
+  ${BASE}/tree_builder.cpp
+  ${BASE}/tree_visitor.cpp
+  ${BASE}/virtual.cpp
+  ${BASE}/ypath_client.cpp
+  ${BASE}/ypath_detail.cpp
+  ${BASE}/ypath_service.cpp
+  ${BASE}/yson_file_service.cpp
+  ${BASE}/yson_reader.cpp
+  ${BASE}/yson_writer.cpp
+)
+set( HDRS
+  ${BASE}/common.h
+  ${BASE}/ephemeral.h
+  ${BASE}/fluent.h
+  ${BASE}/forwarding_yson_events.h
+  ${BASE}/json_adapter.h
+  ${BASE}/node_detail.h
+  ${BASE}/null_yson_consumer.h
+  ${BASE}/serialize.h
+  ${BASE}/tree_builder.h
+  ${BASE}/tree_visitor.h
+  ${BASE}/virtual.h
+  ${BASE}/ypath_client-inl.h
+  ${BASE}/ypath_client.h
+  ${BASE}/ypath_detail.h
+  ${BASE}/ypath_rpc.h
+  ${BASE}/ypath_service.h
+  ${BASE}/yson_events-mock.h
+  ${BASE}/yson_events.h
+  ${BASE}/yson_file_service.h
+  ${BASE}/yson_format.h
+  ${BASE}/yson_reader.h
+  ${BASE}/yson_writer.h
+  ${BASE}/ytree.h
+  ${BASE}/ytree_fwd.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree/ypath_rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/ypath_rpc.proto YT_SOURCE_FILES )

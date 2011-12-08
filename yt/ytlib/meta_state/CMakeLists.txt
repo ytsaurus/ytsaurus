@@ -1,56 +1,64 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/decorated_meta_state.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/transient_state_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/persistent_state_manager.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_committer.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/async_change_log.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log_downloader.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/change_log_cache.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_creator.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_downloader.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/snapshot_store.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/recovery.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/follower_tracker.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager-inl.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager.cpp
-   
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/follower_pinger.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map-inl.h
-    
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state-inl.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state_detail.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/composite_meta_state_detail-inl.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_change.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_change-inl.h
-    
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_service.h
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
+set( SRCS
+  ${BASE}/async_change_log.cpp
+  ${BASE}/cell_manager.cpp
+  ${BASE}/change_committer.cpp
+  ${BASE}/change_log.cpp
+  ${BASE}/change_log_cache.cpp
+  ${BASE}/change_log_downloader.cpp
+  ${BASE}/common.cpp
+  ${BASE}/composite_meta_state.cpp
+  ${BASE}/composite_meta_state_detail.cpp
+  ${BASE}/decorated_meta_state.cpp
+  ${BASE}/follower_pinger.cpp
+  ${BASE}/follower_tracker.cpp
+  ${BASE}/meta_state_manager.cpp
+  ${BASE}/persistent_state_manager.cpp
+  ${BASE}/recovery.cpp
+  ${BASE}/snapshot.cpp
+  ${BASE}/snapshot_creator.cpp
+  ${BASE}/snapshot_downloader.cpp
+  ${BASE}/snapshot_store.cpp
+  ${BASE}/transient_state_manager.cpp
+)
+set( HDRS
+  ${BASE}/async_change_log.h
+  ${BASE}/cell_manager-inl.h
+  ${BASE}/cell_manager.h
+  ${BASE}/change_committer.h
+  ${BASE}/change_log.h
+  ${BASE}/change_log_cache.h
+  ${BASE}/change_log_downloader.h
+  ${BASE}/common.h
+  ${BASE}/composite_meta_state-inl.h
+  ${BASE}/composite_meta_state.h
+  ${BASE}/composite_meta_state_detail-inl.h
+  ${BASE}/composite_meta_state_detail.h
+  ${BASE}/decorated_meta_state.h
+  ${BASE}/follower_pinger.h
+  ${BASE}/follower_tracker.h
+  ${BASE}/map-inl.h
+  ${BASE}/map.h
+  ${BASE}/meta_change-inl.h
+  ${BASE}/meta_change.h
+  ${BASE}/meta_state.h
+  ${BASE}/meta_state_manager.h
+  ${BASE}/meta_state_manager_rpc.h
+  ${BASE}/meta_state_service.h
+  ${BASE}/persistent_state_manager.h
+  ${BASE}/recovery.h
+  ${BASE}/snapshot.h
+  ${BASE}/snapshot_creator.h
+  ${BASE}/snapshot_downloader.h
+  ${BASE}/snapshot_store.h
+  ${BASE}/transient_state_manager.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/meta_state_manager_rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/meta_state_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/meta_state_manager_rpc.proto YT_SOURCE_FILES )

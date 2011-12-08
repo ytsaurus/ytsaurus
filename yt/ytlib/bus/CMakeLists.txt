@@ -1,11 +1,26 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/common.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/bus.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/client.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/server.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/packet.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/message.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/message_rearranger.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/nl_client.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/bus/nl_server.cpp
+#:yt-updatabale
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/bus )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/message.cpp
+  ${BASE}/message_rearranger.cpp
+  ${BASE}/nl_client.cpp
+  ${BASE}/nl_server.cpp
+  ${BASE}/packet.cpp
+)
+set( HDRS
+  ${BASE}/bus.h
+  ${BASE}/client.h
+  ${BASE}/common.h
+  ${BASE}/message.h
+  ${BASE}/message_rearranger.h
+  ${BASE}/nl_client.h
+  ${BASE}/nl_server.h
+  ${BASE}/packet.h
+  ${BASE}/server.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
 )
