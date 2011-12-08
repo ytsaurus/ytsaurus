@@ -31,6 +31,24 @@ add_library( ytlib STATIC
   stdafx.cpp
 )
 
+add_native_precompiled_header( ytlib stdafx.h )
+
+target_link_libraries ( ytlib
+  arcadia-utils
+
+  qmisc
+  NetLiba
+  json
+
+  # TODO(sandello): arcadia-utils should depend on these targets.
+  snappy
+  lz4
+  fastlz
+  minilzo
+  arczlib
+  protobuf
+)
+
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_BINARY_DIR}/include
@@ -58,11 +76,4 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   )
 endif()
 
-add_dependencies( ytlib
-  protoc
-  cpp_styleguide
-)
-
-#
 #SET(USE_LF_ALLOCATOR yes)
-

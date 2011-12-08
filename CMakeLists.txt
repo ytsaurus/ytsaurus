@@ -15,6 +15,7 @@ include(FindPythonInterp)
 include(DumpCMakeVariables)
 include(LocalFunctions)
 include(LocalConfiguration)
+include(PCH)
 
 ################################################################################
 # Setup targets.

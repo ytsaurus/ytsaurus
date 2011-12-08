@@ -1,9 +1,11 @@
 add_executable( server
-    stdafx.cpp
-    main.cpp
-    cell_master_server.cpp
-    chunk_holder_server.cpp
+  stdafx.cpp
+  main.cpp
+  cell_master_server.cpp
+  chunk_holder_server.cpp
 )
+
+add_native_precompiled_header( server stdafx.h )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -26,38 +28,12 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
 endif()
 
 target_link_libraries( server
-  #-lprotoc_
-  #-lprotobuf
   ytlib
-  arcadia-utils
-  snappy
-  lz4
-  fastlz
-  minilzo
-  arczlib
-  protobuf
-  qmisc
-  NetLiba
-  json
 )
-
-target_link_libraries( server arcadia-utils )
 
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( server stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
     set_target_properties( server PROPERTIES LINK_FLAGS "-nodefaultlibs" )
   endif()
-endif()
-
-if (YT_BUILD_WITH_STLPORT)
-  if (CMAKE_COMPILER_IS_GNUCXX)
-    target_link_libraries( server -ldl )
-  endif()
-endif()
-
-if (MSVC)
-  set_target_properties( server PROPERTIES
-    LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
-  )
 endif()

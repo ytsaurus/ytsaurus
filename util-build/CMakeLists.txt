@@ -459,6 +459,10 @@ add_library( arcadia-utils STATIC
   ${UT_SRCS}
 )
 
+target_link_libraries ( arcadia-utils
+  -ldl
+)
+
 include_directories( ${CMAKE_SOURCE_DIR} )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
