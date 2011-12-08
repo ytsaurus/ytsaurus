@@ -249,7 +249,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, ConfirmChunks)
         auto* chunk = ChunkManager->FindChunk(chunkId);
         if (chunk == NULL) {
             ythrow TServiceException(EErrorCode::NotEnoughHolders) <<
-                Sprintf("No such chunk (ChunkId: %s)", chunkId);
+                Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }
     }
 
