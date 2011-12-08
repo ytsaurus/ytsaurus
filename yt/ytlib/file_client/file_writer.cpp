@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_writer.h"
-#include "file_chunk_server_meta.pb.h"
+#include "file_chunk_meta.pb.h"
 
 #include "../misc/string.h"
 #include "../misc/sync.h"

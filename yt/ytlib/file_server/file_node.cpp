@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_node.h"
 #include "file_node_proxy.h"
-#include "file_chunk_server_meta.pb.h"
+#include "file_chunk_meta.pb.h"
 
 #include "../misc/codec.h"
 #include "../cypress/node_proxy.h"

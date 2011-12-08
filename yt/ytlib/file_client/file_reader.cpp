@@ -4,7 +4,7 @@
 #include "../misc/string.h"
 #include "../misc/sync.h"
 #include "../file_server/file_ypath_rpc.h"
-#include "file_chunk_server_meta.pb.h"
+#include "file_chunk_meta.pb.h"
 
 namespace NYT {
 namespace NFileClient {
