@@ -35,8 +35,6 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager-inl.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_manager.cpp
    
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/cell_channel.cpp
-
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/follower_pinger.cpp
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state/map.h
