@@ -204,7 +204,7 @@ void TChunkStore::ScanChunks()
 
             Stroka* lastDataFile = NULL;
             FOREACH (auto& fileName, fileNames) {
-                bool isMeta = fileName.has_prefix(metaSuffix);
+                bool isMeta = fileName.has_suffix(metaSuffix);
                 if (isMeta) {
                     if (lastDataFile == NULL ||
                         fileName != *lastDataFile + metaSuffix)
@@ -212,12 +212,12 @@ void TChunkStore::ScanChunks()
                         if (lastDataFile != NULL) {
                             LOG_WARNING("Missing meta file for %s",
                                 ~lastDataFile->Quote());
-                            DeleteFile(*lastDataFile);
+                            DeleteFile(path + *lastDataFile);
                         }
 
                         LOG_WARNING("Missing data file for %s",
                             ~fileName.Quote());
-                        DeleteFile(fileName);
+                        DeleteFile(path + fileName);
                     } else {
                         auto chunkId = TChunkId::FromString(NFS::GetFileName(*lastDataFile));
                         if (!chunkId.IsEmpty()) {
@@ -232,7 +232,7 @@ void TChunkStore::ScanChunks()
                     if (lastDataFile != NULL) {
                         LOG_WARNING("Missing meta file for %s",
                             ~lastDataFile->Quote());
-                        DeleteFile(*lastDataFile);
+                        DeleteFile(path + *lastDataFile);
                     }
                     lastDataFile = &fileName;
                 }
@@ -240,7 +240,7 @@ void TChunkStore::ScanChunks()
             if (lastDataFile != NULL) {
                 LOG_WARNING("Missing meta file for %s",
                     ~lastDataFile->Quote());
-                DeleteFile(*lastDataFile);
+                DeleteFile(path + *lastDataFile);
             }
         }
     } catch (...) {
