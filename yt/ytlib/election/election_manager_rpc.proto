@@ -9,14 +9,12 @@ message TReqPingFollower
 }
 
 message TRspPingFollower
-{
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetStatus
-{
-}
+{ }
 
 message TRspGetStatus
 {
