@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-
 #include "server.h"
 
 #include "../misc/config.h"

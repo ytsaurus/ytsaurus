@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "async_writer.h"
+#include "chunk_service_rpc.pb.h"
 
 #include "../misc/config.h"
 #include "../misc/metric.h"
@@ -59,8 +60,6 @@ public:
         void Read(TJsonObject* config);
     };
 
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-
     /*!
      * \note Thread affinity: ClientThread.
      */
@@ -93,10 +92,21 @@ public:
      */
     Stroka GetDebugInfo();
 
+    //! Returns the id of the chunk being uploaded.
+    /*!
+     * \note Thread affinity: any.
+     */
     TChunkId GetChunkId() const;
 
-private:
+    //! Returns the info to be sent to the master during #TChunkServiceProxy::ConfirmChunks request.
+    /*!
+     *  This method call only be called when the writer is successfully closed.
+     *  
+     * \note Thread affinity: ClientThread.
+     */
+    NChunkServer::NProto::TReqConfirmChunks::TChunkInfo GetConfirmationInfo();
 
+private:
     //! A group is a bunch of blocks that is sent in a single RPC request.
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
@@ -209,6 +219,10 @@ private:
         TMetric* metric);
 
     void AddBlock(TVoid, const TSharedRef& data);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

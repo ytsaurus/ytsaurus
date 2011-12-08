@@ -54,9 +54,6 @@ public:
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
 
-    ////! Returns a full path to a chunk file.
-    //Stroka GetChunkFileName(TChunk* chunk) const; // Make static
-
 private:
     Stroka Path;
     i64 AvailableSpace;

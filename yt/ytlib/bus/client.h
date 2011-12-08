@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-
 #include "bus.h"
 
 namespace NYT {

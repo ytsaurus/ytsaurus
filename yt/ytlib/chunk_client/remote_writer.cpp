@@ -23,6 +23,7 @@ namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NChunkHolder::NProto;
+using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -860,6 +861,7 @@ void TRemoteWriter::CancelAllPings()
 TAsyncStreamState::TAsyncResult::TPtr 
 TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
@@ -898,6 +900,7 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 TAsyncStreamState::TAsyncResult::TPtr 
 TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
@@ -927,6 +930,8 @@ TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 
 void TRemoteWriter::Cancel(const Stroka& errorMessage)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     // Just a quick check.
     if (!State.IsActive())
         return;
@@ -961,7 +966,25 @@ Stroka TRemoteWriter::GetDebugInfo()
 
 TChunkId TRemoteWriter::GetChunkId() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     return ChunkId;
+}
+
+TReqConfirmChunks::TChunkInfo TRemoteWriter::GetConfirmationInfo()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(State.IsClosed());
+
+    TReqConfirmChunks::TChunkInfo info;
+    info.set_chunkid(ChunkId.ToProto());
+    *info.mutable_attributes() = Attributes;
+    FOREACH (auto node, Nodes) {
+        if (node->IsAlive) {
+            info.add_holderaddresses(node->Address);
+        }
+    }
+
+    return info;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
