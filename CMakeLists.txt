@@ -26,11 +26,8 @@ endif()
 
 add_subdirectory(util-build)
 
+add_subdirectory(contrib/libs)
 add_subdirectory(contrib/libs/snappy)
-add_subdirectory(contrib/libs/lz4)
-add_subdirectory(contrib/libs/fastlz)
-add_subdirectory(contrib/libs/minilzo)
-add_subdirectory(contrib/libs/zlib)
 add_subdirectory(contrib/yajl)
 add_subdirectory(contrib)
 
