@@ -285,6 +285,8 @@ void TNLBusServer::Stop()
     PingMap.clear();
 
     Handler.Reset();
+
+    LOG_INFO("Bus listener stopped");
 }
 
 void* TNLBusServer::ThreadFunc(void* param)
