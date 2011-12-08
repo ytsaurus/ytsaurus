@@ -10,6 +10,7 @@ namespace NYT {
 namespace NElection {
 
 using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -753,12 +754,11 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     auto current = BuildYsonFluently(consumer)
         .BeginMap()
             .Item("state").Scalar(State.ToString())
-            .Item("peers").BeginList();
-    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-        current = current
-                .Item().Scalar(CellManager->GetPeerAddress(id));
-    }
-    current
+            .Item("peers").BeginList()
+                .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id)
+                    {
+                        fluent.Item().Scalar(CellManager->GetPeerAddress(id));
+                    })
             .EndList()
             .Item("leader_id").Scalar(LeaderId)
             .Item("vote_id").Scalar(VoteId)

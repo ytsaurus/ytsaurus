@@ -79,7 +79,7 @@ public:
      * \note Thread affinity: ClientThread.
      */
     TAsyncStreamState::TAsyncResult::TPtr
-    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes);
+    AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
     
     /*!
      * \note Thread affinity: any.
@@ -126,7 +126,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
-    NChunkServer::NProto::TChunkAttributes Attributes;
+    NChunkHolder::NProto::TChunkAttributes Attributes;
 
     // ToDo: replace by cyclic buffer
     TWindow Window;
@@ -154,7 +154,7 @@ private:
      * Invoked from #Close.
      * Sets #IsCloseRequested.
      */
-    void DoClose(const NChunkServer::NProto::TChunkAttributes& attributes);
+    void DoClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
     
     /*!
      * Invoked from #Cancel

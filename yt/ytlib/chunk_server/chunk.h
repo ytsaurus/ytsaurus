@@ -16,8 +16,7 @@ class TChunk
 {
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TChunkListId, ChunkListId);
-    DEFINE_BYVAL_RW_PROPERTY(TChecksum, MetaChecksum);
-    DEFINE_BYVAL_RW_PROPERTY(TSharedRef, ChunkInfo);
+    DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
     DEFINE_BYREF_RO_PROPERTY(yvector<THolderId>, Locations);
 
 public:
@@ -33,11 +32,13 @@ public:
     void AddLocation(THolderId holderId);
     void RemoveLocation(THolderId holderId);
 
+    bool IsConfirmed() const;
+
     i32 Ref();
     i32 Unref();
     i32 GetRefCounter() const;
 
-    NProto::TChunkInfo DeserializeChunkInfo() const;
+    NChunkHolder::NProto::TChunkAttributes DeserializeAttributes() const;
 
 private:
     i32 RefCounter;

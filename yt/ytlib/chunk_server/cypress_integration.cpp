@@ -44,18 +44,21 @@ private:
 
         return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
             {
-                auto chunkInfo = chunk->DeserializeChunkInfo();
-                // TODO: locations
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("chunk_type").Scalar(EChunkType(chunkInfo.attributes().type()).ToString())
-                        .Item("chunk_size").Scalar(chunkInfo.size())
-                        .Item("meta_size").Scalar(
-                            chunk->GetChunkInfo() == TSharedRef()
-                            ? -1
-                            : static_cast<i64>(chunk->GetChunkInfo().Size()))
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
                         .Item("ref_counter").Scalar(chunk->GetRefCounter())
+                        .Item("locations").DoListFor(chunk->Locations(), [=] (TFluentList fluent, THolderId holderId)
+                            {
+                                const auto& holder = ChunkManager->GetHolder(holderId);
+                                fluent.Item().Scalar(holder.GetAddress());
+                            })
+                        .DoIf(chunk->IsConfirmed(), [=] (TFluentMap fluent)
+                            {
+                                auto attributes = chunk->DeserializeAttributes();
+                                auto type = EChunkType(attributes.type());
+                                fluent.Item("chunk_type").Scalar(type.ToString());
+                            })
                     .EndMap();
             }));
     }
@@ -109,6 +112,10 @@ private:
                     .BeginMap()
                         .Item("replica_count").Scalar(chunkList->GetReplicaCount())
                         .Item("ref_counter").Scalar(chunkList->GetRefCounter())
+                        .Item("chunk_ids").DoListFor(chunkList->ChunkIds(), [=] (TFluentList fluent, TChunkId chunkId)
+                            {
+                                fluent.Item().Scalar(chunkId.ToString());
+                            })
                     .EndMap();
             }));
     }
@@ -354,28 +361,25 @@ private:
 
     void GetAliveHolders(const TGetAttributeParam& param)
     {
-        // TODO: use new fluent API
-        param.Consumer->OnBeginList();
-        FOREACH (auto holderId, ChunkManager->GetHolderIds()) {
-            const auto& holder = ChunkManager->GetHolder(holderId);
-            param.Consumer->OnListItem();
-            param.Consumer->OnStringScalar(holder.GetAddress());
-        }
-        param.Consumer->OnEndList();
+        BuildYsonFluently(param.Consumer)
+            .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
+                {
+                    const auto& holder = ChunkManager->GetHolder(id);
+                    fluent.Item().Scalar(holder.GetAddress());
+                });
     }
 
     void GetDeadHolders(const TGetAttributeParam& param)
     {
-        // TODO: use new fluent API
-        param.Consumer->OnBeginList();
-        FOREACH (const auto& pair, param.Node->NameToChild()) {
-            Stroka address = pair.First();
-            if (ChunkManager->FindHolder(address) == NULL) {
-                param.Consumer->OnListItem();
-                param.Consumer->OnStringScalar(address);
-            }
-        }
-        param.Consumer->OnEndList();
+        BuildYsonFluently(param.Consumer)
+            .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
+                {
+                    Stroka address = pair.first;
+                    if (ChunkManager->FindHolder(address) == NULL) {
+                        param.Consumer->OnListItem();
+                        param.Consumer->OnStringScalar(address);
+                    }
+                });
     }
 };
 

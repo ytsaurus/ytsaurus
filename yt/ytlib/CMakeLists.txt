@@ -26,13 +26,30 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" YT_SOURCE_FILES )
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
-  stdafx.cpp
+)
+
+target_link_libraries ( ytlib
+  arcadia-utils
+
+  qmisc
+  NetLiba
+  json
+
+  # TODO(sandello): arcadia-utils should depend on these targets.
+  snappy
+  lz4
+  fastlz
+  minilzo
+  arczlib
+  protobuf
 )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   .
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -42,12 +59,11 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}/ytree
   ${CMAKE_CURRENT_BINARY_DIR}/file_server
   ${CMAKE_CURRENT_BINARY_DIR}/file_client
-  ${CMAKE_CURRENT_BINARY_DIR}/chunk_server
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}/chunk_client  
+    ${CMAKE_CURRENT_BINARY_DIR}/chunk_client
     ${CMAKE_CURRENT_BINARY_DIR}/election
     ${CMAKE_CURRENT_BINARY_DIR}/transaction_server
     ${CMAKE_CURRENT_BINARY_DIR}/meta_state
@@ -58,11 +74,4 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   )
 endif()
 
-add_dependencies( ytlib
-  protoc
-  cpp_styleguide
-)
-
-#
 #SET(USE_LF_ALLOCATOR yes)
-

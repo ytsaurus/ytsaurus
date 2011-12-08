@@ -165,7 +165,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 void TNodeSetterBase::OnForwardingFinished()
 {
     YASSERT(~AttributeBuilder != NULL);
-    Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName);
+    YVERIFY(Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName));
     AttributeBuilder.Destroy();
     AttributeName.clear();
 }

@@ -1,7 +1,6 @@
 package NYT.NChunkServer.NProto;
 
-import "chunk.proto";
-import "chunk_service_rpc.proto";
+import "yt/ytlib/chunk_server/chunk_service_rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,23 +15,29 @@ message TMsgUnregisterHolder
     required int32 HolderId = 1;
 }
 
-message TMsgCreateChunk
+message TMsgAllocateChunk
 {
     required bytes TransactionId = 1;
+}
+
+message TMsgConfirmChunks
+{
+    required bytes TransactionId = 1;
+    repeated TReqConfirmChunks.TChunkInfo Chunks = 2;
 }
 
 message TMsgHeartbeatRequest
 {
     required int32 HolderId = 1;
     required THolderStatistics Statistics = 2;
-    repeated TChunkInfo AddedChunks = 3;
+    repeated TReqHolderHeartbeat.TChunkAddInfo AddedChunks = 3;
     repeated bytes RemovedChunks = 4;
 }
 
 message TMsgHeartbeatResponse
 {
     required int32 HolderId = 1;
-    repeated TJobStartInfo StartedJobs = 2;
+    repeated TRspHolderHeartbeat.TJobStartInfo StartedJobs = 2;
     repeated bytes StoppedJobs = 3;
 }
 

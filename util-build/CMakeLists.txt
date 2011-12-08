@@ -459,31 +459,13 @@ add_library( arcadia-utils STATIC
   ${UT_SRCS}
 )
 
-include_directories( ${CMAKE_SOURCE_DIR} )
-
-if ( "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux" )
-  #SET_TARGET_PROPERTIES( arcstring PROPERTIES
-  #  COMPILE_FLAGS "-I${BASE}"
-  #)
-  #SET_TARGET_PROPERTIES( arcgeneric PROPERTIES
-  #  COMPILE_FLAGS "-I${G_BASE}"
-  #)
-  #SET_TARGET_PROPERTIES( arcdigest PROPERTIES
-  #  COMPILE_FLAGS "-I${D_BASE}"
-  #)
-  #SET_TARGET_PROPERTIES( arcsystem PROPERTIES
-  #  COMPILE_FLAGS "-I${S_BASE}"
-  #)
-  #SET_TARGET_PROPERTIES( arccharset PROPERTIES
-  #  COMPILE_FLAGS "-I${CS_BASE}"
-  #)
-  #if (DARWIN)
-  #  SET_TARGET_PROPERTIES( arcsystem PROPERTIES
-  #    COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE"
-  #  )
-  #endif()
+if (CMAKE_COMPILER_IS_GNUCXX)
+  target_link_libraries ( arcadia-utils
+    -ldl
+  )
 endif()
 
+include_directories( ${CMAKE_SOURCE_DIR} )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
   if ( CMAKE_BUILD_TYPE STREQUAL "" )
@@ -511,6 +493,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   endif()
 endif()
 
-if (DARWIN)
+if (APPLE)
   add_definitions( -D_REENTRANT -D_XOPEN_SOURCE )
 endif()

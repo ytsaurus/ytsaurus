@@ -1,6 +1,6 @@
 package NYT.NChunkServer.NProto;
 
-import "chunk.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,34 +27,37 @@ message TRspRegisterHolder
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TJobInfo
-{
-    required bytes JobId = 1;
-    required int32 State = 2;
-}
-
-message TJobStartInfo
-{
-    required int32 Type = 1;
-    required bytes JobId = 2;
-    required bytes ChunkId = 3;
-    repeated bytes TargetAddresses = 4;
-}
-
 message TReqHolderHeartbeat
 {
+    message TChunkAddInfo
+    {
+        required bytes ChunkId = 1;
+        required int64 Size = 2;
+    }
+
+    message TJobInfo
+    {
+        required bytes JobId = 1;
+        required int32 State = 2;
+    }
+
     required int32 HolderId = 1;
-
     required THolderStatistics Statistics = 2;
-
-    repeated TChunkInfo AddedChunks = 3;
+    repeated TChunkAddInfo AddedChunks = 3;
     repeated bytes RemovedChunks = 4;
-
     repeated TJobInfo Jobs = 5;
 }
 
 message TRspHolderHeartbeat
 {
+    message TJobStartInfo
+    {
+        required int32 Type = 1;
+        required bytes JobId = 2;
+        required bytes ChunkId = 3;
+        repeated bytes TargetAddresses = 4;
+    }
+
     repeated bytes ChunksToRemove = 1;
     repeated TJobStartInfo JobsToStart = 2;
     repeated bytes JobsToStop = 3;
@@ -62,17 +65,35 @@ message TRspHolderHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCreateChunk
+message TReqAllocateChunk
 {
     required bytes TransactionId = 1;
     required int32 ReplicaCount = 2;
 }
 
-message TRspCreateChunk
+message TRspAllocateChunk
 {
     required bytes ChunkId = 1;
     repeated bytes HolderAddresses = 2;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqConfirmChunks
+{
+    message TChunkInfo
+    {
+        required bytes ChunkId = 1;
+        repeated bytes HolderAddresses = 2;
+        required NChunkHolder.NProto.TChunkAttributes Attributes = 3;
+    }
+
+    required bytes TransactionId = 1;
+    repeated TChunkInfo Chunks = 2;
+}
+
+message TRspConfirmChunks
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

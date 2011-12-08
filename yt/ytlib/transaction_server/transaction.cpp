@@ -21,10 +21,11 @@ void TTransaction::Save(TOutputStream* output) const
 {
     YASSERT(output != NULL);
 
-    ::Save(output, RegisteredChunks_);
+    ::Save(output, AllocatedChunkIds_);
+    ::Save(output, ConfirmedChunkIds_);
     ::Save(output, LockIds_);
-    ::Save(output, BranchedNodes_);
-    ::Save(output, CreatedNodes_);
+    ::Save(output, BranchedNodeIds_);
+    ::Save(output, CreatedNodeIds_);
 }
 
 TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream* input)
@@ -32,19 +33,21 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
     YASSERT(input != NULL);
 
     auto* transaction = new TTransaction(id);
-    ::Load(input, transaction->RegisteredChunks_);
+    ::Load(input, transaction->AllocatedChunkIds_);
+    ::Load(input, transaction->ConfirmedChunkIds_);
     ::Load(input, transaction->LockIds_);
-    ::Load(input, transaction->BranchedNodes_);
-    ::Load(input, transaction->CreatedNodes_);
+    ::Load(input, transaction->BranchedNodeIds_);
+    ::Load(input, transaction->CreatedNodeIds_);
     return transaction;
 }
 
 TTransaction::TTransaction(const TTransaction& other)
     : Id_(other.Id_)
-    , RegisteredChunks_(other.RegisteredChunks_)
+    , AllocatedChunkIds_(other.AllocatedChunkIds_)
+    , ConfirmedChunkIds_(other.ConfirmedChunkIds_)
     , LockIds_(other.LockIds_)
-    , BranchedNodes_(other.BranchedNodes_)
-    , CreatedNodes_(other.CreatedNodes_)
+    , BranchedNodeIds_(other.BranchedNodeIds_)
+    , CreatedNodeIds_(other.CreatedNodeIds_)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

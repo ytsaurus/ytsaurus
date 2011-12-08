@@ -1,12 +1,12 @@
 package NYT.NFileClient.NProto;
 
-import "chunk.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TFileChunkAttributes
 {
-    extend NYT.NChunkServer.NProto.TChunkAttributes
+    extend NYT.NChunkHolder.NProto.TChunkAttributes
     {
         required TFileChunkAttributes FileAttributes = 100;
     }

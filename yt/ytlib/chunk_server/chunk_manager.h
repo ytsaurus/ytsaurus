@@ -26,6 +26,8 @@ class TChunkManager
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
     typedef TChunkManagerConfig TConfig;
+    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
+    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
 
     //! Creates an instance.
     TChunkManager(
@@ -61,8 +63,11 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    NMetaState::TMetaChange<NChunkClient::TChunkId>::TPtr InitiateCreateChunk(
+    NMetaState::TMetaChange<NChunkClient::TChunkId>::TPtr InitiateAllocateChunk(
         const TTransactionId& transactionId);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
+        const NProto::TMsgConfirmChunks& message);
 
     TChunkList& CreateChunkList();
     void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
@@ -89,8 +94,8 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStartInfo>* jobsToStart,
+        const yvector<TJobInfo>& runningJobs,
+        yvector<TJobStartInfo>* jobsToStart,
         yvector<NChunkHolder::TJobId>* jobsToStop);
 
 private:

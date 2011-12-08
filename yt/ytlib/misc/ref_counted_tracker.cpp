@@ -12,6 +12,8 @@
 
 namespace NYT {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTracker::TStatistics TRefCountedTracker::Statistics;
@@ -102,7 +104,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
     return stream;
 }
 
-void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
 {
     auto items = GetItems();
     SortItems(items, -1);
@@ -112,22 +114,17 @@ void TRefCountedTracker::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 
     auto current = BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statistics").BeginList();
-
-    FOREACH(const auto& item, items) {
-        totalAlive += item.AliveObjects;
-        totalCreated += item.CreatedObjects;
-
-        current = current
-                .Item().BeginMap()
-                    .Item("name").Scalar(DemangleCxxName(item.Key->name()))
-                    .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
-                    .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
-                .EndMap();
-    }
-
-    current
-            .EndList()
+            .Item("statistics").DoListFor(items, [&] (TFluentList fluent, TItem item)
+                {
+                    totalAlive += item.AliveObjects;
+                    totalCreated += item.CreatedObjects;
+                    fluent
+                        .Item().BeginMap()
+                            .Item("name").Scalar(DemangleCxxName(item.Key->name()))
+                            .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
+                            .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
+                        .EndMap();
+                })
             .Item("total").BeginMap()
                 .Item("created").Scalar(totalCreated)
                 .Item("alive").Scalar(totalAlive)

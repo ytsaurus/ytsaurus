@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 2.6 FATAL_ERROR)
+cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(Yt)
 
 ################################################################################
 # Include various CMake modules.
 
 set(CMAKE_MODULE_PATH
-    "${CMAKE_SOURCE_DIR}/cmake"
+  "${CMAKE_SOURCE_DIR}/cmake"
 )
 
 include(CMakeDependentOption)
@@ -15,6 +15,7 @@ include(FindPythonInterp)
 include(DumpCMakeVariables)
 include(LocalFunctions)
 include(LocalConfiguration)
+include(PCH)
 
 ################################################################################
 # Setup targets.
@@ -25,11 +26,9 @@ endif()
 
 add_subdirectory(util-build)
 
+add_subdirectory(contrib/libs)
 add_subdirectory(contrib/libs/snappy)
-add_subdirectory(contrib/libs/lz4)
-add_subdirectory(contrib/libs/fastlz)
-add_subdirectory(contrib/libs/minilzo)
-add_subdirectory(contrib/libs/zlib)
+add_subdirectory(contrib/yajl)
 add_subdirectory(contrib)
 
 add_subdirectory(quality/Misc)
