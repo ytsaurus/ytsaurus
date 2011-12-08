@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "file_reader.h"
 
-#include "file_chunk_server_meta.pb.h"
-
 #include "../misc/string.h"
 #include "../misc/sync.h"
 #include "../file_server/file_ypath_rpc.h"
