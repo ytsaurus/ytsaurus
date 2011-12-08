@@ -323,6 +323,7 @@ SET( NW_SRCS
   ${NW_BASE}/init.cpp
   ${NW_BASE}/poller.cpp
   ${NW_BASE}/socket.cpp
+  ${NW_BASE}/address.cpp
   ${NW_BASE}/pair.cpp
     
   ${NW_BASE}/ip.h

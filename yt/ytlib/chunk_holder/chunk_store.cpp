@@ -208,33 +208,41 @@ void TChunkStore::ScanChunks()
             FOREACH (auto& fileName, fileNames) {
                 bool isMeta = fileName.has_prefix(metaSuffix);
                 if (isMeta) {
-                    if (lastDataFile == NULL || fileName != *lastDataFile + metaSuffix) {
+                    if (lastDataFile == NULL ||
+                        fileName != *lastDataFile + metaSuffix)
+                    {
                         if (lastDataFile != NULL) {
-                            LOG_WARNING("Missing meta file for %s", ~lastDataFile->Quote());
+                            LOG_WARNING("Missing meta file for %s",
+                                ~lastDataFile->Quote());
                             DeleteFile(*lastDataFile);
                         }
-                        LOG_WARNING("Missing data file for %s", ~fileName.Quote());
+
+                        LOG_WARNING("Missing data file for %s",
+                            ~fileName.Quote());
                         DeleteFile(fileName);
                     } else {
                         auto chunkId = TChunkId::FromString(NFS::GetFileName(*lastDataFile));
                         if (!chunkId.IsEmpty()) {
                             RegisterChunk(chunkId, ~location);
                         } else {
-                            LOG_ERROR("Invalid chunk filename (FileName: %s)", ~lastDataFile->Quote());
+                            LOG_ERROR("Invalid chunk filename (FileName: %s)",
+                                ~lastDataFile->Quote());
                         }
                     }
+                    lastDataFile = NULL;
                 } else {
-                    if (lastDataFile == NULL) {
-                        lastDataFile = &fileName;
-                    } else {
-                        LOG_WARNING("Missing meta file for %s", ~lastDataFile->Quote());
+                    if (lastDataFile != NULL) {
+                        LOG_WARNING("Missing meta file for %s",
+                            ~lastDataFile->Quote());
                         DeleteFile(*lastDataFile);
                     }
+                    lastDataFile = &fileName;
                 }
             }
 
             if (lastDataFile != NULL) {
-                LOG_WARNING("Missing meta file for %s", ~lastDataFile->Quote());
+                LOG_WARNING("Missing meta file for %s",
+                    ~lastDataFile->Quote());
                 DeleteFile(*lastDataFile);
             }
         }
