@@ -217,7 +217,7 @@ public:
                             .Item("followers_active").DoListFor(0, CellManager->GetPeerCount(),
                                 [=] (TFluentList fluent, TPeerId id)
                                 {
-                                        fluent.Item().Scalar(tracker->IsFollowerActive(id));
+                                    fluent.Item().Scalar(tracker->IsFollowerActive(id));
                                 });
                     })
             .EndMap();
