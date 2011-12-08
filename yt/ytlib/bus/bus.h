@@ -8,6 +8,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes a result of sending a message via a bus.
 DECLARE_ENUM(ESendResult,
     (OK)
     (Failed)
