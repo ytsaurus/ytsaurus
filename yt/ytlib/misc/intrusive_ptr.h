@@ -46,10 +46,18 @@ public:
         : T_(NULL)
     { }
 
-    TIntrusivePtr(T* p, bool addReference = true) throw()
+    TIntrusivePtr(T* p, bool addReference) throw()
         : T_(p)
     {
         if (T_ != 0 && addReference) {
+            TIntrusivePtrTraits<T>::Ref(T_);
+        }
+    }
+
+    TIntrusivePtr(T* p) throw()
+        : T_(p)
+    {
+        if (T_ != 0) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
