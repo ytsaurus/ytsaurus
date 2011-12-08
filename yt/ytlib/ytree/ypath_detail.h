@@ -256,6 +256,10 @@ TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
 
+TYPath CombineYPaths(
+    const TYPath& prefixPath,
+    const TYPath& suffixPath);
+
 bool IsEmptyYPath(const TYPath& path);
 
 bool IsFinalYPath(const TYPath& path);

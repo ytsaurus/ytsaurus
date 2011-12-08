@@ -41,6 +41,7 @@ set( SRCS
   serialize_ut.cpp
   rpc_ut.cpp
   ypath_ut.cpp
+  combine_ypaths_ut.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

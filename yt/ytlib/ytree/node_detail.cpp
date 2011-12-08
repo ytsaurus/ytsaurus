@@ -24,7 +24,7 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, c
         verb != "Remove")
     {
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            "Verb is not supported for attributes";
+            Sprintf("Verb %s is not supported for attributes %s", ~verb, ~attributePath);
     }
     return TResolveResult::Here(path);
 }

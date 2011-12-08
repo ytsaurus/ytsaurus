@@ -236,6 +236,24 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
+TYPath CombineYPaths(
+    const TYPath& prefixPath,
+    const TYPath& suffixPath)
+{
+    if (prefixPath.empty() || suffixPath.empty()) {
+        return prefixPath + suffixPath;
+    }
+    if (prefixPath.back() == '/' && suffixPath[0] == '/') {
+        return prefixPath + suffixPath.substr(1);
+    }
+
+    if (prefixPath.back() != '/' && suffixPath[0] != '/') {
+        return prefixPath + '/' + suffixPath;
+    }
+
+    return prefixPath + suffixPath;
+}
+
 bool IsEmptyYPath(const TYPath& path)
 {
     return path.empty();
