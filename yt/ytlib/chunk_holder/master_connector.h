@@ -28,10 +28,10 @@ public:
     //! Creates an instance.
     TMasterConnector(
         const TConfig& config,
-        TChunkStore::TPtr chunkStore,
-        TSessionManager::TPtr sessionManager,
-        TReplicator::TPtr replicator,
-        IInvoker::TPtr serviceInvoker);
+        TChunkStore* chunkStore,
+        TSessionManager* sessionManager,
+        TReplicator* replicator,
+        IInvoker* serviceInvoker);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -103,6 +103,9 @@ private:
 
     //! Sends out a heartbeat.
     void SendHeartbeat();
+
+    //! Constructs an addition info for a given chunk.
+    static NChunkServer::NProto::TReqHolderHeartbeat::TChunkAddInfo GetAddInfo(const TChunk* chunk);
 
     //! Handles heartbeat response.
     void OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response);

@@ -28,6 +28,7 @@ namespace NMetaState {
 
 using namespace NElection;
 using namespace NRpc;
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -200,27 +201,25 @@ public:
 
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
-        auto current = BuildYsonFluently(consumer)
+        auto tracker = FollowerTracker;
+
+        BuildYsonFluently(consumer)
             .BeginMap()
-            .Item("state").Scalar(ControlStatus.ToString())
-            // TODO: fixme, thread affinity
-            //.Item("version").Scalar(MetaState->GetVersion().ToString())
-            .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
-            .Item("elections").Do(FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager));
-        // TODO: refactor
-        auto followerTracker = FollowerTracker;
-        if (~followerTracker != NULL) {
-            auto list = current
-                .Item("followers_active").BeginList();
-            for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-                list = list
-                    .Item().Scalar(followerTracker->IsFollowerActive(id));
-            }
-            current = list
-                .EndList()
-                .Item("has_quorum").Scalar(followerTracker->HasActiveQuorum());
-        }
-        current
+                .Item("state").Scalar(ControlStatus.ToString())
+                // TODO: fixme, thread affinity
+                //.Item("version").Scalar(MetaState->GetVersion().ToString())
+                .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
+                .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                .DoIf(~tracker != NULL, [=] (TFluentMap fluent)
+                    {
+                        fluent
+                            .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
+                            .Item("followers_active").DoListFor(0, CellManager->GetPeerCount(),
+                                [=] (TFluentList fluent, TPeerId id)
+                                {
+                                        fluent.Item().Scalar(tracker->IsFollowerActive(id));
+                                });
+                    })
             .EndMap();
     }
 

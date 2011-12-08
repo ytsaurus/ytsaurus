@@ -18,6 +18,8 @@ class TChunkReplication
 {
 public:
     typedef TIntrusivePtr<TChunkReplication> TPtr;
+    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
+    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
 
     TChunkReplication(
         TChunkManager* chunkManager,
@@ -34,8 +36,8 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStartInfo>* jobsToStart,
+        const yvector<TJobInfo>& runningJobs,
+        yvector<TJobStartInfo>* jobsToStart,
         yvector<NChunkHolder::TJobId>* jobsToStop);
 
 private:
@@ -69,7 +71,7 @@ private:
 
     void ProcessExistingJobs(
         const THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
+        const yvector<TJobInfo>& runningJobs,
         yvector<NChunkHolder::TJobId>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
@@ -85,20 +87,20 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         const THolder& sourceHolder,
         const NChunkClient::TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        yvector<TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         const THolder& sourceHolder,
         const NChunkClient::TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        yvector<TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         const THolder& holder,
         const NChunkClient::TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        yvector<TJobStartInfo>* jobsToStart);
     void ScheduleJobs(
         const THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        yvector<TJobStartInfo>* jobsToStart);
 
     void ScheduleRefresh(const NChunkClient::TChunkId& chunkId);
     void Refresh(const TChunk& chunk);

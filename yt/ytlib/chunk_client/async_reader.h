@@ -24,7 +24,7 @@ struct IAsyncReader
     typedef TValuedError< yvector<TSharedRef> > TReadResult;
 
     //! Describes a result of #AsyncGetChunkInfo.
-    typedef TValuedError<NChunkServer::NProto::TChunkInfo> TGetInfoResult;
+    typedef TValuedError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
 
     //! Reads (asynchronously) a given set of blocks.
     /*!

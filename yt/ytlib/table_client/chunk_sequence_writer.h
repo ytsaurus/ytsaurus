@@ -62,7 +62,6 @@ public:
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
-    USE_RPC_PROXY_METHOD(TProxy, CreateChunk)
 
         void CreateNextChunk();
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
@@ -70,7 +69,7 @@ private:
 
     bool IsNextChunkTime() const;
 
-    void OnChunkCreated(TRspCreateChunk::TPtr rsp);
+    void OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp);
 
     void OnChunkClosed(
         TAsyncStreamState::TResult result, 

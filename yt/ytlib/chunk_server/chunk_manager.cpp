@@ -20,11 +20,9 @@ namespace NChunkServer {
 
 using namespace NProto;
 using namespace NMetaState;
-using NChunkClient::TChunkId;
-using NTransactionServer::TTransactionManager;
-using NTransactionServer::TTransaction;
-using NChunkHolder::EJobType;
-using NChunkHolder::TJobId;
+using namespace NTransactionServer;
+using namespace NChunkClient;
+using namespace NChunkHolder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +58,8 @@ public:
         YASSERT(transactionManager != NULL);
         YASSERT(holderRegistry != NULL);
 
-        RegisterMethod(this, &TImpl::CreateChunk);
+        RegisterMethod(this, &TImpl::AllocateChunk);
+        RegisterMethod(this, &TImpl::ConfirmChunks);
         RegisterMethod(this, &TImpl::RegisterHolder);
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::HeartbeatRequest);
@@ -112,19 +111,29 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
-    TMetaChange<TChunkId>::TPtr InitiateCreateChunk(const TTransactionId& transactionId)
+    TMetaChange<TChunkId>::TPtr InitiateAllocateChunk(const TTransactionId& transactionId)
     {
         YASSERT(transactionId != NTransactionServer::NullTransactionId);
 
-        TMsgCreateChunk message;
+        TMsgAllocateChunk message;
         message.set_transactionid(transactionId.ToProto());
 
         return CreateMetaChange(
             ~MetaStateManager,
             message,
-            &TThis::CreateChunk,
+            &TThis::AllocateChunk,
             this);
     }
+
+    TMetaChange<TVoid>::TPtr InitiateConfirmChunks(const TMsgConfirmChunks& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::ConfirmChunks,
+            this);
+    }
+
 
     TChunkList& CreateChunkList()
     {
@@ -294,24 +303,58 @@ private:
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
 
-    TChunkId CreateChunk(const TMsgCreateChunk& message)
+    TChunkId AllocateChunk(const TMsgAllocateChunk& message)
     {
-        auto chunkId = ChunkIdGenerator.Next();
+        auto transactionId = TTransactionId::FromProto(message.transactionid());
 
+        auto chunkId = ChunkIdGenerator.Next();
         auto* chunk = new TChunk(chunkId);
         ChunkMap.Insert(chunkId, chunk);
-        LOG_INFO_IF(!IsRecovery(), "Chunk created (ChunkId: %s)",
-            ~chunkId.ToString());
 
-        auto transactionId = TTransactionId::FromProto(message.transactionid());
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.RegisteredChunks().push_back(chunkId);
+        transaction.AllocatedChunkIds().push_back(chunkId);
 
-        // Every transaction keeps a reference to every its created chunk.
+        // Every transaction keeps a reference to every its allocated chunk.
         RefChunk(*chunk);
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk allocated (ChunkId: %s, TransactionId: %s)",
+            ~chunkId.ToString(),
+            ~transactionId.ToString());
 
         return chunkId;
     }
+
+    TVoid ConfirmChunks(const TMsgConfirmChunks& message)
+    {
+        auto transactionId = TTransactionId::FromProto(message.transactionid());
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+
+        FOREACH (const auto& chunkInfo, message.chunks()) {
+            // TODO: add hinted locations
+            auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
+            auto& chunk = ChunkMap.GetForUpdate(chunkId);
+
+            // Skip chunks that are already confirmed.
+            if (chunk.IsConfirmed()) {
+                continue;
+            }
+
+            TBlob blob;
+            if (!SerializeProtobuf(&chunkInfo.attributes(), &blob)) {
+                LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~chunkId.ToString());
+            }
+            
+            chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+            transaction.ConfirmedChunkIds().push_back(chunkId);
+
+            LOG_INFO_IF(!IsRecovery(), "Chunk confirmed (ChunkId: %s, TransactionId: %s)",
+                ~chunkId.ToString(),
+                ~transactionId.ToString());
+        }
+
+        return TVoid();
+    }
+
 
     void RemoveChunk(TChunk& chunk)
     {
@@ -550,20 +593,22 @@ private:
 
     virtual void OnTransactionCommitted(const TTransaction& transaction)
     {
-        ReleaseTransactionChunkRefs(transaction);
+        ReleaseAllocatedChunkRefs(transaction);
+
+        // TODO: check that all allocated chunks were confirmed
     }
 
     virtual void OnTransactionAborted(const TTransaction& transaction)
     {
-        ReleaseTransactionChunkRefs(transaction);
+        ReleaseAllocatedChunkRefs(transaction);
     }
 
-    void ReleaseTransactionChunkRefs(const TTransaction& transaction)
+    void ReleaseAllocatedChunkRefs(const TTransaction& transaction)
     {
-        // Release the references to every chunk created by the transaction.
+        // Release the references to every chunk allocated by the transaction.
         // For those chunks created but not assigned to any Cypress node
         // this also destroys them.
-        FOREACH(const auto& chunkId, transaction.RegisteredChunks()) {
+        FOREACH(const auto& chunkId, transaction.AllocatedChunkIds()) {
             UnrefChunk(chunkId);
         }
     }
@@ -571,7 +616,7 @@ private:
 
     void StartHolderTracking(const THolder& holder)
     {
-        HolderLeaseTracking->RegisterHolder(holder);
+        HolderLeaseTracking->OnHolderRegistered(holder);
         ChunkPlacement->OnHolderRegistered(holder);
         ChunkReplication->OnHolderRegistered(holder);
 
@@ -580,7 +625,7 @@ private:
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderLeaseTracking->UnregisterHolder(holder);
+        HolderLeaseTracking->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
         ChunkReplication->OnHolderUnregistered(holder);
 
@@ -620,15 +665,10 @@ private:
         YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
         chunk.AddLocation(holder.GetId());
 
-        YASSERT(chunk.GetMetaChecksum() != TChunk::UnknownChecksum);
-        YASSERT(chunk.GetChunkInfo() != TSharedRef());
-
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d, MetaChecksum: %" PRIx64 ", ChunkInfoSize: %" PRISZT")",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunk.GetId().ToString(),
             ~holder.GetAddress(),
-            holder.GetId(),
-            chunk.GetMetaChecksum(),
-            chunk.GetChunkInfo().Size());
+            holder.GetId());
 
         if (IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -665,7 +705,7 @@ private:
     }
 
 
-    void DoAddJob(THolder& holder, const TJobStartInfo& jobInfo)
+    void DoAddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
     {
         auto chunkId = TChunkId::FromProto(jobInfo.chunkid());
         auto jobId = TJobId::FromProto(jobInfo.jobid());
@@ -736,10 +776,10 @@ private:
 
     void ProcessAddedChunk(
         THolder& holder,
-        const TChunkInfo& chunkInfo)
+        const TReqHolderHeartbeat::TChunkAddInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
-        auto chunkId = TChunkId::FromProto(chunkInfo.id());
+        auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
         i64 size = chunkInfo.size();
 
         auto* chunk = FindChunkForUpdate(chunkId);
@@ -755,22 +795,7 @@ private:
             return;
         }
 
-        TChecksum checksum = chunkInfo.metachecksum();
-        if (chunk->GetMetaChecksum() == TChunk::UnknownChecksum) {
-            chunk->SetMetaChecksum(checksum);
-        } else if (chunk->GetMetaChecksum() != checksum) {
-            LOG_ERROR("Chunk meta checksum mismatch (ChunkId: %s, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
-                ~chunkId.ToString(),
-                checksum,
-                chunk->GetMetaChecksum());
-            return;
-        }
-       
-        if (chunk->GetChunkInfo() == TSharedRef()) {
-            TBlob infoBlob(chunkInfo.ByteSize());
-            chunkInfo.SerializeToArray(infoBlob.begin(), infoBlob.size());
-            chunk->SetChunkInfo(MoveRV(infoBlob));
-        }
+        // TODO: use size reported by holder
 
         DoAddChunkReplica(holder, *chunk);
     }
@@ -915,9 +940,15 @@ yvector<THolderId> TChunkManager::AllocateUploadTargets(int replicaCount)
     return Impl->AllocateUploadTargets(replicaCount);
 }
 
-TMetaChange<TChunkId>::TPtr TChunkManager::InitiateCreateChunk(const TTransactionId& transactionId)
+TMetaChange<TChunkId>::TPtr TChunkManager::InitiateAllocateChunk(const TTransactionId& transactionId)
 {
-    return Impl->InitiateCreateChunk(transactionId);
+    return Impl->InitiateAllocateChunk(transactionId);
+}
+
+NMetaState::TMetaChange<TVoid>::TPtr TChunkManager::InitiateConfirmChunks(
+    const NProto::TMsgConfirmChunks& message)
+{
+    return Impl->InitiateConfirmChunks(message);
 }
 
 TChunkList& TChunkManager::CreateChunkList()

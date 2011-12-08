@@ -11,7 +11,7 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
-using namespace NChunkServer::NProto;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

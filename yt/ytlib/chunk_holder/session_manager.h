@@ -59,7 +59,7 @@ private:
 
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NChunkServer::NProto::TChunkAttributes TChunkAttributes;
+    typedef NChunkHolder::NProto::TChunkAttributes TChunkAttributes;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -153,7 +153,7 @@ public:
      */
     TFuture<TVoid>::TPtr FinishSession(
         TSession::TPtr session,
-        const NChunkServer::NProto::TChunkAttributes& attributes);
+        const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     //! Cancels an earlier opened upload session.
     /*!

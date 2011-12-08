@@ -73,13 +73,13 @@ class TChunk
 {
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TLocation::TPtr, Location);
-    DEFINE_BYREF_RO_PROPERTY(NChunkServer::NProto::TChunkInfo, Info);
+    DEFINE_BYREF_RO_PROPERTY(NChunkHolder::NProto::TChunkInfo, Info);
 
 public:
     typedef TIntrusivePtr<TChunk> TPtr;
 
     TChunk(
-        const NChunkServer::NProto::TChunkInfo& info,
+        const NChunkHolder::NProto::TChunkInfo& info,
         TLocation* location)
         : Id_(TGuid::FromProto(info.id()))
         , Location_(location)

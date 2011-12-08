@@ -35,7 +35,7 @@ void TChunkSequenceWriter::CreateNextChunk()
     YASSERT(~NextChunk == NULL);
 
     NextChunk = New< TFuture<TChunkWriter::TPtr> >();
-    auto req = Proxy.CreateChunk();
+    auto req = Proxy.AllocateChunk();
     req->set_replicacount(Config.ReplicationFactor);
     req->set_transactionid(TransactionId.ToProto());
 
@@ -44,7 +44,7 @@ void TChunkSequenceWriter::CreateNextChunk()
         this)->Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
+void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(~NextChunk != NULL);

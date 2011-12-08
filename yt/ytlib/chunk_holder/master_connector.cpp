@@ -24,10 +24,10 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TMasterConnector::TMasterConnector(
     const TConfig& config,
-    TChunkStore::TPtr chunkStore,
-    TSessionManager::TPtr sessionManager,
-    TReplicator::TPtr replicator,
-    IInvoker::TPtr serviceInvoker)
+    TChunkStore* chunkStore,
+    TSessionManager* sessionManager,
+    TReplicator* replicator,
+    IInvoker* serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
     , SessionManager(sessionManager)
@@ -37,10 +37,10 @@ TMasterConnector::TMasterConnector(
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    YASSERT(~chunkStore != NULL);
-    YASSERT(~sessionManager != NULL);
-    YASSERT(~replicator != NULL);
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(chunkStore != NULL);
+    YASSERT(sessionManager != NULL);
+    YASSERT(replicator != NULL);
+    YASSERT(serviceInvoker != NULL);
 
     auto channel = CreateCellChannel(Config.Masters);
     Proxy.Reset(new TProxy(~channel));
@@ -149,16 +149,16 @@ void TMasterConnector::SendHeartbeat()
         ReportedAdded = AddedSinceLastSuccess;
         ReportedRemoved = RemovedSinceLastSuccess;
 
-        FOREACH (const auto& chunk, ReportedAdded) {
-            *request->add_addedchunks() = chunk->Info();
+        FOREACH (auto chunk, ReportedAdded) {
+            *request->add_addedchunks() = GetAddInfo(~chunk);
         }
 
-        FOREACH (const auto& chunk, ReportedRemoved) {
+        FOREACH (auto chunk, ReportedRemoved) {
             request->add_removedchunks(chunk->GetId().ToProto());
         }
     } else {
         FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
-            *request->add_addedchunks() = chunk->Info();
+            *request->add_addedchunks() = GetAddInfo(~chunk);
         }
     }
 
@@ -177,6 +177,14 @@ void TMasterConnector::SendHeartbeat()
         static_cast<int>(request->addedchunks_size()),
         static_cast<int>(request->removedchunks_size()),
         static_cast<int>(request->jobs_size()));
+}
+
+TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
+{
+    TReqHolderHeartbeat::TChunkAddInfo info;
+    info.set_chunkid(chunk->GetId().ToProto());
+    info.set_size(chunk->Info().size());
+    return info;
 }
 
 void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response)

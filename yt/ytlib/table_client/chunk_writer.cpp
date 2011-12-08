@@ -1,19 +1,17 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
+#include "table_chunk_meta.pb.h"
 
 #include "../actions/action_util.h"
 #include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
 #include "../misc/serialize.h"
-#include "table_chunk_meta.pb.h"
 
 namespace NYT {
 namespace NTableClient {
 
-using NChunkClient::WriterThread;
-using NChunkClient::TChunkId;
-using NChunkClient::EChunkType;
-using namespace NChunkServer::NProto;
+using namespace NChunkClient;
+using namespace NChunkHolder::NProto;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////

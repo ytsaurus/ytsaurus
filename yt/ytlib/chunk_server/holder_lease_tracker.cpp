@@ -25,7 +25,7 @@ THolderLeaseTracker::THolderLeaseTracker(
     YASSERT(invoker != NULL);
 }
 
-void THolderLeaseTracker::RegisterHolder(const THolder& holder)
+void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
 {
     YASSERT(~Invoker != NULL);
 
@@ -42,7 +42,7 @@ void THolderLeaseTracker::RegisterHolder(const THolder& holder)
         ->Via(Invoker));
 }
 
-void THolderLeaseTracker::UnregisterHolder(const THolder& holder)
+void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
 {
     auto holderId = holder.GetId();
     auto& holderInfo = GetHolderInfo(holderId);

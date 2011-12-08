@@ -83,9 +83,9 @@ void TChunkHolderServer::Run()
     if (!Config.Masters.Addresses.empty()) {
         auto masterConnector = New<TMasterConnector>(
             Config,
-            chunkStore,
-            sessionManager,
-            replicator,
+            ~chunkStore,
+            ~sessionManager,
+            ~replicator,
             ~controlQueue->GetInvoker());
     } else {
         LOG_INFO("Running in standalone mode");

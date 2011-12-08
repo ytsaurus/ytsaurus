@@ -165,13 +165,11 @@ private:
 
     static void GetChunkListIds(const TGetAttributeParam& param)
     {
-        // TODO: use new fluent API
-        param.Consumer->OnBeginList();
-        FOREACH (const auto& chunkListId, param.Node->ChunkListIds()) {
-            param.Consumer->OnListItem();
-            param.Consumer->OnStringScalar(chunkListId.ToString(), false);
-        }
-        param.Consumer->OnEndList(false);
+        BuildYsonFluently(param.Consumer)
+            .DoListFor(param.Node->ChunkListIds(), [=] (TFluentList fluent, TChunkListId id)
+                {
+                    fluent.Item().Scalar(id.ToString());
+                });
     }
 };
 

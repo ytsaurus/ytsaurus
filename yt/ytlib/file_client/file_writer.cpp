@@ -17,7 +17,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
 using namespace NProto;
-using namespace NChunkServer::NProto;
+using namespace NChunkHolder::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,11 +79,11 @@ TFileWriter::TFileWriter(
     LOG_INFO("Creating chunk (UploadReplicaCount: %d)", uploadReplicaCount);
 
     TChunkServiceProxy chunkProxy(masterChannel);
-    auto createChunkRequest = chunkProxy.CreateChunk();
-    createChunkRequest->set_transactionid(transaction->GetId().ToProto());
-    createChunkRequest->set_replicacount(uploadReplicaCount);
+    auto allocateChunk = chunkProxy.AllocateChunk();
+    allocateChunk->set_transactionid(transaction->GetId().ToProto());
+    allocateChunk->set_replicacount(uploadReplicaCount);
 
-    auto createChunkResponse = createChunkRequest->Invoke()->Get();
+    auto createChunkResponse = allocateChunk->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating chunk\n%s",
             ~createChunkResponse->GetError().ToString());

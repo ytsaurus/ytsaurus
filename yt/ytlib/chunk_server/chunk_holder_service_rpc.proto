@@ -19,7 +19,7 @@ message TRspStartChunk
 message TReqFinishChunk
 {
     required bytes ChunkId = 1;
-    required NYT.NChunkServer.NProto.TChunkAttributes Attributes = 2;
+    required TChunkAttributes Attributes = 2;
 }
 
 message TRspFinishChunk
@@ -96,7 +96,7 @@ message TReqGetChunkInfo
 
 message TRspGetChunkInfo
 {
-    required NYT.NChunkServer.NProto.TChunkInfo ChunkInfo = 1;
+    required TChunkInfo ChunkInfo = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

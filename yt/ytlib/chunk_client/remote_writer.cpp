@@ -22,7 +22,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
-using namespace NChunkServer::NProto;
+using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
