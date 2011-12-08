@@ -227,14 +227,14 @@ void TChunkStore::ScanChunks()
                                 ~lastDataFile->Quote());
                         }
                     }
+                    lastDataFile = NULL;
                 } else {
-                    if (lastDataFile == NULL) {
-                        lastDataFile = &fileName;
-                    } else {
+                    if (lastDataFile != NULL) {
                         LOG_WARNING("Missing meta file for %s",
                             ~lastDataFile->Quote());
                         DeleteFile(*lastDataFile);
                     }
+                    lastDataFile = &fileName;
                 }
             }
             if (lastDataFile != NULL) {
