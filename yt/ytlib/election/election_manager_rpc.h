@@ -24,7 +24,13 @@ public:
         (Following)
     );
 
-    RPC_DECLARE_PROXY(ElectionManager,
+    static Stroka GetServiceName()
+    {
+        return "ElectionManager";
+    }
+
+
+    DECLARE_ENUM(EErrorCode,
         ((InvalidState)(1))
         ((InvalidLeader)(2))
         ((InvalidEpoch)(3))

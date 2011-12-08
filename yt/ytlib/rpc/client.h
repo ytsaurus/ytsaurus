@@ -242,20 +242,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RPC_DECLARE_PROXY(path, errorCodes) \
-    static Stroka GetServiceName() \
-    { \
-        return PP_STRINGIZE(path); \
-    } \
-    \
-    DECLARE_ENUM(E##path##Error, \
-        errorCodes \
-    ); \
-    \
-    typedef E##path##Error EErrorCode;
-
-////////////////////////////////////////////////////////////////////////////////
-
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
@@ -267,14 +253,6 @@ private:
             New<TReq##method>(~Channel, ServiceName, #method) \
             ->SetTimeout(Timeout_); \
     }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO: deprecate
-#define USE_RPC_PROXY_METHOD(TProxy, method) \
-    typedef TProxy::TReq##method TReq##method; \
-    typedef TProxy::TRsp##method TRsp##method; \
-    typedef TProxy::TInv##method TInv##method;
 
 ////////////////////////////////////////////////////////////////////////////////
 

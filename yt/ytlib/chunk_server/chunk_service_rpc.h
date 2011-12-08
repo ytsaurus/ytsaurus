@@ -17,7 +17,12 @@ class TChunkServiceProxy
 public:
     typedef TIntrusivePtr<TChunkServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(ChunkManager,
+    static Stroka GetServiceName()
+    {
+        return "ChunkManager";
+    }
+
+    DECLARE_ENUM(EErrorCode,
         ((NoSuchTransaction)(1))
         ((NoSuchHolder)(2))
         ((NoSuchChunk)(3))

@@ -117,7 +117,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TInvPutBlocks::TPtr PutBlocks(int node);
+    TProxy::TInvPutBlocks::TPtr PutBlocks(int node);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -132,13 +132,13 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TInvSendBlocks::TPtr SendBlocks(int srcNode, int dstNode);
+    TProxy::TInvSendBlocks::TPtr SendBlocks(int srcNode, int dstNode);
 
     /*!
      * \note Thread affinity: WriterThread.
      */
     void CheckSendResponse(
-        TRemoteWriter::TRspSendBlocks::TPtr rsp, 
+        TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp,
         int srcNode, 
         int dstNode);
 
@@ -215,7 +215,7 @@ void TRemoteWriter::TGroup::PutGroup()
         TGroupPtr(this), 
         node);
     auto onResponse = FromMethod(
-        &TRemoteWriter::CheckResponse<TRspPutBlocks>, 
+        &TRemoteWriter::CheckResponse<TProxy::TRspPutBlocks>,
         Writer, 
         node, 
         onSuccess,
@@ -226,7 +226,7 @@ void TRemoteWriter::TGroup::PutGroup()
         TGroupPtr(this)));
 }
 
-TRemoteWriter::TInvPutBlocks::TPtr 
+TRemoteWriter::TProxy::TInvPutBlocks::TPtr
 TRemoteWriter::TGroup::PutBlocks(int node)
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
@@ -279,7 +279,7 @@ void TRemoteWriter::TGroup::SendGroup(int srcNode)
     }
 }
 
-TRemoteWriter::TInvSendBlocks::TPtr 
+TRemoteWriter::TProxy::TInvSendBlocks::TPtr
 TRemoteWriter::TGroup::SendBlocks(int srcNode, int dstNode)
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
@@ -300,7 +300,7 @@ TRemoteWriter::TGroup::SendBlocks(int srcNode, int dstNode)
 }
 
 void TRemoteWriter::TGroup::CheckSendResponse(
-    TRemoteWriter::TRspSendBlocks::TPtr rsp, 
+    TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp,
     int srcNode, 
     int dstNode)
 {
@@ -315,7 +315,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         srcNode, 
         dstNode);
 
-    Writer->CheckResponse<TRemoteWriter::TRspSendBlocks>(
+    Writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
         rsp, 
         srcNode, 
         onSuccess,
@@ -470,7 +470,7 @@ void TRemoteWriter::ShiftWindow()
                 node,
                 lastFlushableBlock);
             auto onResponse = FromMethod(
-                &TRemoteWriter::CheckResponse<TRspFlushBlock>, 
+                &TRemoteWriter::CheckResponse<TProxy::TRspFlushBlock>,
                 TPtr(this), 
                 node, 
                 onSuccess,
@@ -485,7 +485,7 @@ void TRemoteWriter::ShiftWindow()
         lastFlushableBlock));
 }
 
-TRemoteWriter::TInvFlushBlock::TPtr 
+TRemoteWriter::TProxy::TInvFlushBlock::TPtr
 TRemoteWriter::FlushBlock(int node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -674,7 +674,7 @@ void TRemoteWriter::StartSession()
             TPtr(this), 
             node);
         auto onResponse = FromMethod(
-            &TRemoteWriter::CheckResponse<TRspStartChunk>, 
+            &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
             TPtr(this),
             node,
             onSuccess,
@@ -684,7 +684,7 @@ void TRemoteWriter::StartSession()
     awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionStarted, TPtr(this)));
 }
 
-TRemoteWriter::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
+TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
 {
     LOG_DEBUG("Starting chunk (ChunkId: %s, Address: %s)", 
         ~ChunkId.ToString(), 
@@ -747,7 +747,7 @@ void TRemoteWriter::CloseSession()
                 TPtr(this), 
                 node);
             auto onResponse = FromMethod(
-                &TRemoteWriter::CheckResponse<TRspFinishChunk>, 
+                &TRemoteWriter::CheckResponse<TProxy::TRspFinishChunk>,
                 TPtr(this), 
                 node, 
                 onSuccess, 
@@ -758,7 +758,7 @@ void TRemoteWriter::CloseSession()
     awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionFinished, TPtr(this)));
 }
 
-TRemoteWriter::TInvFinishChunk::TPtr 
+TRemoteWriter::TProxy::TInvFinishChunk::TPtr
 TRemoteWriter::FinishChunk(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);

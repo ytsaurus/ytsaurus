@@ -44,14 +44,13 @@ public:
 
 private:
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
-    USE_RPC_PROXY_METHOD(TProxy, GetBlocks);
 
     void DoReadBlocks(
         const yvector<int>& blockIndexes, 
         TFuture<TReadResult>::TPtr result);
 
     void OnBlocksRead(
-        TRspGetBlocks::TPtr rsp, 
+        TProxy::TRspGetBlocks::TPtr rsp,
         TFuture<TReadResult>::TPtr result,
         const yvector<int>& blockIndexes);
 

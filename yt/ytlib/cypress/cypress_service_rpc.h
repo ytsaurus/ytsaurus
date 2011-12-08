@@ -18,7 +18,12 @@ class TCypressServiceProxy
 public:
     typedef TIntrusivePtr<TCypressServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(CypressService,
+    static Stroka GetServiceName()
+    {
+        return "CypressService";
+    }
+
+    DECLARE_ENUM(EErrorCode,
         ((NoSuchTransaction)(1))
     );
 

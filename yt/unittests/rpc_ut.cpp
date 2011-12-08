@@ -191,9 +191,7 @@ public:
 
     Event Event_;
 
-    USE_RPC_PROXY_METHOD(TMyProxy, SomeCall);
-
-    void CheckReply(TRspSomeCall::TPtr response, int expected)
+    void CheckReply(TMyProxy::TRspSomeCall::TPtr response, int expected)
     {
         EXPECT_IS_TRUE(response->IsOK());
         EXPECT_EQ(expected, response->b());
