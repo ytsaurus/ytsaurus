@@ -117,9 +117,9 @@ public:
         TParent DoList(const TFunc& func)
         {
             this->Consumer->OnBeginList();
-            func(TListCore(Consumer));
+            func(TListCore(this->Consumer));
             this->Consumer->OnEndList();
-            return Parent;
+            return this->Parent;
         }
 
         template <class TFunc, class TIterator>
@@ -127,10 +127,10 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TListCore(Consumer), current);
+                func(TListCore(this->Consumer), current);
             }
             this->Consumer->OnEndList();
-            return Parent;
+            return this->Parent;
         }
 
         template <class TFunc, class TCollection>
@@ -138,10 +138,10 @@ public:
         {
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
-                func(TListCore(Consumer), item);
+                func(TListCore(this->Consumer), item);
             }
             this->Consumer->OnEndList();
-            return Parent;
+            return this->Parent;
         }
 
         TMap<TParent> BeginMap()
@@ -154,9 +154,9 @@ public:
         TParent DoMap(const TFunc& func)
         {
             this->Consumer->OnBeginMap();
-            func(TListCore(Consumer));
+            func(TListCore(this->Consumer));
             this->Consumer->OnEndMap();
-            return Parent;
+            return this->Parent;
         }
 
         template <class TFunc, class TIterator>
@@ -164,10 +164,10 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                func(TMapCore(Consumer), current);
+                func(TMapCore(this->Consumer), current);
             }
             this->Consumer->OnEndMap();
-            return Parent;
+            return this->Parent;
         }
 
         template <class TFunc, class TCollection>
@@ -175,10 +175,10 @@ public:
         {
             this->Consumer->OnBeginMap();
             FOREACH (const auto& item, collection) {
-                func(TMapCore(Consumer), item);
+                func(TMapCore(this->Consumer), item);
             }
             this->Consumer->OnEndMap();
-            return Parent;
+            return this->Parent;
         }
 
         TAny< TToAttributes<TParent> > WithAttributes()
@@ -269,7 +269,7 @@ public:
         template <class TFunc>
         TThis& Do(const TFunc& func)
         {
-            func(TListCore(Consumer));
+            func(TListCore(this->Consumer));
             return *this;
         }
 
@@ -277,7 +277,7 @@ public:
         TThis& DoIf(bool condition, const TFunc& func)
         {
             if (condition) {
-                func(TListCore(Consumer));
+                func(TListCore(this->Consumer));
             }
             return *this;
         }
@@ -286,7 +286,7 @@ public:
         TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TListCore(Consumer), current);
+                func(TListCore(this->Consumer), current);
             }
             return *this;
         }
@@ -295,7 +295,7 @@ public:
         TThis& DoFor(const TCollection& collection, const TFunc& func)
         {
             FOREACH (const auto& item, collection) {
-                func(TListCore(Consumer), item);
+                func(TListCore(this->Consumer), item);
             }
             return *this;
         }
@@ -347,7 +347,7 @@ public:
         template <class TFunc>
         TThis& Do(const TFunc& func)
         {
-            func(TMapCore(Consumer));
+            func(TMapCore(this->Consumer));
             return *this;
         }
 
@@ -355,7 +355,7 @@ public:
         TThis& DoIf(bool condition, const TFunc& func)
         {
             if (condition) {
-                func(TMapCore(Consumer));
+                func(TMapCore(this->Consumer));
             }
             return *this;
         }
@@ -364,7 +364,7 @@ public:
         TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TMapCore(Consumer), current);
+                func(TMapCore(this->Consumer), current);
             }
             return *this;
         }
@@ -373,7 +373,7 @@ public:
         TThis& DoFor(const TCollection& collection, const TFunc& func)
         {
             FOREACH (const auto& item, collection) {
-                func(TMapCore(Consumer), item);
+                func(TMapCore(this->Consumer), item);
             }
             return *this;
         }
