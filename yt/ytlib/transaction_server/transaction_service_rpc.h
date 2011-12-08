@@ -17,7 +17,12 @@ class TTransactionServiceProxy
 public:
     typedef TIntrusivePtr<TTransactionServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(TransactionService,
+    static Stroka GetServiceName()
+    {
+        return "TransactonService";
+    }
+
+    DECLARE_ENUM(EErrorCode,
         ((NoSuchTransaction)(1))
     );
 

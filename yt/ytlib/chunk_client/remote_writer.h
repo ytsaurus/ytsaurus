@@ -119,13 +119,6 @@ private:
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    USE_RPC_PROXY_METHOD(TProxy, StartChunk);
-    USE_RPC_PROXY_METHOD(TProxy, FinishChunk);
-    USE_RPC_PROXY_METHOD(TProxy, PutBlocks);
-    USE_RPC_PROXY_METHOD(TProxy, SendBlocks);
-    USE_RPC_PROXY_METHOD(TProxy, FlushBlock);
-    USE_RPC_PROXY_METHOD(TProxy, PingSession);
-
     TChunkId ChunkId;
     const TConfig Config;
 
@@ -181,7 +174,7 @@ private:
 
     void ShiftWindow();
 
-    TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+    TProxy::TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
 
     void OnBlockFlushed(int node, int blockIndex);
 
@@ -191,7 +184,7 @@ private:
 
     void StartSession();
 
-    TInvStartChunk::TPtr StartChunk(int node);
+    TProxy::TInvStartChunk::TPtr StartChunk(int node);
 
     void OnChunkStarted(int node);
 
@@ -199,7 +192,7 @@ private:
 
     void CloseSession();
 
-    TInvFinishChunk::TPtr FinishChunk(int node);
+    TProxy::TInvFinishChunk::TPtr FinishChunk(int node);
 
     void OnChunkFinished(int node);
 

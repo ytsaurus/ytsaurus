@@ -73,7 +73,7 @@ void TRemoteReader::DoReadBlocks(
 }
 
 void TRemoteReader::OnBlocksRead(
-    TRspGetBlocks::TPtr rsp, 
+    TProxy::TRspGetBlocks::TPtr rsp,
     TFuture<TReadResult>::TPtr result, 
     const yvector<int>& blockIndexes)
 {
