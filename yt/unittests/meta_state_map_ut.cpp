@@ -93,7 +93,7 @@ TEST_F(TMetaStateMapTest, BasicsInSavingSnapshotMode)
     TStringOutput output(snapshotData);
 
     NMetaState::TMetaStateMap<TKey, TValue> map;
-    TActionQueue::TPtr actionQueue = New<TActionQueue>();
+    TActionQueue::TPtr actionQueue = New<TActionQueue>("TestQueue");
     IInvoker::TPtr invoker = actionQueue->GetInvoker();
     TMyInt::SaveEvent.Reset(new Event());
     auto& saveEvent = *TMyInt::SaveEvent;

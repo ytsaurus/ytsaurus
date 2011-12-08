@@ -213,7 +213,7 @@ TLogManager::TConfig::TConfig(const TJsonObject* root)
 
 TLogManager::TLogManager()
     : ConfigVersion(0)
-    , Queue(New<TActionQueue>(false))
+    , Queue(New<TActionQueue>("LogManager", false))
 {
     ConfigureSystem();
     ConfigureDefault();
