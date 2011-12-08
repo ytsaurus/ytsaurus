@@ -1,6 +1,6 @@
 package NYT.NTableClient.NProto;
 
-import "chunk.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

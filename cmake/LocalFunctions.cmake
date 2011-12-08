@@ -26,8 +26,8 @@ function( PROTOC proto output )
       ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
     COMMAND
       ${EXECUTABLE_OUTPUT_PATH}/${CMAKE_CFG_INTDIR}/protoc
-        -I${CMAKE_SOURCE_DIR}${_relative_path}
-        --cpp_out=${CMAKE_BINARY_DIR}${_relative_path}
+        -I${CMAKE_SOURCE_DIR}
+        --cpp_out=${CMAKE_BINARY_DIR}
         ${_proto_realpath}
     MAIN_DEPENDENCY
       ${_proto_realpath}

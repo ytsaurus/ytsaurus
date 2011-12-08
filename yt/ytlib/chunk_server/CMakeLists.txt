@@ -19,9 +19,5 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/cypress_integration.cpp
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_holder_service_rpc.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/file_chunk_meta.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/table_chunk_meta.proto YT_SOURCE_FILES )
 PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_service_rpc.proto YT_SOURCE_FILES )
 PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_manager.proto YT_SOURCE_FILES )

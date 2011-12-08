@@ -3,6 +3,7 @@ PROTOC( rpc_ut.proto PROTO_SRC )
 include_directories(
   ../ytlib
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
 )
 

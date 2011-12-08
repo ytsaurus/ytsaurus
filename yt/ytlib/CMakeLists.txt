@@ -49,6 +49,7 @@ target_link_libraries ( ytlib
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   .
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -58,12 +59,11 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}/ytree
   ${CMAKE_CURRENT_BINARY_DIR}/file_server
   ${CMAKE_CURRENT_BINARY_DIR}/file_client
-  ${CMAKE_CURRENT_BINARY_DIR}/chunk_server
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}/chunk_client  
+    ${CMAKE_CURRENT_BINARY_DIR}/chunk_client
     ${CMAKE_CURRENT_BINARY_DIR}/election
     ${CMAKE_CURRENT_BINARY_DIR}/transaction_server
     ${CMAKE_CURRENT_BINARY_DIR}/meta_state
