@@ -3,6 +3,7 @@
 
 #include "../logging/log.h"
 #include "../misc/common.h"
+#include "../misc/thread.h"
 
 namespace NYT {
 
@@ -47,11 +48,12 @@ bool TQueueInvoker::DequeueAndExecute()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueueBase::TActionQueueBase(bool enableLogging)
+TActionQueueBase::TActionQueueBase(const char* threadName, bool enableLogging)
     : EnableLogging(enableLogging)
     , Finished(false)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
+    , ThreadName(threadName)
 { }
 
 TActionQueueBase::~TActionQueueBase()
@@ -74,6 +76,7 @@ void* TActionQueueBase::ThreadFunc(void* param)
 void TActionQueueBase::ThreadMain()
 {
     try {
+        NThread::SetCurrentThreadName(ThreadName);
         while (!Finished) {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
@@ -105,8 +108,8 @@ void TActionQueueBase::Shutdown()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueue::TActionQueue(bool enableLogging)
-    : TActionQueueBase(enableLogging)
+TActionQueue::TActionQueue(const char* threadName, bool enableLogging)
+    : TActionQueueBase(threadName, enableLogging)
 {
     QueueInvoker = New<TQueueInvoker>(this);
     Start();
@@ -132,8 +135,8 @@ IInvoker::TPtr TActionQueue::GetInvoker()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount)
-    : TActionQueueBase(true)
+TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const char* threadName)
+    : TActionQueueBase(threadName, true)
     , QueueInvokers(priorityCount)
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {

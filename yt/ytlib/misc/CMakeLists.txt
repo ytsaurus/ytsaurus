@@ -43,6 +43,8 @@ SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/blob_output.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/error.cpp
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/error.h
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/thread.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/thread.h
 
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/preprocessor-gen.h
     ${CMAKE_SOURCE_DIR}/yt/ytlib/misc/new.h
