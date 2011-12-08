@@ -114,22 +114,22 @@ void TChunkHolderServer::Run()
     // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();  
-    orchidRoot->AddChild(
+    YVERIFY(orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
-        "monitoring");
-    orchidRoot->AddChild(
+        "monitoring"));
+    YVERIFY(orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~CreateChunkMapService(~chunkStore),
             orchidFactory),
-        "chunks");
+        "chunks"));
     if (!Config.NewConfigFileName.empty()) {
-        orchidRoot->AddChild(
+        YVERIFY(orchidRoot->AddChild(
             NYTree::CreateVirtualNode(
                 ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
                 orchidFactory),
-            "config");
+            "config"));
     }
 
     auto orchidService = New<TOrchidService>(

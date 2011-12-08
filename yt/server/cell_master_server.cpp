@@ -179,17 +179,17 @@ void TCellMasterServer::Run()
     // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();  
-    orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~CreateMonitoringProvider(~monitoringManager),
-            orchidFactory),
-        "monitoring");
+        YVERIFY(orchidRoot->AddChild(
+            NYTree::CreateVirtualNode(
+                ~CreateMonitoringProvider(~monitoringManager),
+                orchidFactory),
+            "monitoring"));
     if (!Config.NewConfigFileName.empty()) {
-        orchidRoot->AddChild(
+        YVERIFY(orchidRoot->AddChild(
             NYTree::CreateVirtualNode(
                 ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
                 orchidFactory),
-            "config");
+            "config"));
     }
 
     auto orchidService = New<NOrchid::TOrchidService>(

@@ -415,12 +415,12 @@ void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* val
             ChopYPathToken(currentPath, &prefix, &suffixPath);
 
             if (IsFinalYPath(suffixPath)) {
-                currentNode->AddChild(value, prefix);
+                YVERIFY(currentNode->AddChild(value, prefix));
                 break;
             }
 
             auto intermediateNode = GetFactory()->CreateMap();
-            currentNode->AddChild(intermediateNode, prefix);
+            YVERIFY(currentNode->AddChild(intermediateNode, prefix));
 
             currentNode = intermediateNode;
             currentPath = suffixPath;
