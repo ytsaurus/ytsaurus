@@ -147,7 +147,7 @@ private:
 
     void OnForwardingFinished()
     {
-        Map->AddChild(Builder->EndTree(), ItemName);
+        YVERIFY(Map->AddChild(Builder->EndTree(), ItemName));
         ItemName.clear();
     }
 

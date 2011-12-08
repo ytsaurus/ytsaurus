@@ -112,6 +112,10 @@ private:
                     .BeginMap()
                         .Item("replica_count").Scalar(chunkList->GetReplicaCount())
                         .Item("ref_counter").Scalar(chunkList->GetRefCounter())
+                        .Item("chunk_ids").DoListFor(chunkList->ChunkIds(), [=] (TFluentList fluent, TChunkId chunkId)
+                            {
+                                fluent.Item().Scalar(chunkId.ToString());
+                            })
                     .EndMap();
             }));
     }
