@@ -1,4 +1,4 @@
-#:yt-updatabale
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
   ${BASE}/async_stream_state.cpp

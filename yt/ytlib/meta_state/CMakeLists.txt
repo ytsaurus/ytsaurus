@@ -1,4 +1,4 @@
-#:yt-updatabale
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
 set( SRCS
   ${BASE}/async_change_log.cpp

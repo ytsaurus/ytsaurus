@@ -11,7 +11,7 @@ import hashlib
 import glob
 
 
-_LIST_HEADER   = '#:yt-updatabale'
+_LIST_HEADER   = '#:yt-updatable'
 
 
 _RE_BASE       = re.compile(r'^set\( BASE .*\)$')

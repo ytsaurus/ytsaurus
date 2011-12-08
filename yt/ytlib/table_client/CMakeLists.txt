@@ -1,4 +1,4 @@
-#:yt-updatabale
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
   ${BASE}/channel_reader.cpp

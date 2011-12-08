@@ -1,4 +1,4 @@
-#:yt-updatabale
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/client )
 set( SRCS
   ${BASE}/block_buffer.cpp

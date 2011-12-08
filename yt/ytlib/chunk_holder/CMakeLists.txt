@@ -1,4 +1,4 @@
-#:yt-updatabale
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder )
 set( SRCS
   ${BASE}/block_store.cpp
