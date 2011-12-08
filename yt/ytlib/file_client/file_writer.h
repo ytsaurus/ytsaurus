@@ -8,6 +8,7 @@
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"
 #include "../chunk_client/remote_writer.h"
+#include "../chunk_server/chunk_service_rpc.h"
 
 namespace NYT {
 namespace NFileClient {
@@ -62,6 +63,8 @@ private:
     volatile bool Aborted;
 
     TAutoPtr<NCypress::TCypressServiceProxy> CypressProxy;
+    TAutoPtr<NChunkServer::TChunkServiceProxy> ChunkProxy;
+
     NChunkClient::TRemoteWriter::TPtr Writer;
     NCypress::TNodeId NodeId;
     NChunkClient::TChunkId ChunkId;

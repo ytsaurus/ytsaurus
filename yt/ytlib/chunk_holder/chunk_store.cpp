@@ -193,6 +193,7 @@ void TChunkStore::ScanChunks()
             NFS::ForcePath(path);
             NFS::CleanTempFiles(path);
 
+            // TODO: extract method
             TFileList fileList;
             fileList.Fill(path, TStringBuf(), TStringBuf(), 2);
             i32 size = fileList.Size();
@@ -202,6 +203,7 @@ void TChunkStore::ScanChunks()
             }
             std::sort(fileNames.begin(), fileNames.end());
 
+            // TODO: refactor
             Stroka* lastDataFile = NULL;
             FOREACH (auto& fileName, fileNames) {
                 bool isMeta = fileName.has_prefix(metaSuffix);
@@ -237,6 +239,7 @@ void TChunkStore::ScanChunks()
                     lastDataFile = &fileName;
                 }
             }
+
             if (lastDataFile != NULL) {
                 LOG_WARNING("Missing meta file for %s",
                     ~lastDataFile->Quote());

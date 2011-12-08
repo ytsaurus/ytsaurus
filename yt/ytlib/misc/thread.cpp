@@ -44,7 +44,7 @@ void SetThreadName(DWORD dwThreadID, LPCSTR szThreadName)
    }
 }
 
-}
+} // namespace <anonymous>
 
 #undef MS_VC_EXCEPTION
 
@@ -59,7 +59,7 @@ void SetCurrentThreadName(const char* name)
 #endif
 }
 
-size_t GetCurrentThreadId()
+TThreadId GetCurrentThreadId()
 {
     return SystemCurrentThreadIdImpl();
 }
