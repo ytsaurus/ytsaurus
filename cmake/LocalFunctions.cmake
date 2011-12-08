@@ -12,9 +12,10 @@ function( PROTOC proto output )
   string(REPLACE "${CMAKE_SOURCE_DIR}" "" _relative_path "${_proto_dirname}")
 
   # Append generated .pb.h and .pb.cc to the output variable.
-  SET(
-    ${output} ${${output}}
-    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
+  set(${output}
+    ${${output}}
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.h
+    ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
     PARENT_SCOPE)
 
   # Specify custom command how to generate .pb.h and .pb.cc.
