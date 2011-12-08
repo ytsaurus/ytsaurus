@@ -1,11 +1,11 @@
-add_executable( server
-  stdafx.cpp
+set( SRCS
   main.cpp
   cell_master_server.cpp
   chunk_holder_server.cpp
 )
 
-add_native_precompiled_header( server stdafx.h )
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
+add_executable( server ${SRCS} )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}

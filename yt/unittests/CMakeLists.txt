@@ -12,10 +12,9 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
   )
 endif()
 
-add_executable( unittester
-  ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
-  stdafx.cpp
+set( SRCS
   utmain.cpp
+
   change_log_ut.cpp
   async_result_ut.cpp
   snapshot_ut.cpp
@@ -39,12 +38,15 @@ add_executable( unittester
   config_ut.cpp
   bus_ut.cpp
   serialize_ut.cpp
-
   rpc_ut.cpp
-  ${PROTO_SRC}
 )
 
-add_native_precompiled_header( unittester stdafx.h )
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
+add_executable( unittester
+  ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
+  ${SRCS}
+  ${PROTO_SRC}
+)
 
 target_link_libraries( unittester
   ytlib

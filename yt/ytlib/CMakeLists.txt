@@ -26,12 +26,10 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" YT_SOURCE_FILES )
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
-  stdafx.cpp
 )
-
-add_native_precompiled_header( ytlib stdafx.h )
 
 target_link_libraries ( ytlib
   arcadia-utils
