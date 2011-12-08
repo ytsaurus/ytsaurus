@@ -40,6 +40,7 @@ set( SRCS
   bus_ut.cpp
   serialize_ut.cpp
   rpc_ut.cpp
+  ypath_ut.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
