@@ -42,6 +42,9 @@ Stroka GetFileNameWithoutExtension(const Stroka& path);
 //! Returns path of directory containing the file.
 Stroka GetDirectoryName(const Stroka& path);
 
+//! Combines two strings into a path.
+Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
+
 //! Deletes all files with extension #TempFileSuffix in a given directory.
 void CleanTempFiles(const Stroka& path);
 

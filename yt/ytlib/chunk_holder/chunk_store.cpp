@@ -93,8 +93,10 @@ int TLocation::GetSessionCount() const
 
 Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
 {
-    ui8 firstByte = chunkId.Parts[0];
-    return Sprintf("%s/%x/%s", ~Path, firstByte, ~chunkId.ToString());
+    ui8 firstByte = static_cast<ui8>(chunkId.Parts[0] >> 24);
+    return NFS::CombinePaths(
+        Path,
+        Sprintf("%x/%s", firstByte, ~chunkId.ToString()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,18 +203,19 @@ void TChunkStore::ScanChunks()
             yhash_set<TChunkId> chunks;
             for (i32 i = 0; i < size; ++i) {
                 Stroka fileName = fileList.Next();
-                fileNames.insert(path + fileName);
+                fileNames.insert(NFS::CombinePaths(path, fileName));
 
-                TChunkId chunkId = TChunkId::FromString(
-                    NFS::GetFileNameWithoutExtension(fileName));
-                if (!chunkId.IsEmpty()) {
+                TChunkId chunkId;
+                if (TChunkId::FromString(
+                        NFS::GetFileNameWithoutExtension(fileName), &chunkId))
+                {
                     chunks.insert(chunkId);
                 } else {
                     LOG_ERROR("Invalid chunk filename (FileName: %s)", ~fileName.Quote());
                 }
             }
 
-            FOREACH (auto& chunkId, chunks) {
+            FOREACH (const auto& chunkId, chunks) {
                 auto chunkFileName = location->GetChunkFileName(chunkId);
                 auto chunkMetaFileName = chunkFileName + metaSuffix;
                 bool hasMeta = fileNames.find(chunkMetaFileName) != fileNames.end();
