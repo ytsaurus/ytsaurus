@@ -16,6 +16,15 @@
 #include <windows.h>
 #endif
 
+// For JoinPaths
+#ifdef _win_
+static const char PATH_DELIM = '\\';
+static const char PATH_DELIM2 = '/';
+#else
+static const char PATH_DELIM = '/';
+static const char PATH_DELIM2 = 0;
+#endif
+
 namespace NYT {
 namespace NFS {
 
@@ -177,6 +186,45 @@ i64 GetFileSize(const Stroka& path)
 #endif
 
     return fileSize;
+}
+
+static bool IsAbsPath(const Stroka& path) {
+    if (path.empty())
+        return false;
+    if (path[0] == PATH_DELIM)
+        return true;
+#ifdef _win_
+    if (path[0] == PATH_DELIM2)
+        return true;
+    if (path[0] > 0 && isalpha(path[0]) && path[1] == ':')
+        return true;
+#endif // _win_
+    return false;
+}
+
+static Stroka JoinPaths(const Stroka& path1, const Stroka& path2) {
+    if (path1.empty())
+        return path2;
+    if (path2.empty())
+        return path1;
+
+    Stroka path = path1;
+    int delim = 0;
+    if (path1.back() == PATH_DELIM || path1.back() == PATH_DELIM2)
+        ++delim;
+    if (path2[0] == PATH_DELIM || path2[0] == PATH_DELIM2)
+        ++delim;
+    if (delim == 0)
+        path.append(1, PATH_DELIM);
+    path.append(path2, delim == 2 ? 1 : 0, Stroka::npos);
+    return path;
+}
+
+Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
+{
+    if (IsAbsPath(path2))
+        return path2;
+    return JoinPaths(path1, path2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
