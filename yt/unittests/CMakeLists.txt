@@ -58,6 +58,6 @@ target_link_libraries( unittester
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( unittester stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( unittester PROPERTIES LINK_FLAGS "-nodefaultlibs" )
+    set_target_properties( unittester PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
