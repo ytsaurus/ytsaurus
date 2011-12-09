@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
+#include "../misc/config.h"
 
 #include "chunk_holder_service_rpc.pb.h"
 #include "chunk_service_rpc.pb.h"
@@ -15,8 +16,28 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes a chunk location.
+struct TLocationConfig
+    : TConfigBase
+{
+    //! Location root path.
+    Stroka Path;
+
+    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
+    i64 Quota;
+
+    TLocationConfig()
+    {
+        Register("path", Path).NonEmpty();
+        Register("quota")
+    }
+};
+
+
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
+    : public TConfigBase
+
 {
     //! Maximum number blocks in cache.
     int MaxCachedBlocks;
@@ -53,9 +74,7 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    // TODO: consider making per/location limit
-    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
-    i64 MaxChunksSpace;
+    //// TODO: consider making per/location limit
 
     // TODO: killme
     Stroka NewConfigFileName;
@@ -66,15 +85,17 @@ struct TChunkHolderConfig
      *  a standalone mode, which only makes sense for testing purposes.
      */
     TChunkHolderConfig()
-        : MaxCachedBlocks(10)
-        , MaxCachedFiles(10)
-        , SessionTimeout(TDuration::Seconds(15))
-        , HeartbeatPeriod(TDuration::Seconds(5))
-        , MasterRpcTimeout(TDuration::Seconds(5))
-        , RpcPort(9000)
-        , MonitoringPort(10001)
-        , MaxChunksSpace(-1)
     {
+        Register("max_cached_blocks", MaxCachedBlocks).GreaterThan(0).Default(10);
+        Register("max_cached_files", MaxCachedFiles).GreaterThan(0).Default(10);
+        Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
+        Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
+        Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
+        Register("rpc_port", RpcPort).Default(9000);
+        Register("monitoring_port", MonitoringPort).Default(10001);
+
+        SetDefaults();
+
         Locations.push_back(".");
     }
 
@@ -84,7 +105,7 @@ struct TChunkHolderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: to statistics.h/cpp
+// TODO: replace by NProto:THolderStatistics
 struct THolderStatistics
 {
     THolderStatistics()

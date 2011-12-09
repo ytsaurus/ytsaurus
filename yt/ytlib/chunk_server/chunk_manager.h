@@ -17,9 +17,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: get rid
-using NTransactionServer::TTransactionId;
-
 class TChunkManager
     : public TRefCountedBase
 {
@@ -64,7 +61,7 @@ public:
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
     NMetaState::TMetaChange<NChunkClient::TChunkId>::TPtr InitiateAllocateChunk(
-        const TTransactionId& transactionId);
+        const NTransactionServer::TTransactionId& transactionId);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
         const NProto::TMsgConfirmChunks& message);

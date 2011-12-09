@@ -3,7 +3,11 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder )
 set( SRCS
   ${BASE}/block_store.cpp
   ${BASE}/chunk_holder_service.cpp
+  ${BASE}/location.cpp
+  ${BASE}/chunk.cpp
   ${BASE}/chunk_store.cpp
+  ${BASE}/chunk_cache.cpp
+  ${BASE}/reader_cache.cpp
   ${BASE}/common.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/replicator.cpp
@@ -14,7 +18,11 @@ set( HDRS
   ${BASE}/block_store.h
   ${BASE}/chunk_holder_service.h
   ${BASE}/chunk_holder_service_rpc.h
+  ${BASE}/location.h
+  ${BASE}/chunk.h
   ${BASE}/chunk_store.h
+  ${BASE}/chunk_cache.h
+  ${BASE}/reader_cache.h
   ${BASE}/common.h
   ${BASE}/master_connector.h
   ${BASE}/replicator.h
