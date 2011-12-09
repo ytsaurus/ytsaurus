@@ -26,6 +26,7 @@ public:
 
     //! Describes a configuration.
     struct TConfig
+        : public TConfigBase
     {
         //! List of peer addresses.
         yvector<Stroka> Addresses;
@@ -34,8 +35,12 @@ public:
         TDuration RpcTimeout;
 
         TConfig()
-            : RpcTimeout(TDuration::MilliSeconds(300))
-        { }
+        {
+            Register("addresses", Addresses).NonEmpty();
+            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
+
+            SetDefaults();
+        }
 
         void Read(TJsonObject* json)
         {

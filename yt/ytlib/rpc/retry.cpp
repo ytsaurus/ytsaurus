@@ -23,16 +23,14 @@ class TRetriableChannel
     : public IChannel
 {
     DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
-    DEFINE_BYVAL_RO_PROPERTY(TDuration, BackoffTime);
-    DEFINE_BYVAL_RO_PROPERTY(int, RetryCount);
+    DEFINE_BYVAL_RO_PROPERTY(TRetryConfig, Config);
 
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;
 
     TRetriableChannel(
-        IChannel* underlyingChannel, 
-        TDuration backoffTime, 
-        int retryCount);
+        const TRetryConfig& config,
+        IChannel* underlyingChannel);
 
     void Send(
         IClientRequest* request, 
@@ -44,14 +42,12 @@ public:
 };
 
 IChannel::TPtr CreateRetriableChannel(
-    IChannel* underlyingChannel,
-    TDuration backoffTime,
-    int retryCount)
+    const TRetryConfig& config,
+    IChannel* underlyingChannel)
 {
     return New<TRetriableChannel>(
-        underlyingChannel,
-        backoffTime,
-        retryCount);
+        config,
+        underlyingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,10 +137,10 @@ private:
                 count,
                 ~error.ToString()));
 
-            if (count < Channel->GetRetryCount()) {
+            if (count < Channel->GetConfig().RetryCount) {
                 TDelayedInvoker::Submit(
                     ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
-                    Channel->GetBackoffTime());
+                    Channel->GetConfig().BackoffTime);
             } else {
                 State = EState::Done;
                 guard.Release();
@@ -180,15 +176,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRetriableChannel::TRetriableChannel(
-    IChannel* underlyingChannel, 
-    TDuration backoffTime, 
-    int retryCount)
+    const TRetryConfig& config,
+    IChannel* underlyingChannel)
     : UnderlyingChannel_(underlyingChannel)
-    , BackoffTime_(backoffTime)
-    , RetryCount_(retryCount)
+    , Config_(config)
 {
     YASSERT(underlyingChannel != NULL);
-    YASSERT(retryCount >= 1);
 }
 
 void TRetriableChannel::Send(

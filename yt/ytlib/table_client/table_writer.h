@@ -2,6 +2,7 @@
 #include "common.h"
 #include "chunk_sequence_writer.h"
 
+#include "../misc/new_config.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"
@@ -15,18 +16,23 @@ namespace NTableClient {
 //! Provides a synchronous API for writing tables.
 class TTableWriter
     : public ISyncWriter
-{
+{   
 public:
     typedef TIntrusivePtr<TTableWriter> TPtr;
 
-    struct TConfig {
+    struct TConfig 
+        : public TConfigBase
+    {
         TDuration RpcTimeout;
         TChunkSequenceWriter::TConfig ChunkSequenceWriter;
 
-        TConfig(const TChunkSequenceWriter::TConfig& config)
-            : RpcTimeout(TDuration::Seconds(5))
-            , ChunkSequenceWriter(config)
-        { }
+        TConfig()
+        {
+            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
+            Register("chunk_sequence_writer", ChunkSequenceWriter);
+
+            SetDefaults();
+        }
     };
 
     TTableWriter(

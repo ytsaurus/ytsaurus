@@ -60,12 +60,12 @@ void TChunkSequenceWriter::OnChunkCreated(TRspCreateChunk::TPtr rsp)
         // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
-            Config.ChunkWriterConfig,
+            Config.RemoteChunk,
             TChunkId::FromProto(rsp->chunkid()),
             addresses);
 
         NextChunk->Set(new TChunkWriter(
-            Config.TableChunkConfig,
+            Config.TableChunk,
             chunkWriter,
             Schema));
 

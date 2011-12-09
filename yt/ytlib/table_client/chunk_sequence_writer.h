@@ -22,6 +22,7 @@ public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
         i64 MaxChunkSize;
 
@@ -31,19 +32,19 @@ public:
 
         int ReplicationFactor;
 
-        TChunkWriter::TConfig TableChunkConfig;
-        NChunkClient::TRemoteWriter::TConfig ChunkWriterConfig;
+        TChunkWriter::TConfig TableChunk;
+        NChunkClient::TRemoteWriter::TConfig RemoteChunk;
 
-        TConfig(
-            i64 chunkSize, 
-            double threshold,
-            int repFactor, 
-            const NChunkClient::TRemoteWriter::TConfig& chunkWriterConfig)
-            : MaxChunkSize(chunkSize)
-            , NextChunkThreshold(threshold)
-            , ReplicationFactor(repFactor)
-            , ChunkWriterConfig(chunkWriterConfig)
-        { }
+        TConfig()
+        {
+            Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(256 * 1024 * 1024);
+            Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(1).Default(0.7);
+            Register("replication_factor", ReplicationFactor).GreaterThanOrEqual(1).Default(2);
+            Register("table_chunk", TableChunk);
+            Register("remote_chunk", RemoteChunk);
+
+            SetDefaults();
+        }
     };
 
     TChunkSequenceWriter(
