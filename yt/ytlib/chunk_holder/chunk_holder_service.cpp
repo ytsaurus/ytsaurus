@@ -46,6 +46,7 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     
     server->RegisterService(this);
 }
@@ -289,6 +290,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 
     *response->mutable_chunkinfo() = chunk->Info();
 
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
+{
+    auto chunkId = TChunkId::FromProto(request->chunkid());
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
     context->Reply();
 }
 
