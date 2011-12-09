@@ -1,18 +1,21 @@
 #!/usr/bin/python
-# Requires python 2.6+
+################################################################################
 
-
+import hashlib
 import os
 import os.path
 import re
 import sys
 import tempfile
-import hashlib
-import glob
 
+if sys.hexversion <= 0x2060000:
+    print >>sys.stderr, 'Incompatible Python version. Python >= 2.6 required.'
+    sys.exit(255)
+
+################################################################################
+### Auxiliary constants and functions.
 
 _LIST_HEADER   = '#:yt-updatable'
-
 
 _RE_BASE       = re.compile(r'^set\( BASE .*\)$')
 _RE_SRCS_BEGIN = re.compile(r'^set\( SRCS$')
@@ -20,25 +23,16 @@ _RE_SRCS_END   = re.compile(r'^\)$')
 _RE_HDRS_BEGIN = re.compile(r'^set\( HDRS$')
 _RE_HDRS_END   = re.compile(r'^\)$')
 
-
 def compute_file_hash(path):
     md5 = hashlib.md5()
     with open(path, 'rb') as handle:
-        for chunk in iter(lambda: handle.read(8192), ''): 
+        for chunk in iter(lambda: handle.read(64 * 1024), ''): 
             md5.update(chunk)
     return md5.digest()
 
 
-def get_project_root():
-    root = os.path.realpath(__file__)
-    root = os.path.join(os.path.dirname(root), '..')
-    root = os.path.realpath(root)
-    return root
-
-
-def strip_project_root(path):
-    return os.path.relpath(path, get_project_root())
-
+################################################################################
+### Abstract rewriter.
 
 class Rewriter(object):
     def __init__(self, iterable, sink):
@@ -69,9 +63,20 @@ class Rewriter(object):
             self.passthrough()
 
 
-class CMakeListsHandler(object):
-    def __init__(self, directory):
-        self.working_directory = os.path.realpath(directory)
+################################################################################
+### A rewriter which updates CMakeLists.txt with up-to-date list of source
+### and header files.
+
+class CMakeListsUpdater(object):
+    @staticmethod
+    def is_updatable(list):
+        with open(list, 'rt') as list_handle:
+            header = list_handle.readline().strip()
+            return header == _LIST_HEADER
+
+    def __init__(self, working_directory, project_directory):
+        self.working_directory = os.path.realpath(working_directory)
+        self.project_directory = os.path.realpath(project_directory)
         
     def _make_relative(self, files):
         files = [ os.path.realpath(file) for file in files ]
@@ -114,7 +119,7 @@ class CMakeListsHandler(object):
 
     def write_new_base(self, sink):
         print >>sink, 'set( BASE {0} )'.format(
-            self.working_directory.replace(get_project_root(), '${CMAKE_SOURCE_DIR}')
+            self.working_directory.replace(self.project_directory, '${CMAKE_SOURCE_DIR}')
         )
 
     def write_new_srcs(self, sink):
@@ -128,38 +133,8 @@ class CMakeListsHandler(object):
             print >>sink, '  {0}'.format(header)
 
 
-def update_list_in_directory(directory):
-    sources = glob.glob(os.path.join(directory, '*.cpp'))
-    headers = glob.glob(os.path.join(directory, '*.h'))
+################################################################################
+################################################################################
 
-    handler = CMakeListsHandler(directory)
-    handler.set_sources(sources)
-    handler.set_headers(headers)
-
-    if handler.apply():
-        print >>sys.stderr, '  * Updated'
-    else:
-        print >>sys.stderr, '  * Untouched'
-
-
-def find_directories_with_feasible_lists(root_directory):
-    for root, directores, files in os.walk(root_directory):
-        if '.git' in root or '.svn' in root or 'CMakeLists.txt' not in files:
-            continue
-        
-        with open(os.path.join(root, 'CMakeLists.txt'), 'rt') as candidate_list:
-            candidate_header = candidate_list.readline().strip()
-            if candidate_header != _LIST_HEADER:
-                continue
-
-        yield root
-
-
-def main():
-    for directory in find_directories_with_feasible_lists(get_project_root()):
-        print >>sys.stderr, 'Processing {0}...'.format(strip_project_root(directory))
-        update_list_in_directory(directory)
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    pass
