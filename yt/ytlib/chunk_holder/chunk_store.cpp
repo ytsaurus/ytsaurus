@@ -19,73 +19,15 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TCachedReader
-    : public TCacheValueBase<TChunkId, TCachedReader>
-    , public TFileReader
-{
-public:
-    typedef TIntrusivePtr<TCachedReader> TPtr;
-
-    TCachedReader(const TChunkId& chunkId, Stroka fileName)
-        : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileReader(fileName)
-    { }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkStore::TReaderCache
-    : public TCapacityLimitedCache<TChunkId, TCachedReader>
-{
-public:
-    typedef TIntrusivePtr<TReaderCache> TPtr;
-
-    TReaderCache(
-        const TChunkHolderConfig& config,
-        TChunkStore::TPtr chunkStore)
-        : TCapacityLimitedCache<TChunkId, TCachedReader>(config.MaxCachedFiles)
-        , ChunkStore(chunkStore)
-    { }
-
-    TCachedReader::TPtr Get(TChunk* chunk)
-    {
-        auto chunkId = chunk->GetId();
-        TInsertCookie cookie(chunkId);
-        if (BeginInsert(&cookie)) {
-            try {
-                auto reader = New<TCachedReader>(chunk->GetId(), chunk->GetFileName());
-                reader->Open();
-                cookie.EndInsert(reader);
-            } catch (...) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
-                    ~chunkId.ToString(),
-                    ~CurrentExceptionMessage());
-            }
-        }
-        return cookie.GetAsyncResult()->Get();
-    }
-
-    bool Remove(TChunk::TPtr chunk)
-    {
-        return TCacheBase::Remove(chunk->GetId());
-    }
-
-private:
-    TChunkStore::TPtr ChunkStore;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkStore::TChunkStore(const TChunkHolderConfig& config)
+TChunkStore::TChunkStore(
+    const TChunkHolderConfig& config,
+    TReaderCache* readerCache)
     : Config(config)
-    , ReaderCache(New<TReaderCache>(Config, this))
+    , ReaderCache(readerCache)
 {
     InitLocations();
     ScanLocations(); 
 }
-
 
 void TChunkStore::ScanLocations()
 {
@@ -108,7 +50,7 @@ void TChunkStore::ScanLocations()
 void TChunkStore::InitLocations()
 {
     FOREACH (const auto& config, Config.Locations) {
-        Locations_.push_back(New<TLocation>(config));
+        Locations_.push_back(New<TLocation>(config, ~ReaderCache));
     }
 }
 
@@ -137,8 +79,6 @@ void TChunkStore::RemoveChunk(TStoredChunk* chunk)
     auto chunkId = chunk->GetId();
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);
-
-    ReaderCache->Remove(chunk);
     chunk->GetLocation()->UnregisterChunk(chunk);
         
     Stroka fileName = chunk->GetFileName();
@@ -189,11 +129,6 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 int TChunkStore::GetChunkCount() const
 {
     return ChunkMap.ysize();
-}
-
-TFileReader::TPtr TChunkStore::GetChunkReader(TStoredChunk* chunk)
-{
-    return ReaderCache->Get(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

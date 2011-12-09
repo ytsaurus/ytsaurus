@@ -23,16 +23,15 @@ struct TLocationConfig
     //! Location root path.
     Stroka Path;
 
-    //! Maximum space chunks are allowed to occupy (-1 indicates no limit).
+    //! Maximum space chunks are allowed to occupy (0 indicates no limit).
     i64 Quota;
 
     TLocationConfig()
     {
         Register("path", Path).NonEmpty();
-        Register("quota")
+        Register("quota", Quota).Default(0);
     }
 };
-
 
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
@@ -53,15 +52,6 @@ struct TChunkHolderConfig
      */
     TDuration SessionTimeout;
     
-    //! Paths to storage locations.
-    yvector<Stroka> Locations;
-
-    //! Masters configuration.
-    /*!
-     *  If no master addresses are given, the holder will operate in a standalone mode.
-     */
-    NElection::TLeaderLookup::TConfig Masters;
-    
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
@@ -79,6 +69,15 @@ struct TChunkHolderConfig
     // TODO: killme
     Stroka NewConfigFileName;
 
+    //! Describes regular storage locations.
+    yvector<TLocationConfig> Locations;
+
+    //! Masters configuration.
+    /*!
+     *  If no master addresses are given, the holder will operate in a standalone mode.
+     */
+    NElection::TLeaderLookup::TConfig Masters;
+    
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -93,10 +92,10 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10001);
+        //Register("locations", Locations);
+        Register("masters", Masters);
 
         SetDefaults();
-
-        Locations.push_back(".");
     }
 
     //! Reads configuration from JSON.

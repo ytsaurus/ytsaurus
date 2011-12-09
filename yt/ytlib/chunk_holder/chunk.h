@@ -31,7 +31,7 @@ struct TChunkDescriptor
 class TChunk
     : public TRefCountedBase
 {
-    //! Chunk id.
+    //! Chunk id.`
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TLocation>, Location);
@@ -64,7 +64,8 @@ public:
     TAsyncGetInfoResult::TPtr GetInfo();
 
 private:
-    bool HasInfo;
+    TSpinLock SpinLock;
+    volatile bool HasInfo;
     NChunkHolder::NProto::TChunkInfo Info;
 
 };

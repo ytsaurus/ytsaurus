@@ -53,12 +53,12 @@ void TLeaderLookup::OnResponse(
     TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TResult>::TPtr asyncResult,
-    Stroka address)
+    const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting leader from peer (Address: %s, Error: %s)",
+        LOG_WARNING("Error requesting leader from peer (Address: %s)\n%s",
             ~address,
             ~response->GetError().ToString());
         return;

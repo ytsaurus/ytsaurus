@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk.h"
 #include "location.h"
+#include "reader_cache.h"
+#include "chunk_holder_service_rpc.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -32,12 +34,36 @@ Stroka TChunk::GetFileName()
 
 TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
 {
-    if (HasInfo) {
-        return ToFuture(TGetInfoResult(Info));
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (HasInfo) {
+            return ToFuture(TGetInfoResult(Info));
+        }
     }
 
-    // TODO:
-    return NULL;
+    TChunk::TPtr chunk = this;
+    auto invoker = Location_->GetInvoker();
+    auto readerCache = Location_->GetReaderCache();
+    return
+        FromFunctor([=] () -> TGetInfoResult
+            {
+                auto reader = readerCache->GetReader(~chunk);
+                if (~reader == NULL) {
+                    return TError(
+                        TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
+                        Sprintf("Cannot open a chunk reader to fetch chunk info (ChunkId: %s)", ~chunk->GetId().ToString()));
+                }
+
+                auto info = reader->GetChunkInfo();
+
+                TGuard<TSpinLock> guard(SpinLock);
+                Info = info;
+                HasInfo = true;
+
+                return info;
+            })
+        ->AsyncVia(invoker)
+        ->Do();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

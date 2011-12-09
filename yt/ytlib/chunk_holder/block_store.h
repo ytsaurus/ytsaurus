@@ -32,6 +32,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore;
+class TReaderCache;
 
 //! Manages cached blocks.
 class TBlockStore
@@ -43,7 +44,8 @@ public:
     //! Constructs a store.
     TBlockStore(
         const TChunkHolderConfig& config,
-        TIntrusivePtr<TChunkStore> chunkStore);
+        TChunkStore* chunkStore,
+        TReaderCache* readerCache);
 
     //! Gets (asynchronously) a block from the store.
     /*!
@@ -58,10 +60,8 @@ public:
 
 private:
     class TBlockCache;
-
     friend class TBlockCache;
 
-    //! Caches blocks.
     TIntrusivePtr<TBlockCache> BlockCache;
 
 };

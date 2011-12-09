@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "block_store.h"
 #include "chunk_store.h"
+#include "reader_cache.h"
 
 #include "../chunk_client/file_reader.h"
 
@@ -39,9 +40,11 @@ public:
 
     TBlockCache(
         const TChunkHolderConfig& config,
-        TChunkStore::TPtr chunkStore)
+        TChunkStore* chunkStore,
+        TReaderCache* readerCache)
         : TCapacityLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocks)
         , ChunkStore(chunkStore)
+        , ReaderCache(readerCache)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
@@ -103,6 +106,7 @@ public:
 
 private:
     TChunkStore::TPtr ChunkStore;
+    TReaderCache::TPtr ReaderCache;
 
     void DoReadBlock(
         TChunk::TPtr chunk,
@@ -110,18 +114,21 @@ private:
         TAutoPtr<TInsertCookie> cookie)
     {
         try {
-            auto reader = ChunkStore->GetChunkReader(~chunk);
-            auto data = reader->ReadBlock(blockId.BlockIndex);
-            if (~data != NULL) {
-                auto block = New<TCachedBlock>(blockId, data);
-                cookie->EndInsert(block);
-
-                LOG_DEBUG("Finished loading block into cache (BlockId: %s)",
-                    ~blockId.ToString());
-            } else {
-                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)",
-                    ~blockId.ToString());
+            auto reader = ReaderCache->FindReader(~chunk);
+            if (~reader == NULL) {
+                LOG_WARNING("Attempt to read a block from a non-existing chunk (BlockId: %s)", ~blockId.ToString());
+                return;
             }
+
+            auto data = reader->ReadBlock(blockId.BlockIndex);
+            if (~data == NULL) {
+                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)", ~blockId.ToString());
+            }
+
+            auto block = New<TCachedBlock>(blockId, data);
+            cookie->EndInsert(block);
+
+            LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
         } catch (...) {
             LOG_FATAL("Error loading block into cache (BlockId: %s)\n%s",
                 ~blockId.ToString(),
@@ -134,8 +141,9 @@ private:
 
 TBlockStore::TBlockStore(
     const TChunkHolderConfig& config,
-    TChunkStore::TPtr chunkStore)
-    : BlockCache(New<TBlockCache>(config, chunkStore))
+    TChunkStore* chunkStore,
+    TReaderCache* readerCache)
+    : BlockCache(New<TBlockCache>(config, chunkStore, readerCache))
 { }
 
 TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)

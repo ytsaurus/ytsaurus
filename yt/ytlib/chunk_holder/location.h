@@ -8,6 +8,7 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunk;
+class TReaderCache;
 struct TChunkDescriptor;
 
 //! Describes a physical location of chunks at a chunk holder.
@@ -17,7 +18,7 @@ class TLocation
 public:
     typedef TIntrusivePtr<TLocation> TPtr;
 
-    TLocation(const Stroka& path);
+    TLocation(const TLocationConfig& config, TReaderCache* readerCache);
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     yvector<TChunkDescriptor> Scan();
@@ -33,6 +34,9 @@ public:
 
     //! Returns the invoker that handles all IO requests to this location.
     IInvoker::TPtr GetInvoker() const;
+
+    //! Returns the reader cache.
+    TIntrusivePtr<TReaderCache> GetReaderCache() const;
 
     //! Returns the number of bytes used at the location.
     i64 GetUsedSpace() const;
@@ -56,7 +60,8 @@ public:
     Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
 
 private:
-    Stroka Path;
+    TLocationConfig Config;
+    TIntrusivePtr<TReaderCache> ReaderCache;
     i64 AvailableSpace;
     i64 UsedSpace;
     TActionQueue::TPtr ActionQueue;

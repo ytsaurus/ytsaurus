@@ -12,6 +12,7 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore;
+class TReaderCache;
 class TChunk;
 class TBlockStore;
 class TSessionManager;
@@ -31,6 +32,7 @@ public:
         IInvoker* serviceInvoker,
         NRpc::IRpcServer* server,
         TChunkStore* chunkStore,
+        TReaderCache* readerCache,
         TBlockStore* blockStore,
         TSessionManager* sessionManager);
     ~TChunkHolderService();
@@ -40,19 +42,12 @@ private:
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    //! Configuration.
     TConfig Config;
-
-    //! Caches blocks.
-    TIntrusivePtr<TBlockStore> BlockStore;
-
-    //! Manages complete chunks.
     TIntrusivePtr<TChunkStore> ChunkStore;
-
-    //! Manages currently active upload sessions.
+    TIntrusivePtr<TReaderCache> ReaderCache;
+    TIntrusivePtr<TBlockStore> BlockStore;
     TIntrusivePtr<TSessionManager> SessionManager;
 
-    //! Caches channels that are used for sending blocks to other holders.
     NRpc::TChannelCache ChannelCache;
 
 

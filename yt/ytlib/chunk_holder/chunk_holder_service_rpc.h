@@ -29,6 +29,7 @@ public:
         ((WindowError)(5))
         ((UnmatchedBlockContent)(6))
         ((NoSuchBlock)(7))
+        ((NoSuchChunk)(8))
     );
 
     TChunkHolderServiceProxy(NRpc::IChannel* channel)

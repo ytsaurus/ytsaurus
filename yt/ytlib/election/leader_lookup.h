@@ -3,6 +3,7 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
+#include "../misc/config.h"
 #include "../actions/future.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
@@ -24,8 +25,9 @@ class TLeaderLookup
 public:
     typedef TIntrusivePtr<TLeaderLookup> TPtr;
 
-    //! Describes a configuration.
+    //! Lookup configuration.
     struct TConfig
+        : TConfigBase
     {
         //! List of peer addresses.
         yvector<Stroka> Addresses;
@@ -34,8 +36,12 @@ public:
         TDuration RpcTimeout;
 
         TConfig()
-            : RpcTimeout(TDuration::MilliSeconds(300))
-        { }
+        {
+            Register("addresses", Addresses);
+            Register("rpc_timeout", RpcTimeout).Default(TDuration::MilliSeconds(300));
+
+            SetDefaults();
+        }
 
         void Read(TJsonObject* json)
         {
@@ -49,7 +55,7 @@ public:
     {
         //! Leader id.
         /*!
-         *  InvalidPeerId value indicates that no leader is found.
+         *  #InvalidPeerId value indicates that no leader is found.
          */
         TPeerId Id;
 
@@ -84,7 +90,7 @@ private:
         TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TResult>::TPtr asyncResult,
-        Stroka address);
+        const Stroka& address);
     void OnComplete(TFuture<TResult>::TPtr asyncResult);
 };
 

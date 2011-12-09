@@ -16,6 +16,7 @@
 #include <yt/ytlib/ytree/yson_file_service.h>
 
 #include <yt/ytlib/chunk_holder/chunk_holder_service.h>
+#include <yt/ytlib/chunk_holder/reader_cache.h>
 #include <yt/ytlib/chunk_holder/session_manager.h>
 #include <yt/ytlib/chunk_holder/block_store.h>
 #include <yt/ytlib/chunk_holder/chunk_store.h>
@@ -42,6 +43,7 @@ using NMonitoring::CreateMonitoringProvider;
 
 using NOrchid::TOrchidService;
 
+using NChunkHolder::TReaderCache;
 using NChunkHolder::TChunkStore;
 using NChunkHolder::TBlockStore;
 using NChunkHolder::TSessionManager;
@@ -66,7 +68,8 @@ void TChunkHolderServer::Run()
 
     auto rpcServer = CreateRpcServer(~busServer);
 
-    auto chunkStore = New<TChunkStore>(Config);
+    auto readerCache = New<TReaderCache>(Config);
+    auto chunkStore = New<TChunkStore>(Config, ~readerCache);
     auto blockStore = New<TBlockStore>(Config, chunkStore);
 
     auto sessionManager = New<TSessionManager>(

@@ -24,17 +24,22 @@ public:
     //! Returns a (cached) chunk reader.
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
-     *  A common rule is to invoke it from IO thread only.
+     *  A rule of thumb is to invoke it from IO thread only.
+     *  
+     *  If chunk file does not exist then NULL is returned.
      *  
      *  The returned reader is already open.
      */
-    NChunkClient::TFileReader::TPtr GetChunkReader(TChunk* chunk);
+    NChunkClient::TFileReader::TPtr FindReader(TChunk* chunk);
+
+    //! Evicts the reader from the cache thus hopefully closing the file.
+    void EvictReader(TChunk* chunk);
 
 private:
     class TCachedReader;
     class TImpl;
 
-    TIntrusivePtr<TImpl> ReaderCache;
+    TIntrusivePtr<TImpl> Impl;
 
 };
 

@@ -13,6 +13,7 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +26,7 @@ TChunkHolderService::TChunkHolderService(
     IInvoker* serviceInvoker,
     NRpc::IRpcServer* server,
     TChunkStore* chunkStore,
+    TReaderCache* readerCache,
     TBlockStore* blockStore,
     TSessionManager* sessionManager)
     : NRpc::TServiceBase(
@@ -33,6 +35,7 @@ TChunkHolderService::TChunkHolderService(
         Logger.GetCategory())
     , Config(config)
     , ChunkStore(chunkStore)
+    , ReaderCache(readerCache)
     , BlockStore(blockStore)
     , SessionManager(sessionManager)
 {
@@ -286,10 +289,15 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto chunk = GetChunk(chunkId);
-
-    *response->mutable_chunkinfo() = chunk->Info();
-
-    context->Reply();
+    chunk->GetInfo()->Subscribe(FromFunctor([=] (TChunk::TGetInfoResult result)
+        {
+            if (result.IsOK()) {
+                *response->mutable_chunkinfo() = result.Value();
+                context->Reply();
+            } else {
+                context->Reply(result);
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

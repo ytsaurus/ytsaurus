@@ -188,7 +188,8 @@ i64 GetFileSize(const Stroka& path)
     return fileSize;
 }
 
-static bool IsAbsPath(const Stroka& path) {
+static bool IsAbsolutePath(const Stroka& path)
+{
     if (path.empty())
         return false;
     if (path[0] == PATH_DELIM)
@@ -202,7 +203,8 @@ static bool IsAbsPath(const Stroka& path) {
     return false;
 }
 
-static Stroka JoinPaths(const Stroka& path1, const Stroka& path2) {
+static Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
+{
     if (path1.empty())
         return path2;
     if (path2.empty())
@@ -222,7 +224,7 @@ static Stroka JoinPaths(const Stroka& path1, const Stroka& path2) {
 
 Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
 {
-    if (IsAbsPath(path2))
+    if (IsAbsolutePath(path2))
         return path2;
     return JoinPaths(path1, path2);
 }
