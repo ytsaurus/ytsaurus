@@ -1,12 +1,12 @@
 #include "stdafx.h"
-#include "chunk_store.h"
+#include "reader_cache.h"
 
-#include "../misc/foreach.h"
-#include "../misc/assert.h"
-
-#include <utility>
-#include <limits>
-#include <util/random/random.h>
+//#include "../misc/foreach.h"
+//#include "../misc/assert.h"
+//
+//#include <utility>
+//#include <limits>
+//#include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -35,7 +35,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TReaderCache
+class TReaderCache::TImpl
     : public TCapacityLimitedCache<TChunkId, TCachedReader>
 {
 public:
