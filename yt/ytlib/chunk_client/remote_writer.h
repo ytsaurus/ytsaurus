@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "async_writer.h"
+#include "chunk_service_rpc.pb.h"
 
 #include "../misc/config.h"
 #include "../misc/metric.h"
@@ -59,8 +60,6 @@ public:
         void Read(TJsonObject* config);
     };
 
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-
     /*!
      * \note Thread affinity: ClientThread.
      */
@@ -79,7 +78,7 @@ public:
      * \note Thread affinity: ClientThread.
      */
     TAsyncStreamState::TAsyncResult::TPtr
-    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes);
+    AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
     
     /*!
      * \note Thread affinity: any.
@@ -93,10 +92,21 @@ public:
      */
     Stroka GetDebugInfo();
 
+    //! Returns the id of the chunk being uploaded.
+    /*!
+     * \note Thread affinity: any.
+     */
     TChunkId GetChunkId() const;
 
-private:
+    //! Returns the info to be sent to the master during #TChunkServiceProxy::ConfirmChunks request.
+    /*!
+     *  This method call only be called when the writer is successfully closed.
+     *  
+     * \note Thread affinity: ClientThread.
+     */
+    NChunkServer::NProto::TReqConfirmChunks::TChunkInfo GetConfirmationInfo();
 
+private:
     //! A group is a bunch of blocks that is sent in a single RPC request.
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
@@ -109,13 +119,6 @@ private:
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    USE_RPC_PROXY_METHOD(TProxy, StartChunk);
-    USE_RPC_PROXY_METHOD(TProxy, FinishChunk);
-    USE_RPC_PROXY_METHOD(TProxy, PutBlocks);
-    USE_RPC_PROXY_METHOD(TProxy, SendBlocks);
-    USE_RPC_PROXY_METHOD(TProxy, FlushBlock);
-    USE_RPC_PROXY_METHOD(TProxy, PingSession);
-
     TChunkId ChunkId;
     const TConfig Config;
 
@@ -126,7 +129,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
-    NChunkServer::NProto::TChunkAttributes Attributes;
+    NChunkHolder::NProto::TChunkAttributes Attributes;
 
     // ToDo: replace by cyclic buffer
     TWindow Window;
@@ -154,7 +157,7 @@ private:
      * Invoked from #Close.
      * Sets #IsCloseRequested.
      */
-    void DoClose(const NChunkServer::NProto::TChunkAttributes& attributes);
+    void DoClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
     
     /*!
      * Invoked from #Cancel
@@ -171,7 +174,7 @@ private:
 
     void ShiftWindow();
 
-    TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+    TProxy::TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
 
     void OnBlockFlushed(int node, int blockIndex);
 
@@ -181,7 +184,7 @@ private:
 
     void StartSession();
 
-    TInvStartChunk::TPtr StartChunk(int node);
+    TProxy::TInvStartChunk::TPtr StartChunk(int node);
 
     void OnChunkStarted(int node);
 
@@ -189,7 +192,7 @@ private:
 
     void CloseSession();
 
-    TInvFinishChunk::TPtr FinishChunk(int node);
+    TProxy::TInvFinishChunk::TPtr FinishChunk(int node);
 
     void OnChunkFinished(int node);
 
@@ -209,6 +212,10 @@ private:
         TMetric* metric);
 
     void AddBlock(TVoid, const TSharedRef& data);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,16 +1,37 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/common.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/value.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/schema.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/channel_writer.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/channel_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/chunk_writer.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/chunk_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/chunk_sequence_writer.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/chunk_sequence_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/table_writer.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/table_reader.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/common.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/reader.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/writer.h 
+#:yt-updatable
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
+set( SRCS
+  ${BASE}/channel_reader.cpp
+  ${BASE}/channel_writer.cpp
+  ${BASE}/chunk_reader.cpp
+  ${BASE}/chunk_sequence_reader.cpp
+  ${BASE}/chunk_sequence_writer.cpp
+  ${BASE}/chunk_writer.cpp
+  ${BASE}/common.cpp
+  ${BASE}/schema.cpp
+  ${BASE}/table_reader.cpp
+  ${BASE}/table_writer.cpp
+  ${BASE}/value.cpp
 )
+set( HDRS
+  ${BASE}/channel_reader.h
+  ${BASE}/channel_writer.h
+  ${BASE}/chunk_reader.h
+  ${BASE}/chunk_sequence_reader.h
+  ${BASE}/chunk_sequence_writer.h
+  ${BASE}/chunk_writer.h
+  ${BASE}/common.h
+  ${BASE}/reader.h
+  ${BASE}/schema.h
+  ${BASE}/table_reader.h
+  ${BASE}/table_writer.h
+  ${BASE}/value.h
+  ${BASE}/writer.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )

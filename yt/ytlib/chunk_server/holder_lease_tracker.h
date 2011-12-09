@@ -40,9 +40,11 @@ public:
         IInvoker* invoker);
 
     //! Registers the holder and assigns it an initial lease.
-    void RegisterHolder(const THolder& holder);
+    void OnHolderRegistered(const THolder& holder);
+    
     //! Unregisters the holder and stop tracking its lease.
-    void UnregisterHolder(const THolder& holder);
+    void OnHolderUnregistered(const THolder& holder);
+
     //! Renews the lease.
     void RenewHolderLease(const THolder& holder);
 

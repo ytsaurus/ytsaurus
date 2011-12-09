@@ -165,7 +165,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 void TNodeSetterBase::OnForwardingFinished()
 {
     YASSERT(~AttributeBuilder != NULL);
-    Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName);
+    YVERIFY(Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName));
     AttributeBuilder.Destroy();
     AttributeName.clear();
 }
@@ -234,6 +234,24 @@ TYPath ComputeResolvedYPath(
         resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
         ? wholePath.substr(0, resolvedLength - 1)
         : wholePath.substr(0, resolvedLength);
+}
+
+TYPath CombineYPaths(
+    const TYPath& prefixPath,
+    const TYPath& suffixPath)
+{
+    if (prefixPath.empty() || suffixPath.empty()) {
+        return prefixPath + suffixPath;
+    }
+    if (prefixPath.back() == '/' && suffixPath[0] == '/') {
+        return prefixPath + suffixPath.substr(1);
+    }
+
+    if (prefixPath.back() != '/' && suffixPath[0] != '/') {
+        return prefixPath + '/' + suffixPath;
+    }
+
+    return prefixPath + suffixPath;
 }
 
 bool IsEmptyYPath(const TYPath& path)

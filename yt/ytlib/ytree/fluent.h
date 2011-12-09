@@ -15,54 +15,22 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 public:
-    class TFluentTree;
-    template<class TParent> class TAny;
-    template<class TParent> class TToAttributes;
-    template<class TParent> class TAttributes;
-    template<class TParent> class TList;
-    template<class TParent> class TMap;
+    class TFluentAny;
+    template <class TParent> class TAny;
+    template <class TParent> class TToAttributes;
+    template <class TParent> class TAttributes;
+    class TListCore;
+    template <class TParent> class TList;
+    class TMapCore;
+    template <class TParent> class TMap;
 
-    template<class TParent>
+    template <class TParent>
     class TFluentBase
     {
     public:
-        template <class TFunc>
-        TParent Do(const TFunc& func)
-        {
-            func(this->Consumer);
-            return this->Parent;
-        }
-
-        TParent Do(TYsonProducer::TPtr producer)
+        TParent Do(TYsonProducer* producer)
         {
             producer->Do(this->Consumer);
-            return this->Parent;
-        }
-
-        template <class TFunc>
-        TParent DoIf(bool condition, const TFunc& func)
-        {
-            if (condition) {
-                func(this->Consumer);
-                return this->Parent;
-            }
-        }
-
-        template <class TFunc, class TIterator>
-        TParent DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
-        {
-            for (auto it = begin; it != end; ++it) {
-                func(it, this->Consumer);
-            }
-            return this->Parent;
-        }
-
-        template <class TFunc, class TCollection>
-        TParent DoFor(const TCollection& collection, const TFunc& func)
-        {
-            FOREACH (const auto& item, collection) {
-                func(item, this->Consumer);
-            }
             return this->Parent;
         }
 
@@ -77,7 +45,7 @@ public:
 
     };
 
-    template<class TParent>
+    template <class TParent>
     class TAny
         : public TFluentBase<TParent>
     {
@@ -145,10 +113,72 @@ public:
             return TList<TParent>(this->Consumer, this->Parent, HasAttributes);
         }
 
+        template <class TFunc>
+        TParent DoList(const TFunc& func)
+        {
+            this->Consumer->OnBeginList();
+            func(TListCore(this->Consumer));
+            this->Consumer->OnEndList();
+            return this->Parent;
+        }
+
+        template <class TFunc, class TIterator>
+        TParent DoListFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            this->Consumer->OnBeginList();
+            for (auto current = begin; current != end; ++current) {
+                func(TListCore(this->Consumer), current);
+            }
+            this->Consumer->OnEndList();
+            return this->Parent;
+        }
+
+        template <class TFunc, class TCollection>
+        TParent DoListFor(const TCollection& collection, const TFunc& func)
+        {
+            this->Consumer->OnBeginList();
+            FOREACH (const auto& item, collection) {
+                func(TListCore(this->Consumer), item);
+            }
+            this->Consumer->OnEndList();
+            return this->Parent;
+        }
+
         TMap<TParent> BeginMap()
         {
             this->Consumer->OnBeginMap();
             return TMap<TParent>(this->Consumer, this->Parent, HasAttributes);
+        }
+
+        template <class TFunc>
+        TParent DoMap(const TFunc& func)
+        {
+            this->Consumer->OnBeginMap();
+            func(TListCore(this->Consumer));
+            this->Consumer->OnEndMap();
+            return this->Parent;
+        }
+
+        template <class TFunc, class TIterator>
+        TParent DoMapFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            this->Consumer->OnBeginMap();
+            for (auto current = begin; current != end; ++current) {
+                func(TMapCore(this->Consumer), current);
+            }
+            this->Consumer->OnEndMap();
+            return this->Parent;
+        }
+
+        template <class TFunc, class TCollection>
+        TParent DoMapFor(const TCollection& collection, const TFunc& func)
+        {
+            this->Consumer->OnBeginMap();
+            FOREACH (const auto& item, collection) {
+                func(TMapCore(this->Consumer), item);
+            }
+            this->Consumer->OnEndMap();
+            return this->Parent;
         }
 
         TAny< TToAttributes<TParent> > WithAttributes()
@@ -163,7 +193,7 @@ public:
 
     };
 
-    template<class TParent>
+    template <class TParent>
     class TToAttributes
         : public TFluentBase<TParent>
     {
@@ -179,7 +209,7 @@ public:
         }
     };
 
-    template<class TParent>
+    template <class TParent>
     class TAttributes
         : public TFluentBase<TParent>
     {
@@ -203,7 +233,22 @@ public:
         }
     };
 
-    template<class TParent>
+    class TListCore
+        : public TFluentBase<TVoid>
+    {
+    public:
+        TListCore(IYsonConsumer* consumer)
+            : TFluentBase<TVoid>(consumer, TVoid())
+        { }
+
+        TAny<TListCore> Item()
+        {
+            this->Consumer->OnListItem();
+            return TAny<TListCore>(this->Consumer, *this, false);
+        }
+    };
+
+    template <class TParent>
     class TList
         : public TFluentBase<TParent>
     {
@@ -221,6 +266,40 @@ public:
             return TAny<TThis>(this->Consumer, *this, false);
         }
 
+        template <class TFunc>
+        TThis& Do(const TFunc& func)
+        {
+            func(TListCore(this->Consumer));
+            return *this;
+        }
+
+        template <class TFunc>
+        TThis& DoIf(bool condition, const TFunc& func)
+        {
+            if (condition) {
+                func(TListCore(this->Consumer));
+            }
+            return *this;
+        }
+
+        template <class TFunc, class TIterator>
+        TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            for (auto current = begin; current != end; ++current) {
+                func(TListCore(this->Consumer), current);
+            }
+            return *this;
+        }
+
+        template <class TFunc, class TCollection>
+        TThis& DoFor(const TCollection& collection, const TFunc& func)
+        {
+            FOREACH (const auto& item, collection) {
+                func(TListCore(this->Consumer), item);
+            }
+            return *this;
+        }
+
         TParent EndList()
         {
             this->Consumer->OnEndList(HasAttributes);
@@ -232,7 +311,22 @@ public:
 
     };
 
-    template<class TParent>
+    class TMapCore
+        : public TFluentBase<TVoid>
+    {
+    public:
+        TMapCore(IYsonConsumer* consumer)
+            : TFluentBase<TVoid>(consumer, TVoid())
+        { }
+
+        TAny<TMapCore> Item(const Stroka& name)
+        {
+            this->Consumer->OnMapItem(name);
+            return TAny<TMapCore>(this->Consumer, *this, false);
+        }
+    };
+
+    template <class TParent>
     class TMap
         : public TFluentBase<TParent>
     {
@@ -250,6 +344,40 @@ public:
             return TAny<TThis>(this->Consumer, *this, false);
         }
 
+        template <class TFunc>
+        TThis& Do(const TFunc& func)
+        {
+            func(TMapCore(this->Consumer));
+            return *this;
+        }
+
+        template <class TFunc>
+        TThis& DoIf(bool condition, const TFunc& func)
+        {
+            if (condition) {
+                func(TMapCore(this->Consumer));
+            }
+            return *this;
+        }
+
+        template <class TFunc, class TIterator>
+        TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            for (auto current = begin; current != end; ++current) {
+                func(TMapCore(this->Consumer), current);
+            }
+            return *this;
+        }
+
+        template <class TFunc, class TCollection>
+        TThis& DoFor(const TCollection& collection, const TFunc& func)
+        {
+            FOREACH (const auto& item, collection) {
+                func(TMapCore(this->Consumer), item);
+            }
+            return *this;
+        }
+
         TParent EndMap()
         {
             this->Consumer->OnEndMap(HasAttributes);
@@ -263,9 +391,13 @@ public:
 
 };
 
-inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer)
+typedef TFluentYsonBuilder::TAny<TVoid> TFluentAny;
+typedef TFluentYsonBuilder::TListCore   TFluentList;
+typedef TFluentYsonBuilder::TMapCore    TFluentMap;
+
+inline TFluentAny BuildYsonFluently(IYsonConsumer* consumer)
 {
-    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
+    return TFluentAny(consumer, TVoid(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

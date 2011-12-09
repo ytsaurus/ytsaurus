@@ -34,7 +34,7 @@ public:
     i64 GetFullSize() const;
 
     //! Returns the typed chunk info.
-    const NChunkServer::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
@@ -53,7 +53,7 @@ private:
     THolder<TFile> DataFile;
     i64 InfoSize;
     i64 DataSize;
-    NChunkServer::NProto::TChunkInfo ChunkInfo;
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
 };
 

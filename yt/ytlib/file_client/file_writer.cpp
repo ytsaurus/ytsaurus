@@ -1,12 +1,11 @@
 #include "stdafx.h"
 #include "file_writer.h"
-#include "file_chunk_server_meta.pb.h"
+#include "file_chunk_meta.pb.h"
 
 #include "../misc/string.h"
 #include "../misc/sync.h"
 #include "../misc/serialize.h"
 #include "../cypress/cypress_ypath_rpc.h"
-#include "../chunk_server/chunk_service_rpc.h"
 #include "../file_server/file_ypath_rpc.h"
 
 namespace NYT {
@@ -17,7 +16,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
 using namespace NProto;
-using namespace NChunkServer::NProto;
+using namespace NChunkHolder::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +53,9 @@ TFileWriter::TFileWriter(
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
     CypressProxy->SetTimeout(config.MasterRpcTimeout);
 
+    ChunkProxy.Reset(new TChunkServiceProxy(~MasterChannel));
+    ChunkProxy->SetTimeout(config.MasterRpcTimeout);
+
     // Create a file node.
     LOG_INFO("Creating node");
 
@@ -78,12 +80,11 @@ TFileWriter::TFileWriter(
     // Create a chunk.
     LOG_INFO("Creating chunk (UploadReplicaCount: %d)", uploadReplicaCount);
 
-    TChunkServiceProxy chunkProxy(masterChannel);
-    auto createChunkRequest = chunkProxy.CreateChunk();
-    createChunkRequest->set_transactionid(transaction->GetId().ToProto());
-    createChunkRequest->set_replicacount(uploadReplicaCount);
+    auto allocateChunk = ChunkProxy->AllocateChunk();
+    allocateChunk->set_transactionid(transaction->GetId().ToProto());
+    allocateChunk->set_replicacount(uploadReplicaCount);
 
-    auto createChunkResponse = createChunkRequest->Invoke()->Get();
+    auto createChunkResponse = allocateChunk->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating chunk\n%s",
             ~createChunkResponse->GetError().ToString());
@@ -166,9 +167,9 @@ void TFileWriter::Close()
     FlushBlock();
 
     // Construct chunk attributes.
-    TChunkAttributes chunkAttributes;
-    chunkAttributes.set_type(EChunkType::File);
-    auto* fileAttributes = chunkAttributes.MutableExtension(TFileChunkAttributes::FileAttributes);
+    TChunkAttributes attributes;
+    attributes.set_type(EChunkType::File);
+    auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::FileAttributes);
     fileAttributes->set_size(Size);
     fileAttributes->set_codecid(Config.CodecId);
     
@@ -176,7 +177,7 @@ void TFileWriter::Close()
     LOG_INFO("Closing chunk");
 
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncClose, chunkAttributes);
+        Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);
     } catch (...) {
         LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s",
             ~CurrentExceptionMessage());
@@ -184,8 +185,24 @@ void TFileWriter::Close()
 
     LOG_INFO("Chunk is closed");
 
+    // Confirm chunk at the master.
+    LOG_INFO("Confirming chunk");
+
+    auto confirmChunksRequest = ChunkProxy->ConfirmChunks();
+    confirmChunksRequest->set_transactionid(Transaction->GetId().ToProto());
+    *confirmChunksRequest->add_chunks() = Writer->GetConfirmationInfo();
+
+    auto confirmChunksResponse = confirmChunksRequest->Invoke()->Get();
+
+    if (!confirmChunksResponse->IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
+            ~confirmChunksResponse->GetError().ToString());
+    }
+
+    LOG_INFO("Chunk is confirmed");
+
     // Associate the chunk with the file.
-    LOG_INFO("Setting chunk");
+    LOG_INFO("Attaching chunk to file");
 
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
     setChunkRequest->set_chunkid(ChunkId.ToProto());
@@ -196,11 +213,11 @@ void TFileWriter::Close()
         ->Get();
 
     if (!setChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error setting chunk\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error attaching chunk\n%s",
             ~setChunkResponse->GetError().ToString());
     }
     
-    LOG_INFO("Chunk is set");
+    LOG_INFO("Chunk is attached");
 
     LOG_INFO("File writer is closed");
 }

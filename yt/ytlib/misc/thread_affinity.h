@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "assert.h"
+#include "thread.h"
 
 #include <util/system/thread.h>
 
@@ -45,7 +46,7 @@ public:
 
     void Check()
     {
-        intptr_t currentThreadId = static_cast<intptr_t>(TThread::CurrentThreadId());
+        intptr_t currentThreadId = static_cast<intptr_t>(NThread::GetCurrentThreadId());
         do {
             intptr_t boundThreadId = BoundId;
             if (boundThreadId != InvalidId) {

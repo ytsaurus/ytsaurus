@@ -1,6 +1,6 @@
 package NYT.NTableClient.NProto;
 
-import "chunk.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ message TChannel
 
 message TTableChunkAttributes
 {
-    extend NYT.NChunkServer.NProto.TChunkAttributes
+    extend NYT.NChunkHolder.NProto.TChunkAttributes
     {
         required TTableChunkAttributes TableAttributes = 101;
     }

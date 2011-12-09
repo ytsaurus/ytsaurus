@@ -109,8 +109,7 @@ private:
 
     Stroka GetRedirectPath(const TYPath& path)
     {
-        // TODO: use CombineYPath
-        return path == "/" ? Manifest.RemoteRoot : Manifest.RemoteRoot + path;
+        return CombineYPaths(Manifest.RemoteRoot, path);
     }
 
     struct TManifest

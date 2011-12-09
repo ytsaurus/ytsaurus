@@ -24,7 +24,7 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, c
         verb != "Remove")
     {
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            "Verb is not supported for attributes";
+            Sprintf("Verb %s is not supported for attributes %s", ~verb, ~attributePath);
     }
     return TResolveResult::Here(path);
 }
@@ -415,12 +415,12 @@ void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* val
             ChopYPathToken(currentPath, &prefix, &suffixPath);
 
             if (IsFinalYPath(suffixPath)) {
-                currentNode->AddChild(value, prefix);
+                YVERIFY(currentNode->AddChild(value, prefix));
                 break;
             }
 
             auto intermediateNode = GetFactory()->CreateMap();
-            currentNode->AddChild(intermediateNode, prefix);
+            YVERIFY(currentNode->AddChild(intermediateNode, prefix));
 
             currentNode = intermediateNode;
             currentPath = suffixPath;

@@ -1,27 +1,41 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_service_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_service.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_list.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/job.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/job_list.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_manager.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_placement.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_replication.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder_lease_tracker.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/holder_authority.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/cypress_integration.cpp
+#:updatable
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server )
+set( SRCS
+  ${BASE}/chunk.cpp
+  ${BASE}/chunk_list.cpp
+  ${BASE}/chunk_manager.cpp
+  ${BASE}/chunk_placement.cpp
+  ${BASE}/chunk_replication.cpp
+  ${BASE}/chunk_service.cpp
+  ${BASE}/common.cpp
+  ${BASE}/cypress_integration.cpp
+  ${BASE}/holder.cpp
+  ${BASE}/holder_authority.cpp
+  ${BASE}/holder_lease_tracker.cpp
+  ${BASE}/job.cpp
+  ${BASE}/job_list.cpp
+)
+set( HDRS
+  ${BASE}/chunk.h
+  ${BASE}/chunk_list.h
+  ${BASE}/chunk_manager.h
+  ${BASE}/chunk_placement.h
+  ${BASE}/chunk_replication.h
+  ${BASE}/chunk_service.h
+  ${BASE}/chunk_service_rpc.h
+  ${BASE}/common.h
+  ${BASE}/cypress_integration.h
+  ${BASE}/holder.h
+  ${BASE}/holder_authority.h
+  ${BASE}/holder_lease_tracker.h
+  ${BASE}/job.h
+  ${BASE}/job_list.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_holder_service_rpc.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/file_chunk_server_meta.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/table_chunk_meta.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_service_rpc.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server/chunk_manager.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_service_rpc.proto YT_SOURCE_FILES )

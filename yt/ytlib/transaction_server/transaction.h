@@ -14,10 +14,15 @@ namespace NTransactionServer {
 class TTransaction
 {
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, RegisteredChunks);
+
+    // Transaction manager stuff
+    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, AllocatedChunkIds);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, ConfirmedChunkIds);
+
+    // Cypress stuff
     DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TLockId>, LockIds);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, BranchedNodes);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, CreatedNodes);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, BranchedNodeIds);
+    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, CreatedNodeIds);
 
 public:
     TTransaction(const TTransactionId& id);

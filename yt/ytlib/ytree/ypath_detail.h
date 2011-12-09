@@ -147,7 +147,7 @@ private:
 
     void OnForwardingFinished()
     {
-        Map->AddChild(Builder->EndTree(), ItemName);
+        YVERIFY(Map->AddChild(Builder->EndTree(), ItemName));
         ItemName.clear();
     }
 
@@ -255,6 +255,10 @@ void ChopYPathToken(
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
+
+TYPath CombineYPaths(
+    const TYPath& prefixPath,
+    const TYPath& suffixPath);
 
 bool IsEmptyYPath(const TYPath& path);
 

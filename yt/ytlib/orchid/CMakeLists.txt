@@ -1,10 +1,20 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service_rpc.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/cypress_integration.cpp
+#:yt-updatable
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/cypress_integration.cpp
+  ${BASE}/orchid_service.cpp
+)
+set( HDRS
+  ${BASE}/common.h
+  ${BASE}/cypress_integration.h
+  ${BASE}/orchid_service.h
+  ${BASE}/orchid_service_rpc.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid/orchid_service_rpc.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/orchid_service_rpc.proto YT_SOURCE_FILES )

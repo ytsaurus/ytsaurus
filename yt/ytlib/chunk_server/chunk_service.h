@@ -38,7 +38,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
     DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
-    DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, AllocateChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, ConfirmChunks);
     DECLARE_RPC_SERVICE_METHOD(NProto, FindChunk);
 
 };

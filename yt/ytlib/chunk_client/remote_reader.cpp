@@ -9,12 +9,11 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkServer::NProto;
+using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO: use ChunkClientLogger
-static NLog::TLogger Logger("ChunkReader");
+static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -26,21 +25,18 @@ TRemoteReader::TRemoteReader(
     , ChunkId(chunkId)
     , HolderAddresses(holderAddresses)
     , ExecutionTime(0, 1000, 20)
-{
-    CurrentHolder = 0;
-}
+    , CurrentHolder(0)
+{ }
 
 TFuture<IAsyncReader::TReadResult>::TPtr
 TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     auto result = New< TFuture<TReadResult> >();
-
     DoReadBlocks(blockIndexes, result);
-
     return result;
 }
-
 
 TFuture<IAsyncReader::TGetInfoResult>::TPtr TRemoteReader::AsyncGetChunkInfo()
 {
@@ -56,6 +52,7 @@ void TRemoteReader::DoReadBlocks(
     TFuture<TReadResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
     proxy.SetTimeout(Config.HolderRpcTimeout);
 
@@ -66,15 +63,17 @@ void TRemoteReader::DoReadBlocks(
         req->add_blockindexes(index);
     }
 
-    req->Invoke()->Subscribe(FromMethod(
-        &TRemoteReader::OnBlocksRead, 
-        TPtr(this), 
-        result,
-        blockIndexes)->Via(ReaderThread->GetInvoker()));
+    req->Invoke()->Subscribe(
+        FromMethod(
+            &TRemoteReader::OnBlocksRead, 
+            TPtr(this), 
+            result,
+            blockIndexes)
+        ->Via(ReaderThread->GetInvoker()));
 }
 
 void TRemoteReader::OnBlocksRead(
-    TRspGetBlocks::TPtr rsp, 
+    TProxy::TRspGetBlocks::TPtr rsp,
     TFuture<TReadResult>::TPtr result, 
     const yvector<int>& blockIndexes)
 {
@@ -97,7 +96,6 @@ void TRemoteReader::OnBlocksRead(
     }
 }
 
-
 void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -108,10 +106,12 @@ void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
     auto request = proxy.GetChunkInfo();
     request->set_chunkid(ChunkId.ToProto());
 
-    return request->Invoke()->Subscribe(FromMethod(
-        &TRemoteReader::OnGotChunkInfo,
-        TPtr(this),
-        result));
+    return request->Invoke()->Subscribe(
+        FromMethod(
+            &TRemoteReader::OnGotChunkInfo,
+            TPtr(this),
+            result)
+        ->Via(ReaderThread->GetInvoker()));
 }
 
 void TRemoteReader::OnGotChunkInfo(

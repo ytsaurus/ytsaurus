@@ -186,7 +186,7 @@ void TTreeBuilder::AddToMap()
     auto name = PopName();
     auto map = PeekPop()->AsMap();
     if (~child != NULL) {
-        map->AddChild(child, name);
+        YVERIFY(map->AddChild(child, name));
     }
 }
 

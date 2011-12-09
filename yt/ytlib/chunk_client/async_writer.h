@@ -49,7 +49,7 @@ struct IAsyncWriter
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
     virtual TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const NChunkServer::NProto::TChunkAttributes& attributes) = 0;
+    AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes) = 0;
 
     //! Cancels the current upload. 
     //! This method is safe to call at any time.

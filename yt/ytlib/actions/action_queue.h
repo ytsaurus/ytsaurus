@@ -47,7 +47,7 @@ public:
     void Shutdown();
 
 protected:
-    TActionQueueBase(bool enableLogging);
+    TActionQueueBase(const char* threadName, bool enableLogging);
 
     void Start();
 
@@ -65,6 +65,7 @@ private:
     volatile bool Finished;
     Event WakeupEvent;
     TThread Thread;
+    const char* ThreadName;
 
 };
 
@@ -78,7 +79,7 @@ public:
 
     // TActionQueue is used internally by the logging infrastructure,
     // which passes enableLogging = false to prevent infinite recursion.
-    TActionQueue(bool enableLogging = true);
+    TActionQueue(const char* threadName = "<ActionQueue>", bool enableLogging = true);
 
     IInvoker::TPtr GetInvoker();
 
@@ -100,7 +101,7 @@ class TPrioritizedActionQueue
 public:
     typedef TIntrusivePtr<TPrioritizedActionQueue> TPtr;
 
-    TPrioritizedActionQueue(int priorityCount);
+    TPrioritizedActionQueue(int priorityCount, const char* threadName = "<PrActionQueue>");
 
     ~TPrioritizedActionQueue();
 

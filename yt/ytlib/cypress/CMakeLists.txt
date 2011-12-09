@@ -1,28 +1,41 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/common.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_detail.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_proxy.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/node_proxy_detail.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/lock.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_manager.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc-inl.h
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/virtual.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_integration.cpp
-
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.cpp
+#:yt-updatable
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/cypress_integration.cpp
+  ${BASE}/cypress_manager.cpp
+  ${BASE}/cypress_service.cpp
+  ${BASE}/cypress_ypath_rpc.cpp
+  ${BASE}/lock.cpp
+  ${BASE}/node.cpp
+  ${BASE}/node_detail.cpp
+  ${BASE}/node_proxy.cpp
+  ${BASE}/node_proxy_detail.cpp
+  ${BASE}/virtual.cpp
+  ${BASE}/world_initializer.cpp
+)
+set( HDRS
+  ${BASE}/common.h
+  ${BASE}/cypress_integration.h
+  ${BASE}/cypress_manager.h
+  ${BASE}/cypress_service.h
+  ${BASE}/cypress_service_rpc-inl.h
+  ${BASE}/cypress_service_rpc.h
+  ${BASE}/cypress_ypath_rpc.h
+  ${BASE}/lock.h
+  ${BASE}/node.h
+  ${BASE}/node_detail.h
+  ${BASE}/node_proxy.h
+  ${BASE}/node_proxy_detail.h
+  ${BASE}/virtual.h
+  ${BASE}/world_initializer.h
 )
 
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_ypath_rpc.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_service_rpc.proto YT_SOURCE_FILES )
-PROTOC( ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress/cypress_manager.proto YT_SOURCE_FILES )
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
+protoc( ${BASE}/cypress_ypath_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/cypress_service_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/cypress_manager.proto YT_SOURCE_FILES )

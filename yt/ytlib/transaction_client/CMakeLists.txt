@@ -1,5 +1,17 @@
-SET( YT_SOURCE_FILES ${YT_SOURCE_FILES}
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/transaction_client/common.cpp
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/transaction_client/transaction.h
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/transaction_client/transaction_manager.cpp
+#:yt-updatable
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/transaction_client )
+set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/transaction.cpp
+  ${BASE}/transaction_manager.cpp
+)
+set( HDRS
+  ${BASE}/common.h
+  ${BASE}/transaction.h
+  ${BASE}/transaction_manager.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
 )

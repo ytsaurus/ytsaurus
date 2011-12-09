@@ -38,8 +38,8 @@ TChunkReplication::TChunkReplication(
 
 void TChunkReplication::RunJobControl(
     const THolder& holder,
-    const yvector<NProto::TJobInfo>& runningJobs,
-    yvector<NProto::TJobStartInfo>* jobsToStart,
+    const yvector<TJobInfo>& runningJobs,
+    yvector<TJobStartInfo>* jobsToStart,
     yvector<TJobId>* jobsToStop)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -103,7 +103,7 @@ void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk
 
 void TChunkReplication::ProcessExistingJobs(
     const THolder& holder,
-    const yvector<NProto::TJobInfo>& runningJobs,
+    const yvector<TJobInfo>& runningJobs,
     yvector<TJobId>* jobsToStop,
     int* replicationJobCount,
     int* removalJobCount)
@@ -166,7 +166,7 @@ bool TChunkReplication::IsRefreshScheduled(const TChunkId& chunkId)
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     const THolder& sourceHolder,
     const TChunkId& chunkId,
-    yvector<NProto::TJobStartInfo>* jobsToStart)
+    yvector<TJobStartInfo>* jobsToStart)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (chunk == NULL) {
@@ -222,7 +222,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     auto jobId = TJobId::Create();
-    NProto::TJobStartInfo startInfo;
+    TJobStartInfo startInfo;
     startInfo.set_jobid(jobId.ToProto());
     startInfo.set_type(EJobType::Replicate);
     startInfo.set_chunkid(chunkId.ToProto());
@@ -246,7 +246,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     const THolder& sourceHolder,
     const TChunkId& chunkId,
-    yvector<NProto::TJobStartInfo>* jobsToStart)
+    yvector<TJobStartInfo>* jobsToStart)
 {
     const auto& chunk = ChunkManager->GetChunk(chunkId);
 
@@ -274,7 +274,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     ChunkPlacement->OnSessionHinted(targetHolder);
     
     auto jobId = TJobId::Create();
-    NProto::TJobStartInfo startInfo;
+    TJobStartInfo startInfo;
     startInfo.set_jobid(jobId.ToProto());
     startInfo.set_type(EJobType::Replicate);
     startInfo.set_chunkid(chunkId.ToProto());
@@ -295,7 +295,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
 TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     const THolder& holder,
     const TChunkId& chunkId,
-    yvector<NProto::TJobStartInfo>* jobsToStart)
+    yvector<TJobStartInfo>* jobsToStart)
 {
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Postponed chunk removal until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -306,7 +306,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     }
     
     auto jobId = TJobId::Create();
-    NProto::TJobStartInfo startInfo;
+    TJobStartInfo startInfo;
     startInfo.set_jobid(jobId.ToProto());
     startInfo.set_type(EJobType::Remove);
     startInfo.set_chunkid(chunkId.ToProto());
@@ -326,7 +326,7 @@ void TChunkReplication::ScheduleJobs(
     const THolder& holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
-    yvector<NProto::TJobStartInfo>* jobsToStart)
+    yvector<TJobStartInfo>* jobsToStart)
 {
     auto* holderInfo = FindHolderInfo(holder.GetId());
     if (holderInfo == NULL)

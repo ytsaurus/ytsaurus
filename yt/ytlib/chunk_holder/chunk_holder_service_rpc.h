@@ -16,7 +16,12 @@ class TChunkHolderServiceProxy
 public:
     typedef TIntrusivePtr<TChunkHolderServiceProxy> TPtr;
 
-    RPC_DECLARE_PROXY(ChunkHolder,
+    static Stroka GetServiceName()
+    {
+        return "ChunkHolder";
+    }
+
+    DECLARE_ENUM(EErrorCode,
         ((RemoteCallFailed)(1))
         ((NoSuchSession)(2))
         ((SessionAlreadyExists)(3))

@@ -168,9 +168,22 @@ TChunkStore::TChunkStore(const TChunkHolderConfig& config)
     ScanChunks(); 
 }
 
+namespace {
+
+void DeleteFile(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_ERROR("Error deleting file %s", ~fileName.Quote());
+    }
+}
+
+} // namespace <anonymous>
+
 void TChunkStore::ScanChunks()
 {
     LOG_INFO("Storage scan started");
+
+    Stroka metaSuffix = ChunkMetaSuffix;
 
     try {
         FOREACH(const auto& location, Locations_) {
@@ -181,12 +194,37 @@ void TChunkStore::ScanChunks()
             NFS::CleanTempFiles(path);
 
             TFileList fileList;
-            fileList.Fill(path);
-            const char* fileName;
-            while ((fileName = fileList.Next()) != NULL) {
-                auto chunkId = TChunkId::FromString(fileName);
+            fileList.Fill(path, TStringBuf(), TStringBuf(), 2);
+            i32 size = fileList.Size();
+            
+            yhash_set<Stroka> fileNames;
+            yhash_set<TChunkId> chunks;
+            for (i32 i = 0; i < size; ++i) {
+                Stroka fileName = fileList.Next();
+                fileNames.insert(path + fileName);
+
+                TChunkId chunkId = TChunkId::FromString(
+                    NFS::GetFileNameWithoutExtension(fileName));
                 if (!chunkId.IsEmpty()) {
+                    chunks.insert(chunkId);
+                } else {
+                    LOG_ERROR("Invalid chunk filename (FileName: %s)", ~fileName.Quote());
+                }
+            }
+
+            FOREACH (auto& chunkId, chunks) {
+                auto chunkFileName = location->GetChunkFileName(chunkId);
+                auto chunkMetaFileName = chunkFileName + metaSuffix;
+                bool hasMeta = fileNames.find(chunkMetaFileName) != fileNames.end();
+                bool hasData = fileNames.find(chunkFileName) != fileNames.end();
+                if (hasMeta && hasData) {
                     RegisterChunk(chunkId, ~location);
+                } else if (!hasMeta) {
+                    LOG_WARNING("Missing meta file for %s", ~chunkFileName.Quote());
+                    DeleteFile(chunkMetaFileName);
+                } else if (!hasData) {
+                    LOG_WARNING("Missing data file for %s", ~chunkMetaFileName.Quote());
+                    DeleteFile(chunkFileName);
                 }
             }
         }

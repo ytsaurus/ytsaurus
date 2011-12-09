@@ -83,9 +83,9 @@ void TChunkHolderServer::Run()
     if (!Config.Masters.Addresses.empty()) {
         auto masterConnector = New<TMasterConnector>(
             Config,
-            chunkStore,
-            sessionManager,
-            replicator,
+            ~chunkStore,
+            ~sessionManager,
+            ~replicator,
             ~controlQueue->GetInvoker());
     } else {
         LOG_INFO("Running in standalone mode");
@@ -114,22 +114,22 @@ void TChunkHolderServer::Run()
     // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();  
-    orchidRoot->AddChild(
+    YVERIFY(orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~CreateMonitoringProvider(~monitoringManager),
             orchidFactory),
-        "monitoring");
-    orchidRoot->AddChild(
+        "monitoring"));
+    YVERIFY(orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~CreateChunkMapService(~chunkStore),
             orchidFactory),
-        "chunks");
+        "chunks"));
     if (!Config.NewConfigFileName.empty()) {
-        orchidRoot->AddChild(
+        YVERIFY(orchidRoot->AddChild(
             NYTree::CreateVirtualNode(
                 ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
                 orchidFactory),
-            "config");
+            "config"));
     }
 
     auto orchidService = New<TOrchidService>(
