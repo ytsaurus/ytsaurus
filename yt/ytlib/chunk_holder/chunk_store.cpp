@@ -193,54 +193,39 @@ void TChunkStore::ScanChunks()
             NFS::ForcePath(path);
             NFS::CleanTempFiles(path);
 
-            // TODO: extract method
             TFileList fileList;
             fileList.Fill(path, TStringBuf(), TStringBuf(), 2);
             i32 size = fileList.Size();
-            yvector<Stroka> fileNames(size);
+            
+            yhash_set<Stroka> fileNames;
+            yhash_set<TChunkId> chunks;
             for (i32 i = 0; i < size; ++i) {
-                fileNames[i] = fileList.Next();
-            }
-            std::sort(fileNames.begin(), fileNames.end());
+                Stroka fileName = fileList.Next();
+                fileNames.insert(path + fileName);
 
-            // TODO: refactor
-            Stroka* lastDataFile = NULL;
-            FOREACH (auto& fileName, fileNames) {
-                bool isMeta = fileName.has_suffix(metaSuffix);
-                if (isMeta) {
-                    if (lastDataFile == NULL ||
-                        fileName != *lastDataFile + metaSuffix)
-                    {
-                        if (lastDataFile != NULL) {
-                            LOG_WARNING("Missing meta file for %s", ~lastDataFile->Quote());
-                            DeleteFile(path + *lastDataFile);
-                        }
-
-                        LOG_WARNING("Missing data file for %s", ~fileName.Quote());
-                        DeleteFile(path + fileName);
-                    } else {
-                        auto chunkId = TChunkId::FromString(NFS::GetFileName(*lastDataFile));
-                        if (!chunkId.IsEmpty()) {
-                            RegisterChunk(chunkId, ~location);
-                        } else {
-                            LOG_ERROR("Invalid chunk filename (FileName: %s)", ~lastDataFile->Quote());
-                        }
-                    }
-                    lastDataFile = NULL;
+                TChunkId chunkId = TChunkId::FromString(
+                    NFS::GetFileNameWithoutExtension(fileName));
+                if (!chunkId.IsEmpty()) {
+                    chunks.insert(chunkId);
                 } else {
-                    if (lastDataFile != NULL) {
-                        LOG_WARNING("Missing meta file for %s",
-                            ~lastDataFile->Quote());
-                        DeleteFile(path + *lastDataFile);
-                    }
-                    lastDataFile = &fileName;
+                    LOG_ERROR("Invalid chunk filename (FileName: %s)", ~fileName.Quote());
                 }
             }
 
-            if (lastDataFile != NULL) {
-                LOG_WARNING("Missing meta file for %s",
-                    ~lastDataFile->Quote());
-                DeleteFile(path + *lastDataFile);
+            FOREACH (auto& chunkId, chunks) {
+                auto chunkFileName = location->GetChunkFileName(chunkId);
+                auto chunkMetaFileName = chunkFileName + metaSuffix;
+                bool hasMeta = fileNames.find(chunkMetaFileName) != fileNames.end();
+                bool hasData = fileNames.find(chunkFileName) != fileNames.end();
+                if (hasMeta && hasData) {
+                    RegisterChunk(chunkId, ~location);
+                } else if (!hasMeta) {
+                    LOG_WARNING("Missing meta file for %s", ~chunkFileName.Quote());
+                    DeleteFile(chunkMetaFileName);
+                } else if (!hasData) {
+                    LOG_WARNING("Missing data file for %s", ~chunkMetaFileName.Quote());
+                    DeleteFile(chunkFileName);
+                }
             }
         }
     } catch (...) {
