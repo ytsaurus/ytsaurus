@@ -1,8 +1,7 @@
 #!/usr/bin/python
-#!-*-coding:utf-8-*-
-
-from ytwin import *
-import opts
+from cfglib.ytremote import *
+from cfglib.ytwin import *
+import cfglib.opts as opts
 
 build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
@@ -45,47 +44,55 @@ class Server(Base):
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
-        params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
+        params = Template('--cell-master --config %(config_path)s --old_config %(old_config_path)s --port %(port)d --id %(__name__)s')
 
         config = Template({
-                'MetaState' : {
-                                'Cell' : {
-                                'Addresses' : MasterAddresses
+                'meta_state' : {
+                                'cell' : {
+                                'addresses' : MasterAddresses
                         },
-                        'SnapshotLocation' : r'%(work_dir)s\snapshots',
-                        'LogLocation' : r'%(work_dir)s\logs',
+                        'snapshot_path' : r'%(work_dir)s\snapshots',
+                        'log_path' : r'%(work_dir)s\logs',
                 },                      
                 'Logging' : Logging
         })
         
         def run(cls, fd):
-                print >>fd, 'mkdir %s' % cls.config['MetaState']['SnapshotLocation']
-                print >>fd, 'mkdir %s' % cls.config['MetaState']['LogLocation']
+                print >>fd, 'mkdir %s' % cls.config['meta_state']['snapshot_path']
+                print >>fd, 'mkdir %s' % cls.config['meta_state']['log_path']
                 print >>fd, cls.run_tmpl
                 
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
-                print >>fd, r'del /Q %s\*' % cls.config['MetaState']['SnapshotLocation']
-                print >>fd, r'del /Q %s\*' % cls.config['MetaState']['LogLocation']
+                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshot_path']
+                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['log_path']
         
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
                         [('localhost:%d' % p) for p in range(9000, 9100)]))
         
-        params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
+        params = Template('--chunk-holder --config %(config_path)s --old_config %(old_config_path)s --port %(port)d')
         
         config = Template({ 
-                'Masters' : { 'Addresses' : MasterAddresses },
-                'Locations' : [r'%(work_dir)s\node'],
-                'MaxChunksSpace' : 100000000,
-                'Logging' : Logging
+                'masters' : { 'addresses' : MasterAddresses },
+                'storage_locations' : [
+                    { 'path' : r'%(work_dir)s\chunk_storage.0' }
+                ],
+                'cache_location' : {
+                    'path' : r'%(work_dir)s\chunk_cache'
+                },
+                'cache_remote_reader' : { },
+                'cache_sequential_reader' : { },
+                'logging' : Logging
         })
         
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
-                for location in cls.config['Locations']:
-                        print >>fd, 'rmdir /S /Q   %s' % location
+                for location in cls.config['storage_locations']:
+                        print >>fd, 'rmdir /S /Q   %s' % location['path']
+                print >>fd, 'rmdir /S /Q   %s' % cls.config['cache_location']['path']
+
 
 class Client(WinNode, Base):
     bin_path = os.path.join(build_dir, r'bin\Debug\send_chunk.exe') 
