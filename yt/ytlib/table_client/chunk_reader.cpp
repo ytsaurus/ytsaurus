@@ -293,7 +293,6 @@ TChunkReader::TChunkReader(
 
 TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncOpen()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     State.StartOperation();
 
     Initializer->Initialize();
