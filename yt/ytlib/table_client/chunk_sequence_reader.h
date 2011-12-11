@@ -34,11 +34,11 @@ public:
         int startRow,
         int endRow);
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
+    TAsyncError::TPtr AsyncOpen();
 
     bool HasNextRow() const;
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncNextRow();
+    TAsyncError::TPtr AsyncNextRow();
 
     bool NextColumn();
 
@@ -46,15 +46,15 @@ public:
 
     TColumn GetColumn() const;
 
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
 private:
     void PrepareNextChunk();
     void OnNextReaderOpened(
-        TAsyncStreamState::TResult result, 
+        TError error, 
         TChunkReader::TPtr reader);
     void SetCurrentChunk(TChunkReader::TPtr nextReader);
-    void OnNextRow(TAsyncStreamState::TResult result);
+    void OnNextRow(TError error);
 
 
     const TConfig Config;

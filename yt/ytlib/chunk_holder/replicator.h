@@ -6,6 +6,7 @@
 
 #include "../misc/guid.h"
 #include "../misc/async_stream_state.h"
+#include "../chunk_client/async_reader.h"
 #include "../chunk_client/async_writer.h"
 
 namespace NYT {
@@ -39,12 +40,12 @@ public:
     typedef TIntrusivePtr<TJob> TPtr;
 
     TJob(
-        IInvoker::TPtr serviceInvoker,
-        TChunkStore::TPtr chunkStore,
-        TBlockStore::TPtr blockStore,
+        IInvoker* serviceInvoker,
+        TChunkStore* chunkStore,
+        TBlockStore* blockStore,
         EJobType jobType,
         const TJobId& jobId,
-        TChunk::TPtr chunk,
+        TStoredChunk* chunk,
         const yvector<Stroka>& targetAddresses);
 
     //! Returns the type.
@@ -70,7 +71,8 @@ private:
     EJobType JobType;
     TJobId JobId;
     EJobState State;
-    TChunk::TPtr Chunk;
+    TStoredChunk::TPtr Chunk;
+    NProto::TChunkInfo ChunkInfo;
     yvector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriter::TPtr Writer;
     TCancelableInvoker::TPtr CancelableInvoker;
@@ -78,13 +80,10 @@ private:
     void Start();
     void Stop();
 
-    void ReplicateBlock(
-        TAsyncStreamState::TResult result, 
-        int blockIndex);
-    void OnBlockLoaded(
-        TCachedBlock::TPtr cachedBlock,
-        int blockIndex);
-    void OnWriterClosed(TAsyncStreamState::TResult result);
+    void ReplicateBlock(TError error, int blockIndex);
+    void OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result);
+    void OnBlockLoaded(TBlockStore::TGetBlockResult result, int blockIndex);
+    void OnWriterClosed(TError error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,19 +117,19 @@ public:
 
     //! Constructs a new instance.
     TReplicator(
-        TChunkStore::TPtr chunkStore,
-        TBlockStore::TPtr blockStore,
-        IInvoker::TPtr serviceInvoker);
+        TChunkStore* chunkStore,
+        TBlockStore* blockStore,
+        IInvoker* serviceInvoker);
     
     //! Starts a new job with the given parameters.
     TJob::TPtr StartJob(
         EJobType jobType,
         const TJobId& jobId,
-        TChunk::TPtr chunk,
+        TStoredChunk* chunk,
         const yvector<Stroka>& targetAddresses);
 
     //! Stops the job.
-    void StopJob(TJob::TPtr job);
+    void StopJob(TJob* job);
 
     // TODO: is it needed?
     //! Stop all currently active jobs.

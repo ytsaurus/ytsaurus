@@ -71,19 +71,17 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncWriteBlock(const TSharedRef& data);
+    virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    TAsyncStreamState::TAsyncResult::TPtr
-    AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
+    virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
     
     /*!
      * \note Thread affinity: any.
      */
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
     ~TRemoteWriter();
 
@@ -162,7 +160,7 @@ private:
     /*!
      * Invoked from #Cancel
      */
-    void DoCancel(const Stroka& errorMessage);
+    void DoCancel(const TError& error);
 
     void AddGroup(TGroupPtr group);
 

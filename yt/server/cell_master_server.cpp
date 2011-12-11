@@ -38,7 +38,7 @@
 
 namespace NYT {
 
-static NLog::TLogger Logger("CellMaster");
+static NLog::TLogger Logger("Server");
 
 using NBus::IBusServer;
 using NBus::TNLBusServerConfig;
@@ -83,23 +83,11 @@ using NTableServer::CreateTableTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellMasterServer::TConfig::Read(TJsonObject* json)
-{
-    TJsonObject* cellJson = GetSubTree(json, "Cell");
-    if (cellJson != NULL) {
-        MetaState.Cell.Read(cellJson);
-    }
-
-    TJsonObject* metaStateJson = GetSubTree(json, "MetaState");
-    if (metaStateJson != NULL) {
-        MetaState.Read(metaStateJson);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCellMasterServer::TCellMasterServer(const TConfig& config)
-    : Config(config)
+TCellMasterServer::TCellMasterServer(
+    const Stroka& configFileName,
+    const TConfig& config)
+    : ConfigFileName(configFileName)
+    , Config(config)
 { }
 
 void TCellMasterServer::Run()
@@ -184,13 +172,11 @@ void TCellMasterServer::Run()
                 ~CreateMonitoringProvider(~monitoringManager),
                 orchidFactory),
             "monitoring"));
-    if (!Config.NewConfigFileName.empty()) {
-        YVERIFY(orchidRoot->AddChild(
-            NYTree::CreateVirtualNode(
-                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
-                orchidFactory),
-            "config"));
-    }
+    YVERIFY(orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NYTree::CreateYsonFileProvider(ConfigFileName),
+            orchidFactory),
+        "config"));
 
     auto orchidService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

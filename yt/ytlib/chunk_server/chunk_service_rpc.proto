@@ -99,8 +99,7 @@ message TRspConfirmChunks
 
 message TReqFindChunk
 {
-    required bytes TransactionId = 1;
-    required bytes ChunkId = 2;
+    required bytes ChunkId = 1;
 }
 
 message TRspFindChunk

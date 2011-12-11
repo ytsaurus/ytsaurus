@@ -51,7 +51,7 @@ public:
             TAppendResult::TPtr result)
         {
             THolder<TRecord> recordHolder(new TRecord(version, data, result));
-            TRecord* record = recordHolder.Get();
+            TRecord* record = ~recordHolder;
 
             {
                 TGuard<TSpinLock> guard(SpinLock);

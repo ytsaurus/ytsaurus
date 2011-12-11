@@ -23,12 +23,12 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((InvalidSegmentId)(1))
-        ((InvalidEpoch)(2))
-        ((InvalidVersion)(3))
-        ((InvalidStatus)(4))
-        ((IOError)(5))
-        ((Busy)(6))
+        ((NoSuchSnapshot)(1))
+        ((NoSuchChangeLog)(2))
+        ((InvalidEpoch)(3))
+        ((InvalidVersion)(4))
+        ((InvalidStatus)(5))
+        ((SnapshotAlreadyInProgress)(6))
     );
 
     TMetaStateManagerProxy(NRpc::IChannel* channel)

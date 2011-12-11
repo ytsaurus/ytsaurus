@@ -35,7 +35,6 @@ public:
         (SnapshotNotFound)
         (SnapshotUnavailable)
         (RemoteError)
-        (IOError)
     );
 
     TSnapshotDownloader(

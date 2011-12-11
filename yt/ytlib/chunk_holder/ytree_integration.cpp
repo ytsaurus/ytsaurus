@@ -44,13 +44,10 @@ private:
 
         return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
             {
-                const auto& info = chunk->Info();
-                // TODO: location id?
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("type").Scalar(EChunkType(info.attributes().type()).ToString())
-                        .Item("size").Scalar(info.size())
-                        .Item("block_count").Scalar(info.blocks_size())
+                        .Item("size").Scalar(chunk->GetSize())
+                        //.Item("location").Scalar(chunk->GetLocation()->GetPath())
                     .EndMap();
             }));
     }

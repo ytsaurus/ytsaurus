@@ -49,8 +49,7 @@ TSharedRef TSequentialReader::GetBlock()
     return Window[NextSequenceIndex - 1].AsyncBlock->Get();
 }
 
-TAsyncStreamState::TAsyncResult::TPtr
-TSequentialReader::AsyncNextBlock()
+TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(HasNext());
@@ -58,17 +57,20 @@ TSequentialReader::AsyncNextBlock()
 
     State.StartOperation();
 
-    Window[NextSequenceIndex].AsyncBlock->Subscribe(FromMethod(
-        &TAsyncStreamState::FinishOperation,
-        &State,
-        TAsyncStreamState::TResult())->ToParamAction<TSharedRef>());
+    Window[NextSequenceIndex].AsyncBlock
+        ->Subscribe(FromMethod(
+            &TAsyncStreamState::FinishOperation,
+            &State,
+            TError())
+        ->ToParamAction<TSharedRef>());
 
-    if (NextSequenceIndex > 0)
+    if (NextSequenceIndex > 0) {
         ShiftWindow();
+    }
 
     ++NextSequenceIndex;
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 void TSequentialReader::OnGotBlocks(
     IAsyncReader::TReadResult readResult, 
@@ -80,7 +82,7 @@ void TSequentialReader::OnGotBlocks(
         return;
 
     if (!readResult.IsOK()) {
-        State.Fail(readResult.ToString());
+        State.Fail(readResult);
         return;
     }
 

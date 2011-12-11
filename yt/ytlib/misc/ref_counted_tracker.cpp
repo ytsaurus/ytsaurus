@@ -19,13 +19,14 @@ using namespace NYTree;
 TRefCountedTracker::TStatistics TRefCountedTracker::Statistics;
 TSpinLock TRefCountedTracker::SpinLock;
 
-TRefCountedTracker::TCookie TRefCountedTracker::Lookup(TKey key)
+TRefCountedTracker::TCookie TRefCountedTracker::Get(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
     auto it = Statistics.find(key);
-    if (it != Statistics.end())
+    if (it != Statistics.end()) {
         return &it->Second();
+    }
 
     return &Statistics.insert(MakePair(key, TItem(key))).First()->Second();
 }
@@ -109,15 +110,17 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
     auto items = GetItems();
     SortItems(items, -1);
     
-    i64 totalAlive = 0;
     i64 totalCreated = 0;
+    i64 totalAlive = 0;
+    FOREACH (const auto& item, items) {
+        totalCreated += item.CreatedObjects;
+        totalAlive += item.AliveObjects;
+    }
 
     auto current = BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statistics").DoListFor(items, [&] (TFluentList fluent, TItem item)
+            .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item)
                 {
-                    totalAlive += item.AliveObjects;
-                    totalCreated += item.CreatedObjects;
                     fluent
                         .Item().BeginMap()
                             .Item("name").Scalar(DemangleCxxName(item.Key->name()))
@@ -134,12 +137,12 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
 
 i64 TRefCountedTracker::GetAliveObjects(TKey key)
 {
-    return Lookup(key)->AliveObjects;
+    return Get(key)->AliveObjects;
 }
 
 i64 TRefCountedTracker::GetCreatedObjects(TKey key)
 {
-    return Lookup(key)->CreatedObjects;
+    return Get(key)->CreatedObjects;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

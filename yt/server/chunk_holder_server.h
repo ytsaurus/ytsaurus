@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/chunk_holder/chunk_holder_service.h>
+#include <yt/ytlib/chunk_holder/common.h>
 
 namespace NYT {
 
@@ -11,11 +11,16 @@ class TChunkHolderServer
 public:
     typedef NChunkHolder::TChunkHolderConfig TConfig;
 
-    TChunkHolderServer(const TConfig& config);
+    TChunkHolderServer(
+        const Stroka& configFileName,
+        const TConfig& config);
+
     void Run();
 
 private:
+    Stroka ConfigFileName;
     TConfig Config;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,7 +33,7 @@ private:
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     void ValidateHolderId(THolderId holderId);
-    void ValidateTransactionId(const TTransactionId& transactionId);
+    void ValidateTransactionId(const NTransactionServer::TTransactionId& transactionId);
     void ValidateChunkId(const NChunkClient::TChunkId& chunkId);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);

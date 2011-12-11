@@ -38,7 +38,7 @@ private:
 public:
     typedef TItem* TCookie;
 
-    static TCookie Lookup(TKey key);
+    static TCookie Get(TKey key);
 
     static inline void Register(TCookie cookie)
     {

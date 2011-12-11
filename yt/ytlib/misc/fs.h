@@ -63,6 +63,9 @@ void ForcePath(const Stroka& path, int mode = 0777);
 //! Throws an exception if something went wrong.
 i64 GetFileSize(const Stroka& path);
 
+//! Converts all back slashes to forward slashes.
+Stroka NormalizePathSeparators(const Stroka& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

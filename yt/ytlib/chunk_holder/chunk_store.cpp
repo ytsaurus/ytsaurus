@@ -25,16 +25,13 @@ TChunkStore::TChunkStore(
     : Config(config)
     , ReaderCache(readerCache)
 {
-    InitLocations();
-    ScanLocations(); 
-}
-
-void TChunkStore::ScanLocations()
-{
-    LOG_INFO("Storage scan started");
+    LOG_INFO("Chunk storage scan started");
 
     try {
-        FOREACH(auto location, Locations_) {
+        FOREACH (const auto& config, Config.StorageLocations) {
+            auto location = New<TLocation>(config, ~ReaderCache);
+            Locations_.push_back(location);
+
             FOREACH (const auto& descriptor, location->Scan()) {
                 auto chunk = New<TStoredChunk>(~location, descriptor);
                 RegisterChunk(~chunk);
@@ -44,14 +41,7 @@ void TChunkStore::ScanLocations()
         LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
     }
 
-    LOG_INFO("Storage scan completed, %s chunks total", ChunkMap.ysize());
-}
-
-void TChunkStore::InitLocations()
-{
-    FOREACH (const auto& config, Config.Locations) {
-        Locations_.push_back(New<TLocation>(config, ~ReaderCache));
-    }
+    LOG_INFO("Chunk storage scan completed, %d chunk(s) total", ChunkMap.ysize());
 }
 
 void TChunkStore::RegisterChunk(TStoredChunk* chunk)
@@ -80,6 +70,9 @@ void TChunkStore::RemoveChunk(TStoredChunk* chunk)
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);
     chunk->GetLocation()->UnregisterChunk(chunk);
+
+    // TODO: consider
+    // TChunkFileDeleter::Delete(chunk->GetFileName());
         
     Stroka fileName = chunk->GetFileName();
     if (!NFS::Remove(fileName + ChunkMetaSuffix)) {

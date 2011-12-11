@@ -42,6 +42,7 @@ class TPersistentStateManager
 {
 public:
     typedef TIntrusivePtr<TPersistentStateManager> TPtr;
+    typedef TPersistentStateManagerConfig TConfig;
 
     class TElectionCallbacks
         : public IElectionCallbacks
@@ -112,13 +113,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
-        NFS::ForcePath(config.LogLocation);
-        NFS::CleanTempFiles(config.LogLocation);
-        ChangeLogCache = New<TChangeLogCache>(Config.LogLocation);
+        NFS::ForcePath(config.LogPath);
+        NFS::CleanTempFiles(config.LogPath);
+        ChangeLogCache = New<TChangeLogCache>(Config.LogPath);
 
-        NFS::ForcePath(config.SnapshotLocation);
-        NFS::CleanTempFiles(config.SnapshotLocation);
-        SnapshotStore = New<TSnapshotStore>(Config.SnapshotLocation);
+        NFS::ForcePath(config.SnapshotPath);
+        NFS::CleanTempFiles(config.SnapshotPath);
+        SnapshotStore = New<TSnapshotStore>(Config.SnapshotPath);
 
         MetaState = New<TDecoratedMetaState>(
             metaState,
@@ -304,6 +305,7 @@ public:
     TFollowerTracker::TPtr FollowerTracker;
     TFollowerPinger::TPtr FollowerPinger;
 
+    // RPC methods.
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetSnapshotInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -314,12 +316,13 @@ public:
             snapshotId);
 
         try {
-            auto reader = SnapshotStore->GetReader(snapshotId);
-            if (~reader == NULL) {
-                ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                    Sprintf("Invalid snapshot id (SnapshotId: %d)", snapshotId);
+            auto result = SnapshotStore->GetReader(snapshotId);
+            if (!result.IsOK()) {
+                // TODO: cannot use ythrow here
+                throw TServiceException(result);
             }
 
+            auto reader = result.Value();
             reader->Open();
         
             i64 length = reader->GetLength();
@@ -335,11 +338,9 @@ public:
 
             context->Reply();
         } catch (...) {
-            // TODO: fail?
-            ythrow TServiceException(EErrorCode::IOError) <<
-                Sprintf("IO error while getting snapshot info (SnapshotId: %d)\n%s",
-                    snapshotId,
-                    ~CurrentExceptionMessage());
+            LOG_FATAL("IO error while getting snapshot info (SnapshotId: %d)\n%s",
+                snapshotId,
+                ~CurrentExceptionMessage());
         }
     }
 
@@ -361,50 +362,34 @@ public:
         YASSERT(offset >= 0);
         YASSERT(length >= 0);
 
-        auto snapshotFile = SnapshotStore->GetRawReader(snapshotId);
-        if (~snapshotFile == NULL) {
-            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid snapshot (SnapshotId: %d)", snapshotId);
+        auto result = SnapshotStore->GetRawReader(snapshotId);
+        if (!result.IsOK()) {
+            // TODO: cannot use ythrow here
+            throw TServiceException(result);
         }
 
-        ReadQueue->GetInvoker()->Invoke(
-            context->Wrap(~FromMethod(
-                &TThis::DoReadSnapshot,
-                TPtr(this),
-                snapshotId,
-                snapshotFile,
-                offset,
-                length)));
-    }
+        auto snapshotFile = result.Value();
+        ReadQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] ()
+            {
+                VERIFY_THREAD_AFFINITY(ReadThread);
 
+                try {
+                    snapshotFile->Seek(offset, sSet);
 
-    void DoReadSnapshot(
-        TCtxReadSnapshot::TPtr context,
-        i32 snapshotId,
-        TAutoPtr<TFile> snapshotFile,
-        i64 offset,
-        i32 length) 
-    {
-        VERIFY_THREAD_AFFINITY(ReadThread);
+                    TBlob data(length);
+                    i32 bytesRead = snapshotFile->Read(data.begin(), length);
+                    data.erase(data.begin() + bytesRead, data.end());
 
-        try {
-            snapshotFile->Seek(offset, sSet);
-            
-            TBlob data(length);
-            i32 bytesRead = snapshotFile->Read(data.begin(), length);
-            data.erase(data.begin() + bytesRead, data.end());
+                    context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
+                    context->SetResponseInfo("BytesRead: %d", bytesRead);
 
-            context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
-            context->SetResponseInfo("BytesRead: %d", bytesRead);
-
-            context->Reply();
-        } catch (...) {
-            // TODO: fail?
-            ythrow TServiceException(TProxy::EErrorCode::IOError) <<
-                Sprintf("IO error while reading snapshot (SnapshotId: %d)\n%s",
-                    snapshotId,
-                    ~CurrentExceptionMessage());
-        }
+                    context->Reply();
+                } catch (...) {
+                    LOG_FATAL("IO error while reading snapshot (SnapshotId: %d)\n%s",
+                        snapshotId,
+                        ~CurrentExceptionMessage());
+                }
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetChangeLogInfo)
@@ -417,12 +402,13 @@ public:
             changeLogId);
 
         try {
-            auto changeLog = ChangeLogCache->Get(changeLogId);
-            if (~changeLog == NULL) {
-                ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                    Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
+            auto result = ChangeLogCache->Get(changeLogId);
+            if (!result.IsOK()) {
+                // TODO: cannot use ythrow here
+                throw TServiceException(result);
             }
 
+            auto changeLog = result.Value();
             i32 recordCount = changeLog->GetRecordCount();
         
             response->set_recordcount(recordCount);
@@ -430,11 +416,9 @@ public:
             context->SetResponseInfo("RecordCount: %d", recordCount);
             context->Reply();
         } catch (...) {
-            // TODO: fail?
-            ythrow TServiceException(EErrorCode::IOError) <<
-                Sprintf("IO error while getting changelog info (ChangeLogId: %d)\n%s",
-                    changeLogId,
-                    ~CurrentExceptionMessage());
+            LOG_FATAL("IO error while getting changelog info (ChangeLogId: %d)\n%s",
+                changeLogId,
+                ~CurrentExceptionMessage());
         }
     }
 
@@ -456,181 +440,35 @@ public:
         YASSERT(startRecordId >= 0);
         YASSERT(recordCount >= 0);
     
-        auto changeLog = ChangeLogCache->Get(changeLogId);
-        if (~changeLog == NULL) {
-            ythrow TServiceException(EErrorCode::InvalidSegmentId) <<
-                Sprintf("Invalid changelog id (ChangeLogId: %d)", changeLogId);
+        auto result = ChangeLogCache->Get(changeLogId);
+        if (!result.IsOK()) {
+            // TODO: cannot use ythrow here
+            throw TServiceException(result);
         }
 
-        ReadQueue->GetInvoker()->Invoke(~context->Wrap(~FromMethod(
-            &TThis::DoReadChangeLog,
-            TPtr(this),
-            changeLogId,
-            changeLog,
-            startRecordId,
-            recordCount)));
-    }
+        auto changeLog = result.Value();
+        ReadQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
+            {
+                VERIFY_THREAD_AFFINITY(ReadThread);
 
+                try {
+                    yvector<TSharedRef> recordData;
+                    changeLog->Read(startRecordId, recordCount, &recordData);
 
-    void DoReadChangeLog(
-        TCtxReadChangeLog::TPtr context,
-        i32 changeLogId,
-        TCachedAsyncChangeLog::TPtr changeLog,
-        i32 startRecordId,
-        i32 recordCount) 
-    {
-        VERIFY_THREAD_AFFINITY(ReadThread);
+                    context->Response().set_recordsread(recordData.ysize());
+                    context->Response().Attachments().insert(
+                        context->Response().Attachments().end(),
+                        recordData.begin(),
+                        recordData.end());
 
-        try {
-            yvector<TSharedRef> recordData;
-            changeLog->Read(startRecordId, recordCount, &recordData);
-
-            context->Response().set_recordsread(recordData.ysize());
-            context->Response().Attachments().insert(
-                context->Response().Attachments().end(),
-                recordData.begin(),
-                recordData.end());
-
-            context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-            context->Reply();
-        } catch (...) {
-            // TODO: fail?
-            ythrow TServiceException(EErrorCode::IOError) <<
-                Sprintf("IO error while reading changelog (ChangeLogId: %d)\n%s",
-                    changeLogId,
-                    ~CurrentExceptionMessage());
-        }
-    }
-
-    // TODO: consider another name
-    void OnLeaderRecoveryFinish(TRecovery::EResult result)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YASSERT(result == TRecovery::EResult::OK ||
-                result == TRecovery::EResult::Failed);
-
-        YASSERT(~LeaderRecovery != NULL);
-        LeaderRecovery->Stop();
-        LeaderRecovery.Reset();
-
-        if (result != TRecovery::EResult::OK) {
-            LOG_WARNING("Leader recovery failed, restarting");
-            Restart();
-            return;
-        }
-
-        GetStateInvoker()->Invoke(FromMethod(
-            &TThis::DoLeaderRecoveryComplete,
-            TPtr(this),
-            Epoch));
-
-        YASSERT(~LeaderCommitter == NULL);
-        LeaderCommitter = New<TLeaderCommitter>(
-            TLeaderCommitter::TConfig(),
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            FollowerTracker,
-            ControlInvoker,
-            Epoch);
-        LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
-            &TThis::OnApplyChange,
-            TPtr(this)));
-
-        YASSERT(~SnapshotCreator == NULL);
-        SnapshotCreator = New<TSnapshotCreator>(
-            TSnapshotCreator::TConfig(),
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
-            Epoch,
-            ControlInvoker);
-
-        ControlStatus = EPeerStatus::Leading;
-
-        LOG_INFO("Leader recovery complete");
-    }
-
-    // TODO: consider another name
-    void OnFollowerRecoveryFinish(TRecovery::EResult result)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YASSERT(result == TRecovery::EResult::OK ||
-                result == TRecovery::EResult::Failed);
-
-        YASSERT(~FollowerRecovery != NULL);
-        FollowerRecovery->Stop();
-        FollowerRecovery.Reset();
-
-        if (result != TRecovery::EResult::OK) {
-            LOG_INFO("Follower recovery failed, restarting");
-            Restart();
-            return;
-        }
-
-        GetStateInvoker()->Invoke(FromMethod(
-            &TThis::DoFollowerRecoveryComplete,
-            TPtr(this)));
-
-        YASSERT(~FollowerCommitter == NULL);
-        FollowerCommitter = New<TFollowerCommitter>(
-            MetaState,
-            ControlInvoker);
-
-        YASSERT(~SnapshotCreator == NULL);
-        SnapshotCreator = New<TSnapshotCreator>(
-            TSnapshotCreator::TConfig(),
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
-            Epoch,
-            ControlInvoker);
-
-        ControlStatus = EPeerStatus::Following;
-
-        LOG_INFO("Follower recovery complete");
-    }
-
-
-    void DoLeaderRecoveryComplete(const TEpoch& epoch)
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-    
-        YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
-        StateStatus = EPeerStatus::Leading;
-
-        // Switch to a new changelog unless the current one is empty.
-        // This enables changelog truncation for those followers that are down and have uncommitted changes.
-        auto version = MetaState->GetVersion();
-        if (version.RecordCount > 0) {
-            LOG_INFO("Switching to a new changelog for a new epoch (Version: %s)",
-                ~version.ToString());
-
-            for (TPeerId followerId = 0; followerId < CellManager->GetPeerCount(); ++followerId) {
-                if (followerId == CellManager->GetSelfId()) continue;
-                LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
-                    followerId);
-
-                auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
-                auto request = proxy->AdvanceSegment();
-                request->set_segmentid(version.SegmentId);
-                request->set_recordcount(version.RecordCount);
-                request->set_epoch(epoch.ToProto());
-                request->set_createsnapshot(false);
-                request->Invoke()->Subscribe(FromMethod(
-                    &TThis::OnRemoteAdvanceSegment,
-                    TPtr(this),
-                    followerId,
-                    version));
-            }
-
-            MetaState->RotateChangeLog();
-        }
-    
-        OnLeaderRecoveryComplete_.Fire();
+                    context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+                    context->Reply();
+                } catch (...) {
+                    LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
+                        changeLogId,
+                        ~CurrentExceptionMessage());
+                }
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ApplyChanges)
@@ -755,7 +593,7 @@ public:
                         maxSnapshotId);
 
                     FollowerRecovery->Run()->Subscribe(
-                        FromMethod(&TThis::OnFollowerRecoveryFinish, TPtr(this))
+                        FromMethod(&TThis::OnFollowerRecoveryFinished, TPtr(this))
                         ->Via(~EpochControlInvoker));
                 }
                 break;
@@ -850,6 +688,135 @@ public:
             default:
                 YUNREACHABLE();
         }
+    }
+    // End of RPC methods.
+
+    void OnLeaderRecoveryFinished(TRecovery::EResult result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YASSERT(result == TRecovery::EResult::OK ||
+            result == TRecovery::EResult::Failed);
+
+        YASSERT(~LeaderRecovery != NULL);
+        LeaderRecovery->Stop();
+        LeaderRecovery.Reset();
+
+        if (result != TRecovery::EResult::OK) {
+            LOG_WARNING("Leader recovery failed, restarting");
+            Restart();
+            return;
+        }
+
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoLeaderRecoveryComplete,
+            TPtr(this),
+            Epoch));
+
+        YASSERT(~LeaderCommitter == NULL);
+        LeaderCommitter = New<TLeaderCommitter>(
+            TLeaderCommitter::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            FollowerTracker,
+            ControlInvoker,
+            Epoch);
+        LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
+            &TThis::OnApplyChange,
+            TPtr(this)));
+
+        YASSERT(~SnapshotCreator == NULL);
+        SnapshotCreator = New<TSnapshotCreator>(
+            TSnapshotCreator::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            ControlInvoker);
+
+        ControlStatus = EPeerStatus::Leading;
+
+        LOG_INFO("Leader recovery complete");
+    }
+
+    void OnFollowerRecoveryFinished(TRecovery::EResult result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YASSERT(result == TRecovery::EResult::OK ||
+            result == TRecovery::EResult::Failed);
+
+        YASSERT(~FollowerRecovery != NULL);
+        FollowerRecovery->Stop();
+        FollowerRecovery.Reset();
+
+        if (result != TRecovery::EResult::OK) {
+            LOG_INFO("Follower recovery failed, restarting");
+            Restart();
+            return;
+        }
+
+        GetStateInvoker()->Invoke(FromMethod(
+            &TThis::DoFollowerRecoveryComplete,
+            TPtr(this)));
+
+        YASSERT(~FollowerCommitter == NULL);
+        FollowerCommitter = New<TFollowerCommitter>(
+            MetaState,
+            ControlInvoker);
+
+        YASSERT(~SnapshotCreator == NULL);
+        SnapshotCreator = New<TSnapshotCreator>(
+            TSnapshotCreator::TConfig(),
+            CellManager,
+            MetaState,
+            ChangeLogCache,
+            SnapshotStore,
+            Epoch,
+            ControlInvoker);
+
+        ControlStatus = EPeerStatus::Following;
+
+        LOG_INFO("Follower recovery complete");
+    }
+
+    void DoLeaderRecoveryComplete(const TEpoch& epoch)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
+        StateStatus = EPeerStatus::Leading;
+
+        // Switch to a new changelog unless the current one is empty.
+        // This enables changelog truncation for those followers that are down and have uncommitted changes.
+        auto version = MetaState->GetVersion();
+        if (version.RecordCount > 0) {
+            LOG_INFO("Switching to a new changelog for a new epoch (Version: %s)",
+                ~version.ToString());
+
+            for (TPeerId followerId = 0; followerId < CellManager->GetPeerCount(); ++followerId) {
+                if (followerId == CellManager->GetSelfId()) continue;
+                LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
+                    followerId);
+
+                auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
+                auto request = proxy->AdvanceSegment();
+                request->set_segmentid(version.SegmentId);
+                request->set_recordcount(version.RecordCount);
+                request->set_epoch(epoch.ToProto());
+                request->set_createsnapshot(false);
+                request->Invoke()->Subscribe(FromMethod(
+                    &TThis::OnRemoteAdvanceSegment,
+                    TPtr(this),
+                    followerId,
+                    version));
+            }
+
+            MetaState->RotateChangeLog();
+        }
+
+        OnLeaderRecoveryComplete_.Fire();
     }
 
     void OnRemoteAdvanceSegment(
@@ -954,7 +921,7 @@ public:
                 break;
             case TSnapshotCreator::EResultCode::AlreadyInProgress:
                 context->Reply(
-                    TProxy::EErrorCode::Busy,
+                    TProxy::EErrorCode::SnapshotAlreadyInProgress,
                     "Snapshot creation is already in progress");
                 break;
             default:
@@ -980,7 +947,7 @@ public:
     }
 
     // IElectionCallbacks implementation.
-    // Get rid of this stupid names
+    // TODO: get rid of these stupid names.
     void OnElectionStartLeading(const TEpoch& epoch)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1023,7 +990,7 @@ public:
             Epoch,
             ControlInvoker);
         LeaderRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnLeaderRecoveryFinish, TPtr(this))
+            FromMethod(&TThis::OnLeaderRecoveryFinished, TPtr(this))
             ->Via(~EpochControlInvoker));
     }
 
@@ -1063,7 +1030,9 @@ public:
 
         if (~SnapshotCreator != NULL) {
             GetStateInvoker()->Invoke(FromMethod(
-                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
+                &TThis::WaitSnapshotCreation,
+                TPtr(this),
+                SnapshotCreator));
             SnapshotCreator.Reset();
         }
     }
@@ -1113,12 +1082,13 @@ public:
 
         if (~SnapshotCreator != NULL) {
             GetStateInvoker()->Invoke(FromMethod(
-                &TThis::WaitSnapshotCreation, TPtr(this), SnapshotCreator));
+                &TThis::WaitSnapshotCreation,
+                TPtr(this),
+                SnapshotCreator));
             SnapshotCreator.Reset();
         }
     }
-    // end of IElectionCallback methods
-
+    // End of IElectionCallback methods.
 
     void StartControlEpoch(const TEpoch& epoch)
     {
@@ -1189,11 +1159,10 @@ public:
         return Sprintf("(%d, %d)", segmentId, recordCount);
     }
 
-    // Blocks state thread until snapshot creation is finished
+    // Blocks state thread until snapshot creation is finished.
     void WaitSnapshotCreation(TSnapshotCreator::TPtr snapshotCreator)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-
         snapshotCreator->GetLocalProgress()->Get();
     }
 
@@ -1264,7 +1233,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 IMetaStateManager::TPtr CreatePersistentStateManager(
-    const IMetaStateManager::TConfig& config,
+    const TPersistentStateManagerConfig& config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
     NRpc::IRpcServer* server)

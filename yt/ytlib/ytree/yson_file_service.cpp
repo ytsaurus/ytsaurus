@@ -38,7 +38,8 @@ private:
     INode::TPtr LoadFile()
     {
         try {
-            return DeserializeFromYson(FileName);
+            TIFStream stream(FileName);
+           return DeserializeFromYson(&stream);
         } catch (...) {
             throw yexception() << Sprintf("Error loading YSON file %s\n%s",
                 ~FileName,

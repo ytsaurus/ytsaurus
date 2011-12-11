@@ -68,21 +68,21 @@ void TChunkSequenceReader::PrepareNextChunk()
 }
 
 void TChunkSequenceReader::OnNextReaderOpened(
-    TAsyncStreamState::TResult result, 
+    TError error, 
     TChunkReader::TPtr reader)
 {
     YASSERT(!NextReader->IsSet());
 
-    if (result.IsOK) {
+    if (error.IsOK()) {
         NextReader->Set(reader);
         return;
     }
 
-    State.Fail(result.ErrorMessage);
+    State.Fail(error);
     NextReader->Set(NULL);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncOpen()
+TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
 {
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
@@ -91,7 +91,7 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncOpen()
         &TChunkSequenceReader::SetCurrentChunk,
         TPtr(this)));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
@@ -114,10 +114,10 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
     State.FinishOperation();
 }
 
-void TChunkSequenceReader::OnNextRow(TAsyncStreamState::TResult result)
+void TChunkSequenceReader::OnNextRow(TError error)
 {
-    if (!result.IsOK) {
-        State.Fail(result.ErrorMessage);
+    if (!error.IsOK()) {
+        State.Fail(error);
     }
 
     State.FinishOperation();
@@ -130,7 +130,7 @@ bool TChunkSequenceReader::HasNextRow() const
     return NextChunkIndex < Chunks.ysize() || CurrentReader->HasNextRow();
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncNextRow()
+TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
 {
     if (CurrentReader->HasNextRow()) {
         return CurrentReader->AsyncNextRow();
@@ -141,7 +141,7 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceReader::AsyncNextRow()
             &TChunkSequenceReader::SetCurrentChunk,
             TPtr(this)));
 
-        return State.GetOperationResult();
+        return State.GetOperationError();
     }
 }
 
@@ -160,10 +160,10 @@ TColumn TChunkSequenceReader::GetColumn() const
     return CurrentReader->GetColumn();
 }
 
-void TChunkSequenceReader::Cancel(const Stroka& errorMessage)
+void TChunkSequenceReader::Cancel(const TError& error)
 {
-    State.Cancel(errorMessage);
-    CurrentReader->Cancel(errorMessage);
+    State.Cancel(error);
+    CurrentReader->Cancel(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

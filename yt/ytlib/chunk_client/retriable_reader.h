@@ -13,6 +13,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////  
 
+//! Wraps TRemoteReader and retries failed request.
 class TRetriableReader
     : public IAsyncReader
 {
@@ -27,7 +28,6 @@ public:
         TDuration BackoffTime;
         int RetryCount;
         TDuration MasterRpcTimeout;
-
         TRemoteReader::TConfig RemoteReader;
 
         TConfig()
@@ -47,8 +47,8 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel);
 
-    TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
-    TFuture<TGetInfoResult>::TPtr AsyncGetChunkInfo();
+    TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -77,14 +77,16 @@ private:
         TFuture<TGetInfoResult>::TPtr result,
         int requestFailCount);
 
+    void AppendError(const Stroka& message);
+
     const TConfig Config;
     const TChunkId ChunkId;
     const NTransactionClient::TTransactionId TransactionId;
     TProxy Proxy;
 
-    //! Protects #FailCount and UnderlyingReader.
+    //! Protects #FailCount and #UnderlyingReader.
     TSpinLock SpinLock;
-    TFuture<TRemoteReader::TPtr>::TPtr UnderlyingReader;
+    TFuture<TRemoteReader::TPtr>::TPtr AsyncReader;
     int FailCount;
 
     Stroka CumulativeError;

@@ -7,6 +7,8 @@
 #include "chunk_service_rpc.pb.h"
 
 #include "../chunk_client/common.h"
+#include "../chunk_client/remote_reader.h"
+#include "../chunk_client/sequential_reader.h"
 #include "../election/leader_lookup.h"
 #include "../misc/guid.h"
 #include "../logging/log.h"
@@ -30,19 +32,20 @@ struct TLocationConfig
     {
         Register("path", Path).NonEmpty();
         Register("quota", Quota).Default(0);
+
+        SetDefaults();
     }
 };
 
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
     : public TConfigBase
-
 {
     //! Maximum number blocks in cache.
     int MaxCachedBlocks;
 
     //! Maximum number opened files in cache.
-    int MaxCachedFiles;
+    int MaxCachedReaders;
 
     //! Upload session timeout.
     /*!
@@ -64,20 +67,24 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    //// TODO: consider making per/location limit
+    //! Regular storage locations.
+    yvector<TLocationConfig> StorageLocations;
 
-    // TODO: killme
-    Stroka NewConfigFileName;
+    //! Location used for caching chunks.
+    TLocationConfig CacheLocation;
 
-    //! Describes regular storage locations.
-    yvector<TLocationConfig> Locations;
+    //! Remote reader configuration used to download chunks into cache.
+    NChunkClient::TRemoteReader::TConfig CacheRemoteReader;
+
+    //! Sequential reader configuration used to download chunks into cache.
+    NChunkClient::TSequentialReader::TConfig CacheSequentialReader;
 
     //! Masters configuration.
     /*!
      *  If no master addresses are given, the holder will operate in a standalone mode.
      */
     NElection::TLeaderLookup::TConfig Masters;
-    
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -86,20 +93,21 @@ struct TChunkHolderConfig
     TChunkHolderConfig()
     {
         Register("max_cached_blocks", MaxCachedBlocks).GreaterThan(0).Default(10);
-        Register("max_cached_files", MaxCachedFiles).GreaterThan(0).Default(10);
+        Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
         Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
         Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10001);
-        //Register("locations", Locations);
+        // TODO: fixme
+        //Register("storage_locations", StorageLocations);
+        Register("cache_location", CacheLocation);
+        Register("cache_remote_reader", CacheRemoteReader);
+        Register("cache_sequential_reader", CacheSequentialReader);
         Register("masters", Masters);
 
         SetDefaults();
     }
-
-    //! Reads configuration from JSON.
-    void Read(TJsonObject* json);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

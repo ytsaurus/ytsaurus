@@ -26,6 +26,12 @@ public:
         : Code_(code)
     { }
 
+    explicit TServiceException(const TError& error)
+        : Code_(error.GetCode())
+    {
+        *this << error.ToString();
+    }
+
     //! Gets the error code.
     TError GetError() const
     {
@@ -196,12 +202,18 @@ public:
         return Context->IsReplied();
     }
 
+    IAction::TPtr Wrap(IAction* action)
+    {
+        YASSERT(action != NULL);
+        return Context->Wrap(action);
+    }
+    
     IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
         YASSERT(paramAction != NULL);
         return Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
-    
+
     void SetRequestInfo(const Stroka& info)
     {
         Context->SetRequestInfo(info);

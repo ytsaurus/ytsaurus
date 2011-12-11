@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "master_connector.h"
 
-#include <util/system/hostname.h>
-
 #include "../rpc/client.h"
 #include "../election/cell_channel.h"
 #include "../misc/delayed_invoker.h"
 #include "../misc/serialize.h"
 #include "../misc/string.h"
+
+#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -15,6 +15,7 @@ namespace NChunkHolder {
 using namespace NMetaState;
 using namespace NChunkServer::NProto;
 using namespace NChunkClient;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +43,8 @@ TMasterConnector::TMasterConnector(
     YASSERT(replicator != NULL);
     YASSERT(serviceInvoker != NULL);
 
-    auto channel = CreateCellChannel(Config.Masters);
-    Proxy.Reset(new TProxy(~channel));
+    Channel = CreateCellChannel(Config.Masters);
+    Proxy.Reset(new TProxy(~Channel));
     Proxy->SetTimeout(Config.MasterRpcTimeout);
 
     Address = Sprintf("%s:%d", ~HostName(), Config.RpcPort);
@@ -60,6 +61,11 @@ TMasterConnector::TMasterConnector(
         ~JoinToString(Config.Masters.Addresses));
 
     OnHeartbeat();
+}
+
+IChannel::TPtr TMasterConnector::GetChannel()
+{
+    return Channel;
 }
 
 void TMasterConnector::ScheduleHeartbeat()
@@ -99,14 +105,9 @@ void TMasterConnector::SendRegister()
 THolderStatistics TMasterConnector::ComputeStatistics()
 {
     THolderStatistics result;
-
     FOREACH(const auto& location, ChunkStore->Locations()) {
         result.AvailableSpace += location->GetAvailableSpace();
         result.UsedSpace += location->GetUsedSpace();
-    }
-
-    if (Config.MaxChunksSpace >= 0) {
-        result.AvailableSpace = Max((i64) 0, Config.MaxChunksSpace - result.UsedSpace);
     }
 
     result.ChunkCount = ChunkStore->GetChunkCount();
@@ -183,7 +184,7 @@ TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* ch
 {
     TReqHolderHeartbeat::TChunkAddInfo info;
     info.set_chunkid(chunk->GetId().ToProto());
-    info.set_size(chunk->Info().size());
+    info.set_size(chunk->GetSize());
     return info;
 }
 
@@ -240,7 +241,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             continue;
         }
 
-        Replicator->StopJob(job);
+        Replicator->StopJob(~job);
     }
 
     FOREACH (const auto& startInfo, response->jobstostart()) {
@@ -258,7 +259,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         Replicator->StartJob(
             EJobType(startInfo.type()),
             jobId,
-            chunk,
+            ~chunk,
             FromProto<Stroka>(startInfo.targetaddresses()));
     }
 }

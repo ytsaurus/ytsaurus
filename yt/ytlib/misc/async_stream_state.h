@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "../misc/error.h"
 #include "../actions/future.h"
 
 namespace NYT {
@@ -12,35 +13,13 @@ class TAsyncStreamState
     : public TNonCopyable
 {
 public:
-    // TODO: replace with TError
-    struct TResult
-    {
-        /*! True means that stream is ready (if set through #Signal)
-         *  or successfully closed (#Close). This can be distinguished 
-         *  by #IsClosed call.
-         *  False means failure or cancellation. Failure details can be obtained
-         *  via ErrorMessage.
-         */
-        bool IsOK;
-
-        //! Detailed information about occurred errors.
-        /*!
-         * \note Is used as an exception message for sync calls.
-         */
-        Stroka ErrorMessage;
-
-        TResult(bool isOk = true, const Stroka& errorMessage = "");
-    };
-
-    typedef TFuture<TResult> TAsyncResult;
-
     TAsyncStreamState();
 
     /*!
-     *  IsOK is false if the stream has already failed.
-     *  Otherwise (successfully closed or active) - true.
+     *  If the stream has already failed, the result indicates the error.
+     *  Otherwise (the stream active is already closed) the result is OK.
      */
-    TResult GetCurrentResult();
+    TError GetCurrentError();
 
     //! Moves stream to failed state if it is active.
     /*!
@@ -48,21 +27,15 @@ public:
      *  Has no guarantees and cannot fail.
      *  If stream is already closed, failed or canceled - 
      *  this call does nothing.
-     * 
-     *  \param errorMessage - reason of cancellation.
      */
-    // TODO: errorMessage -> TError
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
     //! Moves stream to failed state. Stream should be active.
     /*!
      *  Can be called multiple times.
      *  If stream is successfully closed - fails on assert.
-     * 
-     * \param errorMessage - reason of cancellation.
      */
-    // TODO: errorMessage -> TError
-    void Fail(const Stroka& errorMessage);
+    void Fail(const TError& error);
 
     //! Moves stream to closed state.
     /*!
@@ -71,15 +44,14 @@ public:
      */
     void Close();
 
-    //! Invokes #Close or #Fail depending on #result.
-    // TODO: TResult -> TError
-    void Finish(TResult result);
+    //! Invokes #Close or #Fail depending on #error.
+    void Finish(const TError& error);
 
     //! Returns if the stream is active.
     bool IsActive() const;
     /*!
      *  \note
-     *  A stream is considered active if it is neither closed nor failed.
+     *  A stream is considered active iFf it is neither closed nor failed.
      */
 
     //! Returns if the stream is closed.
@@ -105,14 +77,13 @@ public:
      *  this call returns preliminary prepared future.
      *  Otherwise new future is created.
      */
-    TAsyncResult::TPtr GetOperationResult();
+    TAsyncError::TPtr GetOperationError();
 
     //! Complete operations.
-    // TODO: TResult -> TError
-    void FinishOperation(TResult result = TResult());
+    void FinishOperation(const TError& error = TError());
 
 private:
-    void DoFail(const Stroka& errorMessage);
+    void DoFail(const TError& error);
 
     bool IsOperationFinished;
     bool IsActive_;
@@ -120,11 +91,11 @@ private:
     TSpinLock SpinLock;
 
     //! Result returned from #GetOperationResult when operation is
-    //! already completed, or stream has failed.
-    TAsyncResult::TPtr StaticResult;
+    //! already completed, or the stream has failed.
+    TAsyncError::TPtr StaticError;
 
-    //! Last unset AsyncResult created via #GetOperationResult
-    TAsyncResult::TPtr CurrentResult;
+    //! Last unset future created via #GetOperationResult
+    TAsyncError::TPtr CurrentError;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,13 +35,13 @@ public:
         int startRow,
         int endRow);
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
+    TAsyncError::TPtr AsyncOpen();
 
     //! Asynchronously switches the reader to the next row.
     /*!
      *  This call cannot block.
      */
-    TAsyncStreamState::TAsyncResult::TPtr AsyncNextRow();
+    TAsyncError::TPtr AsyncNextRow();
 
     bool HasNextRow() const;
 
@@ -65,7 +65,7 @@ public:
      */
     TValue GetValue();
 
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
 private:
     void OnGotMeta(
@@ -80,7 +80,7 @@ private:
         const yvector<int>& selectedChannels, 
         const NProto::TTableChunkAttributes& attributes);
 
-    void ContinueNextRow(TAsyncStreamState::TResult result, int channelIndex);
+    void ContinueNextRow(TError error, int channelIndex);
 
     class TInitializer;
     TIntrusivePtr<TInitializer> Initializer;

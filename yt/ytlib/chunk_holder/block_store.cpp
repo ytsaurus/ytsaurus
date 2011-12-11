@@ -54,8 +54,7 @@ public:
             auto block = New<TCachedBlock>(blockId, data);
             cookie.EndInsert(block);
 
-            LOG_DEBUG("Block is put into cache (BlockId: %s)",
-                ~blockId.ToString());
+            LOG_DEBUG("Block is put into cache (BlockId: %s)", ~blockId.ToString());
             return block;
         } else {
             // This is a cruel reality.
@@ -63,35 +62,36 @@ public:
             // it is possible for a block to be put there more than once.
             // We shall reuse the cached copy but for sanity's sake let's
             // check that the content is the same.
-            auto block = cookie.GetAsyncResult()->Get();
+            auto result = cookie.GetAsyncResult()->Get();
+            YASSERT(result.IsOK());
+            auto block = result.Value();
+
             if (!TRef::CompareContent(data, block->GetData())) {
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists (BlockId: %s)",
                     ~blockId.ToString());
             }
-            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)",
-                ~blockId.ToString());
+
+            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~blockId.ToString());
             return block;
         }
     }
 
-    TCachedBlock::TAsync::TPtr Find(const TBlockId& blockId)
+    TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
     {
-        TAutoPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
+        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Block is found in cache (BlockId: %s)",
-                ~blockId.ToString());
+            LOG_DEBUG("Block is already cached (BlockId: %s)", ~blockId.ToString());
             return cookie->GetAsyncResult();
         }
 
         auto chunk = ChunkStore->FindChunk(blockId.ChunkId);
         if (~chunk == NULL) {
-            return New<TCachedBlock::TAsync>(TCachedBlock::TPtr(NULL));
+            return ToFuture(TGetBlockResult(
+                TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
+                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
         }
         
-        LOG_DEBUG("Loading block into cache (BlockId: %s)",
-            ~blockId.ToString());
-
-        auto result = cookie->GetAsyncResult();
+        LOG_DEBUG("Loading block into cache (BlockId: %s)", ~blockId.ToString());
 
         auto invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
@@ -101,7 +101,7 @@ public:
             blockId,
             cookie));
 
-        return result;
+        return cookie->GetAsyncResult();
     }
 
 private:
@@ -111,29 +111,27 @@ private:
     void DoReadBlock(
         TChunk::TPtr chunk,
         const TBlockId& blockId,
-        TAutoPtr<TInsertCookie> cookie)
+        TSharedPtr<TInsertCookie> cookie)
     {
-        try {
-            auto reader = ReaderCache->FindReader(~chunk);
-            if (~reader == NULL) {
-                LOG_WARNING("Attempt to read a block from a non-existing chunk (BlockId: %s)", ~blockId.ToString());
-                return;
-            }
-
-            auto data = reader->ReadBlock(blockId.BlockIndex);
-            if (~data == NULL) {
-                LOG_WARNING("Attempt to read a non-existing block (BlockId: %s)", ~blockId.ToString());
-            }
-
-            auto block = New<TCachedBlock>(blockId, data);
-            cookie->EndInsert(block);
-
-            LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
-        } catch (...) {
-            LOG_FATAL("Error loading block into cache (BlockId: %s)\n%s",
-                ~blockId.ToString(),
-                ~CurrentExceptionMessage());
+        auto readerResult = ReaderCache->GetReader(~chunk);
+        if (!readerResult.IsOK()) {
+            cookie->Cancel(readerResult);
+            return;
         }
+
+        auto reader = readerResult.Value();
+        auto data = reader->ReadBlock(blockId.BlockIndex);
+        if (~data == NULL) {
+            cookie->Cancel(TError(
+                TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
+                Sprintf("No such block (BlockId: %s)", ~blockId.ToString())));
+            return;
+        }
+
+        auto block = New<TCachedBlock>(blockId, data);
+        cookie->EndInsert(block);
+
+        LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }
 };
 
@@ -146,12 +144,10 @@ TBlockStore::TBlockStore(
     : BlockCache(New<TBlockCache>(config, chunkStore, readerCache))
 { }
 
-TCachedBlock::TAsync::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
+TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
-    LOG_DEBUG("Getting block from store (BlockId: %s)",
-        ~blockId.ToString());
-
-    return BlockCache->Find(blockId);
+    LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
+    return BlockCache->Get(blockId);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
@@ -159,7 +155,6 @@ TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedR
     LOG_DEBUG("Putting block into store (BlockId: %s, BlockSize: %d)",
         ~blockId.ToString(),
         static_cast<int>(data.Size()));
-
     return BlockCache->Put(blockId, data);
 }
 

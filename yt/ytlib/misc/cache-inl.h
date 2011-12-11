@@ -11,18 +11,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TKey TCacheValueBase<TKey, TValue, THash>::GetKey() const
 {
     return Key;
 }
 
-template<class TKey, class TValue, class THash>
-TCacheValueBase<TKey, TValue, THash>::TCacheValueBase(TKey key)
+template <class TKey, class TValue, class THash>
+TCacheValueBase<TKey, TValue, THash>::TCacheValueBase(const TKey& key)
     : Key(key)
 { }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 {
     if (~Cache != NULL) {
@@ -32,7 +32,7 @@ NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Clear()
 {
     TGuard<TSpinLock> guard(SpinLock);
@@ -41,12 +41,40 @@ void TCacheBase<TKey, TValue, THash>::Clear()
     LruListSize = 0;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TCacheBase()
     : LruListSize(0)
 { }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
+typename TCacheBase<TKey, TValue, THash>::TValuePtr
+TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    auto it = ValueMap.find(key);
+    if (it == ValueMap.end()) {
+        return NULL;
+    }
+    return TRefCountedBase::DangerousGetPtr<TValue>(it->Second());
+}
+
+template <class TKey, class TValue, class THash>
+yvector<typename TCacheBase<TKey, TValue, THash>::TValuePtr>
+TCacheBase<TKey, TValue, THash>::GetAll()
+{
+    yvector<TValuePtr> result;
+    TGuard<TSpinLock> guard(SpinLock);
+    result.reserve(ValueMap.ysize());
+    FOREACH (const auto& pair, ValueMap) {
+        auto value = TRefCountedBase::DangerousGetPtr<TValue>(pair.Second());
+        if (~value != NULL) {
+            result.push_back(value);
+        }
+    }
+    return result;
+}
+
+template <class TKey, class TValue, class THash>
 typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
@@ -84,7 +112,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
     }
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
     YASSERT(!cookie->Active);
@@ -137,7 +165,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
     }
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
     YASSERT(cookie->Active);
@@ -167,8 +195,8 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
     cookie->Active = false;
 }
 
-template<class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key)
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -176,14 +204,14 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key)
     YASSERT(it != ItemMap.end());
     
     auto* item = it->Second();
-    item->AsyncResult->Set(NULL);
+    item->AsyncResult->Set(error);
     
     ItemMap.erase(it);
     
     delete item;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
@@ -191,7 +219,7 @@ void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
     YVERIFY(ValueMap.erase(key) == 1);
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
@@ -201,7 +229,7 @@ void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
     Touch(item);
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
@@ -225,7 +253,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     return true;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
     if (!item->Empty()) { 
@@ -234,13 +262,13 @@ void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
     }
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 i32 TCacheBase<TKey, TValue, THash>::GetSize() const
 {
     return LruListSize;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Trim()
 {
     while (true) {
@@ -251,11 +279,13 @@ void TCacheBase<TKey, TValue, THash>::Trim()
         auto* item = LruList.PopBack();
         --LruListSize;
 
-        TValuePtr value;
-        YVERIFY(item->AsyncResult->TryGet(&value));
+        TValuePtrOrError valueOrError;
+        YVERIFY(item->AsyncResult->TryGet(&valueOrError));
+        YASSERT(valueOrError.IsOK());
 
-        TKey key = value->GetKey();
-        ItemMap.erase(key);
+        auto value = valueOrError.Value();
+
+        ItemMap.erase(value->GetKey());
         delete item;
 
         guard.Release();
@@ -264,7 +294,7 @@ void TCacheBase<TKey, TValue, THash>::Trim()
     }
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::OnTrim(TValuePtr value)
 {
     UNUSED(value);
@@ -272,28 +302,28 @@ void TCacheBase<TKey, TValue, THash>::OnTrim(TValuePtr value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
     : Key(key)
     , Active(false)
 {}
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
 {
-    Cancel();
+    Cancel(TError("Cache item insertion aborted"));
 }
 
-template<class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel()
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 {
     if (Active) {
-        Cache->CancelInsert(Key);
+        Cache->CancelInsert(Key, error);
         Active = false;
     }
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 {
     YASSERT(Active);
@@ -301,20 +331,20 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
     Active = false;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::TInsertCookie::GetAsyncResult() const
 {
     return AsyncResult;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
 {
     return Active;
 }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
 {
     return Key;
@@ -322,12 +352,12 @@ TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 TCapacityLimitedCache<TKey, TValue, THash>::TCapacityLimitedCache(i32 capacityLimit)
     : Capacity(capacityLimit)
-{}
+{ }
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 bool TCapacityLimitedCache<TKey, TValue, THash>::NeedTrim() const
 {
     return this->GetSize() > Capacity;

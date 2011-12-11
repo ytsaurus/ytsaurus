@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "async_stream_state.h"
 
 namespace NYT {
 
@@ -11,25 +10,23 @@ namespace NYT {
 template <class TTarget>
 void Sync(
     TTarget* target,
-    TAsyncStreamState::TAsyncResult::TPtr (TTarget::*method)())
+    TIntrusivePtr< TFuture<TError> > (TTarget::*method)())
 {
     auto result = (target->*method)()->Get();
-    if (!result.IsOK) {
-        // TODO: ToString()
-        ythrow yexception() << result.ErrorMessage;
+    if (!result.IsOK()) {
+        ythrow yexception() << result.ToString();
     }
 }
 
 template <class TTarget, class TArg1, class TArg1_>
 void Sync(
     TTarget* target,
-    TAsyncStreamState::TAsyncResult::TPtr (TTarget::*method)(TArg1),
+    TIntrusivePtr< TFuture<TError> > (TTarget::*method)(TArg1),
     TArg1_&& arg1)
 {
     auto result = (target->*method)(ForwardRV(arg1))->Get();
-    if (!result.IsOK) {
-        // TODO: ToString()
-        ythrow yexception() << result.ErrorMessage;
+    if (!result.IsOK()) {
+        ythrow yexception() << result.ToString();
     }
 }
 

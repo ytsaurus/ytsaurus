@@ -39,7 +39,15 @@ public:
     TIntrusivePtr<TReaderCache> GetReaderCache() const;
 
     //! Returns the number of bytes used at the location.
+    /*!
+     *  \note
+     *  This may exceed #GetQuota.
+     */
     i64 GetUsedSpace() const;
+
+    //! Returns the maximum number of bytes the chunks assigned to this location
+    //! are allowed to use.
+    i64 GetQuota() const;
 
     //! Returns the path of the location.
     Stroka GetPath() const;

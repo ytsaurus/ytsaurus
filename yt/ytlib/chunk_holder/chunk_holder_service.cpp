@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_holder_service.h"
 #include "chunk_store.h"
+#include "chunk_cache.h"
 #include "block_store.h"
 #include "session_manager.h"
 
@@ -26,6 +27,7 @@ TChunkHolderService::TChunkHolderService(
     IInvoker* serviceInvoker,
     NRpc::IRpcServer* server,
     TChunkStore* chunkStore,
+    TChunkCache* chunkCache,
     TReaderCache* readerCache,
     TBlockStore* blockStore,
     TSessionManager* sessionManager)
@@ -35,6 +37,7 @@ TChunkHolderService::TChunkHolderService(
         Logger.GetCategory())
     , Config(config)
     , ChunkStore(chunkStore)
+    , ChunkCache(chunkCache)
     , ReaderCache(readerCache)
     , BlockStore(blockStore)
     , SessionManager(sessionManager)
@@ -202,7 +205,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
                     ~putResponse->GetError().ToString());
 
                 LOG_WARNING("%s", ~message);
-                context->Reply(TChunkHolderServiceProxy::EErrorCode::RemoteCallFailed, message);
+                context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
             }
         }));
 }
@@ -229,25 +232,24 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
         TBlockId blockId(chunkId, blockIndex);
         awaiter->Await(
-            BlockStore->FindBlock(blockId),
-            FromFunctor([=] (TCachedBlock::TPtr block)
+            BlockStore->GetBlock(blockId),
+            FromFunctor([=] (TBlockStore::TGetBlockResult result)
                 {
-                    if (~block == NULL) {
+                    if (!result.IsOK()) {
                         awaiter->Cancel();
-                        context->Reply(
-                            TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
-                            Sprintf("Block not found (ChunkId: %s, Index: %d)",
-                                ~chunkId.ToString(),
-                                blockIndex));
-                    } else {
-                        context->Response().Attachments()[index] = block->GetData();
+                        context->Reply(result);
+                        return;
                     }
+
+                    auto block = result.Value();
+                    context->Response().Attachments()[index] = block->GetData();
                 }));
     }
 
     awaiter->Complete(FromFunctor([=] ()
         {
             if (!context->IsReplied()) {
+                LOG_DEBUG("GetBlocks: All blocks are fetched");
                 context->Reply();
             }
         }));
@@ -304,8 +306,21 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
 {
     auto chunkId = TChunkId::FromProto(request->chunkid());
+
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
-    context->Reply();
+
+    ChunkCache->DownloadChunk(chunkId)->Subscribe(FromFunctor([=] (TChunkCache::TDownloadResult result)
+        {
+            if (result.IsOK()) {
+                context->Reply();
+            } else {
+                context->Reply(
+                    TChunkHolderServiceProxy::EErrorCode::ChunkPrecachingFailed,
+                    Sprintf("Error precaching the chunk (ChunkId: %s)\n%s",
+                        ~chunkId.ToString(),
+                        ~result.ToString()));
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,9 @@ public:
     //! Returns the total data size received so far.
     i64 GetSize() const;
 
+    //! Returns the info of the just-uploaded chunk
+    NProto::TChunkInfo GetChunkInfo() const;
+
     //! Returns a cached block that is still in the session window.
     TCachedBlock::TPtr GetBlock(i32 blockIndex);
 
@@ -52,6 +55,7 @@ public:
      */
     TFuture<TVoid>::TPtr FlushBlock(i32 blockIndex);
 
+    //! Renews the lease.
     void RenewLease();
 
 private:
@@ -90,14 +94,16 @@ private:
     i32 WindowStart;
     i32 FirstUnwritten;
     i64 Size;
+    NProto::TChunkInfo ChunkInfo;
+    bool HasChunkInfo;
 
     Stroka FileName;
-    NChunkClient::TFileWriter::TPtr Writer;
+    NChunkClient::TChunkFileWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
 
     TFuture<TVoid>::TPtr Finish(const TChunkAttributes& attributes);
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
     void CloseLease();
@@ -112,8 +118,8 @@ private:
     void OpenFile();
     void DoOpenFile();
 
-    void DeleteFile(const Stroka& errorMessage);
-    void DoDeleteFile(const Stroka& errorMessage);
+    void DeleteFile(const TError& error);
+    void DoDeleteFile(const TError& error);
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
@@ -138,9 +144,9 @@ public:
     //! Constructs a manager.
     TSessionManager(
         const TChunkHolderConfig& config,
-        TBlockStore::TPtr blockStore,
-        TChunkStore::TPtr chunkStore,
-        IInvoker::TPtr serviceInvoker);
+        TBlockStore* blockStore,
+        TChunkStore* chunkStore,
+        IInvoker* serviceInvoker);
 
     //! Starts a new chunk upload session.
     TSession::TPtr StartSession(
@@ -159,7 +165,7 @@ public:
     /*!
      * Chunk file is closed asynchronously, however the call returns immediately.
      */
-    void CancelSession(TSession* session, const Stroka& errorMessage);
+    void CancelSession(TSession* session, const TError& error);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId) const;

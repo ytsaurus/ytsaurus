@@ -70,11 +70,11 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
             Schema));
 
     } else {
-        State.Fail(rsp->GetError().ToString());
+        State.Fail(rsp->GetError());
     }
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncOpen()
+TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
@@ -83,7 +83,7 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncOpen()
         &TChunkSequenceWriter::InitCurrentChunk,
         TPtr(this)));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
@@ -106,7 +106,7 @@ void TChunkSequenceWriter::Write(const TColumn& column, TValue value)
     CurrentChunk->Write(column, value);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncEndRow()
+TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -116,15 +116,15 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncEndRow()
         &TChunkSequenceWriter::OnRowEnded,
         TPtr(this)));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::OnRowEnded(TAsyncStreamState::TResult result)
+void TChunkSequenceWriter::OnRowEnded(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!result.IsOK) {
-        State.FinishOperation(result);
+    if (!error.IsOK()) {
+        State.FinishOperation(error);
         return;
     }
 
@@ -147,12 +147,14 @@ void TChunkSequenceWriter::OnRowEnded(TAsyncStreamState::TResult result)
 void TChunkSequenceWriter::FinishCurrentChunk() 
 {
     if (CurrentChunk->GetCurrentSize() > 0) {
-        CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), FromMethod(
-            &TChunkSequenceWriter::OnChunkClosed, 
-            TPtr(this),
-            CurrentChunk->GetChunkId()));
+        CloseChunksAwaiter->Await(
+            CurrentChunk->AsyncClose(),
+            FromMethod(
+                &TChunkSequenceWriter::OnChunkClosed, 
+                TPtr(this),
+                CurrentChunk->GetChunkId()));
     } else {
-        CurrentChunk->Cancel("Chunk is empty.");
+        CurrentChunk->Cancel(TError("Chunk is empty"));
     }
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
@@ -162,18 +164,18 @@ void TChunkSequenceWriter::FinishCurrentChunk()
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return CurrentChunk->GetCurrentSize() / Config.MaxChunkSize > 
-        Config.NextChunkThreshold;
+    auto fillFactor = (double) CurrentChunk->GetCurrentSize() / Config.MaxChunkSize;
+    return fillFactor >  Config.NextChunkThreshold;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
-    TAsyncStreamState::TResult result,
+    TError error,
     TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!result.IsOK) {
-        State.Fail(result.ErrorMessage);
+    if (!error.IsOK()) {
+        State.Fail(error);
         return;
     }
 
@@ -181,7 +183,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     WrittenChunks.push_back(chunkId);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncClose()
+TAsyncError::TPtr TChunkSequenceWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -192,7 +194,7 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkSequenceWriter::AsyncClose()
         &TChunkSequenceWriter::OnClose,
         TPtr(this)));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 void TChunkSequenceWriter::OnClose()
@@ -203,15 +205,15 @@ void TChunkSequenceWriter::OnClose()
     State.FinishOperation();
 }
 
-void TChunkSequenceWriter::Cancel(const Stroka& errorMessage)
+void TChunkSequenceWriter::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    State.Cancel(errorMessage);
+    State.Cancel(error);
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
     if (~CurrentChunk != NULL) {
-        CurrentChunk->Cancel(errorMessage);
+        CurrentChunk->Cancel(error);
     }
 }
 

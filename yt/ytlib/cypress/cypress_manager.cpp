@@ -443,9 +443,12 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     change
         ->OnError(~FromFunctor([=] ()
             {
-                context_->Reply(TError(
-                    EYPathErrorCode::CommitError,
-                    "Error committing meta state changes"));
+                // TODO: fixme
+                if (!context_->IsReplied()) {
+                    context_->Reply(TError(
+                        EYPathErrorCode::CommitError,
+                        "Error committing meta state changes"));
+                }
             }))
         ->Commit();
 }

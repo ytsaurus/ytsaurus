@@ -42,12 +42,6 @@ public:
 
             SetDefaults();
         }
-
-        void Read(TJsonObject* json)
-        {
-            // TODO: read timeout
-            NYT::TryRead(json, L"Addresses", &Addresses);
-        }
     };
 
     //! Describes a lookup result.
@@ -66,11 +60,13 @@ public:
         TGuid Epoch;
     };
 
+    typedef TFuture<TResult> TAsyncResult;
+
     //! Initializes a new instance.
     TLeaderLookup(const TConfig& config);
 
     //! Performs an asynchronous lookup.
-    TFuture<TResult>::TPtr GetLeader();
+    TAsyncResult::TPtr GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;

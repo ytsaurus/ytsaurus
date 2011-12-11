@@ -2,75 +2,80 @@
 #include "change_log_cache.h"
 #include "meta_state_manager.h"
 
+#include "../misc/fs.h"
+
 #include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NMetaState {
 
+using namespace NFS;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
-static const char LogExtension[] = "log";
+static const char* LogExtension = "log";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeLogCache::TChangeLogCache(Stroka location)
+TChangeLogCache::TChangeLogCache(const Stroka& path)
     // TODO: introduce config
     : TCapacityLimitedCache<i32, TCachedAsyncChangeLog>(4)
-    , Location(location)
+    , Path(path)
 { }
 
-Stroka TChangeLogCache::GetChangeLogFileName(i32 segmentId)
+Stroka TChangeLogCache::GetChangeLogFileName(i32 changeLogId)
 {
-    return Location + "/" + Sprintf("%09d", segmentId) + "." + LogExtension;
+    return CombinePaths(Path, Sprintf("%09d.%s", changeLogId, LogExtension));
 }
 
-TCachedAsyncChangeLog::TPtr TChangeLogCache::Get(i32 segmentId)
+TChangeLogCache::TGetResult TChangeLogCache::Get(i32 changeLogId)
 {
-    TInsertCookie cookie(segmentId);
+    TInsertCookie cookie(changeLogId);
     if (BeginInsert(&cookie)) {
-        auto fileName = GetChangeLogFileName(segmentId);
+        auto fileName = GetChangeLogFileName(changeLogId);
         if (!isexist(~fileName)) {
-            return NULL;
-        }
-
-        try {
-            auto changeLog = New<TChangeLog>(fileName, segmentId);
-            changeLog->Open();
-            cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
-        } catch (...) {
-            LOG_ERROR("Error opening changelog (SegmentId: %d)\n%s",
-                segmentId,
-                ~CurrentExceptionMessage());
-            return NULL;
+            cookie.Cancel(TError(
+                EErrorCode::NoSuchChangeLog,
+                Sprintf("No such changelog (ChangeLogId: %d)", changeLogId)));
+        } else {
+            try {
+                auto changeLog = New<TChangeLog>(fileName, changeLogId);
+                changeLog->Open();
+                cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
+            } catch (...) {
+                LOG_FATAL("Error opening changelog (ChangeLogId: %d)\n%s",
+                    changeLogId,
+                    ~CurrentExceptionMessage());
+            }
         }
     }
     return cookie.GetAsyncResult()->Get();
 }
 
 TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
-    i32 segmentId,
+    i32 changeLogId,
     i32 prevRecordCount)
 {
-    TInsertCookie cookie(segmentId);
+    TInsertCookie cookie(changeLogId);
     if (!BeginInsert(&cookie)) {
-        LOG_FATAL("Trying to create an already existing changelog (SegmentId: %d)",
-            segmentId);
+        LOG_FATAL("Trying to create an already existing changelog (ChangeLogId: %d)",
+            changeLogId);
     }
 
-    auto fileName = GetChangeLogFileName(segmentId);
+    auto fileName = GetChangeLogFileName(changeLogId);
 
     try {
-        auto changeLog = New<TChangeLog>(fileName, segmentId);
+        auto changeLog = New<TChangeLog>(fileName, changeLogId);
         changeLog->Create(prevRecordCount);
-        cookie.EndInsert(New<TCachedAsyncChangeLog>(changeLog));
+        cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (...) {
-        LOG_ERROR("Error creating changelog (SegmentId: %d)\n%s",
-            segmentId,
+        LOG_FATAL("Error creating changelog (ChangeLogId: %d)\n%s",
+            changeLogId,
             ~CurrentExceptionMessage());
     }
 
-    return cookie.GetAsyncResult()->Get();
+    return cookie.GetAsyncResult()->Get().Value();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

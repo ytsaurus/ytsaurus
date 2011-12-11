@@ -16,7 +16,6 @@ class TCachedBlock
 {
 public:
     typedef TIntrusivePtr<TCachedBlock> TPtr;
-    typedef TFuture<TPtr> TAsync;
 
     //! Constructs a new block from id and data.
     TCachedBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
@@ -47,6 +46,9 @@ public:
         TChunkStore* chunkStore,
         TReaderCache* readerCache);
 
+    typedef TValueOrError<TCachedBlock::TPtr> TGetBlockResult;
+    typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
+
     //! Gets (asynchronously) a block from the store.
     /*!
      * This call returns an async result that becomes set when the 
@@ -54,8 +56,13 @@ public:
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.
      */
-    TCachedBlock::TAsync::TPtr FindBlock(const NChunkClient::TBlockId& blockId);
+    TAsyncGetBlockResult::TPtr GetBlock(const NChunkClient::TBlockId& blockId);
 
+    //! Puts a block into the store.
+    /*!
+     *  The store may already have another copy of the same block.
+     *  In this case the block content is checked for identity.
+     */
     TCachedBlock::TPtr PutBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
 
 private:

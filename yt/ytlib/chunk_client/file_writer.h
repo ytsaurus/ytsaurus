@@ -12,31 +12,47 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of #IAsynckWriter.
-class TFileWriter
+class TChunkFileWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TFileWriter> TPtr;
+    typedef TIntrusivePtr<TChunkFileWriter> TPtr;
 
     //! Creates a new writer.
-    TFileWriter(const TChunkId& id, const Stroka& fileName);
+    TChunkFileWriter(const TChunkId& id, const Stroka& fileName);
 
-    TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncWriteBlock(const TSharedRef& data);
+    virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
 
-    TAsyncStreamState::TAsyncResult::TPtr 
-    AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
+    virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
 
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
     TChunkId GetChunkId() const;
+
+    //! Returns chunk info. The writer must be already closed.
+    NChunkHolder::NProto::TChunkInfo GetChunkInfo() const;
 
 private:
     TChunkId Id;
     Stroka FileName;
+    bool Open;
+    bool Closed;
+    i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
-    TAsyncStreamState::TAsyncResult::TPtr Result;
+    TAsyncError::TPtr Result;
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
+
+    bool EnsureOpen();
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TChunkFileDeleter
+{
+public:
+    void Delete(const Stroka& path);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

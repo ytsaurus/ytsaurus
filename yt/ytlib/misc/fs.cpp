@@ -229,6 +229,20 @@ Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
     return JoinPaths(path1, path2);
 }
 
+Stroka NormalizePathSeparators(const Stroka& path)
+{
+    Stroka result;
+    result.reserve(path.length());
+    for (int i = 0; i < path.length(); ++i) {
+        if (path[i] == '\\') {
+            result.append('/');
+        } else {
+            result.append(path[i]);
+        }
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

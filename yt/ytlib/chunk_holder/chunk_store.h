@@ -66,13 +66,10 @@ public:
 
 private:
     TChunkHolderConfig Config;
-    TIntrusivePtr<TReaderCache> ReaderCache;
+    TReaderCache::TPtr ReaderCache;
 
     typedef yhash_map<NChunkClient::TChunkId, TStoredChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
-
-    void ScanLocations();
-    void InitLocations();
 
 };
 

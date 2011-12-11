@@ -15,48 +15,49 @@ TRetriableReader::TRetriableReader(
     , ChunkId(chunkId)
     , TransactionId(transactionId)
     , Proxy(masterChannel)
-    , UnderlyingReader(New< TFuture<TRemoteReader::TPtr> >())
+    , AsyncReader(New< TFuture<TRemoteReader::TPtr> >())
     , FailCount(0)
 {
     Proxy.SetTimeout(Config.MasterRpcTimeout);
+
+    TGuard<TSpinLock> guard(SpinLock);
     RequestHolders();
 }
 
 void TRetriableReader::RequestHolders()
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
     auto req = Proxy.FindChunk();
     req->set_chunkid(ChunkId.ToProto());
-    req->set_transactionid(TransactionId.ToProto());
     req->Invoke()->Subscribe(FromMethod(
         &TRetriableReader::OnGotHolders,
-        TPtr(this)));
+        TPtr(this))); 
 }
 
 void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
 {
-    if (!rsp->IsOK() || rsp->holderaddresses_size() == 0) {
-        TGuard<TSpinLock> guard(SpinLock);
-        CumulativeError.append(Sprintf("\n[%d]: %s",
-            FailCount,
-            rsp->IsOK() 
-                ? "No holder addresses returned by master, chunk is considered lost."
-                : ~rsp->GetError().GetMessage()));
+    TGuard<TSpinLock> guard(SpinLock);
 
+    if (!rsp->IsOK()) {
+        AppendError(rsp->GetError().ToString());
         Retry();
         return;
     }
 
-    yvector<Stroka> holders(
-        rsp->holderaddresses().begin(),
-        rsp->holderaddresses().end());
-    TRemoteReader::TPtr reader = 
-        New<TRemoteReader>(Config.RemoteReader, ChunkId, holders);
-    UnderlyingReader->Set(reader);
+    auto holderAddresses = FromProto<Stroka>(rsp->holderaddresses());
+    if (holderAddresses.empty()) {
+        AppendError("Chunk is unavailable");
+        Retry();
+        return;
+    }
+
+    auto reader = New<TRemoteReader>(Config.RemoteReader, ChunkId, holderAddresses);
+    AsyncReader->Set(reader);
 }
 
-// Must be protected by SpinLock.
 void TRetriableReader::Retry()
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
     YASSERT(FailCount <= Config.RetryCount);
 
     if (FailCount == Config.RetryCount) {
@@ -64,10 +65,9 @@ void TRetriableReader::Retry()
     }
 
     ++FailCount;
-    UnderlyingReader = New< TFuture<TRemoteReader::TPtr> >();
-
+    AsyncReader = New< TFuture<TRemoteReader::TPtr> >();
     if (FailCount == Config.RetryCount) {
-        UnderlyingReader->Set(NULL);
+        AsyncReader->Set(NULL);
         return;
     }
 
@@ -76,30 +76,24 @@ void TRetriableReader::Retry()
         Config.BackoffTime);
 }
 
-TFuture<IAsyncReader::TReadResult>::TPtr 
-TRetriableReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+void TRetriableReader::AppendError(const Stroka& message)
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+    CumulativeError.append(Sprintf("\n[%d]: %s",
+        FailCount,
+        ~message));
+}
+
+IAsyncReader::TAsyncReadResult::TPtr TRetriableReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     auto asyncResult = New< TFuture<TReadResult> >();
-    UnderlyingReader->Subscribe(FromMethod(
+    AsyncReader->Subscribe(FromMethod(
         &TRetriableReader::DoReadBlocks,
         TPtr(this), 
         blockIndexes,
         asyncResult));
-
     return asyncResult;
 }
-
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TRetriableReader::AsyncGetChunkInfo()
-{
-    TFuture<TGetInfoResult>::TPtr result = New< TFuture<TGetInfoResult> >();
-    UnderlyingReader->Subscribe(FromMethod(
-        &TRetriableReader::DoGetChunkInfo,
-        TPtr(this),
-        result));
-
-    return result;
-}
-
 
 void TRetriableReader::DoReadBlocks(
     TRemoteReader::TPtr reader,
@@ -110,14 +104,19 @@ void TRetriableReader::DoReadBlocks(
         asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
     }
 
-    // Protects FailCount in the next statement.
-    TGuard<TSpinLock> guard(SpinLock);
+    // TODO: check this
+    int failCount;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        failCount = FailCount;
+    }
+
     reader->AsyncReadBlocks(blockIndexes)->Subscribe(FromMethod(
         &TRetriableReader::OnBlocksRead,
         TPtr(this),
         blockIndexes,
         asyncResult,
-        FailCount));
+        failCount));
 }
 
 void TRetriableReader::OnBlocksRead(
@@ -134,18 +133,26 @@ void TRetriableReader::OnBlocksRead(
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (requestFailCount == FailCount) {
-            CumulativeError.append(Sprintf("\n[%d]: %s",
-                FailCount,
-                ~result.GetMessage()));
+            AppendError(result.ToString());
             Retry();
         }
     }
 
-    UnderlyingReader->Subscribe(FromMethod(
+    AsyncReader->Subscribe(FromMethod(
         &TRetriableReader::DoReadBlocks,
         TPtr(this), 
         blockIndexes,
         asyncResult));
+}
+
+IAsyncReader::TAsyncGetInfoResult::TPtr TRetriableReader::AsyncGetChunkInfo()
+{
+    auto asyncResult = New< TFuture<TGetInfoResult> >();
+    AsyncReader->Subscribe(FromMethod(
+        &TRetriableReader::DoGetChunkInfo,
+        TPtr(this),
+        asyncResult));
+    return asyncResult;
 }
 
 void TRetriableReader::DoGetChunkInfo(
@@ -157,13 +164,18 @@ void TRetriableReader::DoGetChunkInfo(
         return;
     }
 
-    // Protects FailCount in the next statement.
-    TGuard<TSpinLock> guard(SpinLock);
+    // TODO: check this
+    int failCount;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        failCount = FailCount;
+    }
+
     reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
         &TRetriableReader::OnGotChunkInfo,
         TPtr(this),
         result,
-        FailCount));
+        failCount));
 }
 
 void TRetriableReader::OnGotChunkInfo(
@@ -179,14 +191,12 @@ void TRetriableReader::OnGotChunkInfo(
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (requestFailCount == FailCount) {
-            CumulativeError.append(Sprintf("\n[%d]: %s",
-                FailCount,
-                ~result.GetMessage()));
+            AppendError(result.ToString());
             Retry();
         }
     }
 
-    UnderlyingReader->Subscribe(FromMethod(
+    AsyncReader->Subscribe(FromMethod(
         &TRetriableReader::DoGetChunkInfo,
         TPtr(this), 
         asyncResult));

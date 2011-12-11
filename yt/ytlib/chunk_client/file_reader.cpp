@@ -7,20 +7,18 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
-
 using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileReader::TFileReader(const Stroka& fileName)
+TChunkFileReader::TChunkFileReader(const Stroka& fileName)
     : FileName(fileName)
     , Opened(false)
     , InfoSize(-1)
     , DataSize(-1)
 { }
 
-void TFileReader::Open()
+void TChunkFileReader::Open()
 {
     YASSERT(!Opened);
 
@@ -56,7 +54,7 @@ void TFileReader::Open()
     TChunkMeta chunkMeta;
     if (!DeserializeProtobuf(&chunkMeta, chunkMetaRef)) {
         ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
-            ~FileName);
+            ~FileName); 
     }
 
     ChunkInfo.set_id(chunkMeta.id());
@@ -73,7 +71,7 @@ void TFileReader::Open()
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr
-TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TChunkFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
@@ -88,7 +86,7 @@ TFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return ToFuture(TReadResult(MoveRV(blocks)));
 }
 
-TSharedRef TFileReader::ReadBlock(int blockIndex)
+TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
 {
     YASSERT(Opened);
 
@@ -126,31 +124,31 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     return result;
 }
 
-i64 TFileReader::GetMetaSize() const
+i64 TChunkFileReader::GetMetaSize() const
 {
     YASSERT(Opened);
     return InfoSize;
 }
 
-i64 TFileReader::GetDataSize() const
+i64 TChunkFileReader::GetDataSize() const
 {
     YASSERT(Opened);
     return DataSize;
 }
 
-i64 TFileReader::GetFullSize() const
+i64 TChunkFileReader::GetFullSize() const
 {
     YASSERT(Opened);
     return InfoSize + DataSize;
 }
 
-const TChunkInfo& TFileReader::GetChunkInfo() const
+const TChunkInfo& TChunkFileReader::GetChunkInfo() const
 {
     YASSERT(Opened);
     return ChunkInfo;
 }
 
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TFileReader::AsyncGetChunkInfo()
+TFuture<IAsyncReader::TGetInfoResult>::TPtr TChunkFileReader::AsyncGetChunkInfo()
 {
     return ToFuture(TGetInfoResult(GetChunkInfo()));
 }

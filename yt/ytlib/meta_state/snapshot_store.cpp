@@ -4,40 +4,37 @@
 
 #include "../misc/fs.h"
 
-#include <util/folder/dirut.h>
-#include <util/folder/filelist.h>
-#include <util/string/cast.h>
-
 namespace NYT {
 namespace NMetaState {
+
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
+static const char* const SnapshotExtension = "snapshot";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* const SnapshotExtension = "snapshot";
-
-TSnapshotStore::TSnapshotStore(Stroka location)
-    : Location(location)
+TSnapshotStore::TSnapshotStore(const Stroka& path)
+    : Path(path)
     , CachedMaxSnapshotId(NonexistingSnapshotId)
 { }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 {
-    return
-        Location + "/" +
-        Sprintf("%09d", snapshotId) + "." +
-        SnapshotExtension;
+    return CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
 }
 
-TSnapshotReader::TPtr TSnapshotStore::GetReader(i32 snapshotId) const
+TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
-    if (!isexist(~fileName))
-        return NULL;
+    if (!isexist(~fileName)) {
+        return TError(
+            EErrorCode::NoSuchSnapshot,
+            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+    }
     return New<TSnapshotReader>(fileName, snapshotId);
 }
 
@@ -48,16 +45,19 @@ TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId) const
     return New<TSnapshotWriter>(fileName, snapshotId);
 }
 
-TAutoPtr<TFile> TSnapshotStore::GetRawReader(int snapshotId) const
+TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(int snapshotId) const
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
-    if (!isexist(~fileName))
-        return NULL;
+    if (!isexist(~fileName)) {
+        return TError(
+            EErrorCode::NoSuchSnapshot,
+            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+    }
     return new TFile(fileName, OpenExisting | RdOnly);
 }
 
-TAutoPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
+TSharedPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
 {
     YASSERT(snapshotId > 0);
     Stroka fileName = GetSnapshotFileName(snapshotId);
@@ -76,10 +76,10 @@ i32 TSnapshotStore::GetMaxSnapshotId() const
 
     // Look for snapshots.
     CachedMaxSnapshotId = NonexistingSnapshotId;
-    LOG_DEBUG("Looking for snapshots in %s", ~Location.Quote());
+    LOG_DEBUG("Looking for snapshots in %s", ~Path.Quote());
 
     TFileList fileList;
-    fileList.Fill(Location);
+    fileList.Fill(Path);
 
     i32 maxSnapshotId = NonexistingSnapshotId;
     Stroka fileName;

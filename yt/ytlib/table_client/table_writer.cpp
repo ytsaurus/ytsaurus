@@ -59,8 +59,8 @@ bool TTableWriter::NodeExists(const Stroka& path)
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
         if (NRpc::IsRpcError(error)) {
-            Writer->Cancel(error.ToString());
-            ythrow yexception() << Sprintf("Error 2checking table for existence (Path: %s)\n%s",
+            Writer->Cancel(error);
+            ythrow yexception() << Sprintf("Error checking table for existence (Path: %s)\n%s",
                 ~path,
                 ~error.ToString());
         }
@@ -81,7 +81,7 @@ void TTableWriter::CreateTableNode(const Stroka& nodePath)
 
     if (!rsp->IsOK()) {
         const auto& error = rsp->GetError();
-        Writer->Cancel(error.ToString());
+        Writer->Cancel(error);
         ythrow yexception() << Sprintf("Error creating table (Path: %s)\n%s",
             ~nodePath,
             ~error.ToString());
@@ -124,7 +124,7 @@ void TTableWriter::Close()
 
 void TTableWriter::OnAborted()
 {
-    Writer->Cancel("Transaction aborted");
+    Writer->Cancel(TError("Transaction aborted"));
     Finish();
 }
 

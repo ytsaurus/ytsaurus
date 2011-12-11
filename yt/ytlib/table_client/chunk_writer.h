@@ -43,14 +43,14 @@ public:
         const TSchema& schema);
     ~TChunkWriter();
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
+    TAsyncError::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
+    TAsyncError::TPtr AsyncEndRow();
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
+    TAsyncError::TPtr AsyncClose();
 
-    void Cancel(const Stroka& errorMessage);
+    void Cancel(const TError& error);
 
     i64 GetCurrentSize() const;
 
@@ -59,13 +59,13 @@ public:
 private:
     TSharedRef PrepareBlock(int channelIndex);
     void ContinueEndRow(
-        TAsyncStreamState::TResult result,
+        TError error,
         int nextChannel);
 
     void ContinueClose(
-        TAsyncStreamState::TResult result, 
+        TError error, 
         int startChannelIndex = 0);
-    void OnClosed(TAsyncStreamState::TResult result);
+    void OnClosed(TError error);
 
 private:
     const TConfig Config;

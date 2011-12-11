@@ -14,6 +14,10 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern NLog::TLogger MetaStateLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO: maybe remove this?
 using NElection::TPeerId;
 using NElection::TPeerPriority;
@@ -62,95 +66,32 @@ DECLARE_ENUM(ECommitResult,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: refactor
 
 struct TCellConfig
-    : public TConfigBase
+    : TConfigBase
 {
+    //! Master server addresses.
     yvector<Stroka> Addresses;
+
+    //! The current master server id.
     TPeerId Id;
 
     TCellConfig()
-        : Id(NElection::InvalidPeerId)
     {
-        Register("Id", Id).GreaterThanOrEqual(0); // TODO: rename to "id" or "self_id"
-        Register("Addresses", Addresses).NonEmpty(); // TODO: rename to "masters"
+        Register("id", Id).Default(NElection::InvalidPeerId);
+        Register("addresses", Addresses).NonEmpty();
+
+        SetDefaults();
     }
 
-    virtual void Validate(const Stroka& path = "") const
+    virtual void Validate(const NYTree::TYPath& path = "") const
     {
         TConfigBase::Validate(path);
-
-        if (Id >= Addresses.ysize()) {
-            ythrow yexception() << Sprintf("Id must be between 0 and %d", Addresses.ysize() - 1);
+        if (Id == NElection::InvalidPeerId) {
+            ythrow yexception() << "Missing peer id";
         }
-    }
-
-    // TODO: deprecate
-    void Read(TJsonObject* json)
-    {
-        NYT::TryRead(json, L"Id", &Id);
-        NYT::TryRead(json, L"Addresses", &Addresses);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes a configuration of TMetaStateManager.
-struct TMetaStateManagerConfig
-    : public TConfigBase
-{
-    //! A path where changelogs are stored.
-    Stroka LogLocation;
-
-    //! A path where snapshots are stored.
-    Stroka SnapshotLocation;
-
-    //! Snapshotting period (measured in number of changes).
-    /*!
-     *  This is also an upper limit for the number of records in a changelog.
-     *  
-     *  The limit may be violated if the server is under heavy load and
-     *  a new snapshot generation request is issued when the previous one is still in progress.
-     *  This situation is considered abnormal and a warning is reported.
-     *  
-     *  A special value of -1 means that snapshot creation is switched off.
-     */
-    i32 MaxChangesBetweenSnapshots;
-
-    //! Maximum time a follower waits for "Sync" request from the leader.
-    TDuration SyncTimeout;
-
-    //! Default timeout for RPC requests.
-    TDuration RpcTimeout;
-
-    // TODO: refactor
-    TCellConfig Cell;
-
-    TMetaStateManagerConfig()
-        : LogLocation(".")
-        , SnapshotLocation(".")
-        , MaxChangesBetweenSnapshots(-1)
-        , SyncTimeout(TDuration::MilliSeconds(5000))
-        , RpcTimeout(TDuration::MilliSeconds(3000))
-    {
-        // TODO: rename
-        Register("LogLocation", LogLocation).Default(".").NonEmpty();
-        Register("SnapshotLocation", SnapshotLocation).Default(".").NonEmpty();
-        Register("MaxChangesBetweenSnapshots", MaxChangesBetweenSnapshots).GreaterThanOrEqual(-1);
-        Register("SyncTimeout", SyncTimeout).Default(TDuration::MilliSeconds(5000));
-        Register("RpcTimeout", RpcTimeout).Default(TDuration::MilliSeconds(3000));
-        Register("Cell", Cell);
-    }
-
-    void Read(TJsonObject* json)
-    {
-        TryRead(json, L"LogLocation", &LogLocation);
-        TryRead(json, L"SnapshotLocation", &SnapshotLocation);
-        TryRead(json, L"MaxChangesBetweenSnapshots", &MaxChangesBetweenSnapshots);
-        auto cellConfig = GetSubTree(json, "Cell");
-        if (cellConfig != NULL) {
-            Cell.Read(cellConfig);
+        if (Id < 0 || Id >= Addresses.ysize()) {
+            ythrow yexception() << Sprintf("Id must be in range 0..%d", Addresses.ysize() - 1);
         }
     }
 };
@@ -190,13 +131,14 @@ inline TMetaVersion::TMetaVersion(i32 segmentId, i32 recordCount)
 
 inline bool TMetaVersion::operator < (const TMetaVersion& other) const
 {
-    return ((SegmentId < other.SegmentId) ||
-        (SegmentId == other.SegmentId && RecordCount < other.RecordCount));
+    return
+        SegmentId < other.SegmentId ||
+        SegmentId == other.SegmentId && RecordCount < other.RecordCount;
 }
 
 inline bool TMetaVersion::operator == (const TMetaVersion& other) const
 {
-    return (SegmentId == other.SegmentId && RecordCount == other.RecordCount);
+    return SegmentId == other.SegmentId && RecordCount == other.RecordCount;
 }
 
 inline bool TMetaVersion::operator != (const TMetaVersion& other) const
@@ -211,17 +153,13 @@ inline bool TMetaVersion::operator > (const TMetaVersion& other) const
 
 inline bool TMetaVersion::operator <= (const TMetaVersion& other) const
 {
-    return (*this < other || *this == other);
+    return *this < other || *this == other;
 }
 
 inline bool TMetaVersion::operator >= (const TMetaVersion& other) const
 {
     return !(*this < other);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern NLog::TLogger MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

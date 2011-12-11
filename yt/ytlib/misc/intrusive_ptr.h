@@ -229,6 +229,12 @@ T* operator ~ (const TAutoPtr<T>& ptr)
 }
 
 template<class T>
+T* operator ~ (const TSharedPtr<T>& ptr)
+{
+    return ptr.Get();
+}
+
+template<class T>
 T* operator ~ (const THolder<T>& ptr)
 {
     return ptr.Get();

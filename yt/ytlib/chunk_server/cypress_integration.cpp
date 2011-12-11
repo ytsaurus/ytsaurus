@@ -53,6 +53,10 @@ private:
                                 const auto& holder = ChunkManager->GetHolder(holderId);
                                 fluent.Item().Scalar(holder.GetAddress());
                             })
+                        .DoIf(chunk->GetSize() != TChunk::UnknownSize, [=] (TFluentMap fluent)
+                            {
+                                fluent.Item("size").Scalar(chunk->GetSize());
+                            })
                         .DoIf(chunk->IsConfirmed(), [=] (TFluentMap fluent)
                             {
                                 auto attributes = chunk->DeserializeAttributes();
@@ -107,7 +111,6 @@ private:
 
         return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
             {
-                // TODO: ChunkIds
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("replica_count").Scalar(chunkList->GetReplicaCount())

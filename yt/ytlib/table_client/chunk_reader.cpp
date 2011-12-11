@@ -27,8 +27,9 @@ struct TBlockInfo
 
     bool operator< (const TBlockInfo& rhs)
     {
-        return (LastRow > rhs.LastRow) || 
-            (LastRow == rhs.LastRow && ChannelIndex > rhs.ChannelIndex);
+        return
+            LastRow > rhs.LastRow || 
+            LastRow == rhs.LastRow && ChannelIndex > rhs.ChannelIndex;
     }
 
     TBlockInfo(
@@ -72,7 +73,7 @@ private:
     void OnGotMeta(NChunkClient::IAsyncReader::TGetInfoResult result)
     {
         if (!result.IsOK()) {
-            ChunkReader->State.Fail(result.GetMessage());
+            ChunkReader->State.Fail(result);
             return;
         }
 
@@ -222,10 +223,10 @@ private:
         return result;
     }
 
-    void OnFirstBlock(TAsyncStreamState::TResult result, int selectedChannelIndex)
+    void OnFirstBlock(TError error, int selectedChannelIndex)
     {
-        if (!result.IsOK) {
-            ChunkReader->State.Fail(result.ErrorMessage);
+        if (!error.IsOK()) {
+            ChunkReader->State.Fail(error);
             return;
         }
 
@@ -291,14 +292,14 @@ TChunkReader::TChunkReader(
     Initializer = New<TInitializer>(config, this, chunkReader);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncOpen()
+TAsyncError::TPtr TChunkReader::AsyncOpen()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     State.StartOperation();
 
     Initializer->Initialize();
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 bool TChunkReader::HasNextRow() const
@@ -310,7 +311,7 @@ bool TChunkReader::HasNextRow() const
     return CurrentRow < EndRow - 1;
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncNextRow()
+TAsyncError::TPtr TChunkReader::AsyncNextRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -325,17 +326,17 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkReader::AsyncNextRow()
 
     State.StartOperation();
 
-    ContinueNextRow(TAsyncStreamState::TResult(), -1);
+    ContinueNextRow(TError(), -1);
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 void TChunkReader::ContinueNextRow(
-    TAsyncStreamState::TResult result,
+    TError error,
     int channelIndex)
 {
-    if (!result.IsOK) {
-        State.Fail(result.ErrorMessage);
+    if (!error.IsOK()) {
+        State.Fail(error);
         return;
     }
 
@@ -422,9 +423,9 @@ TValue TChunkReader::GetValue()
     return ChannelReaders[CurrentChannel].GetValue();
 }
 
-void TChunkReader::Cancel(const Stroka& errorMessage)
+void TChunkReader::Cancel(const TError& error)
 {
-    State.Fail(errorMessage);
+    State.Fail(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

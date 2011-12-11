@@ -304,7 +304,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
     int srcNode, 
     int dstNode)
 {
-    if (rsp->GetErrorCode() == EErrorCode::RemoteCallFailed) {
+    if (rsp->GetErrorCode() == EErrorCode::PutBlocksFailed) {
         Writer->OnNodeDied(dstNode);
         return;
     }
@@ -587,14 +587,15 @@ void TRemoteWriter::Shutdown()
     CancelAllPings();
 }
 
-void TRemoteWriter::DoCancel(const Stroka& errorMessage)
+void TRemoteWriter::DoCancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-    State.Cancel(errorMessage);
+    State.Cancel(error);
     Shutdown();
 
-    LOG_DEBUG("Writer canceled (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Writer canceled (ChunkId: %s)\n%s",
+        ~ChunkId.ToString(),
+        ~error.ToString());
 }
 
 void TRemoteWriter::AddGroup(TGroupPtr group)
@@ -633,11 +634,9 @@ void TRemoteWriter::OnNodeDied(int node)
         AliveNodeCount);
 
     if (State.IsActive() && AliveNodeCount == 0) {
-        // ToDo: use error codes from rpc here.
-        DoCancel("All holders died");
-
         LOG_WARNING("No alive holders left, chunk writing failed (ChunkId: %s)",
             ~ChunkId.ToString());
+        DoCancel(TError("No alive holders left"));
     }
 }
 
@@ -858,8 +857,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncStreamState::TAsyncResult::TPtr 
-TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
+TAsyncError::TPtr TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -871,7 +869,7 @@ TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
         TPtr(this),
         data));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
@@ -897,8 +895,7 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
     State.FinishOperation();
 }
 
-TAsyncStreamState::TAsyncResult::TPtr 
-TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
+TAsyncError::TPtr TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -925,10 +922,10 @@ TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
         TPtr(this),
         attributes));
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
-void TRemoteWriter::Cancel(const Stroka& errorMessage)
+void TRemoteWriter::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -944,7 +941,7 @@ void TRemoteWriter::Cancel(const Stroka& errorMessage)
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteWriter::DoCancel,
         TPtr(this),
-        errorMessage));
+        error));
 }
 
 Stroka TRemoteWriter::GetDebugInfo()

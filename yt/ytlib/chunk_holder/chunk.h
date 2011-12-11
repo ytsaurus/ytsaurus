@@ -5,13 +5,7 @@
 
 #include "../misc/property.h"
 #include "../misc/error.h"
-
-/*
 #include "../misc/cache.h"
-#include "../actions/action_queue.h"
-#include "../actions/signal.h"
-#include "../chunk_client/file_reader.h"
-*/
 
 namespace NYT {
 namespace NChunkHolder {
@@ -29,7 +23,7 @@ struct TChunkDescriptor
 
 //! Describes chunk at a chunk holder.
 class TChunk
-    : public TRefCountedBase
+    : public virtual TRefCountedBase
 {
     //! Chunk id.`
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
@@ -52,21 +46,21 @@ public:
         const TChunkDescriptor& descriptor);
 
     //! Returns the full path to the chunk data file.
-    Stroka GetFileName();
+    Stroka GetFileName() const;
 
-    typedef TValuedError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
+    typedef TValueOrError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
     typedef TFuture<TGetInfoResult> TAsyncGetInfoResult;
 
     //! Returns chunk info.
     /*!
      *  The info is fetched asynchronously and is cached.
      */
-    TAsyncGetInfoResult::TPtr GetInfo();
+    TAsyncGetInfoResult::TPtr GetInfo() const;
 
 private:
-    TSpinLock SpinLock;
-    volatile bool HasInfo;
-    NChunkHolder::NProto::TChunkInfo Info;
+    mutable TSpinLock SpinLock;
+    mutable volatile bool HasInfo;
+    mutable NChunkHolder::NProto::TChunkInfo Info;
 
 };
 
@@ -93,6 +87,7 @@ public:
 //! A chunk owned by TChunkCache.
 class TCachedChunk
     : public TChunk
+    , public TCacheValueBase<NChunkClient::TChunkId, TCachedChunk>
 {
 public:
     typedef TIntrusivePtr<TCachedChunk> TPtr;

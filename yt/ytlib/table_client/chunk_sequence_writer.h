@@ -52,11 +52,11 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
 
-    TAsyncStreamState::TAsyncResult::TPtr AsyncOpen();
+    TAsyncError::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
-    TAsyncStreamState::TAsyncResult::TPtr AsyncEndRow();
-    TAsyncStreamState::TAsyncResult::TPtr AsyncClose();
-    void Cancel(const Stroka& errorMessage);
+    TAsyncError::TPtr AsyncEndRow();
+    TAsyncError::TPtr AsyncClose();
+    void Cancel(const TError& error);
 
     const yvector<NChunkClient::TChunkId>& GetWrittenChunks() const;
 
@@ -72,10 +72,10 @@ private:
     void OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp);
 
     void OnChunkClosed(
-        TAsyncStreamState::TResult result, 
+        TError error, 
         NChunkClient::TChunkId chunkId);
 
-    void OnRowEnded(TAsyncStreamState::TResult result);
+    void OnRowEnded(TError error);
     void OnClose();
 
     const TConfig Config;

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "meta_state.h"
+#include "persistent_state_manager.h"
 #include "decorated_meta_state.h"
 #include "meta_state_manager_rpc.h"
 #include "snapshot_downloader.h"
@@ -40,7 +41,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TRecovery(
-        const TMetaStateManagerConfig& config,
+        const TPersistentStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -114,7 +115,7 @@ protected:
         i32 targetRecordCount);
 
     // Any thread.
-    TMetaStateManagerConfig Config;
+    TPersistentStateManagerConfig Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -142,7 +143,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TLeaderRecovery(
-        const TMetaStateManagerConfig& config,
+        const TPersistentStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -175,7 +176,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TFollowerRecovery(
-        const TMetaStateManagerConfig& config,
+        const TPersistentStateManagerConfig& config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,

@@ -2,117 +2,168 @@
 #include "cell_master_server.h"
 #include "chunk_holder_server.h"
 
-#include <yt/ytlib/rpc/server.h>
+#include <yt/ytlib/misc/enum.h>
+#include <yt/ytlib/ytree/serialize.h>
 
-//using namespace NYT;
 namespace NYT {
 
-using NYT::NElection::TPeerId;
-using NYT::NElection::InvalidPeerId;
+using namespace NLastGetopt;
+using namespace NYTree;
+using namespace NElection;
 
-} // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, const char *argv[])
+static NLog::TLogger Logger("Server");
+
+DECLARE_ENUM(EExitCode,
+    ((OK)(0))
+    ((OptionsError)(1))
+    ((BootstrapError)(2))
+);
+
+EExitCode GuardedMain(int argc, const char* argv[])
 {
+    // Configure options parser.
+    TOpts opts;
+
+    opts.AddHelpOption();
+
+    const TOpt& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
+        .NoArgument()
+        .Optional();
+
+    const TOpt& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
+        .NoArgument()
+        .Optional();
+
+    int port = -1;
+    opts.AddLongOption("port", "port to listen")
+        .Optional()
+        .RequiredArgument("PORT")
+        .StoreResult(&port);
+
+    TPeerId peerId = InvalidPeerId;
+    opts.AddLongOption("id", "peer id")
+        .Optional()
+        .RequiredArgument("ID")
+        .StoreResult(&peerId);
+
+    // TODO: killme
+    Stroka oldConfigFileName;
+    opts.AddLongOption("old_config", "old json configuration file")
+        .RequiredArgument("FILE")
+        .StoreResult(&oldConfigFileName);
+
+    Stroka configFileName;
+    opts.AddLongOption("config", "configuration file")
+        .RequiredArgument("FILE")
+        .StoreResult(&configFileName);
+
+    TOptsParseResult results(&opts, argc, argv);
+
+    // Figure out the mode: cell master or chunk holder.
+    bool isCellMaster = results.Has(&cellMasterOpt);
+    bool isChunkHolder = results.Has(&chunkHolderOpt);
+
+    int modeCount = 0;
+    if (isChunkHolder) {
+        ++modeCount;
+    }
+    if (isCellMaster) {
+        ++modeCount;
+    }
+
+    if (modeCount != 1) {
+        opts.PrintUsage(results.GetProgramName());
+        return EExitCode::OptionsError;
+    }
+
+    // Configure logging.
+    // TODO: use new config
+    NLog::TLogManager::Get()->Configure(oldConfigFileName, "Logging");
+
+    // Parse configuration file.
+    INode::TPtr configNode;
     try {
-        using namespace NYT;
-        using namespace NLastGetopt;
-        TOpts opts;
+        TIFStream configStream(configFileName);
+        TYson configYson = configStream.ReadAll();
+        configNode = DeserializeFromYson(configYson);
+    } catch (...) {
+        ythrow yexception() << Sprintf("Error reading server configuration\n%s",
+            ~CurrentExceptionMessage());
+    }
 
-        opts.AddHelpOption();
-        
-        const TOpt& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
-            .NoArgument()
-            .Optional();
-        
-        const TOpt& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
-            .NoArgument()
-            .Optional();
-
-        int port = -1;
-        opts.AddLongOption("port", "port to listen")
-            .Optional()
-            .RequiredArgument("PORT")
-            .StoreResult(&port);
-
-        TPeerId peerId = InvalidPeerId;
-        opts.AddLongOption("id", "peer id")
-            .Optional()
-            .RequiredArgument("ID")
-            .StoreResult(&peerId);
-
-        Stroka configFileName;
-        opts.AddLongOption("config", "configuration file")
-            .RequiredArgument("FILE")
-            .StoreResult(&configFileName);
+    // Start an appropriate server.
+    if (isChunkHolder) {
+        TChunkHolderServer::TConfig config;
+        try {
+            config.Load(~configNode);
+            config.Validate();
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
+                ~CurrentExceptionMessage());
+        }
 
         // TODO: killme
-        Stroka newConfigFileName;
-        opts.AddLongOption("new_config", "new configuration file")
-            .RequiredArgument("FILE")
-            .StoreResult(&newConfigFileName);
+        NChunkHolder::TLocationConfig c;
+        c.Path = NFS::GetDirectoryName(config.CacheLocation.Path) + "\\chunk_storage.0";
+        config.StorageLocations.push_back(c);
 
-        TOptsParseResult results(&opts, argc, argv);
-
-        bool isCellMaster = results.Has(&cellMasterOpt);
-        bool isChunkHolder = results.Has(&chunkHolderOpt);
-
-        int modeCount = 0;
-        if (isChunkHolder) {
-            ++modeCount;
+        // Override RPC port.
+        if (port >= 0) {
+            config.RpcPort = port;
         }
 
-        if (isCellMaster) {
-            ++modeCount;
-        }
+        TChunkHolderServer chunkHolderServer(configFileName, config);
+        chunkHolderServer.Run();
+    }
 
-        if (modeCount != 1) {
-            opts.PrintUsage(results.GetProgramName());
-            return 1;
-        }
-
-        NLog::TLogManager::Get()->Configure(configFileName, "Logging");
-
-        TIFStream configStream(configFileName);
-        TJsonReader configReader(CODES_UTF8, &configStream);
-        TJsonObject* configRoot = configReader.ReadAll();
-
-        if (isChunkHolder) {
-            TChunkHolderServer::TConfig config;
-            config.Read(configRoot);
-            if (port >= 0) {
-                config.RpcPort = port;
-            }
-
-            // TODO: killme
-            config.NewConfigFileName = newConfigFileName;
-
-            TChunkHolderServer chunkHolderServer(config);
-            chunkHolderServer.Run();
-        }
-
-        if (isCellMaster) {
-            TCellMasterServer::TConfig config;
-            config.Read(configRoot);
-
-            if (peerId >= 0) {
-                // TODO: check id
+    if (isCellMaster) {
+        TCellMasterServer::TConfig config;
+        try {
+            config.Load(~configNode);
+            
+            // Override peer id.
+            if (peerId != InvalidPeerId) {
                 config.MetaState.Cell.Id = peerId;
             }
-            
-            // TODO: killme
-            config.NewConfigFileName = newConfigFileName;
-            // TODO: check that config.Cell.Id is initialized
 
-            TCellMasterServer cellMasterServer(config);
-            cellMasterServer.Run();
+            config.Validate();
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
+                ~CurrentExceptionMessage());
         }
 
-        return 0;
+        TCellMasterServer cellMasterServer(configFileName, config);
+        cellMasterServer.Run();
     }
-    catch (std::exception& e) {
-        Cerr << "ERROR: " << e.what() << Endl;
-        return 2;
+
+    // Actually this will never happen.
+    return EExitCode::OK;
+}
+
+int Main(int argc, const char* argv[])
+{
+    try {
+        return GuardedMain(argc, argv);
+    }
+    catch (...) {
+        LOG_ERROR("Server startup failed\n%s", ~CurrentExceptionMessage());
+
+        // TODO: refactor system shutdown
+        NLog::TLogManager::Get()->Shutdown();
+        NRpc::TRpcManager::Get()->Shutdown();
+        TDelayedInvoker::Shutdown();
+
+        return EExitCode::BootstrapError;
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
+int main(int argc, const char* argv[])
+{
+    return NYT::Main(argc, argv);
+}

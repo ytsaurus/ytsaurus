@@ -140,11 +140,12 @@ TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
         return CurrentChangeLog;
     }
 
-    CurrentChangeLog = ChangeLogCache->Get(Version.SegmentId);
-    if (~CurrentChangeLog == NULL) {
-        LOG_FATAL("The current changelog %d is missing", Version.SegmentId);
+    auto result = ChangeLogCache->Get(Version.SegmentId);
+    if (!result.IsOK()) {
+        LOG_FATAL("Cannot obtain the current changelog\n%s", ~result.ToString());
     }
 
+    CurrentChangeLog = result.Value();
     return CurrentChangeLog;
 }
 
@@ -196,15 +197,16 @@ void TDecoratedMetaState::ComputeReachableVersion()
     auto currentVersion = TMetaVersion(maxSnapshotId, 0);
 
     for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
-        auto changeLog = ChangeLogCache->Get(segmentId);
-        if (~changeLog == NULL) {
+        auto result = ChangeLogCache->Get(segmentId);
+        if (!result.IsOK()) {
             ReachableVersion = currentVersion;
             break;
         }
 
-        bool isFinal = ~ChangeLogCache->Get(segmentId + 1) == NULL;
+        auto changeLog = result.Value();
+        bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
 
-        LOG_DEBUG("Found changelog (Id: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
@@ -213,8 +215,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
         currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }
 
-    LOG_INFO("Reachable version is %s",
-        ~ReachableVersion.ToString());
+    LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }         
 
 TMetaVersion TDecoratedMetaState::GetVersion() const

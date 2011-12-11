@@ -81,10 +81,9 @@ void TSnapshotDownloader::OnResponse(
     TPeerId peerId)
 {
     if (!response->IsOK()) {
-        // We have no snapshot id to log it here
-        LOG_INFO("Error %s requesting snapshot info from peer %d",
-            ~response->GetError().ToString(),
-            peerId);
+        LOG_INFO("Error requesting snapshot info from peer %d\n%s",
+            peerId,
+            ~response->GetError().ToString());
         return;
     }
     
@@ -119,20 +118,19 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     snapshotFile->Resize(snapshotInfo.Length);
     TBufferedFileOutput writer(*snapshotFile);
     
-    EResult result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, writer);
+    auto result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, writer);
     if (result != EResult::OK) {
         return result;
     }
 
-    writer.Flush();
     try {
+        writer.Flush();
         snapshotFile->Flush();
         snapshotFile->Close();
-    } catch (const yexception& ex) {
-        LOG_ERROR("Error closing snapshot writer (SnapshotId: %d)\n%s",
+    } catch (...) {
+        LOG_FATAL("Error closing snapshot writer (SnapshotId: %d)\n%s",
             segmentId,
-            ex.what());
-        return EResult::IOError;
+            ~CurrentExceptionMessage());
     }
 
     return EResult::OK;
@@ -165,30 +163,22 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             auto error = response->GetError();
             if (NRpc::IsServiceError(error)) {
                 switch (error.GetCode()) {
-                    case EErrorCode::InvalidSegmentId:
-                        LOG_WARNING(
-                            "Peer %d does not have snapshot %d anymore",
+                    case EErrorCode::NoSuchSnapshot:
+                        LOG_WARNING("Peer %d does not have snapshot %d anymore",
                             sourceId,
                             snapshotId);
                         return EResult::SnapshotUnavailable;
 
-                    case EErrorCode::IOError:
-                        LOG_WARNING(
-                            "IO error occurred on peer %d during downloading snapshot %d",
-                            sourceId,
-                            snapshotId);
-                        return EResult::RemoteError;
-
                     default:
-                        LOG_FATAL("Unknown error code %s received from peer %d",
-                            ~error.ToString(),
-                            sourceId);
+                        LOG_FATAL("Unexpected error received from peer %d\n%s",
+                            sourceId,
+                            ~error.ToString());
                         break;
                 }
             } else {
-                LOG_WARNING("RPC error %s reading snapshot from peer %d",
-                    ~error.ToString(),
-                    sourceId);
+                LOG_WARNING("Error reading snapshot at peer %d\n%s",
+                    sourceId,
+                    ~error.ToString());
                 return EResult::RemoteError;
             }
         }
@@ -210,10 +200,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
         try {
             output.Write(block.Begin(), block.Size());
-        } catch (const yexception& ex) {
-            LOG_ERROR("Exception occurred while writing to output\n%s",
-                ex.what());
-            return EResult::IOError;
+        } catch (...) {
+            LOG_FATAL("Error writing snapshot\n%s", ~CurrentExceptionMessage());
         }
 
         downloadedLength += block.Size();

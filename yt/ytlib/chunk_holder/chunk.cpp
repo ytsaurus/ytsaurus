@@ -27,12 +27,12 @@ TChunk::TChunk(TLocation* location, const TChunkDescriptor& descriptor)
     , HasInfo(false)
 { }
 
-Stroka TChunk::GetFileName()
+Stroka TChunk::GetFileName() const
 {
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
+TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo() const
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -41,19 +41,18 @@ TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
         }
     }
 
-    TChunk::TPtr chunk = this;
+    TIntrusivePtr<const TChunk> chunk = this;
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
     return
         FromFunctor([=] () -> TGetInfoResult
             {
-                auto reader = readerCache->GetReader(~chunk);
-                if (~reader == NULL) {
-                    return TError(
-                        TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
-                        Sprintf("Cannot open a chunk reader to fetch chunk info (ChunkId: %s)", ~chunk->GetId().ToString()));
+                auto result = readerCache->GetReader(~chunk);
+                if (!result.IsOK()) {
+                    return TError(result);
                 }
 
+                auto reader = result.Value();
                 auto info = reader->GetChunkInfo();
 
                 TGuard<TSpinLock> guard(SpinLock);
@@ -80,11 +79,23 @@ TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descript
 
 TCachedChunk::TCachedChunk(TLocation* location, const TChunkInfo& info)
     : TChunk(location, info)
+    , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
 { }
 
 TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descriptor)
     : TChunk(location, descriptor)
+    , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
 { }
+
+void TCachedChunk::Aquire()
+{
+    // TODO: implement
+}
+
+void TCachedChunk::Release()
+{
+    // TODO: implement
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

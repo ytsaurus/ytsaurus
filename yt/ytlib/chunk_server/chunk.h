@@ -16,11 +16,12 @@ class TChunk
 {
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TChunkListId, ChunkListId);
+    DEFINE_BYVAL_RW_PROPERTY(i64, Size);
     DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
     DEFINE_BYREF_RO_PROPERTY(yvector<THolderId>, Locations);
 
 public:
-    static const TChecksum UnknownChecksum = 0;
+    static const i64 UnknownSize = -1;
     
     TChunk(const NChunkClient::TChunkId& id);
 

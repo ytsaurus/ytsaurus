@@ -60,32 +60,33 @@ void TChunkWriter::Write(const TColumn& column, TValue value)
 }
 
 void TChunkWriter::ContinueEndRow(
-    TAsyncStreamState::TResult result,
+    TError error,
     int channelIndex)
 {
-    if (result.IsOK) {
+    if (error.IsOK()) {
         while (channelIndex < ChannelWriters.ysize()) {
             auto channel = ChannelWriters[channelIndex];
             channel->EndRow();
             CurrentSize += channel->GetCurrentSize();
 
             if (channel->GetCurrentSize() > static_cast<size_t>(Config.BlockSize)) {
-                auto data = PrepareBlock(channelIndex);
-                ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
-                    &TChunkWriter::ContinueEndRow,
-                    TPtr(this),
-                    channelIndex + 1)->Via(WriterThread->GetInvoker()));
-
+                auto block = PrepareBlock(channelIndex);
+                ChunkWriter->AsyncWriteBlock(block)->Subscribe(
+                    FromMethod(
+                        &TChunkWriter::ContinueEndRow,
+                        TPtr(this),
+                        channelIndex + 1)
+                    ->Via(WriterThread->GetInvoker()));
                 return;
             } 
             ++channelIndex;
         }
     }
 
-    State.FinishOperation(result);
+    State.FinishOperation(error);
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncEndRow()
+TAsyncError::TPtr TChunkWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -97,9 +98,9 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncEndRow()
     Attributes.set_rowcount(Attributes.rowcount() + 1);
 
     State.StartOperation();
-    ContinueEndRow(State.GetCurrentResult(), 0);
+    ContinueEndRow(State.GetCurrentError(), 0);
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
@@ -131,13 +132,13 @@ i64 TChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-void TChunkWriter::OnClosed(TAsyncStreamState::TResult result)
+void TChunkWriter::OnClosed(TError error)
 {
-    State.Finish(result);
+    State.Finish(error);
 }
 
 void TChunkWriter::ContinueClose(
-    TAsyncStreamState::TResult result,
+    TError error,
     int startChannelIndex /* = 0 */)
 {
     // ToDo: consider separate thread for this background blocks 
@@ -146,8 +147,8 @@ void TChunkWriter::ContinueClose(
     // slows window shifts.
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!result.IsOK) {
-        State.FinishOperation(result);
+    if (!error.IsOK()) {
+        State.FinishOperation(error);
         return;
     }
 
@@ -180,7 +181,7 @@ void TChunkWriter::ContinueClose(
         TPtr(this)));
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncClose()
+TAsyncError::TPtr TChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -190,17 +191,17 @@ TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    ContinueClose(State.GetCurrentResult(), 0);
+    ContinueClose(State.GetCurrentError(), 0);
 
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
-void TChunkWriter::Cancel(const Stroka& errorMessage)
+void TChunkWriter::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    State.Cancel(errorMessage);
-    ChunkWriter->Cancel(errorMessage);
+    State.Cancel(error);
+    ChunkWriter->Cancel(error);
 }
 
 TChunkId TChunkWriter::GetChunkId() const
@@ -208,11 +209,11 @@ TChunkId TChunkWriter::GetChunkId() const
     return ChunkWriter->GetChunkId();
 }
 
-TAsyncStreamState::TAsyncResult::TPtr TChunkWriter::AsyncOpen()
+TAsyncError::TPtr TChunkWriter::AsyncOpen()
 {
     // Stub to implement IWriter interface.
     VERIFY_THREAD_AFFINITY(ClientThread);
-    return State.GetOperationResult();
+    return State.GetOperationError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

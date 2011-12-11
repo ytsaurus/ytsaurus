@@ -16,35 +16,84 @@ static NLog::TLogger& Logger = ChunkClientLogger;
     
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(const TChunkId& id, const Stroka& fileName)
+TChunkFileWriter::TChunkFileWriter(const TChunkId& id, const Stroka& fileName)
     : Id(id)
     , FileName(fileName)
-    , Result(New<TAsyncStreamState::TAsyncResult>())
+    , Result(ToFuture(TError()))
+    , Open(false)
+    , Closed(false)
+    , DataSize(0)
 {
     ChunkMeta.set_id(id.ToProto());
-    DataFile.Reset(new TFile(
-        FileName + NFS::TempFileSuffix,
-        CreateAlways | WrOnly | Seq));
-    Result->Set(TAsyncStreamState::TResult());
 }
 
-TAsyncStreamState::TAsyncResult::TPtr 
-TFileWriter::AsyncWriteBlock(const TSharedRef& data)
+bool TChunkFileWriter::EnsureOpen()
 {
+    if (Open) {
+        return true;
+    }
+
+    try {
+        DataFile.Reset(new TFile(
+            FileName + NFS::TempFileSuffix,
+            CreateAlways | WrOnly | Seq));
+    } catch (...) {
+        Result = ToFuture(TError(Sprintf("Error opening chunk file %s\n%s",
+            ~FileName.Quote(),
+            ~CurrentExceptionMessage())));
+        return false;
+    }
+
+    Open = true;
+    return true;
+}
+
+TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlock(const TSharedRef& data)
+{
+    YASSERT(!Closed);
+
+    if (!EnsureOpen()) {
+        return Result;
+    }
+
     auto* blockInfo = ChunkMeta.add_blocks();
     blockInfo->set_offset(DataFile->GetPosition());
     blockInfo->set_size(static_cast<int>(data.Size()));
     blockInfo->set_checksum(GetChecksum(data));
 
-    DataFile->Write(data.Begin(), data.Size());
+    try {
+        DataFile->Write(data.Begin(), data.Size());
+    } catch (...) {
+        Result = ToFuture(TError(Sprintf("Error writing chunk file %s\n%s",
+            ~FileName.Quote(),
+            ~CurrentExceptionMessage())));
+        return Result;
+    }
+
+    DataSize += data.Size();
+
     return Result;
 }
 
-TAsyncStreamState::TAsyncResult::TPtr 
-TFileWriter::AsyncClose(const TChunkAttributes& attributes)
+TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attributes)
 {
-    DataFile->Close();
-    DataFile.Destroy();
+    if (Closed) {
+        return Result;
+    }
+
+    if (!EnsureOpen()) {
+        return Result;
+    }
+
+    try {
+        DataFile->Close();
+        DataFile.Destroy();
+    } catch (...) {
+        Result = ToFuture(TError(Sprintf("Error closing chunk file %s\n%s",
+            ~FileName.Quote(),
+            ~CurrentExceptionMessage())));
+        return Result;
+    }
 
     // Write meta.
     *ChunkMeta.mutable_attributes() = attributes;
@@ -60,34 +109,86 @@ TFileWriter::AsyncClose(const TChunkAttributes& attributes)
     header.Checksum = GetChecksum(metaBlob);
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
-    TFile chunkMetaFile(
-        chunkMetaFileName + NFS::TempFileSuffix,
-        CreateAlways | WrOnly | Seq);
-    Write(chunkMetaFile, header);
-    chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
-    chunkMetaFile.Close();
+
+    try {
+        TFile chunkMetaFile(
+            chunkMetaFileName + NFS::TempFileSuffix,
+            CreateAlways | WrOnly | Seq);
+        Write(chunkMetaFile, header);
+        chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
+        chunkMetaFile.Close();
+    } catch (...) {
+        Result = ToFuture(TError(Sprintf("Error writing chunk file meta %s\n%s",
+            ~FileName.Quote(),
+            ~CurrentExceptionMessage())));
+        return Result;
+    }
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        LOG_FATAL("Error renaming temp chunk meta file (FileName: %s)", ~chunkMetaFileName);
+        Result = ToFuture(TError(Sprintf("Error renaming temp chunk meta file %s",
+            ~chunkMetaFileName.Quote())));
+        return Result;
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        LOG_FATAL("Error renaming temp chunk file (FileName: %s)", ~FileName);
+        Result = ToFuture(TError(Sprintf("Error renaming temp chunk file %s",
+            ~FileName.Quote())));
+        return Result;
     }
 
+    ChunkInfo.set_id(Id.ToProto());
+    ChunkInfo.set_metachecksum(header.Checksum);
+    ChunkInfo.set_size(DataSize + metaBlob.size());
+    ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());
+    ChunkInfo.mutable_attributes()->CopyFrom(ChunkMeta.attributes());
+
+    Closed = true;
     return Result;
 }
 
-void TFileWriter::Cancel(const Stroka& /*errorMessage*/)
+void TChunkFileWriter::Cancel(const TError& error)
 {
-    DataFile->Close();
+    if (!Open || Closed) {
+        return;
+    }
+
+    try {
+        DataFile->Close();
+    } catch (...) {
+        LOG_WARNING("Error closing temp chunk file %s", ~FileName.Quote());
+    }
+
     DataFile.Destroy();
-    NFS::Remove(FileName + NFS::TempFileSuffix);
+    
+    if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
+        LOG_WARNING("Error deleting temp chunk file %s", ~FileName.Quote());
+    }
+
+    Closed = true;
 }
 
-TChunkId TFileWriter::GetChunkId() const
+TChunkId TChunkFileWriter::GetChunkId() const
 {
     return Id;
+}
+
+TChunkInfo TChunkFileWriter::GetChunkInfo() const
+{
+    YASSERT(Closed);
+    return ChunkInfo;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void TChunkFileDeleter::Delete(const Stroka& path)
+{
+    if (!NFS::Remove(path)) {
+        LOG_WARNING("Error removing chunk data file %s", ~path.Quote());
+    }
+
+    if (!NFS::Remove(path + ChunkMetaSuffix)) {
+        LOG_WARNING("Error removing chunk meta file %s", ~(path + ChunkMetaSuffix).Quote());
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

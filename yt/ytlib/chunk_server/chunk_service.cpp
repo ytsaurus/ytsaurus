@@ -10,6 +10,7 @@ using namespace NRpc;
 using namespace NMetaState;
 using namespace NChunkClient;
 using namespace NChunkHolder;
+using namespace NTransactionServer;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,15 +267,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, ConfirmChunks)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FindChunk)
 {
-    auto transactionId = TTransactionId::FromProto(request->transactionid());
     auto chunkId = TChunkId::FromProto(request->chunkid());
 
-    context->SetRequestInfo("TransactionId: %s, ChunkId: %s",
-        ~transactionId.ToString(),
-        ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     ValidateLeader();
-    ValidateTransactionId(transactionId);
     ValidateChunkId(chunkId);
 
     auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);

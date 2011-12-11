@@ -18,14 +18,14 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 class TReaderCache::TCachedReader
     : public TCacheValueBase<TChunkId, TCachedReader>
-    , public TFileReader
+    , public TChunkFileReader
 {
 public:
     typedef TIntrusivePtr<TCachedReader> TPtr;
 
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileReader(fileName)
+        , TChunkFileReader(fileName)
     { }
 
 };
@@ -39,17 +39,19 @@ public:
     typedef TIntrusivePtr<TReaderCache> TPtr;
 
     TImpl(const TChunkHolderConfig& config)
-        : TCapacityLimitedCache<TChunkId, TCachedReader>(config.MaxCachedFiles)
+        : TCapacityLimitedCache<TChunkId, TCachedReader>(config.MaxCachedReaders)
     { }
 
-    TCachedReader::TPtr Get(TChunk* chunk)
+    TGetReaderResult Get(const TChunk* chunk)
     {
         auto chunkId = chunk->GetId();
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
             if (!isexist(~fileName)) {
-                return NULL;
+                cookie.Cancel(TGetReaderResult(
+                    EErrorCode::NoSuchChunk,
+                    Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString())));
             }
 
             try {
@@ -62,10 +64,11 @@ public:
                     ~CurrentExceptionMessage());
             }
         }
+
         return cookie.GetAsyncResult()->Get();
     }
 
-    void EvictReader(TChunk* chunk)
+    void Evict(const TChunk* chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
@@ -77,14 +80,14 @@ TReaderCache::TReaderCache(const TChunkHolderConfig& config)
     : Impl(New<TImpl>(config))
 { }
 
-NChunkClient::TFileReader::TPtr TReaderCache::FindReader(TChunk* chunk)
+TReaderCache::TGetReaderResult TReaderCache::GetReader(const TChunk* chunk)
 {
     return Impl->Get(chunk);
 }
 
-void TReaderCache::EvictReader(TChunk* chunk)
+void TReaderCache::EvictReader(const TChunk* chunk)
 {
-    Impl->EvictReader(chunk);
+    Impl->Evict(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

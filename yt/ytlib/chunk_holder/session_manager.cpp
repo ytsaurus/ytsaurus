@@ -19,120 +19,6 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSessionManager::TSessionManager(
-    const TChunkHolderConfig& config,
-    TBlockStore::TPtr blockStore,
-    TChunkStore::TPtr chunkStore,
-    IInvoker::TPtr serviceInvoker)
-    : Config(config)
-    , BlockStore(blockStore)
-    , ChunkStore(chunkStore)
-    , ServiceInvoker(serviceInvoker)
-{ }
-
-TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
-{
-    auto it = SessionMap.find(chunkId);
-    if (it == SessionMap.end())
-        return NULL;
-    
-    auto session = it->Second();
-    session->RenewLease();
-    return session;
-}
-
-TSession::TPtr TSessionManager::StartSession(
-    const TChunkId& chunkId,
-    int windowSize)
-{
-    auto location = ChunkStore->GetNewChunkLocation();
-
-    auto session = New<TSession>(this, chunkId, ~location, windowSize);
-
-    auto lease = TLeaseManager::CreateLease(
-        Config.SessionTimeout,
-        ~FromMethod(
-            &TSessionManager::OnLeaseExpired,
-            TPtr(this),
-            session)
-        ->Via(ServiceInvoker));
-    session->SetLease(lease);
-
-    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
-
-    LOG_INFO("Session started (ChunkId: %s, Location: %s, WindowSize: %d)",
-        ~chunkId.ToString(),
-        ~location->GetPath(),
-        windowSize);
-
-    return session;
-}
-
-void TSessionManager::CancelSession(TSession* session, const Stroka& errorMessage)
-{
-    auto chunkId = session->GetChunkId();
-
-    YVERIFY(SessionMap.erase(chunkId) == 1);
-
-    session->Cancel(errorMessage);
-
-    LOG_INFO("Session canceled (ChunkId: %s)\n%s",
-        ~chunkId.ToString(),
-        ~errorMessage);
-}
-
-TFuture<TVoid>::TPtr TSessionManager::FinishSession(
-    TSession::TPtr session, 
-    const TChunkAttributes& attributes)
-{
-    auto chunkId = session->GetChunkId();
-
-    YVERIFY(SessionMap.erase(chunkId) == 1);
-
-    return session->Finish(attributes)->Apply(
-        FromMethod(
-            &TSessionManager::OnSessionFinished,
-            TPtr(this),
-            session)
-        ->AsyncVia(ServiceInvoker));
-}
-
-TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
-{
-    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
-
-    ChunkStore->RegisterChunk(session->GetChunkId(), ~session->GetLocation());
-
-    return TVoid();
-}
-
-void TSessionManager::OnLeaseExpired(TSession::TPtr session)
-{
-    if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
-        LOG_INFO("Session lease expired (ChunkId: %s)",
-            ~session->GetChunkId().ToString());
-
-        CancelSession(~session, "Session lease expired");
-    }
-}
-
-int TSessionManager::GetSessionCount() const
-{
-    return SessionMap.ysize();
-}
-
-TSessionManager::TSessions TSessionManager::GetSessions() const
-{
-    TSessions result;
-    result.reserve(SessionMap.ysize());
-    FOREACH(const auto& pair, SessionMap) {
-        result.push_back(pair.Second());
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSession::TSession(
     TSessionManager* sessionManager,
     const TChunkId& chunkId,
@@ -144,6 +30,7 @@ TSession::TSession(
     , WindowStart(0)
     , FirstUnwritten(0)
     , Size(0)
+    , HasChunkInfo(0)
 {
     YASSERT(sessionManager != NULL);
     YASSERT(location != NULL);
@@ -152,7 +39,7 @@ TSession::TSession(
 
     FileName = Location->GetChunkFileName(chunkId);
     NFS::ForcePath(NFS::GetDirectoryName(FileName));
-    
+
     for (int index = 0; index < windowSize; ++index) {
         Window.push_back(TSlot());
     }
@@ -200,6 +87,11 @@ i64 TSession::GetSize() const
     return Size;
 }
 
+TChunkInfo TSession::GetChunkInfo() const
+{
+    return Writer->GetChunkInfo();
+}
+
 TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
@@ -210,10 +102,10 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
-                WindowStart,
-                Window.ysize(),
-                blockIndex);
+            ~ChunkId.ToString(),
+            WindowStart,
+            Window.ysize(),
+            blockIndex);
     }
 
     LOG_DEBUG("Chunk block retrieved (ChunkId: %s, BlockIndex: %d)",
@@ -234,12 +126,11 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
         if (TRef::CompareContent(slot.Block->GetData(), data)) {
-            LOG_WARNING("Block has been already received (BlockId: %s)",
-                ~blockId.ToString());
+            LOG_WARNING("Block has been already received (BlockId: %s)", ~blockId.ToString());
             return;
         }
 
-        ythrow TServiceException(EErrorCode::UnmatchedBlockContent) <<
+        ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
             Sprintf("Block with the same id but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
             ~blockId.ToString(),
             WindowStart,
@@ -264,19 +155,19 @@ void TSession::EnqueueWrites()
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Received)
             break;
-        
+
         FromMethod(
             &TSession::DoWrite,
             TPtr(this),
             slot.Block,
             blockIndex)
-        ->AsyncVia(GetInvoker())
-        ->Do()
-        ->Subscribe(FromMethod(
+            ->AsyncVia(GetInvoker())
+            ->Do()
+            ->Subscribe(FromMethod(
             &TSession::OnBlockWritten,
             TPtr(this),
             blockIndex)
-        ->Via(SessionManager->ServiceInvoker));
+            ->Via(SessionManager->ServiceInvoker));
 
         ++FirstUnwritten;
     }
@@ -289,7 +180,7 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
+        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
         LOG_FATAL("Error writing chunk block (ChunkId: %s, BlockIndex: %d)\n%s",
             ~ChunkId.ToString(),
@@ -324,17 +215,17 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
-                WindowStart,
-                Window.ysize(),
-                blockIndex);
+            ~ChunkId.ToString(),
+            WindowStart,
+            Window.ysize(),
+            blockIndex);
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
     return slot.IsWritten->Apply(FromMethod(
-            &TSession::OnBlockFlushed,
-            TPtr(this),
-            blockIndex));
+        &TSession::OnBlockFlushed,
+        TPtr(this),
+        blockIndex));
 }
 
 TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
@@ -352,20 +243,20 @@ TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
                 Sprintf("Finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                    ~ChunkId.ToString(),
-                    WindowStart,
-                    Window.ysize(),
-                    blockIndex);
+                ~ChunkId.ToString(),
+                WindowStart,
+                Window.ysize(),
+                blockIndex);
         }
     }
 
     return CloseFile(attributes);
 }
 
-void TSession::Cancel(const Stroka& errorMessage)
+void TSession::Cancel(const TError& error)
 {
     CloseLease();
-    DeleteFile(errorMessage);
+    DeleteFile(error);
 }
 
 void TSession::OpenFile()
@@ -377,36 +268,36 @@ void TSession::OpenFile()
 
 void TSession::DoOpenFile()
 {
-    Writer = New<TFileWriter>(ChunkId, FileName);
+    Writer = New<TChunkFileWriter>(ChunkId, FileName);
 
     LOG_DEBUG("Chunk file opened (ChunkId: %s)",
         ~ChunkId.ToString());
 }
 
-void TSession::DeleteFile(const Stroka& errorMessage)
+void TSession::DeleteFile(const TError& error)
 {
     GetInvoker()->Invoke(FromMethod(
         &TSession::DoDeleteFile,
         TPtr(this),
-        errorMessage));
+        error));
 }
 
-void TSession::DoDeleteFile(const Stroka& errorMessage)
+void TSession::DoDeleteFile(const TError& error)
 {
-    Writer->Cancel(errorMessage);
+    Writer->Cancel(error);
 
     LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
         ~ChunkId.ToString(),
-        ~errorMessage);
+        ~error.ToString());
 }
 
 TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         FromMethod(
-            &TSession::DoCloseFile,
-            TPtr(this),
-            attributes)
+        &TSession::DoCloseFile,
+        TPtr(this),
+        attributes)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
@@ -414,9 +305,9 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
-        Sync(~Writer, &TFileWriter::AsyncClose, attributes);
+        Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
     } catch (...) {
-        LOG_FATAL("Error flushing chunk file (ChunkId: %s)\n%s",
+        LOG_FATAL("Error closing chunk file (ChunkId: %s)\n%s",
             ~ChunkId.ToString(),
             ~CurrentExceptionMessage());
     }
@@ -451,10 +342,10 @@ void TSession::VerifyInWindow(i32 blockIndex)
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
-                WindowStart,
-                Window.ysize(),
-                blockIndex);
+            ~ChunkId.ToString(),
+            WindowStart,
+            Window.ysize(),
+            blockIndex);
     }
 }
 
@@ -465,6 +356,124 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSessionManager::TSessionManager(
+    const TChunkHolderConfig& config,
+    TBlockStore* blockStore,
+    TChunkStore* chunkStore,
+    IInvoker* serviceInvoker)
+    : Config(config)
+    , BlockStore(blockStore)
+    , ChunkStore(chunkStore)
+    , ServiceInvoker(serviceInvoker)
+{
+    YASSERT(blockStore != NULL);
+    YASSERT(chunkStore != NULL);
+    YASSERT(serviceInvoker != NULL);
+}
+
+TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
+{
+    auto it = SessionMap.find(chunkId);
+    if (it == SessionMap.end())
+        return NULL;
+    
+    auto session = it->Second();
+    session->RenewLease();
+    return session;
+}
+
+TSession::TPtr TSessionManager::StartSession(
+    const TChunkId& chunkId,
+    int windowSize)
+{
+    auto location = ChunkStore->GetNewChunkLocation();
+
+    auto session = New<TSession>(this, chunkId, ~location, windowSize);
+
+    auto lease = TLeaseManager::CreateLease(
+        Config.SessionTimeout,
+        ~FromMethod(
+            &TSessionManager::OnLeaseExpired,
+            TPtr(this),
+            session)
+        ->Via(ServiceInvoker));
+    session->SetLease(lease);
+
+    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
+
+    LOG_INFO("Session started (ChunkId: %s, Location: %s, WindowSize: %d)",
+        ~chunkId.ToString(),
+        ~location->GetPath(),
+        windowSize);
+
+    return session;
+}
+
+void TSessionManager::CancelSession(TSession* session, const TError& error)
+{
+    auto chunkId = session->GetChunkId();
+
+    YVERIFY(SessionMap.erase(chunkId) == 1);
+
+    session->Cancel(error);
+
+    LOG_INFO("Session canceled (ChunkId: %s)\n%s",
+        ~chunkId.ToString(),
+        ~error.ToString());
+}
+
+TFuture<TVoid>::TPtr TSessionManager::FinishSession(
+    TSession::TPtr session, 
+    const TChunkAttributes& attributes)
+{
+    auto chunkId = session->GetChunkId();
+
+    YVERIFY(SessionMap.erase(chunkId) == 1);
+
+    return session->Finish(attributes)->Apply(
+        FromMethod(
+            &TSessionManager::OnSessionFinished,
+            TPtr(this),
+            session)
+        ->AsyncVia(ServiceInvoker));
+}
+
+TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
+{
+    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
+
+    auto chunk = New<TStoredChunk>(~session->GetLocation(), session->GetChunkInfo());
+    ChunkStore->RegisterChunk(~chunk);
+
+    return TVoid();
+}
+
+void TSessionManager::OnLeaseExpired(TSession::TPtr session)
+{
+    if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
+        LOG_INFO("Session lease expired (ChunkId: %s)", ~session->GetChunkId().ToString());
+        CancelSession(~session, TError("Session lease expired"));
+    }
+}
+
+int TSessionManager::GetSessionCount() const
+{
+    return SessionMap.ysize();
+}
+
+TSessionManager::TSessions TSessionManager::GetSessions() const
+{
+    TSessions result;
+    result.reserve(SessionMap.ysize());
+    FOREACH(const auto& pair, SessionMap) {
+        result.push_back(pair.Second());
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NChunkHolder
 } // namespace NYT

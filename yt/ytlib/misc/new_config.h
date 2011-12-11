@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mpl.h"
+
 #include "../actions/action.h"
 #include "../actions/action_util.h"
 #include "../ytree/ytree.h"
@@ -91,11 +92,9 @@ private:
 class TConfigBase
 {
 public:
-    virtual ~TConfigBase();
-    
-    virtual void Load(NYTree::INode* node, const Stroka& path = "");
-    virtual void Validate(const Stroka& path = "") const;
-    virtual void SetDefaults(const Stroka& path = "");
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
+    virtual void Validate(const NYTree::TYPath& path = "") const;
+    virtual void SetDefaults(const NYTree::TYPath& path = "");
 
 protected:
     template <class T>
@@ -107,7 +106,7 @@ private:
 
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
 
-    void DoSetDefaults(bool skipRequiredParameters, const Stroka& path);
+    void DoSetDefaults(bool skipRequiredParameters, const NYTree::TYPath& path);
 
     TParameterMap Parameters;
 };

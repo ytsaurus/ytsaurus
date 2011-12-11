@@ -106,22 +106,16 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             auto error = response->GetError();
             if (NRpc::IsServiceError(error)) {
                 switch (EErrorCode(error.GetCode())) {
-                    case EErrorCode::InvalidSegmentId:
+                    case EErrorCode::NoSuchChangeLog:
                         LOG_WARNING("Peer %d does not have changelog %d anymore",
                             sourceId,
                             version.SegmentId);
                         return EResult::ChangeLogUnavailable;
 
-                    case EErrorCode::IOError:
-                        LOG_WARNING("IO error occurred on peer %d during downloading changelog %d",
-                            sourceId,
-                            version.SegmentId);
-                        return EResult::RemoteError;
-
                     default:
-                        LOG_FATAL("Unknown error code %s received from peer %d",
-                            ~error.ToString(),
-                            sourceId);
+                        LOG_FATAL("Unexpected error received from peer %d\n%s",
+                            sourceId,
+                            ~error.ToString());
                         break;
                 }
             } else {

@@ -7,25 +7,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncStreamState::TResult::TResult(
-    bool isOk,
-    const Stroka& errorMessage)
-    : IsOK(isOk)
-    , ErrorMessage(errorMessage)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TAsyncStreamState::TAsyncStreamState()
     : IsOperationFinished(true)
     , IsActive_(true)
-    , StaticResult(New<TAsyncResult>())
-    , CurrentResult(NULL)
-{
-    StaticResult->Set(TResult());
-}
+    , StaticError(New<TAsyncError>(TError()))
+    , CurrentError(NULL)
+{ }
 
-void TAsyncStreamState::Cancel(const Stroka& errorMessage)
+void TAsyncStreamState::Cancel(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -33,30 +22,31 @@ void TAsyncStreamState::Cancel(const Stroka& errorMessage)
         return;
     }
 
-    DoFail(errorMessage);
+    DoFail(error);
 }
 
-void TAsyncStreamState::Fail(const Stroka& errorMessage)
+void TAsyncStreamState::Fail(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (!IsActive_) {
-        YASSERT(!StaticResult->Get().IsOK);
+        YASSERT(!StaticError->Get().IsOK());
         return;
     }
 
-    DoFail(errorMessage);
+    DoFail(error);
 }
 
-void TAsyncStreamState::DoFail(const Stroka& errorMessage)
+void TAsyncStreamState::DoFail(const TError& error)
 {
+    YASSERT(!error.IsOK());
     IsActive_ = false;
-    if (~CurrentResult != NULL) {
-        StaticResult = CurrentResult;
-        CurrentResult.Reset();
+    if (~CurrentError != NULL) {
+        StaticError = CurrentError;
+        CurrentError.Reset();
     } else {
-        StaticResult = New<TAsyncResult>();
+        StaticError = New<TAsyncError>();
     }
-    StaticResult->Set(TResult(false, errorMessage));
+    StaticError->Set(error);
 }
 
 void TAsyncStreamState::Close()
@@ -65,11 +55,11 @@ void TAsyncStreamState::Close()
     YASSERT(IsActive_);
 
     IsActive_ = false;
-    if (~CurrentResult != NULL) {
-        auto result = CurrentResult;
-        CurrentResult.Reset();
+    if (~CurrentError != NULL) {
+        auto result = CurrentError;
+        CurrentError.Reset();
 
-        result->Set(TResult());
+        result->Set(TError());
     }
 }
 
@@ -82,7 +72,7 @@ bool TAsyncStreamState::IsActive() const
 bool TAsyncStreamState::IsClosed() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return !IsActive_ && StaticResult->Get().IsOK;
+    return !IsActive_ && StaticError->Get().IsOK();
 }
 
 bool TAsyncStreamState::HasRunningOperation() const
@@ -91,18 +81,18 @@ bool TAsyncStreamState::HasRunningOperation() const
     return !IsOperationFinished;
 }
 
-void TAsyncStreamState::Finish(TResult result)
+void TAsyncStreamState::Finish(const TError& error)
 {
-    if (result.IsOK) {
+    if (error.IsOK()) {
         Close();
     } else {
-        Fail(result.ErrorMessage);
+        Fail(error);
     }
 }
 
-auto TAsyncStreamState::GetCurrentResult() -> TResult
+TError TAsyncStreamState::GetCurrentError()
 {
-    return StaticResult->Get();
+    return StaticError->Get();
 }
 
 void TAsyncStreamState::StartOperation()
@@ -112,35 +102,35 @@ void TAsyncStreamState::StartOperation()
     IsOperationFinished = false;
 }
 
-auto TAsyncStreamState::GetOperationResult() -> TAsyncResult::TPtr
+TAsyncError::TPtr TAsyncStreamState::GetOperationError()
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsOperationFinished || !IsActive_) {
-        return StaticResult;
+        return StaticError;
     } else {
-        YASSERT(~CurrentResult == NULL);
-        CurrentResult = New<TAsyncResult>();
-        return CurrentResult;
+        YASSERT(~CurrentError == NULL);
+        CurrentError = New<TAsyncError>();
+        return CurrentError;
     }
 }
 
-void TAsyncStreamState::FinishOperation(TResult result)
+void TAsyncStreamState::FinishOperation(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YASSERT(!IsOperationFinished);
     IsOperationFinished = true;
-    if (result.IsOK) {
-        if (IsActive_ && ~CurrentResult != NULL) {
-            auto result = CurrentResult;
-            CurrentResult.Reset();
+    if (error.IsOK()) {
+        if (IsActive_ && ~CurrentError != NULL) {
+            auto currentError = CurrentError;
+            CurrentError.Reset();
             // Always release guard before setting future with 
             // unknown subscribers.
             guard.Release();
 
-            result->Set(TResult());
+            currentError->Set(TError());
         }
     } else {
-        DoFail(result.ErrorMessage);
+        DoFail(error);
     }
 }
 

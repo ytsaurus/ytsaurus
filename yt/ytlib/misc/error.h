@@ -35,6 +35,11 @@ public:
         , Message_(message)
     { }
 
+    TError(int code, const TError& other)
+        : Code_(code)
+        , Message_(other.Message_)
+    { }
+
     bool IsOK() const
     {
         return Code_ == OK;
@@ -58,39 +63,46 @@ typedef TFuture<TError> TAsyncError;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TValuedError
+class TValueOrError
     : public TError
 {
     DEFINE_BYREF_RW_PROPERTY(T, Value);
 
 public:
-    TValuedError()
+    TValueOrError()
     { }
 
-    explicit TValuedError(const Stroka& message)
+    explicit TValueOrError(const Stroka& message)
         : TError(message)
     { }
 
-    TValuedError(const T& value)
+    TValueOrError(const T& value)
         : Value_(value)
     { }
 
-    TValuedError(T&& value)
+    TValueOrError(T&& value)
         : Value_(MoveRV(value))
     { }
 
-    TValuedError(const TValuedError<T>& other)
+    TValueOrError(const TValueOrError<T>& other)
         : TError(other)
         , Value_(other.Value_)
     { }
 
-    TValuedError(const TError& other)
+    TValueOrError(const TError& other)
         : TError(other)
     { }
 
-    TValuedError(int code, const Stroka& message)
+    TValueOrError(int code, const Stroka& message)
         : TError(code, message)
     { }
+
+    template <class TOther>
+    TValueOrError(const TValueOrError<TOther>& other)
+        : TError(other)
+        , Value_(other.Value())
+    { }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

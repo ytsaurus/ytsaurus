@@ -6,11 +6,6 @@
 #include "../actions/signal.h"
 
 namespace NYT {
-
-namespace NRpc {
-    struct IRpcServer;
-}
-
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,11 +14,7 @@ struct IMetaStateManager
     : public virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IMetaStateManager> TPtr;
-    typedef TMetaStateManagerConfig TConfig;
-
     typedef TFuture<ECommitResult> TAsyncCommitResult;
-
-    virtual ~IMetaStateManager();
 
     //! Boots up the manager.
     /*!

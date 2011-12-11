@@ -41,7 +41,7 @@ public:
             SetDefaults();
         }
 
-        virtual void Validate(const Stroka& path = "") const
+        virtual void Validate(const NYTree::TYPath& path = "") const
         {
             if (GroupSize > PrefetchWindowSize) {
                 ythrow yexception() << "Group size cannot be larger than prefetch window size";
@@ -64,8 +64,12 @@ public:
      *  It is not allowed to ask for the next block until the previous one is retrieved.
      *  If an error occurs during fetching then the whole session is failed.
      */
-    TAsyncStreamState::TAsyncResult::TPtr AsyncNextBlock();
+    TAsyncError::TPtr AsyncNextBlock();
 
+    //! Returns the current block.
+    /*!
+     *  The block must have been already fetched by #AsyncNextBlock.
+     */
     TSharedRef GetBlock();
 
 private:

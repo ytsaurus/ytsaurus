@@ -19,7 +19,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TRecovery::TRecovery(
-    const TMetaStateManagerConfig& config,
+    const TPersistentStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -81,13 +81,13 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
 
-        TSnapshotReader::TPtr snapshotReader = SnapshotStore->GetReader(snapshotId);
-        if (~snapshotReader == NULL) {
+        auto readerResult = SnapshotStore->GetReader(snapshotId);
+        if (!readerResult.IsOK()) {
             if (IsLeader()) {
-                LOG_FATAL("Snapshot %d has vanished", snapshotId);
+                LOG_FATAL("Snapshot is not available\n%s", ~readerResult.ToString());
             }
 
-            LOG_DEBUG("Snapshot is not found locally and will be downloaded");
+            LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
 
             TSnapshotDownloader snapshotDownloader(
                 // TODO: pass proper config
@@ -95,36 +95,33 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 CellManager);
 
             auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
-            auto snapshotResult = snapshotDownloader.GetSnapshot(
-                snapshotId,
-                ~snapshotWriter);
 
-            if (snapshotResult != TSnapshotDownloader::EResult::OK) {
+            auto downloadResult = snapshotDownloader.GetSnapshot(snapshotId, ~snapshotWriter);
+            if (downloadResult != TSnapshotDownloader::EResult::OK) {
                 LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
                     snapshotId,
-                    ~snapshotResult.ToString());
+                    ~downloadResult.ToString());
                 return New<TAsyncResult>(EResult::Failed);
             }
 
             SnapshotStore->UpdateMaxSnapshotId(snapshotId);
 
-            snapshotReader = SnapshotStore->GetReader(snapshotId);
-            if (~snapshotReader == NULL) {
-                LOG_FATAL("Snapshot %d has vanished", snapshotId);
+            readerResult = SnapshotStore->GetReader(snapshotId);
+            if (!readerResult.IsOK()) {
+                LOG_FATAL("Snapshot is not available\n%s", ~readerResult.ToString());
             }
         }
 
+        auto snapshotReader = readerResult.Value();
         snapshotReader->Open();
-        auto* stream = &snapshotReader->GetStream();
-
-        MetaState->Load(snapshotId, stream);
+        MetaState->Load(snapshotId, &snapshotReader->GetStream());
 
         // The reader reference is being held by the closure action.
-        return RecoverFromChangeLog(
+        return RecoverFromChangeLog(    
             targetVersion,
             snapshotReader->GetPrevRecordCount());
     } else {
-        // Recovery using changelogs only.
+        // Recover using changelogs only.
         LOG_DEBUG("No snapshot is used for recovery");
 
         i32 prevRecordCount =
@@ -132,9 +129,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
             ? NonexistingPrevRecordCount
             : UnknownPrevRecordCount;
 
-        return RecoverFromChangeLog(
-            targetVersion,
-            prevRecordCount);
+        return RecoverFromChangeLog(targetVersion, prevRecordCount);
     }
 }
 
@@ -152,18 +147,21 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
         bool isFinal = segmentId == targetVersion.SegmentId;
         bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
 
-        auto changeLog = ChangeLogCache->Get(segmentId);
-        if (~changeLog == NULL) {
+        TCachedAsyncChangeLog::TPtr changeLog;
+        auto changeLogResult = ChangeLogCache->Get(segmentId);
+        if (!changeLogResult.IsOK()) {
             if (!mayBeMissing) {
-                LOG_FATAL("A required changelog %d is missing", segmentId);
+                LOG_FATAL("Changelog is not available\n%s", ~changeLogResult.ToString());
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
             YASSERT(expectedPrevRecordCount != UnknownPrevRecordCount);
             changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount);
+        } else {
+            changeLog = changeLogResult.Value();
         }
 
-        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
@@ -186,7 +184,9 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
 
             auto response = request->Invoke()->Get();
             if (!response->IsOK()) {
-                LOG_ERROR("Could not get changelog %d info from leader", segmentId);
+                LOG_ERROR("Error getting changelog info from leader (ChangeLogId: %d)\n%s",
+                    segmentId,
+                    ~response->GetError().ToString());
                 return New<TAsyncResult>(EResult::Failed);
             }
 
@@ -323,7 +323,7 @@ void TRecovery::ApplyChangeLog(
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderRecovery::TLeaderRecovery(
-    const TMetaStateManagerConfig& config,
+    const TPersistentStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -376,7 +376,7 @@ bool TLeaderRecovery::IsLeader() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerRecovery::TFollowerRecovery(
-    const TMetaStateManagerConfig& config,
+    const TPersistentStateManagerConfig& config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,

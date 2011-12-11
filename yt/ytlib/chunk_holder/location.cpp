@@ -43,6 +43,7 @@ void TLocation::UnregisterChunk(TChunk* chunk)
 i64 TLocation::GetAvailableSpace()
 {
     auto path = GetPath();
+    
     try {
         AvailableSpace = NFS::GetAvailableSpace(path);
     } catch (...) {
@@ -50,6 +51,12 @@ i64 TLocation::GetAvailableSpace()
             ~path.Quote(),
             ~CurrentExceptionMessage());
     }
+
+    i64 remainingQuota = GetQuota() - GetUsedSpace();
+    if (remainingQuota > 0 && AvailableSpace > remainingQuota) {
+        AvailableSpace = remainingQuota;
+    }
+
     return AvailableSpace;
 }
 
@@ -68,26 +75,41 @@ i64 TLocation::GetUsedSpace() const
     return UsedSpace;
 }
 
+i64 TLocation::GetQuota() const
+{
+    return Config.Quota == 0 ? Max<i64>() : Config.Quota;
+}
+
+double TLocation::GetLoadFactor() const
+{
+    i64 used = GetUsedSpace();
+    i64 quota = GetQuota();
+    if (used >= quota) {
+        return 1.0;
+    } else {
+        return (double) used / quota;
+    }
+}
+
 Stroka TLocation::GetPath() const
 {
     return Config.Path;
 }
 
-double TLocation::GetLoadFactor() const
-{
-    return (double) UsedSpace / (UsedSpace + AvailableSpace);
-}
-
 void TLocation::IncrementSessionCount()
 {
     ++SessionCount;
-    LOG_DEBUG("Location %s has %d sessions", ~GetPath(), SessionCount);
+    LOG_DEBUG("Location session count incremented (Path: %s, SessionCount: %d)",
+        ~GetPath(),
+        SessionCount);
 }
 
 void TLocation::DecrementSessionCount()
 {
     --SessionCount;
-    LOG_DEBUG("Location %s has %d sessions", ~GetPath(), SessionCount);
+    LOG_DEBUG("Location session count decremented (Path: %s, SessionCount: %d)",
+        ~GetPath(),
+        SessionCount);
 }
     
 int TLocation::GetSessionCount() const
@@ -132,15 +154,12 @@ yvector<TChunkDescriptor> TLocation::Scan()
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = fileList.Next();
-        fileNames.insert(NFS::CombinePaths(path, fileName));
-
+        fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
         TChunkId chunkId;
-        if (TChunkId::FromString(
-            NFS::GetFileNameWithoutExtension(fileName), &chunkId))
-        {
+        if (TChunkId::FromString(NFS::GetFileNameWithoutExtension(fileName), &chunkId)) {
             chunkIds.insert(chunkId);
         } else {
-            LOG_ERROR("Invalid chunk filename (FileName: %s)", ~fileName.Quote());
+            LOG_ERROR("Invalid chunk filename %s", ~fileName.Quote());
         }
     }
 
@@ -148,25 +167,29 @@ yvector<TChunkDescriptor> TLocation::Scan()
     result.reserve(chunkIds.size());
 
     FOREACH (const auto& chunkId, chunkIds) {
-        auto chunkFileName = GetChunkFileName(chunkId);
-        auto chunkMetaFileName = chunkFileName + ChunkMetaSuffix;
-        bool hasMeta = fileNames.find(chunkMetaFileName) != fileNames.end();
-        bool hasData = fileNames.find(chunkFileName) != fileNames.end();
+        auto chunkDataFileName = GetChunkFileName(chunkId);
+        auto chunkMetaFileName = chunkDataFileName + ChunkMetaSuffix;
+
+        bool hasMeta = fileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != fileNames.end();
+        bool hasData = fileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != fileNames.end();
+
+        YASSERT(hasMeta || hasData);
+
         if (hasMeta && hasData) {
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
-            descriptor.Size = NFS::GetFileSize(chunkFileName);
+            descriptor.Size = NFS::GetFileSize(chunkDataFileName) + NFS::GetFileSize(chunkMetaFileName);
             result.push_back(descriptor);
         } else if (!hasMeta) {
-            LOG_WARNING("Missing meta file for %s", ~chunkFileName.Quote());
-            RemoveFile(chunkMetaFileName);
+            LOG_WARNING("Missing meta file for %s, removing data file", ~chunkDataFileName.Quote());
+            RemoveFile(chunkDataFileName);
         } else if (!hasData) {
-            LOG_WARNING("Missing data file for %s", ~chunkMetaFileName.Quote());
-            RemoveFile(chunkFileName);
+            LOG_WARNING("Missing data file for %s, removing meta file", ~chunkMetaFileName.Quote());
+            RemoveFile(chunkDataFileName);
         }
     }
 
-    LOG_INFO("Done, found %d chunks", result.ysize());
+    LOG_INFO("Done, found %d chunk(s)", result.ysize());
 
     return result;
 }

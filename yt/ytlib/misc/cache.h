@@ -2,16 +2,17 @@
 
 #include "common.h"
 
+#include "../misc/error.h"
 #include "../actions/future.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 class TCacheBase;
 
-template<class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = hash<TKey> >
 class TCacheValueBase
     : public virtual TRefCountedBase
 {
@@ -23,7 +24,7 @@ public:
     TKey GetKey() const;
 
 protected:
-    TCacheValueBase(TKey key);
+    TCacheValueBase(const TKey& key);
 
 private:
     typedef TCacheBase<TKey, TValue, THash> TCache;
@@ -35,19 +36,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = hash<TKey> >
 class TCacheBase
     : public virtual TRefCountedBase
 {
 public:
-    void Clear();
-    i32 GetSize() const;
-
-protected:
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
-    typedef typename TFuture<TValuePtr>::TPtr TFuturePtr;
+    typedef TValueOrError<TValuePtr> TValuePtrOrError;
+    typedef typename TFuture<TValuePtrOrError>::TPtr TFuturePtr;
 
+    void Clear();
+    i32 GetSize() const;
+    TValuePtr Find(const TKey& key);
+    yvector<TValuePtr> GetAll();
+
+protected:
     class TInsertCookie
     {
     public:
@@ -57,7 +61,7 @@ protected:
         TFuturePtr GetAsyncResult() const;
         TKey GetKey() const;
         bool IsActive() const;
-        void Cancel();
+        void Cancel(const TError& error);
         void EndInsert(TValuePtr value);
 
     private:
@@ -90,11 +94,11 @@ private:
         : public TIntrusiveListItem<TItem>
     {
         TItem()
-            : AsyncResult(New< TFuture<TValuePtr> >())
+            : AsyncResult(New< TFuture<TValuePtrOrError> >())
         { }
 
         explicit TItem(const TValuePtr& value)
-            : AsyncResult(New< TFuture<TValuePtr> >(value))
+            : AsyncResult(New< TFuture<TValuePtrOrError> >(value))
         { }
 
         TFuturePtr AsyncResult;
@@ -112,7 +116,7 @@ private:
     i32 LruListSize;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
-    void CancelInsert(const TKey& key);
+    void CancelInsert(const TKey& key, const TError& error);
     void Touch(TItem* item); // thread-unsafe
     void Unregister(const TKey& key);
     void Trim(); // thread-unsafe
@@ -120,12 +124,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = hash<TKey> >
 class TCapacityLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
     TCapacityLimitedCache(i32 capacity);
+
     virtual bool NeedTrim() const;
 
 private:

@@ -15,12 +15,15 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 TChunk::TChunk(const TChunkId& id)
     : Id_(id)
+    , ChunkListId_(NullChunkListId)
+    , Size_(UnknownSize)
     , RefCounter(0)
 { }
 
 TChunk::TChunk(const TChunk& other)
     : Id_(other.Id_)
     , ChunkListId_(other.ChunkListId_)
+    , Size_(other.Size_)
     , Attributes_(Attributes_)
     , Locations_(other.Locations_)
     , RefCounter(other.RefCounter)
@@ -34,6 +37,7 @@ TAutoPtr<TChunk> TChunk::Clone() const
 void TChunk::Save(TOutputStream* output) const
 {
     ::Save(output, ChunkListId_);
+    ::Save(output, Size_);
     ::Save(output, Attributes_);
     ::Save(output, Locations_);
     ::Save(output, RefCounter);
@@ -44,12 +48,12 @@ TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
 {
     TAutoPtr<TChunk> chunk = new TChunk(id);
     ::Load(input, chunk->ChunkListId_);
+    ::Load(input, chunk->Size_);
     ::Load(input, chunk->Attributes_);
     ::Load(input, chunk->Locations_);
     ::Load(input, chunk->RefCounter);
     return chunk;
 }
-
 
 void TChunk::AddLocation(THolderId holderId)
 {
@@ -82,7 +86,6 @@ TChunkAttributes TChunk::DeserializeAttributes() const
 {
     YASSERT(IsConfirmed());
     TChunkAttributes attributes;
-    // Deserialize the blob received from the holders.
     if (!DeserializeProtobuf(&attributes, Attributes_)) {
         LOG_FATAL("Error deserializing chunk attributes (ChunkId: %s)", ~Id_.ToString());
     }

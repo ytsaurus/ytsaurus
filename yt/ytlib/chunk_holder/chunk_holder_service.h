@@ -12,6 +12,7 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore;
+class TChunkCache;
 class TReaderCache;
 class TChunk;
 class TBlockStore;
@@ -32,6 +33,7 @@ public:
         IInvoker* serviceInvoker,
         NRpc::IRpcServer* server,
         TChunkStore* chunkStore,
+        TChunkCache* chunkcache,
         TReaderCache* readerCache,
         TBlockStore* blockStore,
         TSessionManager* sessionManager);
@@ -44,6 +46,7 @@ private:
 
     TConfig Config;
     TIntrusivePtr<TChunkStore> ChunkStore;
+    TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;
     TIntrusivePtr<TBlockStore> BlockStore;
     TIntrusivePtr<TSessionManager> SessionManager;

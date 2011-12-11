@@ -22,14 +22,15 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((RemoteCallFailed)(1))
+        ((PutBlocksFailed)(1))
         ((NoSuchSession)(2))
         ((SessionAlreadyExists)(3))
         ((ChunkAlreadyExists)(4))
         ((WindowError)(5))
-        ((UnmatchedBlockContent)(6))
+        ((BlockContentMismatch)(6))
         ((NoSuchBlock)(7))
         ((NoSuchChunk)(8))
+        ((ChunkPrecachingFailed)(9))
     );
 
     TChunkHolderServiceProxy(NRpc::IChannel* channel)

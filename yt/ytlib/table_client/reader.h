@@ -25,16 +25,16 @@ struct IAsyncReader
 {
     typedef TIntrusivePtr<IAsyncReader> TPtr;
 
-    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncOpen() = 0;
+    virtual TAsyncError::TPtr AsyncOpen() = 0;
 
     virtual bool HasNextRow() const = 0;
-    virtual TAsyncStreamState::TAsyncResult::TPtr AsyncNextRow() = 0;
+    virtual TAsyncError::TPtr AsyncNextRow() = 0;
 
     virtual bool NextColumn() = 0;
     virtual TValue GetValue() = 0;
     virtual TColumn GetColumn() const = 0;
 
-    virtual void Cancel(const Stroka& errorMessage) = 0;
+    virtual void Cancel(const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

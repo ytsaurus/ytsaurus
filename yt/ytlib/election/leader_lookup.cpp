@@ -20,7 +20,7 @@ TLeaderLookup::TLeaderLookup(const TConfig& config)
     : Config(config)
 { }
 
-TFuture<TLeaderLookup::TResult>::TPtr TLeaderLookup::GetLeader()
+TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

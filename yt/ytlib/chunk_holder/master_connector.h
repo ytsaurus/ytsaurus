@@ -5,6 +5,7 @@
 #include "session_manager.h"
 #include "replicator.h"
 
+#include "../rpc/channel.h"
 #include "../chunk_server/chunk_service_rpc.h"
 
 namespace NYT {
@@ -16,7 +17,7 @@ namespace NChunkHolder {
 /*!
  *  This class is responsible for registering the holder and sending
  *  heartbeats. In particular, it reports chunk deltas to the master
- *  and handles scheduled chunk removals.
+ *  and manages jobs.
  */
 class TMasterConnector
     : public TRefCountedBase
@@ -32,6 +33,9 @@ public:
         TSessionManager* sessionManager,
         TReplicator* replicator,
         IInvoker* serviceInvoker);
+
+    //! Returns the channel used for communicating with the master.
+    NRpc::IChannel::TPtr GetChannel();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -63,6 +67,9 @@ private:
 
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
+
+    //! A cell channel.
+    NRpc::IChannel::TPtr Channel;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;

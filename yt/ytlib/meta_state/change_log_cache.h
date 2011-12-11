@@ -3,6 +3,7 @@
 #include "common.h"
 #include "change_log.h"
 #include "async_change_log.h"
+#include "meta_state_manager_rpc.h"
 
 #include "../misc/cache.h"
 
@@ -16,12 +17,10 @@ class TCachedAsyncChangeLog
     , public TAsyncChangeLog
 {
 public:
-    TCachedAsyncChangeLog(TChangeLog::TPtr changeLog)
-        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId()) // fail here if changeLog is null
+    TCachedAsyncChangeLog(TChangeLog* changeLog)
+        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
         , TAsyncChangeLog(changeLog)
-    {
-        YASSERT(~changeLog != NULL);
-    }
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,16 +30,20 @@ class TChangeLogCache
 {
 public:
     typedef TIntrusivePtr<TChangeLogCache> TPtr;
+    typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
-    TChangeLogCache(Stroka location);
+    TChangeLogCache(const Stroka& path);
 
-    TCachedAsyncChangeLog::TPtr Get(i32 segmentId);
-    TCachedAsyncChangeLog::TPtr Create(i32 segmentId, i32 prevRecordCount);
+    typedef TValueOrError<TCachedAsyncChangeLog::TPtr> TGetResult;
+    TGetResult Get(i32 changeLogId);
+
+    TCachedAsyncChangeLog::TPtr Create(i32 changeLogId, i32 prevRecordCount);
 
 private:
-    Stroka GetChangeLogFileName(i32 segmentId);
+    Stroka Path;
 
-    Stroka Location;
+    Stroka GetChangeLogFileName(i32 changeLogId);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

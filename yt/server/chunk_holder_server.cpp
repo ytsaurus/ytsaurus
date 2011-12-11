@@ -20,12 +20,13 @@
 #include <yt/ytlib/chunk_holder/session_manager.h>
 #include <yt/ytlib/chunk_holder/block_store.h>
 #include <yt/ytlib/chunk_holder/chunk_store.h>
+#include <yt/ytlib/chunk_holder/chunk_cache.h>
 #include <yt/ytlib/chunk_holder/master_connector.h>
 #include <yt/ytlib/chunk_holder/ytree_integration.h>
 
 namespace NYT {
 
-static NLog::TLogger Logger("ChunkHolder");
+static NLog::TLogger Logger("Server");
 
 using NBus::IBusServer;
 using NBus::TNLBusServerConfig;
@@ -45,6 +46,7 @@ using NOrchid::TOrchidService;
 
 using NChunkHolder::TReaderCache;
 using NChunkHolder::TChunkStore;
+using NChunkHolder::TChunkCache;
 using NChunkHolder::TBlockStore;
 using NChunkHolder::TSessionManager;
 using NChunkHolder::TReplicator;
@@ -54,8 +56,11 @@ using NChunkHolder::CreateChunkMapService;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolderServer::TChunkHolderServer(const TConfig &config)
-    : Config(config)
+TChunkHolderServer::TChunkHolderServer(
+    const Stroka& configFileName,
+    const TConfig &config)
+    : ConfigFileName(configFileName)
+    , Config(config)
 { }
 
 void TChunkHolderServer::Run()
@@ -69,22 +74,30 @@ void TChunkHolderServer::Run()
     auto rpcServer = CreateRpcServer(~busServer);
 
     auto readerCache = New<TReaderCache>(Config);
-    auto chunkStore = New<TChunkStore>(Config, ~readerCache);
-    auto blockStore = New<TBlockStore>(Config, chunkStore);
+
+    auto chunkStore = New<TChunkStore>(
+        Config,
+        ~readerCache);
+
+    auto blockStore = New<TBlockStore>(
+        Config,
+        ~chunkStore,
+        ~readerCache);
 
     auto sessionManager = New<TSessionManager>(
         Config,
-        blockStore,
-        chunkStore,
+        ~blockStore,
+        ~chunkStore,
         ~controlQueue->GetInvoker());
 
     auto replicator = New<TReplicator>(
-        chunkStore,
-        blockStore,
+        ~chunkStore,
+        ~blockStore,
         ~controlQueue->GetInvoker());
 
+    TMasterConnector::TPtr masterConnector;
     if (!Config.Masters.Addresses.empty()) {
-        auto masterConnector = New<TMasterConnector>(
+        masterConnector = New<TMasterConnector>(
             Config,
             ~chunkStore,
             ~sessionManager,
@@ -94,11 +107,18 @@ void TChunkHolderServer::Run()
         LOG_INFO("Running in standalone mode");
     }
 
+    auto chunkCache = New<TChunkCache>(
+        Config,
+        ~readerCache,
+        ~masterConnector);
+
     auto chunkHolderService = New<TChunkHolderService>(
         Config,
         ~controlQueue->GetInvoker(),
         ~rpcServer,
         ~chunkStore,
+        ~chunkCache,
+        ~readerCache,
         ~blockStore,
         ~sessionManager);
 
@@ -127,13 +147,11 @@ void TChunkHolderServer::Run()
             ~CreateChunkMapService(~chunkStore),
             orchidFactory),
         "chunks"));
-    if (!Config.NewConfigFileName.empty()) {
-        YVERIFY(orchidRoot->AddChild(
-            NYTree::CreateVirtualNode(
-                ~NYTree::CreateYsonFileProvider(Config.NewConfigFileName),
-                orchidFactory),
-            "config"));
-    }
+    YVERIFY(orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~NYTree::CreateYsonFileProvider(ConfigFileName),
+            orchidFactory),
+        "config"));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
