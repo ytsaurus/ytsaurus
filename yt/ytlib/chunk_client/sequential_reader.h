@@ -103,7 +103,6 @@ private:
 
     TAsyncStreamState State;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };
 
