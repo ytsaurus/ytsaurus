@@ -27,8 +27,8 @@ public:
         i64 MaxChunkSize;
 
         //! When current chunk size relative to #MaxChunkSize
-        //! overcomes this threshold, it's time to prepare the next chunk.
-        double NextChunkThreshold;
+        //! overcomes this threshold (in percents), it's time to prepare the next chunk.
+        int NextChunkThreshold;
 
         int ReplicationFactor;
 
@@ -38,7 +38,7 @@ public:
         TConfig()
         {
             Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(256 * 1024 * 1024);
-            Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(1).Default(0.7);
+            Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(100).Default(70);
             Register("replication_factor", ReplicationFactor).GreaterThanOrEqual(1).Default(2);
             Register("table_chunk", TableChunk);
             Register("remote_chunk", RemoteChunk);

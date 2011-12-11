@@ -24,7 +24,6 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(Config.NextChunkThreshold < 1);
 
     CreateNextChunk();
 }
@@ -162,8 +161,8 @@ void TChunkSequenceWriter::FinishCurrentChunk()
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return CurrentChunk->GetCurrentSize() / Config.MaxChunkSize > 
-        Config.NextChunkThreshold;
+    return CurrentChunk->GetCurrentSize() / double(Config.MaxChunkSize) > 
+        Config.NextChunkThreshold / 100.;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(

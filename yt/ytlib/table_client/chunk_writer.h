@@ -29,11 +29,9 @@ public:
             : public TConfigBase
     {
         i64 BlockSize;
-        ECodecId CodecId;
+        int CodecId;
 
         TConfig()
-            : BlockSize(1024 * 1024)
-            , CodecId(ECodecId::None)
         {
             // Block less than 1Kb is a nonsense.
             Register("block_size", BlockSize).GreaterThan(1024).Default(1024*1024);

@@ -66,7 +66,7 @@ private:
         TReadResult result,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult,
-        int requestFailCount);
+        TRemoteReader::TPtr reader);
 
     void DoGetChunkInfo(
         TRemoteReader::TPtr reader,
@@ -75,7 +75,7 @@ private:
     void OnGotChunkInfo(
         TGetInfoResult infoResult,
         TFuture<TGetInfoResult>::TPtr result,
-        int requestFailCount);
+        TRemoteReader::TPtr reader);
 
     const TConfig Config;
     const TChunkId ChunkId;

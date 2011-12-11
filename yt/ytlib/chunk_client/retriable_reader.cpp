@@ -110,21 +110,19 @@ void TRetriableReader::DoReadBlocks(
         asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
     }
 
-    // Protects FailCount in the next statement.
-    TGuard<TSpinLock> guard(SpinLock);
     reader->AsyncReadBlocks(blockIndexes)->Subscribe(FromMethod(
         &TRetriableReader::OnBlocksRead,
         TPtr(this),
         blockIndexes,
         asyncResult,
-        FailCount));
+        reader));
 }
 
 void TRetriableReader::OnBlocksRead(
     TReadResult result,
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult,
-    int requestFailCount)
+    TRemoteReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);
@@ -133,7 +131,7 @@ void TRetriableReader::OnBlocksRead(
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (requestFailCount == FailCount) {
+        if (~reader == ~UnderlyingReader->Get()) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
                 FailCount,
                 ~result.GetMessage()));
@@ -157,33 +155,28 @@ void TRetriableReader::DoGetChunkInfo(
         return;
     }
 
-    // Protects FailCount in the next statement.
-    TGuard<TSpinLock> guard(SpinLock);
     reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
         &TRetriableReader::OnGotChunkInfo,
         TPtr(this),
         result,
-        FailCount));
+        reader));
 }
 
 void TRetriableReader::OnGotChunkInfo(
     TGetInfoResult result,
     TFuture<TGetInfoResult>::TPtr asyncResult,
-    int requestFailCount)
+    TRemoteReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);
         return;
     }
 
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (requestFailCount == FailCount) {
-            CumulativeError.append(Sprintf("\n[%d]: %s",
-                FailCount,
-                ~result.GetMessage()));
-            Retry();
-        }
+    if (~reader == ~UnderlyingReader->Get()) {
+        CumulativeError.append(Sprintf("\n[%d]: %s",
+            FailCount,
+            ~result.GetMessage()));
+        Retry();
     }
 
     UnderlyingReader->Subscribe(FromMethod(
