@@ -59,10 +59,6 @@ void TRetriableReader::Retry()
 {
     YASSERT(FailCount <= Config.RetryCount);
 
-    if (FailCount == Config.RetryCount) {
-        return;
-    }
-
     ++FailCount;
     UnderlyingReader = New< TFuture<TRemoteReader::TPtr> >();
 
@@ -131,7 +127,7 @@ void TRetriableReader::OnBlocksRead(
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (~reader == ~UnderlyingReader->Get()) {
+        if (UnderlyingReader->IsSet() && ~reader == ~UnderlyingReader->Get()) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
                 FailCount,
                 ~result.GetMessage()));
@@ -172,7 +168,7 @@ void TRetriableReader::OnGotChunkInfo(
         return;
     }
 
-    if (~reader == ~UnderlyingReader->Get()) {
+    if (UnderlyingReader->IsSet() && ~reader == ~UnderlyingReader->Get()) {
         CumulativeError.append(Sprintf("\n[%d]: %s",
             FailCount,
             ~result.GetMessage()));
