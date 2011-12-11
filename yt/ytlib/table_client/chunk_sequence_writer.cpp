@@ -24,7 +24,6 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(Config.NextChunkThreshold < 1);
 
     CreateNextChunk();
 }
@@ -60,12 +59,12 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
         // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
-            Config.ChunkWriterConfig,
+            Config.RemoteChunk,
             TChunkId::FromProto(rsp->chunkid()),
             addresses);
 
         NextChunk->Set(new TChunkWriter(
-            Config.TableChunkConfig,
+            Config.TableChunk,
             chunkWriter,
             Schema));
 
@@ -164,8 +163,8 @@ void TChunkSequenceWriter::FinishCurrentChunk()
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    auto fillFactor = (double) CurrentChunk->GetCurrentSize() / Config.MaxChunkSize;
-    return fillFactor >  Config.NextChunkThreshold;
+    return CurrentChunk->GetCurrentSize() / double(Config.MaxChunkSize) > 
+        Config.NextChunkThreshold / 100.;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(

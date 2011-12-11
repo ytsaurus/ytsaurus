@@ -20,7 +20,6 @@ TSequentialReader::TSequentialReader(
     , FreeSlots(config.PrefetchWindowSize)
     , NextSequenceIndex(0)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
     YASSERT(~ChunkReader != NULL);
@@ -37,13 +36,16 @@ TSequentialReader::TSequentialReader(
 
 bool TSequentialReader::HasNext() const
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity - can be called from 
+    // ContinueNextRow of NTableClient::TChunkReader.
     return NextSequenceIndex < BlockIndexSequence.ysize();
 }
 
 TSharedRef TSequentialReader::GetBlock()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity - can be called from 
+    // ContinueNextRow of NTableClient::TChunkReader.
+
     YASSERT(!State.HasRunningOperation());
     YASSERT(NextSequenceIndex > 0);
     return Window[NextSequenceIndex - 1].AsyncBlock->Get();
@@ -51,7 +53,9 @@ TSharedRef TSequentialReader::GetBlock()
 
 TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity - can be called from 
+    // ContinueNextRow of NTableClient::TChunkReader.
+
     YASSERT(HasNext());
     YASSERT(!State.HasRunningOperation());
 

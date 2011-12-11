@@ -3,8 +3,27 @@
 #include "common.h"
 #include "channel.h"
 
+#include "../misc/new_config.h"
+
 namespace NYT {
 namespace NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRetryConfig
+    : public TConfigBase
+{
+    TDuration BackoffTime;
+    int RetryCount;
+
+    TRetryConfig()
+    {
+        Register("backoff_time", BackoffTime).Default(TDuration::Seconds(5));
+        Register("retry_count", RetryCount).GreaterThanOrEqual(1).Default(3);
+
+        SetDefaults();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,10 +40,8 @@ namespace NRpc {
  *  \returns A retriable channel.
  */ 
 IChannel::TPtr CreateRetriableChannel(
-    IChannel* underlyingChannel,
-    TDuration backoffTime,
-    int retryCount);
-
+    const TRetryConfig& config,
+    IChannel* underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

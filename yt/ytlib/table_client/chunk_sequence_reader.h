@@ -19,10 +19,19 @@ class TChunkSequenceReader
 public:
     typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
 
-    struct TConfig 
+    struct TConfig
+        : public TConfigBase
     {
-        NChunkClient::TRetriableReader::TConfig RetriableReaderConfig;
-        NChunkClient::TSequentialReader::TConfig SequentialReaderConfig;
+        NChunkClient::TRetriableReader::TConfig RetriableReader;
+        NChunkClient::TSequentialReader::TConfig SequentialReader;
+
+        TConfig()
+        {
+            Register("retriable_reader", RetriableReader);
+            Register("sequential_reader", SequentialReader);
+
+            SetDefaults();
+        }
     };
 
     TChunkSequenceReader(
@@ -30,7 +39,8 @@ public:
         const TChannel& channel,
         const NTransactionClient::TTransactionId transactionId,
         NRpc::IChannel::TPtr masterChannel,
-        yvector<NChunkClient::TChunkId>&& chunks,
+        // ToDo: use rvalue reference.
+        yvector<NChunkClient::TChunkId>& chunks,
         int startRow,
         int endRow);
 

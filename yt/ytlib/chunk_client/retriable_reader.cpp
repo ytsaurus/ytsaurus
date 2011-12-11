@@ -104,26 +104,19 @@ void TRetriableReader::DoReadBlocks(
         asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
     }
 
-    // TODO: check this
-    int failCount;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        failCount = FailCount;
-    }
-
     reader->AsyncReadBlocks(blockIndexes)->Subscribe(FromMethod(
         &TRetriableReader::OnBlocksRead,
         TPtr(this),
         blockIndexes,
         asyncResult,
-        failCount));
+        reader));
 }
 
 void TRetriableReader::OnBlocksRead(
     TReadResult result,
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult,
-    int requestFailCount)
+    TRemoteReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);
@@ -132,8 +125,10 @@ void TRetriableReader::OnBlocksRead(
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (requestFailCount == FailCount) {
-            AppendError(result.ToString());
+        if (~reader == ~AsyncReader->Get()) {
+            CumulativeError.append(Sprintf("\n[%d]: %s",
+                FailCount,
+                ~result.GetMessage()));
             Retry();
         }
     }
@@ -164,36 +159,28 @@ void TRetriableReader::DoGetChunkInfo(
         return;
     }
 
-    // TODO: check this
-    int failCount;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        failCount = FailCount;
-    }
-
     reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
         &TRetriableReader::OnGotChunkInfo,
         TPtr(this),
         result,
-        failCount));
+        reader));
 }
 
 void TRetriableReader::OnGotChunkInfo(
     TGetInfoResult result,
     TFuture<TGetInfoResult>::TPtr asyncResult,
-    int requestFailCount)
+    TRemoteReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);
         return;
     }
 
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (requestFailCount == FailCount) {
-            AppendError(result.ToString());
-            Retry();
-        }
+    if (~reader == ~AsyncReader->Get()) {
+        CumulativeError.append(Sprintf("\n[%d]: %s",
+            FailCount,
+            ~result.GetMessage()));
+        Retry();
     }
 
     AsyncReader->Subscribe(FromMethod(

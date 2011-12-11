@@ -304,7 +304,7 @@ TAsyncError::TPtr TChunkReader::AsyncOpen()
 
 bool TChunkReader::HasNextRow() const
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
     YASSERT(~Initializer == NULL);
 
@@ -313,7 +313,7 @@ bool TChunkReader::HasNextRow() const
 
 TAsyncError::TPtr TChunkReader::AsyncNextRow()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
     YASSERT(~Initializer == NULL);
 

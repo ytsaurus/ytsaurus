@@ -39,7 +39,7 @@ void SetCurrentThreadName(const char* name)
     __try
     {
 #define MS_VC_EXCEPTION 0x406D1388
-        RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(DWORD), (DWORD*)&info);
+        RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(DWORD), (ULONG_PTR *)&info);
 #undef MS_VC_EXCEPTION
     }
     __except(EXCEPTION_CONTINUE_EXECUTION)

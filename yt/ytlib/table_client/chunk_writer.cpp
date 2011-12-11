@@ -42,7 +42,7 @@ TChunkWriter::TChunkWriter(
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 
-    Codec = GetCodec(Config.CodecId);
+    Codec = GetCodec(ECodecId(Config.CodecId));
 }
 
 void TChunkWriter::Write(const TColumn& column, TValue value)

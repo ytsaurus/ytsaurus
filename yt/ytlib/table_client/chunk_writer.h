@@ -26,15 +26,19 @@ public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
 
     struct TConfig
+            : public TConfigBase
     {
         i64 BlockSize;
-        ECodecId CodecId;
+        int CodecId;
 
         TConfig()
-            // ToDo: make configurable
-            : BlockSize(1024 * 1024)
-            , CodecId(ECodecId::None)
-        { }
+        {
+            // Block less than 1Kb is a nonsense.
+            Register("block_size", BlockSize).GreaterThan(1024).Default(1024*1024);
+            Register("codec_id", CodecId).Default(ECodecId::None);
+
+            SetDefaults();
+        }
     };
 
     TChunkWriter(

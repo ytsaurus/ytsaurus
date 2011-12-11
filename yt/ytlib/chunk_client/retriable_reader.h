@@ -28,6 +28,7 @@ public:
         TDuration BackoffTime;
         int RetryCount;
         TDuration MasterRpcTimeout;
+
         TRemoteReader::TConfig RemoteReader;
 
         TConfig()
@@ -66,7 +67,7 @@ private:
         TReadResult result,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult,
-        int requestFailCount);
+        TRemoteReader::TPtr reader);
 
     void DoGetChunkInfo(
         TRemoteReader::TPtr reader,
@@ -75,7 +76,7 @@ private:
     void OnGotChunkInfo(
         TGetInfoResult infoResult,
         TFuture<TGetInfoResult>::TPtr result,
-        int requestFailCount);
+        TRemoteReader::TPtr reader);
 
     void AppendError(const Stroka& message);
 
@@ -88,7 +89,6 @@ private:
     TSpinLock SpinLock;
     TFuture<TRemoteReader::TPtr>::TPtr AsyncReader;
     int FailCount;
-
     Stroka CumulativeError;
 };
 

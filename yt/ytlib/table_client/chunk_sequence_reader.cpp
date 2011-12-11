@@ -17,7 +17,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     const TChannel& channel,
     const NTransactionClient::TTransactionId transactionId,
     NRpc::IChannel::TPtr masterChannel,
-    yvector<NChunkClient::TChunkId>&& chunks,
+    yvector<NChunkClient::TChunkId>& chunks,
     int startRow,
     int endRow)
     : Config(config)
@@ -44,8 +44,8 @@ void TChunkSequenceReader::PrepareNextChunk()
         return;
     }
 
-    auto retriableReader = New<TRetriableReader>(
-        Config.RetriableReaderConfig, 
+    TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
+        Config.RetriableReader, 
         Chunks[NextChunkIndex],
         TransactionId,
         ~MasterChannel);
@@ -54,8 +54,8 @@ void TChunkSequenceReader::PrepareNextChunk()
     int endRow = NextChunkIndex == Chunks.ysize() - 1 ? 
         EndRow : std::numeric_limits<int>::max();
 
-    auto chunkReader = New<TChunkReader>(
-        Config.SequentialReaderConfig,
+    TChunkReader::TPtr chunkReader = New<TChunkReader>(
+        Config.SequentialReader,
         Channel,
         ~retriableReader,
         startRow,

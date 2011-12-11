@@ -37,10 +37,16 @@ public:
 
         TConfig()
         {
-            Register("addresses", Addresses);
-            Register("rpc_timeout", RpcTimeout).Default(TDuration::MilliSeconds(300));
+            Register("addresses", Addresses).NonEmpty();
+            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
 
             SetDefaults();
+        }
+
+        void Read(TJsonObject* json)
+        {
+            // TODO: read timeout
+            NYT::TryRead(json, L"Addresses", &Addresses);
         }
     };
 

@@ -44,6 +44,8 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     Stroka verb = context->GetVerb();
     if (verb == "AddTableChunks") {
         AddTableChunksThunk(context);
+    } else if (verb == "GetTableChunks") {
+        GetTableChunksThunk(context);
     } else {
         TBase::DoInvoke(context);
     }
