@@ -60,10 +60,6 @@ void TRetriableReader::Retry()
     VERIFY_SPINLOCK_AFFINITY(SpinLock);
     YASSERT(FailCount <= Config.RetryCount);
 
-    if (FailCount == Config.RetryCount) {
-        return;
-    }
-
     ++FailCount;
     AsyncReader = New< TFuture<TRemoteReader::TPtr> >();
     if (FailCount == Config.RetryCount) {
@@ -125,7 +121,7 @@ void TRetriableReader::OnBlocksRead(
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (~reader == ~AsyncReader->Get()) {
+        if (AsyncReader->IsSet() && ~reader == ~AsyncReader->Get()) {
             CumulativeError.append(Sprintf("\n[%d]: %s",
                 FailCount,
                 ~result.GetMessage()));
@@ -176,7 +172,7 @@ void TRetriableReader::OnGotChunkInfo(
         return;
     }
 
-    if (~reader == ~AsyncReader->Get()) {
+    if (AsyncReader->IsSet() && ~reader == ~AsyncReader->Get()) {
         CumulativeError.append(Sprintf("\n[%d]: %s",
             FailCount,
             ~result.GetMessage()));
