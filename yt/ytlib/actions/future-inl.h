@@ -142,6 +142,16 @@ TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther> > 
     return otherResult;
 }
 
+template <class T>
+template <class TOther>
+TIntrusivePtr< TFuture<TOther> > TFuture<T>::CastTo()
+{
+    return Apply(FromFunctor([] (T value)
+        {
+            return TOther(value);
+        }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

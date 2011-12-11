@@ -27,12 +27,13 @@ class TFuture
 public:
     typedef TIntrusivePtr<TFuture> TPtr;
 
-    //! Initializes a non-set instance.
+    //! Initializes an empty (not set) instance.
     TFuture();
+
     //! Initializes an instance carrying a synchronously computed value.
     explicit TFuture(T value);
 
-    // TODO: T& -> const T&
+    // TODO: T -> const T&
     //! Sets the value.
     /*!
      *  Calling this method also invokes all the subscribers.
@@ -65,20 +66,24 @@ public:
      */
     void Subscribe(typename IParamAction<T>::TPtr action);
 
-    //! Chains the asynchronous computation by chaining it with another synchronous function.
-    template<class TOther>
-    TIntrusivePtr< TFuture<TOther> > Apply(
-        TIntrusivePtr< IParamFunc<T, TOther> > func);
+    //! Chains the asynchronous computation with another synchronous function.
+    template <class TOther>
+    TIntrusivePtr< TFuture<TOther> >
+    Apply(TIntrusivePtr< IParamFunc<T, TOther> > func);
 
-    //! Chains the asynchronous computation by chaining it with another asynchronous function.
-    template<class TOther>
-    TIntrusivePtr< TFuture<TOther> > Apply(
-        TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther>  > > > func);
+    //! Chains the asynchronous computation with another asynchronous function.
+    template <class TOther>
+    TIntrusivePtr< TFuture<TOther> >
+    Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther>  > > > func);
+
+    //! Casts the result when its ready.
+    template <class TOther>
+    TIntrusivePtr< TFuture<TOther> > CastTo();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Constructs a synchronously set future.
+//! Constructs a pre-set future.
 template <class T>
 typename TFuture<T>::TPtr ToFuture(const T& value)
 {
