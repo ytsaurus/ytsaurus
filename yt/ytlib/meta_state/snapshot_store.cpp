@@ -54,7 +54,7 @@ TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(int snapshotId)
             EErrorCode::NoSuchSnapshot,
             Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
     }
-    return new TFile(fileName, OpenExisting | RdOnly);
+    return TSharedPtr<TFile>(new TFile(fileName, OpenExisting | RdOnly));
 }
 
 TSharedPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
