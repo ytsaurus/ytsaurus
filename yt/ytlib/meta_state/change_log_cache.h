@@ -26,7 +26,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeLogCache
-    : public TCapacityLimitedCache<i32, TCachedAsyncChangeLog>
+    : public TSizeLimitedCache<i32, TCachedAsyncChangeLog>
 {
 public:
     typedef TIntrusivePtr<TChangeLogCache> TPtr;

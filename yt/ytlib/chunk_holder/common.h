@@ -41,8 +41,8 @@ struct TLocationConfig
 struct TChunkHolderConfig
     : public TConfigBase
 {
-    //! Maximum number blocks in cache.
-    int MaxCachedBlocks;
+    //! Block cache size (in bytes).
+    int MaxCachedBlocksSize;
 
     //! Maximum number opened files in cache.
     int MaxCachedReaders;
@@ -92,7 +92,7 @@ struct TChunkHolderConfig
      */
     TChunkHolderConfig()
     {
-        Register("max_cached_blocks", MaxCachedBlocks).GreaterThan(0).Default(10);
+        Register("max_cached_blocks_size", MaxCachedBlocksSize).GreaterThan(0).Default(1024 * 1024);
         Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
         Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
         Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));

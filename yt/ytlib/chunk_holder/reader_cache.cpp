@@ -33,13 +33,13 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReaderCache::TImpl
-    : public TCapacityLimitedCache<TChunkId, TCachedReader>
+    : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
     typedef TIntrusivePtr<TReaderCache> TPtr;
 
     TImpl(const TChunkHolderConfig& config)
-        : TCapacityLimitedCache<TChunkId, TCachedReader>(config.MaxCachedReaders)
+        : TSizeLimitedCache<TChunkId, TCachedReader>(config.MaxCachedReaders)
     { }
 
     TGetReaderResult Get(const TChunk* chunk)

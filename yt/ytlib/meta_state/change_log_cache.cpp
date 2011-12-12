@@ -20,7 +20,7 @@ static const char* LogExtension = "log";
 
 TChangeLogCache::TChangeLogCache(const Stroka& path)
     // TODO: introduce config
-    : TCapacityLimitedCache<i32, TCachedAsyncChangeLog>(4)
+    : TSizeLimitedCache<i32, TCachedAsyncChangeLog>(4)
     , Path(path)
 { }
 

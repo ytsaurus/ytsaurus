@@ -20,6 +20,8 @@ public:
     //! Constructs a new block from id and data.
     TCachedBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
 
+    ~TCachedBlock();
+
     //! Returns block data.
     TSharedRef GetData() const;
 

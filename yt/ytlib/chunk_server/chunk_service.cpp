@@ -57,7 +57,7 @@ void TChunkService::ValidateChunkId(const TChunkId& chunkId)
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (chunk == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("Invalid chunk id (ChunkId: %s)", ~chunkId.ToString());
+            Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
     }
 }
 
@@ -65,7 +65,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 {
     if (TransactionManager->FindTransaction(transactionId) == NULL) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
+            Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
     }
 }
 

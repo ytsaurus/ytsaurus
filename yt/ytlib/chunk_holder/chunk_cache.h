@@ -50,9 +50,9 @@ public:
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 
     DECLARE_ENUM(EErrorCode,
-        (MasterError)
-        (HolderError)
-        (NotAvailable)
+        ((MasterError)(1))
+        ((HolderError)(2))
+        ((NotAvailable)(3))
     );
 
     //! Downloads a chunk into the cache.

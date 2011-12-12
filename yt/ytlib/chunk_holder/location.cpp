@@ -130,7 +130,7 @@ namespace {
 void RemoveFile(const Stroka& fileName)
 {
     if (!NFS::Remove(fileName)) {
-        LOG_ERROR("Error deleting file %s", ~fileName.Quote());
+        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
     }
 }
 
@@ -192,6 +192,20 @@ yvector<TChunkDescriptor> TLocation::Scan()
     LOG_INFO("Done, found %d chunk(s)", result.ysize());
 
     return result;
+}
+
+void TLocation::RemoveChunk(TChunk* chunk)
+{
+    auto id = chunk->GetId();
+    Stroka fileName = chunk->GetFileName();
+    GetInvoker()->Invoke(FromFunctor([=] ()
+        {
+            // TODO: add retries
+            LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
+            RemoveFile(fileName);
+            RemoveFile(fileName + ChunkMetaSuffix);
+            LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

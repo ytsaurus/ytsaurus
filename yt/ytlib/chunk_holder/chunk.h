@@ -100,14 +100,8 @@ public:
         TLocation* location,
         const TChunkDescriptor& descriptor);
 
-    //! Lock the chunk thus preventing its eviction from the cache.
-    /*!
-     *  This is called internally by TChunkCache when preparing a download result.
-     */
-    void Aquire();
+    ~TCachedChunk();
 
-    //! Releases a previously acquired lock.
-    void Release();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

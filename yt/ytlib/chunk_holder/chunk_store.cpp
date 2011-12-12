@@ -69,18 +69,10 @@ void TChunkStore::RemoveChunk(TStoredChunk* chunk)
     auto chunkId = chunk->GetId();
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);
-    chunk->GetLocation()->UnregisterChunk(chunk);
-
-    // TODO: consider
-    // TChunkFileDeleter::Delete(chunk->GetFileName());
-        
-    Stroka fileName = chunk->GetFileName();
-    if (!NFS::Remove(fileName + ChunkMetaSuffix)) {
-        LOG_FATAL("Error removing chunk meta file (ChunkId: %s)", ~chunkId.ToString());
-    }
-    if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error removing chunk file (ChunkId: %s)", ~chunkId.ToString());
-    }
+    
+    auto location = chunk->GetLocation();
+    location->UnregisterChunk(chunk);
+    location->RemoveChunk(chunk);
 
     LOG_INFO("Chunk removed (ChunkId: %s)", ~chunkId.ToString());
 

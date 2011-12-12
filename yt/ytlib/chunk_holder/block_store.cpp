@@ -10,8 +10,6 @@
 namespace NYT {
 namespace NChunkHolder {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,10 +28,15 @@ TSharedRef TCachedBlock::GetData() const
     return Data;
 }
 
+TCachedBlock::~TCachedBlock()
+{
+    LOG_DEBUG("Purged cached block (BlockId: %s)", ~GetKey().ToString());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TBlockCache 
-    : public TCapacityLimitedCache<TBlockId, TCachedBlock>
+    : public TWeightLimitedCache<TBlockId, TCachedBlock>
 {
 public:
     typedef TIntrusivePtr<TBlockCache> TPtr;
@@ -42,18 +45,21 @@ public:
         const TChunkHolderConfig& config,
         TChunkStore* chunkStore,
         TReaderCache* readerCache)
-        : TCapacityLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocks)
+        : TWeightLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocksSize)
         , ChunkStore(chunkStore)
         , ReaderCache(readerCache)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
+        LOG_DEBUG("Putting block into store (BlockId: %s, BlockSize: %d)",
+            ~blockId.ToString(),
+            static_cast<int>(data.Size()));
+
         TInsertCookie cookie(blockId);
         if (BeginInsert(&cookie)) {
             auto block = New<TCachedBlock>(blockId, data);
             cookie.EndInsert(block);
-
             LOG_DEBUG("Block is put into cache (BlockId: %s)", ~blockId.ToString());
             return block;
         } else {
@@ -78,6 +84,8 @@ public:
 
     TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
     {
+        LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
+
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
             LOG_DEBUG("Block is already cached (BlockId: %s)", ~blockId.ToString());
@@ -107,6 +115,11 @@ public:
 private:
     TChunkStore::TPtr ChunkStore;
     TReaderCache::TPtr ReaderCache;
+
+    virtual i64 GetWeight(TCachedBlock* block) const
+    {
+        return block->GetData().Size();
+    }
 
     void DoReadBlock(
         TChunk::TPtr chunk,
@@ -146,15 +159,11 @@ TBlockStore::TBlockStore(
 
 TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
-    LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
     return BlockCache->Get(blockId);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
 {
-    LOG_DEBUG("Putting block into store (BlockId: %s, BlockSize: %d)",
-        ~blockId.ToString(),
-        static_cast<int>(data.Size()));
     return BlockCache->Put(blockId, data);
 }
 

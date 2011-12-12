@@ -12,6 +12,10 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = ChunkHolderLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunk::TChunk(TLocation* location, const TChunkInfo& info)
     : Id_(TGuid::FromProto(info.id()))
     , Location_(location)
@@ -87,14 +91,10 @@ TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descript
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
 { }
 
-void TCachedChunk::Aquire()
+TCachedChunk::~TCachedChunk()
 {
-    // TODO: implement
-}
-
-void TCachedChunk::Release()
-{
-    // TODO: implement
+    LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
+    Location_->RemoveChunk(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

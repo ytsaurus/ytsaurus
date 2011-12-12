@@ -24,17 +24,18 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkCache::TImpl
-    : public TCacheBase<TChunkId, TCachedChunk>
+    : public TWeightLimitedCache<TChunkId, TCachedChunk>
 {
 public:
-    typedef TCapacityLimitedCache<TChunkId, TCachedChunk> TBase;
+    typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
         const TChunkHolderConfig& config,
         TLocation* location,
         TMasterConnector* masterConnector)
-        : Config(config)
+        : TBase(config.CacheLocation.Quota == 0 ? Max<i64>() : config.CacheLocation.Quota)
+        , Config(config)
         , Location(location)
         , MasterConnector(masterConnector)
     { }
@@ -85,10 +86,9 @@ private:
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkAdded);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkRemoved);
 
-    virtual bool NeedTrim() const
+    virtual i64 GetWeight(TCachedChunk* chunk) const
     {
-        // TODO:
-        return false;
+        return chunk->GetSize();
     }
 
     class TDownloadSession
@@ -264,6 +264,7 @@ private:
 
         void OnError(const TError& error)
         {
+            YASSERT(!error.IsOK());
             TError wrappedError(
                 error.GetCode(),
                 Sprintf("Error downloading chunk into cache (ChunkId: %s)\n%s",

@@ -29,6 +29,9 @@ public:
     //! Updates #UsedSpace and #AvailalbleSpace
     void UnregisterChunk(TChunk* chunk);
 
+    //! Schedules physical removal of a chunk.
+    void RemoveChunk(TChunk* chunk);
+
     //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace();
 

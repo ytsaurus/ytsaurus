@@ -45,7 +45,7 @@ void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
         TransactionManager->FindTransaction(transactionId) == NULL)
     {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("Invalid transaction id (TransactionId: %s)", ~transactionId.ToString());
+            Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
     }
 }
 
