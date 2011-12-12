@@ -109,8 +109,8 @@ class Holder(Server):
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
-        for location in cls.config['storage_locations']['path']:
-            print >>fd, 'rm -rf %s' % location
+        for location in cls.config['storage_locations']:
+            print >>fd, 'rm -rf %s' % location['path']
         print >>fd, 'rm -rf %s' % cls.config['cache_location']['path']
 
 class Client(Base, RemoteNode):
