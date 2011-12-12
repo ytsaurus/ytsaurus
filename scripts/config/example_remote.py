@@ -89,17 +89,19 @@ class Holder(Server):
     port = Port
     
     params = Template('--chunk-holder --config %(config_path)s --old_config %(old_config_path)s --port %(port)d')
-    
+
+    storageQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
+    cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
         'masters' : { 'addresses' : MasterAddresses },
         'storage_locations' : [
-            { 'path' : '/yt/disk1/chunk_storage' },
-            { 'path' : '/yt/disk2/chunk_storage' },
-            { 'path' : '/yt/disk3/chunk_storage' },
-            { 'path' : '/yt/disk4/chunk_storage' }
+            { 'path' : '/yt/disk1/chunk_storage', 'quota' : storageQuota },
+            { 'path' : '/yt/disk2/chunk_storage', 'quota' : storageQuota },
+            { 'path' : '/yt/disk3/chunk_storage', 'quota' : storageQuota },
+            { 'path' : '/yt/disk4/chunk_storage', 'quota' : storageQuota }
         ],
         'cache_location' : {
-            'path' : '/yt/disk1/chunk_cache'
+            'path' : '/yt/disk1/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { },
         'cache_sequential_reader' : { },
