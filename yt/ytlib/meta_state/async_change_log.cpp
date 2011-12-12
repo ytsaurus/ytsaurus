@@ -39,8 +39,7 @@ public:
 
         //! Constructs an empty queue around underlying changelog.
         TChangeLogQueue(TChangeLog::TPtr changeLog)
-            : TActionQueue("AsyncChangeLog")
-            , ChangeLog(changeLog)
+            : ChangeLog(changeLog)
             , UnflushedBytes(0)
             , UnflushedRecords(0)
         { }
@@ -175,6 +174,10 @@ public:
     }; // class TChangeLogQueue
 
     ////////////////////////////////////////////////////////////////////////////////
+
+    TImpl()
+        : TActionQueue("AsyncChangeLog")
+    { }
 
     void Append(
         TChangeLog::TPtr changeLog,
