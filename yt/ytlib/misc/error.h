@@ -52,8 +52,8 @@ public:
         }
     }
 
-    static const int OK;
-    static const int Fail;
+    static const int OK = 0;
+    static const int Fail = INT_MAX;
 };
 
 typedef TFuture<TError> TAsyncError;

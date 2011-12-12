@@ -218,7 +218,7 @@ private:
         void OnNextBlock(TError error)
         {
             if (!error.IsOK()) {
-                OnError(TError(EErrorCode::HolderError, error));
+                OnError(TError(EErrorCode::HolderError, error.ToString()));
                 return;
             }
 
@@ -264,9 +264,13 @@ private:
 
         void OnError(const TError& error)
         {
-            LOG_INFO("Error downloading chunk into cache (ChunkId: %s)\n%s",
-                ~ChunkId.ToString(),
-                ~error.ToString());
+            TError wrappedError(
+                error.GetCode(),
+                Sprintf("Error downloading chunk into cache (ChunkId: %s)\n%s",
+                    ~ChunkId.ToString(),
+                    ~error.ToString()));
+            Cookie->Cancel(wrappedError);
+            LOG_WARNING("%s", wrappedError.ToString());
             Cleanup();
         }
 
