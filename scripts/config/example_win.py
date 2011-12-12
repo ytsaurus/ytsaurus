@@ -80,11 +80,12 @@ class Holder(WinNode, Server):
                     { 'path' : r'%(work_dir)s\chunk_storage.0' }
                 ],
                 'cache_location' : {
-                    'path' : r'%(work_dir)s\chunk_cache'
+                    'path' : r'%(work_dir)s\chunk_cache',
+                    'quota' : 10 * 1024 * 1024
                 },
                 'cache_remote_reader' : { },
                 'cache_sequential_reader' : { },
-                'logging' : Logging
+                'Logging' : Logging
         })
         
         def clean(cls, fd):
