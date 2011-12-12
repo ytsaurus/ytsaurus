@@ -176,7 +176,7 @@ void TChunkSequenceWriter::FinishCurrentChunk()
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
-        CurrentChunk->Cancel("Chunk is empty.");
+        CurrentChunk->Cancel(TError("Chunk is empty."));
     }
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
