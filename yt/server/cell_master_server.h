@@ -28,7 +28,7 @@ public:
         {
             Register("meta_state", MetaState);
             Register("rpc_port", RpcPort).Default(9000);
-            Register("monitoring_port", MonitoringPort).Default(10001);
+            Register("monitoring_port", MonitoringPort).Default(10000);
 
             SetDefaults();
         }
