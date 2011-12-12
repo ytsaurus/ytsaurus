@@ -35,7 +35,6 @@ NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Clear()
 {
-    // TODO: fixme
     TGuard<TSpinLock> guard(SpinLock);
     ItemMap.clear();
     LruList.Clear();
