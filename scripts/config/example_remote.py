@@ -50,7 +50,7 @@ class Base(AggrBase):
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
     
 class Server(Base, RemoteServer):
-    bin_path = '/home/yt/src/yt/server/server'
+    bin_path = '/home/yt/build/bin/server'
     
 class Master(Server):
     base_dir = './'
@@ -114,7 +114,7 @@ class Holder(Server):
         print >>fd, 'rm -rf %s' % cls.config['cache_location']['path']
 
 class Client(Base, RemoteNode):
-    bin_path = '/home/yt/src/yt/experiments/send_chunk/send_chunk'
+    bin_path = '/home/yt/build/bin/send_chunk'
 
     params = Template('--config %(config_path)s')
 
