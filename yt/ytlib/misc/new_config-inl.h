@@ -20,6 +20,18 @@ T CheckedStaticCast(i64 value)
     return static_cast<T>(value);
 }
 
+// TConfigBase
+template <class T>
+inline void Read(
+    T* parameter,
+    NYTree::INode& node,
+    const NYTree::TYPath& path,
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
+        NYT::NDetail::TEmpty())
+{
+    parameter->Load(node, path);
+}
+
 // i64
 inline void Read(i64* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
@@ -122,18 +134,6 @@ inline void Read(yhash_set<Stroka, T>* parameter, NYTree::INode* node, const NYT
         Read(&value, ~pair.Second(), path + "/" + key);
         parameter->insert(MakePair(key, MoveRV(value)));
     }
-}
-
-// TConfigBase
-template <class T>
-inline void Read(
-    T* parameter,
-    NYTree::INode& node,
-    const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
-        NYT::NDetail::TEmpty())
-{
-    parameter->Load(node, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
