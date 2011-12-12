@@ -315,33 +315,27 @@ public:
         context->SetRequestInfo("SnapshotId: %d",
             snapshotId);
 
-        try {
-            auto result = SnapshotStore->GetReader(snapshotId);
-            if (!result.IsOK()) {
-                // TODO: cannot use ythrow here
-                throw TServiceException(result);
-            }
-
-            auto reader = result.Value();
-            reader->Open();
-        
-            i64 length = reader->GetLength();
-            TChecksum checksum = reader->GetChecksum();
-            int prevRecordCount = reader->GetPrevRecordCount();
-
-            response->set_length(length);
-
-            context->SetResponseInfo("Length: %" PRId64 ", PrevRecordCount: %d, Checksum: %" PRIx64,
-                length,
-                prevRecordCount,
-                checksum);
-
-            context->Reply();
-        } catch (...) {
-            LOG_FATAL("IO error while getting snapshot info (SnapshotId: %d)\n%s",
-                snapshotId,
-                ~CurrentExceptionMessage());
+        auto result = SnapshotStore->GetReader(snapshotId);
+        if (!result.IsOK()) {
+            // TODO: cannot use ythrow here
+            throw TServiceException(result);
         }
+
+        auto reader = result.Value();
+        reader->Open();
+        
+        i64 length = reader->GetLength();
+        TChecksum checksum = reader->GetChecksum();
+        int prevRecordCount = reader->GetPrevRecordCount();
+
+        response->set_length(length);
+
+        context->SetResponseInfo("Length: %" PRId64 ", PrevRecordCount: %d, Checksum: %" PRIx64,
+            length,
+            prevRecordCount,
+            checksum);
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ReadSnapshot)
@@ -373,22 +367,23 @@ public:
             {
                 VERIFY_THREAD_AFFINITY(ReadThread);
 
+                TBlob data(length);
+                i32 bytesRead;
                 try {
                     snapshotFile->Seek(offset, sSet);
-
-                    TBlob data(length);
-                    i32 bytesRead = snapshotFile->Read(data.begin(), length);
-                    data.erase(data.begin() + bytesRead, data.end());
-
-                    context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
-                    context->SetResponseInfo("BytesRead: %d", bytesRead);
-
-                    context->Reply();
+                    bytesRead = snapshotFile->Read(data.begin(), length);
                 } catch (...) {
                     LOG_FATAL("IO error while reading snapshot (SnapshotId: %d)\n%s",
                         snapshotId,
                         ~CurrentExceptionMessage());
                 }
+
+                data.erase(data.begin() + bytesRead, data.end());
+                context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
+
+                context->SetResponseInfo("BytesRead: %d", bytesRead);
+
+                context->Reply();
             })));
     }
 
@@ -401,25 +396,19 @@ public:
         context->SetRequestInfo("ChangeLogId: %d",
             changeLogId);
 
-        try {
-            auto result = ChangeLogCache->Get(changeLogId);
-            if (!result.IsOK()) {
-                // TODO: cannot use ythrow here
-                throw TServiceException(result);
-            }
-
-            auto changeLog = result.Value();
-            i32 recordCount = changeLog->GetRecordCount();
-        
-            response->set_recordcount(recordCount);
-        
-            context->SetResponseInfo("RecordCount: %d", recordCount);
-            context->Reply();
-        } catch (...) {
-            LOG_FATAL("IO error while getting changelog info (ChangeLogId: %d)\n%s",
-                changeLogId,
-                ~CurrentExceptionMessage());
+        auto result = ChangeLogCache->Get(changeLogId);
+        if (!result.IsOK()) {
+            // TODO: cannot use ythrow here
+            throw TServiceException(result);
         }
+
+        auto changeLog = result.Value();
+        i32 recordCount = changeLog->GetRecordCount();
+        
+        response->set_recordcount(recordCount);
+        
+        context->SetResponseInfo("RecordCount: %d", recordCount);
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, ReadChangeLog)
@@ -451,23 +440,23 @@ public:
             {
                 VERIFY_THREAD_AFFINITY(ReadThread);
 
+                yvector<TSharedRef> recordData;
                 try {
-                    yvector<TSharedRef> recordData;
                     changeLog->Read(startRecordId, recordCount, &recordData);
-
-                    context->Response().set_recordsread(recordData.ysize());
-                    context->Response().Attachments().insert(
-                        context->Response().Attachments().end(),
-                        recordData.begin(),
-                        recordData.end());
-
-                    context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-                    context->Reply();
                 } catch (...) {
                     LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
                         changeLogId,
                         ~CurrentExceptionMessage());
                 }
+
+                context->Response().set_recordsread(recordData.ysize());
+                context->Response().Attachments().insert(
+                    context->Response().Attachments().end(),
+                    recordData.begin(),
+                    recordData.end());
+
+                context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+                context->Reply();
             })));
     }
 
