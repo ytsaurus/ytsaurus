@@ -271,7 +271,7 @@ private:
                     ~ChunkId.ToString(),
                     ~error.ToString()));
             Cookie->Cancel(wrappedError);
-            LOG_WARNING("%s", wrappedError.ToString());
+            LOG_WARNING("%s", ~wrappedError.ToString());
             Cleanup();
         }
 
