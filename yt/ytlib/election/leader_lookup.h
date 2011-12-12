@@ -39,8 +39,6 @@ public:
         {
             Register("addresses", Addresses).NonEmpty();
             Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
-
-            SetDefaults();
         }
 
         void Read(TJsonObject* json)

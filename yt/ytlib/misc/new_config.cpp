@@ -38,15 +38,10 @@ void TConfigBase::Validate(const NYTree::TYPath& path) const
 
 void TConfigBase::SetDefaults(const Stroka& path)
 {
-    DoSetDefaults(true, path);
-}
-
-void TConfigBase::DoSetDefaults(bool skipRequiredParameters, const NYTree::TYPath& path)
-{
     FOREACH (auto pair, Parameters) {
         auto name = pair.First();
         auto childPath = CombineYPaths(path, name);
-        pair.Second()->SetDefaults(skipRequiredParameters, childPath);
+        pair.Second()->SetDefaults(childPath);
     }
 }
 

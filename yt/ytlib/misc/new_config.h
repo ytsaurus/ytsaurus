@@ -22,7 +22,7 @@ struct IParameter
     // node can be NULL
     virtual void Load(NYTree::INode* node, const Stroka& path) = 0;
     virtual void Validate(const Stroka& path) const = 0;
-    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path) = 0;
+    virtual void SetDefaults(const Stroka& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const Stroka& path);
     virtual void Validate(const Stroka& path) const;
-    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path);
+    virtual void SetDefaults(const Stroka& path);
 
 private:
     T* Parameter;
@@ -63,7 +63,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const Stroka& path);
     virtual void Validate(const Stroka& path) const;
-    virtual void SetDefaults(bool skipRequiredParameters, const Stroka& path);
+    virtual void SetDefaults(const Stroka& path);
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());
@@ -92,9 +92,10 @@ private:
 class TConfigBase
 {
 public:
+    virtual ~TConfigBase();
+    
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
     virtual void Validate(const NYTree::TYPath& path = "") const;
-    virtual void SetDefaults(const NYTree::TYPath& path = "");
 
 protected:
     template <class T>
@@ -106,8 +107,8 @@ private:
 
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
 
-    void DoSetDefaults(bool skipRequiredParameters, const NYTree::TYPath& path);
-
+    void SetDefaults(const NYTree::TYPath& path);
+    
     TParameterMap Parameters;
 };
 
