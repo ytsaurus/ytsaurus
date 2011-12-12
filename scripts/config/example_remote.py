@@ -79,7 +79,7 @@ class Master(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
-        print >>fd, 'rm %s/*' % cls.config['meta_state']['log_location']
+        print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
     
     
 class Holder(Server):
