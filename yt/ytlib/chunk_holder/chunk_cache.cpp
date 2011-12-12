@@ -273,8 +273,10 @@ private:
         void Cleanup()
         {
             Owner.Reset();
-            FileWriter->Cancel(TError("Chunk download canceled"));
-            FileWriter.Reset();
+            if (~FileWriter != NULL) {
+                FileWriter->Cancel(TError("Chunk download canceled"));
+                FileWriter.Reset();
+            }
             RemoteReader.Reset();
             SequentialReader.Reset();
         }
