@@ -200,7 +200,7 @@ void TLocation::RemoveChunk(TChunk* chunk)
     Stroka fileName = chunk->GetFileName();
     GetInvoker()->Invoke(FromFunctor([=] ()
         {
-            // TODO: add retries
+            // TODO: retry on failure
             LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
             RemoveFile(fileName);
             RemoveFile(fileName + ChunkMetaSuffix);
