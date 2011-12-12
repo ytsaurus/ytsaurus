@@ -98,7 +98,7 @@ struct TChunkHolderConfig
         Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
-        Register("monitoring_port", MonitoringPort).Default(10001);
+        Register("monitoring_port", MonitoringPort).Default(10000);
         // TODO: fixme
         //Register("storage_locations", StorageLocations);
         Register("cache_location", CacheLocation);

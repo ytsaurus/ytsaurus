@@ -103,6 +103,8 @@ class Holder(Server):
         },
         'cache_remote_reader' : { },
         'cache_sequential_reader' : { },
+        'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
+        'max_cached_readers' : 256
         'Logging' : Logging
     })
     
