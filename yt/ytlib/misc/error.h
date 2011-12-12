@@ -47,10 +47,13 @@ public:
 
     Stroka ToString() const
     {
-        if (Code_ == OK) {
-            return "OK";
-        } else {
-            return Sprintf("(%d): %s", Code_, ~Message_);
+        switch (Code_) {
+            case OK:
+                return "OK";
+            case Fail:
+                return Message_;
+            default:
+                return Sprintf("(%d): %s", Code_, ~Message_);
         }
     }
 
