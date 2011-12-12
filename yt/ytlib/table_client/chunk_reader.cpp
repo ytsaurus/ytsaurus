@@ -78,6 +78,7 @@ private:
         }
 
         Attributes = result.Value().attributes().GetExtension(NProto::TTableChunkAttributes::TableAttributes);
+        ChunkReader->Codec = GetCodec(ECodecId(Attributes.codecid()));
 
         SelectChannels();
         YASSERT(SelectedChannels.size() > 0);
@@ -234,7 +235,8 @@ private:
         ChunkReader->ChannelReaders.push_back(TChannelReader(ChunkChannels[channelIdx]));
 
         auto& channelReader = ChunkReader->ChannelReaders.back();
-        channelReader.SetBlock(ChunkReader->SequentialReader->GetBlock());
+        channelReader.SetBlock(ChunkReader->Codec->Decompress(
+            ChunkReader->SequentialReader->GetBlock()));
 
         for (int row = StartRows[selectedChannelIndex]; 
             row < ChunkReader->StartRow; 
@@ -278,7 +280,8 @@ TChunkReader::TChunkReader(
     NChunkClient::IAsyncReader* chunkReader,
     int startRow,
     int endRow)
-    : SequentialReader(NULL)
+    : Codec(NULL)
+    , SequentialReader(NULL)
     , Channel(channel)
     , IsColumnValid(false)
     , IsRowValid(false)
@@ -341,7 +344,8 @@ void TChunkReader::ContinueNextRow(
 
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
-        channel.SetBlock(SequentialReader->GetBlock());
+        channel.SetBlock(Codec->Decompress(
+            SequentialReader->GetBlock()));
     }
 
     ++channelIndex;
