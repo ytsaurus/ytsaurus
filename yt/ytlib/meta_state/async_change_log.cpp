@@ -175,6 +175,10 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////////
 
+    TImpl()
+        : TActionQueue("AsyncChangeLog")
+    { }
+
     void Append(
         TChangeLog::TPtr changeLog,
         i32 recordId,

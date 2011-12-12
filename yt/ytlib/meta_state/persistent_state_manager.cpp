@@ -126,7 +126,7 @@ public:
             SnapshotStore,
             ChangeLogCache);
 
-        ReadQueue = New<TActionQueue>();
+        ReadQueue = New<TActionQueue>("Read");
 
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);

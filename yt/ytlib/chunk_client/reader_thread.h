@@ -14,7 +14,7 @@ namespace NChunkClient {
  * This thread is used for background operations in #TRemoteChunkReader
  * #TSequentialChunkReader, #TTableChunkReader and #TableReader
  */
-extern TLazyPtr<TActionQueue> ReaderThread;
+extern TLazyPtr<TActionQueue> ReaderThread; // TODO: name this queue
 
 ///////////////////////////////////////////////////////////////////////////////
 

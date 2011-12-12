@@ -29,8 +29,6 @@ public:
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
             Register("sequential_reader", SequentialReader);
             Register("remote_reader", RemoteReader);
-
-            SetDefaults();
         }
 
         TDuration MasterRpcTimeout;

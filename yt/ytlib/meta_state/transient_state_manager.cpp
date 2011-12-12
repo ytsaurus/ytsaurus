@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "transient_state_manager.h"
 
+#include "../actions/action_queue.h"
 #include "../misc/property.h"
 
 namespace NYT {
@@ -15,7 +16,7 @@ public:
     TTransientMetaStateManager(IMetaState* metaState)
         : MetaState(metaState)
     {
-        Queue = New<TActionQueue>();
+        Queue = New<TActionQueue>("StateManager");
     }
 
     void Start()

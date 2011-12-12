@@ -29,8 +29,6 @@ public:
         {
             Register("retriable_reader", RetriableReader);
             Register("sequential_reader", SequentialReader);
-
-            SetDefaults();
         }
     };
 

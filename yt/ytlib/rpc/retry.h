@@ -20,8 +20,6 @@ struct TRetryConfig
     {
         Register("backoff_time", BackoffTime).Default(TDuration::Seconds(5));
         Register("retry_count", RetryCount).GreaterThanOrEqual(1).Default(3);
-
-        SetDefaults();
     }
 };
 

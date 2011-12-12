@@ -67,7 +67,7 @@ void TChunkHolderServer::Run()
 {
     LOG_INFO("Starting chunk holder");
 
-    auto controlQueue = New<TActionQueue>();
+    auto controlQueue = New<TActionQueue>("Control");
 
     auto busServer = CreateNLBusServer(TNLBusServerConfig(Config.RpcPort));
 

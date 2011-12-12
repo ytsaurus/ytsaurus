@@ -75,7 +75,7 @@ private:
     TIntrusivePtr<TReaderCache> ReaderCache;
     i64 AvailableSpace;
     i64 UsedSpace;
-    TActionQueue::TPtr ActionQueue;
+    TActionQueue::TPtr ActionQueue; // TODO: name this queue
     int SessionCount;
 
 };

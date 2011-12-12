@@ -10,6 +10,7 @@
 #include "../chunk_client/sequential_reader.h"
 #include "../misc/thread_affinity.h"
 #include "../misc/async_stream_state.h"
+#include "../misc/codec.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -85,6 +86,7 @@ private:
     class TInitializer;
     TIntrusivePtr<TInitializer> Initializer;
 
+    ICodec* Codec;
     NChunkClient::TSequentialReader::TPtr SequentialReader;
 
     TAsyncStreamState State;

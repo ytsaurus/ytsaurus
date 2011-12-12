@@ -12,7 +12,7 @@ namespace NChunkClient {
  *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and 
  *  #NTableClient::TChunkSetReader
  */
-extern TLazyPtr<TActionQueue> WriterThread;
+extern TLazyPtr<TActionQueue> WriterThread; // TODO: name this queue
 
 ////////////////////////////////////////////////////////////////////////////////
 

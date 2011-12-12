@@ -36,8 +36,6 @@ public:
             // Block less than 1Kb is a nonsense.
             Register("block_size", BlockSize).GreaterThan(1024).Default(1024*1024);
             Register("codec_id", CodecId).Default(ECodecId::None);
-
-            SetDefaults();
         }
     };
 

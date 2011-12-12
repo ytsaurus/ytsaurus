@@ -101,7 +101,7 @@ void TCellMasterServer::Run()
 
     auto metaState = New<TCompositeMetaState>();
 
-    auto controlQueue = New<TActionQueue>("ControlThread");
+    auto controlQueue = New<TActionQueue>("Control");
 
     auto busServer = CreateNLBusServer(TNLBusServerConfig(rpcPort));
 

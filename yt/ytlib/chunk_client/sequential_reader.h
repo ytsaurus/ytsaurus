@@ -37,8 +37,6 @@ public:
         {
             Register("window_size", PrefetchWindowSize).Default(40).GreaterThan(0);
             Register("group_size", GroupSize).Default(8).GreaterThan(0);
-
-            SetDefaults();
         }
 
         virtual void Validate(const NYTree::TYPath& path = "") const

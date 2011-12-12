@@ -28,8 +28,6 @@ public:
         TConfig()
         {
             Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
-
-            SetDefaults();
         }
     };
 

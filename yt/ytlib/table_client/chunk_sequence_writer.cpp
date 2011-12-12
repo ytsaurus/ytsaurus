@@ -3,12 +3,17 @@
 
 #include "../chunk_client/writer_thread.h"
 #include "../misc/assert.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NTableClient {
 
 using namespace NTransactionClient;
 using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +35,14 @@ TChunkSequenceWriter::TChunkSequenceWriter(
 
 void TChunkSequenceWriter::CreateNextChunk()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(~NextChunk == NULL);
 
     NextChunk = New< TFuture<TChunkWriter::TPtr> >();
+
+    LOG_DEBUG("Allocating new chunk (TransactionId: %s; ReplicaCount: %d)",
+        ~TransactionId.ToString(),
+        Config.ReplicationFactor);
+
     auto req = Proxy.AllocateChunk();
     req->set_replicacount(Config.ReplicationFactor);
     req->set_transactionid(TransactionId.ToProto());
@@ -55,6 +64,11 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
     if (rsp->IsOK()) {
         const auto& protoAddresses = rsp->holderaddresses();
         yvector<Stroka> addresses(protoAddresses.begin(), protoAddresses.end());
+        TChunkId chunkId = TChunkId::FromProto(rsp->chunkid());
+
+        LOG_DEBUG("Allocated new chunk (Addresses: [%s]; ChunkId: %s)",
+            ~JoinToString(addresses),
+            ~chunkId.ToString());
 
         // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
@@ -91,7 +105,7 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     {
         TGuard<TSpinLock> guard(CurrentSpinLock);
         CurrentChunk = nextChunk;
-        NextChunk = NULL;
+        NextChunk.Reset();
     }
     State.FinishOperation();
 }
@@ -128,10 +142,16 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
     }
 
     if (~NextChunk == NULL && IsNextChunkTime()) {
+        LOG_DEBUG("Time to prepare next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
+            ~TransactionId.ToString(),
+            CurrentChunk->GetCurrentSize());
         CreateNextChunk();
     }
 
     if (CurrentChunk->GetCurrentSize() > Config.MaxChunkSize) {
+        LOG_DEBUG("Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
+            ~TransactionId.ToString(),
+            CurrentChunk->GetCurrentSize());
         YASSERT(~NextChunk != NULL);
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk();
@@ -146,14 +166,17 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
 void TChunkSequenceWriter::FinishCurrentChunk() 
 {
     if (CurrentChunk->GetCurrentSize() > 0) {
-        CloseChunksAwaiter->Await(
-            CurrentChunk->AsyncClose(),
+        LOG_DEBUG("Finishing chunk (ChunkId: %s)",
+            ~CurrentChunk->GetChunkId().ToString());
+        CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), 
             FromMethod(
                 &TChunkSequenceWriter::OnChunkClosed, 
                 TPtr(this),
                 CurrentChunk->GetChunkId()));
     } else {
-        CurrentChunk->Cancel(TError("Chunk is empty"));
+        LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
+            ~CurrentChunk->GetChunkId().ToString());
+        CurrentChunk->Cancel(TError("Chunk is empty."));
     }
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
@@ -163,8 +186,8 @@ void TChunkSequenceWriter::FinishCurrentChunk()
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return CurrentChunk->GetCurrentSize() / double(Config.MaxChunkSize) > 
-        Config.NextChunkThreshold / 100.;
+    return (CurrentChunk->GetCurrentSize() / double(Config.MaxChunkSize)) > 
+        (Config.NextChunkThreshold / 100.0);
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
@@ -177,6 +200,9 @@ void TChunkSequenceWriter::OnChunkClosed(
         State.Fail(error);
         return;
     }
+
+    LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
+        ~chunkId.ToString());
 
     TGuard<TSpinLock> guard(WrittenSpinLock);
     WrittenChunks.push_back(chunkId);
@@ -201,6 +227,10 @@ void TChunkSequenceWriter::OnClose()
     if (State.IsActive()) {
         State.Close();
     }
+
+    LOG_DEBUG("Sequence writer closed (TransactionId: %s)",
+        ~TransactionId.ToString());
+
     State.FinishOperation();
 }
 

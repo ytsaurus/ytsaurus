@@ -30,8 +30,6 @@ public:
         {
             Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
             Register("chunk_sequence_writer", ChunkSequenceWriter);
-
-            SetDefaults();
         }
     };
 
