@@ -21,37 +21,37 @@ T CheckedStaticCast(i64 value)
 }
 
 // i64
-inline void Read(i64* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(i64* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = node->AsInt64()->GetValue();
 }
 
 // i32
-inline void Read(i32* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(i32* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
 }
 
 // ui32
-inline void Read(ui32* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(ui32* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
 }
 
 // double
-inline void Read(double* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(double* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = node->AsDouble()->GetValue();
 }
 
 // Stroka
-inline void Read(Stroka* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(Stroka* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = node->AsString()->GetValue();
 }
 
 // bool
-inline void Read(bool* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(bool* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     Stroka value = node->AsString()->GetValue();
     if (value == "True") {
@@ -68,7 +68,7 @@ inline void Read(bool* parameter, NYTree::INode* node, const Stroka& /* path */)
 }
 
 // TDuration
-inline void Read(TDuration* parameter, NYTree::INode* node, const Stroka& /* path */)
+inline void Read(TDuration* parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     *parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
@@ -78,7 +78,7 @@ template <class T>
 inline void Read(
     T* parameter,
     NYTree::INode* node, 
-    const Stroka& /* path */,
+    const NYTree::TYPath& /* path */,
     typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
         NYT::NDetail::TEmpty())
 {
@@ -88,7 +88,7 @@ inline void Read(
 
 // yvector
 template <class T>
-inline void Read(yvector<T>* parameter, NYTree::INode* node, const Stroka& path)
+inline void Read(yvector<T>* parameter, NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -100,7 +100,7 @@ inline void Read(yvector<T>* parameter, NYTree::INode* node, const Stroka& path)
 
 // yhash_set
 template <class T>
-inline void Read(yhash_set<T>* parameter, NYTree::INode* node, const Stroka& path)
+inline void Read(yhash_set<T>* parameter, NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -113,7 +113,7 @@ inline void Read(yhash_set<T>* parameter, NYTree::INode* node, const Stroka& pat
 
 // yhash_map
 template <class T>
-inline void Read(yhash_set<Stroka, T>* parameter, NYTree::INode* node, const Stroka& path)
+inline void Read(yhash_set<Stroka, T>* parameter, NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -129,7 +129,7 @@ template <class T>
 inline void Read(
     T* parameter,
     NYTree::INode& node,
-    const Stroka& path,
+    const NYTree::TYPath& path,
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
         NYT::NDetail::TEmpty())
 {
@@ -144,7 +144,7 @@ TParameter<T, true>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
+void TParameter<T, true>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node != NULL) {
         Parameter->Load(node, path);
@@ -154,13 +154,13 @@ void TParameter<T, true>::Load(NYTree::INode* node, const Stroka& path)
 }
 
 template <class T>
-void TParameter<T, true>::Validate(const Stroka& path) const
+void TParameter<T, true>::Validate(const NYTree::TYPath& path) const
 {
     Parameter->Validate(path);   
 }
 
 template <class T>
-void TParameter<T, true>::SetDefaults(const Stroka& path)
+void TParameter<T, true>::SetDefaults(const NYTree::TYPath& path)
 {
     Parameter->SetDefaults(path);
 }
@@ -174,7 +174,7 @@ TParameter<T, false>::TParameter(T* parameter)
 { }
 
 template <class T>
-void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
+void TParameter<T, false>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node != NULL) {
         try {
@@ -194,7 +194,7 @@ void TParameter<T, false>::Load(NYTree::INode* node, const Stroka& path)
 }
 
 template <class T>
-void TParameter<T, false>::Validate(const Stroka& path) const
+void TParameter<T, false>::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto validator, Validators) {
         try {
@@ -209,7 +209,7 @@ void TParameter<T, false>::Validate(const Stroka& path) const
 }
 
 template <class T>
-void TParameter<T, false>::SetDefaults(const Stroka& path)
+void TParameter<T, false>::SetDefaults(const NYTree::TYPath& path)
 {
     if (HasDefaultValue) {
         *Parameter = DefaultValue;

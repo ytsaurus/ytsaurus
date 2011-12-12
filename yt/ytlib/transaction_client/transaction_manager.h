@@ -30,8 +30,6 @@ public:
         {
             Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
             Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
-
-            SetDefaults();
         }
 
         //! An internal between successive transaction pings.

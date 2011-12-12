@@ -42,8 +42,6 @@ public:
             Register("replication_factor", ReplicationFactor).GreaterThanOrEqual(1).Default(2);
             Register("table_chunk", TableChunk);
             Register("remote_chunk", RemoteChunk);
-
-            SetDefaults();
         }
     };
 

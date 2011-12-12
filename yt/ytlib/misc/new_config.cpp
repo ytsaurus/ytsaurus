@@ -9,6 +9,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TConfigBase::~TConfigBase()
+{ }
+
 void TConfigBase::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node != NULL);
@@ -36,7 +39,7 @@ void TConfigBase::Validate(const NYTree::TYPath& path) const
     }
 }
 
-void TConfigBase::SetDefaults(const Stroka& path)
+void TConfigBase::SetDefaults(const NYTree::TYPath& path)
 {
     FOREACH (auto pair, Parameters) {
         auto name = pair.First();

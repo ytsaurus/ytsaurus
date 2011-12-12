@@ -37,8 +37,6 @@ public:
             Register("retry_count", RetryCount).Default(5);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
             Register("remote_reader", RemoteReader);
-
-            SetDefaults();
         }
     };
 

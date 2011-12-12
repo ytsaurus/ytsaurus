@@ -39,9 +39,9 @@ class TParameter<T, true>
 public:
     explicit TParameter(T* parameter);
 
-    virtual void Load(NYTree::INode* node, const Stroka& path);
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const Stroka& path) const;
-    virtual void SetDefaults(const Stroka& path);
+    virtual void SetDefaults(const NYTree::TYPath& path);
 
 private:
     T* Parameter;
@@ -61,9 +61,9 @@ public:
 
     explicit TParameter(T* parameter);
 
-    virtual void Load(NYTree::INode* node, const Stroka& path);
-    virtual void Validate(const Stroka& path) const;
-    virtual void SetDefaults(const Stroka& path);
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
+    virtual void Validate(const NYTree::TYPath& path) const;
+    virtual void SetDefaults(const NYTree::TYPath& path);
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());

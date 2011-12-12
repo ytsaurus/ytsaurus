@@ -32,8 +32,6 @@ struct TLocationConfig
     {
         Register("path", Path).NonEmpty();
         Register("quota", Quota).Default(0);
-
-        SetDefaults();
     }
 };
 
@@ -105,8 +103,6 @@ struct TChunkHolderConfig
         Register("cache_remote_reader", CacheRemoteReader);
         Register("cache_sequential_reader", CacheSequentialReader);
         Register("masters", Masters);
-
-        SetDefaults();
     }
 };
 

@@ -80,8 +80,6 @@ struct TCellConfig
     {
         Register("id", Id).Default(NElection::InvalidPeerId);
         Register("addresses", Addresses).NonEmpty();
-
-        SetDefaults();
     }
 
     virtual void Validate(const NYTree::TYPath& path = "") const
