@@ -32,6 +32,7 @@ private:
 
     TIntrusivePtr<TCache> Cache;
     TKey Key;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,15 +84,14 @@ protected:
 
     // Called under SpinLock.
     virtual bool NeedTrim() const = 0;
-
-    // Called without SpinLock.
-    virtual void OnTrim(TValuePtr value);
+    virtual void OnAdded(TValue* value);
+    virtual void OnRemoved(TValue* value);
 
 private:
     friend class TCacheValueBase<TKey, TValue, THash>;
 
     struct TItem
-        : public TIntrusiveListItem<TItem>
+        : TIntrusiveListItem<TItem>
     {
         TItem()
             : AsyncResult(New< TFuture<TValuePtrOrError> >())
@@ -102,6 +102,7 @@ private:
         { }
 
         TFuturePtr AsyncResult;
+
     };
 
     TSpinLock SpinLock;
@@ -113,28 +114,50 @@ private:
     TValueMap ValueMap;
     TItemMap ItemMap;
     TItemList LruList;
-    i32 LruListSize;
+    i32 Size;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
     void Touch(TItem* item); // thread-unsafe
     void Unregister(const TKey& key);
-    void Trim(); // thread-unsafe
+    void TrimIfNeeded(); // thread-unsafe
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash = hash<TKey> >
-class TCapacityLimitedCache
+class TSizeLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TCapacityLimitedCache(i32 capacity);
+    TSizeLimitedCache(i32 maxSize);
 
     virtual bool NeedTrim() const;
 
 private:
-    i32 Capacity;
+    i32 MaxSize;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash = hash<TKey> >
+class TWeightLimitedCache
+    : public TCacheBase<TKey, TValue, THash>
+{
+protected:
+    TWeightLimitedCache(i64 maxWeight);
+
+    virtual i64 GetWeight(TValue* value) const = 0;
+
+private:
+    virtual void OnAdded(TValue* value);
+    virtual void OnRemoved(TValue* value);
+    virtual bool NeedTrim() const;
+
+    i64 TotalWeight;
+    i64 MaxWeight;
 
 };
 

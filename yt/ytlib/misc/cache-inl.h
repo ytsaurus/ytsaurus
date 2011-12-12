@@ -35,15 +35,16 @@ NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Clear()
 {
+    // TODO: fixme
     TGuard<TSpinLock> guard(SpinLock);
     ItemMap.clear();
     LruList.Clear();
-    LruListSize = 0;
+    Size = 0;
 }
 
 template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TCacheBase()
-    : LruListSize(0)
+    : Size(0)
 { }
 
 template <class TKey, class TValue, class THash>
@@ -79,35 +80,36 @@ typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
-        TGuard<TSpinLock> guard(SpinLock);
-        auto itemIt = ItemMap.find(key);
-        if (itemIt != ItemMap.end()) {
-            TItem* item = itemIt->Second();
-            Touch(item);
-            return item->AsyncResult;
-        }
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            auto itemIt = ItemMap.find(key);
+            if (itemIt != ItemMap.end()) {
+                TItem* item = itemIt->Second();
+                Touch(item);
+                return item->AsyncResult;
+            }
 
-        auto valueIt = ValueMap.find(key);
-        if (valueIt == ValueMap.end())
-            return NULL;
+            auto valueIt = ValueMap.find(key);
+            if (valueIt == ValueMap.end()) {
+                return NULL;
+            }
 
-        auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
-        if (~value != NULL) {
-            auto* item = new TItem();
-            item->AsyncResult = New< TFuture<TValuePtr> >();
-            item->AsyncResult->Set(value);
-            LruList.PushFront(item);
-            ++LruListSize;
-            ItemMap.insert(MakePair(key, item));
-            guard.Release();
+            auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+            if (~value != NULL) {
+                auto* item = new TItem();
+                auto asyncResult = item->AsyncResult;
+                LruList.PushFront(item);
+                ++Size;
+                ItemMap.insert(MakePair(key, item));
+                guard.Release();
 
-            Trim();
-            
-            return item->AsyncResult;
+                TrimIfNeeded();
+
+                return asyncResult;
+            }
         }
 
         // Back off.
-        guard.Release();
         ThreadYield();
     }
 }
@@ -116,51 +118,52 @@ template <class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
     YASSERT(!cookie->Active);
-    TKey key = cookie->GetKey();
+    auto key = cookie->GetKey();
 
     while (true) {
-        TGuard<TSpinLock> guard(SpinLock);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
 
-        auto itemIt = ItemMap.find(key);
-        if (itemIt != ItemMap.end()) {
-            auto* item = itemIt->Second();
-            cookie->AsyncResult = item->AsyncResult;
-            return false;
-        }
+            auto itemIt = ItemMap.find(key);
+            if (itemIt != ItemMap.end()) {
+                auto* item = itemIt->Second();
+                cookie->AsyncResult = item->AsyncResult;
+                return false;
+            }
 
-        auto valueIt = ValueMap.find(key);
-        if (valueIt == ValueMap.end()) {
-            auto* item = new TItem();
-            ItemMap.insert(MakePair(key, item));
+            auto valueIt = ValueMap.find(key);
+            if (valueIt == ValueMap.end()) {
+                auto* item = new TItem();
+                ItemMap.insert(MakePair(key, item));
 
-            cookie->AsyncResult = item->AsyncResult;
-            cookie->Active = true;
-            cookie->Cache = this;
+                cookie->AsyncResult = item->AsyncResult;
+                cookie->Active = true;
+                cookie->Cache = this;
 
-            return true;
-        }
+                return true;
+            }
 
-        auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
-        if (~value != NULL) {
-            auto* item = new TItem(value);
-            ItemMap.insert(MakePair(key, item));
+            auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+            if (~value != NULL) {
+                auto* item = new TItem(value);
+                ItemMap.insert(MakePair(key, item));
 
-            LruList.PushFront(item);
-            ++LruListSize;
+                LruList.PushFront(item);
+                ++Size;
 
-            cookie->AsyncResult = item->AsyncResult;
+                cookie->AsyncResult = item->AsyncResult;
 
-            guard.Release();
+                guard.Release();
 
-            Trim();
+                TrimIfNeeded();
 
-            return false;
+                return false;
+            }
         }
 
         // Back off.
         // Hopefully the object we had just extracted will be destroyed soon
         // and thus vanish from ValueMap.
-        guard.Release();
         ThreadYield();
     }
 }
@@ -187,10 +190,11 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
     
         LruList.PushFront(item);
-        ++LruListSize;
+        ++Size;
+        OnAdded(~value);
     }
 
-    Trim();
+    TrimIfNeeded();
 
     cookie->Active = false;
 }
@@ -234,12 +238,22 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
     auto it = ItemMap.find(key);
-    if (it == ItemMap.end())
+    if (it == ItemMap.end()) {
         return false;
+    }
 
     auto* item = it->Second();
+
+    TValuePtrOrError valueOrError;
+    YVERIFY(item->AsyncResult->TryGet(&valueOrError));
+    YASSERT(valueOrError.IsOK());
+    auto value = valueOrError.Value();
+
     item->Unlink();
-    --LruListSize;
+
+    --Size;
+    OnRemoved(~value);
+
     ItemMap.erase(it);
 
     // Release the guard right away to prevent recursive spinlock acquisition.
@@ -265,39 +279,35 @@ void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 template <class TKey, class TValue, class THash>
 i32 TCacheBase<TKey, TValue, THash>::GetSize() const
 {
-    return LruListSize;
+    return Size;
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::Trim()
+void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 {
     while (true) {
         TGuard<TSpinLock> guard(SpinLock);
-        if (LruListSize == 0 || !NeedTrim())
-            break;
 
+        if (!NeedTrim())
+            return;
+
+        YASSERT(Size > 0);
         auto* item = LruList.PopBack();
-        --LruListSize;
 
         TValuePtrOrError valueOrError;
         YVERIFY(item->AsyncResult->TryGet(&valueOrError));
         YASSERT(valueOrError.IsOK());
-
         auto value = valueOrError.Value();
 
+        --Size;
+        OnRemoved(~value);
+
         ItemMap.erase(value->GetKey());
-        delete item;
 
         guard.Release();
 
-        OnTrim(value);
+        delete item;
     }
-}
-
-template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::OnTrim(TValuePtr value)
-{
-    UNUSED(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,17 +360,55 @@ TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
     return Key;
 }
 
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::OnAdded(TValue* value)
+{
+    UNUSED(value);
+}
+
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
+{
+    UNUSED(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TCapacityLimitedCache<TKey, TValue, THash>::TCapacityLimitedCache(i32 capacityLimit)
-    : Capacity(capacityLimit)
+TSizeLimitedCache<TKey, TValue, THash>::TSizeLimitedCache(i32 maxSize)
+    : MaxSize(maxSize)
 { }
 
 template <class TKey, class TValue, class THash>
-bool TCapacityLimitedCache<TKey, TValue, THash>::NeedTrim() const
+bool TSizeLimitedCache<TKey, TValue, THash>::NeedTrim() const
 {
-    return this->GetSize() > Capacity;
+    return this->GetSize() > MaxSize;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
+TWeightLimitedCache<TKey, TValue, THash>::TWeightLimitedCache(i64 maxWeight)
+    : TotalWeight(0)
+    , MaxWeight(maxWeight)
+{ }
+
+template <class TKey, class TValue, class THash>
+void TWeightLimitedCache<TKey, TValue, THash>::OnAdded(TValue* value)
+{
+    TotalWeight += GetWeight(value);
+}
+
+template <class TKey, class TValue, class THash>
+void TWeightLimitedCache<TKey, TValue, THash>::OnRemoved(TValue* value)
+{
+    TotalWeight -= GetWeight(value);
+}
+
+template <class TKey, class TValue, class THash>
+bool TWeightLimitedCache<TKey, TValue, THash>::NeedTrim() const
+{
+    return TotalWeight > MaxWeight;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
