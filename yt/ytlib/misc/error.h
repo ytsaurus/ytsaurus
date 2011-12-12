@@ -35,11 +35,6 @@ public:
         , Message_(message)
     { }
 
-    TError(int code, const TError& other)
-        : Code_(code)
-        , Message_(other.Message_)
-    { }
-
     bool IsOK() const
     {
         return Code_ == OK;
