@@ -4,6 +4,7 @@
 #include "pattern.h"
 
 #include "../misc/ref_counted_base.h"
+#include "../misc/new_config.h"
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -24,6 +25,21 @@ struct ILogWriter
 
     virtual void Write(const TLogEvent& event) = 0;
     virtual void Flush() = 0;
+
+    struct TConfig
+        : public TConfigBase
+    {
+        Stroka Type;
+        Stroka Pattern;
+        Stroka FileName;
+
+        TConfig()
+        {
+            Register("type", Type);
+            Register("pattern", Pattern);
+            Register("file_name", FileName).Default();
+        }
+    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////

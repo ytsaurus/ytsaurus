@@ -3,6 +3,7 @@
 #include "chunk_holder_server.h"
 
 #include <yt/ytlib/misc/enum.h>
+#include <yt/ytlib/logging/log_manager.h>
 #include <yt/ytlib/ytree/serialize.h>
 
 namespace NYT {

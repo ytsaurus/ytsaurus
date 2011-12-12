@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "transient_state_manager.h"
 
+#include "../actions/action_queue.h"
 #include "../misc/property.h"
 
 namespace NYT {

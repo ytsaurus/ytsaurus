@@ -42,6 +42,7 @@ using std::string; // hack for guid.h to work
 
 #include <util/string/printf.h>
 #include <util/string/cast.h>
+#include <util/string/vector.h>
 
 #include <util/random/random.h>
 
