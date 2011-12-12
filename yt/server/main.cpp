@@ -106,7 +106,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         // TODO: killme
         NChunkHolder::TLocationConfig c;
-        c.Path = NFS::GetDirectoryName(config.CacheLocation.Path) + "\\chunk_storage.0";
+        c.Path = NFS::CombinePaths(NFS::GetDirectoryName(config.CacheLocation.Path), "chunk_storage.0");
         config.StorageLocations.push_back(c);
 
         // Override RPC port.
