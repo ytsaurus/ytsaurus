@@ -15,7 +15,7 @@ public:
     TTransientMetaStateManager(IMetaState* metaState)
         : MetaState(metaState)
     {
-        Queue = New<TActionQueue>();
+        Queue = New<TActionQueue>("StateManager");
     }
 
     void Start()

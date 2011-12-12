@@ -21,7 +21,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NRpc::TChannelCache ChannelCache;
-static TLazyPtr<TActionQueue> OrchidQueue;
+static TLazyPtr<TActionQueue> OrchidQueue; // TODO: Name this queue
 static NLog::TLogger& Logger = OrchidLogger;
 
 class TOrchidYPathService

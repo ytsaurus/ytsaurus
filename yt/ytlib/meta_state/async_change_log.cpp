@@ -39,7 +39,8 @@ public:
 
         //! Constructs an empty queue around underlying changelog.
         TChangeLogQueue(TChangeLog::TPtr changeLog)
-            : ChangeLog(changeLog)
+            : TActionQueue("AsyncChangeLog")
+            , ChangeLog(changeLog)
             , UnflushedBytes(0)
             , UnflushedRecords(0)
         { }

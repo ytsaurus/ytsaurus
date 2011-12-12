@@ -21,8 +21,8 @@ TDecoratedMetaState::TDecoratedMetaState(
     : State(state)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
-    , StateQueue(New<TActionQueue>())
-    , SnapshotQueue(New<TActionQueue>())
+    , StateQueue(New<TActionQueue>("State"))
+    , SnapshotQueue(New<TActionQueue>("Snapshot"))
 {
     YASSERT(~state != NULL);
     YASSERT(~snapshotStore != NULL);
