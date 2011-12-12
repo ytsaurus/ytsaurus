@@ -796,14 +796,14 @@ private:
         }
 
         // Use size reported by the holder.
-        //if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
-        //    LOG_FATAL("Chunk size mismatch (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
-        //        ~chunkId.ToString(),
-        //        chunk->GetSize(),
-        //        size,
-        //        ~holder.GetAddress(),
-        //        holder.GetId());
-        //}
+        if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
+            LOG_FATAL("Chunk size mismatch (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
+                ~chunkId.ToString(),
+                chunk->GetSize(),
+                size,
+                ~holder.GetAddress(),
+                holder.GetId());
+        }
         chunk->SetSize(size);
 
         DoAddChunkReplica(holder, *chunk);
