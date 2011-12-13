@@ -6,6 +6,8 @@
 #include "../ytree/yson_reader.h"
 #include "../ytree/ypath_detail.h"
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NMonitoring {
 
