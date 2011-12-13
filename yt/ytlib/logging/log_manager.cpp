@@ -459,16 +459,12 @@ void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
 {
     try {
         TIFStream configStream(fileName);
-        TJsonReader reader(CODES_UTF8, &configStream);
-        TJsonObject* root = reader.ReadAll();
-        TJsonObject* subTree = GetSubTree(root, rootPath);
-        Configure(subTree);
+        // TODO: implement
     } catch (const yexception& e) {
         LOG_ERROR("Error configuring logging\n%s", e.what())
         return;
     }
 }
-
 
 void TLogManager::Configure(NYTree::INode::TPtr node)
 {

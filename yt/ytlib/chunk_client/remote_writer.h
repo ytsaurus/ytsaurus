@@ -55,7 +55,6 @@ public:
             Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
         }
 
-        void Read(TJsonObject* config);
     };
 
     /*!
