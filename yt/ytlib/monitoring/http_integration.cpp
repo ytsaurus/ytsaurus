@@ -31,7 +31,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     TJsonAdapter adapter(&output);
     TYsonReader ysonReader(&adapter);
     TStringStream ysonStream;
-    ysonStream << response->GetValue();
+    ysonStream << response->value();
     ysonReader.Read(&ysonStream);
     adapter.Flush();
 

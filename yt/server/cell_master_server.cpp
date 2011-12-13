@@ -73,7 +73,6 @@ using NCypress::CreateLockMapTypeHandler;
 using NCypress::RootNodeId;
 
 using NMonitoring::TMonitoringManager;
-using NMonitoring::THttpTreeServer;
 using NMonitoring::GetYPathHttpHandler;
 using NMonitoring::CreateMonitoringProvider;
 
@@ -101,7 +100,7 @@ void TCellMasterServer::Run()
 
     LOG_INFO("Starting cell master");
 
-    // Explicitly enable statlog thread creation
+    // Explicitly instrumentation thread creation.
     NSTAT::EnableStatlog(true);
 
     auto metaState = New<TCompositeMetaState>();
@@ -249,7 +248,7 @@ void TCellMasterServer::Run()
 
     metaStateManager->Start();
 
-    LOG_INFO("Listening for HTTP monitoring requests on port %d", Config.MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %d", Config.MonitoringPort);
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", rpcPort);
