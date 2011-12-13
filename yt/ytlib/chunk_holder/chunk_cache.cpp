@@ -39,7 +39,7 @@ public:
         , Config(config)
         , Location(location)
     {
-        auto channel = NMetaState::CreateCellChannel(config.Masters);
+        auto channel = CreateCellChannel(config.Masters);
         ChunkProxy = new TChunkServiceProxy (~channel);
         ChunkProxy->SetTimeout(config.MasterRpcTimeout);
     }
