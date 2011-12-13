@@ -23,8 +23,10 @@ public:
     struct TConfig 
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration RpcTimeout;
-        TChunkSequenceWriter::TConfig ChunkSequenceWriter;
+        TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
 
         TConfig()
         {
@@ -34,7 +36,7 @@ public:
     };
 
     TTableWriter(
-        const TConfig& config,
+        TConfig* config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         const TSchema& schema,
@@ -53,7 +55,7 @@ private:
 
     void OnAborted();
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     const Stroka Path;
     NCypress::TNodeId NodeId;
     NTransactionClient::ITransaction::TPtr Transaction;

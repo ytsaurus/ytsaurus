@@ -14,8 +14,10 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! Meta state configuration.
-        NMetaState::TPersistentStateManagerConfig MetaState;
+        NMetaState::TPersistentStateManagerConfig::TPtr MetaState;
 
         //! RPC interface port number.
         int RpcPort;
@@ -33,13 +35,13 @@ public:
 
     TCellMasterServer(
         const Stroka& configFileName,
-        const TConfig& config);
+        TConfig* config);
 
     void Run();
 
 private:
     Stroka ConfigFileName;
-    TConfig Config;
+    TConfig::TPtr Config;
 
 };
 

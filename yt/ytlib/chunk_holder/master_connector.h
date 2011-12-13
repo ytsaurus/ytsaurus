@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_store.h"
+#include "chunk_cache.h"
 #include "session_manager.h"
 #include "replicator.h"
 
@@ -28,14 +29,12 @@ public:
 
     //! Creates an instance.
     TMasterConnector(
-        const TConfig& config,
+        TConfig* config,
         TChunkStore* chunkStore,
+        TChunkCache* chunkCache,
         TSessionManager* sessionManager,
         TReplicator* replicator,
         IInvoker* serviceInvoker);
-
-    //! Returns the channel used for communicating with the master.
-    NRpc::IChannel::TPtr GetChannel();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -45,9 +44,10 @@ private:
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     
     TChunkStore::TPtr ChunkStore;
+    TChunkCache::TPtr ChunkCache;
     TSessionManager::TPtr SessionManager;
     TReplicator::TPtr Replicator;
 
@@ -68,16 +68,13 @@ private:
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
 
-    //! A cell channel.
-    NRpc::IChannel::TPtr Channel;
-
     //! Proxy for the master.
     THolder<TProxy> Proxy;
     
     //! Local address of the holder.
     /*!
      *  This address is computed during initialization by combining the host name (returned by #HostName)
-     *  and the port number in #Config.
+     *  and the port number in #Config->
      */
     Stroka Address;
     

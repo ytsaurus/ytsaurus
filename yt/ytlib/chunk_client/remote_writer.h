@@ -28,6 +28,8 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! Maximum number of blocks that may be concurrently present in the window.
         int WindowSize;
         
@@ -61,7 +63,7 @@ public:
      * \note Thread affinity: ClientThread.
      */
     TRemoteWriter(
-        const TConfig& config, 
+        TConfig* config, 
         const TChunkId& chunkId,
         const yvector<Stroka>& addresses);
 
@@ -115,7 +117,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TChunkId ChunkId;
-    const TConfig Config;
+    TConfig::TPtr Config;
 
     TAsyncStreamState State;
 

@@ -19,7 +19,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TRecovery::TRecovery(
-    const TPersistentStateManagerConfig& config,
+    TPersistentStateManagerConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -91,7 +91,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
 
             TSnapshotDownloader snapshotDownloader(
                 // TODO: pass proper config
-                TSnapshotDownloader::TConfig(),
+                ~New<TSnapshotDownloader::TConfig>(),
                 CellManager);
 
             auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
@@ -177,7 +177,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
 
         if (!IsLeader()) {
             auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-            proxy->SetTimeout(Config.RpcTimeout);
+            proxy->SetTimeout(Config->RpcTimeout);
 
             auto request = proxy->GetChangeLogInfo();
             request->set_changelogid(segmentId);
@@ -235,7 +235,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             if (localRecordCount < desiredRecordCount) {
                 // TODO: provide config
                 TChangeLogDownloader changeLogDownloader(
-                    TChangeLogDownloader::TConfig(),
+                    ~New<TChangeLogDownloader::TConfig>(),
                     CellManager);
                 auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),
@@ -323,7 +323,7 @@ void TRecovery::ApplyChangeLog(
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderRecovery::TLeaderRecovery(
-    const TPersistentStateManagerConfig& config,
+    TPersistentStateManagerConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -376,7 +376,7 @@ bool TLeaderRecovery::IsLeader() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerRecovery::TFollowerRecovery(
-    const TPersistentStateManagerConfig& config,
+    TPersistentStateManagerConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,

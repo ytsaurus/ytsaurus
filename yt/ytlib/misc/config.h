@@ -1,6 +1,6 @@
 #pragma once
 
-// TOOD: deprecate. Use new_config.h instead
+// TOOD: deprecate. Use new_config->h instead
 
 #include "new_config.h"
 

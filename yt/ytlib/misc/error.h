@@ -10,6 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#undef GetMessage // Fucking WinAPI
+
 class TError
 {
     DEFINE_BYVAL_RO_PROPERTY(int, Code);

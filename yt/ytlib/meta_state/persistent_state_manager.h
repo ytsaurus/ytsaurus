@@ -14,6 +14,8 @@ namespace NMetaState {
 struct TPersistentStateManagerConfig
     : TConfigBase
 {
+    typedef TIntrusivePtr<TPersistentStateManagerConfig> TPtr;
+
     //! A path where changelogs are stored.
     Stroka LogPath;
 
@@ -39,7 +41,7 @@ struct TPersistentStateManagerConfig
     TDuration RpcTimeout;
 
     // TODO: refactor
-    TCellConfig Cell;
+    TCellConfig::TPtr Cell;
 
     TPersistentStateManagerConfig()
     {
@@ -55,7 +57,7 @@ struct TPersistentStateManagerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 IMetaStateManager::TPtr CreatePersistentStateManager(
-    const TPersistentStateManagerConfig& config,
+    TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
     NRpc::IRpcServer* server);

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "ypath_service.h"
+#include "ytree.h"
 
 #include "../misc/ref.h"
 #include "../misc/property.h"
@@ -137,16 +138,22 @@ ExecuteVerb(
     IYPathExecutor* executor = ~GetDefaultExecutor());
 
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
-TYson SyncExecuteYPathGet(IYPathService* rootService, const TYPath& path);
+TYson SyncYPathGet(IYPathService* rootService, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
-void SyncExecuteYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value);
+void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value);
 
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
-void SyncExecuteYPathRemove(IYPathService* rootService, const TYPath& path);
+void SyncYPathRemove(IYPathService* rootService, const TYPath& path);
 
 //! Synchronously executes "List" verb. Throws if an error has occurred.
-yvector<Stroka> SyncExecuteYPathList(IYPathService* rootService, const TYPath& path);
+yvector<Stroka> SyncYPathList(IYPathService* rootService, const TYPath& path);
+
+//! Synchronously executes "GetNode" verb. Throws if an error has occurred.
+INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path);
+
+//! Synchronously executes "SetNode" verb. Throws if an error has occurred.
+void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

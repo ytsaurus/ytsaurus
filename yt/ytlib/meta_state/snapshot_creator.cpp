@@ -36,14 +36,14 @@ public:
         LOG_INFO("Creating a distributed snapshot (Version: %s)",
             ~Version.ToString());
 
-        const TConfig& config = Creator->Config;
+        auto& config = Creator->Config;
         for (TPeerId followerId = 0; followerId < Creator->CellManager->GetPeerCount(); ++followerId) {
             if (followerId == Creator->CellManager->GetSelfId()) continue;
             LOG_DEBUG("Requesting follower to create a snapshot (FollowerId: %d)",
                 followerId);
 
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
-            proxy->SetTimeout(config.Timeout);
+            proxy->SetTimeout(config->Timeout);
             auto request = proxy->AdvanceSegment();
             request->set_segmentid(Version.SegmentId);
             request->set_recordcount(Version.RecordCount);
@@ -123,7 +123,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotCreator::TSnapshotCreator(
-    const TConfig& config,
+    TConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,

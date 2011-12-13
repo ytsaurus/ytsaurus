@@ -14,7 +14,7 @@ using namespace NTableServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableWriter::TTableWriter(
-    const TConfig& config,
+    TConfig* config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
     const TSchema& schema,
@@ -24,7 +24,7 @@ TTableWriter::TTableWriter(
     , Transaction(transaction)
     , MasterChannel(masterChannel)
     , Writer(New<TChunkSequenceWriter>(
-        config.ChunkSequenceWriter, 
+        ~config->ChunkSequenceWriter, 
         schema, 
         Transaction->GetId(), 
         MasterChannel))
@@ -33,7 +33,7 @@ TTableWriter::TTableWriter(
     YASSERT(~masterChannel != NULL);
     YASSERT(~transaction != NULL);
 
-    Proxy.SetTimeout(Config.RpcTimeout);
+    Proxy.SetTimeout(Config->RpcTimeout);
 
     OnAborted_ = FromMethod(
         &TTableWriter::OnAborted,

@@ -13,6 +13,8 @@ namespace NBus {
 struct TNLBusServerConfig
     : TConfigBase
 {
+    typedef TIntrusivePtr<TNLBusServerConfig> TPtr;
+
     int Port;
     int MaxNLCallsPerIteration;
     TDuration SleepQuantum;
@@ -30,7 +32,7 @@ struct TNLBusServerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBusServer::TPtr CreateNLBusServer(const TNLBusServerConfig& config);
+IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

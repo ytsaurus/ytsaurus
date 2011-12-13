@@ -13,13 +13,13 @@ public:
 
     TChunkHolderServer(
         const Stroka& configFileName,
-        const TConfig& config);
+        TConfig* config);
 
     void Run();
 
 private:
     Stroka ConfigFileName;
-    TConfig Config;
+    TConfig::TPtr Config;
 
 };
 

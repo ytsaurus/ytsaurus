@@ -23,13 +23,15 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! Interval between fail and successive attempt 
         //! to get holder addresses from master.
         TDuration BackoffTime;
         int RetryCount;
         TDuration MasterRpcTimeout;
 
-        TRemoteReader::TConfig RemoteReader;
+        TRemoteReader::TConfig::TPtr RemoteReader;
 
         TConfig()
         {
@@ -41,7 +43,7 @@ public:
     };
 
     TRetriableReader(
-        const TConfig& config,
+        TConfig* config,
         const TChunkId& chunkId,
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel);
@@ -78,7 +80,7 @@ private:
 
     void AppendError(const Stroka& message);
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     const TChunkId ChunkId;
     const NTransactionClient::TTransactionId TransactionId;
     TProxy Proxy;

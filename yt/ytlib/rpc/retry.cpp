@@ -23,13 +23,13 @@ class TRetriableChannel
     : public IChannel
 {
     DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
-    DEFINE_BYVAL_RO_PROPERTY(TRetryConfig, Config);
+    DEFINE_BYVAL_RO_PROPERTY(TRetryConfig::TPtr, Config);
 
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;
 
     TRetriableChannel(
-        const TRetryConfig& config,
+        TRetryConfig* config,
         IChannel* underlyingChannel);
 
     void Send(
@@ -42,7 +42,7 @@ public:
 };
 
 IChannel::TPtr CreateRetriableChannel(
-    const TRetryConfig& config,
+    TRetryConfig* config,
     IChannel* underlyingChannel)
 {
     return New<TRetriableChannel>(
@@ -137,10 +137,10 @@ private:
                 count,
                 ~error.ToString()));
 
-            if (count < Channel->GetConfig().RetryCount) {
+            if (count < Channel->GetConfig()->RetryCount) {
                 TDelayedInvoker::Submit(
                     ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
-                    Channel->GetConfig().BackoffTime);
+                    Channel->GetConfig()->BackoffTime);
             } else {
                 State = EState::Done;
                 guard.Release();
@@ -176,7 +176,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRetriableChannel::TRetriableChannel(
-    const TRetryConfig& config,
+    TRetryConfig* config,
     IChannel* underlyingChannel)
     : UnderlyingChannel_(underlyingChannel)
     , Config_(config)

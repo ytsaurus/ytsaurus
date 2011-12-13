@@ -9,12 +9,14 @@
 #include "../chunk_client/remote_reader.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../chunk_server/chunk_service_rpc.h"
+#include "../election/cell_channel.h"
 
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NElection;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,14 +33,16 @@ public:
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
-        const TChunkHolderConfig& config,
-        TLocation* location,
-        TMasterConnector* masterConnector)
-        : TBase(config.CacheLocation.Quota == 0 ? Max<i64>() : config.CacheLocation.Quota)
+        TChunkHolderConfig* config,
+        TLocation* location)
+        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
         , Config(config)
         , Location(location)
-        , MasterConnector(masterConnector)
-    { }
+    {
+        auto channel = CreateCellChannel(~config->Masters);
+        ChunkProxy = new TChunkServiceProxy (~channel);
+        ChunkProxy->SetTimeout(config->MasterRpcTimeout);
+    }
 
     void Register(TCachedChunk* chunk)
     {
@@ -60,10 +64,6 @@ public:
 
     TAsyncDownloadResult::TPtr Download(const TChunkId& chunkId)
     {
-        if (~MasterConnector == NULL) {
-            return ToFuture(TDownloadResult(EErrorCode::MasterError, "Master connector is not initialized"));
-        }
-
         LOG_INFO("Getting chunk from cache (ChunkId: %s)", ~chunkId.ToString());
 
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(chunkId));
@@ -79,9 +79,9 @@ public:
     }
 
 private:
-    TChunkHolderConfig Config;
+    TChunkHolderConfig::TPtr Config;
     TLocation::TPtr Location;
-    TMasterConnector::TPtr MasterConnector;
+    TAutoPtr<TChunkServiceProxy> ChunkProxy;
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkAdded);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkRemoved);
@@ -111,9 +111,7 @@ private:
         void Start()
         {
             LOG_INFO("Requesting chunk location (ChunkId: %s)", ~ChunkId.ToString());
-            TChunkServiceProxy proxy(~Owner->MasterConnector->GetChannel());
-            proxy.SetTimeout(Owner->Config.MasterRpcTimeout);
-            auto request = proxy.FindChunk();
+            auto request = Owner->ChunkProxy->FindChunk();
             request->set_chunkid(ChunkId.ToProto());
             request->Invoke()->Subscribe(
                 FromMethod(&TThis::OnChunkFound, TPtr(this))
@@ -161,7 +159,7 @@ private:
 
             // ToDo: use TRetriableReader.
             RemoteReader = New<TRemoteReader>(
-                Owner->Config.CacheRemoteReader,
+                ~Owner->Config->CacheRemoteReader,
                 ChunkId,
                 holderAddresses);
 
@@ -191,7 +189,7 @@ private:
             }
 
             SequentialReader = New<TSequentialReader>(
-                Owner->Config.CacheSequentialReader,
+                ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
                 ~RemoteReader);
 
@@ -291,14 +289,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkCache::TChunkCache(
-    const TChunkHolderConfig& config,
-    TReaderCache* readerCache,
-    TMasterConnector* masterConnector)
+    TChunkHolderConfig* config,
+    TReaderCache* readerCache)
 {
     LOG_INFO("Chunk cache scan started");
 
-    auto location = New<TLocation>(config.CacheLocation, readerCache);
-    Impl = New<TImpl>(config, ~location, masterConnector);
+    auto location = New<TLocation>(~config->CacheLocation, readerCache);
+    Impl = New<TImpl>(config, ~location);
 
     try {
         FOREACH (const auto& descriptor, location->Scan()) {

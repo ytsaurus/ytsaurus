@@ -55,7 +55,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
         writer.OnMapItem(key);
         auto service = GetItemService(key);
         YASSERT(~service != NULL);
-        writer.OnRaw(SyncExecuteYPathGet(~service, "/"));
+        writer.OnRaw(SyncYPathGet(~service, "/"));
     }
     writer.OnEndMap(false);
 

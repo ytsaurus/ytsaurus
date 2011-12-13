@@ -20,8 +20,10 @@ namespace NChunkHolder {
 
 //! Describes a chunk location.
 struct TLocationConfig
-    : TConfigBase
+    : public TConfigBase
 {
+    typedef TIntrusivePtr<TLocationConfig> TPtr;
+
     //! Location root path.
     Stroka Path;
 
@@ -39,6 +41,8 @@ struct TLocationConfig
 struct TChunkHolderConfig
     : public TConfigBase
 {
+    typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
+
     //! Block cache size (in bytes).
     int MaxCachedBlocksSize;
 
@@ -66,22 +70,19 @@ struct TChunkHolderConfig
     int MonitoringPort;
 
     //! Regular storage locations.
-    yvector<TLocationConfig> StorageLocations;
+    yvector<TLocationConfig::TPtr> StorageLocations;
 
     //! Location used for caching chunks.
-    TLocationConfig CacheLocation;
+    TLocationConfig::TPtr CacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TRemoteReader::TConfig CacheRemoteReader;
+    NChunkClient::TRemoteReader::TConfig::TPtr CacheRemoteReader;
 
     //! Sequential reader configuration used to download chunks into cache.
-    NChunkClient::TSequentialReader::TConfig CacheSequentialReader;
+    NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
     //! Masters configuration.
-    /*!
-     *  If no master addresses are given, the holder will operate in a standalone mode.
-     */
-    NElection::TLeaderLookup::TConfig Masters;
+    NElection::TLeaderLookup::TConfig::TPtr Masters;
 
     //! Constructs a default instance.
     /*!
@@ -99,10 +100,10 @@ struct TChunkHolderConfig
         Register("monitoring_port", MonitoringPort).Default(10000);
         // TODO: fixme
         //Register("storage_locations", StorageLocations);
-        Register("cache_location", CacheLocation);
+        Register("cache_location", CacheLocation).Default(New<TLocationConfig>());
         Register("cache_remote_reader", CacheRemoteReader);
         Register("cache_sequential_reader", CacheSequentialReader);
-        Register("masters", Masters);
+        Register("masters", Masters).Default();
     }
 };
 

@@ -10,13 +10,13 @@ NRpc::TChannelCache TCellManager::ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellManager::TCellManager(const TConfig& config)
+TCellManager::TCellManager(TConfig* config)
     : Config(config)
 { }
 
 i32 TCellManager::GetPeerCount() const
 {
-    return Config.Addresses.ysize();
+    return Config->Addresses.ysize();
 }
 
 i32 TCellManager::GetQuorum() const
@@ -26,12 +26,12 @@ i32 TCellManager::GetQuorum() const
 
 TPeerId TCellManager::GetSelfId() const
 {
-    return Config.Id;
+    return Config->Id;
 }
 
 Stroka TCellManager::GetPeerAddress(TPeerId id) const
 {
-    return Config.Addresses[id];
+    return Config->Addresses[id];
 }
 
 

@@ -23,7 +23,10 @@ public:
     typedef TIntrusivePtr<TSnapshotCreator> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration Timeout;
 
         TConfig()
@@ -53,7 +56,7 @@ public:
     typedef TFuture<TLocalResult> TAsyncLocalResult;
 
     TSnapshotCreator(
-        const TConfig& config,
+        TConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
@@ -102,7 +105,7 @@ private:
 
     typedef TMetaStateManagerProxy TProxy;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
     TSnapshotStore::TPtr SnapshotStore;

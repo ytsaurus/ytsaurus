@@ -39,22 +39,22 @@ public:
 
     void Set(const TYPath& path, const TYson& value)
     {
-        SyncExecuteYPathSet(~RootService, path, value);
+        SyncYPathSet(~RootService, path, value);
     }
 
     void Remove(const TYPath& path)
     {
-        SyncExecuteYPathRemove(~RootService, path);
+        SyncYPathRemove(~RootService, path);
     }
 
     TYson Get(const TYPath& path)
     {
-        return TextifyYson(SyncExecuteYPathGet(~RootService, path));
+        return TextifyYson(SyncYPathGet(~RootService, path));
     }
 
     yvector<Stroka> List(const TYPath& path)
     {
-        return SyncExecuteYPathList(~RootService, path);
+        return SyncYPathList(~RootService, path);
     }
 
     void Check(const TYPath& path, TYson expected)

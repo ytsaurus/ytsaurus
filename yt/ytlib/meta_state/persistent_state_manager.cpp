@@ -88,7 +88,7 @@ public:
 
 
     TPersistentStateManager(
-        const TConfig& config,
+        TConfig* config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
         IRpcServer* server)
@@ -113,13 +113,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
-        NFS::ForcePath(config.LogPath);
-        NFS::CleanTempFiles(config.LogPath);
-        ChangeLogCache = New<TChangeLogCache>(Config.LogPath);
+        NFS::ForcePath(config->LogPath);
+        NFS::CleanTempFiles(config->LogPath);
+        ChangeLogCache = New<TChangeLogCache>(Config->LogPath);
 
-        NFS::ForcePath(config.SnapshotPath);
-        NFS::CleanTempFiles(config.SnapshotPath);
-        SnapshotStore = New<TSnapshotStore>(Config.SnapshotPath);
+        NFS::ForcePath(config->SnapshotPath);
+        NFS::CleanTempFiles(config->SnapshotPath);
+        SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
 
         MetaState = New<TDecoratedMetaState>(
             metaState,
@@ -132,11 +132,11 @@ public:
         VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
         VERIFY_INVOKER_AFFINITY(ReadQueue->GetInvoker(), ReadThread);
 
-        CellManager = New<TCellManager>(Config.Cell);
+        CellManager = New<TCellManager>(~Config->Cell);
 
         // TODO: fill config
         ElectionManager = New<TElectionManager>(
-            NElection::TElectionManager::TConfig(),
+            ~New<NElection::TElectionManager::TConfig>(),
             ~CellManager,
             controlInvoker,
             ~New<TElectionCallbacks>(this),
@@ -276,7 +276,7 @@ public:
 
     EPeerStatus ControlStatus;
     EPeerStatus StateStatus;
-    TConfig Config;
+    TConfig::TPtr Config;
     TPeerId LeaderId;
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
@@ -570,7 +570,7 @@ public:
             case EPeerStatus::FollowerRecovery:
                 if (~FollowerRecovery == NULL) {
                     FollowerRecovery = New<TFollowerRecovery>(
-                        Config,
+                        ~Config,
                         CellManager,
                         MetaState,
                         ChangeLogCache,
@@ -704,7 +704,7 @@ public:
 
         YASSERT(~LeaderCommitter == NULL);
         LeaderCommitter = New<TLeaderCommitter>(
-            TLeaderCommitter::TConfig(),
+            ~New<TLeaderCommitter::TConfig>(),
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -717,7 +717,7 @@ public:
 
         YASSERT(~SnapshotCreator == NULL);
         SnapshotCreator = New<TSnapshotCreator>(
-            TSnapshotCreator::TConfig(),
+            ~New<TSnapshotCreator::TConfig>(),
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -757,7 +757,7 @@ public:
 
         YASSERT(~SnapshotCreator == NULL);
         SnapshotCreator = New<TSnapshotCreator>(
-            TSnapshotCreator::TConfig(),
+            ~New<TSnapshotCreator::TConfig>(),
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -954,13 +954,13 @@ public:
 
         YASSERT(~FollowerTracker == NULL);
         FollowerTracker = New<TFollowerTracker>(
-            TFollowerTracker::TConfig(),
+            ~New<TFollowerTracker::TConfig>(),
             CellManager,
             ControlInvoker);
 
         YASSERT(~FollowerPinger == NULL);
         FollowerPinger = New<TFollowerPinger>(
-            TFollowerPinger::TConfig(), // Change to Config.LeaderPinger
+            ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
             MetaState,
             CellManager,
             FollowerTracker,
@@ -971,7 +971,7 @@ public:
 
         YASSERT(~LeaderRecovery == NULL);
         LeaderRecovery = New<TLeaderRecovery>(
-            Config,
+            ~Config,
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -1123,8 +1123,8 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(StateStatus == EPeerStatus::Leading);
 
-        if (Config.MaxChangesBetweenSnapshots > 0 &&
-            MetaState->GetVersion().RecordCount % (Config.MaxChangesBetweenSnapshots + 1) == 0)
+        if (Config->MaxChangesBetweenSnapshots > 0 &&
+            MetaState->GetVersion().RecordCount % (Config->MaxChangesBetweenSnapshots + 1) == 0)
         {
             LeaderCommitter->Flush();
             SnapshotCreator->CreateDistributed();
@@ -1222,7 +1222,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 IMetaStateManager::TPtr CreatePersistentStateManager(
-    const TPersistentStateManagerConfig& config,
+    TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
     NRpc::IRpcServer* server)

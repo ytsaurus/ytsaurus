@@ -25,8 +25,9 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, c
     {
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
             Sprintf("Verb is not supported for attributes");
+    } else {
+        return TResolveResult::Here(path);
     }
-    return TResolveResult::Here(path);
 }
 
 void TNodeBase::DoInvoke(IServiceContext* context)
@@ -35,8 +36,12 @@ void TNodeBase::DoInvoke(IServiceContext* context)
     // TODO: use method table
     if (verb == "Get") {
         GetThunk(context);
+    } else if (verb == "GetNode") {
+        GetNodeThunk(context);
     } else if (verb == "Set") {
         SetThunk(context);
+    } else if (verb == "SetNode") {
+        SetNodeThunk(context);
     } else if (verb == "Remove") {
         RemoveThunk(context);
     } else {
@@ -63,7 +68,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             std::sort(virtualNames.begin(), virtualNames.end());
             FOREACH (const auto& attributeName, virtualNames) {
                 auto attributeService = GetVirtualAttributeService(attributeName);
-                auto attributeValue = SyncExecuteYPathGet(~attributeService, "/");
+                auto attributeValue = SyncYPathGet(~attributeService, "/");
                 writer.OnMapItem(attributeName);
                 writer.OnRaw(attributeValue);
             }
@@ -89,7 +94,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 
             auto service = GetVirtualAttributeService(prefix);
             if (~service != NULL) {
-                response->set_value(SyncExecuteYPathGet(~service, "/" + suffixPath));
+                response->set_value(SyncYPathGet(~service, "/" + suffixPath));
                 context->Reply();
                 return;
             }
@@ -99,7 +104,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
                 ythrow yexception() << "Node has no attributes";
             }
 
-            response->set_value(SyncExecuteYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
+            response->set_value(SyncYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
             context->Reply();
         }
     } else {
@@ -130,6 +135,48 @@ void TNodeBase::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* resp
     ythrow yexception() << "Path must be final";
 }
 
+
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, GetNode)
+{
+    TYPath path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        GetNodeSelf(request, response, context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            ythrow yexception() << "Node has no attributes";
+        }
+
+        auto attributePath = ChopYPathAttributeMarker(path);
+        auto value = SyncYPathGetNode(
+            ~IYPathService::FromNode(~attributes),
+            "/" + attributePath);
+        response->set_value(reinterpret_cast<i64>(static_cast<INode*>(~value)));
+        context->Reply();
+    } else {
+        GetNodeRecursive(path, request, response, context);
+    }
+}
+
+void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context)
+{
+    UNUSED(request);
+
+    response->set_value(reinterpret_cast<i64>(static_cast<INode*>(this)));
+    context->Reply();
+}
+
+void TNodeBase::GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+
+    ythrow yexception() << "Path must be final";
+}
+
+
 DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 {
     TYPath path = context->GetPath();
@@ -138,6 +185,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
     } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
+            // TODO: fixme
             ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
         }
 
@@ -149,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 
         auto service = GetVirtualAttributeService(prefix);
         if (~service != NULL) {
-            SyncExecuteYPathSet(~service, "/" + suffixPath, value);
+            SyncYPathSet(~service, "/" + suffixPath, value);
             context->Reply();
             return;
         }
@@ -160,7 +208,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
             SetAttributes(attributes);
         }
 
-        SyncExecuteYPathSet(
+        SyncYPathSet(
             ~IYPathService::FromNode(~attributes),
             "/" + attributePath,
             value);
@@ -190,6 +238,58 @@ void TNodeBase::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* resp
     ythrow yexception() << "Path must be final";
 }
 
+
+DEFINE_RPC_SERVICE_METHOD(TNodeBase, SetNode)
+{
+    TYPath path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        SetNodeSelf(request, response, context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributes = GetAttributes();
+        if (~attributes == NULL) {
+            attributes = GetFactory()->CreateMap();
+            SetAttributes(attributes);
+        }
+
+        auto value = reinterpret_cast<INode*>(request->value());
+        auto attributePath = ChopYPathAttributeMarker(path);
+        SyncYPathSetNode(
+            ~IYPathService::FromNode(~attributes),
+            "/" + attributePath,
+            value);
+        context->Reply();
+    } else {
+        SetNodeRecursive(path, request, response, context);
+    }
+}
+
+void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+
+    auto parent = GetParent();
+    if (~parent == NULL) {
+        ythrow yexception() << "Cannot set the root";
+    }
+
+    auto value = reinterpret_cast<INode*>(request->value());
+    parent->ReplaceChild(this, value);
+    context->Reply();
+}
+
+void TNodeBase::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+
+    ythrow yexception() << "Path must be final";
+}
+
+
 DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
 {
     TYPath path = context->GetPath();
@@ -209,7 +309,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
                 ythrow yexception() << "Node has no attributes";
             }
 
-            SyncExecuteYPathRemove(~IYPathService::FromNode(~attributes), "/" + attributePath);
+            SyncYPathRemove(~IYPathService::FromNode(~attributes), "/" + attributePath);
 
             if (attributes->GetChildCount() == 0) {
                 SetAttributes(NULL);
@@ -245,6 +345,7 @@ void TNodeBase::RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRem
 
     ythrow yexception() << "Path must be final";
 }
+
 
 yvector<Stroka> TNodeBase::GetVirtualAttributeNames()
 {

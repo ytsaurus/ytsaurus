@@ -32,7 +32,10 @@ public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration TransactionTimeout;
 
         TConfig()
@@ -42,7 +45,7 @@ public:
 
     //! Creates an instance.
     TTransactionManager(
-        const TConfig& config,
+        TConfig* config,
         NMetaState::IMetaStateManager::TPtr metaStateManager,
         NMetaState::TCompositeMetaState::TPtr metaState);
 
@@ -62,7 +65,7 @@ public:
 private:
     typedef TTransactionManager TThis;
 
-    TConfig Config;
+    TConfig::TPtr Config;
 
     TIdGenerator<TTransactionId> TransactionIdGenerator;
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;

@@ -18,7 +18,10 @@ class TSnapshotDownloader
 {
 public:
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration LookupTimeout;
         TDuration ReadTimeout;
         i32 BlockSize;
@@ -38,7 +41,7 @@ public:
     );
 
     TSnapshotDownloader(
-        const TConfig& config,
+        TConfig* config,
         TCellManager::TPtr cellManager);
 
     EResult GetSnapshot(i32 segmentId, TFile* snapshotFile);
@@ -60,7 +63,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig Config;
+    TConfig ::TPtr Config;
     TCellManager::TPtr CellManager;
 
     TSnapshotInfo GetSnapshotInfo(i32 segmentId); // also finds snapshot source

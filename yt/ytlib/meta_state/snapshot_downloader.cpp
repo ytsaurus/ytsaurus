@@ -18,7 +18,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotDownloader::TSnapshotDownloader(
-    const TConfig& config,
+    TConfig* config,
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
@@ -57,7 +57,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         LOG_INFO("Requesting snapshot info from peer %d", peerId);
 
         auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-        proxy->SetTimeout(Config.LookupTimeout);
+        proxy->SetTimeout(Config->LookupTimeout);
 
         auto request = proxy->GetSnapshotInfo();
         request->set_snapshotid(snapshotId);
@@ -148,14 +148,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             sourceId);
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetTimeout(Config.ReadTimeout);
+    proxy->SetTimeout(Config->ReadTimeout);
 
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
         auto request = proxy->ReadSnapshot();
         request->set_snapshotid(snapshotId);
         request->set_offset(downloadedLength);
-        i32 blockSize = Min(Config.BlockSize, (i32)(snapshotLength - downloadedLength));
+        i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));
         request->set_length(blockSize);
         auto response = request->Invoke()->Get();
 

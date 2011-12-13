@@ -24,6 +24,8 @@ public:
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration PingInterval;
         TDuration RpcTimeout;
 
@@ -41,7 +43,7 @@ public:
     };
 
     TFollowerPinger(
-        const TConfig& config,
+        TConfig* config,
         TDecoratedMetaState::TPtr metaState,
         TCellManager::TPtr cellManager,
         TFollowerTracker::TPtr followerTracker,
@@ -57,7 +59,7 @@ private:
     void SendPing();
     void OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
     TDecoratedMetaState::TPtr MetaState;
     TCellManager::TPtr CellManager;
