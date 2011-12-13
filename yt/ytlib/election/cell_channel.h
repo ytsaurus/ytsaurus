@@ -5,7 +5,7 @@
 #include "../rpc/channel.h"
 
 namespace NYT {
-namespace NMetaState {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +14,5 @@ NRpc::IChannel::TPtr CreateCellChannel(const NElection::TLeaderLookup::TConfig& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NElection
 } // namespace NYT

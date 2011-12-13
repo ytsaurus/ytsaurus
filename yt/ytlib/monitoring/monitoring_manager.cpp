@@ -8,6 +8,8 @@
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
 
+#include "stat.h"
+
 namespace NYT {
 namespace NMonitoring {
 
@@ -22,7 +24,7 @@ const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
-{ 
+{
     PeriodicInvoker = New<TPeriodicInvoker>(
         FromMethod(&TMonitoringManager::Update, TPtr(this)),
         Period);
@@ -68,6 +70,8 @@ void TMonitoringManager::Stop()
 void TMonitoringManager::Update()
 {
     try {
+        TIMEIT("stateman.updatetime", "tv",
+
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
         auto newRootService = IYPathService::FromNode(~newRoot);
 
@@ -82,6 +86,9 @@ void TMonitoringManager::Update()
         if (IsStarted) {
             Root = newRoot;
         }
+
+        )
+
     } catch (...) {
         LOG_FATAL("Error collecting monitoring data\n%s",
             ~CurrentExceptionMessage());
@@ -90,8 +97,12 @@ void TMonitoringManager::Update()
 
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
+    TIMEIT("stateman.visittime", "tv",
+
     TTreeVisitor visitor(consumer);
     visitor.Visit(~GetRoot());
+
+    )
 }
 
 TYsonProducer::TPtr TMonitoringManager::GetProducer()

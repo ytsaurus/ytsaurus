@@ -11,7 +11,9 @@
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/statlog.h>
 
 #include <yt/ytlib/ytree/yson_file_service.h>
 
@@ -38,7 +40,6 @@ using NRpc::CreateRpcServer;
 using NYTree::IYPathService;
 
 using NMonitoring::TMonitoringManager;
-using NMonitoring::THttpTreeServer;
 using NMonitoring::GetYPathHttpHandler;
 using NMonitoring::CreateMonitoringProvider;
 
@@ -66,6 +67,9 @@ TChunkHolderServer::TChunkHolderServer(
 void TChunkHolderServer::Run()
 {
     LOG_INFO("Starting chunk holder");
+
+    // Explicitly instrumentation thread creation.
+    NSTAT::EnableStatlog(true);
 
     auto controlQueue = New<TActionQueue>("Control");
 
@@ -155,17 +159,21 @@ void TChunkHolderServer::Run()
         ~controlQueue->GetInvoker());
 
     // TODO: fix memory leaking
-    auto httpServer = new THttpTreeServer(Config.MonitoringPort);
+    auto httpServer = new NHTTP::TServer(Config.MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
-        "orchid",
+        "/statistics",
+        NMonitoring::GetProfilingHttpHandler()
+        );
+    httpServer->Register(
+        "/orchid",
         GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
                 {
                     return orchidPathService;
                 })));
 
-    LOG_INFO("Listening for HTTP monitoring requests on port %d", Config.MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %d", Config.MonitoringPort);
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config.RpcPort);

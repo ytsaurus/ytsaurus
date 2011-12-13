@@ -267,8 +267,7 @@ TEST_F(TRpcTest, OK)
     auto result = request->Invoke();
     auto response = result->Get();
 
-    int ok = TError::OK;
-    EXPECT_EQ(ok, response->GetErrorCode());
+    EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
 
 TEST_F(TRpcTest, TransportError)

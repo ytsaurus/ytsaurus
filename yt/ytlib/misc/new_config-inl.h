@@ -24,7 +24,7 @@ T CheckedStaticCast(i64 value)
 template <class T>
 inline void Read(
     T* parameter,
-    NYTree::INode& node,
+    NYTree::INode* node,
     const NYTree::TYPath& path,
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
         NYT::NDetail::TEmpty())
@@ -125,7 +125,7 @@ inline void Read(yhash_set<T>* parameter, NYTree::INode* node, const NYTree::TYP
 
 // yhash_map
 template <class T>
-inline void Read(yhash_set<Stroka, T>* parameter, NYTree::INode* node, const NYTree::TYPath& path)
+inline void Read(yhash_map<Stroka, T>* parameter, NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
