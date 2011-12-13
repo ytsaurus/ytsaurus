@@ -79,9 +79,14 @@ void TChunkHolderServer::Run()
         Config,
         ~readerCache);
 
+    auto chunkCache = New<TChunkCache>(
+        Config,
+        ~readerCache);
+
     auto blockStore = New<TBlockStore>(
         Config,
         ~chunkStore,
+        ~chunkCache,
         ~readerCache);
 
     auto sessionManager = New<TSessionManager>(
@@ -95,22 +100,13 @@ void TChunkHolderServer::Run()
         ~blockStore,
         ~controlQueue->GetInvoker());
 
-    TMasterConnector::TPtr masterConnector;
-    if (!Config.Masters.Addresses.empty()) {
-        masterConnector = New<TMasterConnector>(
+    auto masterConnector = New<TMasterConnector>(
             Config,
             ~chunkStore,
+            ~chunkCache,
             ~sessionManager,
             ~replicator,
             ~controlQueue->GetInvoker());
-    } else {
-        LOG_INFO("Running in standalone mode");
-    }
-
-    auto chunkCache = New<TChunkCache>(
-        Config,
-        ~readerCache,
-        ~masterConnector);
 
     auto chunkHolderService = New<TChunkHolderService>(
         Config,

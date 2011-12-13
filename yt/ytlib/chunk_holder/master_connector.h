@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_store.h"
+#include "chunk_cache.h"
 #include "session_manager.h"
 #include "replicator.h"
 
@@ -30,12 +31,10 @@ public:
     TMasterConnector(
         const TConfig& config,
         TChunkStore* chunkStore,
+        TChunkCache* chunkCache,
         TSessionManager* sessionManager,
         TReplicator* replicator,
         IInvoker* serviceInvoker);
-
-    //! Returns the channel used for communicating with the master.
-    NRpc::IChannel::TPtr GetChannel();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -48,6 +47,7 @@ private:
     TConfig Config;
     
     TChunkStore::TPtr ChunkStore;
+    TChunkCache::TPtr ChunkCache;
     TSessionManager::TPtr SessionManager;
     TReplicator::TPtr Replicator;
 
@@ -67,9 +67,6 @@ private:
 
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
-
-    //! A cell channel.
-    NRpc::IChannel::TPtr Channel;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;

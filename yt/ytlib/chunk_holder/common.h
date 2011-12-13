@@ -78,9 +78,6 @@ struct TChunkHolderConfig
     NChunkClient::TSequentialReader::TConfig CacheSequentialReader;
 
     //! Masters configuration.
-    /*!
-     *  If no master addresses are given, the holder will operate in a standalone mode.
-     */
     NElection::TLeaderLookup::TConfig Masters;
 
     //! Constructs a default instance.
