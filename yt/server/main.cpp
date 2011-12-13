@@ -49,12 +49,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .RequiredArgument("ID")
         .StoreResult(&peerId);
 
-    // TODO: killme
-    Stroka oldConfigFileName;
-    opts.AddLongOption("old_config", "old json configuration file")
-        .RequiredArgument("FILE")
-        .StoreResult(&oldConfigFileName);
-
     Stroka configFileName;
     opts.AddLongOption("config", "configuration file")
         .RequiredArgument("FILE")
@@ -81,7 +75,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Configure logging.
     // TODO: use new config
-    NLog::TLogManager::Get()->Configure(oldConfigFileName, "Logging");
+    NLog::TLogManager::Get()->Configure(configFileName, "Logging");
 
     // Parse configuration file.
     INode::TPtr configNode;
