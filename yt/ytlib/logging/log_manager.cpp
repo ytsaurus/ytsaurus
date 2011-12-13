@@ -4,6 +4,8 @@
 #include "../misc/pattern_formatter.h"
 #include "../misc/config.h"
 
+#include "../ytree/serialize.h"
+
 #include <util/folder/dirut.h>
 
 namespace NYT {
@@ -114,6 +116,8 @@ public:
     TConfig();
     TConfig(const TJsonObject* root);
 
+    // TODO: think about private:
+
     // new config
     void Init();
     void ConfigureWriters();
@@ -173,7 +177,6 @@ void TLogManager::TConfig::ConfigureRules()
         Rules.push_back(rule);
     }
 }
-
 
 void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
 {
@@ -274,9 +277,8 @@ void TLogManager::TConfig::ValidateRule(const TRule& rule)
 
 TLogManager::TConfig::TConfig()
 {
-// TODO: fix this
-//    Register("writers", WritersConfigs);
-//    Register("rules", Rules);
+    Register("writers", WritersConfigs);
+    Register("rules", RulesConfigs);
 
     Writers.insert(MakePair(
         DefaultStdErrWriterName,
@@ -453,12 +455,25 @@ void TLogManager::Configure(TJsonObject* root)
     }
 }
 
+//void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
+//{
+//    try {
+//        TIFStream configStream(fileName);
+//        TJsonReader reader(CODES_UTF8, &configStream);
+//        TJsonObject* root = reader.ReadAll();
+//        TJsonObject* subTree = GetSubTree(root, rootPath);
+//        Configure(subTree);
+//    } catch (const yexception& e) {
+//        LOG_ERROR("Error configuring logging\n%s", e.what())
+//        return;
+//    }
+//}
+
 void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
 {
     try {
         TIFStream configStream(fileName);
-        TJsonReader reader(CODES_UTF8, &configStream);
-        TJsonObject* root = reader.ReadAll();
+        INode::TPtr root = NYTree::DeserializeFromYson(&configStream);
         TJsonObject* subTree = GetSubTree(root, rootPath);
         Configure(subTree);
     } catch (const yexception& e) {
@@ -466,6 +481,8 @@ void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
         return;
     }
 }
+
+
 void TLogManager::Configure(NYTree::INode::TPtr node)
 {
     auto configuration = New<TConfig>();
