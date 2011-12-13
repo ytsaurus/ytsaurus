@@ -84,7 +84,7 @@ void TChunkHolderServer::Run()
         ~readerCache);
 
     auto chunkCache = New<TChunkCache>(
-        Config,
+        ~Config,
         ~readerCache);
 
     auto blockStore = New<TBlockStore>(

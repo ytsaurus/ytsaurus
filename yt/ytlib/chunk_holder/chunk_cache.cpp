@@ -39,9 +39,9 @@ public:
         , Config(config)
         , Location(location)
     {
-        auto channel = CreateCellChannel(config.Masters);
+        auto channel = CreateCellChannel(~config->Masters);
         ChunkProxy = new TChunkServiceProxy (~channel);
-        ChunkProxy->SetTimeout(config.MasterRpcTimeout);
+        ChunkProxy->SetTimeout(config->MasterRpcTimeout);
     }
 
     void Register(TCachedChunk* chunk)

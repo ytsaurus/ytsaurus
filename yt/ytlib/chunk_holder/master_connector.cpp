@@ -45,7 +45,7 @@ TMasterConnector::TMasterConnector(
     YASSERT(replicator != NULL);
     YASSERT(serviceInvoker != NULL);
 
-    auto channel = CreateCellChannel(Config->Masters);
+    auto channel = CreateCellChannel(~Config->Masters);
     Proxy.Reset(new TProxy(~channel));
     Proxy->SetTimeout(Config->MasterRpcTimeout);
 
