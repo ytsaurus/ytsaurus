@@ -3,11 +3,10 @@
 #include "cell_channel.h"
 
 namespace NYT {
-namespace NMetaState {
+namespace NElection {
 
 using namespace NBus;
 using namespace NRpc;
-using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
