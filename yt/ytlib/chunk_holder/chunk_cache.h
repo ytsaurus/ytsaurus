@@ -4,7 +4,6 @@
 #include "chunk.h"
 #include "reader_cache.h"
 #include "location.h"
-#include "master_connector.h"
 
 #include "../misc/property.h"
 #include "../misc/error.h"
@@ -34,8 +33,7 @@ public:
     //! Constructs a new instance.
     TChunkCache(
         TChunkHolderConfig* config,
-        TReaderCache* readerCache,
-        TMasterConnector* masterConnector);
+        TReaderCache* readerCache);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TCachedChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);

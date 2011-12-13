@@ -22,7 +22,9 @@
 
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/statlog.h>
 
 #include <yt/ytlib/orchid/cypress_integration.h>
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -71,7 +73,6 @@ using NCypress::CreateLockMapTypeHandler;
 using NCypress::RootNodeId;
 
 using NMonitoring::TMonitoringManager;
-using NMonitoring::THttpTreeServer;
 using NMonitoring::GetYPathHttpHandler;
 using NMonitoring::CreateMonitoringProvider;
 
@@ -98,6 +99,9 @@ void TCellMasterServer::Run()
     int rpcPort = FromString<int>(address.substr(index + 1));
 
     LOG_INFO("Starting cell master");
+
+    // Explicitly instrumentation thread creation.
+    NSTAT::EnableStatlog(true);
 
     auto metaState = New<TCompositeMetaState>();
 
@@ -167,11 +171,11 @@ void TCellMasterServer::Run()
     // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();  
-        YVERIFY(orchidRoot->AddChild(
-            NYTree::CreateVirtualNode(
-                ~CreateMonitoringProvider(~monitoringManager),
-                orchidFactory),
-            "monitoring"));
+    YVERIFY(orchidRoot->AddChild(
+        NYTree::CreateVirtualNode(
+            ~CreateMonitoringProvider(~monitoringManager),
+            orchidFactory),
+        "monitoring"));
     YVERIFY(orchidRoot->AddChild(
         NYTree::CreateVirtualNode(
             ~NYTree::CreateYsonFileProvider(ConfigFileName),
@@ -214,19 +218,23 @@ void TCellMasterServer::Run()
         ~chunkManager));
 
     // TODO: fix memory leaking
-    auto httpServer = new THttpTreeServer(Config->MonitoringPort);
+    auto httpServer = new NHTTP::TServer(Config->MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
-        "orchid",
-        GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+        "/statistics",
+        NMonitoring::GetProfilingHttpHandler()
+        );
+    httpServer->Register(
+        "/orchid",
+        NMonitoring::GetYPathHttpHandler(
+            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
                 {
                     return orchidPathService;
                 })));
     httpServer->Register(
-        "cypress",
-        GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathService::TPtr
+        "/cypress",
+        NMonitoring::GetYPathHttpHandler(
+            FromFunctor([=] () -> IYPathService::TPtr
                 {
                     auto status = metaStateManager->GetStateStatus();
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
@@ -240,7 +248,7 @@ void TCellMasterServer::Run()
 
     metaStateManager->Start();
 
-    LOG_INFO("Listening for HTTP monitoring requests on port %d", Config->MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", rpcPort);

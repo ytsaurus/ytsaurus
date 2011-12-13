@@ -33,6 +33,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore;
+class TChunkCache;
 class TReaderCache;
 
 //! Manages cached blocks.
@@ -46,6 +47,7 @@ public:
     TBlockStore(
         TChunkHolderConfig* config,
         TChunkStore* chunkStore,
+        TChunkCache* chunkCache,
         TReaderCache* readerCache);
 
     typedef TValueOrError<TCachedBlock::TPtr> TGetBlockResult;

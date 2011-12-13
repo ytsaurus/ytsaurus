@@ -2,7 +2,6 @@
 
 #include <yt/ytlib/misc/config.h>
 #include <yt/ytlib/meta_state/persistent_state_manager.h>
-#include <yt/ytlib/monitoring/http_tree_server.h>
 
 namespace NYT {
 
