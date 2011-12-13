@@ -27,8 +27,10 @@ public:
 
     //! Lookup configuration.
     struct TConfig
-        : TConfigBase
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! List of peer addresses.
         yvector<Stroka> Addresses;
 
@@ -67,7 +69,7 @@ public:
     typedef TFuture<TResult> TAsyncResult;
 
     //! Initializes a new instance.
-    TLeaderLookup(const TConfig& config);
+    TLeaderLookup(TConfig* config);
 
     //! Performs an asynchronous lookup.
     TAsyncResult::TPtr GetLeader();
@@ -75,7 +77,7 @@ public:
 private:
     typedef TElectionManagerProxy TProxy;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     static NRpc::TChannelCache ChannelCache;
 
     //! Protects from simultaneously reporting conflicting results.

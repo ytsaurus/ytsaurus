@@ -122,7 +122,7 @@ void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
     ChunkInfo = result.Value();
 
     Writer = New<TRemoteWriter>(
-        TRemoteWriter::TConfig(),
+        ~New<TRemoteWriter::TConfig>(),
         Chunk->GetId(),
         TargetAddresses);
 

@@ -21,7 +21,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriter::TChunkWriter(
-    const TConfig& config, 
+    TConfig* config, 
     NChunkClient::IAsyncWriter::TPtr chunkWriter,
     const TSchema& schema)
     : Config(config)
@@ -33,7 +33,7 @@ TChunkWriter::TChunkWriter(
 {
     YASSERT(~chunkWriter != NULL);
     
-    Attributes.set_codecid(Config.CodecId);
+    Attributes.set_codecid(Config->CodecId);
     Attributes.set_rowcount(0);
 
     // Fill protobuf chunk meta.
@@ -42,7 +42,7 @@ TChunkWriter::TChunkWriter(
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 
-    Codec = GetCodec(ECodecId(Config.CodecId));
+    Codec = GetCodec(ECodecId(Config->CodecId));
 }
 
 void TChunkWriter::Write(const TColumn& column, TValue value)
@@ -69,7 +69,7 @@ void TChunkWriter::ContinueEndRow(
             channel->EndRow();
             CurrentSize += channel->GetCurrentSize();
 
-            if (channel->GetCurrentSize() > static_cast<size_t>(Config.BlockSize)) {
+            if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
                 auto block = PrepareBlock(channelIndex);
                 ChunkWriter->AsyncWriteBlock(block)->Subscribe(
                     FromMethod(

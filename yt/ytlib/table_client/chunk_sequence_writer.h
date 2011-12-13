@@ -24,6 +24,8 @@ public:
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         i64 MaxChunkSize;
 
         //! When current chunk size relative to #MaxChunkSize
@@ -32,8 +34,8 @@ public:
 
         int ReplicationFactor;
 
-        TChunkWriter::TConfig TableChunk;
-        NChunkClient::TRemoteWriter::TConfig RemoteChunk;
+        TChunkWriter::TConfig::TPtr TableChunk;
+        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteChunk;
 
         TConfig()
         {
@@ -46,7 +48,7 @@ public:
     };
 
     TChunkSequenceWriter(
-        const TConfig& config,
+        TConfig* config,
         const TSchema& schema,
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel::TPtr masterChannel);
@@ -77,7 +79,7 @@ private:
     void OnRowEnded(TError error);
     void OnClose();
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     const TSchema Schema;
 
     const NTransactionClient::TTransactionId TransactionId;

@@ -21,8 +21,10 @@ public:
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration CypressRpcTimeout;
-        TChunkSequenceReader::TConfig ChunkSequenceReader;
+        TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
 
         TConfig()
         {
@@ -32,7 +34,7 @@ public:
     };
 
     TTableReader(
-        const TConfig& config,
+        TConfig* config,
         NTransactionClient::ITransaction::TPtr transaction,
         NRpc::IChannel* masterChannel,
         const TChannel& readChannel,
@@ -47,7 +49,7 @@ public:
 private:
     void OnAborted();
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     TChunkSequenceReader::TPtr Reader;
     NCypress::TNodeId NodeId;
 

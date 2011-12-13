@@ -22,7 +22,7 @@ static NLog::TLogger& Logger = FileClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader(
-    const TConfig& config,
+    TConfig* config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
     const NYTree::TYPath& path)
@@ -49,7 +49,7 @@ void TFileReader::Open()
         ~transactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
-    CypressProxy->SetTimeout(Config.MasterRpcTimeout);
+    CypressProxy->SetTimeout(Config->MasterRpcTimeout);
 
     // Get chunk info.
     LOG_INFO("Getting chunk info");
@@ -79,7 +79,7 @@ void TFileReader::Open()
 
     // ToDo: use TRetriableReader.
     auto remoteReader = New<TRemoteReader>(
-        Config.RemoteReader,
+        ~Config->RemoteReader,
         ChunkId,
         addresses);
 
@@ -105,7 +105,7 @@ void TFileReader::Open()
     }
 
     SequentialReader = New<TSequentialReader>(
-        Config.SequentialReader,
+        ~Config->SequentialReader,
         blockIndexes,
         ~remoteReader);
 

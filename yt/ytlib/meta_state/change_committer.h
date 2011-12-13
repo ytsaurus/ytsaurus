@@ -58,7 +58,10 @@ public:
     typedef TIntrusivePtr<TLeaderCommitter> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TConfig()
             : RpcTimeout(TDuration::Seconds(3))
             , MaxBatchDelay(TDuration::MilliSeconds(10))
@@ -72,7 +75,7 @@ public:
 
     //! Creates an instance.
     TLeaderCommitter(
-        const TConfig& config,
+        TConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,
         TChangeLogCache::TPtr changeLogCache,
@@ -127,7 +130,7 @@ private:
         TFuture<TVoid>::TPtr changeLogResult);
     void FlushCurrentBatch();
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TChangeLogCache::TPtr ChangeLogCache;
     TFollowerTracker::TPtr FollowerTracker;

@@ -25,7 +25,7 @@ static NLog::TLogger& Logger = FileClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriter::TFileWriter(
-    const TConfig& config,
+    TConfig* config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
     const NYTree::TYPath& path,
@@ -51,10 +51,10 @@ TFileWriter::TFileWriter(
         ~Transaction->GetId().ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
-    CypressProxy->SetTimeout(config.MasterRpcTimeout);
+    CypressProxy->SetTimeout(config->MasterRpcTimeout);
 
     ChunkProxy.Reset(new TChunkServiceProxy(~MasterChannel));
-    ChunkProxy->SetTimeout(config.MasterRpcTimeout);
+    ChunkProxy->SetTimeout(config->MasterRpcTimeout);
 
     // Create a file node.
     LOG_INFO("Creating node");
@@ -99,11 +99,11 @@ TFileWriter::TFileWriter(
 
     // Initialize a writer.
     Writer = New<TRemoteWriter>(
-        config.RemoteWriter,
+        ~config->RemoteWriter,
         ChunkId,
         addresses);
 
-    Codec = GetCodec(Config.CodecId);
+    Codec = GetCodec(Config->CodecId);
 
     // Bind to the transaction.
     OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
@@ -122,7 +122,7 @@ void TFileWriter::Write(TRef data)
         return;
 
     if (Buffer.empty()) {
-        Buffer.reserve(static_cast<size_t>(Config.BlockSize));
+        Buffer.reserve(static_cast<size_t>(Config->BlockSize));
     }
 
     size_t dataSize = data.Size();
@@ -130,7 +130,7 @@ void TFileWriter::Write(TRef data)
     while (dataSize != 0) {
         // Copy a part of data trying to fill up the current block.
         size_t bufferSize = Buffer.size();
-        size_t remainingSize = static_cast<size_t>(Config.BlockSize) - Buffer.size();
+        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.size();
         size_t copySize = Min(dataSize, remainingSize);
         Buffer.resize(Buffer.size() + copySize);
         std::copy(dataPtr, dataPtr + copySize, Buffer.begin() + bufferSize);
@@ -138,7 +138,7 @@ void TFileWriter::Write(TRef data)
         dataSize -= copySize;
 
         // Flush the block if full.
-        if (Buffer.ysize() == Config.BlockSize) {
+        if (Buffer.ysize() == Config->BlockSize) {
             FlushBlock();
         }
     }
@@ -171,7 +171,7 @@ void TFileWriter::Close()
     attributes.set_type(EChunkType::File);
     auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::FileAttributes);
     fileAttributes->set_size(Size);
-    fileAttributes->set_codecid(Config.CodecId);
+    fileAttributes->set_codecid(Config->CodecId);
     
     // Close the chunk.
     LOG_INFO("Closing chunk");

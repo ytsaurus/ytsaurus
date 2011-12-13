@@ -29,7 +29,7 @@ public:
 
     //! Creates an instance.
     TMasterConnector(
-        const TConfig& config,
+        TConfig* config,
         TChunkStore* chunkStore,
         TChunkCache* chunkCache,
         TSessionManager* sessionManager,
@@ -44,7 +44,7 @@ private:
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     
     TChunkStore::TPtr ChunkStore;
     TChunkCache::TPtr ChunkCache;
@@ -74,7 +74,7 @@ private:
     //! Local address of the holder.
     /*!
      *  This address is computed during initialization by combining the host name (returned by #HostName)
-     *  and the port number in #Config.
+     *  and the port number in #Config->
      */
     Stroka Address;
     

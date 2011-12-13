@@ -35,15 +35,15 @@ public:
         auto manifestRoot = DeserializeFromYson(manifestYson);
 
         try {
-            Manifest.Load(~manifestRoot);
+            Manifest->Load(~manifestRoot);
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
                 ~CurrentExceptionMessage());
         }
 
-        auto channel = ChannelCache.GetChannel(Manifest.RemoteAddress);
+        auto channel = ChannelCache.GetChannel(Manifest->RemoteAddress);
         Proxy = new TOrchidServiceProxy(~channel);
-        Proxy->SetTimeout(Manifest.Timeout);
+        Proxy->SetTimeout(Manifest->Timeout);
     }
 
     TResolveResult Resolve(const TYPath& path, const Stroka& verb)
@@ -66,7 +66,7 @@ public:
         WrapYPathRequest(~outerRequest, ~innerRequestMessage);
 
         LOG_INFO("Sending request to a remote Orchid (Address: %s, Path: %s, Verb: %s, RequestId: %s)",
-            ~Manifest.RemoteAddress,
+            ~Manifest->RemoteAddress,
             ~path,
             ~verb,
             ~outerRequest->GetRequestId().ToString());
@@ -101,20 +101,22 @@ private:
                 Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                     ~path,
                     ~verb,
-                    ~Manifest.RemoteAddress,
-                    ~Manifest.RemoteRoot,
+                    ~Manifest->RemoteAddress,
+                    ~Manifest->RemoteRoot,
                     ~response->GetError().ToString())));
         }
     }
 
     Stroka GetRedirectPath(const TYPath& path)
     {
-        return CombineYPaths(Manifest.RemoteRoot, path);
+        return CombineYPaths(Manifest->RemoteRoot, path);
     }
 
     struct TManifest
-        : TConfigBase
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TManifest> TPtr;
+
         Stroka RemoteAddress;
         Stroka RemoteRoot;
         TDuration Timeout;
@@ -127,7 +129,7 @@ private:
         }
     };
 
-    TManifest Manifest;
+    TManifest::TPtr Manifest;
     TAutoPtr<TOrchidServiceProxy> Proxy;
 
 };

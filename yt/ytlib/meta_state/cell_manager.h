@@ -18,7 +18,7 @@ public:
     typedef TIntrusivePtr<TCellManager> TPtr;
     typedef TCellConfig TConfig;
 
-    TCellManager(const TConfig& config);
+    TCellManager(TConfig* config);
 
     TPeerId GetSelfId() const;
     i32 GetPeerCount() const;
@@ -29,7 +29,7 @@ public:
     TAutoPtr<TProxy> GetMasterProxy(TPeerId id) const;
 
 private:
-    TConfig Config;
+    TConfig::TPtr Config;
     static NRpc::TChannelCache ChannelCache;
 
 };

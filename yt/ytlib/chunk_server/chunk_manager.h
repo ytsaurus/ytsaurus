@@ -28,7 +28,7 @@ public:
 
     //! Creates an instance.
     TChunkManager(
-        const TConfig& config,
+        TConfig* config,
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         NTransactionServer::TTransactionManager* transactionManager,
@@ -98,7 +98,7 @@ public:
 private:
     class TImpl;
     
-    TConfig Config;
+    TConfig::TPtr Config;
     TIntrusivePtr<TImpl> Impl;
 
 };

@@ -45,7 +45,7 @@ public:
 
     //! Constructs a store.
     TBlockStore(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TChunkStore* chunkStore,
         TChunkCache* chunkCache,
         TReaderCache* readerCache);

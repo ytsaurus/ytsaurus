@@ -26,8 +26,10 @@ public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
 
     struct TConfig
-            : public TConfigBase
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+        
         i64 BlockSize;
         int CodecId;
 
@@ -40,7 +42,7 @@ public:
     };
 
     TChunkWriter(
-        const TConfig& config, 
+        TConfig* config, 
         NChunkClient::IAsyncWriter::TPtr chunkWriter, 
         const TSchema& schema);
     ~TChunkWriter();
@@ -70,7 +72,7 @@ private:
     void OnClosed(TError error);
 
 private:
-    const TConfig Config;
+    TConfig::TPtr Config;
     const TSchema Schema;
 
     ICodec* Codec;

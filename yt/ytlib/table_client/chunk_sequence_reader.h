@@ -22,8 +22,10 @@ public:
     struct TConfig
         : public TConfigBase
     {
-        NChunkClient::TRetriableReader::TConfig RetriableReader;
-        NChunkClient::TSequentialReader::TConfig SequentialReader;
+        typedef TIntrusivePtr<TConfig> TPtr;
+
+        NChunkClient::TRetriableReader::TConfig::TPtr RetriableReader;
+        NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
 
         TConfig()
         {
@@ -33,7 +35,7 @@ public:
     };
 
     TChunkSequenceReader(
-        const TConfig& config,
+        TConfig* config,
         const TChannel& channel,
         const NTransactionClient::TTransactionId transactionId,
         NRpc::IChannel::TPtr masterChannel,
@@ -65,7 +67,7 @@ private:
     void OnNextRow(TError error);
 
 
-    const TConfig Config;
+    const TConfig::TPtr Config;
     const TChannel Channel;
     const NTransactionClient::TTransactionId TransactionId;
     const yvector<NChunkClient::TChunkId> Chunks;

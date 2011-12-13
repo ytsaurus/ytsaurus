@@ -38,8 +38,8 @@ class TReaderCache::TImpl
 public:
     typedef TIntrusivePtr<TReaderCache> TPtr;
 
-    TImpl(const TChunkHolderConfig& config)
-        : TSizeLimitedCache<TChunkId, TCachedReader>(config.MaxCachedReaders)
+    TImpl(TChunkHolderConfig* config)
+        : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }
 
     TGetReaderResult Get(const TChunk* chunk)
@@ -76,7 +76,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReaderCache::TReaderCache(const TChunkHolderConfig& config)
+TReaderCache::TReaderCache(TChunkHolderConfig* config)
     : Impl(New<TImpl>(config))
 { }
 

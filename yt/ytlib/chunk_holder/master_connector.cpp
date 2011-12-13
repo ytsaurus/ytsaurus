@@ -24,7 +24,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterConnector::TMasterConnector(
-    const TConfig& config,
+    TConfig* config,
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TSessionManager* sessionManager,
@@ -45,11 +45,11 @@ TMasterConnector::TMasterConnector(
     YASSERT(replicator != NULL);
     YASSERT(serviceInvoker != NULL);
 
-    auto channel = CreateCellChannel(Config.Masters);
+    auto channel = CreateCellChannel(~Config->Masters);
     Proxy.Reset(new TProxy(~channel));
-    Proxy->SetTimeout(Config.MasterRpcTimeout);
+    Proxy->SetTimeout(Config->MasterRpcTimeout);
 
-    Address = Sprintf("%s:%d", ~HostName(), Config.RpcPort);
+    Address = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
 
     // NB: No intrusive ptr for this to prevent circular dependency.
     ChunkStore->ChunkAdded().Subscribe(FromMethod(
@@ -61,7 +61,7 @@ TMasterConnector::TMasterConnector(
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~Address,
-        ~JoinToString(Config.Masters.Addresses));
+        ~JoinToString(Config->Masters->Addresses));
 
     OnHeartbeat();
 }
@@ -71,7 +71,7 @@ void TMasterConnector::ScheduleHeartbeat()
     TDelayedInvoker::Submit(
         ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
         ->Via(ServiceInvoker),
-        Config.HeartbeatPeriod);
+        Config->HeartbeatPeriod);
 }
 
 void TMasterConnector::OnHeartbeat()

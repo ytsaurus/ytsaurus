@@ -92,7 +92,7 @@ public:
             if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-            proxy->SetTimeout(Committer->Config.RpcTimeout);
+            proxy->SetTimeout(Committer->Config->RpcTimeout);
 
             auto request = proxy->ApplyChanges();
             request->set_segmentid(StartVersion.SegmentId);
@@ -208,7 +208,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
-    const TConfig& config,
+    TConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
     TChangeLogCache::TPtr changeLogCache,
@@ -279,7 +279,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
     auto batch = GetOrCreateBatch(version);
     auto result = batch->AddChange(changeData);
     batch->SetLastChangeLogResult(changeLogResult);
-    if (batch->GetChangeCount() >= Config.MaxBatchSize) {
+    if (batch->GetChangeCount() >= Config->MaxBatchSize) {
         FlushCurrentBatch();
     }
     return result;
@@ -311,7 +311,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
                 TPtr(this),
                 CurrentBatch)
             ->Via(~CancelableControlInvoker),
-            Config.MaxBatchDelay);
+            Config->MaxBatchDelay);
     }
 
     return CurrentBatch;

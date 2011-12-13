@@ -13,7 +13,7 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceReader::TChunkSequenceReader(
-    const TConfig& config,
+    TConfig* config,
     const TChannel& channel,
     const NTransactionClient::TTransactionId transactionId,
     NRpc::IChannel::TPtr masterChannel,
@@ -45,7 +45,7 @@ void TChunkSequenceReader::PrepareNextChunk()
     }
 
     TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
-        Config.RetriableReader, 
+        ~Config->RetriableReader, 
         Chunks[NextChunkIndex],
         TransactionId,
         ~MasterChannel);
@@ -55,7 +55,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         EndRow : std::numeric_limits<int>::max();
 
     TChunkReader::TPtr chunkReader = New<TChunkReader>(
-        Config.SequentialReader,
+        ~Config->SequentialReader,
         Channel,
         ~retriableReader,
         startRow,

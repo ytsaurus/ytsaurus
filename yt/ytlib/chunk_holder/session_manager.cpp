@@ -358,7 +358,7 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    const TChunkHolderConfig& config,
+    TChunkHolderConfig* config,
     TBlockStore* blockStore,
     TChunkStore* chunkStore,
     IInvoker* serviceInvoker)
@@ -392,7 +392,7 @@ TSession::TPtr TSessionManager::StartSession(
     auto session = New<TSession>(this, chunkId, ~location, windowSize);
 
     auto lease = TLeaseManager::CreateLease(
-        Config.SessionTimeout,
+        Config->SessionTimeout,
         ~FromMethod(
             &TSessionManager::OnLeaseExpired,
             TPtr(this),

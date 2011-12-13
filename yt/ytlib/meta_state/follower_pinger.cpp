@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerPinger::TFollowerPinger(
-    const TConfig& config,
+    TConfig* config,
     TDecoratedMetaState::TPtr metaState,
     TCellManager::TPtr cellManager,
     TFollowerTracker::TPtr followerTracker,
@@ -39,7 +39,7 @@ TFollowerPinger::TFollowerPinger(
     PeriodicInvoker = new TPeriodicInvoker(
         FromMethod(&TFollowerPinger::SendPing, TPtr(this))
         ->Via(MetaState->GetStateInvoker()),
-        Config.PingInterval);
+        Config->PingInterval);
     PeriodicInvoker->Start();
 }
 
@@ -60,7 +60,7 @@ void TFollowerPinger::SendPing()
         if (peerId == CellManager->GetSelfId()) continue;
 
         auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-        proxy->SetTimeout(Config.RpcTimeout);
+        proxy->SetTimeout(Config->RpcTimeout);
         auto request = proxy->PingFollower();
         request->set_segmentid(version.SegmentId);
         request->set_recordcount(version.RecordCount);

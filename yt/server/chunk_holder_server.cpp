@@ -59,7 +59,7 @@ using NChunkHolder::CreateChunkMapService;
 
 TChunkHolderServer::TChunkHolderServer(
     const Stroka& configFileName,
-    const TConfig &config)
+    TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
@@ -73,28 +73,28 @@ void TChunkHolderServer::Run()
 
     auto controlQueue = New<TActionQueue>("Control");
 
-    auto busServer = CreateNLBusServer(TNLBusServerConfig(Config.RpcPort));
+    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateRpcServer(~busServer);
 
-    auto readerCache = New<TReaderCache>(Config);
+    auto readerCache = New<TReaderCache>(~Config);
 
     auto chunkStore = New<TChunkStore>(
-        Config,
+        ~Config,
         ~readerCache);
 
     auto chunkCache = New<TChunkCache>(
-        Config,
+        ~Config,
         ~readerCache);
 
     auto blockStore = New<TBlockStore>(
-        Config,
+        ~Config,
         ~chunkStore,
         ~chunkCache,
         ~readerCache);
 
     auto sessionManager = New<TSessionManager>(
-        Config,
+        ~Config,
         ~blockStore,
         ~chunkStore,
         ~controlQueue->GetInvoker());
@@ -105,7 +105,7 @@ void TChunkHolderServer::Run()
         ~controlQueue->GetInvoker());
 
     auto masterConnector = New<TMasterConnector>(
-            Config,
+            ~Config,
             ~chunkStore,
             ~chunkCache,
             ~sessionManager,
@@ -113,7 +113,7 @@ void TChunkHolderServer::Run()
             ~controlQueue->GetInvoker());
 
     auto chunkHolderService = New<TChunkHolderService>(
-        Config,
+        ~Config,
         ~controlQueue->GetInvoker(),
         ~rpcServer,
         ~chunkStore,
@@ -159,7 +159,7 @@ void TChunkHolderServer::Run()
         ~controlQueue->GetInvoker());
 
     // TODO: fix memory leaking
-    auto httpServer = new NHTTP::TServer(Config.MonitoringPort);
+    auto httpServer = new NHTTP::TServer(Config->MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
         "/statistics",
@@ -173,10 +173,10 @@ void TChunkHolderServer::Run()
                     return orchidPathService;
                 })));
 
-    LOG_INFO("Listening for HTTP requests on port %d", Config.MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
 
-    LOG_INFO("Listening for RPC requests on port %d", Config.RpcPort);
+    LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Start();
 
     Sleep(TDuration::Max());

@@ -20,7 +20,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStore::TChunkStore(
-    const TChunkHolderConfig& config,
+    TChunkHolderConfig* config,
     TReaderCache* readerCache)
     : Config(config)
     , ReaderCache(readerCache)
@@ -28,8 +28,8 @@ TChunkStore::TChunkStore(
     LOG_INFO("Chunk storage scan started");
 
     try {
-        FOREACH (const auto& config, Config.StorageLocations) {
-            auto location = New<TLocation>(config, ~ReaderCache);
+        FOREACH (auto& storageLocation, Config->StorageLocations) {
+            auto location = New<TLocation>(~storageLocation, ~ReaderCache);
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {

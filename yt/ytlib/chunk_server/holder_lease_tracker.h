@@ -35,7 +35,7 @@ public:
      *  \param invoker An invoker used for lease expiration callbacks.
      */
     THolderLeaseTracker(
-        const TConfig& config,
+        TConfig* config,
         TChunkManager* chunkManager,
         IInvoker* invoker);
 
@@ -56,7 +56,7 @@ private:
 
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
-    TConfig Config;
+    TConfig::TPtr Config;
     TIntrusivePtr<TChunkManager> ChunkManager;
     THolderInfoMap HolderInfoMap;
     IInvoker::TPtr Invoker;

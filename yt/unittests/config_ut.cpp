@@ -22,6 +22,8 @@ DECLARE_ENUM(ETestEnum,
 struct TTestSubconfig
     : public TConfigBase
 {
+    typedef TIntrusivePtr<TTestSubconfig> TPtr;
+
     int MyInt;
     bool MyBool;
     yvector<Stroka> MyStringList;
@@ -39,13 +41,15 @@ struct TTestSubconfig
 struct TTestConfig
     : public TConfigBase
 {
+    typedef TIntrusivePtr<TTestConfig> TPtr;
+    
     Stroka MyString;
-    TTestSubconfig Subconfig;
+    TTestSubconfig::TPtr Subconfig;
 
     TTestConfig()
     {
         Register("my_string", MyString).NonEmpty();
-        Register("sub", Subconfig);
+        Register("sub", Subconfig).Default(New<TTestSubconfig>());
     }
 };
 
@@ -69,18 +73,18 @@ TEST(TConfigTest, Complete)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    config.Load(~configNode->AsMap());
-    config.Validate();
+    auto config = New<TTestConfig>();
+    config->Load(~configNode->AsMap());
+    config->Validate();
 
-    EXPECT_EQ("TestString", config.MyString);
-    EXPECT_EQ(99, config.Subconfig.MyInt);
-    EXPECT_IS_TRUE(config.Subconfig.MyBool);
-    EXPECT_EQ(3, config.Subconfig.MyStringList.ysize());
-    EXPECT_EQ("ListItem0", config.Subconfig.MyStringList[0]);
-    EXPECT_EQ("ListItem1", config.Subconfig.MyStringList[1]);
-    EXPECT_EQ("ListItem2", config.Subconfig.MyStringList[2]);
-    EXPECT_EQ(ETestEnum::Value2, config.Subconfig.MyEnum);
+    EXPECT_EQ("TestString", config->MyString);
+    EXPECT_EQ(99, config->Subconfig->MyInt);
+    EXPECT_IS_TRUE(config->Subconfig->MyBool);
+    EXPECT_EQ(3, config->Subconfig->MyStringList.ysize());
+    EXPECT_EQ("ListItem0", config->Subconfig->MyStringList[0]);
+    EXPECT_EQ("ListItem1", config->Subconfig->MyStringList[1]);
+    EXPECT_EQ("ListItem2", config->Subconfig->MyStringList[2]);
+    EXPECT_EQ(ETestEnum::Value2, config->Subconfig->MyEnum);
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -96,15 +100,15 @@ TEST(TConfigTest, MissingParameter)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    config.Load(~configNode->AsMap());
-    config.Validate();
+    auto config = New<TTestConfig>();
+    config->Load(~configNode->AsMap());
+    config->Validate();
 
-    EXPECT_EQ("TestString", config.MyString);
-    EXPECT_EQ(100, config.Subconfig.MyInt);
-    EXPECT_IS_TRUE(config.Subconfig.MyBool);
-    EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
-    EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
+    EXPECT_EQ("TestString", config->MyString);
+    EXPECT_EQ(100, config->Subconfig->MyInt);
+    EXPECT_IS_TRUE(config->Subconfig->MyBool);
+    EXPECT_EQ(0, config->Subconfig->MyStringList.ysize());
+    EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
 }
 
 TEST(TConfigTest, MissingSubconfig)
@@ -117,15 +121,15 @@ TEST(TConfigTest, MissingSubconfig)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    config.Load(~configNode->AsMap());
-    config.Validate();
+    auto config = New<TTestConfig>();
+    config->Load(~configNode->AsMap());
+    config->Validate();
 
-    EXPECT_EQ("TestString", config.MyString);
-    EXPECT_EQ(100, config.Subconfig.MyInt);
-    EXPECT_IS_FALSE(config.Subconfig.MyBool);
-    EXPECT_EQ(0, config.Subconfig.MyStringList.ysize());
-    EXPECT_EQ(ETestEnum::Value1, config.Subconfig.MyEnum);
+    EXPECT_EQ("TestString", config->MyString);
+    EXPECT_EQ(100, config->Subconfig->MyInt);
+    EXPECT_IS_FALSE(config->Subconfig->MyBool);
+    EXPECT_EQ(0, config->Subconfig->MyStringList.ysize());
+    EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
 }
 
 TEST(TConfigTest, MissingRequiredParameter)
@@ -141,8 +145,8 @@ TEST(TConfigTest, MissingRequiredParameter)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+    auto config = New<TTestConfig>();
+    EXPECT_THROW(config->Load(~configNode->AsMap()), yexception);
 }
 
 TEST(TConfigTest, IncorrectNodeType)
@@ -155,8 +159,8 @@ TEST(TConfigTest, IncorrectNodeType)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+    auto config = New<TTestConfig>();
+    EXPECT_THROW(config->Load(~configNode->AsMap()), yexception);
 }
 
 TEST(TConfigTest, ArithmeticOverflow)
@@ -179,8 +183,8 @@ TEST(TConfigTest, ArithmeticOverflow)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    EXPECT_THROW(config.Load(~configNode->AsMap()), yexception);
+    auto config = New<TTestConfig>();
+    EXPECT_THROW(config->Load(~configNode->AsMap()), yexception);
 }
 
 TEST(TConfigTest, Validate)
@@ -197,9 +201,9 @@ TEST(TConfigTest, Validate)
         .EndMap();
     auto configNode = builder->EndTree();
 
-    TTestConfig config;
-    config.Load(~configNode->AsMap());
-    EXPECT_THROW(config.Validate(), yexception);
+    auto config = New<TTestConfig>();
+    config->Load(~configNode->AsMap());
+    EXPECT_THROW(config->Validate(), yexception);
 }
 
 } // namespace NYT

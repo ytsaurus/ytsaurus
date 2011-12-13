@@ -32,7 +32,7 @@ public:
 
     //! Constructs a new instance.
     TChunkCache(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TReaderCache* readerCache);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
