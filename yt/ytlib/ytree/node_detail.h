@@ -61,9 +61,17 @@ protected:
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
     virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetNode);
+    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context);
+    virtual void GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context);
+
     DECLARE_RPC_SERVICE_METHOD(NProto, Set);
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
     virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, SetNode);
+    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);

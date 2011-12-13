@@ -229,6 +229,15 @@ void TMapNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* 
     context->Reply();
 }
 
+void TMapNodeProxy::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(response);
+
+    auto value = reinterpret_cast<INode*>(request->value());
+    TMapNodeMixin::SetRecursive(path, value);
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeProxy::TListNodeProxy(
@@ -394,6 +403,15 @@ void TListNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet*
     UNUSED(response);
 
     TListNodeMixin::SetRecursive(path, request);
+    context->Reply();
+}
+
+void TListNodeProxy::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(response);
+
+    auto value = reinterpret_cast<INode*>(request->value());
+    TListNodeMixin::SetRecursive(path, value);
     context->Reply();
 }
 

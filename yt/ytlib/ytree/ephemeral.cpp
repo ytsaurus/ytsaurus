@@ -120,6 +120,7 @@ private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
 
 };
 
@@ -148,6 +149,7 @@ private:
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
 
 };
 
@@ -313,6 +315,15 @@ void TMapNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* respo
     context->Reply();
 }
 
+void TMapNode::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(response);
+
+    auto value = reinterpret_cast<INode*>(request->value());
+    TMapNodeMixin::SetRecursive(path, value);
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TListNode::Clear()
@@ -411,6 +422,15 @@ void TListNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* resp
     UNUSED(response);
 
     TListNodeMixin::SetRecursive(path, request);
+    context->Reply();
+}
+
+void TListNode::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+{
+    UNUSED(response);
+
+    auto value = reinterpret_cast<INode*>(request->value());
+    TListNodeMixin::SetRecursive(path, value);
     context->Reply();
 }
 
