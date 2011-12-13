@@ -14,5 +14,5 @@ NRpc::IChannel::TPtr CreateCellChannel(const NElection::TLeaderLookup::TConfig& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NElection
 } // namespace NYT

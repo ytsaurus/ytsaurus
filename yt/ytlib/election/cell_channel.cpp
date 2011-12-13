@@ -221,5 +221,5 @@ IChannel::TPtr CreateCellChannel(const TLeaderLookup::TConfig& config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NElection
 } // namespace NYT
