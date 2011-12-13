@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "node.h"
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NCypress {
 
