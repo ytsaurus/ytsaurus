@@ -26,12 +26,18 @@ Stroka TBranchedNodeId::ToString() const
         ~TransactionId.ToString());
 }
 
-TBranchedNodeId TBranchedNodeId::FromString(const Stroka &s)
+TBranchedNodeId TBranchedNodeId::FromString(const Stroka& s)
 {
-    yvector<Stroka> tokens;
-    SplitStroku(&tokens, s, ":");
+    auto tokens = splitStroku(s, ":");
+    YASSERT(1 <= tokens.size() && tokens.size() <= 2);
     auto nodeId = TNodeId::FromString(tokens[0]);
-    auto transactionId = TTransactionId::FromString(tokens[1]);
+
+    TTransactionId transactionId;
+    if (tokens.size() == 2) {
+        transactionId = TTransactionId::FromString(tokens[1]);
+    } else {
+        transactionId = NullTransactionId;
+    }
     return TBranchedNodeId(nodeId, transactionId);
 }
 
