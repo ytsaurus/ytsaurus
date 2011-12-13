@@ -10,7 +10,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannel::TPtr CreateCellChannel(const NElection::TLeaderLookup::TConfig& config);
+NRpc::IChannel::TPtr CreateCellChannel(NElection::TLeaderLookup::TConfig* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,10 +24,12 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         i64 BlockSize;
         TDuration MasterRpcTimeout;
         ECodecId CodecId;
-        NChunkClient::TRemoteWriter::TConfig RemoteWriter;
+        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
 
         TConfig()
         {
@@ -39,7 +41,7 @@ public:
     };
 
     TFileWriter(
-        const TConfig& config,
+        TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         const NYTree::TYPath& path,
@@ -53,7 +55,7 @@ public:
     void Close();
 
 private:
-    TConfig Config;
+    TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NYTree::TYPath Path;

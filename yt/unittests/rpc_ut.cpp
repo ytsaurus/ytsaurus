@@ -159,9 +159,9 @@ class TRpcTest
 public:
     virtual void SetUp()
     {
-        NBus::TNLBusServerConfig busConfig;
-        busConfig.Port = 2000;
-        auto busServer = NBus::CreateNLBusServer(busConfig);
+        auto busConfig = New<NBus::TNLBusServerConfig>();
+        busConfig->Port = 2000;
+        auto busServer = NBus::CreateNLBusServer(~busConfig);
 
         RpcServer = CreateRpcServer(~busServer);
 

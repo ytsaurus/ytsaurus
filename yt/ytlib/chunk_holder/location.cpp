@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocation::TLocation(const TLocationConfig& config, TReaderCache* readerCache)
+TLocation::TLocation(TLocationConfig* config, TReaderCache* readerCache)
     : Config(config)
     , ReaderCache(readerCache)
     , AvailableSpace(0)
@@ -77,7 +77,7 @@ i64 TLocation::GetUsedSpace() const
 
 i64 TLocation::GetQuota() const
 {
-    return Config.Quota == 0 ? Max<i64>() : Config.Quota;
+    return Config->Quota == 0 ? Max<i64>() : Config->Quota;
 }
 
 double TLocation::GetLoadFactor() const
@@ -93,7 +93,7 @@ double TLocation::GetLoadFactor() const
 
 Stroka TLocation::GetPath() const
 {
-    return Config.Path;
+    return Config->Path;
 }
 
 void TLocation::IncrementSessionCount()

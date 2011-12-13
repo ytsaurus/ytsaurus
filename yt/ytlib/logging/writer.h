@@ -29,6 +29,8 @@ struct ILogWriter
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         Stroka Type;
         Stroka Pattern;
         Stroka FileName;

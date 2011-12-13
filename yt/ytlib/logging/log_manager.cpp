@@ -35,6 +35,8 @@ struct TRule
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+        
         yvector<Stroka> Categories;
         ELogLevel MinLevel;
         ELogLevel MaxLevel;
@@ -64,16 +66,16 @@ struct TRule
         , MaxLevel(ELogLevel::Maximum)
     { }
 
-    TRule(const TConfig& config)
-        : MinLevel(config.MinLevel)
-        , MaxLevel(config.MaxLevel)
-        , Writers(config.Writers)
+    TRule(TConfig* config)
+        : MinLevel(config->MinLevel)
+        , MaxLevel(config->MaxLevel)
+        , Writers(config->Writers)
     {
-        if (config.Categories.size() == 1 && config.Categories[0] == AllCategoriesName) {
+        if (config->Categories.size() == 1 && config->Categories[0] == AllCategoriesName) {
             AllCategories = true;
         } else {
             AllCategories = false;
-            Categories = yhash_set<Stroka>(config.Categories.begin(), config.Categories.end());
+            Categories = yhash_set<Stroka>(config->Categories.begin(), config->Categories.end());
         }
     }
 
@@ -94,8 +96,7 @@ struct TRule
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager::TConfig
-    : public virtual TRefCountedBase
-    , public TConfigBase
+    : public TConfigBase
 {
 public:
     typedef TIntrusivePtr<TConfig> TPtr;
@@ -119,8 +120,8 @@ public:
     void ConfigureWriters();
     void ConfigureRules();
 
-    yhash_map<Stroka, ILogWriter::TConfig> WritersConfigs;
-    yvector<TRule::TConfig> RulesConfigs;
+    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WritersConfigs;
+    yvector<TRule::TConfig::TPtr> RulesConfigs;
 };
 
 void TLogManager::TConfig::Init()
@@ -139,20 +140,20 @@ void TLogManager::TConfig::ConfigureWriters()
                 Sprintf("Writer %s is already defined", ~name);
         }
 
-        const auto& pattern = config.Pattern;
+        const auto& pattern = config->Pattern;
         Stroka errorMessage;
         if (!ValidatePattern(pattern, & errorMessage)) {
             ythrow yexception() <<
                 Sprintf("Invalid pattern at writer %s\n%s", ~name, ~errorMessage);
         }
 
-        const auto& type = config.Type;
+        const auto& type = config->Type;
         if (type == "File") {
-            if (config.FileName.empty()) {
+            if (config->FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName of writer %s is not initialized", ~name);
             }
-            Writers[name] = New<TFileLogWriter>(config.FileName, pattern);
+            Writers[name] = New<TFileLogWriter>(config->FileName, pattern);
         } else if (type == "StdErr") {
             Writers[name] = New<TStdErrLogWriter>(pattern);
         } else if (type == "StdOut") {
@@ -168,7 +169,7 @@ void TLogManager::TConfig::ConfigureRules()
 {
     Rules.reserve(RulesConfigs.size());
     FOREACH(const auto& config, RulesConfigs) {
-        TRule rule(config);
+        TRule rule(~config);
         ValidateRule(rule);
         Rules.push_back(rule);
     }

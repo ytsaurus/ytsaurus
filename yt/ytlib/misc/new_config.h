@@ -7,9 +7,6 @@
 #include "../ytree/ytree.h"
 
 namespace NYT {
-
-class TConfigBase;
-
 namespace NConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,35 +19,12 @@ struct IParameter
     // node can be NULL
     virtual void Load(NYTree::INode* node, const Stroka& path) = 0;
     virtual void Validate(const Stroka& path) const = 0;
-    virtual void SetDefaults(const Stroka& path) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T, bool TIsConfig = NYT::NDetail::TIsConvertible<T, TConfigBase>::Value>
-class TParameter;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-class TParameter<T, true>
-    : public IParameter
-{
-public:
-    explicit TParameter(T* parameter);
-
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
-    virtual void Validate(const Stroka& path) const;
-    virtual void SetDefaults(const NYTree::TYPath& path);
-
-private:
-    T* Parameter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TParameter<T, false>
+class TParameter
     : public IParameter
 {
 public:
@@ -59,11 +33,10 @@ public:
      */
     typedef IParamAction<const T&> TValidator;
 
-    explicit TParameter(T* parameter);
+    explicit TParameter(T& parameter);
 
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
-    virtual void SetDefaults(const NYTree::TYPath& path);
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());
@@ -77,10 +50,33 @@ public: // for users
     TParameter& NonEmpty();
     
 private:
-    T* Parameter;
+    T& Parameter;
     bool HasDefaultValue;
-    T DefaultValue;
     yvector<typename TValidator::TPtr> Validators;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConfigBase
+    : public TRefCountedBase
+{
+public:
+    typedef TIntrusivePtr<TConfigBase> TPtr;
+
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
+    virtual void Validate(const NYTree::TYPath& path = "") const;
+
+protected:
+    template <class T>
+    TParameter<T>& Register(const Stroka& parameterName, T& value);
+
+private:
+    template <class T>
+    friend class TParameter;
+
+    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
+    
+    TParameterMap Parameters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,28 +85,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigBase
-{
-public:
-    virtual ~TConfigBase();
-    
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
-    virtual void Validate(const NYTree::TYPath& path = "") const;
-
-protected:
-    template <class T>
-    NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
-
-private:
-    template <class T, bool TIsConfig>
-    friend class NConfig::TParameter;
-
-    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
-
-    void SetDefaults(const NYTree::TYPath& path);
-    
-    TParameterMap Parameters;
-};
+typedef NConfig::TConfigBase TConfigBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 

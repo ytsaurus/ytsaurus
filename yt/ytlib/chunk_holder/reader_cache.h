@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TReaderCache> TPtr;
 
     //! Constructs a new instance.
-    TReaderCache(const TChunkHolderConfig& config);
+    TReaderCache(TChunkHolderConfig* config);
 
     typedef TValueOrError<NChunkClient::TChunkFileReader::TPtr> TGetReaderResult;
     typedef TChunkHolderServiceProxy::EErrorCode EErrorCode;

@@ -22,6 +22,8 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! Holder RPC requests timeout.
         TDuration HolderRpcTimeout;
 
@@ -32,7 +34,7 @@ public:
     };
 
     TRemoteReader(
-        const TConfig& config,
+        TConfig* config,
         const TChunkId& chunkId,
         const yvector<Stroka>& holderAddresses);
 
@@ -61,7 +63,7 @@ private:
 
     bool ChangeCurrentHolder();
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     const TChunkId ChunkId;
 
     const yvector<Stroka> HolderAddresses;

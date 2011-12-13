@@ -9,24 +9,24 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 TSequentialReader::TSequentialReader(
-    const TConfig& config, 
+    TConfig* config, 
     const yvector<int>& blockIndexes, 
     IAsyncReader* chunkReader)
     : BlockIndexSequence(blockIndexes)
     , FirstUnfetchedIndex(0)
     , Config(config)
     , ChunkReader(chunkReader)
-    , Window(config.PrefetchWindowSize)
-    , FreeSlots(config.PrefetchWindowSize)
+    , Window(config->PrefetchWindowSize)
+    , FreeSlots(config->PrefetchWindowSize)
     , NextSequenceIndex(0)
 {
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
     YASSERT(~ChunkReader != NULL);
     YASSERT(blockIndexes.ysize() > 0);
-    YASSERT(Config.GroupSize <= Config.PrefetchWindowSize);
+    YASSERT(Config->GroupSize <= Config->PrefetchWindowSize);
 
-    int fetchCount = FreeSlots / Config.GroupSize;
+    int fetchCount = FreeSlots / Config->GroupSize;
     for (int i = 0; i < fetchCount; ++i) {
         ReaderThread->GetInvoker()->Invoke(FromMethod(
             &TSequentialReader::FetchNextGroup,
@@ -113,7 +113,7 @@ void TSequentialReader::DoShiftWindow()
     Window.Shift();
     ++FreeSlots;
     
-    if (FreeSlots >= Config.GroupSize || 
+    if (FreeSlots >= Config->GroupSize || 
         // Fetch the last group as soon as we can.
         BlockIndexSequence.ysize() - FirstUnfetchedIndex <= FreeSlots) 
     {
@@ -127,8 +127,8 @@ void TSequentialReader::FetchNextGroup()
 
     auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
     auto groupEnd = BlockIndexSequence.end();
-    if (BlockIndexSequence.ysize() - FirstUnfetchedIndex > Config.GroupSize) {
-        groupEnd = groupBegin + Config.GroupSize;
+    if (BlockIndexSequence.ysize() - FirstUnfetchedIndex > Config->GroupSize) {
+        groupEnd = groupBegin + Config->GroupSize;
     }
 
     if (groupBegin == groupEnd) {

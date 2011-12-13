@@ -27,6 +27,8 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         //! Prefetch window size (in blocks).
         int PrefetchWindowSize;
 
@@ -51,7 +53,7 @@ public:
 
     //! Configures an instance.
     TSequentialReader(
-        const TConfig& config,
+        TConfig* config,
         const yvector<int>& blockIndexes,
         IAsyncReader* chunkReader);
 
@@ -92,7 +94,7 @@ private:
     const yvector<int> BlockIndexSequence;
     int FirstUnfetchedIndex;
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     IAsyncReader::TPtr ChunkReader;
 
     TCyclicBuffer<TWindowSlot> Window;

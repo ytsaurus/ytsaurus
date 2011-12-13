@@ -31,10 +31,10 @@ public:
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TLocation* location,
         TMasterConnector* masterConnector)
-        : TBase(config.CacheLocation.Quota == 0 ? Max<i64>() : config.CacheLocation.Quota)
+        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
         , Config(config)
         , Location(location)
         , MasterConnector(masterConnector)
@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    TChunkHolderConfig Config;
+    TChunkHolderConfig::TPtr Config;
     TLocation::TPtr Location;
     TMasterConnector::TPtr MasterConnector;
 
@@ -112,7 +112,7 @@ private:
         {
             LOG_INFO("Requesting chunk location (ChunkId: %s)", ~ChunkId.ToString());
             TChunkServiceProxy proxy(~Owner->MasterConnector->GetChannel());
-            proxy.SetTimeout(Owner->Config.MasterRpcTimeout);
+            proxy.SetTimeout(Owner->Config->MasterRpcTimeout);
             auto request = proxy.FindChunk();
             request->set_chunkid(ChunkId.ToProto());
             request->Invoke()->Subscribe(
@@ -161,7 +161,7 @@ private:
 
             // ToDo: use TRetriableReader.
             RemoteReader = New<TRemoteReader>(
-                Owner->Config.CacheRemoteReader,
+                ~Owner->Config->CacheRemoteReader,
                 ChunkId,
                 holderAddresses);
 
@@ -191,7 +191,7 @@ private:
             }
 
             SequentialReader = New<TSequentialReader>(
-                Owner->Config.CacheSequentialReader,
+                ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
                 ~RemoteReader);
 
@@ -291,13 +291,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkCache::TChunkCache(
-    const TChunkHolderConfig& config,
+    TChunkHolderConfig* config,
     TReaderCache* readerCache,
     TMasterConnector* masterConnector)
 {
     LOG_INFO("Chunk cache scan started");
 
-    auto location = New<TLocation>(config.CacheLocation, readerCache);
+    auto location = New<TLocation>(~config->CacheLocation, readerCache);
     Impl = New<TImpl>(config, ~location, masterConnector);
 
     try {

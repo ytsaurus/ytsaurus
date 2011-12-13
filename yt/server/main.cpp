@@ -96,46 +96,46 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isChunkHolder) {
-        TChunkHolderServer::TConfig config;
+        auto config = New<TChunkHolderServer::TConfig>();
         try {
-            config.Load(~configNode);
-            config.Validate();
+            config->Load(~configNode);
+            config->Validate();
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
                 ~CurrentExceptionMessage());
         }
 
         // TODO: killme
-        NChunkHolder::TLocationConfig c;
-        c.Path = NFS::CombinePaths(NFS::GetDirectoryName(config.CacheLocation.Path), "chunk_storage.0");
-        config.StorageLocations.push_back(c);
+        auto c = New<NChunkHolder::TLocationConfig>();
+        c->Path = NFS::CombinePaths(NFS::GetDirectoryName(config->CacheLocation->Path), "chunk_storage.0");
+        config->StorageLocations.push_back(c);
 
         // Override RPC port.
         if (port >= 0) {
-            config.RpcPort = port;
+            config->RpcPort = port;
         }
 
-        TChunkHolderServer chunkHolderServer(configFileName, config);
+        TChunkHolderServer chunkHolderServer(configFileName, ~config);
         chunkHolderServer.Run();
     }
 
     if (isCellMaster) {
-        TCellMasterServer::TConfig config;
+        auto config = New<TCellMasterServer::TConfig>();
         try {
-            config.Load(~configNode);
+            config->Load(~configNode);
             
             // Override peer id.
             if (peerId != InvalidPeerId) {
-                config.MetaState.Cell.Id = peerId;
+                config->MetaState->Cell->Id = peerId;
             }
 
-            config.Validate();
+            config->Validate();
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
                 ~CurrentExceptionMessage());
         }
 
-        TCellMasterServer cellMasterServer(configFileName, config);
+        TCellMasterServer cellMasterServer(configFileName, ~config);
         cellMasterServer.Run();
     }
 

@@ -24,6 +24,8 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+    
         TConfig()
         {
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
@@ -32,12 +34,12 @@ public:
         }
 
         TDuration MasterRpcTimeout;
-        NChunkClient::TSequentialReader::TConfig SequentialReader;
-        NChunkClient::TRemoteReader::TConfig RemoteReader;
+        NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
+        NChunkClient::TRemoteReader::TConfig::TPtr RemoteReader;
     };
 
     TFileReader(
-        const TConfig& config,
+        TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         const NYTree::TYPath& path);
@@ -58,7 +60,7 @@ public:
     void Close();
 
 private:
-    TConfig Config;
+    TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NYTree::TYPath Path;

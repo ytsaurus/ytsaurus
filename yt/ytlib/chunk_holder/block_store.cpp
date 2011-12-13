@@ -42,10 +42,10 @@ public:
     typedef TIntrusivePtr<TBlockCache> TPtr;
 
     TBlockCache(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TChunkStore* chunkStore,
         TReaderCache* readerCache)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocksSize)
+        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , ChunkStore(chunkStore)
         , ReaderCache(readerCache)
     { }
@@ -151,7 +151,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockStore::TBlockStore(
-    const TChunkHolderConfig& config,
+    TChunkHolderConfig* config,
     TChunkStore* chunkStore,
     TReaderCache* readerCache)
     : BlockCache(New<TBlockCache>(config, chunkStore, readerCache))

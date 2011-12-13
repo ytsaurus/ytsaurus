@@ -70,6 +70,8 @@ DECLARE_ENUM(ECommitResult,
 struct TCellConfig
     : TConfigBase
 {
+    typedef TIntrusivePtr<TCellConfig> TPtr;
+
     //! Master server addresses.
     yvector<Stroka> Addresses;
 

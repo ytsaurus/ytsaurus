@@ -20,7 +20,10 @@ class TChangeLogDownloader
 {
 public:
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration LookupTimeout;
         TDuration ReadTimeout;
         i32 RecordsPerRequest;
@@ -40,7 +43,7 @@ public:
     );
 
     TChangeLogDownloader(
-        const TConfig& config,
+        TConfig* config,
         TCellManager::TPtr cellManager);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
@@ -49,7 +52,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
 
     TPeerId GetChangeLogSource(TMetaVersion version);

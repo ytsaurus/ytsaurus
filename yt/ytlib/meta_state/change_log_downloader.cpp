@@ -12,7 +12,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 //////////////////////////////////////////////////////////////////////////////////
 
 TChangeLogDownloader::TChangeLogDownloader(
-    const TConfig& config,
+    TConfig* config,
     TCellManager::TPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
@@ -53,7 +53,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         LOG_INFO("Requesting changelog info from peer %d", i);
 
         auto proxy = CellManager->GetMasterProxy<TProxy>(i);
-        proxy->SetTimeout(Config.LookupTimeout);
+        proxy->SetTimeout(Config->LookupTimeout);
 
         auto request = proxy->GetChangeLogInfo();
         request->set_changelogid(version.SegmentId);
@@ -85,14 +85,14 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         sourceId);
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetTimeout(Config.ReadTimeout);
+    proxy->SetTimeout(Config->ReadTimeout);
 
     while (downloadedRecordCount < version.RecordCount) {
         auto request = proxy->ReadChangeLog();
         request->set_changelogid(version.SegmentId);
         request->set_startrecordid(downloadedRecordCount);
         i32 desiredChunkSize = Min(
-            Config.RecordsPerRequest,
+            Config->RecordsPerRequest,
             version.RecordCount - downloadedRecordCount);
         request->set_recordcount(desiredChunkSize);
 

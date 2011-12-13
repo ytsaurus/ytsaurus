@@ -18,7 +18,7 @@ class TLocation
 public:
     typedef TIntrusivePtr<TLocation> TPtr;
 
-    TLocation(const TLocationConfig& config, TReaderCache* readerCache);
+    TLocation(TLocationConfig* config, TReaderCache* readerCache);
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     yvector<TChunkDescriptor> Scan();
@@ -71,7 +71,7 @@ public:
     Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
 
 private:
-    TLocationConfig Config;
+    TLocationConfig::TPtr Config;
     TIntrusivePtr<TReaderCache> ReaderCache;
     i64 AvailableSpace;
     i64 UsedSpace;

@@ -43,7 +43,7 @@ public:
      *
      *  \param address An address where all buses will point to.
      */
-    TNLBusClient(const TNLBusClientConfig& config);
+    TNLBusClient(TNLBusClientConfig* config);
     virtual ~TNLBusClient()
     { }
 
@@ -53,11 +53,11 @@ private:
     class TBus;
     friend class TClientDispatcher;
 
-    TNLBusClientConfig Config;
+    TNLBusClientConfig::TPtr Config;
     TUdpAddress ServerAddress;
 };
 
-IBusClient::TPtr CreateNLBusClient(const TNLBusClientConfig& config)
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config)
 {
     return New<TNLBusClient>(config);
 }
@@ -569,15 +569,15 @@ Stroka GetClientDispatcherDebugInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNLBusClient::TNLBusClient(const TNLBusClientConfig& config)
+TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
     : Config(config)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ServerAddress = CreateAddress(config.Address, 0);
+    ServerAddress = CreateAddress(config->Address, 0);
     if (ServerAddress == TUdpAddress()) {
         ythrow yexception() << Sprintf("Failed to resolve the address %s",
-            ~config.Address.Quote());
+            ~config->Address.Quote());
     }
 }
 

@@ -37,7 +37,7 @@ public:
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
-        const TConfig& config,
+        TConfig* config,
         TChunkManager* chunkManager,
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
@@ -281,7 +281,7 @@ public:
 private:
     typedef TImpl TThis;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TChunkManager::TPtr ChunkManager;
     TTransactionManager::TPtr TransactionManager;
     IHolderRegistry::TPtr HolderRegistry;
@@ -574,7 +574,7 @@ private:
             ~MetaStateManager->GetEpochStateInvoker());
 
         HolderLeaseTracking = New<THolderLeaseTracker>(
-            Config,
+            ~Config,
             ~ChunkManager,
             ~MetaStateManager->GetEpochStateInvoker());
 
@@ -917,7 +917,7 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
-    const TConfig& config,
+    TConfig* config,
     NMetaState::IMetaStateManager* metaStateManager,
     NMetaState::TCompositeMetaState* metaState,
     TTransactionManager* transactionManager,

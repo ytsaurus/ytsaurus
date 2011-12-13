@@ -13,6 +13,8 @@ namespace NBus {
 struct TNLBusClientConfig
     : TConfigBase
 {
+    typedef TIntrusivePtr<TNLBusClientConfig> TPtr;
+
     Stroka Address;
     // TODO: move here MaxNLCallsPerIteration, ClientSleepQuantum, MessageRearrangeTimeout;
 
@@ -23,7 +25,7 @@ struct TNLBusClientConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBusClient::TPtr CreateNLBusClient(const TNLBusClientConfig& config);
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

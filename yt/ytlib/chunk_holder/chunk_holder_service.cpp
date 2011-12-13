@@ -23,7 +23,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolderService::TChunkHolderService(
-    const TConfig& config,
+    TConfig* config,
     IInvoker* serviceInvoker,
     NRpc::IRpcServer* server,
     TChunkStore* chunkStore,
@@ -185,7 +185,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
     auto startBlock = session->GetBlock(startBlockIndex);
 
     TProxy proxy(~ChannelCache.GetChannel(address));
-    proxy.SetTimeout(Config.MasterRpcTimeout);
+    proxy.SetTimeout(Config->MasterRpcTimeout);
     auto putRequest = proxy.PutBlocks();
     putRequest->set_chunkid(chunkId.ToProto());
     putRequest->set_startblockindex(startBlockIndex);

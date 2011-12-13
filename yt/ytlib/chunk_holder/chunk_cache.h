@@ -33,7 +33,7 @@ public:
 
     //! Constructs a new instance.
     TChunkCache(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TReaderCache* readerCache,
         TMasterConnector* masterConnector);
 

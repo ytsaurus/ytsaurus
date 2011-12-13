@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    const TConfig& config,
+    TConfig* config,
     IMetaStateManager::TPtr metaStateManager,
     TCompositeMetaState::TPtr metaState)
     : TMetaStatePart(metaStateManager, metaState)
@@ -216,7 +216,7 @@ void TTransactionManager::OnStopLeading()
 void TTransactionManager::CreateLease(const TTransaction& transaction)
 {
     auto lease = TLeaseManager::CreateLease(
-        Config.TransactionTimeout,
+        Config->TransactionTimeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
         ->Via(MetaStateManager->GetEpochStateInvoker()));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).Second());

@@ -19,7 +19,7 @@ static NLog::TLogger Logger("Election");
 ////////////////////////////////////////////////////////////////////////////////
 
 TElectionManager::TElectionManager(
-    const TConfig& config,
+    TConfig* config,
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks,
@@ -117,7 +117,7 @@ private:
         LOG_DEBUG("Sending ping to follower %d", id);
 
         auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
-        proxy->SetTimeout(ElectionManager->Config.RpcTimeout);
+        proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
         auto request = proxy->PingFollower();
         request->set_leaderid(ElectionManager->CellManager->GetSelfId());
         request->set_epoch(ElectionManager->Epoch.ToProto());
@@ -134,7 +134,7 @@ private:
         TDelayedInvoker::Submit(
             ~FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
             ->Via(EpochInvoker),
-            ElectionManager->Config.FollowerPingInterval);
+            ElectionManager->Config->FollowerPingInterval);
     }
 
     void OnResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
@@ -163,7 +163,7 @@ private:
                             ~error.ToString());
                     }
                 } else {
-                    if (TInstant::Now() > ElectionManager->EpochStart + ElectionManager->Config.PotentialFollowerTimeout) {
+                    if (TInstant::Now() > ElectionManager->EpochStart + ElectionManager->Config->PotentialFollowerTimeout) {
                         LOG_WARNING("Error pinging follower %d, no success within timeout, considered down (Error: %s)",
                             id,
                             ~error.ToString());
@@ -253,7 +253,7 @@ public:
             if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-            proxy->SetTimeout(ElectionManager->Config.RpcTimeout);
+            proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(),
@@ -516,7 +516,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     PingTimeoutCookie = TDelayedInvoker::Submit(
         ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
-        Config.FollowerPingTimeout);
+        Config->FollowerPingTimeout);
 
     context->Reply();
 }
@@ -662,7 +662,7 @@ void TElectionManager::StartFollowing(
     PingTimeoutCookie = TDelayedInvoker::Submit(
         ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
-        Config.ReadyToFollowTimeout);
+        Config->ReadyToFollowTimeout);
 
     LOG_INFO("Starting following (LeaderId: %d, Epoch: %s)",
         LeaderId,

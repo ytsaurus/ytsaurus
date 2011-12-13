@@ -11,6 +11,8 @@
 #include "../transaction_server/transaction.h"
 #include "../transaction_server/transaction_manager.h"
 
+#include "../misc/new_config.h"
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -29,7 +31,10 @@ extern TChunkListId NullChunkListId;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkManagerConfig
+    : public TConfigBase
 {
+    typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
+
     TChunkManagerConfig()
         : HolderLeaseTimeout(TDuration::Seconds(10))
     { }

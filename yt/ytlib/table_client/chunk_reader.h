@@ -30,7 +30,7 @@ public:
      *  chunk to the end, set it to numerical_limits<int>::max().
      */
     TChunkReader(
-        const NChunkClient::TSequentialReader::TConfig& config,
+        NChunkClient::TSequentialReader::TConfig* config,
         const TChannel& channel,
         NChunkClient::IAsyncReader* chunkReader,
         int startRow,
@@ -71,7 +71,7 @@ public:
 private:
     void OnGotMeta(
         NChunkClient::IAsyncReader::TReadResult readResult,
-        const NChunkClient::TSequentialReader::TConfig& config,
+        NChunkClient::TSequentialReader::TConfig* config,
         NChunkClient::IAsyncReader::TPtr chunkReader);
 
     yvector<int> SelectChannels(const yvector<TChannel>& channels);
