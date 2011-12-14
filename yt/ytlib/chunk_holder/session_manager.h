@@ -24,8 +24,7 @@ public:
     TSession(
         TSessionManager* sessionManager,
         const NChunkClient::TChunkId& chunkId,
-        TLocation* location,
-        int windowSize);
+        TLocation* location);
 
     ~TSession();
 
@@ -111,7 +110,7 @@ private:
     bool IsInWindow(i32 blockIndex);
     void VerifyInWindow(i32 blockIndex);
     TSlot& GetSlot(i32 blockIndex);
-    void RotateWindow(i32 flushedBlockIndex);
+    void ReleaseBlocks(i32 flushedBlockIndex);
 
     IInvoker::TPtr GetInvoker();
 
@@ -150,8 +149,7 @@ public:
 
     //! Starts a new chunk upload session.
     TSession::TPtr StartSession(
-        const NChunkClient::TChunkId& chunkId,
-        int windowSize);
+        const NChunkClient::TChunkId& chunkId);
 
     //! Completes an earlier opened upload session.
     /*!

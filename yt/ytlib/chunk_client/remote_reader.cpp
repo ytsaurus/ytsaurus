@@ -57,10 +57,10 @@ void TRemoteReader::DoReadBlocks(
     proxy.SetTimeout(Config.HolderRpcTimeout);
 
     auto req = proxy.GetBlocks();
-    req->set_chunkid(ChunkId.ToProto());
+    req->set_chunk_id(ChunkId.ToProto());
 
     FOREACH(auto index, blockIndexes) {
-        req->add_blockindexes(index);
+        req->add_block_indexes(index);
     }
 
     req->Invoke()->Subscribe(
@@ -104,7 +104,7 @@ void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
     proxy.SetTimeout(Config.HolderRpcTimeout);
     
     auto request = proxy.GetChunkInfo();
-    request->set_chunkid(ChunkId.ToProto());
+    request->set_chunk_id(ChunkId.ToProto());
 
     return request->Invoke()->Subscribe(
         FromMethod(
@@ -121,7 +121,7 @@ void TRemoteReader::OnGotChunkInfo(
     VERIFY_THREAD_AFFINITY(Response);
 
     if (response->IsOK()) {
-        asyncResult->Set(response->chunkinfo());
+        asyncResult->Set(response->chunk_info());
     } else if (ChangeCurrentHolder()) {
         DoGetChunkInfo(asyncResult);
     } else {

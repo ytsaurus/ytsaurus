@@ -104,17 +104,15 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
-    int windowSize = request->windowsize();
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s, WindowSize: %d",
-        ~chunkId.ToString(),
-        windowSize);
+    context->SetRequestInfo("ChunkId: %s",
+        ~chunkId.ToString());
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
-    SessionManager->StartSession(chunkId, windowSize);
+    SessionManager->StartSession(chunkId);
 
     context->Reply();
 }
@@ -123,7 +121,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto& attributes = request->attributes();
     
     context->SetRequestInfo("ChunkId: %s",
@@ -143,8 +141,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
-    i32 startBlockIndex = request->startblockindex();
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    i32 startBlockIndex = request->start_block_index();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
         ~chunkId.ToString(),
@@ -169,9 +167,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
-    i32 startBlockIndex = request->startblockindex();
-    i32 blockCount = request->blockcount();
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    i32 startBlockIndex = request->start_block_index();
+    i32 blockCount = request->block_count();
     Stroka address = request->address();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, Address: %s",
@@ -187,8 +185,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
     TProxy proxy(~ChannelCache.GetChannel(address));
     proxy.SetTimeout(Config.MasterRpcTimeout);
     auto putRequest = proxy.PutBlocks();
-    putRequest->set_chunkid(chunkId.ToProto());
-    putRequest->set_startblockindex(startBlockIndex);
+    putRequest->set_chunk_id(chunkId.ToProto());
+    putRequest->set_start_block_index(startBlockIndex);
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
         auto block = session->GetBlock(blockIndex);
@@ -214,8 +212,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
-    int blockCount = static_cast<int>(request->blockindexes_size());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    int blockCount = static_cast<int>(request->block_indexes_size());
     
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
         ~chunkId.ToString(),
@@ -226,7 +224,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     auto awaiter = New<TParallelAwaiter>();
 
     for (int index = 0; index < blockCount; ++index) {
-        i32 blockIndex = request->blockindexes(index);
+        i32 blockIndex = request->block_indexes(index);
 
         LOG_DEBUG("GetBlocks: (Index: %d)", blockIndex);
 
@@ -259,8 +257,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
-    int blockIndex = request->blockindex();
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    int blockIndex = request->block_index();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
         ~chunkId.ToString(),
@@ -278,7 +276,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto session = GetSession(chunkId);
     session->RenewLease();
 
@@ -287,7 +285,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 {
-    auto chunkId = TChunkId::FromProto(request->chunkid());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
@@ -295,7 +293,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
     chunk->GetInfo()->Subscribe(FromFunctor([=] (TChunk::TGetInfoResult result)
         {
             if (result.IsOK()) {
-                *response->mutable_chunkinfo() = result.Value();
+                *response->mutable_chunk_info() = result.Value();
                 context->Reply();
             } else {
                 context->Reply(result);
@@ -305,7 +303,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
 {
-    auto chunkId = TChunkId::FromProto(request->chunkid());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 

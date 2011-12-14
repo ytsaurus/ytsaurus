@@ -22,8 +22,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TSession::TSession(
     TSessionManager* sessionManager,
     const TChunkId& chunkId,
-    TLocation* location,
-    int windowSize)
+    TLocation* location)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
     , Location(location)
@@ -39,10 +38,6 @@ TSession::TSession(
 
     FileName = Location->GetChunkFileName(chunkId);
     NFS::ForcePath(NFS::GetDirectoryName(FileName));
-
-    for (int index = 0; index < windowSize; ++index) {
-        Window.push_back(TSlot());
-    }
 
     OpenFile();
 }
@@ -101,10 +96,9 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
+            Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, BlockIndex: %d)",
             ~ChunkId.ToString(),
             WindowStart,
-            Window.ysize(),
             blockIndex);
     }
 
@@ -131,10 +125,9 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
         }
 
         ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
-            Sprintf("Block with the same id but different content already received (BlockId: %s, WindowStart: %d, WindowSize: %d)",
+            Sprintf("Block with the same id but different content already received (BlockId: %s, WindowStart: %d)",
             ~blockId.ToString(),
-            WindowStart,
-            Window.ysize());
+            WindowStart);
     }
 
     slot.State = ESlotState::Received;
@@ -161,13 +154,13 @@ void TSession::EnqueueWrites()
             TPtr(this),
             slot.Block,
             blockIndex)
-            ->AsyncVia(GetInvoker())
-            ->Do()
-            ->Subscribe(FromMethod(
+        ->AsyncVia(GetInvoker())
+        ->Do()
+        ->Subscribe(FromMethod(
             &TSession::OnBlockWritten,
             TPtr(this),
             blockIndex)
-            ->Via(SessionManager->ServiceInvoker));
+        ->Via(SessionManager->ServiceInvoker));
 
         ++FirstUnwritten;
     }
@@ -230,7 +223,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
 
 TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
 {
-    RotateWindow(blockIndex);
+    ReleaseBlocks(blockIndex);
     return TVoid();
 }
 
@@ -238,7 +231,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
-    for (i32 blockIndex = WindowStart; blockIndex < WindowStart + Window.ysize(); ++blockIndex) {
+    for (i32 blockIndex = WindowStart; blockIndex < Window.ysize(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
@@ -295,9 +288,9 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         FromMethod(
-        &TSession::DoCloseFile,
-        TPtr(this),
-        attributes)
+            &TSession::DoCloseFile,
+            TPtr(this),
+            attributes)
         ->AsyncVia(GetInvoker())
         ->Do();
 }
@@ -318,23 +311,25 @@ NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
     return TVoid();
 }
 
-void TSession::RotateWindow(i32 flushedBlockIndex)
+void TSession::ReleaseBlocks(i32 flushedBlockIndex)
 {
     YASSERT(WindowStart <= flushedBlockIndex);
 
     while (WindowStart <= flushedBlockIndex) {
-        GetSlot(WindowStart) = TSlot();
+        auto& slot = GetSlot(WindowStart);
+        slot.Block.Reset();
+        slot.IsWritten.Reset();
         ++WindowStart;
     }
 
-    LOG_DEBUG("Window rotated (ChunkId: %s, WindowStart: %d)",
+    LOG_DEBUG("Released blocks (ChunkId: %s, WindowStart: %d)",
         ~ChunkId.ToString(),
         WindowStart);
 }
 
 bool TSession::IsInWindow(i32 blockIndex)
 {
-    return blockIndex >= WindowStart && blockIndex < WindowStart + Window.ysize();
+    return blockIndex >= WindowStart;
 }
 
 void TSession::VerifyInWindow(i32 blockIndex)
@@ -352,7 +347,11 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
-    return Window[blockIndex % Window.ysize()];
+    while (Window.size() <= blockIndex) {
+        Window.resize(blockIndex + 1);
+    }
+
+    return Window[blockIndex];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,12 +383,11 @@ TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 }
 
 TSession::TPtr TSessionManager::StartSession(
-    const TChunkId& chunkId,
-    int windowSize)
+    const TChunkId& chunkId)
 {
     auto location = ChunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, ~location, windowSize);
+    auto session = New<TSession>(this, chunkId, ~location);
 
     auto lease = TLeaseManager::CreateLease(
         Config.SessionTimeout,
@@ -402,10 +400,9 @@ TSession::TPtr TSessionManager::StartSession(
 
     YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
 
-    LOG_INFO("Session started (ChunkId: %s, Location: %s, WindowSize: %d)",
+    LOG_INFO("Session started (ChunkId: %s, Location: %s)",
         ~chunkId.ToString(),
-        ~location->GetPath(),
-        windowSize);
+        ~location->GetPath());
 
     return session;
 }
