@@ -60,7 +60,7 @@ class TCellChannel
 public:
     typedef TIntrusivePtr<TCellChannel> TPtr;
 
-    TCellChannel(const TLeaderLookup::TConfig& config)
+    TCellChannel(TLeaderLookup::TConfig* config)
         : LeaderLookup(New<TLeaderLookup>(config))
         , State(EState::NotConnected)
     { }
@@ -214,7 +214,7 @@ private:
 
 };
 
-IChannel::TPtr CreateCellChannel(const TLeaderLookup::TConfig& config)
+IChannel::TPtr CreateCellChannel(TLeaderLookup::TConfig* config)
 {
     return New<TCellChannel>(config);
 }

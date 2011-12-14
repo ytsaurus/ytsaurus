@@ -4,13 +4,11 @@
 #include "../ytree/ypath_detail.h"
 
 namespace NYT {
+namespace NConfig {
 
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TConfigBase::~TConfigBase()
-{ }
 
 void TConfigBase::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
@@ -35,19 +33,11 @@ void TConfigBase::Load(NYTree::INode* node, const NYTree::TYPath& path)
 void TConfigBase::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
-        pair.Second()->Validate(path + "/" + pair.First());
-    }
-}
-
-void TConfigBase::SetDefaults(const NYTree::TYPath& path)
-{
-    FOREACH (auto pair, Parameters) {
-        auto name = pair.First();
-        auto childPath = CombineYPaths(path, name);
-        pair.Second()->SetDefaults(childPath);
+        pair.Second()->Validate(CombineYPaths(path, pair.First()));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
 } // namespace NYT

@@ -18,7 +18,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceWriter::TChunkSequenceWriter(
-    const TConfig& config,
+    TConfig* config,
     const TSchema& schema,
     const TTransactionId& transactionId,
     NRpc::IChannel::TPtr masterChannel)
@@ -41,10 +41,10 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     LOG_DEBUG("Allocating new chunk (TransactionId: %s; ReplicaCount: %d)",
         ~TransactionId.ToString(),
-        Config.ReplicationFactor);
+        Config->ReplicationFactor);
 
     auto req = Proxy.AllocateChunk();
-    req->set_replicacount(Config.ReplicationFactor);
+    req->set_replicacount(Config->ReplicationFactor);
     req->set_transactionid(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(FromMethod(
@@ -73,12 +73,12 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
         // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
-            Config.RemoteChunk,
+            ~Config->RemoteChunk,
             TChunkId::FromProto(rsp->chunkid()),
             addresses);
 
         NextChunk->Set(new TChunkWriter(
-            Config.TableChunk,
+            ~Config->TableChunk,
             chunkWriter,
             Schema));
 
@@ -148,7 +148,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         CreateNextChunk();
     }
 
-    if (CurrentChunk->GetCurrentSize() > Config.MaxChunkSize) {
+    if (CurrentChunk->GetCurrentSize() > Config->MaxChunkSize) {
         LOG_DEBUG("Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
             ~TransactionId.ToString(),
             CurrentChunk->GetCurrentSize());
@@ -186,8 +186,8 @@ void TChunkSequenceWriter::FinishCurrentChunk()
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return (CurrentChunk->GetCurrentSize() / double(Config.MaxChunkSize)) > 
-        (Config.NextChunkThreshold / 100.0);
+    return (CurrentChunk->GetCurrentSize() / double(Config->MaxChunkSize)) > 
+        (Config->NextChunkThreshold / 100.0);
 }
 
 void TChunkSequenceWriter::OnChunkClosed(

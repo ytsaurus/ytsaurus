@@ -382,14 +382,14 @@ void TRemoteWriter::TGroup::Process()
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteWriter::TRemoteWriter(
-    const TRemoteWriter::TConfig& config, 
+    TRemoteWriter::TConfig* config, 
     const TChunkId& chunkId,
     const yvector<Stroka>& addresses)
     : ChunkId(chunkId) 
     , Config(config)
     , IsInitComplete(false)
     , IsCloseRequested(false)
-    , WindowSlots(config.WindowSize)
+    , WindowSlots(config->WindowSize)
     , AliveNodeCount(addresses.ysize())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
@@ -416,7 +416,7 @@ void TRemoteWriter::InitializeNodes(const yvector<Stroka>& addresses)
         auto node = New<TNode>(
             address,
             ~HolderChannelCache->GetChannel(address),
-            Config.HolderRpcTimeout);
+            Config->HolderRpcTimeout);
         Nodes.push_back(node);
     }
 }
@@ -811,7 +811,7 @@ void TRemoteWriter::SchedulePing(int node)
             TPtr(this),
             node)
         ->Via(WriterThread->GetInvoker()),
-        Config.SessionPingInterval);
+        Config->SessionPingInterval);
 }
 
 void TRemoteWriter::CancelPing(int node)
@@ -858,7 +858,7 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
         CurrentGroup->AddBlock(data);
         ++BlockCount;
 
-        if (CurrentGroup->GetSize() >= Config.GroupSize) {
+        if (CurrentGroup->GetSize() >= Config->GroupSize) {
             WriterThread->GetInvoker()->Invoke(FromMethod(
                 &TRemoteWriter::AddGroup,
                 TPtr(this),

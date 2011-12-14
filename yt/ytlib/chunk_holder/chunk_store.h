@@ -27,7 +27,7 @@ public:
 
     //! Constructs a new instance.
     TChunkStore(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TReaderCache* readerCache);
 
     //! Registers a chunk.
@@ -65,7 +65,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
 
 private:
-    TChunkHolderConfig Config;
+    TChunkHolderConfig::TPtr Config;
     TReaderCache::TPtr ReaderCache;
 
     typedef yhash_map<NChunkClient::TChunkId, TStoredChunk::TPtr> TChunkMap;

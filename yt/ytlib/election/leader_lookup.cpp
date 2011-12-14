@@ -16,7 +16,7 @@ NRpc::TChannelCache TLeaderLookup::ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaderLookup::TLeaderLookup(const TConfig& config)
+TLeaderLookup::TLeaderLookup(TConfig* config)
     : Config(config)
 { }
 
@@ -27,11 +27,11 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
     auto asyncResult = New<TFuture<TResult> >();
     auto awaiter = New<TParallelAwaiter>();
 
-    FOREACH(Stroka address, Config.Addresses) {
+    FOREACH(Stroka address, Config->Addresses) {
         LOG_DEBUG("Requesting leader from master %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
-        proxy.SetTimeout(Config.RpcTimeout);
+        proxy.SetTimeout(Config->RpcTimeout);
         auto request = proxy.GetStatus();
         awaiter->Await(request->Invoke(), FromMethod(
             &TLeaderLookup::OnResponse,

@@ -7,6 +7,7 @@
 #include "../misc/property.h"
 #include "../misc/hash.h"
 #include "../misc/metric.h"
+#include "../misc/error.h"
 #include "../logging/log.h"
 
 #include <util/generic/yexception.h>

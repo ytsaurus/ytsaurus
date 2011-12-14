@@ -253,7 +253,7 @@ IChannel::TPtr CreateBusChannel(NBus::IBusClient* client)
 
 IChannel::TPtr CreateBusChannel(const Stroka& address)
 {
-    return New<TChannel>(~CreateNLBusClient(TNLBusClientConfig(address)));
+    return New<TChannel>(~CreateNLBusClient(~New<TNLBusClientConfig>(address)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

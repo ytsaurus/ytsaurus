@@ -7,7 +7,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 TRetriableReader::TRetriableReader(
-    const TConfig& config,
+    TConfig* config,
     const TChunkId& chunkId,
     const NTransactionClient::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel)
@@ -18,7 +18,7 @@ TRetriableReader::TRetriableReader(
     , AsyncReader(New< TFuture<TRemoteReader::TPtr> >())
     , FailCount(0)
 {
-    Proxy.SetTimeout(Config.MasterRpcTimeout);
+    Proxy.SetTimeout(Config->MasterRpcTimeout);
 
     TGuard<TSpinLock> guard(SpinLock);
     RequestHolders();
@@ -51,25 +51,25 @@ void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
         return;
     }
 
-    auto reader = New<TRemoteReader>(Config.RemoteReader, ChunkId, holderAddresses);
+    auto reader = New<TRemoteReader>(~Config->RemoteReader, ChunkId, holderAddresses);
     AsyncReader->Set(reader);
 }
 
 void TRetriableReader::Retry()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock);
-    YASSERT(FailCount <= Config.RetryCount);
+    YASSERT(FailCount <= Config->RetryCount);
 
     ++FailCount;
     AsyncReader = New< TFuture<TRemoteReader::TPtr> >();
-    if (FailCount == Config.RetryCount) {
+    if (FailCount == Config->RetryCount) {
         AsyncReader->Set(NULL);
         return;
     }
 
     TDelayedInvoker::Submit(
         ~FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
-        Config.BackoffTime);
+        Config->BackoffTime);
 }
 
 void TRetriableReader::AppendError(const Stroka& message)

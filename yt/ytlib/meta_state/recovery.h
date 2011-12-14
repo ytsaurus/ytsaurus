@@ -41,7 +41,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TRecovery(
-        const TPersistentStateManagerConfig& config,
+        TPersistentStateManagerConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -115,7 +115,7 @@ protected:
         i32 targetRecordCount);
 
     // Any thread.
-    TPersistentStateManagerConfig Config;
+    TPersistentStateManagerConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TDecoratedMetaState::TPtr MetaState;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -143,7 +143,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TLeaderRecovery(
-        const TPersistentStateManagerConfig& config,
+        TPersistentStateManagerConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,
@@ -176,7 +176,7 @@ public:
      * \note Thread affinity: ControlThread.
      */
     TFollowerRecovery(
-        const TPersistentStateManagerConfig& config,
+        TPersistentStateManagerConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr decoratedState,
         TChangeLogCache::TPtr changeLogCache,

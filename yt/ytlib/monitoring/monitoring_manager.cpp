@@ -80,7 +80,7 @@ void TMonitoringManager::Update()
             TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
             pair.second->Do(&writer);
 
-            SyncExecuteYPathSet(~newRootService, pair.first, output.Str());
+            SyncYPathSet(~newRootService, pair.first, output.Str());
         }
 
         if (IsStarted) {

@@ -142,7 +142,7 @@ public:
 
     //! Constructs a manager.
     TSessionManager(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TBlockStore* blockStore,
         TChunkStore* chunkStore,
         IInvoker* serviceInvoker);
@@ -177,7 +177,7 @@ public:
 private:
     friend class TSession;
 
-    TChunkHolderConfig Config; // TODO: avoid copying
+    TChunkHolderConfig::TPtr Config;
     TBlockStore::TPtr BlockStore;
     TChunkStore::TPtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;

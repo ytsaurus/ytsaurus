@@ -26,6 +26,8 @@ public:
     struct TConfig
         : TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TConfig()
         {
             Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
@@ -52,7 +54,7 @@ public:
      * \param channel A channel used for communicating with masters.
      */
     TTransactionManager(
-        const TConfig& config,
+        TConfig* config,
         NRpc::IChannel* channel);
 
     //! Starts a new transaction.
@@ -78,7 +80,7 @@ private:
 
     typedef yhash_map<TTransactionId, TTransaction*> TTransactionMap;
 
-    const TConfig Config;
+    TConfig::TPtr Config;
     NRpc::IChannel::TPtr Channel;
 
     TSpinLock SpinLock;

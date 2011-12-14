@@ -42,6 +42,8 @@ public:
     struct TConfig
         : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration RpcTimeout;
         TDuration FollowerPingInterval;
         TDuration FollowerPingTimeout;
@@ -64,7 +66,7 @@ public:
     };
 
     TElectionManager(
-        const TConfig& config,
+        TConfig* config,
         NMetaState::TCellManager* cellManager,
         IInvoker* controlInvoker,
         IElectionCallbacks* electionCallbacks,
@@ -118,7 +120,7 @@ private:
     TDelayedInvoker::TCookie PingTimeoutCookie;
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     NMetaState::TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;

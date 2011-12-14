@@ -32,7 +32,7 @@ class TNLBusServer
 public:
     typedef TIntrusivePtr<TNLBusServer> TPtr;
 
-    TNLBusServer(const TNLBusServerConfig& config);
+    TNLBusServer(TNLBusServerConfig* config);
     virtual ~TNLBusServer();
 
     virtual void Start(IMessageHandler* handler);
@@ -49,7 +49,7 @@ private:
     typedef yhash_map<TSessionId, TIntrusivePtr<TSession> > TSessionMap;
     typedef yhash_map<TGuid, TIntrusivePtr<TSession> > TPingMap;
 
-    TNLBusServerConfig Config;
+    TNLBusServerConfig::TPtr Config;
     IMessageHandler::TPtr Handler;
     bool Started;
     volatile bool Stopped;
@@ -93,7 +93,7 @@ private:
     void UnregisterSession(TSession* session);
 };
 
-IBusServer::TPtr CreateNLBusServer(const TNLBusServerConfig& config)
+IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig* config)
 {
     return New<TNLBusServer>(config);
 }
@@ -134,7 +134,7 @@ public:
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
-            server->Config.MessageRearrangeTimeout))
+            server->Config->MessageRearrangeTimeout))
     { }
 
     void Finalize()
@@ -234,13 +234,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNLBusServer::TNLBusServer(const TNLBusServerConfig& config)
+TNLBusServer::TNLBusServer(TNLBusServerConfig* config)
     : Config(config)
     , Started(false)
     , Stopped(false)
     , Thread(ThreadFunc, (void*) this)
 {
-    YASSERT(config.Port >= 0);
+    YASSERT(config->Port >= 0);
 }
 
 TNLBusServer::~TNLBusServer()
@@ -253,17 +253,17 @@ void TNLBusServer::Start(IMessageHandler* handler)
     YASSERT(handler != NULL);
     YASSERT(!Started);
 
-    Requester = CreateHttpUdpRequester(Config.Port);
+    Requester = CreateHttpUdpRequester(Config->Port);
     if (!Requester) {
         ythrow yexception() << Sprintf("Failed to create a bus server on port %d",
-            Config.Port);
+            Config->Port);
     }
 
     Handler = handler;
     Started = true;
     Thread.Start();
 
-    LOG_INFO("Started a server bus listener on port %d", Config.Port);
+    LOG_INFO("Started a server bus listener on port %d", Config->Port);
 }
 
 void TNLBusServer::Stop()
@@ -310,7 +310,7 @@ void TNLBusServer::ThreadMain()
             !ProcessOutcomingResponses())
         {
             LOG_TRACE("Server is idle");
-            GetEvent().WaitT(Config.SleepQuantum);
+            GetEvent().WaitT(Config->SleepQuantum);
         }
     }
 }
@@ -320,7 +320,7 @@ bool TNLBusServer::ProcessIncomingNLRequests()
     LOG_TRACE("Processing incoming server NetLiba requests");
 
     int callCount = 0;
-    while (callCount < Config.MaxNLCallsPerIteration) {
+    while (callCount < Config->MaxNLCallsPerIteration) {
         TAutoPtr<TUdpHttpRequest> nlRequest = Requester->GetRequest();
         if (~nlRequest == NULL)
             break;
@@ -355,7 +355,7 @@ bool TNLBusServer::ProcessIncomingNLResponses()
     LOG_TRACE("Processing incoming server NetLiba responses");
 
     int callCount = 0;
-    while (callCount < Config.MaxNLCallsPerIteration) {
+    while (callCount < Config->MaxNLCallsPerIteration) {
         TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
         if (~nlResponse == NULL)
             break;
@@ -413,7 +413,7 @@ bool TNLBusServer::ProcessOutcomingResponses()
     LOG_TRACE("Processing outcoming server responses");
 
     int callCount = 0;
-    while (callCount < Config.MaxNLCallsPerIteration) {
+    while (callCount < Config->MaxNLCallsPerIteration) {
         TSession::TPtr session;
         if (!SessionsWithPendingResponses.Dequeue(&session))
             break;
@@ -591,7 +591,7 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
     consumer->OnBeginMap();
 
     consumer->OnMapItem("port");
-    consumer->OnInt64Scalar(Config.Port);
+    consumer->OnInt64Scalar(Config->Port);
 
     auto requester = Requester;
     if (requester.Get() != NULL) {

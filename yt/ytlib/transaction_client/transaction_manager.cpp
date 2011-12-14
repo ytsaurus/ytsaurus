@@ -34,7 +34,7 @@ public:
         YASSERT(cellChannel != NULL);
         YASSERT(transactionManager != NULL);
 
-        Proxy.SetTimeout(TransactionManager->Config.MasterRpcTimeout);
+        Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
         auto req = Proxy.StartTransaction();
 
@@ -57,7 +57,7 @@ public:
                 &TTransactionManager::PingTransaction,
                 transactionManager, 
                 Id),
-            transactionManager->Config.PingPeriod);
+            transactionManager->Config->PingPeriod);
         PingInvoker->Start();
     }
 
@@ -217,7 +217,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    const TConfig& config, 
+    TConfig* config, 
     NRpc::IChannel* channel)
     : Config(config)
     , Channel(channel)
@@ -243,7 +243,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
     }
 
     TProxy proxy(~Channel);
-    proxy.SetTimeout(Config.MasterRpcTimeout);
+    proxy.SetTimeout(Config->MasterRpcTimeout);
 
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 

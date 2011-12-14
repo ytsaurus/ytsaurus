@@ -18,7 +18,7 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteReader::TRemoteReader(
-    const TConfig& config,
+    TConfig* config,
     const TChunkId& chunkId,
     const yvector<Stroka>& holderAddresses)
     : Config(config)
@@ -54,7 +54,7 @@ void TRemoteReader::DoReadBlocks(
     VERIFY_THREAD_AFFINITY_ANY();
 
     TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
-    proxy.SetTimeout(Config.HolderRpcTimeout);
+    proxy.SetTimeout(Config->HolderRpcTimeout);
 
     auto req = proxy.GetBlocks();
     req->set_chunk_id(ChunkId.ToProto());
@@ -101,7 +101,7 @@ void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
     VERIFY_THREAD_AFFINITY_ANY();
     
     TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
-    proxy.SetTimeout(Config.HolderRpcTimeout);
+    proxy.SetTimeout(Config->HolderRpcTimeout);
     
     auto request = proxy.GetChunkInfo();
     request->set_chunk_id(ChunkId.ToProto());

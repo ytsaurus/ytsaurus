@@ -19,7 +19,10 @@ public:
     typedef TIntrusivePtr<TFollowerTracker> TPtr;
 
     struct TConfig
+        : public TConfigBase
     {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
         TDuration PingTimeout;
 
         TConfig()
@@ -28,7 +31,7 @@ public:
     };
 
     TFollowerTracker(
-        const TConfig& config,
+        TConfig* config,
         TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker);
 
@@ -49,7 +52,7 @@ private:
     void ResetFollowerStates();
     void OnLeaseExpired(TPeerId followerId);
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;

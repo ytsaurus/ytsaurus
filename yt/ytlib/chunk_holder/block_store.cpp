@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "block_store.h"
 #include "chunk_store.h"
+#include "chunk_cache.h"
 #include "reader_cache.h"
 
 #include "../chunk_client/file_reader.h"
@@ -42,11 +43,13 @@ public:
     typedef TIntrusivePtr<TBlockCache> TPtr;
 
     TBlockCache(
-        const TChunkHolderConfig& config,
+        TChunkHolderConfig* config,
         TChunkStore* chunkStore,
+        TChunkCache* chunkCache,
         TReaderCache* readerCache)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config.MaxCachedBlocksSize)
+        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , ChunkStore(chunkStore)
+        , ChunkCache(chunkCache)
         , ReaderCache(readerCache)
     { }
 
@@ -92,13 +95,13 @@ public:
             return cookie->GetAsyncResult();
         }
 
-        auto chunk = ChunkStore->FindChunk(blockId.ChunkId);
+        auto chunk = FindChunk(blockId.ChunkId);
         if (~chunk == NULL) {
             return ToFuture(TGetBlockResult(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
         }
-        
+     
         LOG_DEBUG("Loading block into cache (BlockId: %s)", ~blockId.ToString());
 
         auto invoker = chunk->GetLocation()->GetInvoker();
@@ -114,7 +117,24 @@ public:
 
 private:
     TChunkStore::TPtr ChunkStore;
+    TChunkCache::TPtr ChunkCache;
     TReaderCache::TPtr ReaderCache;
+
+    TChunk::TPtr FindChunk(const TChunkId& chunkId)
+    {
+        // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
+        auto storedChunk = ChunkStore->FindChunk(chunkId);
+        if (~storedChunk != NULL) {
+            return storedChunk;
+        }
+
+        auto cachedChunk = ChunkCache->FindChunk(chunkId);
+        if (~cachedChunk != NULL) {
+            return cachedChunk;
+        }
+
+        return NULL;
+    }
 
     virtual i64 GetWeight(TCachedBlock* block) const
     {
@@ -151,10 +171,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockStore::TBlockStore(
-    const TChunkHolderConfig& config,
+    TChunkHolderConfig* config,
     TChunkStore* chunkStore,
+    TChunkCache* chunkCache,
     TReaderCache* readerCache)
-    : BlockCache(New<TBlockCache>(config, chunkStore, readerCache))
+    : BlockCache(New<TBlockCache>(
+        config,
+        chunkStore,
+        chunkCache,
+        readerCache))
 { }
 
 TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)

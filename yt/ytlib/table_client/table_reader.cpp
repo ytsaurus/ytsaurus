@@ -15,7 +15,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReader::TTableReader(
-    const TConfig& config,
+    TConfig* config,
     NTransactionClient::ITransaction::TPtr transaction,
     NRpc::IChannel* masterChannel,
     const TChannel& readChannel,
@@ -28,7 +28,7 @@ TTableReader::TTableReader(
     TTransactionId txId = ~Transaction == NULL ? NullTransactionId : Transaction->GetId();
 
     TCypressServiceProxy Proxy(masterChannel);
-    Proxy.SetTimeout(Config.CypressRpcTimeout);
+    Proxy.SetTimeout(Config->CypressRpcTimeout);
 
     auto req = TTableYPathProxy::GetTableChunks();
     req->SetPath(path);
@@ -41,7 +41,7 @@ TTableReader::TTableReader(
     }
 
     Reader = New<TChunkSequenceReader>(
-        Config.ChunkSequenceReader,
+        ~Config->ChunkSequenceReader,
         readChannel,
         txId,
         masterChannel,

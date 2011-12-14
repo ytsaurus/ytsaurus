@@ -13,6 +13,8 @@ namespace NRpc {
 struct TRetryConfig
     : public TConfigBase
 {
+    typedef TIntrusivePtr<TRetryConfig> TPtr;
+    
     TDuration BackoffTime;
     int RetryCount;
 
@@ -38,7 +40,7 @@ struct TRetryConfig
  *  \returns A retriable channel.
  */ 
 IChannel::TPtr CreateRetriableChannel(
-    const TRetryConfig& config,
+    TRetryConfig* config,
     IChannel* underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

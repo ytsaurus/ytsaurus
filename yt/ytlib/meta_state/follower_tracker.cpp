@@ -11,7 +11,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerTracker::TFollowerTracker(
-    const TConfig& config,
+    TConfig* config,
     TCellManager::TPtr cellManager,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
@@ -103,7 +103,7 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
     auto& followerState = FollowerStates[followerId];
     if (followerState.Lease == TLeaseManager::NullLease) {
         followerState.Lease = TLeaseManager::CreateLease(
-            Config.PingTimeout,
+            Config->PingTimeout,
             ~FromMethod(&TFollowerTracker::OnLeaseExpired, TPtr(this), followerId)
             ->Via(~EpochInvoker));
     } else {

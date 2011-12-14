@@ -86,7 +86,7 @@ using NTableServer::CreateTableTypeHandler;
 
 TCellMasterServer::TCellMasterServer(
     const Stroka& configFileName,
-    const TConfig& config)
+    TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
@@ -94,7 +94,7 @@ TCellMasterServer::TCellMasterServer(
 void TCellMasterServer::Run()
 {
     // TODO: extract method
-    Stroka address = Config.MetaState.Cell.Addresses.at(Config.MetaState.Cell.Id);
+    Stroka address = Config->MetaState->Cell->Addresses.at(Config->MetaState->Cell->Id);
     size_t index = address.find_last_of(":");
     int rpcPort = FromString<int>(address.substr(index + 1));
 
@@ -107,18 +107,18 @@ void TCellMasterServer::Run()
 
     auto controlQueue = New<TActionQueue>("Control");
 
-    auto busServer = CreateNLBusServer(TNLBusServerConfig(rpcPort));
+    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(rpcPort));
 
     auto rpcServer = CreateRpcServer(~busServer);
 
     auto metaStateManager = CreatePersistentStateManager(
-        Config.MetaState,
+        ~Config->MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
         ~rpcServer);
 
     auto transactionManager = New<TTransactionManager>(
-        TTransactionManager::TConfig(),
+        ~New<TTransactionManager::TConfig>(),
         metaStateManager,
         metaState);
 
@@ -141,7 +141,7 @@ void TCellMasterServer::Run()
     auto holderRegistry = CreateHolderRegistry(~cypressManager);
 
     auto chunkManager = New<TChunkManager>(
-        TChunkManagerConfig(),
+        ~New<TChunkManagerConfig>(),
         ~metaStateManager,
         ~metaState,
         ~transactionManager,
@@ -218,7 +218,7 @@ void TCellMasterServer::Run()
         ~chunkManager));
 
     // TODO: fix memory leaking
-    auto httpServer = new NHTTP::TServer(Config.MonitoringPort);
+    auto httpServer = new NHTTP::TServer(Config->MonitoringPort);
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
         "/statistics",
@@ -248,7 +248,7 @@ void TCellMasterServer::Run()
 
     metaStateManager->Start();
 
-    LOG_INFO("Listening for HTTP requests on port %d", Config.MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", rpcPort);

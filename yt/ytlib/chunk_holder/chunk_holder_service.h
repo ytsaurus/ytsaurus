@@ -29,7 +29,7 @@ public:
 
     //! Creates an instance.
     TChunkHolderService(
-        const TConfig& config,
+        TConfig* config,
         IInvoker* serviceInvoker,
         NRpc::IRpcServer* server,
         TChunkStore* chunkStore,
@@ -44,7 +44,7 @@ private:
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig Config;
+    TConfig::TPtr Config;
     TIntrusivePtr<TChunkStore> ChunkStore;
     TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;

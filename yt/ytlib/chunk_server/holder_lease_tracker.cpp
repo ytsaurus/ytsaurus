@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 THolderLeaseTracker::THolderLeaseTracker(
-    const TConfig& config,
+    TConfig* config,
     TChunkManager* chunkManager,
     IInvoker* invoker)
     : Config(config)
@@ -34,7 +34,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
 
     auto& holderInfo = pair.First()->Second();
     holderInfo.Lease = TLeaseManager::CreateLease(
-        Config.HolderLeaseTimeout,
+        Config->HolderLeaseTimeout,
         ~FromMethod(
             &THolderLeaseTracker::OnExpired,
             TPtr(this),

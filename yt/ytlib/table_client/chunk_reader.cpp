@@ -54,7 +54,7 @@ public:
     typedef TIntrusivePtr<TInitializer> TPtr;
 
     TInitializer(
-        const TSequentialReader::TConfig& config,
+        TSequentialReader::TConfig* config,
         TChunkReader::TPtr chunkReader, 
         NChunkClient::IAsyncReader* asyncReader)
         : SequentialConfig(config)
@@ -85,7 +85,7 @@ private:
 
         yvector<int> blockIndexSequence = GetBlockReadingOrder();
         ChunkReader->SequentialReader = New<TSequentialReader>(
-            SequentialConfig,
+            ~SequentialConfig,
             blockIndexSequence,
             ~AsyncReader);
 
@@ -257,7 +257,7 @@ private:
         }
     }
 
-    const TSequentialReader::TConfig SequentialConfig;
+    TSequentialReader::TConfig::TPtr SequentialConfig;
     NChunkClient::IAsyncReader::TPtr AsyncReader;
     TChunkReader::TPtr ChunkReader;
 
@@ -275,7 +275,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReader::TChunkReader(
-    const TSequentialReader::TConfig& config,
+    TSequentialReader::TConfig* config,
     const TChannel& channel,
     NChunkClient::IAsyncReader* chunkReader,
     int startRow,

@@ -11,7 +11,7 @@ namespace NMetaState {
 template <class TProxy>
 TAutoPtr<TProxy> TCellManager::GetMasterProxy(TPeerId id) const
 {
-    return new TProxy(~ChannelCache.GetChannel(Config.Addresses.at(id)));
+    return new TProxy(~ChannelCache.GetChannel(Config->Addresses.at(id)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
