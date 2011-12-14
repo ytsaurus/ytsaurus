@@ -63,8 +63,8 @@ class TConfigBase
 public:
     typedef TIntrusivePtr<TConfigBase> TPtr;
 
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
-    virtual void Validate(const NYTree::TYPath& path = "") const;
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "/");
+    virtual void Validate(const NYTree::TYPath& path = "/") const;
 
 protected:
     template <class T>
