@@ -31,7 +31,7 @@ MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) fo
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
-    base_dir = '/yt/disk1/'
+    base_dir = '/yt/disk1/data'
     libs = [
         '/home/yt/build/lib/libstlport.so.5.2',
         '/home/yt/build/lib/libsnappy.so.1.0',
