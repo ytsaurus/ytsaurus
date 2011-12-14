@@ -62,6 +62,46 @@ void SaveSet(TOutputStream* output, const TSet& set)
     }
 }
 
+template <class TSet>
+void LoadSet(TInputStream* input, TSet& set)
+{
+    typedef typename TSet::key_type TKey;
+    size_t size = ::LoadSize(input);
+    for (size_t i = 0; i < size; ++i) {
+        TKey key;
+        ::Load(input, key);
+        YVERIFY(set.insert(key).second);
+    }
+}
+
+template <class TSet>
+void SaveNullableSet(TOutputStream* output, const TAutoPtr<TSet>& set)
+{
+    if (~set == NULL) {
+        ::SaveSize(output, 0);
+    } else {
+        SaveSet(output, *set);
+    }
+}
+
+template <class TSet>
+void LoadNullableSet(TInputStream* input, TAutoPtr<TSet>& set)
+{
+    typedef typename TSet::key_type TKey;
+    size_t size = ::LoadSize(input);
+    if (size == 0) {
+        set.Destroy();
+        return;
+    }
+    
+    set = new TSet();
+    for (size_t i = 0; i < size; ++i) {
+        TKey key;
+        ::Load(input, key);
+        YVERIFY(set->insert(key).second);
+    }
+}
+
 template <class TMap>
 yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
 {
