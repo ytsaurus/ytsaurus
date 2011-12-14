@@ -44,7 +44,7 @@ struct TChunkHolderConfig
     typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
 
     //! Block cache size (in bytes).
-    int MaxCachedBlocksSize;
+    i64 MaxCachedBlocksSize;
 
     //! Maximum number opened files in cache.
     int MaxCachedReaders;
