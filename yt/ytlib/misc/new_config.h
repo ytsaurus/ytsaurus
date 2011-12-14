@@ -41,6 +41,7 @@ public:
 public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
+    TParameter& DefaultNew();
     TParameter& CheckThat(TValidator* validator);
     TParameter& GreaterThan(T value);
     TParameter& GreaterThanOrEqual(T value);

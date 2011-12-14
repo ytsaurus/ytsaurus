@@ -51,7 +51,7 @@ struct TTestConfig
     TTestConfig()
     {
         Register("my_string", MyString).NonEmpty();
-        Register("sub", Subconfig).Default(New<TTestSubconfig>());
+        Register("sub", Subconfig).DefaultNew();
         Register("sub_list", SubconfigList).Default();
         Register("sub_map", SubconfigMap).Default();
     }
