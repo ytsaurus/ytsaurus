@@ -17,8 +17,8 @@ struct IParameter
     typedef TIntrusivePtr<IParameter> TPtr;
 
     // node can be NULL
-    virtual void Load(NYTree::INode* node, const Stroka& path) = 0;
-    virtual void Validate(const Stroka& path) const = 0;
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path) = 0;
+    virtual void Validate(const NYTree::TYPath& path) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +37,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
-
+    
 public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);

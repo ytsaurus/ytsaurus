@@ -6,8 +6,7 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 
 message TReqStartChunk
 {
-    required bytes ChunkId = 1;
-    required int32 WindowSize = 2;
+    required bytes chunk_id = 1;
 }
 
 message TRspStartChunk
@@ -17,8 +16,8 @@ message TRspStartChunk
 
 message TReqFinishChunk
 {
-    required bytes ChunkId = 1;
-    required TChunkAttributes Attributes = 2;
+    required bytes chunk_id = 1;
+    required TChunkAttributes attributes = 2;
 }
 
 message TRspFinishChunk
@@ -28,8 +27,8 @@ message TRspFinishChunk
 
 message TReqPutBlocks
 {
-    required bytes ChunkId = 1;
-    required int32 StartBlockIndex = 2;
+    required bytes chunk_id = 1;
+    required int32 start_block_index = 2;
 }
 
 message TRspPutBlocks
@@ -39,10 +38,10 @@ message TRspPutBlocks
 
 message TReqSendBlocks
 {
-    required bytes ChunkId = 1;
-    required string Address = 2;
-    required int32 StartBlockIndex = 3;
-    required int32 BlockCount = 4;
+    required bytes chunk_id = 1;
+    required string address = 2;
+    required int32 start_block_index = 3;
+    required int32 block_count = 4;
 }
 
 message TRspSendBlocks
@@ -52,8 +51,8 @@ message TRspSendBlocks
 
 message TReqFlushBlock
 {
-    required bytes ChunkId = 1;
-    required int32 BlockIndex = 2;
+    required bytes chunk_id = 1;
+    required int32 block_index = 2;
 }
 
 message TRspFlushBlock
@@ -63,8 +62,8 @@ message TRspFlushBlock
 
 message TReqGetBlocks
 {
-    required bytes ChunkId = 1;
-    repeated int32 BlockIndexes = 2;
+    required bytes chunk_id = 1;
+    repeated int32 block_indexes = 2;
 }
 
 message TRspGetBlocks
@@ -74,7 +73,7 @@ message TRspGetBlocks
 
 message TReqPingSession
 {
-    required bytes ChunkId = 1;
+    required bytes chunk_id = 1;
 }
 
 message TRspPingSession
@@ -84,19 +83,19 @@ message TRspPingSession
 
 message TReqGetChunkInfo
 {
-    required bytes ChunkId = 1;
+    required bytes chunk_id = 1;
 }
 
 message TRspGetChunkInfo
 {
-    required TChunkInfo ChunkInfo = 1;
+    required TChunkInfo chunk_info = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqPrecacheChunk
 {
-    required bytes ChunkId = 1;
+    required bytes chunk_id = 1;
 }
 
 message TRspPrecacheChunk

@@ -45,16 +45,24 @@ public:
 
         //! Timeout specifying a maximum allowed period of time without RPC request to ChunkHolder.
         /*!
-         * If no activity occurred during this period, PingSession call will be sent.
+         * If no activity  occurred during this period, PingSession call will be sent.
          */
         TDuration SessionPingInterval;
 
         TConfig()
         {
-            Register("window_size", WindowSize).Default(16).GreaterThan(0);
+            Register("window_size", WindowSize).Default(4 * 1024 * 1024).GreaterThan(0);
             Register("group_size", GroupSize).Default(1024 * 1024).GreaterThan(0);
             Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
             Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
+        }
+
+        void Validate(const NYTree::TYPath& path /* = "" */) const
+        {
+            TConfigBase::Validate(path);
+            if (WindowSize < GroupSize) {
+                ythrow yexception() << "WindowSize must be greater or equal to GroupSize.";
+            }
         }
 
         void Read(TJsonObject* config);
@@ -129,7 +137,6 @@ private:
     bool IsCloseRequested;
     NChunkHolder::NProto::TChunkAttributes Attributes;
 
-    // ToDo: replace by cyclic buffer
     TWindow Window;
     TAsyncSemaphore WindowSlots;
 
@@ -167,8 +174,6 @@ private:
     void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
     void OnNodeDied(int node);
-
-    void ReleaseSlots(int count);
 
     void ShiftWindow();
 
