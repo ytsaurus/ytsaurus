@@ -141,7 +141,7 @@ private:
 
             auto holderAddresses = FromProto<Stroka>(response->holderaddresses());
             if (holderAddresses.empty()) {
-                OnError(TError(EErrorCode::NotAvailable, "Chunk is not available"));
+                OnError(TError(EErrorCode::Chunk    NotAvailable, "Chunk is not available"));
                 return;
             }
 

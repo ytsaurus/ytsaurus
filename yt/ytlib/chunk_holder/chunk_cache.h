@@ -50,7 +50,7 @@ public:
     DECLARE_ENUM(EErrorCode,
         ((MasterError)(1))
         ((HolderError)(2))
-        ((NotAvailable)(3))
+        ((ChunkNotAvailable)(3))
     );
 
     //! Downloads a chunk into the cache.
