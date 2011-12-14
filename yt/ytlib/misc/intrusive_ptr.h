@@ -42,6 +42,8 @@ template<class T>
 class TIntrusivePtr
 {
 public:
+    typedef T TElementType;
+
     TIntrusivePtr() throw()
         : T_(NULL)
     { }
