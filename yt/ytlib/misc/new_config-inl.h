@@ -158,10 +158,13 @@ inline void ValidateSubconfigs(
     const NYTree::TYPath& /* path */)
 { }
 
-// TConfigBase::TPtr
+// TConfigBase
+template <class T>
 inline void ValidateSubconfigs(
-    const TConfigBase::TPtr* parameter,
-    const NYTree::TYPath& path)
+    const TIntrusivePtr<T>* parameter,
+    const NYTree::TYPath& path,
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
+        NYT::NDetail::TEmpty())
 {
     (*parameter)->Validate(path);
 }
