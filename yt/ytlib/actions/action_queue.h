@@ -29,9 +29,11 @@ public:
     bool DequeueAndExecute();
 
 private:
-    TLockFreeQueue<IAction::TPtr> Queue;
-    TIntrusivePtr<TActionQueueBase> Owner;
+    typedef TPair<IAction::TPtr, ui64> TItem;
 
+    TIntrusivePtr<TActionQueueBase> Owner;
+    TLockFreeQueue<TItem> Queue;
+    TAtomic QueueSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
