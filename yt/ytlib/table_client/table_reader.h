@@ -29,7 +29,7 @@ public:
         TConfig()
         {
             Register("cypress_rpc_timeout", CypressRpcTimeout).Default(TDuration::Seconds(5));
-            Register("chunk_sequence_reader", ChunkSequenceReader);
+            Register("chunk_sequence_reader", ChunkSequenceReader).Default(New<TChunkSequenceReader::TConfig>());
         }
     };
 
