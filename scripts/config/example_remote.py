@@ -16,12 +16,7 @@ Logging = {
             'Categories' : [ "*" ], 
             'MinLevel' : "Debug", 
             'Writers' : [ "File" ] 
-        },
-        {
-           'Categories' : [ "MetaState" ],
-           'MinLevel' : "Trace",
-           'Writers' : [ "File" ]
-        } 
+        }
     ]
 }
 
