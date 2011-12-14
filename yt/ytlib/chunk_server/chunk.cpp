@@ -25,9 +25,13 @@ TChunk::TChunk(const TChunk& other)
     , ChunkListId_(other.ChunkListId_)
     , Size_(other.Size_)
     , Attributes_(Attributes_)
-    , Locations_(other.Locations_)
+    , StoredLocations_(other.StoredLocations_)
     , RefCounter(other.RefCounter)
-{ }
+{
+    if (~other.CachedLocations_ != NULL) {
+        CachedLocations_ = new yhash_set<THolderId>(*other.CachedLocations_);
+    }
+}
 
 TAutoPtr<TChunk> TChunk::Clone() const
 {
@@ -39,7 +43,8 @@ void TChunk::Save(TOutputStream* output) const
     ::Save(output, ChunkListId_);
     ::Save(output, Size_);
     ::Save(output, Attributes_);
-    ::Save(output, Locations_);
+    ::Save(output, StoredLocations_);
+    SaveNullableSet(output, CachedLocations_);
     ::Save(output, RefCounter);
 
 }
@@ -50,21 +55,47 @@ TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
     ::Load(input, chunk->ChunkListId_);
     ::Load(input, chunk->Size_);
     ::Load(input, chunk->Attributes_);
-    ::Load(input, chunk->Locations_);
+    ::Load(input, chunk->StoredLocations_);
+    LoadNullableSet(input, chunk->CachedLocations_);
     ::Load(input, chunk->RefCounter);
     return chunk;
 }
 
-void TChunk::AddLocation(THolderId holderId)
+void TChunk::AddLocation(THolderId holderId, bool cached)
 {
-    Locations_.push_back(holderId);
+    if (cached) {
+        if (~CachedLocations_ == NULL) {
+            CachedLocations_ = new yhash_set<THolderId>();
+        }
+        YVERIFY(CachedLocations_->insert(holderId).second);
+    } else {
+        StoredLocations_.push_back(holderId);
+    }
 }
 
-void TChunk::RemoveLocation(THolderId holderId)
+void TChunk::RemoveLocation(THolderId holderId, bool cached)
 {
-    auto it = std::find(Locations_.begin(), Locations_.end(), holderId);
-    YASSERT(it != Locations_.end());
-    Locations_.erase(it);
+    if (cached) {
+        YASSERT(~CachedLocations_ != NULL);
+        YVERIFY(CachedLocations_->erase(holderId) == 1);
+    } else {
+        for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {
+            if (*it == holderId) {
+                StoredLocations_.erase(it);
+                return;
+            }
+        }
+        YUNREACHABLE();
+    }
+}
+
+yvector<THolderId> TChunk::GetLocations() const
+{
+    yvector<THolderId> result(StoredLocations_);
+    if (~CachedLocations_ != NULL) {
+        result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
+    }
+    return result;
 }
 
 i32 TChunk::Ref()

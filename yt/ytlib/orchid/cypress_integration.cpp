@@ -33,8 +33,8 @@ public:
     TOrchidYPathService(const TYson& manifestYson)
     {
         auto manifestRoot = DeserializeFromYson(manifestYson);
-
         try {
+            Manifest = New<TManifest>();
             Manifest->Load(~manifestRoot);
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",

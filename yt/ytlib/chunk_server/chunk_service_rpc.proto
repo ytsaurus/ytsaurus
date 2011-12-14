@@ -32,7 +32,14 @@ message TReqHolderHeartbeat
     message TChunkAddInfo
     {
         required bytes ChunkId = 1;
-        required int64 Size = 2;
+        required bool Cached = 2;
+        required int64 Size = 3;
+    }
+
+    message TChunkRemoveInfo
+    {
+        required bytes ChunkId = 1;
+        required bool Cached = 2;
     }
 
     message TJobInfo
@@ -43,8 +50,10 @@ message TReqHolderHeartbeat
 
     required int32 HolderId = 1;
     required THolderStatistics Statistics = 2;
+
     repeated TChunkAddInfo AddedChunks = 3;
-    repeated bytes RemovedChunks = 4;
+    repeated TChunkRemoveInfo RemovedChunks = 4;
+
     repeated TJobInfo Jobs = 5;
 }
 

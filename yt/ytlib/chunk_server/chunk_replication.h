@@ -108,7 +108,8 @@ private:
     void GetReplicaStatistics(
         const TChunk& chunk,
         int* desiredCount,
-        int* realCount,
+        int* storedCount,
+        int* cachedCount,
         int* plusCount,
         int* minusCount);
     void ScheduleNextRefresh();

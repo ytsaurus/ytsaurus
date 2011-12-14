@@ -48,10 +48,20 @@ private:
                     .BeginMap()
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
                         .Item("ref_counter").Scalar(chunk->GetRefCounter())
-                        .Item("locations").DoListFor(chunk->Locations(), [=] (TFluentList fluent, THolderId holderId)
+                        .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
                             {
                                 const auto& holder = ChunkManager->GetHolder(holderId);
                                 fluent.Item().Scalar(holder.GetAddress());
+                            })
+                        .DoIf(~chunk->CachedLocations() != NULL, [=] (TFluentMap fluent)
+                            {
+                                fluent
+                                    .Item("cached_locations")
+                                    .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, THolderId holderId)
+                                        {
+                                            const auto& holder = ChunkManager->GetHolder(holderId);
+                                            fluent.Item().Scalar(holder.GetAddress());
+                                        });
                             })
                         .DoIf(chunk->GetSize() != TChunk::UnknownSize, [=] (TFluentMap fluent)
                             {

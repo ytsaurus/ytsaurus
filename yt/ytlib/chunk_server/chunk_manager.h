@@ -95,6 +95,14 @@ public:
         yvector<TJobStartInfo>* jobsToStart,
         yvector<NChunkHolder::TJobId>* jobsToStop);
 
+    //! Fills a given protobuf structure with the list of holder addresses.
+    /*!
+     *  Not too nice but seemingly fast.
+     */
+    void FillHolderAddresses(
+        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+        const TChunk& chunk);
+
 private:
     class TImpl;
     

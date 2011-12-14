@@ -11,6 +11,11 @@ class TChunk;
 class TReaderCache;
 struct TChunkDescriptor;
 
+DECLARE_ENUM(ELocationType,
+    (Store)
+    (Cache)
+);
+
 //! Describes a physical location of chunks at a chunk holder.
 class TLocation
     : public TRefCountedBase
@@ -18,7 +23,13 @@ class TLocation
 public:
     typedef TIntrusivePtr<TLocation> TPtr;
 
-    TLocation(TLocationConfig* config, TReaderCache* readerCache);
+    TLocation(
+        ELocationType type,
+        TLocationConfig* config,
+        TReaderCache* readerCache);
+
+    //! Returns the type.
+    ELocationType GetType() const;
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     yvector<TChunkDescriptor> Scan();
@@ -71,6 +82,7 @@ public:
     Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
 
 private:
+    ELocationType Type;
     TLocationConfig::TPtr Config;
     TIntrusivePtr<TReaderCache> ReaderCache;
     i64 AvailableSpace;

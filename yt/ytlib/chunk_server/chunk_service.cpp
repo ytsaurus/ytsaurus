@@ -112,30 +112,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
     NProto::TMsgHeartbeatRequest requestMessage;
     requestMessage.set_holderid(holderId);
     *requestMessage.mutable_statistics() = request->statistics();
-
-    FOREACH(const auto& chunkInfo, request->addedchunks()) {
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
-        if (holder.ChunkIds().find(chunkId) == holder.ChunkIds().end()) {
-            *requestMessage.add_addedchunks() = chunkInfo;
-        } else {
-            LOG_WARNING("Chunk replica is already added (ChunkId: %s, Address: %s, HolderId: %d)",
-                ~chunkId.ToString(),
-                ~holder.GetAddress(),
-                holder.GetId());
-        }
-    }
-
-    FOREACH(const auto& protoChunkId, request->removedchunks()) {
-        auto chunkId = TChunkId::FromProto(protoChunkId);
-        if (holder.ChunkIds().find(chunkId) != holder.ChunkIds().end()) {
-            requestMessage.add_removedchunks(chunkId.ToProto());
-        } else if (ChunkManager->FindChunk(chunkId) != NULL) {
-            LOG_WARNING("Chunk replica is already removed (ChunkId: %s, Address: %s, HolderId: %d)",
-                ~chunkId.ToString(),
-                ~holder.GetAddress(),
-                holder.GetId());
-        }
-    }
+    requestMessage.mutable_addedchunks()->MergeFrom(request->addedchunks());
+    requestMessage.mutable_removedchunks()->MergeFrom(request->removedchunks());
 
     ChunkManager
         ->InitiateHeartbeatRequest(requestMessage)
@@ -274,16 +252,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FindChunk)
     ValidateLeader();
     ValidateChunkId(chunkId);
 
-    auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
+    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    ChunkManager->FillHolderAddresses(response->mutable_holderaddresses(), chunk);
 
-    // TODO: sort w.r.t. proximity
-    FOREACH(auto holderId, chunk.Locations()) {
-        const THolder& holder = ChunkManager->GetHolder(holderId);
-        response->add_holderaddresses(holder.GetAddress());
-    }
-
-    context->SetResponseInfo("HolderCount: %d",
-        static_cast<int>(response->holderaddresses_size()));
+    context->SetResponseInfo("HolderCount: %d", response->holderaddresses_size());
 
     context->Reply();
 }

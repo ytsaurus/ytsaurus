@@ -17,14 +17,23 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocation::TLocation(TLocationConfig* config, TReaderCache* readerCache)
-    : Config(config)
+TLocation::TLocation(
+    ELocationType type,
+    TLocationConfig* config,
+    TReaderCache* readerCache)
+    : Type(type)
+    , Config(config)
     , ReaderCache(readerCache)
     , AvailableSpace(0)
     , UsedSpace(0)
     , ActionQueue(New<TActionQueue>("ChunkLocation"))
     , SessionCount(0)
 { }
+
+ELocationType TLocation::GetType() const
+{
+    return Type;
+}
 
 void TLocation::RegisterChunk(TChunk* chunk)
 {
