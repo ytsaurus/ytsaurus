@@ -252,6 +252,12 @@ TParameter<T>& TParameter<T>::Default(T&& defaultValue)
 }
 
 template <class T>
+TParameter<T>& TParameter<T>::DefaultNew()
+{
+    return Default(New<typename T::TElementType>());
+}
+
+template <class T>
 TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
 {
     Validators.push_back(validator);

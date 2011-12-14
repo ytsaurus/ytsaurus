@@ -41,6 +41,7 @@ public:
 public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
+    TParameter& DefaultNew();
     TParameter& CheckThat(TValidator* validator);
     TParameter& GreaterThan(T value);
     TParameter& GreaterThanOrEqual(T value);
@@ -63,8 +64,8 @@ class TConfigBase
 public:
     typedef TIntrusivePtr<TConfigBase> TPtr;
 
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
-    virtual void Validate(const NYTree::TYPath& path = "") const;
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "/");
+    virtual void Validate(const NYTree::TYPath& path = "/") const;
 
 protected:
     template <class T>

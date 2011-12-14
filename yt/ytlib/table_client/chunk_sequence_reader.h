@@ -29,8 +29,8 @@ public:
 
         TConfig()
         {
-            Register("retriable_reader", RetriableReader);
-            Register("sequential_reader", SequentialReader);
+            Register("retriable_reader", RetriableReader).Default(New<NChunkClient::TRetriableReader::TConfig>());
+            Register("sequential_reader", SequentialReader).Default(New<NChunkClient::TSequentialReader::TConfig>());
         }
     };
 
