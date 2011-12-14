@@ -283,42 +283,42 @@ DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
     yexception()
-        << "Validation failure (Expected: to be greater than "
+        << "Validation failure: expected value greater than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
     yexception()
-        << "Validation failure (Expected: to be greater than or equal to "
+        << "Validation failure: expected value greater than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
     yexception()
-        << "Validation failure (Expected: to be less than "
+        << "Validation failure: expected value less than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
     yexception()
-        << "Validation failure (Expected: to be less than or equal to "
+        << "Validation failure: expected value less than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
     yexception()
-        << "Validation failure (Expected: to be in range ["
+        << "Validation failure: expected value in range ["
         << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
     yexception()
-        << "Validation failure (Expected: to be non-empty)")
+        << "Validation failure: non-empty value expected")
 
 #undef DEFINE_VALIDATOR
 
