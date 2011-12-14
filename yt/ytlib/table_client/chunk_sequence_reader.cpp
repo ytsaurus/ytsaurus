@@ -101,16 +101,20 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
         NextReader = New< TFuture<TChunkReader::TPtr> >();
         PrepareNextChunk();
 
-        if (NextChunkIndex > 0) {
+        if (NextChunkIndex > 1) {
+            // Current chunk is not the first one.
             YASSERT(CurrentReader->HasNextRow());
             CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
                 &TChunkSequenceReader::OnNextRow,
                 TPtr(this)));
             return;
         }
+
     } else {
         YASSERT(!State.IsActive());
     }
+
+    // Finishing AsyncOpen.
     State.FinishOperation();
 }
 
