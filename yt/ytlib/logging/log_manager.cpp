@@ -87,14 +87,12 @@ struct TRule
 
     bool IsApplicable(Stroka category) const
     {
-        return (AllCategories || Categories.find(category) != Categories.end());
+        return AllCategories || Categories.find(category) != Categories.end();
     }
 
     bool IsApplicable(const TLogEvent& event) const
     {
-        ELogLevel level = event.Level;
-        return (IsApplicable(event.Category) &&
-                MinLevel <= level && level <= MaxLevel);
+        return IsApplicable(event.Category) && MinLevel <= event.Level && event.Level <= MaxLevel;
     }
 
 };
@@ -135,6 +133,9 @@ void TLogManager::TConfig::Init()
 
 void TLogManager::TConfig::ConfigureWriters()
 {
+    // TODO: killme
+    Writers.clear();
+
     FOREACH(const auto& pair, WritersConfigs) {
         const auto& name = pair.first;
         const auto& config = pair.second;
@@ -170,6 +171,9 @@ void TLogManager::TConfig::ConfigureWriters()
 
 void TLogManager::TConfig::ConfigureRules()
 {
+    // TODO: killme
+    Rules.clear();
+
     Rules.reserve(RulesConfigs.size());
     FOREACH(const auto& config, RulesConfigs) {
         TRule rule(~config);
@@ -353,7 +357,7 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     try {
-        LOG_DEBUG("Configuring logging from file %s with YPath %s", ~fileName, ~path);
+        LOG_DEBUG("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
         TIFStream configStream(fileName);
         auto root = DeserializeFromYson(&configStream);
         auto rootService = IYPathService::FromNode(~root);
@@ -361,7 +365,6 @@ void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
         Configure(~configNode);
     } catch (const yexception& e) {
         LOG_ERROR("Error configuring logging\n%s", e.what())
-        return;
     }
 }
 
