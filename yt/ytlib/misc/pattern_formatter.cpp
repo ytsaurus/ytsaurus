@@ -14,12 +14,12 @@ static const char Question = '?';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPatternFormatter::AddProperty(Stroka name, Stroka value)
+void TPatternFormatter::AddProperty(const Stroka& name, const Stroka& value)
 {
     PropertyMap[name] = value;
 }
 
-Stroka TPatternFormatter::Format(Stroka pattern)
+Stroka TPatternFormatter::Format(const Stroka& pattern)
 {
     Stroka result;
 
@@ -32,7 +32,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
 
         if (pos >= pattern.size() || pattern[pos] != LeftParen) {
             ythrow yexception() <<
-                   Sprintf("expected \"%c\" at position %d", LeftParen, (int) pos);
+                   Sprintf("Expected \"%c\" at position %d", LeftParen, (int) pos);
         }
         ++pos;
 
@@ -50,7 +50,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
 
         if (!foundRightParen) {
             ythrow yexception() <<
-                Sprintf("can't find \"%c\" for \"%c\" at position %d",
+                Sprintf("Cannot find matching \"%c\" for \"%c\" at position %d",
                         RightParen, LeftParen, (int) startProperty - 1);
         }
 
@@ -65,7 +65,7 @@ Stroka TPatternFormatter::Format(Stroka pattern)
         if (it == PropertyMap.end()) {
             if (!isOptional) {
                 ythrow yexception() <<
-                    Sprintf("property %s wasn't defined", ~property);
+                    Sprintf("Property %s is not defined", ~property);
             }
         } else {
             result.append(it->second);

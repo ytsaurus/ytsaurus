@@ -10,8 +10,8 @@ class TPatternFormatter
     : private TNonCopyable
 {
 public:
-    void AddProperty(Stroka name, Stroka value);
-    Stroka Format(Stroka pattern);
+    void AddProperty(const Stroka& name, const Stroka& value);
+    Stroka Format(const Stroka& pattern);
 
 private:
     typedef yhash_map<Stroka, Stroka> TPropertyMap;
