@@ -62,7 +62,7 @@ public:
     void AddBlock(const TSharedRef& block);
     void Process();
     bool IsWritten() const;
-    i64 GetSize() const;
+    int GetSize() const;
 
     /*!
      * \note Thread affinity: any.
@@ -73,11 +73,6 @@ public:
      * \note Thread affinity: any.
      */
     int GetEndBlockIndex() const;
-
-    /*!
-     * \note Thread affinity: any.
-     */
-    int GetBlockCount() const;
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -96,7 +91,7 @@ private:
     yvector<TSharedRef> Blocks;
     int StartBlockIndex;
 
-    i64 Size;
+    int Size;
 
     TRemoteWriter::TPtr Writer;
 
@@ -168,14 +163,9 @@ int TRemoteWriter::TGroup::GetEndBlockIndex() const
     return StartBlockIndex + Blocks.ysize() - 1;
 }
 
-i64 TRemoteWriter::TGroup::GetSize() const
+int TRemoteWriter::TGroup::GetSize() const
 {
     return Size;
-}
-
-int TRemoteWriter::TGroup::GetBlockCount() const
-{
-    return Blocks.ysize();
 }
 
 bool TRemoteWriter::TGroup::IsWritten() const
@@ -223,8 +213,8 @@ TRemoteWriter::TGroup::PutBlocks(int node)
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
     auto req = Writer->Nodes[node]->Proxy.PutBlocks();
-    req->set_chunkid(Writer->ChunkId.ToProto());
-    req->set_startblockindex(StartBlockIndex);
+    req->set_chunk_id(Writer->ChunkId.ToProto());
+    req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
     LOG_DEBUG("Putting blocks (ChunkId: %s, Blocks: %d-%d, Address: %s)",
@@ -283,9 +273,9 @@ TRemoteWriter::TGroup::SendBlocks(int srcNode, int dstNode)
         ~Writer->Nodes[dstNode]->Address);
 
     auto req = Writer->Nodes[srcNode]->Proxy.SendBlocks();
-    req->set_chunkid(Writer->ChunkId.ToProto());
-    req->set_startblockindex(StartBlockIndex);
-    req->set_blockcount(Blocks.ysize());
+    req->set_chunk_id(Writer->ChunkId.ToProto());
+    req->set_start_block_index(StartBlockIndex);
+    req->set_block_count(Blocks.ysize());
     req->set_address(Writer->Nodes[dstNode]->Address);
     return req->Invoke();
 }
@@ -487,8 +477,8 @@ TRemoteWriter::FlushBlock(int node, int blockIndex)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.FlushBlock();
-    req->set_chunkid(ChunkId.ToProto());
-    req->set_blockindex(blockIndex);
+    req->set_chunk_id(ChunkId.ToProto());
+    req->set_block_index(blockIndex);
     return req->Invoke();
 }
 
@@ -520,30 +510,17 @@ void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window shifted (ChunkId: %s, BlockIndex: %d)",
+        LOG_DEBUG("Window shifted (ChunkId: %s, BlockIndex: %d, Size: %d)",
             ~ChunkId.ToString(), 
-            group->GetEndBlockIndex());
+            group->GetEndBlockIndex(),
+            group->GetSize());
 
-        ReleaseSlots(group->GetBlockCount());
-
+        WindowSlots.Release(group->GetSize());
         Window.pop_front();
     }
 
     if (State.IsActive() && IsCloseRequested) {
         CloseSession();
-    }
-}
-
-void TRemoteWriter::ReleaseSlots(int count)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
-    LOG_DEBUG("Window slots released (ChunkId: %s, SlotCount: %d)",
-        ~ChunkId.ToString(), 
-        count);
-
-    for (int i = 0; i < count; ++i) {
-        YVERIFY(WindowSlots.Release());
     }
 }
 
@@ -681,8 +658,7 @@ TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.StartChunk();
-    req->set_chunkid(ChunkId.ToProto());
-    req->set_windowsize(Config->WindowSize);
+    req->set_chunk_id(ChunkId.ToProto());
     return req->Invoke();
 }
 
@@ -758,7 +734,7 @@ TRemoteWriter::FinishChunk(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.FinishChunk();
-    req->set_chunkid(ChunkId.ToProto());
+    req->set_chunk_id(ChunkId.ToProto());
     req->mutable_attributes()->CopyFrom(Attributes);
     return req->Invoke();
 }
@@ -801,7 +777,7 @@ void TRemoteWriter::PingSession(int node)
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.PingSession();
-    req->set_chunkid(ChunkId.ToProto());
+    req->set_chunk_id(ChunkId.ToProto());
     req->Invoke();
 
     SchedulePing(node);
@@ -855,7 +831,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
     YASSERT(!State.IsClosed());
 
     State.StartOperation();
-    WindowSlots.AsyncAcquire()->Subscribe(FromMethod(
+    WindowSlots.AsyncAcquire(data.Size())->Subscribe(FromMethod(
         &TRemoteWriter::AddBlock,
         TPtr(this),
         data));
@@ -888,7 +864,6 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 
 TAsyncError::TPtr TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 

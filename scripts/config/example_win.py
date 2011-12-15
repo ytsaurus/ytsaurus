@@ -76,10 +76,10 @@ class Holder(WinNode, Server):
         
         config = Template({ 
                 'masters' : { 'addresses' : MasterAddresses },
-                'storage_locations' : [
-                    { 'path' : r'%(work_dir)s\chunk_storage.0' }
+                'chunk_store_locations' : [
+                    { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
-                'cache_location' : {
+                'chunk_cache_location' : {
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
@@ -90,9 +90,9 @@ class Holder(WinNode, Server):
         
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
-                for location in cls.config['storage_locations']:
+                for location in cls.config['chunk_store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['cache_location']['path']
+                print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_cache_location']['path']
 
 
 class Client(WinNode, Base):

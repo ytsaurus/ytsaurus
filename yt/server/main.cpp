@@ -74,8 +74,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     // Configure logging.
-    // TODO: use new config
-    NLog::TLogManager::Get()->Configure(configFileName, "Logging");
+    NLog::TLogManager::Get()->Configure(configFileName, "/logging");
 
     // Parse configuration file.
     INode::TPtr configNode;
@@ -99,10 +98,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ~CurrentExceptionMessage());
         }
 
-        // TODO: killme
-        auto c = New<NChunkHolder::TLocationConfig>();
-        c->Path = NFS::CombinePaths(NFS::GetDirectoryName(config->CacheLocation->Path), "chunk_storage.0");
-        config->StorageLocations.push_back(c);
+        //// TODO: killme
+        //auto c = New<NChunkHolder::TLocationConfig>();
+        //c->Path = NFS::CombinePaths(NFS::GetDirectoryName(config->CacheLocation->Path), "chunk_storage.0");
+        //config->StorageLocations.push_back(c);
 
         // Override RPC port.
         if (port >= 0) {
@@ -139,19 +138,21 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
+    int exitCode;
     try {
-        return GuardedMain(argc, argv);
+        exitCode = GuardedMain(argc, argv);
     }
     catch (...) {
         LOG_ERROR("Server startup failed\n%s", ~CurrentExceptionMessage());
-
-        // TODO: refactor system shutdown
-        NLog::TLogManager::Get()->Shutdown();
-        NRpc::TRpcManager::Get()->Shutdown();
-        TDelayedInvoker::Shutdown();
-
-        return EExitCode::BootstrapError;
+        exitCode = EExitCode::BootstrapError;
     }
+
+    // TODO: refactor system shutdown
+    NLog::TLogManager::Get()->Shutdown();
+    NRpc::TRpcManager::Get()->Shutdown();
+    TDelayedInvoker::Shutdown();
+
+    return exitCode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

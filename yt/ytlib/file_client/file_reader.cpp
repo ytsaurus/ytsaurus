@@ -70,7 +70,7 @@ void TFileReader::Open()
 
     if (addresses.empty()) {
         // TODO: Monster says we should wait here
-        LOG_ERROR_AND_THROW(yexception(), "Chunk is not available (ChunkId: %s)", ~ChunkId.ToString());
+        LOG_ERROR_AND_THROW(yexception(), "Chunk is lost (ChunkId: %s)", ~ChunkId.ToString());
     }
 
     LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",

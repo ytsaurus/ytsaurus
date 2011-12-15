@@ -97,7 +97,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 void TCypressNodeBase::Load(TInputStream* input)
 {
     ::Load(input, RefCounter);
-    ::Load(input, LockIds_);
+    LoadSet(input, LockIds_);
     ::Load(input, ParentId_);
     ::Load(input, AttributesId_);
     ::Load(input, State_);

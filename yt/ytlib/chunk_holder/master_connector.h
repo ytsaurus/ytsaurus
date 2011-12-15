@@ -5,6 +5,7 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 #include "replicator.h"
+#include "chunk_service_rpc.pb.h"
 
 #include "../rpc/channel.h"
 #include "../chunk_server/chunk_service_rpc.h"
@@ -81,13 +82,13 @@ private:
     //! Chunks that were added since the last successful heartbeat.
     TChunks AddedSinceLastSuccess;
 
-    //! Chunks that were removed since the last successful heartbeat.
+    //! Store chunks that were removed since the last successful heartbeat.
     TChunks RemovedSinceLastSuccess;
 
-    //! Chunks that were reported added at the last heartbeat (for which no reply is received yet).
+    //! Store chunks that were reported added at the last heartbeat (for which no reply is received yet).
     TChunks ReportedAdded;
 
-    //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
+    //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunks ReportedRemoved;
 
     //! Schedules a heartbeat via TDelayedInvoker.
@@ -108,8 +109,11 @@ private:
     //! Sends out a heartbeat.
     void SendHeartbeat();
 
-    //! Constructs an addition info for a given chunk.
+    //! Constructs a protobuf info for an added chunk.
     static NChunkServer::NProto::TReqHolderHeartbeat::TChunkAddInfo GetAddInfo(const TChunk* chunk);
+
+    //! Constructs a protobuf info for a removed chunk.
+    static NChunkServer::NProto::TReqHolderHeartbeat::TChunkRemoveInfo GetRemoveInfo(const TChunk* chunk);
 
     //! Handles heartbeat response.
     void OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response);

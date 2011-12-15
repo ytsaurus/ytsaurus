@@ -44,7 +44,7 @@ struct TChunkHolderConfig
     typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
 
     //! Block cache size (in bytes).
-    int MaxCachedBlocksSize;
+    i64 MaxCachedBlocksSize;
 
     //! Maximum number opened files in cache.
     int MaxCachedReaders;
@@ -70,10 +70,10 @@ struct TChunkHolderConfig
     int MonitoringPort;
 
     //! Regular storage locations.
-    yvector<TLocationConfig::TPtr> StorageLocations;
+    yvector<TLocationConfig::TPtr> ChunkStorageLocations;
 
     //! Location used for caching chunks.
-    TLocationConfig::TPtr CacheLocation;
+    TLocationConfig::TPtr ChunkCacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReader::TConfig::TPtr CacheRemoteReader;
@@ -98,9 +98,8 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10000);
-        // TODO: fixme
-        //Register("storage_locations", StorageLocations);
-        Register("cache_location", CacheLocation).Default(New<TLocationConfig>());
+        Register("chunk_store_locations", ChunkStorageLocations);
+        Register("chunk_cache_location", ChunkCacheLocation);
         Register("cache_remote_reader", CacheRemoteReader);
         Register("cache_sequential_reader", CacheSequentialReader);
         Register("masters", Masters).Default();

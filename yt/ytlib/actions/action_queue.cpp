@@ -4,6 +4,7 @@
 #include "../logging/log.h"
 #include "../misc/common.h"
 #include "../misc/thread.h"
+#include "../monitoring/stat.h"
 
 namespace NYT {
 
@@ -15,6 +16,7 @@ static NLog::TLogger Logger("ActionQueue");
 
 TQueueInvoker::TQueueInvoker(TActionQueueBase* owner)
     : Owner(owner)
+    , QueueSize(0)
 { }
 
 void TQueueInvoker::Invoke(IAction::TPtr action)
@@ -23,7 +25,9 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
         LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
     } else {
         LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
-        Queue.Enqueue(action);
+        Queue.Enqueue(MakePair(action, GetCycleCount()));
+        auto size = AtomicIncrement(QueueSize);
+        DATA_POINT("actionqueue.size", "smv", size);
         Owner->WakeupEvent.Signal();
     }
 }
@@ -35,12 +39,22 @@ void TQueueInvoker::Shutdown()
 
 bool TQueueInvoker::DequeueAndExecute()
 {
-    IAction::TPtr action;
-    if (!Queue.Dequeue(&action))
+    TItem item;
+    if (!Queue.Dequeue(&item))
         return false;
+    
+    auto size = AtomicDecrement(QueueSize);
+    DATA_POINT("actionqueue.size", "smv", size);
 
+    auto startTime = item.Second();
+    DATA_POINT("actionqueue.waitingtime", "tv", GetCycleCount() - startTime);
+
+    IAction::TPtr action = item.First();
+    
     LOG_TRACE_IF(Owner->EnableLogging, "Action started (Action: %p)", ~action);
-    action->Do();
+    TIMEIT("actionqueue.executiontime", "tv",
+        action->Do();
+    )
     LOG_TRACE_IF(Owner->EnableLogging, "Action stopped (Action: %p)", ~action);
 
     return true;

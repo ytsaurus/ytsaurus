@@ -140,20 +140,20 @@ ExecuteVerb(
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncYPathGet(IYPathService* rootService, const TYPath& path);
 
+//! Synchronously executes "GetNode" verb. Throws if an error has occurred.
+INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path);
+
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value);
+
+//! Synchronously executes "SetNode" verb. Throws if an error has occurred.
+void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value);
 
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
 void SyncYPathRemove(IYPathService* rootService, const TYPath& path);
 
 //! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncYPathList(IYPathService* rootService, const TYPath& path);
-
-//! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path);
-
-//! Synchronously executes "SetNode" verb. Throws if an error has occurred.
-void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,20 +23,21 @@ public:
     /*!
      *  Returns 'true' if the semaphore counter has increased.
      */
-    bool Release();
+    void Release(int slots = 1);
 
     /*!
      *  Must be called from single thread.
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
-    TFuture<TVoid>::TPtr AsyncAcquire();
+    TFuture<TVoid>::TPtr AsyncAcquire(int slots = 1);
 
 private:
     TSpinLock SpinLock;
 
     const int MaxFreeSlots;
     int FreeSlotCount;
+    int RequestedSlots;
 
     TFuture<TVoid>::TPtr AcquireEvent;
     TFuture<TVoid>::TPtr StaticResult;

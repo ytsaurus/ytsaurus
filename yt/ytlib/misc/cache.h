@@ -150,12 +150,11 @@ protected:
     TWeightLimitedCache(i64 maxWeight);
 
     virtual i64 GetWeight(TValue* value) const = 0;
-
-private:
     virtual void OnAdded(TValue* value);
     virtual void OnRemoved(TValue* value);
     virtual bool NeedTrim() const;
 
+private:
     i64 TotalWeight;
     i64 MaxWeight;
 

@@ -36,7 +36,7 @@ public:
             Register("block_size", BlockSize).Default(1024 * 1024).GreaterThan(0);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
             Register("codec_id", CodecId).Default(ECodecId::None);
-            Register("remote_writer", RemoteWriter);
+            Register("remote_writer", RemoteWriter).Default(New<NChunkClient::TRemoteWriter::TConfig>());
         }
     };
 

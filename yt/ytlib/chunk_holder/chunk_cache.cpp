@@ -35,7 +35,7 @@ public:
     TImpl(
         TChunkHolderConfig* config,
         TLocation* location)
-        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
+        : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
         , Location(location)
     {
@@ -83,12 +83,24 @@ private:
     TLocation::TPtr Location;
     TAutoPtr<TChunkServiceProxy> ChunkProxy;
 
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkAdded);
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkRemoved);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
 
     virtual i64 GetWeight(TCachedChunk* chunk) const
     {
         return chunk->GetSize();
+    }
+
+    virtual void OnAdded(TCachedChunk* value)
+    {
+        TBase::OnAdded(value);
+        ChunkAdded_.Fire(value);
+    }
+    
+    virtual void OnRemoved(TCachedChunk* value)
+    {
+        TBase::OnRemoved(value);
+        ChunkRemoved_.Fire(value);
     }
 
     class TDownloadSession
@@ -141,7 +153,7 @@ private:
 
             auto holderAddresses = FromProto<Stroka>(response->holderaddresses());
             if (holderAddresses.empty()) {
-                OnError(TError(EErrorCode::NotAvailable, "Chunk is not available"));
+                OnError(TError(EErrorCode::ChunkLost, "Chunk is lost"));
                 return;
             }
 
@@ -294,7 +306,7 @@ TChunkCache::TChunkCache(
 {
     LOG_INFO("Chunk cache scan started");
 
-    auto location = New<TLocation>(~config->CacheLocation, readerCache);
+    auto location = New<TLocation>(ELocationType::Cache, ~config->ChunkCacheLocation, readerCache);
     Impl = New<TImpl>(config, ~location);
 
     try {
@@ -333,8 +345,8 @@ TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(const TChunkI
     return Impl->Download(chunkId);
 }
 
-DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamSignal<TCachedChunk*>, ChunkAdded, *Impl);
-DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamSignal<TCachedChunk*>, ChunkRemoved, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamSignal<TChunk*>, ChunkAdded, *Impl);
+DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamSignal<TChunk*>, ChunkRemoved, *Impl);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -361,19 +361,30 @@ private:
         auto chunkId = chunk.GetId();
 
         // Unregister chunk replicas from all known locations.
-        FOREACH (auto holderId, chunk.Locations()) {
-            auto& holder = GetHolderForUpdate(holderId);
-            YVERIFY(holder.ChunkIds().erase(chunkId) == 1);
+        FOREACH (auto holderId, chunk.StoredLocations()) {
+            DoRemoveChunkFromLocation(chunk, false, holderId);
+        }
 
-            if (IsLeader()) {
-                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+        if (~chunk.CachedLocations() != NULL) {
+            FOREACH (auto holderId, *chunk.CachedLocations()) {
+                DoRemoveChunkFromLocation(chunk, true, holderId);
             }
         }
 
         ChunkMap.Remove(chunkId);
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk removed (ChunkId: %s)",
-            ~chunkId.ToString());
+        LOG_INFO_IF(!IsRecovery(), "Chunk removed (ChunkId: %s)", ~chunkId.ToString());
+    }
+
+    void DoRemoveChunkFromLocation(TChunk& chunk, bool cached, THolderId holderId)
+    {
+        auto chunkId = chunk.GetId();
+        auto& holder = GetHolderForUpdate(holderId);
+        holder.RemoveChunk(chunkId, cached);
+
+        if (!cached && IsLeader()) {
+            ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+        }
     }
 
     void RemoveChunkList(TChunkList& chunkList)
@@ -415,7 +426,7 @@ private:
         auto* newHolder = new THolder(
             holderId,
             address,
-            EHolderState::Registered,
+            EHolderState::Inactive,
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
@@ -457,11 +468,11 @@ private:
             ProcessAddedChunk(holder, chunkInfo);
         }
 
-        FOREACH(auto protoChunkId, message.removedchunks()) {
-            ProcessRemovedChunk(holder, TChunkId::FromProto(protoChunkId));
+        FOREACH(const auto& chunkInfo, message.removedchunks()) {
+            ProcessRemovedChunk(holder, chunkInfo);
         }
 
-        bool isFirstHeartbeat = holder.GetState() == EHolderState::Registered;
+        bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
         if (isFirstHeartbeat) {
             holder.SetState(EHolderState::Active);
         }
@@ -645,9 +656,14 @@ private:
             StopHolderTracking(holder);
         }
 
-        FOREACH(const auto& chunkId, holder.ChunkIds()) {
+        FOREACH(const auto& chunkId, holder.StoredChunkIds()) {
             auto& chunk = GetChunkForUpdate(chunkId);
-            DoRemovedChunkReplicaAtDeadHolder(holder, chunk);
+            DoRemoveChunkReplicaAtDeadHolder(holder, chunk, false);
+        }
+
+        FOREACH(const auto& chunkId, holder.CachedChunkIds()) {
+            auto& chunk = GetChunkForUpdate(chunkId);
+            DoRemoveChunkReplicaAtDeadHolder(holder, chunk, true);
         }
 
         FOREACH(const auto& jobId, holder.JobIds()) {
@@ -660,46 +676,73 @@ private:
     }
 
 
-    void DoAddChunkReplica(THolder& holder, TChunk& chunk)
+    void DoAddChunkReplica(THolder& holder, TChunk& chunk, bool cached)
     {
-        YVERIFY(holder.ChunkIds().insert(chunk.GetId()).Second());
-        chunk.AddLocation(holder.GetId());
+        auto chunkId = chunk.GetId();
+        auto holderId = holder.GetId();
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunk.GetId().ToString(),
+        if (holder.HasChunk(chunkId, cached)) {
+            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+                ~chunkId.ToString(),
+                ~ToString(cached),
+                ~holder.GetAddress(),
+                holderId);
+            return;
+        }
+
+        holder.AddChunk(chunkId, cached);
+        chunk.AddLocation(holderId, cached);
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+            ~chunkId.ToString(),
+            ~ToString(cached),
             ~holder.GetAddress(),
-            holder.GetId());
+            holderId);
 
-        if (IsLeader()) {
+        if (!cached && IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
         }
     }
 
-    void DoRemoveChunkReplica(THolder& holder, TChunk& chunk)
+    void DoRemoveChunkReplica(THolder& holder, TChunk& chunk, bool cached)
     {
-        YVERIFY(holder.ChunkIds().erase(chunk.GetId()) == 1);
-        chunk.RemoveLocation(holder.GetId());
+        auto chunkId = chunk.GetId();
+        auto holderId = holder.GetId();
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
-             ~chunk.GetId().ToString(),
+        if (!holder.HasChunk(chunkId, cached)) {
+            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+                ~chunkId.ToString(),
+                ~ToString(cached),
+                ~holder.GetAddress(),
+                holderId);
+            return;
+        }
+
+        holder.RemoveChunk(chunk.GetId(), cached);
+        chunk.RemoveLocation(holder.GetId(), cached);
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+             ~chunkId.ToString(),
+             ~ToString(cached),
              ~holder.GetAddress(),
-             holder.GetId());
+             holderId);
 
-        if (IsLeader()) {
+        if (!cached && IsLeader()) {
             ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
 
-    void DoRemovedChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk)
+    void DoRemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
     {
-        chunk.RemoveLocation(holder.GetId());
+        chunk.RemoveLocation(holder.GetId(), cached);
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
+             ~ToString(cached),
              ~holder.GetAddress(),
              holder.GetId());
 
-        if (IsLeader()) {
+        if (!cached && IsLeader()) {
             ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
@@ -781,13 +824,15 @@ private:
         auto holderId = holder.GetId();
         auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
         i64 size = chunkInfo.size();
+        bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Size: %" PRId64 ")",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
+                ~ToString(cached),
                 size);
             if (IsLeader()) {
                 ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
@@ -797,8 +842,9 @@ private:
 
         // Use size reported by the holder.
         if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
-            LOG_FATAL("Chunk size mismatch (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
+            LOG_FATAL("Chunk size mismatch (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
                 ~chunkId.ToString(),
+                ~ToString(cached),
                 chunk->GetSize(),
                 size,
                 ~holder.GetAddress(),
@@ -806,25 +852,28 @@ private:
         }
         chunk->SetSize(size);
 
-        DoAddChunkReplica(holder, *chunk);
+        DoAddChunkReplica(holder, *chunk, cached);
     }
 
     void ProcessRemovedChunk(
         THolder& holder,
-        const TChunkId& chunkId)
+        const TReqHolderHeartbeat::TChunkRemoveInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
+        auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
+        bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (chunk == NULL) {
-            LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
+                 ~ToString(cached),
                  ~holder.GetAddress(),
                  holderId);
             return;
         }
 
-        DoRemoveChunkReplica(holder, *chunk);
+        DoRemoveChunkReplica(holder, *chunk, cached);
     }
 
 
@@ -1041,6 +1090,23 @@ void TChunkManager::RunJobControl(
         runningJobs,
         jobsToStart,
         jobsToStop);
+}
+
+void TChunkManager::FillHolderAddresses(
+    ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+    const TChunk& chunk)
+{
+    FOREACH(auto holderId, chunk.StoredLocations()) {
+        const THolder& holder = GetHolder(holderId);
+        addresses->Add()->assign(holder.GetAddress());
+    }
+
+    if (~chunk.CachedLocations() != NULL) {
+        FOREACH(auto holderId, *chunk.CachedLocations()) {
+            const THolder& holder = GetHolder(holderId);
+            addresses->Add()->assign(holder.GetAddress());
+        }
+    }
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

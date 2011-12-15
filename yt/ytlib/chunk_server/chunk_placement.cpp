@@ -113,7 +113,7 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 {
     yhash_set<Stroka> forbiddenAddresses;
 
-    FOREACH(auto holderId, chunk.Locations()) {
+    FOREACH(auto holderId, chunk.StoredLocations()) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.GetAddress());
     }
@@ -133,9 +133,10 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 
 THolderId TChunkPlacement::GetReplicationSource(const TChunk& chunk)
 {
-    // TODO: do something smart
-    YASSERT(!chunk.Locations().empty());
-    return chunk.Locations()[0];
+    // Right now we are just picking a random location (including cached ones).
+    auto locations = chunk.GetLocations();
+    int index = RandomNumber<size_t>(locations.size());
+    return locations[index];
 }
 
 yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)
@@ -143,8 +144,8 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     // Construct a list of (holderId, loadFactor) pairs.
     typedef TPair<THolderId, double> TCandidatePair;
     yvector<TCandidatePair> candidates;
-    candidates.reserve(chunk.Locations().ysize());
-    FOREACH(auto holderId, chunk.Locations()) {
+    candidates.reserve(chunk.StoredLocations().ysize());
+    FOREACH(auto holderId, chunk.StoredLocations()) {
         const auto& holder = ChunkManager->GetHolder(holderId);
         double loadFactor = GetLoadFactor(holder);
         candidates.push_back(MakePair(holderId, loadFactor));
@@ -205,7 +206,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
         return false;
     }
 
-    if (targetHolder.ChunkIds().find(chunk.GetId()) != targetHolder.ChunkIds().end())  {
+    if (targetHolder.StoredChunkIds().find(chunk.GetId()) != targetHolder.StoredChunkIds().end())  {
         // Do not balance to a holder already having the chunk.
         return false;
     }
@@ -240,19 +241,29 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
 yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int count)
 {
-    // Do not balance chunks that already have a job assigned.
+    // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
     FOREACH (const auto& jobId, holder.JobIds()) {
         const auto& job = ChunkManager->GetJob(jobId);
         forbiddenChunkIds.insert(job.GetChunkId());
     }
 
-    // TODO: do something smart
+    // Right now we just pick some (not even random!) chunks.
     yvector<TChunkId> result;
-    FOREACH (const auto& chunkId, holder.ChunkIds()) {
+    result.reserve(count);
+    FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
         if (result.ysize() >= count)
             break;
-        result.push_back(chunkId);
+        if (forbiddenChunkIds.find(chunkId) == forbiddenChunkIds.end()) {
+            result.push_back(chunkId);
+        }
+    }
+    FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
+        if (result.ysize() >= count)
+            break;
+        if (forbiddenChunkIds.find(chunkId) == forbiddenChunkIds.end()) {
+            result.push_back(chunkId);
+        }
     }
 
     return result;

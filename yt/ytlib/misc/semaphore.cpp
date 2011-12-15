@@ -8,46 +8,43 @@ namespace NYT {
 TAsyncSemaphore::TAsyncSemaphore(int maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
+    , RequestedSlots(0)
     , AcquireEvent(NULL)
     , StaticResult(New< TFuture<TVoid> >())
-
 {
     StaticResult->Set(TVoid());
 }
 
-bool TAsyncSemaphore::Release()
+void TAsyncSemaphore::Release(int slots /* = 1 */)
 {
     TGuard<TSpinLock> guard(SpinLock);
+    FreeSlotCount += slots;
+    YASSERT(FreeSlotCount <= MaxFreeSlots);
 
-    if (~AcquireEvent != NULL) {
-        YASSERT(FreeSlotCount == 0);
+    if (~AcquireEvent != NULL && FreeSlotCount > 0) {
+        FreeSlotCount -= RequestedSlots;
+        RequestedSlots = 0;
         auto event = AcquireEvent;
         AcquireEvent.Reset();
 
         guard.Release();
         event->Set(TVoid());
-    } else if (FreeSlotCount < MaxFreeSlots) {
-         ++FreeSlotCount;
-    } else {
-        return false;
     }
-
-    return true;
 }
 
-TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire()
+TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(int slots /* = 1 */)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(FreeSlotCount >= 0);
     if (FreeSlotCount > 0) {
-        --FreeSlotCount;
+        FreeSlotCount -= slots;
         return StaticResult;
     }
 
     YASSERT(~AcquireEvent == NULL);
     AcquireEvent = New< TFuture<TVoid> >();
+    RequestedSlots = slots;
     return AcquireEvent;
 }
 

@@ -22,7 +22,7 @@ T CheckedStaticCast(i64 value)
     return static_cast<T>(value);
 }
 
-// TConfigBase
+// TConfigBase::TPtr
 template <class T>
 inline void Read(
     TIntrusivePtr<T>& parameter,
@@ -152,6 +152,49 @@ inline void Read(yhash_map<Stroka, T>& parameter, NYTree::INode* node, const NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// all
+inline void ValidateSubconfigs(
+    const void* /* parameter */,
+    const NYTree::TYPath& /* path */)
+{ }
+
+// TConfigBase
+template <class T>
+inline void ValidateSubconfigs(
+    const TIntrusivePtr<T>* parameter,
+    const NYTree::TYPath& path,
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
+        NYT::NDetail::TEmpty())
+{
+    (*parameter)->Validate(path);
+}
+
+// yvector
+template <class T>
+inline void ValidateSubconfigs(
+    const yvector<T>* parameter,
+    const NYTree::TYPath& path)
+{
+    for (int i = 0; i < parameter->ysize(); ++i) {
+        ValidateSubconfigs(
+            &(*parameter)[i], NYTree::CombineYPaths(path, ToString(i)));
+    }
+}
+
+// yhash_map
+template <class T>
+inline void ValidateSubconfigs(
+    const yhash_map<Stroka, T>* parameter,
+    const NYTree::TYPath& path)
+{
+    FOREACH (const auto& pair, *parameter) {
+        ValidateSubconfigs(
+            &pair.Second(), NYTree::CombineYPaths(path, pair.First()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
@@ -179,6 +222,7 @@ void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 template <class T>
 void TParameter<T>::Validate(const NYTree::TYPath& path) const
 {
+    ValidateSubconfigs(&Parameter, path);
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(Parameter);
@@ -208,6 +252,12 @@ TParameter<T>& TParameter<T>::Default(T&& defaultValue)
 }
 
 template <class T>
+TParameter<T>& TParameter<T>::DefaultNew()
+{
+    return Default(New<typename T::TElementType>());
+}
+
+template <class T>
 TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
 {
     Validators.push_back(validator);
@@ -221,55 +271,54 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        CheckThat(~FromFunctor([=] (const T& parameter) \
+        return CheckThat(~FromFunctor([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \
                 } \
             })); \
-        return *this; \
     }
 
 DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
     yexception()
-        << "Validation failure (Expected: to be greater than "
+        << "Validation failure: expected value greater than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
     yexception()
-        << "Validation failure (Expected: to be greater than or equal to "
+        << "Validation failure: expected value greater than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
     yexception()
-        << "Validation failure (Expected: to be less than "
+        << "Validation failure: expected value less than "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
     yexception()
-        << "Validation failure (Expected: to be less than or equal to "
+        << "Validation failure: expected value less than or equal to "
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
     yexception()
-        << "Validation failure (Expected: to be in range ["
+        << "Validation failure: expected value in range ["
         << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
     yexception()
-        << "Validation failure (Expected: to be non-empty)")
+        << "Validation failure: non-empty value expected")
 
 #undef DEFINE_VALIDATOR
 

@@ -31,7 +31,7 @@ message TMsgHeartbeatRequest
     required int32 HolderId = 1;
     required THolderStatistics Statistics = 2;
     repeated TReqHolderHeartbeat.TChunkAddInfo AddedChunks = 3;
-    repeated bytes RemovedChunks = 4;
+    repeated TReqHolderHeartbeat.TChunkRemoveInfo RemovedChunks = 4;
 }
 
 message TMsgHeartbeatResponse

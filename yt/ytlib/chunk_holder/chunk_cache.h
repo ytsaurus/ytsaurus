@@ -50,7 +50,7 @@ public:
     DECLARE_ENUM(EErrorCode,
         ((MasterError)(1))
         ((HolderError)(2))
-        ((NotAvailable)(3))
+        ((ChunkLost)(3))
     );
 
     //! Downloads a chunk into the cache.
@@ -61,10 +61,10 @@ public:
     TAsyncDownloadResult::TPtr DownloadChunk(const NChunkClient::TChunkId& chunkId);
 
     //! Raised when a chunk is added to the cache.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkAdded);
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
 
     //! Raised when a chunk is removed from the cache.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TCachedChunk*>, ChunkRemoved);
+    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
 
 private:
     class TImpl;

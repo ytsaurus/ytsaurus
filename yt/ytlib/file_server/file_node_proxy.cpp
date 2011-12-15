@@ -74,10 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
         const auto& chunk = ChunkManager->GetChunk(chunkId);
 
         response->set_chunkid(chunkId.ToProto());
-        FOREACH (auto holderId, chunk.Locations()) {
-            auto& holder = ChunkManager->GetHolder(holderId);
-            response->add_holderaddresses(holder.GetAddress());
-        }   
+        ChunkManager->FillHolderAddresses(response->mutable_holderaddresses(), chunk);
 
         context->SetResponseInfo("ChunkId: %s, HolderAddresses: [%s]",
             ~chunkId.ToString(),

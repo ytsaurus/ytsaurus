@@ -16,12 +16,7 @@ Logging = {
             'Categories' : [ "*" ], 
             'MinLevel' : "Debug", 
             'Writers' : [ "File" ] 
-        },
-        {
-           'Categories' : [ "MetaState" ],
-           'MinLevel' : "Trace",
-           'Writers' : [ "File" ]
-        } 
+        }
     ]
 }
 
@@ -31,7 +26,7 @@ MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) fo
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
-    base_dir = '/yt/disk1/'
+    base_dir = '/yt/disk1/data'
     libs = [
         '/home/yt/build/lib/libstlport.so.5.2',
         '/home/yt/build/lib/libsnappy.so.1.0',
@@ -53,7 +48,6 @@ class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/server'
     
 class Master(Server):
-    base_dir = './'
     address = Subclass(MasterAddresses)
     params = Template('--cell-master --config %(config_path)s --old_config %(old_config_path)s --port %(port)d --id %(__name__)s')
 
@@ -80,8 +74,7 @@ class Master(Server):
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
-    
-    
+       
 class Holder(Server):
     nodeid = Subclass(xrange(10))
     groupid = Subclass(xrange(10))
@@ -90,32 +83,32 @@ class Holder(Server):
     
     params = Template('--chunk-holder --config %(config_path)s --old_config %(old_config_path)s --port %(port)d')
 
-    storageQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
+    storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
         'masters' : { 'addresses' : MasterAddresses },
-        'storage_locations' : [
-            { 'path' : '/yt/disk1/chunk_storage', 'quota' : storageQuota },
-            { 'path' : '/yt/disk2/chunk_storage', 'quota' : storageQuota },
-            { 'path' : '/yt/disk3/chunk_storage', 'quota' : storageQuota },
-            { 'path' : '/yt/disk4/chunk_storage', 'quota' : storageQuota }
+        'chunk_store_locations' : [
+            { 'path' : '/yt/disk1/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk2/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk3/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk4/chunk_store', 'quota' : storeQuota }
         ],
-        'cache_location' : {
+        'chunk_cache_location' : {
             'path' : '/yt/disk1/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { },
         'cache_sequential_reader' : { },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
-        'max_cached_readers' : 256
+        'max_cached_readers' : 256,
         'Logging' : Logging
     })
     
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
-        for location in cls.config['storage_locations']:
+        for location in cls.config['chunk_store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
-        print >>fd, 'rm -rf %s' % cls.config['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']
 
 class Client(Base, RemoteNode):
     bin_path = '/home/yt/build/bin/send_chunk'

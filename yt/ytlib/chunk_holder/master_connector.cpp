@@ -58,6 +58,12 @@ TMasterConnector::TMasterConnector(
     ChunkStore->ChunkRemoved().Subscribe(FromMethod(
         &TMasterConnector::OnChunkRemoved,
         this));
+    ChunkCache->ChunkAdded().Subscribe(FromMethod(
+        &TMasterConnector::OnChunkAdded,
+        this));
+    ChunkCache->ChunkRemoved().Subscribe(FromMethod(
+        &TMasterConnector::OnChunkRemoved,
+        this));
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~Address,
@@ -153,10 +159,14 @@ void TMasterConnector::SendHeartbeat()
         }
 
         FOREACH (auto chunk, ReportedRemoved) {
-            request->add_removedchunks(chunk->GetId().ToProto());
+            *request->add_removedchunks() = GetRemoveInfo(~chunk);
         }
     } else {
         FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
+            *request->add_addedchunks() = GetAddInfo(~chunk);
+        }
+
+        FOREACH (const auto& chunk, ChunkCache->GetChunks()) {
             *request->add_addedchunks() = GetAddInfo(~chunk);
         }
     }
@@ -182,7 +192,16 @@ TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* ch
 {
     TReqHolderHeartbeat::TChunkAddInfo info;
     info.set_chunkid(chunk->GetId().ToProto());
+    info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     info.set_size(chunk->GetSize());
+    return info;
+}
+
+TReqHolderHeartbeat::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(const TChunk* chunk)
+{
+    TReqHolderHeartbeat::TChunkRemoveInfo info;
+    info.set_chunkid(chunk->GetId().ToProto());
+    info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     return info;
 }
 
