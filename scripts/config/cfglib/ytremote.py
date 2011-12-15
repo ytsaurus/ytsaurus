@@ -8,7 +8,7 @@ DoClean = FileDescr('do_clean', ('remote', 'exec'))
 DoTest = FileDescr('do_test', ('remote', 'exec'))
 Test = FileDescr('test', ('aggregate', 'exec'))
 
-Files = [Config, OldConfig, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
+Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
 
 ################################################################
 

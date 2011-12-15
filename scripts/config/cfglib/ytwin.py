@@ -7,7 +7,7 @@ IF ERRORLEVEL 1 (START "%(path)s" %(bin_path)s %(params)s)
 cmd_stop = 'TASKKILL /F /T /FI "WINDOWTITLE eq %(path)s"'
 
 class WinNode(ServerNode):
-    files = [Config, OldConfig, Run, Clean, Stop]
+    files = [Config, Run, Clean, Stop]
     
     @initmethod
     def init(cls):
