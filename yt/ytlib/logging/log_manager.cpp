@@ -113,9 +113,6 @@ public:
     typedef yvector<TRule> TRules;
     TRules Rules;
 
-    void ConfigureWriters(const TJsonObject* root);
-    void ConfigureRules(const TJsonObject* root);
-
     void ValidateRule(const TRule& rule);
 
     TConfig();
@@ -361,22 +358,22 @@ void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
         auto root = DeserializeFromYson(&configStream);
         auto rootService = IYPathService::FromNode(~root);
         auto configNode = SyncYPathGetNode(~rootService, path);
-        Configure(configNode);
+        Configure(~configNode);
     } catch (const yexception& e) {
         LOG_ERROR("Error configuring logging\n%s", e.what())
         return;
     }
 }
 
-void TLogManager::Configure(NYTree::INode::TPtr node)
+void TLogManager::Configure(NYTree::INode* node)
 {
     auto configuration = New<TConfig>();
-    configuration->Load(~node);
+    configuration->Load(node);
     configuration->Init();
     {
         TGuard<TSpinLock> guard(&SpinLock);
         Configuration = configuration;
-        ConfigVersion += 1;
+        ConfigVersion++;
     }
 }
 
@@ -391,7 +388,7 @@ void TLogManager::ConfigureDefault()
     {
         TGuard<TSpinLock> guard(&SpinLock);
         Configuration = configuration;
-        ConfigVersion += 1;
+        ConfigVersion++;
     }
 }
 
