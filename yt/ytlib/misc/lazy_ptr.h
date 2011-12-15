@@ -16,13 +16,11 @@ template<class T, class TLock = TSpinLock>
 class TLazyPtr
     : public TPointerCommon<TLazyPtr<T, TLock>, T>
 {
-    TLock Lock;
-    typename IFunc<T*>::TPtr Fabric;
-    mutable TIntrusivePtr<T> Value;
-
 public:
-    TLazyPtr(typename IFunc<T*>::TPtr fabric)
-        : Fabric(fabric)
+    typedef TIntrusivePtr< IFunc< TIntrusivePtr<T> > > TFactoryPtr;
+
+    TLazyPtr(TFactoryPtr factory)
+        : Factory(factory)
     { }
 
     TLazyPtr()
@@ -34,11 +32,16 @@ public:
         if (~Value == NULL) {
             TGuard<TLock> guard(Lock);
             if (~Value == NULL) {
-                Value = ~Fabric == NULL ? New<T>() : Fabric->Do();
+                Value = ~Factory == NULL ? New<T>() : Factory->Do();
             }
         }
         return ~Value;
     }
+
+private:
+    TLock Lock;
+    TFactoryPtr Factory;
+    mutable TIntrusivePtr<T> Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

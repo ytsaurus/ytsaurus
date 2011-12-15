@@ -28,8 +28,14 @@ TChunkStore::TChunkStore(
     LOG_INFO("Chunk storage scan started");
 
     try {
-        FOREACH (auto& storageLocation, Config->ChunkStorageLocations) {
-            auto location = New<TLocation>(ELocationType::Store, ~storageLocation, ~ReaderCache);
+        for (int i = 0; i < Config->ChunkStorageLocations.ysize(); ++i) {
+            auto& storageLocation = Config->ChunkStorageLocations[i];
+
+            auto location = New<TLocation>(
+                ELocationType::Store,
+                ~storageLocation,
+                ~ReaderCache,
+                Sprintf("ChunkStore-%d", i));
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {

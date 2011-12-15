@@ -20,13 +20,14 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TLocation::TLocation(
     ELocationType type,
     TLocationConfig* config,
-    TReaderCache* readerCache)
+    TReaderCache* readerCache,
+    const Stroka& threadName)
     : Type(type)
     , Config(config)
     , ReaderCache(readerCache)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , ActionQueue(New<TActionQueue>("ChunkLocation"))
+    , ActionQueue(New<TActionQueue>(threadName))
     , SessionCount(0)
 { }
 

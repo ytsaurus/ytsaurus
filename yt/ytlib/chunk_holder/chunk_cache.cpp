@@ -306,7 +306,11 @@ TChunkCache::TChunkCache(
 {
     LOG_INFO("Chunk cache scan started");
 
-    auto location = New<TLocation>(ELocationType::Cache, ~config->ChunkCacheLocation, readerCache);
+    auto location = New<TLocation>(
+        ELocationType::Cache,
+        ~config->ChunkCacheLocation,
+        readerCache,
+        "ChunkCache");
     Impl = New<TImpl>(config, ~location);
 
     try {

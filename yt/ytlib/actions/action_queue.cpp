@@ -62,7 +62,7 @@ bool TQueueInvoker::DequeueAndExecute()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueueBase::TActionQueueBase(const char* threadName, bool enableLogging)
+TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
     : EnableLogging(enableLogging)
     , Finished(false)
     , WakeupEvent(Event::rManual)
@@ -90,7 +90,7 @@ void* TActionQueueBase::ThreadFunc(void* param)
 void TActionQueueBase::ThreadMain()
 {
     try {
-        NThread::SetCurrentThreadName(ThreadName);
+        NThread::SetCurrentThreadName(~ThreadName);
         while (!Finished) {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
@@ -122,7 +122,7 @@ void TActionQueueBase::Shutdown()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueue::TActionQueue(const char* threadName, bool enableLogging)
+TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
     : TActionQueueBase(threadName, enableLogging)
 {
     QueueInvoker = New<TQueueInvoker>(this);
@@ -147,9 +147,17 @@ IInvoker::TPtr TActionQueue::GetInvoker()
     return QueueInvoker;
 }
 
+IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& threadName)
+{
+    return FromFunctor([=] ()
+        {
+            return NYT::New<NYT::TActionQueue>(threadName);
+        });
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
-TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const char* threadName)
+TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const Stroka& threadName)
     : TActionQueueBase(threadName, true)
     , QueueInvokers(priorityCount)
 {

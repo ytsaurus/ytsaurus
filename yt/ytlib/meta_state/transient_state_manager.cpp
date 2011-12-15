@@ -16,7 +16,7 @@ public:
     TTransientMetaStateManager(IMetaState* metaState)
         : MetaState(metaState)
     {
-        Queue = New<TActionQueue>("StateManager");
+        StateQueue = New<TActionQueue>("MetaState");
     }
 
     void Start()
@@ -27,7 +27,7 @@ public:
 
     void Stop()
     {
-        Queue->Shutdown();
+        StateQueue->Shutdown();
     }
 
     EPeerStatus GetControlStatus() const
@@ -42,12 +42,12 @@ public:
 
     IInvoker::TPtr GetStateInvoker()
     {
-        return Queue->GetInvoker();
+        return StateQueue->GetInvoker();
     }
 
     IInvoker::TPtr GetEpochStateInvoker()
     {
-        return Queue->GetInvoker();
+        return StateQueue->GetInvoker();
     }
 
     TAsyncCommitResult::TPtr CommitChange(
@@ -82,7 +82,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopFollowing);
 
 private:
-    TActionQueue::TPtr Queue;
+    TActionQueue::TPtr StateQueue;
     IMetaState::TPtr MetaState;
 };
 

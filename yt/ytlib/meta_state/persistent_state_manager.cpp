@@ -126,11 +126,11 @@ public:
             SnapshotStore,
             ChangeLogCache);
 
-        ReadQueue = New<TActionQueue>("Read");
+        IOQueue = New<TActionQueue>("MetaStateIO");
 
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
-        VERIFY_INVOKER_AFFINITY(ReadQueue->GetInvoker(), ReadThread);
+        VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), ReadThread);
 
         CellManager = New<TCellManager>(~Config->Cell);
 
@@ -288,7 +288,7 @@ public:
     TSnapshotStore::TPtr SnapshotStore;
     TDecoratedMetaState::TPtr MetaState;
 
-    TActionQueue::TPtr ReadQueue;
+    TActionQueue::TPtr IOQueue;
 
     // Per epoch, control (service) thread
     TEpoch Epoch;
@@ -363,7 +363,7 @@ public:
         }
 
         auto snapshotFile = result.Value();
-        ReadQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] ()
+        IOQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] ()
             {
                 VERIFY_THREAD_AFFINITY(ReadThread);
 
@@ -436,7 +436,7 @@ public:
         }
 
         auto changeLog = result.Value();
-        ReadQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
+        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
             {
                 VERIFY_THREAD_AFFINITY(ReadThread);
 

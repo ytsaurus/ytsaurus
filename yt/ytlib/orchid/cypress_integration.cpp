@@ -9,6 +9,7 @@
 #include "../cypress/virtual.h"
 #include "../orchid/orchid_service_rpc.h"
 #include "../rpc/channel.h"
+#include "../misc/new.h"
 
 namespace NYT {
 namespace NOrchid {
@@ -21,7 +22,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NRpc::TChannelCache ChannelCache;
-static TLazyPtr<TActionQueue> OrchidQueue; // TODO: Name this queue
+static TLazyPtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 static NLog::TLogger& Logger = OrchidLogger;
 
 class TOrchidYPathService
