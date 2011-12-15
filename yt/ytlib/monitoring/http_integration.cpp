@@ -14,7 +14,7 @@ namespace NMonitoring {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYTree;
-using namespace NHTTP;
+using namespace NHttp;
 
 namespace {
 
