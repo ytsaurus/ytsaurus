@@ -3,14 +3,14 @@ from cfglib.ytremote import *
 import cfglib.opts as opts
 
 Logging = {
-    'writers' : [
-        'file':
+    'writers' : { 
+        'file' :
         {
             'type' : "File",
             'file_name' : "%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
-    ],
+    },
     'rules' : [
         { 
             'categories' : [ "*" ],
@@ -42,14 +42,14 @@ class Base(AggrBase):
     
     def get_log(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['logging']['writers'][0]['file_name'], cls.local_dir)
+        print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['logging']['writers']['file']['file_name'], cls.local_dir)
     
 class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/server'
     
 class Master(Server):
     address = Subclass(MasterAddresses)
-    params = Template('--cell-master --config %(config_path)s --old_config %(old_config_path)s --port %(port)d --id %(__name__)s')
+    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
     config = Template({
         'meta_state' : {

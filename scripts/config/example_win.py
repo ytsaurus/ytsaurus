@@ -7,7 +7,7 @@ build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
 
 Logging = {
-    'writers' : [
+    'writers' : { 
         'file':
             {
                 'type' : "File",
@@ -19,7 +19,7 @@ Logging = {
                 'type' : "StdErr",
                 'pattern' : "$(datetime) $(level) $(category) $(message)"
             }
-    ],
+    },
     'rules' : [
         {
             'categories' : [ "*" ],
@@ -73,7 +73,7 @@ class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
                         [('localhost:%d' % p) for p in range(9000, 9100)]))
         
-        params = Template('--chunk-holder --config %(config_path)s --old_config %(old_config_path)s --port %(port)d')
+        params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
         
         config = Template({ 
                 'masters' : { 'addresses' : MasterAddresses },
