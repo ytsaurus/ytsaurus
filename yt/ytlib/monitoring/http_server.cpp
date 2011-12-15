@@ -17,7 +17,7 @@
 #include <yt/ytlib/logging/log.h>
 
 namespace NYT {
-namespace NHTTP {
+namespace NHttp {
 
 static NLog::TLogger Logger("HTTP");
 
@@ -60,7 +60,8 @@ private:
     typedef yhash_map<Stroka, TSyncHandler::TPtr> TSyncHandlerMap;
     typedef yhash_map<Stroka, TAsyncHandler::TPtr> TAsyncHandlerMap;
 
-    struct TPendingRequest {
+    struct TPendingRequest
+    {
         i64 Id;
         SOCKET Socket;
         Stroka Path;
@@ -89,12 +90,12 @@ public:
     void Start();
     void Stop();
 
-    void Register(const Stroka& prefix, TSyncHandler::TPtr handler)
+    void Register(const Stroka& prefix, TSyncHandler* handler)
     {
         YVERIFY(SyncHandlers.insert(MakePair(prefix, handler)).Second());
     }
 
-    void Register(const Stroka& prefix, TAsyncHandler::TPtr handler)
+    void Register(const Stroka& prefix, TAsyncHandler* handler)
     {
         YVERIFY(AsyncHandlers.insert(MakePair(prefix, handler)).Second());
     }
@@ -379,12 +380,12 @@ public:
         Server->Stop();
     }
 
-    void Register(const Stroka& prefix, TSyncHandler::TPtr handler)
+    void Register(const Stroka& prefix, TSyncHandler* handler)
     {
         YVERIFY(SyncHandlers.insert(MakePair(prefix, handler)).Second());
     }
 
-    void Register(const Stroka& prefix, TAsyncHandler::TPtr handler)
+    void Register(const Stroka& prefix, TAsyncHandler* handler)
     {
         YVERIFY(AsyncHandlers.insert(MakePair(prefix, handler)).Second());
     }
@@ -521,12 +522,15 @@ TServer::TServer(int port)
     : Impl(new TImpl(port))
 { }
 
-void TServer::Register(const Stroka& prefix, TSyncHandler::TPtr handler)
+TServer::~TServer()
+{ }
+
+void TServer::Register(const Stroka& prefix, TSyncHandler* handler)
 {
     Impl->Register(prefix, handler);
 }
 
-void TServer::Register(const Stroka& prefix, TAsyncHandler::TPtr handler)
+void TServer::Register(const Stroka& prefix, TAsyncHandler* handler)
 {
     Impl->Register(prefix, handler);
 }
@@ -543,5 +547,5 @@ void TServer::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHTTP
+} // namespace NHttp
 } // namespace NYT

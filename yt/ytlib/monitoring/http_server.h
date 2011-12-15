@@ -5,7 +5,7 @@
 #include <yt/ytlib/actions/action.h>
 
 namespace NYT {
-namespace NHTTP {
+namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,15 +32,15 @@ Stroka FormatOKResponse(const Stroka& body = "");
 
 //! A simple JSON-HTTP server.
 /*
- * This class provides a simple HTTP server which invokes custom handlers 
+ * This class provides a simple HTTP server that invokes custom handlers 
  * for certain requests. It is assumed that every generated response is a JSON.
  * 
- * You can specify either synchronous or asynchronous
+ * You can specify either a synchronous or an asynchronous
  * handler for a given path prefix.
  *
- * Synchronous handlers have precedence of asynchronous and they are invoked
- * within main server loop. Asynchronous handlers implemented using deferred
- * responses. Asynchronous responses are sent to the client when main loop idles.
+ * Synchronous handlers have precedence over asynchronous ones and they are invoked
+ * within the main server loop. Asynchronous handlers are implemented using deferred
+ * responses. Asynchronous responses are sent to the client when the main loop becomes idle.
  */
 class TServer
     : public TNonCopyable
@@ -51,9 +51,10 @@ public:
 
 public:
     TServer(int port);
+    ~TServer();
 
-    void Register(const Stroka& prefix, TSyncHandler::TPtr handler);
-    void Register(const Stroka& prefix, TAsyncHandler::TPtr handler);
+    void Register(const Stroka& prefix, TSyncHandler* handler);
+    void Register(const Stroka& prefix, TAsyncHandler* handler);
 
     void Start();
     void Stop();
@@ -65,5 +66,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHTTP
+} // namespace NHttp
 } // namespace NYT
