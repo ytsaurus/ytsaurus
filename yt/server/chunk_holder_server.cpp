@@ -16,6 +16,7 @@
 #include <yt/ytlib/monitoring/statlog.h>
 
 #include <yt/ytlib/ytree/yson_file_service.h>
+#include <yt/ytlib/ytree/ypath_client.h>
 
 #include <yt/ytlib/chunk_holder/chunk_holder_service.h>
 #include <yt/ytlib/chunk_holder/reader_cache.h>
@@ -38,6 +39,7 @@ using NRpc::IRpcServer;
 using NRpc::CreateRpcServer;
 
 using NYTree::IYPathService;
+using NYTree::SyncYPathSetNode;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::GetYPathHttpHandler;
@@ -68,6 +70,7 @@ void TChunkHolderServer::Run()
 {
     LOG_INFO("Starting chunk holder");
 
+    // TODO: fixme
     // Explicitly instrumentation thread creation.
     NSTAT::EnableStatlog(true);
 
@@ -105,12 +108,12 @@ void TChunkHolderServer::Run()
         ~controlQueue->GetInvoker());
 
     auto masterConnector = New<TMasterConnector>(
-            ~Config,
-            ~chunkStore,
-            ~chunkCache,
-            ~sessionManager,
-            ~replicator,
-            ~controlQueue->GetInvoker());
+        ~Config,
+        ~chunkStore,
+        ~chunkCache,
+        ~sessionManager,
+        ~replicator,
+        ~controlQueue->GetInvoker());
 
     auto chunkHolderService = New<TChunkHolderService>(
         ~Config,
@@ -134,44 +137,38 @@ void TChunkHolderServer::Run()
         FromMethod(&IRpcServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
-    // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();  
-    YVERIFY(orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~CreateMonitoringProvider(~monitoringManager),
-            orchidFactory),
-        "monitoring"));
-    YVERIFY(orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~CreateChunkMapService(~chunkStore),
-            orchidFactory),
-        "chunks"));
-    YVERIFY(orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~NYTree::CreateYsonFileProvider(ConfigFileName),
-            orchidFactory),
-        "config"));
+    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRootService = IYPathService::FromNode(~orchidRoot);
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/monitoring",
+        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager), orchidFactory));
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/config",
+        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName), orchidFactory));
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/chunks",
+        ~NYTree::CreateVirtualNode(~CreateChunkMapService(~chunkStore), orchidFactory));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
         ~rpcServer,
         ~controlQueue->GetInvoker());
 
-    // TODO: fix memory leaking
-    auto httpServer = new NHTTP::TServer(Config->MonitoringPort);
+    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
         "/statistics",
-        NMonitoring::GetProfilingHttpHandler()
-        );
+        ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
         "/orchid",
-        GetYPathHttpHandler(
-            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
-                {
-                    return orchidPathService;
-                })));
+        ~GetYPathHttpHandler(FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+            {
+                return orchidPathService;
+            })));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
