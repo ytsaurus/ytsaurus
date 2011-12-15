@@ -40,7 +40,7 @@ class TSlot
 {
 public:
     TSlot()
-        : InvalidId(static_cast<intptr_t>(TThread::ImpossibleThreadId()))
+        : InvalidId(NThread::InvalidThreadId)
         , BoundId(InvalidId)
     { }
 
