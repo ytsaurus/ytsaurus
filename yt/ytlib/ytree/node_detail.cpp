@@ -392,7 +392,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(const TYPath& path
         return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
 
-    if (verb == "Set" || verb == "Create") {
+    if (verb == "Set" || verb == "SetNode" || verb == "Create") {
         return IYPathService::TResolveResult::Here(path);
     }
 
@@ -445,7 +445,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(const TYPath& pat
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
-    if ((verb == "Set" || verb == "Create") &&
+    if ((verb == "Set" || verb == "SetNode" || verb == "Create") &&
         (lastPrefixCh == '+' || lastPrefixCh == '-'))
     {
         return IYPathService::TResolveResult::Here(path);
