@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/log.cpp
   ${BASE}/log_manager.cpp
   ${BASE}/pattern.cpp
+  ${BASE}/tagged_logger.cpp
   ${BASE}/writer.cpp
 )
 set( HDRS
@@ -12,6 +13,7 @@ set( HDRS
   ${BASE}/log.h
   ${BASE}/log_manager.h
   ${BASE}/pattern.h
+  ${BASE}/tagged_logger.h
   ${BASE}/writer.h
 )
 
