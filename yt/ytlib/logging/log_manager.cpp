@@ -113,19 +113,18 @@ public:
     typedef yvector<TRule> TRules;
     TRules Rules;
 
-    void ValidateRule(const TRule& rule);
-
     TConfig();
-
-    // TODO: think about private:
-
-    // new config
     void Init();
+
+private:
     void ConfigureWriters();
     void ConfigureRules();
 
+    void ValidateRule(const TRule& rule);
+
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WritersConfigs;
     yvector<TRule::TConfig::TPtr> RulesConfigs;
+
 };
 
 void TLogManager::TConfig::Init()
