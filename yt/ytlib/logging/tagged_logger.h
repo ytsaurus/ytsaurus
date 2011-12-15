@@ -2,6 +2,8 @@
 
 #include "log.h"
 
+#include "../misc/property.h"
+
 namespace NYT {
 namespace NLog {
 
@@ -10,8 +12,10 @@ namespace NLog {
 class TTaggedLogger
     : private TNonCopyable
 {
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, Tag);
+
 public:
-    TTaggedLogger(TLogger& innerLogger, const Stroka& tag);
+    TTaggedLogger(TLogger& innerLogger);
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level);
@@ -21,7 +25,6 @@ private:
     Stroka GetTaggedMessage(const Stroka& originalMessage) const;
 
     TLogger& InnerLogger;
-    Stroka Tag;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

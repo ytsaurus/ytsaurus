@@ -17,10 +17,6 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = FileClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFileReader::TFileReader(
     TConfig* config,
     NRpc::IChannel* masterChannel,
@@ -33,8 +29,11 @@ TFileReader::TFileReader(
     , Closed(false)
     , Aborted(false)
     , BlockIndex(0)
+    , Logger(FileClientLogger)
 {
     YASSERT(masterChannel != NULL);
+
+    Logger.SetTag(Sprintf("Path: %s", ~Path));
 }
 
 void TFileReader::Open()
@@ -44,7 +43,7 @@ void TFileReader::Open()
         ? NullTransactionId
         : Transaction->GetId();
 
-    LOG_INFO("File reader is open (Path: %s, TransactionId: %s)",
+    LOG_INFO("File reader is open (TransactionId: %s)",
         ~Path,
         ~transactionId.ToString());
 

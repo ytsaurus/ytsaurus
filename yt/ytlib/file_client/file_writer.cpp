@@ -20,10 +20,6 @@ using namespace NChunkHolder::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = FileClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFileWriter::TFileWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
@@ -39,6 +35,7 @@ TFileWriter::TFileWriter(
     , Aborted(false)
     , Size(0)
     , BlockCount(0)
+    , Logger(FileClientLogger)
 {
     YASSERT(masterChannel != NULL);
     YASSERT(transaction != NULL);
@@ -46,8 +43,9 @@ TFileWriter::TFileWriter(
     // TODO: use totalReplicaCount
     UNUSED(totalReplicaCount);
 
-    LOG_INFO("File writer is open (Path: %s, TransactionId: %s)",
-        ~Path,
+    Logger.SetTag(Sprintf("Path: %s", ~Path));
+
+    LOG_INFO("File writer is open (TransactionId: %s)",
         ~Transaction->GetId().ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));

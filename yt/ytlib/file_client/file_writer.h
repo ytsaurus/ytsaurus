@@ -9,6 +9,7 @@
 #include "../cypress/cypress_service_rpc.h"
 #include "../chunk_client/remote_writer.h"
 #include "../chunk_server/chunk_service_rpc.h"
+#include "../logging/tagged_logger.h"
 
 namespace NYT {
 namespace NFileClient {
@@ -75,6 +76,8 @@ private:
     TBlob Buffer;
 
     IAction::TPtr OnAborted_;
+
+    NLog::TTaggedLogger Logger;
 
     void CheckAborted();
     void OnAborted();

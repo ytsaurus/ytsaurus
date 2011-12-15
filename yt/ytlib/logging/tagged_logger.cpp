@@ -6,6 +6,10 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaggedLogger::TTaggedLogger(TLogger& innerLogger)
+    : InnerLogger(innerLogger)
+{ }
+
 Stroka TTaggedLogger::GetCategory() const
 {
     return InnerLogger.GetCategory();
@@ -31,6 +35,10 @@ void TTaggedLogger::Write(const TLogEvent& event)
 
 Stroka TTaggedLogger::GetTaggedMessage(const Stroka& originalMessage) const
 {
+    if (Tag_.length() == 0) {
+        return originalMessage;
+    }
+
     auto endIndex = originalMessage.find('\n');
     if (endIndex == Stroka::npos) {
         endIndex = originalMessage.length();
@@ -38,12 +46,12 @@ Stroka TTaggedLogger::GetTaggedMessage(const Stroka& originalMessage) const
     if (endIndex > 0 && originalMessage[endIndex - 1] == ')') {
         return
             originalMessage.substr(0, endIndex - 1) +
-            ", " + Tag +
+            ", " + Tag_ +
             originalMessage.substr(endIndex - 1);
     } else {
         return
             originalMessage.substr(0, endIndex) +
-            " (" + Tag + ")" +
+            " (" + Tag_ + ")" +
             originalMessage.substr(endIndex);
     }
 }
