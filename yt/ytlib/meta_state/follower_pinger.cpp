@@ -85,7 +85,7 @@ void TFollowerPinger::OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerI
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error pinging follower (FollowerId: %d, Error: %s)",
+        LOG_WARNING("Error pinging follower (FollowerId: %d)\n%s",
             followerId,
             ~response->GetError().ToString());
         return;
