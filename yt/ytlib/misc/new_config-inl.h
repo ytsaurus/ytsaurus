@@ -228,7 +228,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
             validator->Do(Parameter);
         } catch (...) {
             ythrow yexception()
-                << Sprintf("Config validation failed (Path: %s)\n%s",
+                << Sprintf("Validation failed (Path: %s)\n%s",
                     ~path,
                     ~CurrentExceptionMessage());
         }
@@ -283,42 +283,42 @@ DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
     yexception()
-        << "Validation failure: expected value greater than "
+        << "Validation failure (Expected: >"
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
     yexception()
-        << "Validation failure: expected value greater than or equal to "
+        << "Validation failure (Expected: >="
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
     yexception()
-        << "Validation failure: expected value less than "
+        << "Validation failure (Expected: <"
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
     yexception()
-        << "Validation failure: expected value less than or equal to "
+        << "Validation failure (Expected: <="
         << value << ", Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
     yexception()
-        << "Validation failure: expected value in range ["
+        << "Validation failure (Expected: in range ["
         << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
     yexception()
-        << "Validation failure: non-empty value expected")
+        << "Validation failure (Expected: non-empty)")
 
 #undef DEFINE_VALIDATOR
 
