@@ -499,8 +499,11 @@ Stroka FormatRedirectResponse(const Stroka& location)
 
 Stroka FormatOKResponse(const Stroka& body)
 {
+    // TODO(sandello): Unify headers across all these methods; also implement CRYT-61.
     return Sprintf(
         "HTTP/1.1 200 OK\r\n"
+        "Server: YT\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
         "Connection: close\r\n"
         "Cache-Control: no-cache, max-age=0\r\n"
         "Expires: Thu, 01 Jan 1970 00:00:01 GMT\r\n"
