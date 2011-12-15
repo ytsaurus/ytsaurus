@@ -3,19 +3,19 @@ from cfglib.ytremote import *
 import cfglib.opts as opts
 
 Logging = {
-    'Writers' : [
+    'writers' : [
+        'file':
         {
-            'Name' : "File",
-            'Type' : "File",
-            'FileName' : "%(log_path)s",
-            'Pattern' : "$(datetime) $(level) $(category) $(message)"
+            'type' : "File",
+            'file_name' : "%(log_path)s",
+            'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
     ],
-    'Rules' : [
+    'rules' : [
         { 
-            'Categories' : [ "*" ], 
-            'MinLevel' : "Debug", 
-            'Writers' : [ "File" ] 
+            'categories' : [ "*" ],
+            'min_level' : "Debug",
+            'writers' : [ "file" ]
         }
     ]
 }
@@ -42,7 +42,7 @@ class Base(AggrBase):
     
     def get_log(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['Logging']['Writers'][0]['FileName'], cls.local_dir)
+        print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['logging']['writers'][0]['file_name'], cls.local_dir)
     
 class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/server'
@@ -60,7 +60,7 @@ class Master(Server):
             'log_path' : '%(work_dir)s/logs',
             'max_changes_between_snapshots' : 1000
         },            
-        'Logging' : Logging
+        'logging' : Logging
     })
     
     def do_run(cls, fd):
@@ -81,7 +81,7 @@ class Holder(Server):
     host = Template('n01-04%(groupid)d%(nodeid)dg')
     port = Port
     
-    params = Template('--chunk-holder --config %(config_path)s --old_config %(old_config_path)s --port %(port)d')
+    params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
@@ -100,7 +100,7 @@ class Holder(Server):
         'cache_sequential_reader' : { },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,
-        'Logging' : Logging
+        'logging' : Logging
     })
     
     def do_clean(cls, fd):
@@ -119,27 +119,27 @@ class Client(Base, RemoteNode):
         ['n01-04%0.2dg' % d for d in xrange(5, 90)]))
 
     config = Template({ 
-        'ReplicationFactor' : 2,
-        'BlockSize' : 2 ** 20,
+        'replication_factor' : 2,
+        'block_size' : 2 ** 20,
 
-        'ThreadPool' : {
-            'PoolSize' : 1,
-            'TaskCount' : 100 
+        'thread_pool' : {
+            'pool_size' : 1,
+            'task_count' : 100
         },
 
-        'Logging' : Logging,
+        'logging' : Logging,
 
-        'Masters' : { 
-            'Addresses' : MasterAddresses 
+        'masters' : {
+            'addresses' : MasterAddresses
         },
 
-        'DataSource' : {
-            'Size' : (2 ** 20) * 256 
+        'data_source' : {
+            'size' : (2 ** 20) * 256
         },
 
-        'ChunkWriter' : {
-            'WindowSize' : 40,
-            'GroupSize' : 8 * (2 ** 20)
+        'chunk_writer' : {
+            'window_size' : 40,
+            'group_size' : 8 * (2 ** 20)
         } 
     })
 

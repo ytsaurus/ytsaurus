@@ -5,32 +5,33 @@ import cfglib.opts as opts
 
 build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
+
 Logging = {
-        'Writers' : [
-                {
-                        'Name' : "File",
-                        'Type' : "File",
-                        'FileName' : "%(log_path)s",
-                        'Pattern' : "$(datetime) $(level) $(category) $(message)"
-                },
-                {
-                        'Name' : "StdErr",
-                        'Type' : "StdErr",
-                        'Pattern' : "$(datetime) $(level) $(category) $(message)"
-                }
-        ],
-        'Rules' : [
-                { 
-                        'Categories' : [ "*" ], 
-                        'MinLevel' : "Debug", 
-                        'Writers' : [ "File" ] 
-                },
-                {
-                        'Categories' : [ "*" ], 
-                        'MinLevel' : "Info", 
-                        'Writers' : [ "StdErr" ] 
-                }
-        ]
+    'writers' : [
+        'file':
+            {
+                'type' : "File",
+                'file_name' : "%(log_path)s",
+                'pattern' : "$(datetime) $(level) $(category) $(message)"
+            },
+        'std_err' :
+            {
+                'type' : "StdErr",
+                'pattern' : "$(datetime) $(level) $(category) $(message)"
+            }
+    ],
+    'rules' : [
+        {
+            'categories' : [ "*" ],
+            'min_level' : "Debug",
+            'writers' : [ "file" ]
+        },
+        {
+            'categories' : [ "*" ],
+            'min_level' : "Info",
+            'writers' : [ "std_err" ]
+        }
+    ]
 }
 
 MasterAddresses = opts.limit_iter('--masters',
@@ -44,7 +45,7 @@ class Server(Base):
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
-        params = Template('--cell-master --config %(config_path)s --old_config %(old_config_path)s --port %(port)d --id %(__name__)s')
+        params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
         config = Template({
                 'meta_state' : {
@@ -54,7 +55,7 @@ class Master(WinNode, Server):
                         'snapshot_path' : r'%(work_dir)s\snapshots',
                         'log_path' : r'%(work_dir)s\logs',
                 },                      
-                'Logging' : Logging
+                'logging' : Logging
         })
         
         def run(cls, fd):
@@ -85,7 +86,7 @@ class Holder(WinNode, Server):
                 },
                 'cache_remote_reader' : { },
                 'cache_sequential_reader' : { },
-                'Logging' : Logging
+                'logging' : Logging
         })
         
         def clean(cls, fd):
@@ -101,23 +102,23 @@ class Client(WinNode, Base):
     params = Template('--config %(config_path)s')
 
     config_base = { 
-        'ReplicationFactor' : 2,
-        'BlockSize' : 2 ** 20,
+        'replication_factor' : 2,
+        'block_size' : 2 ** 20,
 
-        'ThreadPool' : {
-            'PoolSize' : 1,
-            'TaskCount' : 1
+        'thread_pool' : {
+            'pool_size' : 1,
+            'task_count' : 1
         },
 
-        'Logging' : Logging,
+        'logging' : Logging,
 
-        'Masters' : { 
-            'Addresses' : MasterAddresses 
+        'masters' : {
+            'addresses' : MasterAddresses
         },
 
-        'ChunkWriter' : {
-            'WindowSize' : 40,
-            'GroupSize' : 8 * (2 ** 20)
+        'chunk_writer' : {
+            'window_size' : 40,
+            'group_size' : 8 * (2 ** 20)
         } 
     }
 
@@ -130,31 +131,31 @@ def client_config(d):
 
 class PlainChunk(Client):
     config = Template(client_config({
-        'YPath' : '/files/plain_chunk',
-        'Input' : {
-            'Type' : 'zero', # stream of zeros
-            'Size' : (2 ** 20) * 256 
+        'ypath' : '/files/plain_chunk',
+        'input' : {
+            'type' : 'zero', # stream of zeros
+            'size' : (2 ** 20) * 256
         }
     }))
 
 class TableChunk(Client):
     config = Template(client_config({ 
-        'Schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
-        'YPath' : '/files/table_chunk',
-        'Input' : {
-            'Type' : 'random_table',
-            'Size' : (2 ** 20) * 20 
+        'schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
+        'ypath' : '/files/table_chunk',
+        'input' : {
+            'type' : 'random_table',
+            'size' : (2 ** 20) * 20
         }
     }))
 
 class TableChunkSequence(Client):
     config = Template(client_config({ 
-        'Schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
-        'ChunkSize' : (2 ** 20) * 7,
-        'YPath' : '/table',
-        'Input' : {
-            'Type' : 'random_table',
-            'Size' : (2 ** 20) * 20 
+        'schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
+        'chunk_size' : (2 ** 20) * 7,
+        'ypath' : '/table',
+        'input' : {
+            'type' : 'random_table',
+            'size' : (2 ** 20) * 20
         }
     }))
 
