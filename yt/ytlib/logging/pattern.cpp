@@ -68,14 +68,18 @@ static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
     formatter.AddProperty("message", FormatMessage(event.Message));
     formatter.AddProperty("category", event.Category);
     formatter.AddProperty("tab", "\t");
-    if (event.FileName != NULL)
+    if (event.FileName != NULL) {
         formatter.AddProperty("file", NFS::GetFileName(event.FileName));
-    if (event.Line != InvalidLine)
+    }
+    if (event.Line != TLogEvent::InvalidLine) {
         formatter.AddProperty("line", ToString(event.Line));
-    if (event.ThreadId != TThread::ImpossibleThreadId())
+    }
+    if (event.ThreadId != NThread::InvalidThreadId) {
         formatter.AddProperty("thread", ToString(event.ThreadId));
-    if (event.Function != NULL)
+    }
+    if (event.Function != NULL) {
         formatter.AddProperty("function", event.Function);
+    }
 }
 
 Stroka FormatEvent(const TLogEvent& event, Stroka pattern)
@@ -94,10 +98,6 @@ bool ValidatePattern(Stroka pattern, Stroka* errorMessage)
     formatter.AddProperty("message", "");
     formatter.AddProperty("category", "");
     formatter.AddProperty("tab", "");
-    formatter.AddProperty("file", "");
-    formatter.AddProperty("line", "");
-    formatter.AddProperty("thread", "");
-    formatter.AddProperty("function", "");
 
     try {
         formatter.Format(pattern);
