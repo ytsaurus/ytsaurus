@@ -127,8 +127,7 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
     if (!response->IsOK()) {
         OnDisconnected();
 
-        LOG_WARNING("Error registering at master (Error: %s)",
-            ~response->GetError().ToString());
+        LOG_WARNING("Error registering at master\n%s", ~response->GetError().ToString());
         return;
     }
 
@@ -211,8 +210,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     
     auto errorCode = response->GetErrorCode();
     if (errorCode != NYT::TError::OK) {
-        LOG_WARNING("Error sending heartbeat to master (Error: %s)",
-            ~response->GetError().ToString());
+        LOG_WARNING("Error sending heartbeat to master\n%s", ~response->GetError().ToString());
 
         // Don't panic upon getting Timeout, TransportError or Unavailable.
         if (errorCode != NRpc::EErrorCode::Timeout && 
