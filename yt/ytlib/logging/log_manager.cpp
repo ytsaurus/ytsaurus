@@ -353,6 +353,7 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     try {
+        LOG_DEBUG("Configuring logging from file %s with YPath %s", ~fileName, ~path);
         TIFStream configStream(fileName);
         auto root = DeserializeFromYson(&configStream);
         auto rootService = IYPathService::FromNode(~root);
