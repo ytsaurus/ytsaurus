@@ -26,7 +26,7 @@ Stroka FormatNotFoundResponse(const Stroka& body = "");
 //! Formats a canonical "See Other" (303) response.
 Stroka FormatRedirectResponse(const Stroka& location);
 //! Formats a canonical "OK" (200) response.
-Stroka FormatOkResponse(const Stroka& body = "");
+Stroka FormatOKResponse(const Stroka& body = "");
 
 ////////////////////////////////////////////////////////////////////////////////
 

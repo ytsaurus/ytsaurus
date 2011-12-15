@@ -35,7 +35,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     ysonReader.Read(&ysonStream);
     adapter.Flush();
 
-    return FormatOkResponse(output.Str());
+    return FormatOKResponse(output.Str());
 }
 
 TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
@@ -69,13 +69,13 @@ TServer::TSyncHandler::TPtr GetProfilingHttpHandler()
     return FromFunctor([] (Stroka path) -> Stroka
     {
         if (path == "/") {
-            return FormatOkResponse(
+            return FormatOKResponse(
                 NSTAT::GetDump(NSTAT::PLAINTEXT_LATEST));
         } else if (path == "/full") {
-            return FormatOkResponse(
+            return FormatOKResponse(
                 NSTAT::GetDump(NSTAT::PLAINTEXT_FULL));
         } else if (path == "/fullw") {
-            return FormatOkResponse(
+            return FormatOKResponse(
                 NSTAT::GetDump(NSTAT::PLAINTEXT_FULL_WITH_TIMES));
         } else {
             return FormatNotFoundResponse();

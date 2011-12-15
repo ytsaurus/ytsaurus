@@ -215,7 +215,7 @@ bool TServer::TImpl::HandleNewRequest(TPendingRequest& request) const
         }
     }
 
-    LOG_INFO("Cannot find a handler for HTTP request (RequestId: %lld, Path: %s)",
+    LOG_WARNING("Cannot find a handler for HTTP request (RequestId: %lld, Path: %s)",
         request.Id,
         ~request.Path);
     SendResponse(request, FormatNotFoundResponse());
@@ -319,7 +319,7 @@ private:
                 }
             }
 
-            LOG_INFO("Cannot find a handler for HTTP request (Method; %s, Path: %s)",
+            LOG_WARNING("Cannot find a handler for HTTP request (Method; %s, Path: %s)",
                 ~request.Method.ToString(),
                 ~request.Request.ToString());
             Output() << FormatNotFoundResponse();
@@ -497,7 +497,7 @@ Stroka FormatRedirectResponse(const Stroka& location)
         ~location);
 }
 
-Stroka FormatOkResponse(const Stroka& body)
+Stroka FormatOKResponse(const Stroka& body)
 {
     return Sprintf(
         "HTTP/1.1 200 OK\r\n"
