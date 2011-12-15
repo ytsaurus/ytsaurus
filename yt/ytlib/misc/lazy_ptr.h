@@ -24,7 +24,7 @@ public:
     { }
 
     TLazyPtr()
-        : Fabric(NULL)
+        : Factory(NULL)
     { }
 
     inline T* Get() const throw()
