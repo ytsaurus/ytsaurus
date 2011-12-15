@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/common.h"
 #include "../misc/enum.h"
+#include "../misc/thread.h"
+
+#include <util/system/thread.h>
 
 namespace NYT {
 namespace NLog {
@@ -20,28 +22,36 @@ DECLARE_ENUM(ELogLevel,
     (Maximum)
 );
 
-class TLogEvent
+const i32 InvalidLine = -1;
+
+struct TLogEvent
 {
-public:
-    typedef TPair<Stroka, Stroka> TProperty;
-    typedef yvector<TProperty> TProperties;
+    TLogEvent()
+        : DateTime(TInstant::Now())
+        , FileName(NULL)
+        , Line(InvalidLine)
+        , ThreadId(TThread::ImpossibleThreadId())
+        , Function(NULL)
+    { }
 
-    TLogEvent(Stroka category, ELogLevel level, Stroka message);
-
-    void AddProperty(Stroka name, Stroka value);
-
-    Stroka GetCategory() const;
-    ELogLevel GetLevel() const;
-    Stroka GetMessage() const;
-    TInstant GetDateTime() const;
-    const TProperties& GetProperties() const;
-
-private:
+    TLogEvent(const Stroka& category, ELogLevel level, const Stroka& message)
+        : Category(category)
+        , Level(level)
+        , Message(message)
+        , DateTime(TInstant::Now())
+        , FileName(NULL)
+        , Line(InvalidLine)
+        , ThreadId(TThread::ImpossibleThreadId())
+    { }
+    
     Stroka Category;
     ELogLevel Level;
     Stroka Message;
     TInstant DateTime;
-    TProperties Properties;
+    const char* FileName;
+    i32 Line;
+    NThread::TThreadId ThreadId;
+    const char* Function;
 
 };
 

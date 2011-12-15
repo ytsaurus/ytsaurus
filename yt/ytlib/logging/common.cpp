@@ -6,7 +6,7 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogEvent::TLogEvent(Stroka category, ELogLevel level, Stroka message)
+/*TLogEvent::TLogEvent(Stroka category, ELogLevel level, Stroka message)
     : Category(category)
     , Level(level)
     , Message(message)
@@ -42,7 +42,7 @@ const TLogEvent::TProperties& TLogEvent::GetProperties() const
 {
     return Properties;
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NLog

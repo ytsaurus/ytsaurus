@@ -93,11 +93,14 @@ void LogEventImpl(
     ELogLevel level,
     const Stroka& message)
 {
-    TLogEvent event(logger.GetCategory(), level, message);
-    event.AddProperty("file", NFS::GetFileName(fileName));
-    event.AddProperty("line", ToString(line));
-    event.AddProperty("thread", ToString(TThread::CurrentThreadId()));
-    event.AddProperty("function", function);
+    TLogEvent event;
+    event.Category = logger.GetCategory();
+    event.Level = level;
+    event.Message = message;
+    event.FileName = fileName;
+    event.Line = line;
+    event.ThreadId = NThread::GetCurrentThreadId();
+    event.Function = function;
     logger.Write(event);
 }
 

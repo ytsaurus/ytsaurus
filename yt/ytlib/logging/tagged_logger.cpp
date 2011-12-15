@@ -22,14 +22,8 @@ bool TTaggedLogger::IsEnabled(ELogLevel level)
 
 void TTaggedLogger::Write(const TLogEvent& event)
 {
-    TLogEvent modifiedEvent(
-        event.GetCategory(), 
-        event.GetLevel(),
-        GetTaggedMessage(event.GetMessage()));
-    FOREACH (const auto& property, event.GetProperties()) {
-        modifiedEvent.AddProperty(property.First(), property.Second());
-    }
-
+    TLogEvent modifiedEvent = event;
+    modifiedEvent.Message = GetTaggedMessage(event.Message);
     InnerLogger.Write(modifiedEvent);
 }
 

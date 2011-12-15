@@ -3,6 +3,7 @@
 
 #include "../misc/assert.h"
 #include "../misc/foreach.h"
+#include "../misc/fs.h"
 
 namespace NYT {
 namespace NLog {
@@ -62,15 +63,19 @@ static Stroka FormatMessage(const Stroka& message)
 
 static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
 {
-    formatter.AddProperty("level", FormatLevel(event.GetLevel()));
-    formatter.AddProperty("datetime", FormatDateTime(event.GetDateTime()));
-    formatter.AddProperty("message", FormatMessage(event.GetMessage()));
-    formatter.AddProperty("category", event.GetCategory());
+    formatter.AddProperty("level", FormatLevel(event.Level));
+    formatter.AddProperty("datetime", FormatDateTime(event.DateTime));
+    formatter.AddProperty("message", FormatMessage(event.Message));
+    formatter.AddProperty("category", event.Category);
     formatter.AddProperty("tab", "\t");
-
-    FOREACH(const auto& pair, event.GetProperties()) {
-        formatter.AddProperty(pair.first, pair.second);
-    }
+    if (event.FileName != NULL)
+        formatter.AddProperty("file", NFS::GetFileName(event.FileName));
+    if (event.Line != InvalidLine)
+        formatter.AddProperty("line", ToString(event.Line));
+    if (event.ThreadId != TThread::ImpossibleThreadId())
+        formatter.AddProperty("thread", ToString(event.ThreadId));
+    if (event.Function != NULL)
+        formatter.AddProperty("function", event.Function);
 }
 
 Stroka FormatEvent(const TLogEvent& event, Stroka pattern)
@@ -89,6 +94,10 @@ bool ValidatePattern(Stroka pattern, Stroka* errorMessage)
     formatter.AddProperty("message", "");
     formatter.AddProperty("category", "");
     formatter.AddProperty("tab", "");
+    formatter.AddProperty("file", "");
+    formatter.AddProperty("line", "");
+    formatter.AddProperty("thread", "");
+    formatter.AddProperty("function", "");
 
     try {
         formatter.Format(pattern);

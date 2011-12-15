@@ -92,8 +92,8 @@ struct TRule
 
     bool IsApplicable(const TLogEvent& event) const
     {
-        ELogLevel level = event.GetLevel();
-        return (IsApplicable(event.GetCategory()) &&
+        ELogLevel level = event.Level;
+        return (IsApplicable(event.Category) &&
                 MinLevel <= level && level <= MaxLevel);
     }
 
@@ -267,7 +267,7 @@ void TLogManager::Write(const TLogEvent& event)
         queue->GetInvoker()->Invoke(FromMethod(&TLogManager::DoWrite, this, event));
 
         // TODO: use system-wide exit function
-        if (event.GetLevel() == ELogLevel::Fatal) {
+        if (event.Level == ELogLevel::Fatal) {
             Shutdown();
             ::std::terminate();
         }
@@ -283,10 +283,10 @@ void TLogManager::DoWrite(const TLogEvent& event)
 
 yvector<ILogWriter::TPtr> TLogManager::GetWriters(const TLogEvent& event)
 {
-    if (event.GetCategory() == SystemLoggingCategory)
+    if (event.Category == SystemLoggingCategory)
         return SystemWriters;
 
-    TPair<Stroka, ELogLevel> cacheKey(event.GetCategory(), event.GetLevel());
+    TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
     auto it = CachedWriters.find(cacheKey);
     if (it != CachedWriters.end())
         return it->second;
@@ -298,8 +298,8 @@ yvector<ILogWriter::TPtr> TLogManager::GetWriters(const TLogEvent& event)
 
 yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& event)
 {
-    Stroka category = event.GetCategory();
-    ELogLevel level = event.GetLevel();
+    Stroka category = event.Category;
+    ELogLevel level = event.Level;
 
     yhash_set<Stroka> writerIds;
     FOREACH(auto& rule, Configuration->Rules) {
