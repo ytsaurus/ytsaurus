@@ -98,11 +98,11 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10000);
-        Register("chunk_store_locations", ChunkStorageLocations);
+        Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
         Register("cache_remote_reader", CacheRemoteReader);
         Register("cache_sequential_reader", CacheSequentialReader);
-        Register("masters", Masters).Default();
+        Register("masters", Masters);
     }
 };
 
