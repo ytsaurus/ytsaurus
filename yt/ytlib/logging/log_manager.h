@@ -8,7 +8,7 @@
 #include "../actions/action_util.h"
 #include "../actions/future.h"
 #include "../misc/fs.h"
-#include "../ytree/ytree.h"
+#include "../ytree/ytree_fwd.h"
 
 #include <dict/json/json.h>
 
@@ -28,9 +28,8 @@ public:
 
     static TLogManager* Get();
 
-    void Configure(NYTree::INode::TPtr node);
-    void Configure(TJsonObject* root);
-    void Configure(const Stroka& fileName, const Stroka& rootPath);
+    void Configure(NYTree::INode* node);
+    void Configure(const Stroka& fileName, const NYTree::TYPath& path);
 
     void Flush();
     void Shutdown();

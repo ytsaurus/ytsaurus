@@ -43,11 +43,6 @@ public:
             Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
         }
 
-        void Read(TJsonObject* json)
-        {
-            // TODO: read timeout
-            NYT::TryRead(json, L"Addresses", &Addresses);
-        }
     };
 
     //! Describes a lookup result.

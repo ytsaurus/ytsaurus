@@ -65,7 +65,6 @@ public:
             }
         }
 
-        void Read(TJsonObject* config);
     };
 
     /*!

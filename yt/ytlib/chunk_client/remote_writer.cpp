@@ -31,15 +31,6 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void TRemoteWriter::TConfig::Read(TJsonObject *config)
-{
-    TryRead(config, L"WindowSize", &WindowSize);
-    TryRead(config, L"GroupSize", &GroupSize);
-    //ToDo: make timeout configurable
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 struct TRemoteWriter::TNode 
     : public TRefCountedBase
 {

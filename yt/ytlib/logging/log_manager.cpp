@@ -5,11 +5,15 @@
 #include "../misc/config.h"
 
 #include "../ytree/serialize.h"
+#include "../ytree/ypath_client.h"
+#include "../ytree/ypath_service.h"
 
 #include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NLog {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,23 +113,18 @@ public:
     typedef yvector<TRule> TRules;
     TRules Rules;
 
-    void ConfigureWriters(const TJsonObject* root);
-    void ConfigureRules(const TJsonObject* root);
-
-    void ValidateRule(const TRule& rule);
-
     TConfig();
-    TConfig(const TJsonObject* root);
-
-    // TODO: think about private:
-
-    // new config
     void Init();
+
+private:
     void ConfigureWriters();
     void ConfigureRules();
 
+    void ValidateRule(const TRule& rule);
+
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WritersConfigs;
     yvector<TRule::TConfig::TPtr> RulesConfigs;
+
 };
 
 void TLogManager::TConfig::Init()
@@ -179,92 +178,6 @@ void TLogManager::TConfig::ConfigureRules()
     }
 }
 
-void TLogManager::TConfig::ConfigureWriters(const TJsonObject* root)
-{
-    if (root == NULL) {
-        ythrow yexception() << "TJsonObject of Writers is NULL";
-    }
-
-    const TJsonArray* writers = static_cast<const TJsonArray*>(root);
-    for (int i = 0; i < writers->Length(); ++i) {
-        Stroka name, type, pattern;
-        const TJsonObject* item = writers->Item(i);
-        if(!TryRead(item, L"Name", &name)) {
-            ythrow yexception() <<
-                Sprintf("Couldn't read property Name at writer #%d", i);
-        }
-
-        if (Writers.find(name) != Writers.end()) {
-            ythrow yexception() <<
-                Sprintf("Writer %s is already defined", ~name);
-        }
-
-        if(!TryRead(item, L"Pattern", &pattern)) {
-            ythrow yexception() <<
-                Sprintf("Couldn't read property Pattern at writer %s", ~name);
-        }
-
-        Stroka errorMessage;
-        if (!ValidatePattern(pattern, & errorMessage)) {
-            ythrow yexception() <<
-                Sprintf("Invalid pattern at writer %s\n%s", ~name, ~errorMessage);
-        }
-
-        if (!TryRead(item, L"Type", &type)) {
-            ythrow yexception() <<
-                Sprintf("Couldn't read property Type at writer %s", ~name);
-        }
-
-        if (type == "File") {
-            Stroka fileName;
-            if(!TryRead(item, L"FileName", &fileName)) {
-                ythrow yexception() <<
-                    Sprintf("Couldn't read property FileName at writer %s", ~name);
-            }
-            Writers[name] = New<TFileLogWriter>(fileName, pattern);
-        } else if (type == "StdErr") {
-            Writers[name] = New<TStdErrLogWriter>(pattern);
-        } else if (type == "StdOut") {
-            Writers[name] = New<TStdOutLogWriter>(pattern);
-        } else {
-            ythrow yexception() <<
-                Sprintf("%s is unknown type of writer", ~type);
-        }
-    }
-}
-
-void TLogManager::TConfig::ConfigureRules(const TJsonObject* root)
-{
-    if (root == NULL) {
-        ythrow yexception() << "TJsonObject of Rules is NULL";
-    }
-
-    const TJsonArray* rules = static_cast<const TJsonArray*>(root);
-    for (int i = 0; i < rules->Length(); ++i) {
-        TRule rule;
-        const TJsonObject* item = rules->Item(i);
-        yvector<Stroka> categories;
-        if(!TryRead(item, L"Categories", &categories)) {
-            ythrow yexception() <<
-                Sprintf("Couldn't read property Categories at Rule #%d", i);
-        }
-        if (categories.size() == 1 && categories[0] == AllCategoriesName) {
-            rule.AllCategories = true;
-        } else {
-            rule.AllCategories = false;
-            rule.Categories.insert(categories.begin(), categories.end());
-        }
-
-        ReadEnum<ELogLevel>(item, L"MinLevel", &rule.MinLevel, ELogLevel::Minimum);
-        ReadEnum<ELogLevel>(item, L"MaxLevel", &rule.MaxLevel, ELogLevel::Maximum);
-        if (!TryRead(item, L"Writers", &rule.Writers)) {
-            ythrow yexception() <<
-                Sprintf("Couldn't read property Writers at Rule #%d", i);
-        }
-        ValidateRule(rule);
-        Rules.push_back(rule);
-    }
-}
 
 void TLogManager::TConfig::ValidateRule(const TRule& rule)
 {
@@ -300,15 +213,6 @@ TLogManager::TConfig::TConfig()
     fileRule.MinLevel = DefaultFileMinLevel;
     fileRule.Writers.push_back(DefaultFileWriterName);
     Rules.push_back(fileRule);
-}
-
-TLogManager::TConfig::TConfig(const TJsonObject* root)
-{
-    if (root == NULL) {
-        ythrow yexception() << "TJsonObject of Config is NULL";
-    }
-    ConfigureWriters(root->Value(L"Writers"));
-    ConfigureRules(root->Value(L"Rules"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,40 +350,29 @@ NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
     return level;
 }
 
-void TLogManager::Configure(TJsonObject* root)
-{
-    auto configuration = New<TConfig>(root);
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        Configuration = configuration;
-        ConfigVersion += 1;
-    }
-}
-
-void TLogManager::Configure(const Stroka& fileName, const Stroka& rootPath)
+void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     try {
         TIFStream configStream(fileName);
-        TJsonReader reader(CODES_UTF8, &configStream);
-        TJsonObject* root = reader.ReadAll();
-        TJsonObject* subTree = GetSubTree(root, rootPath);
-        Configure(subTree);
+        auto root = DeserializeFromYson(&configStream);
+        auto rootService = IYPathService::FromNode(~root);
+        auto configNode = SyncYPathGetNode(~rootService, path);
+        Configure(~configNode);
     } catch (const yexception& e) {
         LOG_ERROR("Error configuring logging\n%s", e.what())
         return;
     }
 }
 
-
-void TLogManager::Configure(NYTree::INode::TPtr node)
+void TLogManager::Configure(NYTree::INode* node)
 {
     auto configuration = New<TConfig>();
-    configuration->Load(~node);
+    configuration->Load(node);
     configuration->Init();
     {
         TGuard<TSpinLock> guard(&SpinLock);
         Configuration = configuration;
-        ConfigVersion += 1;
+        ConfigVersion++;
     }
 }
 
@@ -494,7 +387,7 @@ void TLogManager::ConfigureDefault()
     {
         TGuard<TSpinLock> guard(&SpinLock);
         Configuration = configuration;
-        ConfigVersion += 1;
+        ConfigVersion++;
     }
 }
 
