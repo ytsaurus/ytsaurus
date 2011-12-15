@@ -125,7 +125,7 @@ void TChunkHolderServer::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "/bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));

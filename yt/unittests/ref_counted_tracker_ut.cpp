@@ -25,12 +25,12 @@ namespace {
 
         static i64 GetAliveCount()
         {
-            return TRefCountedTracker::GetAliveObjects(&typeid(TSimpleObject));
+            return TRefCountedTracker::Get()->GetAliveObjects(&typeid(TSimpleObject));
         }
 
         static i64 GetTotalCount()
         {
-            return TRefCountedTracker::GetCreatedObjects(&typeid(TSimpleObject));
+            return TRefCountedTracker::Get()->GetCreatedObjects(&typeid(TSimpleObject));
         }
     };
 } // namespace <anonymous>

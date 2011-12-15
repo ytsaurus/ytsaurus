@@ -69,7 +69,7 @@ namespace NYT {
     static TRefCountedTracker::TCookie cookie = NULL; \
     do { \
         if (EXPECT_FALSE(cookie == NULL)) { \
-            cookie = TRefCountedTracker::Get(&typeid(TResult)); \
+            cookie = TRefCountedTracker::Get()->GetCookie(&typeid(TResult)); \
         } \
     } while(0)
 
