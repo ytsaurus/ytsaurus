@@ -21,18 +21,21 @@ cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
-cmd_ssh = 'ssh -o ConnectTimeout=10 %s %s'
-cmd_rsync = 'rsync --timeout=10 --copy-links %s %s:%s'
+cmd_ssh = 'ssh %s %s'
+cmd_rsync = 'rsync --copy-links %s %s:%s'
 
 def wrap_cmd(cmd, silent=False):
-    res = ['cmd="%s"' % cmd]
+    res = ['cmd="timeout 10s %s"' % cmd]
     if silent:
         res.append('$cmd 2&>1 1>/dev/null')
     else:
         res.append('$cmd')
-    res.append('''if [ $? -ne 0 ]; then
-        echo "Command failed: " $cmd
-        exit
+    res.append('''if [ $? -eq 124 ]; then
+    echo "Command timed out: " $cmd
+    exit
+elif [ $? -ne 0 ]; then
+    echo "Command failed: " $cmd
+    exit
 fi''')
     return '\n'.join(res)
 
