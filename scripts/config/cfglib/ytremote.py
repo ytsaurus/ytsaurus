@@ -21,18 +21,32 @@ cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
             '--pidfile %(work_dir)s/pid -m -S'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
-cmd_ssh = 'ssh -o ConnectTimeout=10 %s %s'
-cmd_rsync = 'rsync --timeout=10 --copy-links %s %s:%s'
+cmd_ssh = 'ssh %s %s'
+cmd_rsync = 'rsync --copy-links %s %s:%s'
 
-def wrap_cmd(cmd, silent=False):
-    res = ['cmd="%s"' % cmd]
+def wrap_cmd(cmd, silent=False, timeout=20):
+    if timeout:
+        res = ['cmd="timeout %ds %s"' % (timeout, cmd)]
+    else:
+        res = ['cmd="%s"' % cmd]
+
     if silent:
         res.append('$cmd 2&>1 1>/dev/null')
     else:
         res.append('$cmd')
-    res.append('''if [ $? -ne 0 ]; then
-        echo "Command failed: " $cmd
-        exit
+
+    res.append('result=$?')
+    if timeout:
+        res.append('''
+if [ $result -eq 124 ]; then
+    echo "Command timed out: " $cmd
+    exit
+fi''')
+
+    res.append('''
+if [ $result -ne 0 ]; then
+    echo "Command failed: " $cmd
+    exit
 fi''')
     return '\n'.join(res)
 
@@ -86,7 +100,7 @@ class RemoteNode(Node):
         print >>fd, shebang
         print >>fd, ulimit
         print >>fd, cls.export_ld_path
-        print >>fd, wrap_cmd(cls.run_tmpl)
+        print >>fd, wrap_cmd(cls.run_tmpl, timeout=0)
     
     def run(cls, fd):
         print >>fd, shebang
@@ -95,7 +109,7 @@ class RemoteNode(Node):
     stop_tmpl = Template(cmd_stop)
     def do_stop(cls, fd):
         print >>fd, shebang
-        print >>fd, wrap_cmd(cls.stop_tmpl, True)
+        print >>fd, wrap_cmd(cls.stop_tmpl, True, timeout=0)
 
     test_tmpl = Template(cmd_test)
     def do_test(cls, fd):
