@@ -244,24 +244,25 @@ public:
 
     void Reply(const TError& error)
     {
+        NLog::TLogger& Logger = RpcLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
             if (!SerializeProtobuf(&Response_, &responseBlob)) {
                 LOG_FATAL("Error serializing response");
             }
-            Context->SetResponseBody(MoveRV(responseBlob));
+            this->Context->SetResponseBody(MoveRV(responseBlob));
         }
-        Context->Reply(error);
+        this->Context->Reply(error);
     }
 
     bool IsReplied() const
     {
-        return Context->IsReplied();
+        return this->Context->IsReplied();
     }
 
     void SetResponseInfo(const Stroka& info)
     {
-        Context->SetResponseInfo(info);
+        this->Context->SetResponseInfo(info);
     }
 
     void SetResponseInfo(const char* format, ...)
@@ -271,12 +272,12 @@ public:
         va_start(params, format);
         vsprintf(info, format, params);
         va_end(params);
-        Context->SetResponseInfo(info);
+        this->Context->SetResponseInfo(info);
     }
 
     Stroka GetResponseInfo()
     {
-        return Context->GetResponseInfo();
+        return this->Context->GetResponseInfo();
     }
 
     using TBase::Wrap;
