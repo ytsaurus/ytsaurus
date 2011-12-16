@@ -279,10 +279,12 @@ public:
         return Context->GetResponseInfo();
     }
 
+    using TBase::Wrap;
+
     IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
         YASSERT(paramAction != NULL);
-        return Context->Wrap(~paramAction->Bind(TPtr(this)));
+        return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 
 };
@@ -304,10 +306,12 @@ public:
         : TBase(context)
     { }
 
+    using TBase::Wrap;
+
     IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
         YASSERT(paramAction != NULL);
-        return Context->Wrap(~paramAction->Bind(TPtr(this)));
+        return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 };
 
