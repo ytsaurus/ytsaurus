@@ -30,10 +30,11 @@ def wrap_cmd(cmd, silent=False):
         res.append('$cmd 2&>1 1>/dev/null')
     else:
         res.append('$cmd')
-    res.append('''if [ $? -eq 124 ]; then
+    res.append('''result=$?
+if [ $result -eq 124 ]; then
     echo "Command timed out: " $cmd
     exit
-elif [ $? -ne 0 ]; then
+elif [ $result -ne 0 ]; then
     echo "Command failed: " $cmd
     exit
 fi''')
