@@ -169,11 +169,13 @@ private:
         auto requestId = TRequestId::FromProto(header.request_id());
         Stroka path = header.path();
         Stroka verb = header.verb();
+        bool oneWay = header.has_one_way() ? header.one_way() : false;
 
-        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s)",
+        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s, OneWay: %s)",
             ~path,
             ~verb,
-            ~requestId.ToString());
+            ~requestId.ToString(),
+            ~ToString(oneWay));
 
         if (!Started) {
             Stroka message = Sprintf("Server is not started (RequestId: %s)",

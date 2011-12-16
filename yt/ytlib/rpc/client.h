@@ -147,7 +147,7 @@ struct IClientResponseHandler
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 
-    //! The delivery of the request has been successfully acknowledged.
+    //! Request delivery has been acknowledged.
     virtual void OnAcknowledgement() = 0;
     //! The request has been replied with #EErrorCode::OK.
     /*!
@@ -163,30 +163,24 @@ struct IClientResponseHandler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientResponse
+//! Provides a common base for both one-way and two-way responses.
+class TClientResponseBase
     : public IClientResponseHandler
 {
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
-    typedef TIntrusivePtr<TClientResponse> TPtr;
-
-    NBus::IMessage::TPtr GetResponseMessage() const;
+    typedef TIntrusivePtr<TClientResponseBase> TPtr;
 
     int GetErrorCode() const;
     bool IsOK() const;
 
 protected:
-    TClientResponse(const TRequestId& requestId);
+    TClientResponseBase(const TRequestId& requestId);
 
-    virtual void DeserializeBody(const TRef& data) = 0;
     virtual void FireCompleted() = 0;
-
-private:
-    friend class TClientRequest;
 
     DECLARE_ENUM(EState,
         (Sent)
@@ -197,12 +191,39 @@ private:
     // Protects state.
     TSpinLock SpinLock;
     EState State;
+
+    // IClientResponseHandler implementation.
+    virtual void OnError(const TError& error);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Describes a two-way response.
+class TClientResponse
+    : public TClientResponseBase
+{
+    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+
+public:
+    typedef TIntrusivePtr<TClientResponse> TPtr;
+
+    NBus::IMessage::TPtr GetResponseMessage() const;
+
+protected:
+    friend class TClientRequest;
+
+    TClientResponse(const TRequestId& requestId);
+
+    virtual void DeserializeBody(const TRef& data) = 0;
+
+private:
+    // Protected by #SpinLock.
     NBus::IMessage::TPtr ResponseMessage;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();
     virtual void OnResponse(NBus::IMessage* message);
-    virtual void OnError(const TError& error);
 
     void Deserialize(NBus::IMessage* responseMessage);
 
@@ -250,6 +271,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes a one-way response.
+class TOneWayClientResponse
+    : public TClientResponseBase
+{
+public:
+    typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
+
+protected:
+    friend class TClientRequest;
+
+    TFuture<TPtr>::TPtr AsyncResult;
+
+    TOneWayClientResponse(const TRequestId& requestId);
+
+    // IClientResponseHandler implementation.
+    virtual void OnAcknowledgement();
+    virtual void OnResponse(NBus::IMessage* message);
+
+    TFuture<TPtr>::TPtr GetAsyncResult();
+    virtual void FireCompleted();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
@@ -264,5 +310,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse::TPtr> TReq##method; \
+    typedef ::NYT::NRpc::TOneWayClientResponse::TPtr TRsp##method; \
+    typedef ::NYT::TFuture<::NYT::NRpc::TOneWayClientResponse::TPtr> TInv##method; \
+    \
+    TReq##method::TPtr method() \
+    { \
+        return \
+            New<TReq##method>(~Channel, ServiceName, #method) \
+            ->SetTimeout(Timeout_); \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NRpc
 } // namespace NYT

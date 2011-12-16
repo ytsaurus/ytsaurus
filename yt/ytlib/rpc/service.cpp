@@ -64,8 +64,20 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
             ? NULL
             : &methodIt->Second();
 
-        TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
-        YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
+        if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
+            Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
+                ~ToString(runtimeInfo->Descriptor.OneWay),
+                ~ToString(context->IsOneWay()),
+                ~ServiceName,
+                ~verb);
+            LOG_WARNING("%s", ~message);
+            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        }
+
+        if (!context->IsOneWay()) {
+            TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
+            YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
+        }
     }
 
     if (runtimeInfo == NULL) {
@@ -84,6 +96,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 void TServiceBase::OnEndRequest(IServiceContext* context)
 {
     YASSERT(context != NULL);
+    YASSERT(!context->IsOneWay());
 
     TGuard<TSpinLock> guard(SpinLock);
 
