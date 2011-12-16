@@ -313,7 +313,7 @@ protected:
 #define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse::TPtr> TReq##method; \
     typedef ::NYT::NRpc::TOneWayClientResponse::TPtr TRsp##method; \
-    typedef ::NYT::TFuture<::NYT::NRpc::TOneWayClientResponse::TPtr> TInv##method; \
+    typedef ::NYT::TFuture< ::NYT::NRpc::TOneWayClientResponse::TPtr > TInv##method; \
     \
     TReq##method::TPtr method() \
     { \
