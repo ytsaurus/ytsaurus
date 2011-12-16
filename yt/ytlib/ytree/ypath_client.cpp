@@ -26,17 +26,14 @@ TYPathRequest::TYPathRequest(const Stroka& verb)
 
 IMessage::TPtr TYPathRequest::Serialize()
 {
-    // Serialize body.
-    TBlob bodyData;
-    if (!SerializeBody(&bodyData)) {
-        LOG_FATAL("Error serializing YPath request body");
-    }
+    auto bodyData = SerializeBody();
 
-    // Compose message.
+    TRequestHeader header;
+    header.set_path(Path_);
+    header.set_verb(Verb_);
+
     return CreateRequestMessage(
-        TRequestId(),
-        Path_,
-        Verb_,
+        header,
         MoveRV(bodyData),
         Attachments_);
 }
@@ -47,27 +44,17 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 {
     YASSERT(message != NULL);
 
-    const auto& parts = message->GetParts();
-    YASSERT(parts.ysize() >= 1);
-
-    // Deserialize RPC header.
-    TResponseHeader header;
-    if (!DeserializeProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing YPath response header");
-    }
-
-    Error_ = TError(header.errorcode(), header.errormessage());
+    auto header = GetResponseHeader(message);
+    Error_ = GetResponseError(header);
 
     if (Error_.IsOK()) {
         // Deserialize body.
+        const auto& parts = message->GetParts();
+        YASSERT(parts.size() >=1 );
         DeserializeBody(parts[1]);
 
         // Load attachments.
-        Attachments_.clear();
-        std::copy(
-            parts.begin() + 2,
-            parts.end(),
-            std::back_inserter(Attachments_));
+        Attachments_ = yvector<TSharedRef>(parts.begin() + 2, parts.end());
     }
 }
 
@@ -96,21 +83,21 @@ void OnYPathResponse(
     const Stroka& verb,
     const TYPath& resolvedPath)
 {
-    auto parts = responseMessage->GetParts();
-    YASSERT(!parts.empty());
+    auto header = GetResponseHeader(~responseMessage);
+    auto error = GetResponseError(header);
 
-    TError error;
-    ParseYPathResponseHeader(parts[0], &error);
-
-    if (!error.IsOK()) {
+    if (error.IsOK()) {
+        asyncResponseMessage->Set(responseMessage);
+    } else {
         Stroka message = Sprintf("Error executing a YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
             ~verb,
             ~resolvedPath,
             ~error.GetMessage());
-        responseMessage = UpdateYPathResponseHeader(~responseMessage, TError(error.GetCode(), message));
-    }
+        SetResponseError(header, TError(error.GetCode(), message));
 
-    asyncResponseMessage->Set(responseMessage);
+        auto updatedResponseMessage = SetResponseHeader(~responseMessage, header);
+        asyncResponseMessage->Set(updatedResponseMessage);
+    }
 }
 
 TFuture<IMessage::TPtr>::TPtr
@@ -119,14 +106,9 @@ ExecuteVerb(
     NBus::IMessage* requestMessage,
     IYPathExecutor* executor)
 {
-    auto parts = requestMessage->GetParts();
-    YASSERT(!parts.empty());
-    TYPath path;
-    Stroka verb;
-    ParseYPathRequestHeader(
-        parts[0],
-        &path,
-        &verb);
+    auto requestHeader = GetRequestHeader(requestMessage);
+    TYPath path = requestHeader.path();
+    Stroka verb = requestHeader.verb();
 
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
@@ -134,17 +116,14 @@ ExecuteVerb(
         // This may throw.
         ResolveYPath(rootService, path, verb, &suffixService, &suffixPath);
     } catch (...) {
-        auto responseMessage = NRpc::CreateErrorResponseMessage(
-            NRpc::TRequestId(),
-            TError(
-            EYPathErrorCode(EYPathErrorCode::ResolveError), CurrentExceptionMessage()));
+        auto responseMessage = NRpc::CreateErrorResponseMessage(TError(
+            EYPathErrorCode(EYPathErrorCode::ResolveError),
+            CurrentExceptionMessage()));
         return New< TFuture<IMessage::TPtr> >(responseMessage);
     }
 
-    auto updatedRequestMessage = UpdateYPathRequestHeader(
-        requestMessage,
-        suffixPath,
-        verb);
+    requestHeader.set_path(suffixPath);
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     auto asyncResponseMessage = New< TFuture<IMessage::TPtr> >();
     auto context = CreateYPathContext(
@@ -158,8 +137,13 @@ ExecuteVerb(
             verb,
             ComputeResolvedYPath(path, suffixPath)));
 
-    // This should never throw.
-    executor->ExecuteVerb(~suffixService, ~context);
+    try {
+        // This should never throw.
+        executor->ExecuteVerb(~suffixService, ~context);
+    }
+    catch (...) {
+        LOG_FATAL("Unexpected exception during verb execution\n%s", ~CurrentExceptionMessage());
+    }
 
     return asyncResponseMessage;
 }

@@ -290,12 +290,11 @@ class TServiceContext
 {
 public:
     TServiceContext(
-        const TYPath& path,
-        const Stroka& verb,
+        const TRequestHeader& header,
         NBus::IMessage* requestMessage,
         TYPathResponseHandler* responseHandler,
         const Stroka& loggingCategory)
-        : TServiceContextBase(TRequestId(), path, verb, requestMessage)
+        : TServiceContextBase(header, requestMessage)
         , ResponseHandler(responseHandler)
         , Logger(loggingCategory)
     { }
@@ -388,84 +387,6 @@ void ResolveYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYPathRequestHeader(
-    TRef headerData,
-    TYPath* path,
-    Stroka* verb)
-{
-    YASSERT(path != NULL);
-    YASSERT(verb != NULL);
-
-    TRequestHeader header;
-    if (!DeserializeProtobuf(&header, headerData)) {
-        LOG_FATAL("Error deserializing YPath request header");
-    }
-
-    *path = header.path();
-    *verb = header.verb();
-}
-
-void ParseYPathResponseHeader(
-    TRef headerData,
-    TError* error)
-{
-    YASSERT(error != NULL);
-
-    TResponseHeader header;
-    if (!DeserializeProtobuf(&header, headerData)) {
-        LOG_FATAL("Error deserializing YPath response header");
-    }
-
-    *error = TError(header.errorcode(), header.errormessage());
-}
-
-IMessage::TPtr UpdateYPathRequestHeader(
-    IMessage* message,
-    const TYPath& path,
-    const Stroka& verb)
-{
-    YASSERT(message != NULL);
-
-    TRequestHeader header;
-    header.set_requestid(TRequestId().ToProto());
-    header.set_path(path);
-    header.set_verb(verb);
-
-    TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing YPath request header");
-    }
-
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
-    parts[0] = TSharedRef(MoveRV(headerData));
-
-    return CreateMessageFromParts(parts);
-}
-
-IMessage::TPtr UpdateYPathResponseHeader(
-    IMessage* message,
-    const TError& error)
-{
-    YASSERT(message != NULL);
-
-    TResponseHeader header;
-    header.set_requestid(TRequestId().ToProto());
-    header.set_errorcode(error.GetCode());
-    header.set_errormessage(error.GetMessage());
-
-    TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing YPath request header");
-    }
-
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
-    parts[0] = TSharedRef(MoveRV(headerData));
-
-    return CreateMessageFromParts(parts);
-}
-
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
     NBus::IMessage* innerRequestMessage)
@@ -473,13 +394,8 @@ void WrapYPathRequest(
     YASSERT(outerRequest != NULL);
     YASSERT(innerRequestMessage != NULL);
 
-    auto parts = innerRequestMessage->GetParts();
-    auto& attachments = outerRequest->Attachments();
-    attachments.clear();
-    std::copy(
-        parts.begin(),
-        parts.end(),
-        std::back_inserter(attachments));
+    const auto& parts = innerRequestMessage->GetParts();
+    outerRequest->Attachments() = yvector<TSharedRef>(parts.begin(), parts.end());
 }
 
 NBus::IMessage::TPtr UnwrapYPathRequest(
@@ -512,9 +428,11 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 {
     YASSERT(requestMessage != NULL);
 
+    TRequestHeader header;
+    header.set_path(path);
+    header.set_verb(verb);
     return New<TServiceContext>(
-        path,
-        verb,
+        header,
         requestMessage,
         responseHandler,
         loggingCategory);
@@ -541,7 +459,9 @@ void ReplyYPathWithMessage(
         LOG_FATAL("Error deserializing YPath response header");
     }
 
-    TError error(header.errorcode(), header.errormessage());
+    TError error(
+        header.error_code(),
+        header.has_error_message() ? header.error_message() : "");
 
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);

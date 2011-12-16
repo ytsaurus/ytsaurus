@@ -83,7 +83,7 @@ protected:
         const Stroka& path,
         const Stroka& verb);
 
-    virtual bool SerializeBody(TBlob* data) const = 0;
+    virtual TBlob SerializeBody() const = 0;
 
     void DoInvoke(TClientResponse* response, TDuration timeout);
 
@@ -128,9 +128,14 @@ public:
     }
 
 private:
-    virtual bool SerializeBody(TBlob* data) const
+    virtual TBlob SerializeBody() const
     {
-        return SerializeProtobuf(this, data);
+        NLog::TLogger& Logger = RpcLogger;
+        TBlob blob;
+        if (!SerializeProtobuf(this, &blob)) {
+            LOG_FATAL("Error serializing request body");
+        }
+        return blob;
     }
 };
 
@@ -177,7 +182,7 @@ public:
 protected:
     TClientResponse(const TRequestId& requestId);
 
-    virtual bool DeserializeBody(TRef data) = 0;
+    virtual void DeserializeBody(const TRef& data) = 0;
     virtual void FireCompleted() = 0;
 
 private:
@@ -234,9 +239,12 @@ private:
         AsyncResult.Reset();
     }
 
-    virtual bool DeserializeBody(TRef data)
+    virtual void DeserializeBody(const TRef& data)
     {
-        return DeserializeProtobuf(this, data);
+        NLog::TLogger& Logger = RpcLogger;
+        if (!DeserializeProtobuf(this, data)) {
+            LOG_FATAL("Error deserializing response body");
+        }
     }
 };
 

@@ -159,18 +159,8 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
         UNUSED(replyBus);
 
-        const auto& parts = message->GetParts();
-        if (parts.ysize() == 0) {
-            LOG_ERROR("Missing header part");
-            return;
-        }
-
-        TResponseHeader header;
-        if (!DeserializeProtobuf(&header, parts[0])) {
-            LOG_FATAL("Error deserializing response header");
-        }
-
-        auto requestId = TRequestId::FromProto(header.requestid());
+        auto header = GetResponseHeader(~message);
+        auto requestId = TRequestId::FromProto(header.request_id());
     
         IClientResponseHandler::TPtr responseHandler;
         {
@@ -195,12 +185,12 @@ private:
             UnregisterRequest(it);
         }
 
-        if (header.errorcode() == TError::OK) {
+        if (header.error_code() == TError::OK) {
             responseHandler->OnResponse(~message);
         } else {
             responseHandler->OnError(TError(
-                header.errorcode(),
-                header.errormessage()));
+                header.error_code(),
+                header.error_message()));
         }
     }
 

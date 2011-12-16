@@ -7,6 +7,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,15 +38,15 @@ TClientRequest::TClientRequest(
 
 IMessage::TPtr TClientRequest::Serialize() const
 {
-    TBlob bodyData;
-    if (!SerializeBody(&bodyData)) {
-        LOG_FATAL("Error serializing request body");
-    }
+    auto bodyData = SerializeBody();
+
+    TRequestHeader header;
+    header.set_request_id(RequestId_.ToProto());
+    header.set_path(Path_);
+    header.set_verb(Verb_);
 
     return CreateRequestMessage(
-        RequestId_,
-        Path_,
-        Verb_,
+        header,
         MoveRV(bodyData),
         Attachments_);
 }

@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "client.h"
-#include "message.h"
 
 #include "../misc/property.h"
 #include "../misc/hash.h"
@@ -56,8 +55,9 @@ struct IServiceContext
     virtual Stroka GetPath() const = 0;
     virtual Stroka GetVerb() const = 0;
 
-    virtual void Reply(const TError& error) = 0;
+    virtual bool IsOneWay() const = 0;
     virtual bool IsReplied() const = 0;
+    virtual void Reply(const TError& error) = 0;
     virtual TError GetError() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;

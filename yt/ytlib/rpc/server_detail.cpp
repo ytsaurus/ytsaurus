@@ -2,37 +2,38 @@
 #include "server_detail.h"
 
 #include "../misc/assert.h"
+#include "../rpc/message.h"
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextBase::TServiceContextBase(
-    const TRequestId& requestId,
-    const Stroka& path,
-    const Stroka& verb,
+    const TRequestHeader& header,
     IMessage* requestMessage)
-    : RequestId(requestId)
-    , Path(path)
-    , Verb(verb)
+    : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
+    , Path(header.path())
+    , Verb(header.verb())
     , RequestMessage(requestMessage)
+    , OneWay(header.has_one_way() ? header.one_way() : false)
     , Replied(false)
 {
     YASSERT(requestMessage != NULL);
 
-    RequestBody = requestMessage->GetParts().at(1);
-    RequestAttachments_ = yvector<TSharedRef>(
-        requestMessage->GetParts().begin() + 2,
-        requestMessage->GetParts().end());
+    const auto& parts = requestMessage->GetParts();
+    YASSERT(parts.size() >= 2);
+    RequestBody = parts[1];
+    RequestAttachments_ = yvector<TSharedRef>(parts.begin() + 2, parts.end());
 }
 
 void TServiceContextBase::Reply(const TError& error)
 {
-    // Failure here means that #Reply is called twice.
-    YASSERT(!Replied);
+    CheckRepliable();
+
     Error = error;
     Replied = true;
 
@@ -40,9 +41,11 @@ void TServiceContextBase::Reply(const TError& error)
 
     IMessage::TPtr responseMessage;
     if (error.IsOK()) {
+        TResponseHeader header;
+        header.set_request_id(RequestId.ToProto());
+        header.set_error_code(TError::OK);
         responseMessage = CreateResponseMessage(
-            RequestId,
-            error,
+            header,
             MoveRV(ResponseBody),
             ResponseAttachments_);
     } else {
@@ -52,6 +55,11 @@ void TServiceContextBase::Reply(const TError& error)
     }
 
     DoReply(error, ~responseMessage);
+}
+
+bool TServiceContextBase::IsOneWay() const
+{
+    return OneWay;
 }
 
 bool TServiceContextBase::IsReplied() const
@@ -77,11 +85,13 @@ const yvector<TSharedRef>& TServiceContextBase::RequestAttachments() const
 
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
+    CheckRepliable();
     ResponseBody = responseBody;
 }
 
 yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
+    YASSERT(!OneWay);
     return ResponseAttachments_;
 }
 
@@ -113,6 +123,7 @@ Stroka TServiceContextBase::GetRequestInfo() const
 
 void TServiceContextBase::SetResponseInfo(const Stroka& info)
 {
+    CheckRepliable();
     ResponseInfo = info;
 }
 
@@ -140,6 +151,15 @@ void TServiceContextBase::WrapThunk(IAction::TPtr action) throw()
         Reply(TError(EErrorCode::ServiceError, message));
         LogException(message);
     }
+}
+
+void TServiceContextBase::CheckRepliable() const
+{
+    // Failure here means that the request is already replied.
+    YASSERT(!Replied);
+
+    // Failure here indicates an attempt to reply to a one-way request.
+    YASSERT(!OneWay);
 }
 
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)

@@ -6,6 +6,8 @@
 #include "../ytree/yson_reader.h"
 #include "../ytree/ephemeral.h"
 
+#include "../rpc/message.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -467,15 +469,10 @@ TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 
-    TYPath path;
-    Stroka verb;
-    YASSERT(!parts.empty());
-    ParseYPathRequestHeader(
-        parts[0],
-        &path,
-        &verb);
-
     auto requestMessage = CreateMessageFromParts(MoveRV(parts));
+    auto header = GetRequestHeader(~requestMessage);
+    TYPath path = header.path();
+    Stroka verb = header.verb();
 
     auto context = CreateYPathContext(
         ~requestMessage,
