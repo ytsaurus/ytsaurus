@@ -22,7 +22,7 @@ const char* TCypressScalarTypeTraits<i64>::TypeName = "int64";
 const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<double>::RuntimeType = ERuntimeNodeType::Double;
 const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 
-}
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
