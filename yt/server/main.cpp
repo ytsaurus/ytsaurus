@@ -29,11 +29,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     opts.AddHelpOption();
 
-    const TOpt& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
+    const auto chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
         .NoArgument()
         .Optional();
 
-    const TOpt& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
+    const auto& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
         .NoArgument()
         .Optional();
 
