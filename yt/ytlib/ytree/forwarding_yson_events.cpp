@@ -13,21 +13,21 @@ TForwardingYsonConsumer::TForwardingYsonConsumer()
 
 void TForwardingYsonConsumer::ForwardNode(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished)
+    IAction* onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 0);
 }
 
 void TForwardingYsonConsumer::ForwardAttributes(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished)
+    IAction* onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 1);
 }
 
 void TForwardingYsonConsumer::DoForward(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished,
+    IAction* onForwardingFinished,
     int depth)
 {
     YASSERT(ForwardingConsumer == NULL);
@@ -50,6 +50,8 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
@@ -176,6 +178,66 @@ void TForwardingYsonConsumer::OnEndAttributes()
         UpdateDepth(-1);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TForwardingYsonConsumer::OnMyStringScalar(const Stroka& value, bool hasAttributes)
+{
+    UNUSED(value);
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value, bool hasAttributes)
+{
+    UNUSED(value);
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyDoubleScalar(double value, bool hasAttributes)
+{
+    UNUSED(value);
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyEntity(bool hasAttributes)
+{
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyBeginList()
+{ }
+
+void TForwardingYsonConsumer::OnMyListItem()
+{ }
+
+void TForwardingYsonConsumer::OnMyEndList(bool hasAttributes)
+{
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyBeginMap()
+{ }
+
+void TForwardingYsonConsumer::OnMyMapItem(const Stroka& name)
+{
+    UNUSED(name);
+}
+
+void TForwardingYsonConsumer::OnMyEndMap(bool hasAttributes)
+{
+    UNUSED(hasAttributes);
+}
+
+void TForwardingYsonConsumer::OnMyBeginAttributes()
+{ }
+
+void TForwardingYsonConsumer::OnMyAttributesItem(const Stroka& name)
+{
+    UNUSED(name);
+}
+
+void TForwardingYsonConsumer::OnMyEndAttributes()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

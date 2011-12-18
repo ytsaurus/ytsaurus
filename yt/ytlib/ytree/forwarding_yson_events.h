@@ -14,25 +14,25 @@ class TForwardingYsonConsumer
 protected:
     TForwardingYsonConsumer();
 
-    void ForwardNode(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
-    void ForwardAttributes(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
+    void ForwardNode(IYsonConsumer* consumer, IAction* onForwardingFinished);
+    void ForwardAttributes(IYsonConsumer* consumer, IAction* onForwardingFinished);
 
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes) = 0;
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes) = 0;
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes) = 0;
-    virtual void OnMyEntity(bool hasAttributes) = 0;
+    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
+    virtual void OnMyEntity(bool hasAttributes);
 
-    virtual void OnMyBeginList() = 0;
-    virtual void OnMyListItem() = 0;
-    virtual void OnMyEndList(bool hasAttributes) = 0;
+    virtual void OnMyBeginList();
+    virtual void OnMyListItem();
+    virtual void OnMyEndList(bool hasAttributes);
 
-    virtual void OnMyBeginMap() = 0;
-    virtual void OnMyMapItem(const Stroka& name) = 0;
-    virtual void OnMyEndMap(bool hasAttributes) = 0;
+    virtual void OnMyBeginMap();
+    virtual void OnMyMapItem(const Stroka& name);
+    virtual void OnMyEndMap(bool hasAttributes);
 
-    virtual void OnMyBeginAttributes() = 0;
-    virtual void OnMyAttributesItem(const Stroka& name) = 0;
-    virtual void OnMyEndAttributes() = 0;
+    virtual void OnMyBeginAttributes();
+    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyEndAttributes();
 
 private:
     IYsonConsumer* ForwardingConsumer;
@@ -56,7 +56,7 @@ private:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
-    void DoForward(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished, int depth);
+    void DoForward(IYsonConsumer* consumer, IAction* onForwardingFinished, int depth);
     void UpdateDepth(int depthDelta);
 
 };
