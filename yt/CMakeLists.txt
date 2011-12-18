@@ -1,5 +1,6 @@
 add_subdirectory(ytlib)
 add_subdirectory(server)
+add_subdirectory(driver)
 
 if (YT_BUILD_EXPERIMENTS)
     add_subdirectory(experiments)

@@ -19,6 +19,7 @@ set( DIRS
   table_server
   table_client
   monitoring
+  driver
 )
 
 foreach( _d_ ${DIRS} )
