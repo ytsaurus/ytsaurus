@@ -177,7 +177,8 @@ inline void ValidateSubconfigs(
 {
     for (int i = 0; i < parameter->ysize(); ++i) {
         ValidateSubconfigs(
-            &(*parameter)[i], NYTree::CombineYPaths(path, ToString(i)));
+            &(*parameter)[i],
+            NYTree::CombineYPaths(path, ToString(i)));
     }
 }
 
@@ -189,7 +190,8 @@ inline void ValidateSubconfigs(
 {
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
-            &pair.Second(), NYTree::CombineYPaths(path, pair.First()));
+            &pair.Second(),
+            NYTree::CombineYPaths(path, pair.First()));
     }
 }
 
