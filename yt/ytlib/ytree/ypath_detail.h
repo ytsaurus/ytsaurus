@@ -142,7 +142,7 @@ private:
     {
         ItemName = name;
         Builder->BeginTree();
-        ForwardNode(Builder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(Builder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -188,7 +188,7 @@ private:
     virtual void OnMyListItem()
     {
         Builder->BeginTree();
-        ForwardNode(Builder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(Builder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()

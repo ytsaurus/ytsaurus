@@ -159,7 +159,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
     AttributeName = name;
     AttributeBuilder = CreateBuilderFromFactory(Node->GetFactory());
     AttributeBuilder->BeginTree();
-    ForwardNode(~AttributeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(~AttributeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
