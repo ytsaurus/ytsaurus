@@ -75,10 +75,6 @@ public:
     TValueOrError()
     { }
 
-    explicit TValueOrError(const Stroka& message)
-        : TError(message)
-    { }
-
     TValueOrError(const T& value)
         : Value_(value)
     { }
