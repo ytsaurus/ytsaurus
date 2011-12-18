@@ -5,6 +5,8 @@
 #include "../ytree/ypath_detail.h"
 #include "../ytree/ypath_client.h"
 
+#include "../rpc/message.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -58,15 +60,9 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
     auto transactionId = TTransactionId::FromProto(request->transactionid());
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto requestParts = requestMessage->GetParts();
-    YASSERT(!requestParts.empty());
-
-    TYPath path;
-    Stroka verb;
-    ParseYPathRequestHeader(
-        requestParts[0],
-        &path,
-        &verb);
+    auto requestHeader = GetRequestHeader(~requestMessage);
+    TYPath path = requestHeader.path();
+    Stroka verb = requestHeader.verb();
 
     context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
         ~transactionId.ToString(),
@@ -84,11 +80,8 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
         ~CypressManager)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
-            auto responseParts = responseMessage->GetParts();
-            YASSERT(!responseParts.empty());
-
-            TError error;
-            ParseYPathResponseHeader(responseParts[0], &error);
+            auto responseHeader = GetResponseHeader(~responseMessage);
+            auto error = GetResponseError(responseHeader);
 
             context->SetResponseInfo("YPathError: %s", ~error.ToString());
 

@@ -36,14 +36,8 @@ class TNLBusClient
 public:
     typedef TIntrusivePtr<TNLBusClient> TPtr;
 
-    //! Initializes a new client for communicating with a given address.
-    /*!
-     *  DNS resolution is performed upon construction, the resulting
-     *  IP address is cached.
-     *
-     *  \param address An address where all buses will point to.
-     */
     TNLBusClient(TNLBusClientConfig* config);
+
     virtual ~TNLBusClient()
     { }
 

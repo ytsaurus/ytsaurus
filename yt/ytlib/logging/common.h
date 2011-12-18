@@ -22,15 +22,15 @@ DECLARE_ENUM(ELogLevel,
     (Maximum)
 );
 
-const i32 InvalidLine = -1;
-
 struct TLogEvent
 {
+    static const i32 InvalidLine = -1;
+
     TLogEvent()
         : DateTime(TInstant::Now())
         , FileName(NULL)
         , Line(InvalidLine)
-        , ThreadId(TThread::ImpossibleThreadId())
+        , ThreadId(NThread::InvalidThreadId)
         , Function(NULL)
     { }
 
@@ -41,7 +41,8 @@ struct TLogEvent
         , DateTime(TInstant::Now())
         , FileName(NULL)
         , Line(InvalidLine)
-        , ThreadId(TThread::ImpossibleThreadId())
+        , ThreadId(NThread::InvalidThreadId)
+        , Function(NULL)
     { }
     
     Stroka Category;

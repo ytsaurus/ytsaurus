@@ -818,7 +818,7 @@ public:
                 followerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s, Error: %s)",
+            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s)\n%s",
                 followerId,
                 ~version.ToString(),
                 ~response->GetError().ToString());

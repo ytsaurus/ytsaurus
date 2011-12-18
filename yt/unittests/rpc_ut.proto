@@ -25,3 +25,5 @@ message TRspCustomMessageError { }
 message TReqNotRegistredCall { }
 message TRspNotRegistredCall { }
 
+message TReqOneWay { }
+

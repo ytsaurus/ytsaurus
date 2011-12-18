@@ -4,16 +4,17 @@ package NYT.NRpc.NProto;
 
 message TRequestHeader
 {
-    required bytes RequestId = 1;
-    required bytes Path = 2;
-    required bytes Verb = 3;
+    optional bytes request_id = 1;
+    required bytes path = 2;
+    required bytes verb = 3;
+    optional bool  one_way = 4;
 }
 
 message TResponseHeader
 {
-    required bytes RequestId = 1;
-    required int32 ErrorCode = 2;
-    required bytes ErrorMessage = 3;
+    optional bytes request_id = 1;
+    required int32 error_code = 2;
+    optional bytes error_message = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,12 +3,18 @@
 
 #include "../misc/config.h"
 #include "../misc/lazy_ptr.h"
+
 #include "../ytree/ephemeral.h"
 #include "../ytree/serialize.h"
 #include "../ytree/ypath_detail.h"
+
 #include "../cypress/virtual.h"
+
 #include "../orchid/orchid_service_rpc.h"
+
 #include "../rpc/channel.h"
+#include "../rpc/message.h"
+
 #include "../misc/new.h"
 
 namespace NYT {
@@ -58,10 +64,10 @@ public:
         TYPath path = GetRedirectPath(context->GetPath());
         Stroka verb = context->GetVerb();
 
-        auto innerRequestMessage = UpdateYPathRequestHeader(
-            ~context->GetRequestMessage(),
-            path,
-            verb);
+        auto requestMessage = context->GetRequestMessage();
+        auto requestHeader = GetRequestHeader(~requestMessage);
+        requestHeader.set_path(path);
+        auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
         auto outerRequest = Proxy->Execute();
         WrapYPathRequest(~outerRequest, ~innerRequestMessage);

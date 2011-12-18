@@ -26,7 +26,6 @@ class FileDescr(object):
         else:
             self.method= method
 
-OldConfig = FileDescr('old_config', ('remote', ), 'json', 'makeOldConfig')
 Config = FileDescr('config', ('remote', ), 'yson', 'makeConfig')
 Run = FileDescr('run', ('aggregate', 'exec', ))
 Stop = FileDescr('stop', ('aggregate', 'exec', ))
@@ -66,10 +65,6 @@ class Node(AggrBase):
     def log_path(cls):
         return os.path.join(cls.work_dir, cls.__name__ + '.log')
         
-    def makeOldConfig(cls, fd):
-        import json
-        json.dump(cls.config, fd, indent=4)
-
     def makeConfig(cls, fd):
         import yson
         yson.dump(cls.config, fd, indent='  ')

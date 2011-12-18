@@ -1,20 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "writer.h"
-#include "log.h"
 
-#include "../actions/action_queue.h"
-#include "../actions/action_util.h"
-#include "../actions/future.h"
-#include "../misc/fs.h"
 #include "../ytree/ytree_fwd.h"
-
-#include <dict/json/json.h>
-
-#include <util/generic/pair.h>
-#include <util/datetime/base.h>
-#include <util/system/thread.h>
 
 namespace NYT {
 namespace NLog {
@@ -43,31 +31,8 @@ public:
     void Write(const TLogEvent& event);
 
 private:
-    typedef yvector<ILogWriter::TPtr> TLogWriters;
-    typedef ymap<TPair<Stroka, ELogLevel>, TLogWriters> TCachedWriters;
-
-    TLogWriters GetWriters(const TLogEvent& event);
-    TLogWriters GetConfiguredWriters(const TLogEvent& event);
-
-    ELogLevel GetMinLevel(Stroka category);
-
-    void DoWrite(const TLogEvent& event);
-    TVoid DoFlush();
-
-    // Configuration.
-    TSpinLock SpinLock;
-    TAtomic ConfigVersion;
-
-    class TConfig;
-    TIntrusivePtr<TConfig> Configuration;
-
-    TActionQueue::TPtr Queue;
-
-    TLogWriters SystemWriters;
-    TCachedWriters CachedWriters;
-
-    void ConfigureDefault();
-    void ConfigureSystem();
+    class TImpl;
+    THolder<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

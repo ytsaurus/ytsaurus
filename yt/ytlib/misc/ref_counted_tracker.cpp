@@ -16,10 +16,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTracker::TStatistics TRefCountedTracker::Statistics;
-TSpinLock TRefCountedTracker::SpinLock;
-
-TRefCountedTracker::TCookie TRefCountedTracker::Get(TKey key)
+TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -137,12 +134,12 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
 
 i64 TRefCountedTracker::GetAliveObjects(TKey key)
 {
-    return Get(key)->AliveObjects;
+    return GetCookie(key)->AliveObjects;
 }
 
 i64 TRefCountedTracker::GetCreatedObjects(TKey key)
 {
-    return Get(key)->CreatedObjects;
+    return GetCookie(key)->CreatedObjects;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

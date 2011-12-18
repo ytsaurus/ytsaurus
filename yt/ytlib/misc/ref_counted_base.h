@@ -34,7 +34,7 @@ public:
     {
         YASSERT(Cookie == NULL);
         Cookie = cookie;
-        TRefCountedTracker::Register(cookie);
+        TRefCountedTracker::Get()->Register(cookie);
 
         YASSERT(RefCounter >= 1);
     }
@@ -59,7 +59,7 @@ public:
         if (AtomicDecrement(RefCounter) == 0) {
 #ifdef ENABLE_REF_COUNTED_TRACKING
             YASSERT(Cookie != NULL);
-            TRefCountedTracker::Unregister(Cookie);
+            TRefCountedTracker::Get()->Unregister(Cookie);
 #endif
             delete this;
         }

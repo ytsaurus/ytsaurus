@@ -61,7 +61,7 @@ public:
         {
             TConfigBase::Validate(path);
             if (WindowSize < GroupSize) {
-                ythrow yexception() << "WindowSize must be greater or equal to GroupSize.";
+                ythrow yexception() << "window_size must be greater or equal to group_size";
             }
         }
 

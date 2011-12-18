@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "rpc.pb.h"
 
 #include "../bus/message.h"
 
@@ -10,21 +11,37 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 NBus::IMessage::TPtr CreateRequestMessage(
-    const TRequestId& requestId,
-    const Stroka& path,
-    const Stroka& verb,
+    const NProto::TRequestHeader& header,
     TBlob&& body,
     const yvector<TSharedRef>& attachments);
 
 NBus::IMessage::TPtr CreateResponseMessage(
-    const TRequestId& requestId,
-    const TError& error,
+    const NProto::TResponseHeader& header,
     const TSharedRef& body,
     const yvector<TSharedRef>& attachments);
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(
+    const NProto::TResponseHeader& header);
+
+NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error);
+
+NBus::IMessage::TPtr CreateErrorResponseMessage(
+    const TError& error);
+
+NProto::TRequestHeader GetRequestHeader(NBus::IMessage* message);
+NBus::IMessage::TPtr SetRequestHeader(
+    NBus::IMessage* message,
+    const NProto::TRequestHeader& header);
+
+NProto::TResponseHeader GetResponseHeader(NBus::IMessage* message);
+NBus::IMessage::TPtr SetResponseHeader(
+    NBus::IMessage* message,
+    const NProto::TResponseHeader& header);
+
+TError GetResponseError(const NProto::TResponseHeader& header);
+void SetResponseError(NProto::TResponseHeader& header, const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

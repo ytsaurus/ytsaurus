@@ -12,7 +12,6 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
-  ${BASE}/world_initializer.cpp
 )
 set( HDRS
   ${BASE}/common.h
@@ -28,7 +27,6 @@ set( HDRS
   ${BASE}/node_proxy.h
   ${BASE}/node_proxy_detail.h
   ${BASE}/virtual.h
-  ${BASE}/world_initializer.h
 )
 
 list(APPEND YT_SOURCE_FILES

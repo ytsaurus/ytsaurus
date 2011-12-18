@@ -4,6 +4,8 @@
 #include "../ytree/ypath_detail.h"
 #include "../ytree/ypath_client.h"
 
+#include "../rpc/message.h"
+
 namespace NYT {
 namespace NOrchid {
 
@@ -43,15 +45,9 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     UNUSED(response);
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto requestParts = requestMessage->GetParts();
-    YASSERT(!requestParts.empty());
-
-    TYPath path;
-    Stroka verb;
-    ParseYPathRequestHeader(
-        requestParts[0],
-        &path,
-        &verb);
+    auto requestHeader = GetRequestHeader(~requestMessage);
+    TYPath path = requestHeader.path();
+    Stroka verb = requestHeader.verb();
 
     context->SetRequestInfo("Path: %s, Verb: %s",
         ~path,
@@ -63,11 +59,8 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~requestMessage)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
-            auto responseParts = responseMessage->GetParts();
-            YASSERT(!responseParts.empty());
-
-            TError error;
-            ParseYPathResponseHeader(responseParts[0], &error);
+            auto responseHeader = GetResponseHeader(~responseMessage);
+            auto error = GetResponseError(responseHeader);
 
             context->SetRequestInfo("YPathError: %s", ~error.ToString());
 

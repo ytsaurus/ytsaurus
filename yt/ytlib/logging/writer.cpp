@@ -59,6 +59,7 @@ void TFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
+        *FileOutput << Endl;
     } catch (...) {
         LOG_ERROR("Error opening log file %s\n%s",
             ~FileName.Quote(),
@@ -71,7 +72,7 @@ void TFileLogWriter::EnsureInitialized()
     LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
     LogWriter->Write(TLogEvent(
         SystemLoggingCategory,
-        ELogLevel::Info,
+        ELogLevel::Debug,
         "Log file opened"));
 
     Initialized = true;

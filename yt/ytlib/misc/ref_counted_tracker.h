@@ -38,31 +38,37 @@ private:
 public:
     typedef TItem* TCookie;
 
-    static TCookie Get(TKey key);
+    static TRefCountedTracker* Get()
+    {
+        return Singleton<TRefCountedTracker>();
+    }
 
-    static inline void Register(TCookie cookie)
+    TCookie GetCookie(TKey key);
+
+    inline void Register(TCookie cookie)
     {
         AtomicIncrement(cookie->AliveObjects);
         AtomicIncrement(cookie->CreatedObjects);
     }
 
-    static inline void Unregister(TCookie cookie)
+    inline void Unregister(TCookie cookie)
     {
         AtomicDecrement(cookie->AliveObjects);
     }
 
-    static Stroka GetDebugInfo(int sortByColumn = -1);
-    static void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
-    static i64 GetAliveObjects(TKey key);
-    static i64 GetCreatedObjects(TKey key);
+    Stroka GetDebugInfo(int sortByColumn = -1);
+    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+
+    i64 GetAliveObjects(TKey key);
+    i64 GetCreatedObjects(TKey key);
 
 private:
-    static yvector<TItem> GetItems();
-    static void SortItems(yvector<TItem>& items, int sortByColumn);
+    yvector<TItem> GetItems();
+    void SortItems(yvector<TItem>& items, int sortByColumn);
 
     typedef yhash_map<TKey, TItem> TStatistics; 
-    static TSpinLock SpinLock;
-    static TStatistics Statistics;
+    TSpinLock SpinLock;
+    TStatistics Statistics;
 
 };
 

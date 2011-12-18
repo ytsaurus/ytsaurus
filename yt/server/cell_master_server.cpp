@@ -35,6 +35,7 @@
 
 #include <yt/ytlib/ytree/yson_file_service.h>
 #include <yt/ytlib/ytree/ypath_service.h>
+#include <yt/ytlib/ytree/ypath_client.h>
 
 #include <yt/ytlib/bus/nl_server.h>
 
@@ -50,6 +51,7 @@ using NRpc::IRpcServer;
 using NRpc::CreateRpcServer;
 
 using NYTree::IYPathService;
+using NYTree::SyncYPathSetNode;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionService;
@@ -100,6 +102,7 @@ void TCellMasterServer::Run()
 
     LOG_INFO("Starting cell master");
 
+    // TODO: fixme
     // Explicitly instrumentation thread creation.
     NSTAT::EnableStatlog(true);
 
@@ -156,7 +159,7 @@ void TCellMasterServer::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo));
+        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "/meta_state",
         FromMethod(&IMetaStateManager::GetMonitoringInfo, metaStateManager));
@@ -168,21 +171,19 @@ void TCellMasterServer::Run()
         FromMethod(&IRpcServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
-    // TODO: refactor
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();  
-    YVERIFY(orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~CreateMonitoringProvider(~monitoringManager),
-            orchidFactory),
-        "monitoring"));
-    YVERIFY(orchidRoot->AddChild(
-        NYTree::CreateVirtualNode(
-            ~NYTree::CreateYsonFileProvider(ConfigFileName),
-            orchidFactory),
-        "config"));
+    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRootService = IYPathService::FromNode(~orchidRoot);
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/monitoring",
+        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager), orchidFactory));
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/config",
+        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName), orchidFactory));
 
-    auto orchidService = New<NOrchid::TOrchidService>(
+    auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
         ~rpcServer,
         ~controlQueue->GetInvoker());
@@ -217,34 +218,30 @@ void TCellMasterServer::Run()
         ~cypressManager,
         ~chunkManager));
 
-    // TODO: fix memory leaking
-    auto httpServer = new NHTTP::TServer(Config->MonitoringPort);
+    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
     httpServer->Register(
         "/statistics",
-        NMonitoring::GetProfilingHttpHandler()
-        );
+        ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
         "/orchid",
-        NMonitoring::GetYPathHttpHandler(
-            FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
-                {
-                    return orchidPathService;
-                })));
+        ~NMonitoring::GetYPathHttpHandler(FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
+            {
+                return orchidPathService;
+            })));
     httpServer->Register(
         "/cypress",
-        NMonitoring::GetYPathHttpHandler(
-            FromFunctor([=] () -> IYPathService::TPtr
-                {
-                    auto status = metaStateManager->GetStateStatus();
-                    if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
-                        return NULL;
-                    }
-                    return IYPathService::FromNode(~cypressManager->GetNodeProxy(
-                        RootNodeId,
-                        NTransactionServer::NullTransactionId));
-                })
-            ->AsyncVia(metaStateManager->GetStateInvoker())));            
+        ~NMonitoring::GetYPathHttpHandler(~FromFunctor([=] () -> IYPathService::TPtr
+            {
+                auto status = metaStateManager->GetStateStatus();
+                if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
+                    return NULL;
+                }
+                return IYPathService::FromNode(~cypressManager->GetNodeProxy(
+                    RootNodeId,
+                    NTransactionServer::NullTransactionId));
+            })
+        ->AsyncVia(metaStateManager->GetStateInvoker())));            
 
     metaStateManager->Start();
 

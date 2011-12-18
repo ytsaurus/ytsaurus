@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "service.h"
+#include "rpc.pb.h"
 
 #include "../bus/message.h"
 
@@ -21,8 +22,9 @@ public:
     virtual Stroka GetPath() const;
     virtual Stroka GetVerb() const;
 
-    virtual void Reply(const TError& error);
     virtual bool IsReplied() const;
+    virtual bool IsOneWay() const;
+    virtual void Reply(const TError& error);
     virtual TError GetError() const;
 
     virtual TSharedRef GetRequestBody() const;
@@ -41,10 +43,10 @@ public:
 
 protected:
     TServiceContextBase(
-        const TRequestId& requestId,
-        const Stroka& path,
-        const Stroka& verb,
+        const NProto::TRequestHeader& header,
         NBus::IMessage* requestMessage);
+
+    TServiceContextBase(NBus::IMessage* requestMessage);
 
     TRequestId RequestId;
     Stroka Path;
@@ -53,6 +55,7 @@ protected:
 
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments_;
+    bool OneWay;
     bool Replied;
     TError Error;
 
@@ -62,16 +65,17 @@ protected:
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    static void AppendInfo(Stroka& lhs, const Stroka& rhs);
-
     virtual void DoReply(const TError& error, NBus::IMessage* responseMessage) = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
     virtual void LogException(const Stroka& message) = 0;
 
+    static void AppendInfo(Stroka& lhs, const Stroka& rhs);
+
 private:
     void WrapThunk(IAction::TPtr action) throw();
+    void CheckRepliable() const;
 
 };
 

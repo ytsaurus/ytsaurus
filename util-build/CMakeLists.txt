@@ -466,6 +466,13 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   )
 endif()
 
+if (YT_BUILD_WITH_STLPORT)
+  target_link_libraries( arcadia-utils stlport )
+  if (CMAKE_COMPILER_IS_GNUCXX)
+    set_target_properties( arcadia-utils PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
+  endif()
+endif()
+
 include_directories( ${CMAKE_SOURCE_DIR} )
 
 if (CMAKE_COMPILER_IS_GNUCXX)

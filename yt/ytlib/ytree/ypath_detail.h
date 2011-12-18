@@ -284,24 +284,6 @@ void ResolveYPath(
 
 typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
-void ParseYPathRequestHeader(
-    TRef headerData,
-    TYPath* path,
-    Stroka* verb);
-
-void ParseYPathResponseHeader(
-    TRef headerData,
-    TError* error);
-
-NBus::IMessage::TPtr UpdateYPathRequestHeader(
-    NBus::IMessage* message,
-    const TYPath& path,
-    const Stroka& verb);
-
-NBus::IMessage::TPtr UpdateYPathResponseHeader(
-    NBus::IMessage* message,
-    const TError& error);
-
 void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
     NBus::IMessage* innerRequestMessage);

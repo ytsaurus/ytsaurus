@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "client.h"
-#include "message.h"
 
 #include "../misc/property.h"
 #include "../misc/hash.h"
@@ -56,8 +55,9 @@ struct IServiceContext
     virtual Stroka GetPath() const = 0;
     virtual Stroka GetVerb() const = 0;
 
-    virtual void Reply(const TError& error) = 0;
+    virtual bool IsOneWay() const = 0;
     virtual bool IsReplied() const = 0;
+    virtual void Reply(const TError& error) = 0;
     virtual TError GetError() const = 0;
 
     virtual TSharedRef GetRequestBody() const = 0;
@@ -93,7 +93,7 @@ struct IService
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TRequestMessage, class TResponseMessage>
+template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
     , private TNonCopyable
@@ -115,7 +115,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TRequestMessage, class TResponseMessage>
+template <class TResponseMessage>
 class TTypedServiceResponse
     : public TResponseMessage
     , private TNonCopyable
@@ -137,23 +137,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: move impl to inl?
-template<class TRequestMesssage, class TResponseMessage>
-class TTypedServiceContext
+//! Provides a common base for both one-way and two-way contexts.
+template <class TRequestMessage>
+class TTypedServiceContextBase
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr< TTypedServiceContext<TRequestMesssage, TResponseMessage> > TPtr;
-    typedef TTypedServiceRequest<TRequestMesssage, TResponseMessage> TTypedRequest;
-    typedef TTypedServiceResponse<TRequestMesssage, TResponseMessage> TTypedResponse;
+    typedef TTypedServiceContextBase<TRequestMessage> TThis;
+    typedef TIntrusivePtr<TThis> TPtr;
+    typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
     DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
-    DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
 
 public:
-    TTypedServiceContext(IServiceContext* context)
+    TTypedServiceContextBase(IServiceContext* context)
         : Request_(context)
-        , Response_(context)
         , Logger(RpcLogger)
         , Context(context)
     {
@@ -173,46 +171,6 @@ public:
     Stroka GetVerb() const
     {
         return Context->GetVerb();
-    }
-
-    // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
-    void Reply()
-    {
-        Reply(TError(NYT::TError::OK, ""));
-    }
-
-    void Reply(int code, const Stroka& message)
-    {
-        Reply(TError(code, message));
-    }
-
-    void Reply(const TError& error)
-    {
-        if (error.IsOK()) {
-            TBlob responseBlob;
-            if (!SerializeProtobuf(&Response_, &responseBlob)) {
-                LOG_FATAL("Error serializing response");
-            }
-            Context->SetResponseBody(MoveRV(responseBlob));
-        }
-        Context->Reply(error);
-    }
-
-    bool IsReplied() const
-    {
-        return Context->IsReplied();
-    }
-
-    IAction::TPtr Wrap(IAction* action)
-    {
-        YASSERT(action != NULL);
-        return Context->Wrap(action);
-    }
-    
-    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
-    {
-        YASSERT(paramAction != NULL);
-        return Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 
     void SetRequestInfo(const Stroka& info)
@@ -235,9 +193,76 @@ public:
         return Context->GetRequestInfo();
     }
 
+    IServiceContext::TPtr GetUntypedContext() const
+    {
+        return Context;
+    }
+
+    IAction::TPtr Wrap(IAction* action)
+    {
+        YASSERT(action != NULL);
+        return Context->Wrap(action);
+    }
+
+protected:
+    NLog::TLogger& Logger;
+    IServiceContext::TPtr Context;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Describes a two-way context.
+template <class TRequestMessage, class TResponseMessage>
+class TTypedServiceContext
+    : public TTypedServiceContextBase<TRequestMessage>
+{
+public:
+    typedef TTypedServiceContext<TRequestMessage, TResponseMessage> TThis;
+    typedef TTypedServiceContextBase<TRequestMessage> TBase;
+    typedef TIntrusivePtr<TThis> TPtr;
+    typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
+
+    DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
+
+public:
+    TTypedServiceContext(IServiceContext* context)
+        : TBase(context)
+        , Response_(context)
+    { }
+
+    // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
+    void Reply()
+    {
+        Reply(TError(NYT::TError::OK, ""));
+    }
+
+    void Reply(int code, const Stroka& message)
+    {
+        Reply(TError(code, message));
+    }
+
+    void Reply(const TError& error)
+    {
+        NLog::TLogger& Logger = RpcLogger;
+        if (error.IsOK()) {
+            TBlob responseBlob;
+            if (!SerializeProtobuf(&Response_, &responseBlob)) {
+                LOG_FATAL("Error serializing response");
+            }
+            this->Context->SetResponseBody(MoveRV(responseBlob));
+        }
+        this->Context->Reply(error);
+    }
+
+    bool IsReplied() const
+    {
+        return this->Context->IsReplied();
+    }
+
     void SetResponseInfo(const Stroka& info)
     {
-        Context->SetResponseInfo(info);
+        this->Context->SetResponseInfo(info);
     }
 
     void SetResponseInfo(const char* format, ...)
@@ -247,23 +272,48 @@ public:
         va_start(params, format);
         vsprintf(info, format, params);
         va_end(params);
-        Context->SetResponseInfo(info);
+        this->Context->SetResponseInfo(info);
     }
 
     Stroka GetResponseInfo()
     {
-        return Context->GetResponseInfo();
+        return this->Context->GetResponseInfo();
     }
 
-    IServiceContext::TPtr GetUntypedContext() const
+    using TBase::Wrap;
+
+    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
-        return Context;
+        YASSERT(paramAction != NULL);
+        return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 
-private:
-    NLog::TLogger& Logger;
-    IServiceContext::TPtr Context;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Describes a one-way context.
+template <class TRequestMessage>
+class TOneWayTypedServiceContext
+    : public TTypedServiceContextBase<TRequestMessage>
+{
+public:
+    typedef TOneWayTypedServiceContext<TRequestMessage> TThis;
+    typedef TTypedServiceContextBase<TRequestMessage> TBase;
+    typedef TIntrusivePtr<TThis> TPtr;
+
+public:
+    TOneWayTypedServiceContext(IServiceContext* context)
+        : TBase(context)
+    { }
+
+    using TBase::Wrap;
+
+    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
+    {
+        YASSERT(paramAction != NULL);
+        return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,17 +334,25 @@ protected:
     struct TMethodDescriptor
     {
         //! Initializes the instance.
-        TMethodDescriptor(const Stroka& verb, THandler* handler)
+        TMethodDescriptor(
+            const Stroka& verb,
+            THandler* handler,
+            bool oneWay = false)
             : Verb(verb)
             , Handler(handler)
+            , OneWay(oneWay)
         {
             YASSERT(handler != NULL);
         }
 
         //! Service method name.
         Stroka Verb;
+
         //! A handler that will serve the requests.
         THandler::TPtr Handler;
+
+        //! Is the method one-way?
+        bool OneWay;
     };
 
     //! Initializes the instance.
@@ -369,9 +427,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedServiceRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
-    typedef ::NYT::NRpc::TTypedServiceResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    typedef TCtx##method::TTypedRequest  TReq##method; \
+    typedef TCtx##method::TTypedResponse TRsp##method; \
     \
     void method##Thunk(::NYT::NRpc::IServiceContext* context) \
     { \
@@ -394,7 +452,33 @@ private:
         TCtx##method::TPtr context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
-    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this)) \
+    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this), false)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
+    typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
+    typedef TCtx##method::TTypedRequest  TReq##method; \
+    \
+    void method##Thunk(::NYT::NRpc::IServiceContext* context) \
+    { \
+        auto typedContext = New<TCtx##method>(context); \
+        method( \
+            &typedContext->Request(), \
+            typedContext); \
+    } \
+    \
+    void method( \
+        TReq##method* request, \
+        TCtx##method::TPtr context)
+
+#define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
+    void type::method( \
+        TReq##method* request, \
+        TCtx##method::TPtr context)
+
+#define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
+    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this), true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -114,7 +114,7 @@ private:
         if (Awaiter->IsCanceled())
             return;
 
-        LOG_DEBUG("Sending ping to follower %d", id);
+        LOG_DEBUG("Sending ping (FollowerId: %d)", id);
 
         auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
         proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
@@ -147,7 +147,7 @@ private:
             if (IsRpcError(error)) {
                 // Hard error
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                    LOG_WARNING("Error pinging follower %d, considered down (Error: %s)",
+                    LOG_WARNING("Error pinging follower, considered down (FollowerId: %d)\n%s",
                         id,
                         ~error.ToString());
                     ElectionManager->PotentialFollowers.erase(id);
@@ -158,19 +158,19 @@ private:
                     ElectionManager->PotentialFollowers.end())
                 {
                     if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                        LOG_WARNING("Error pinging follower %d, considered down (Error: %s)",
+                        LOG_WARNING("Error pinging follower, considered down (FollowerId: %d)\n%s",
                             id,
                             ~error.ToString());
                     }
                 } else {
                     if (TInstant::Now() > ElectionManager->EpochStart + ElectionManager->Config->PotentialFollowerTimeout) {
-                        LOG_WARNING("Error pinging follower %d, no success within timeout, considered down (Error: %s)",
+                        LOG_WARNING("Error pinging follower, no success within timeout, considered down (FollowerId: %d)\n%s",
                             id,
                             ~error.ToString());
                         ElectionManager->PotentialFollowers.erase(id);
                         ElectionManager->AliveFollowers.erase(id);
                     } else {
-                        LOG_INFO("Error pinging follower %d, will retry later (Error: %s)",
+                        LOG_INFO("Error pinging follower, will retry later (FollowerId: %d)\n%s",
                             id,
                             ~error.ToString());
                     }
@@ -193,18 +193,18 @@ private:
             return;
         }
 
-        LOG_DEBUG("Ping reply from follower %d", id);
+        LOG_DEBUG("Ping reply received (FollowerId: %d)", id);
 
         if (ElectionManager->PotentialFollowers.find(id) !=
             ElectionManager->PotentialFollowers.end())
         {
-            LOG_INFO("Follower %d is up, first success", id);
+            LOG_INFO("Follower is up, first success (FollowerId: %d)", id);
             ElectionManager->PotentialFollowers.erase(id);
         }
         else if (ElectionManager->AliveFollowers.find(id) ==
                  ElectionManager->AliveFollowers.end())
         {
-            LOG_INFO("Follower %d is up", id);
+            LOG_INFO("Follower is up (FollowerId: %d)", id);
             ElectionManager->AliveFollowers.insert(id);
         }
 
@@ -303,7 +303,7 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_INFO("Error requesting status from peer %d (Round: %p, Error: %s)",
+            LOG_INFO("Error requesting status from peer (PeerId: %d, Round: %p)\n%s",
                        peerId,
                        this,
                        ~response->GetError().ToString());
@@ -315,7 +315,7 @@ private:
         auto priority = response->priority();
         auto epoch = TEpoch::FromProto(response->voteepoch());
         
-        LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
+        LOG_DEBUG("Received status from peer (PeerId: %d, Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             peerId,
             this,
             ~state.ToString(),
@@ -498,15 +498,14 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
 
     if (leaderId != LeaderId) {
         ythrow TServiceException(EErrorCode::InvalidLeader) <<
-               Sprintf("Ping from an invalid leader (expected: %d, got: %d)",
+               Sprintf("Ping from an invalid leader (Expected: %d, Actual: %d)",
                    LeaderId,
                    leaderId);
     }
 
     if (epoch != Epoch) {
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-               Sprintf("Ping with invalid epoch from leader %d (expected: %s, got %s)",
-                   leaderId,
+               Sprintf("Ping with invalid epoch from leader (Expected: %s, Actual: %s)",
                    ~Epoch.ToString(),
                    ~epoch.ToString());
     }

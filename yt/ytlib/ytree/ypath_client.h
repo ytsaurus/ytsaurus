@@ -42,7 +42,7 @@ public:
     NBus::IMessage::TPtr Serialize();
 
 protected:
-    virtual bool SerializeBody(TBlob* data) const = 0;
+    virtual TBlob SerializeBody() const = 0;
 
 };
 
@@ -62,9 +62,14 @@ public:
     { }
 
 protected:
-    virtual bool SerializeBody(TBlob* data) const
+    virtual TBlob SerializeBody() const
     {
-        return SerializeProtobuf(this, data);
+        NLog::TLogger& Logger = YTreeLogger;
+        TBlob blob;
+        if (!SerializeProtobuf(this, &blob)) {
+            LOG_FATAL("Error serializing request body");
+        }
+        return blob;
     }
 };
 
@@ -87,7 +92,7 @@ public:
     void ThrowIfError() const;
 
 protected:
-    virtual bool DeserializeBody(TRef data) = 0;
+    virtual void DeserializeBody(const TRef& data) = 0;
 
 };
 
@@ -102,9 +107,12 @@ public:
     typedef TIntrusivePtr< TTypedYPathResponse<TRequestMessage, TResponseMessage> > TPtr;
 
 protected:
-    virtual bool DeserializeBody(TRef data)
+    virtual void DeserializeBody(const TRef& data)
     {
-        return DeserializeProtobuf(this, data);
+        NLog::TLogger& Logger = YTreeLogger;
+        if (!DeserializeProtobuf(this, data)) {
+            LOG_FATAL("Error deserializing response body");
+        }
     }
 
 };

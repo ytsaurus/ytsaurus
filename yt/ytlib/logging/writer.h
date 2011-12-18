@@ -26,20 +26,47 @@ struct ILogWriter
     virtual void Write(const TLogEvent& event) = 0;
     virtual void Flush() = 0;
 
+    DECLARE_ENUM(EType,
+        (File)
+        (StdOut)
+        (StdErr)
+    );
+
     struct TConfig
         : public TConfigBase
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        Stroka Type;
+        EType Type;
         Stroka Pattern;
         Stroka FileName;
 
         TConfig()
         {
             Register("type", Type);
-            Register("pattern", Pattern);
+            Register("pattern", Pattern)
+                .CheckThat(~FromFunctor([] (const Stroka& pattern)
+                {
+                    Stroka errorMessage;
+                    if (!ValidatePattern(pattern, &errorMessage))
+                        ythrow yexception() << errorMessage;
+                }));
             Register("file_name", FileName).Default();
+        }
+
+        virtual void Validate(const NYTree::TYPath& path) const
+        {
+            TConfigBase::Validate(path);
+
+            if (Type == EType::File && FileName.empty()) {
+                ythrow yexception() <<
+                    Sprintf("FileName is empty while type is File (Path: %s)",
+                        ~path);
+            } else if (Type != EType::File && !FileName.empty()) {
+                ythrow yexception() <<
+                    Sprintf("FileName is not empty while type is not File (Path: %s)",
+                        ~path);
+            }
         }
     };
 };

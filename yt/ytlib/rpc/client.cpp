@@ -7,6 +7,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,15 +38,15 @@ TClientRequest::TClientRequest(
 
 IMessage::TPtr TClientRequest::Serialize() const
 {
-    TBlob bodyData;
-    if (!SerializeBody(&bodyData)) {
-        LOG_FATAL("Error serializing request body");
-    }
+    auto bodyData = SerializeBody();
+
+    TRequestHeader header;
+    header.set_request_id(RequestId_.ToProto());
+    header.set_path(Path_);
+    header.set_verb(Verb_);
 
     return CreateRequestMessage(
-        RequestId_,
-        Path_,
-        Verb_,
+        header,
         MoveRV(bodyData),
         Attachments_);
 }
@@ -59,26 +60,52 @@ void TClientRequest::DoInvoke(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(const TRequestId& requestId)
+TClientResponseBase::TClientResponseBase(const TRequestId& requestId)
     : RequestId_(requestId)
     , StartTime_(TInstant::Now())
     , State(EState::Sent)
+{ }
+
+bool TClientResponseBase::IsOK() const
+{
+    return Error_.IsOK();
+}
+
+int TClientResponseBase::GetErrorCode() const
+{
+    return Error_.GetCode();
+}
+
+void TClientResponseBase::OnError(const TError& error)
+{
+    LOG_DEBUG("Request failed (RequestId: %s)\n%s",
+        ~RequestId_.ToString(),
+        ~error.ToString());
+
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        if (State == EState::Done) {
+            // Ignore the error.
+            // Most probably this is a late timeout.
+            return;
+        }
+        State = EState::Done;
+    }
+
+    Error_  = error;
+    FireCompleted();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClientResponse::TClientResponse(const TRequestId& requestId)
+    : TClientResponseBase(requestId)
 { }
 
 IMessage::TPtr TClientResponse::GetResponseMessage() const
 {
     YASSERT(~ResponseMessage != NULL);
     return ResponseMessage;
-}
-
-bool TClientResponse::IsOK() const
-{
-    return Error_.IsOK();
-}
-
-int TClientResponse::GetErrorCode() const
-{
-    return Error_.GetCode();
 }
 
 void TClientResponse::Deserialize(IMessage* responseMessage)
@@ -110,26 +137,6 @@ void TClientResponse::OnAcknowledgement()
     }
 }
 
-void TClientResponse::OnError(const TError& error)
-{
-    LOG_DEBUG("Request failed (RequestId: %s)\n%s",
-        ~RequestId_.ToString(),
-        ~error.ToString());
-
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        if (State == EState::Done) {
-            // Ignore the error.
-            // Most probably this is a late timeout.
-            return;
-        }
-        State = EState::Done;
-    }
-
-    Error_  = error;
-    FireCompleted();
-}
-
 void TClientResponse::OnResponse(IMessage* message)
 {
     LOG_DEBUG("Response received (RequestId: %s)",
@@ -143,6 +150,46 @@ void TClientResponse::OnResponse(IMessage* message)
 
     Deserialize(message);
     FireCompleted();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
+    : TClientResponseBase(requestId)
+    , AsyncResult(New< TFuture<TPtr> >())
+{ }
+
+void TOneWayClientResponse::OnAcknowledgement()
+{
+    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
+
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        if (State == EState::Done) {
+            // Ignore the ack.
+            return;
+        }
+        State = EState::Done;
+    }
+
+    FireCompleted();
+}
+
+void TOneWayClientResponse::OnResponse(IMessage* message)
+{
+    UNUSED(message);
+    YUNREACHABLE();
+}
+
+TFuture<TOneWayClientResponse::TPtr>::TPtr TOneWayClientResponse::GetAsyncResult()
+{
+    return AsyncResult;
+}
+
+void TOneWayClientResponse::FireCompleted()
+{
+    AsyncResult->Set(this);
+    AsyncResult.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

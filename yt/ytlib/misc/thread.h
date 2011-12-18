@@ -8,6 +8,8 @@ namespace NThread {
 void SetCurrentThreadName(const char* name);
 
 typedef size_t TThreadId;
+const size_t InvalidThreadId = 0;
+
 TThreadId GetCurrentThreadId();
 
 ////////////////////////////////////////////////////////////////////////////////

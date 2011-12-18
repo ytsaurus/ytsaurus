@@ -7,6 +7,7 @@
 #include "../logging/log.h"
 #include "../bus/server.h"
 #include "../ytree/fluent.h"
+#include "../rpc/message.h"
 
 namespace NYT {
 namespace NRpc {
@@ -27,15 +28,12 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        const TRequestId& requestId,
-        const Stroka& path,
-        const Stroka& verb,
+        const TRequestHeader& header,
         IMessage* requestMessage,
         IBus* replyBus,
         IService* service,
         const Stroka& loggingCategory)
-        : TServiceContextBase(requestId, path, verb, requestMessage)
-        , RequestId(requestId)
+        : TServiceContextBase(header, requestMessage)
         , ReplyBus(replyBus)
         , Service(service)
         , Logger(loggingCategory)
@@ -46,7 +44,6 @@ public:
     }
 
 private:
-    TRequestId RequestId;
     IBus::TPtr ReplyBus;
     IService::TPtr Service;
     NLog::TLogger Logger;
@@ -168,20 +165,17 @@ private:
             return;
         }
 
-        TRequestHeader requestHeader;
-        if (!DeserializeProtobuf(&requestHeader, parts[0])) {
-            LOG_ERROR("Error deserializing request header");
-            return;
-        }
+        auto header = GetRequestHeader(~message);
+        auto requestId = TRequestId::FromProto(header.request_id());
+        Stroka path = header.path();
+        Stroka verb = header.verb();
+        bool oneWay = header.has_one_way() ? header.one_way() : false;
 
-        auto requestId = TRequestId::FromProto(requestHeader.requestid());
-        Stroka path = requestHeader.path();
-        Stroka verb = requestHeader.verb();
-
-        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s)",
+        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s, OneWay: %s)",
             ~path,
             ~verb,
-            ~requestId.ToString());
+            ~requestId.ToString(),
+            ~ToString(oneWay));
 
         if (!Started) {
             Stroka message = Sprintf("Server is not started (RequestId: %s)",
@@ -215,9 +209,7 @@ private:
         }
 
         auto context = New<TServiceContext>(
-            requestId,
-            path,
-            verb,
+            header,
             ~message,
             ~replyBus,
             ~service,

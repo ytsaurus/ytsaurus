@@ -35,6 +35,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
 };
 
 const Stroka TMyProxy::ServiceName = "MyService";
@@ -92,6 +93,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
+        RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OneWay));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
@@ -99,8 +101,8 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
-
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
 
 };
 
@@ -149,6 +151,11 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
     UNUSED(request);
     UNUSED(response);
     context->Reply(TError(42, "Some Error"));
+}
+
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
+{
+    UNUSED(request);
 }
 
 class TRpcTest
