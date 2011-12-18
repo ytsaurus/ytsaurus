@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "log_manager.h"
 
+#include "writer.h"
+
 #include "../misc/pattern_formatter.h"
 #include "../misc/config.h"
 
@@ -37,26 +39,9 @@ static TLogger Logger(SystemLoggingCategory);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRule
+    : public TConfigBase
 {
-    struct TConfig
-        : public TConfigBase
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-        
-        yvector<Stroka> Categories;
-        ELogLevel MinLevel;
-        ELogLevel MaxLevel;
-
-        yvector <Stroka> Writers;
-
-        TConfig()
-        {
-            Register("categories", Categories);
-            Register("min_level", MinLevel).Default(ELogLevel::Minimum);
-            Register("max_level", MaxLevel).Default(ELogLevel::Maximum);
-            Register("writers", Writers);
-        }
-    };
+    typedef TIntrusivePtr<TRule> TPtr;
 
     bool AllCategories;
     yhash_set<Stroka> Categories;
@@ -65,334 +50,358 @@ struct TRule
     ELogLevel MaxLevel;
 
     yvector<Stroka> Writers;
-
+    
     TRule()
         : AllCategories(false)
-        , MinLevel(ELogLevel::Minimum)
-        , MaxLevel(ELogLevel::Maximum)
-    { }
-
-    TRule(TConfig* config)
-        : MinLevel(config->MinLevel)
-        , MaxLevel(config->MaxLevel)
-        , Writers(config->Writers)
     {
-        if (config->Categories.size() == 1 && config->Categories[0] == AllCategoriesName) {
+        Register("categories", Categories).NonEmpty();
+        Register("min_level", MinLevel).Default(ELogLevel::Minimum);
+        Register("max_level", MaxLevel).Default(ELogLevel::Maximum);
+        Register("writers", Writers).NonEmpty();
+    }
+
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        TConfigBase::Load(node, path);
+
+        if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
             AllCategories = true;
-        } else {
-            AllCategories = false;
-            Categories = yhash_set<Stroka>(config->Categories.begin(), config->Categories.end());
         }
     }
 
-    bool IsApplicable(Stroka category) const
+    bool IsApplicable(const Stroka& category) const
     {
         return AllCategories || Categories.find(category) != Categories.end();
     }
 
-    bool IsApplicable(const TLogEvent& event) const
+    bool IsApplicable(const Stroka& category, ELogLevel level) const
     {
-        return IsApplicable(event.Category) && MinLevel <= event.Level && event.Level <= MaxLevel;
+        return
+            MinLevel <= level && level <= MaxLevel &&
+            IsApplicable(category);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogManager::TConfig
+typedef yvector<ILogWriter::TPtr> TLogWriters;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogConfig
     : public TConfigBase
 {
 public:
-    typedef TIntrusivePtr<TConfig> TPtr;
+    typedef TIntrusivePtr<TLogConfig> TPtr;
+    
+    /*
+     *  Needs to be public for TConfigBase.
+     *  Not for user
+     */
+    TLogConfig()
+    {
+        Register("writers", WriterConfigs);
+        Register("rules", Rules);
+    }
 
-    typedef yhash_map<Stroka, ILogWriter::TPtr> TWriterMap;
-    TWriterMap Writers;
+    TLogWriters GetWriters(const TLogEvent& event)
+    {
+        TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        auto it = CachedWriters.find(cacheKey);
+        if (it != CachedWriters.end())
+            return it->second;
+    
+        yhash_set<Stroka> writerIds;
+        FOREACH(auto& rule, Rules) {
+            if (rule->IsApplicable(event.Category, event.Level)) {
+                writerIds.insert(rule->Writers.begin(), rule->Writers.end());
+            }
+        }
 
-    typedef yvector<TRule> TRules;
-    TRules Rules;
+        TLogWriters writers;
+        FOREACH(const Stroka& writerId, writerIds) {
+            auto writerIt = Writers.find(writerId);
+            YASSERT(writerIt != Writers.end());
+            writers.push_back(writerIt->second);
+        }
 
-    TConfig();
-    void Init();
+        YVERIFY(CachedWriters.insert(MakePair(cacheKey, writers)).second);
+
+        return writers;
+    }
+
+    ELogLevel GetMinLevel(Stroka category) const
+    {
+        ELogLevel level = ELogLevel::Maximum;
+        FOREACH (const auto& rule, Rules) {
+            if (rule->IsApplicable(category)) {
+                level = Min(level, rule->MinLevel);
+            }
+        }
+        return level;
+    }
+
+    TVoid FlushWriters()
+    {
+        FOREACH(auto& pair, Writers) {
+            pair.second->Flush();
+        }
+        return TVoid();
+    }
+
+    static TPtr CreateDefault()
+    {
+        auto config = New<TLogConfig>();
+
+        config->Writers.insert(
+            MakePair(DefaultStdErrWriterName, New<TStdErrLogWriter>(SystemPattern)));
+        
+        config->Writers.insert(
+            MakePair(DefaultFileWriterName, New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
+
+        auto stdErrRule = New<TRule>();
+        stdErrRule->AllCategories = true;
+        stdErrRule->MinLevel = DefaultStdErrMinLevel;
+        stdErrRule->Writers.push_back(DefaultStdErrWriterName);
+        config->Rules.push_back(stdErrRule);
+
+        auto fileRule = New<TRule>();
+        fileRule->AllCategories = true;
+        fileRule->MinLevel = DefaultFileMinLevel;
+        fileRule->Writers.push_back(DefaultFileWriterName);
+        config->Rules.push_back(fileRule);
+
+        return config;
+    }
+
+    static TPtr CreateFromNode(INode* node, const TYPath& path = "/")
+    {
+        auto config = New<TLogConfig>();
+        config->Load(node, path);
+        config->Validate(path);
+        config->CreateWriters();
+        return config;
+    }
 
 private:
-    void ConfigureWriters();
-    void ConfigureRules();
+    virtual void Validate(const NYTree::TYPath& path) const
+    {
+        TConfigBase::Validate(path);
 
-    void ValidateRule(const TRule& rule);
+        FOREACH (const auto& rule, Rules) {
+            FOREACH (const Stroka& writer, rule->Writers) {
+                if (WriterConfigs.find(writer) == WriterConfigs.end()) {
+                    ythrow yexception() <<
+                        Sprintf("Writer %s was not defined (Path: %s)",
+                            ~writer,
+                            ~path);
+                }
+            }
+        }
+    }
 
-    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WritersConfigs;
-    yvector<TRule::TConfig::TPtr> RulesConfigs;
+    void CreateWriters()
+    {
+        FOREACH(const auto& pair, WriterConfigs) {
+            const auto& name = pair.first;
+            const auto& config = pair.second;
+            const auto& pattern = config->Pattern;
+            switch (config->Type) {
+                case ILogWriter::EType::File:
+                    YVERIFY(
+                        Writers.insert(MakePair(
+                            name, New<TFileLogWriter>(config->FileName, pattern))).Second());
+                    break;
+                case ILogWriter::EType::StdOut:
+                    YVERIFY(
+                        Writers.insert(MakePair(
+                            name, New<TStdOutLogWriter>(pattern))).Second());
+                    break;
+                case ILogWriter::EType::StdErr:
+                    YVERIFY(
+                        Writers.insert(MakePair(
+                            name, New<TStdErrLogWriter>(pattern))).Second());
+                    break;
+            }
+        }
+    }
 
+    yvector<TRule::TPtr> Rules;
+    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
+    yhash_map<Stroka, ILogWriter::TPtr> Writers;
+    ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 };
 
-void TLogManager::TConfig::Init()
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogManager::TImpl
 {
-    ConfigureWriters();
-    ConfigureRules();
-}
+public:
+    TImpl()
+        : ConfigVersion(0)
+        , Config(TLogConfig::CreateDefault())
+        , Queue(New<TActionQueue>("LogManager", false))
+    {
+        SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
+    }
 
-void TLogManager::TConfig::ConfigureWriters()
-{
-    // TODO: killme
-    Writers.clear();
-
-    FOREACH(const auto& pair, WritersConfigs) {
-        const auto& name = pair.first;
-        const auto& config = pair.second;
-        if (Writers.find(name) != Writers.end()) {
-            ythrow yexception() <<
-                Sprintf("Writer %s is already defined", ~name);
+    void Configure(NYTree::INode* node, const NYTree::TYPath& path = "/")
+    {
+        auto config = TLogConfig::CreateFromNode(node, path);
+        auto queue = Queue;
+        if (~queue != NULL) {
+            queue->GetInvoker()->Invoke(
+                FromMethod(&TImpl::UpdateConfig, this, config));
         }
+    }
 
-        const auto& pattern = config->Pattern;
-        Stroka errorMessage;
-        if (!ValidatePattern(pattern, & errorMessage)) {
-            ythrow yexception() <<
-                Sprintf("Invalid pattern at writer %s\n%s", ~name, ~errorMessage);
+    void Configure(const Stroka& fileName, const NYTree::TYPath& path)
+    {
+        try {
+            LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
+            TIFStream configStream(fileName);
+            auto root = DeserializeFromYson(&configStream);
+            auto rootService = IYPathService::FromNode(~root);
+            auto configNode = SyncYPathGetNode(~rootService, path);
+            Configure(~configNode, path);
+        } catch (const yexception& ex) {
+            LOG_ERROR("Error configuring logging\n%s", ex.what())
         }
+    }
 
-        const auto& type = config->Type;
-        if (type == "File") {
-            if (config->FileName.empty()) {
-                ythrow yexception() <<
-                    Sprintf("FileName of writer %s is not initialized", ~name);
+    void Flush()
+    {
+        auto queue = Queue;
+        if (~queue != NULL) {
+            FromMethod(&TLogConfig::FlushWriters, Config)
+                ->AsyncVia(queue->GetInvoker())
+                ->Do()
+                ->Get();
+        }
+    }
+
+    void Shutdown()
+    {
+        Flush();
+    
+        auto queue = Queue;
+        if (~queue != NULL) {
+            Queue.Reset();
+            queue->Shutdown();
+        }
+    }
+
+    int GetConfigVersion()
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        return ConfigVersion;
+    }
+
+    void GetLoggerConfig(
+        Stroka category,
+        ELogLevel* minLevel,
+        int* configVersion)
+    {
+        TGuard<TSpinLock> guard(&SpinLock);
+        *minLevel = Config->GetMinLevel(category);
+        *configVersion = ConfigVersion;
+    }
+
+    void Write(const TLogEvent& event)
+    {
+        auto queue = Queue;
+        if (~queue != NULL) {
+            queue->GetInvoker()->Invoke(FromMethod(&TImpl::DoWrite, this, event));
+
+            // TODO: use system-wide exit function
+            if (event.Level == ELogLevel::Fatal) {
+                Shutdown();
+                ::std::terminate();
             }
-            Writers[name] = New<TFileLogWriter>(config->FileName, pattern);
-        } else if (type == "StdErr") {
-            Writers[name] = New<TStdErrLogWriter>(pattern);
-        } else if (type == "StdOut") {
-            Writers[name] = New<TStdOutLogWriter>(pattern);
-        } else {
-            ythrow yexception() <<
-                Sprintf("%s is unknown type of writer", ~type);
         }
     }
-}
 
-void TLogManager::TConfig::ConfigureRules()
-{
-    // TODO: killme
-    Rules.clear();
+private:
+    typedef yvector<ILogWriter::TPtr> TWriters;
 
-    Rules.reserve(RulesConfigs.size());
-    FOREACH(const auto& config, RulesConfigs) {
-        TRule rule(~config);
-        ValidateRule(rule);
-        Rules.push_back(rule);
+    TWriters GetWriters(const TLogEvent& event)
+    {
+        if (event.Category == SystemLoggingCategory)
+            return SystemWriters;
+
+        return Config->GetWriters(event);
     }
-}
 
-
-void TLogManager::TConfig::ValidateRule(const TRule& rule)
-{
-    FOREACH(Stroka writer, rule.Writers) {
-        if (Writers.find(writer) == Writers.end()) {
-            ythrow yexception() <<
-                Sprintf("Writer %s wasn't defined", ~writer);
+    void DoWrite(const TLogEvent& event)
+    {
+        FOREACH(auto& writer, GetWriters(event)) {
+            writer->Write(event);
         }
     }
-}
 
-TLogManager::TConfig::TConfig()
-{
-    Register("writers", WritersConfigs);
-    Register("rules", RulesConfigs);
+    void UpdateConfig(TLogConfig::TPtr config)
+    {
+        config->FlushWriters();
 
-    Writers.insert(MakePair(
-        DefaultStdErrWriterName,
-        New<TStdErrLogWriter>(SystemPattern)));
+        TGuard<TSpinLock> guard(&SpinLock);
+        Config = config;
+        ConfigVersion++;
+    }
 
-    TRule stdErrRule;
-    stdErrRule.AllCategories = true;
-    stdErrRule.MinLevel = DefaultStdErrMinLevel;
-    stdErrRule.Writers.push_back(DefaultStdErrWriterName);
-    Rules.push_back(stdErrRule);
+    // Configuration.
+    TLogConfig::TPtr Config;
+    TAtomic ConfigVersion;
+    TSpinLock SpinLock;
 
-    Writers.insert(MakePair(
-        DefaultFileWriterName,
-        New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
+    TActionQueue::TPtr Queue;
 
-    TRule fileRule;
-    fileRule.AllCategories = true;
-    fileRule.MinLevel = DefaultFileMinLevel;
-    fileRule.Writers.push_back(DefaultFileWriterName);
-    Rules.push_back(fileRule);
-}
+    TWriters SystemWriters;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : ConfigVersion(0)
-    , Queue(New<TActionQueue>("LogManager", false))
-{
-    ConfigureSystem();
-    ConfigureDefault();
-}
+    : Impl(new TImpl())
+{ }
 
 TLogManager* TLogManager::Get()
 {
     return Singleton<TLogManager>();
 }
 
+void TLogManager::Configure( NYTree::INode* node )
+{
+    Impl->Configure(node);
+}
+
+void TLogManager::Configure(const Stroka& fileName, const NYTree::TYPath& path)
+{
+    Impl->Configure(fileName, path);
+}
+
 void TLogManager::Flush()
 {
-    auto queue = Queue;
-    if (~queue != NULL) {
-        FromMethod(&TLogManager::DoFlush, this)
-            ->AsyncVia(queue->GetInvoker())
-            ->Do()
-            ->Get();
-    }
+    Impl->Flush();
 }
 
 void TLogManager::Shutdown()
 {
-    Flush();
-    
-    auto queue = Queue;
-    if (~queue != NULL) {
-        Queue.Reset();
-        queue->Shutdown();
-    }
-}
-
-TVoid TLogManager::DoFlush()
-{
-    FOREACH(auto& pair, Configuration->Writers) {
-        pair.second->Flush();
-    }
-    return TVoid();
-}
-
-void TLogManager::Write(const TLogEvent& event)
-{
-    auto queue = Queue;
-    if (~queue != NULL) {
-        queue->GetInvoker()->Invoke(FromMethod(&TLogManager::DoWrite, this, event));
-
-        // TODO: use system-wide exit function
-        if (event.Level == ELogLevel::Fatal) {
-            Shutdown();
-            ::std::terminate();
-        }
-    }
-}
-
-void TLogManager::DoWrite(const TLogEvent& event)
-{
-    FOREACH(auto& writer, GetWriters(event)) {
-        writer->Write(event);
-    }
-}
-
-yvector<ILogWriter::TPtr> TLogManager::GetWriters(const TLogEvent& event)
-{
-    if (event.Category == SystemLoggingCategory)
-        return SystemWriters;
-
-    TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
-    auto it = CachedWriters.find(cacheKey);
-    if (it != CachedWriters.end())
-        return it->second;
-    
-    TLogWriters writers = GetConfiguredWriters(event);
-    CachedWriters.insert(MakePair(cacheKey, writers));
-    return writers;
-}
-
-yvector<ILogWriter::TPtr> TLogManager::GetConfiguredWriters(const TLogEvent& event)
-{
-    Stroka category = event.Category;
-    ELogLevel level = event.Level;
-
-    yhash_set<Stroka> writerIds;
-    FOREACH(auto& rule, Configuration->Rules) {
-        if (rule.IsApplicable(event)) {
-            writerIds.insert(rule.Writers.begin(), rule.Writers.end());
-        }
-    }
-
-    yvector<ILogWriter::TPtr> writers;
-    FOREACH(const Stroka& writerId, writerIds) {
-        auto writerIt = Configuration->Writers.find(writerId);
-        if (writerIt == Configuration->Writers.end()) {
-            ythrow yexception() <<
-                Sprintf("Couldn't find writer %s", ~writerId);
-        }
-        writers.push_back(writerIt->second);
-    }
-
-    UNUSED(level); // This is intentional?
-    return writers;
+    Impl->Shutdown();
 }
 
 int TLogManager::GetConfigVersion()
 {
-    TGuard<TSpinLock> guard(&SpinLock);
-    return ConfigVersion;
+    return Impl->GetConfigVersion();
 }
 
-void TLogManager::GetLoggerConfig(
-    Stroka category,
-    ELogLevel* minLevel,
-    int* configVersion)
+void TLogManager::GetLoggerConfig( Stroka category, ELogLevel* minLevel, int* configVersion )
 {
-    TGuard<TSpinLock> guard(&SpinLock);
-    *minLevel = GetMinLevel(category);
-    *configVersion = ConfigVersion;
+    Impl->GetLoggerConfig(category, minLevel, configVersion);
 }
 
-NYT::NLog::ELogLevel TLogManager::GetMinLevel(Stroka category)
+void TLogManager::Write(const TLogEvent& event)
 {
-    ELogLevel level = ELogLevel::Maximum;
-
-    FOREACH(const auto& rule, Configuration->Rules) {
-        if (rule.IsApplicable(category)) {
-            level = Min(level, rule.MinLevel);
-        }
-    }
-    return level;
-}
-
-void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
-{
-    try {
-        LOG_DEBUG("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
-        TIFStream configStream(fileName);
-        auto root = DeserializeFromYson(&configStream);
-        auto rootService = IYPathService::FromNode(~root);
-        auto configNode = SyncYPathGetNode(~rootService, path);
-        Configure(~configNode);
-    } catch (const yexception& e) {
-        LOG_ERROR("Error configuring logging\n%s", e.what())
-    }
-}
-
-void TLogManager::Configure(NYTree::INode* node)
-{
-    auto configuration = New<TConfig>();
-    configuration->Load(node);
-    configuration->Init();
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        Configuration = configuration;
-        ConfigVersion++;
-    }
-}
-
-void TLogManager::ConfigureSystem()
-{
-    SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
-}
-
-void TLogManager::ConfigureDefault()
-{
-    auto configuration = New<TConfig>();
-    {
-        TGuard<TSpinLock> guard(&SpinLock);
-        Configuration = configuration;
-        ConfigVersion++;
-    }
+    Impl->Write(event);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

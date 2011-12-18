@@ -72,7 +72,7 @@ void TChunkHolderServer::Run()
 
     // TODO: fixme
     // Explicitly instrumentation thread creation.
-    NSTAT::EnableStatlog(true);
+    //NSTAT::EnableStatlog(true);
 
     auto controlQueue = New<TActionQueue>("Control");
 
