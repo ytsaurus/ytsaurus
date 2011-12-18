@@ -58,7 +58,7 @@ public:
                 Records.PushBack(recordHolder.Release());
             }
 
-            return FromMethod(&TChangeLogQueue::DoAppend, this, record);
+            return FromMethod(&TChangeLogQueue::DoAppend, TPtr(this), record);
         }
 
         //! Flushes the underlying changelog.
