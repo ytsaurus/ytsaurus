@@ -27,16 +27,16 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
     
-        TConfig()
-        {
-            Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
-            Register("sequential_reader", SequentialReader);
-            Register("remote_reader", RemoteReader);
-        }
-
         TDuration MasterRpcTimeout;
         NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
         NChunkClient::TRemoteReader::TConfig::TPtr RemoteReader;
+
+        TConfig()
+        {
+            Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
+            Register("sequential_reader", SequentialReader).DefaultNew();
+            Register("remote_reader", RemoteReader).DefaultNew();
+        }
     };
 
     TFileReader(
