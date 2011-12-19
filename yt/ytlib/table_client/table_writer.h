@@ -2,7 +2,6 @@
 #include "common.h"
 #include "chunk_sequence_writer.h"
 
-#include "../misc/new_config.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"

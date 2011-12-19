@@ -3,7 +3,7 @@
 #include "common.h"
 #include "channel.h"
 
-#include "../misc/new_config.h"
+#include "../misc/config.h"
 
 namespace NYT {
 namespace NRpc {

@@ -369,12 +369,12 @@ TLogManager* TLogManager::Get()
     return Singleton<TLogManager>();
 }
 
-void TLogManager::Configure( NYTree::INode* node )
+void TLogManager::Configure(INode* node)
 {
     Impl->Configure(node);
 }
 
-void TLogManager::Configure(const Stroka& fileName, const NYTree::TYPath& path)
+void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     Impl->Configure(fileName, path);
 }
@@ -394,7 +394,7 @@ int TLogManager::GetConfigVersion()
     return Impl->GetConfigVersion();
 }
 
-void TLogManager::GetLoggerConfig( Stroka category, ELogLevel* minLevel, int* configVersion )
+void TLogManager::GetLoggerConfig(Stroka category, ELogLevel* minLevel, int* configVersion)
 {
     Impl->GetLoggerConfig(category, minLevel, configVersion);
 }

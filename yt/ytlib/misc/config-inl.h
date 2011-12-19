@@ -1,7 +1,7 @@
-#ifndef NEW_CONFIG_INL_H_
-#error "Direct inclusion of this file is not allowed, include new_config.h"
+#ifndef CONFIG_INL_H_
+#error "Direct inclusion of this file is not allowed, include config.h"
 #endif
-#undef NEW_CONFIG_INL_H_
+#undef CONFIG_INL_H_
 
 #include "../ytree/ypath_detail.h"
 
@@ -166,7 +166,9 @@ inline void ValidateSubconfigs(
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
         NYT::NDetail::TEmpty())
 {
-    (*parameter)->Validate(path);
+    if (parameter->Get() != NULL) {
+        (*parameter)->Validate(path);
+    }
 }
 
 // yvector
