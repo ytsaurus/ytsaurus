@@ -135,7 +135,7 @@ protected:
         TTableNode& branchedNode)
     {
         YASSERT(branchedNode.ChunkListIds().ysize() >= 1);
-        YASSERT(branchedNode.ChunkListIds().ysize() >= committedNode.ChunkListIds().ysize() + 1);
+        YASSERT(branchedNode.ChunkListIds().ysize() <= committedNode.ChunkListIds().ysize() + 1);
 
         // Drop references to shared chunklists from branchedNode.
         for (auto it = branchedNode.ChunkListIds().begin();

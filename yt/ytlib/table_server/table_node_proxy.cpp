@@ -76,6 +76,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
     } else {
         chunkList = &ChunkManager->GetChunkListForUpdate(impl.ChunkListIds().back());
     }
+    YASSERT(chunkList.GetRefCounter() == 1);
 
     FOREACH (const auto& chunkId, chunkIds) {
         auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
