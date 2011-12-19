@@ -5,6 +5,7 @@
 
 #include "../misc/hash.h"
 #include "../misc/assert.h"
+#include "../misc/singleton.h"
 
 #include <algorithm>
 
@@ -19,7 +20,7 @@ class TEphemeralNodeBase
 public:
     TEphemeralNodeBase();
 
-    virtual INodeFactory* GetFactory() const;
+    virtual INodeFactory::TPtr CreateFactory() const;
 
     virtual ICompositeNode::TPtr GetParent() const;
     virtual void SetParent(ICompositeNode::TPtr parent);
@@ -172,7 +173,7 @@ TEphemeralNodeBase::TEphemeralNodeBase()
     : Parent(NULL)
 { }
 
-INodeFactory* TEphemeralNodeBase::GetFactory() const
+INodeFactory::TPtr TEphemeralNodeBase::CreateFactory() const
 {
     return GetEphemeralNodeFactory();
 }
@@ -302,25 +303,37 @@ void TMapNode::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
-IYPathService::TResolveResult TMapNode::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TMapNode::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TMapNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TMapNode::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    TMapNodeMixin::SetRecursive(path, request);
+    auto factory = CreateFactory();
+    TMapNodeMixin::SetRecursive(~factory, path, request);
     context->Reply();
 }
 
-void TMapNode::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TMapNode::SetNodeRecursive(
+    const TYPath& path,
+    TReqSetNode* request,
+    TRspSetNode* response,
+    TCtxSetNode::TPtr context)
 {
     UNUSED(response);
 
+    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value());
-    TMapNodeMixin::SetRecursive(path, value);
+    TMapNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
 
@@ -412,25 +425,37 @@ int TListNode::GetChildIndex(INode* child)
     return it->Second();
 }
 
-IYPathService::TResolveResult TListNode::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TListNode::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TListNode::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TListNode::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    TListNodeMixin::SetRecursive(path, request);
+    auto factory = CreateFactory();
+    TListNodeMixin::SetRecursive(~factory, path, request);
     context->Reply();
 }
 
-void TListNode::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TListNode::SetNodeRecursive(
+    const TYPath& path,
+    TReqSetNode* request,
+    TRspSetNode* response,
+    TCtxSetNode::TPtr context)
 {
     UNUSED(response);
 
+    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value());
-    TListNodeMixin::SetRecursive(path, value);
+    TListNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
 
@@ -473,7 +498,7 @@ public:
 
 INodeFactory* GetEphemeralNodeFactory()
 {
-    return Singleton<TEphemeralNodeFactory>();
+    return ~RefCountedSingleton<TEphemeralNodeFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

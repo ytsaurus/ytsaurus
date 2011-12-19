@@ -47,9 +47,10 @@ public:
 
 protected:
     template <class TNode>
-    void DoSetSelf(TNode* node, const Stroka& value)
+    void DoSetSelf(TNode* node, const TYson& value)
     {
-        auto builder = CreateBuilderFromFactory(GetFactory());
+        auto factory = CreateFactory();
+        auto builder = CreateBuilderFromFactory(~factory);
         TStringInput input(value);
         SetNodeFromProducer(node, ~ProducerFromYson(&input), ~builder);
     }
@@ -80,6 +81,8 @@ protected:
     virtual yvector<Stroka> GetVirtualAttributeNames();
     virtual IYPathService::TPtr GetVirtualAttributeService(const Stroka& name);
 
+    IMapNode::TPtr EnsureAttributes();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,9 +92,19 @@ class TMapNodeMixin
 {
 protected:
     bool DoInvoke(NRpc::IServiceContext* context);
-    IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
-    void SetRecursive(const TYPath& path, NProto::TReqSet* request);
-    void SetRecursive(const TYPath& path, INode* value);
+
+    IYPathService::TResolveResult ResolveRecursive(
+        const TYPath& path,
+        const Stroka& verb);
+
+    void SetRecursive(
+        INodeFactory* factory,
+        const TYPath& path,
+        NProto::TReqSet* request);
+    void SetRecursive(
+        INodeFactory* factory,
+        const TYPath& path,
+        INode* value);
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NProto, List);
@@ -104,13 +117,27 @@ class TListNodeMixin
     : public virtual IListNode
 {
 protected:
-    IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
-    void SetRecursive(const TYPath& path, NProto::TReqSet* request);
-    void SetRecursive(const TYPath& path, INode* value);
+    IYPathService::TResolveResult ResolveRecursive(
+        const TYPath& path,
+        const Stroka& verb);
+
+    void SetRecursive(
+        INodeFactory* factory,
+        const TYPath& path,
+        NProto::TReqSet* request);
+    void SetRecursive(
+        INodeFactory* factory,
+        const TYPath& path,
+        INode* value);
 
 private:
-    int ParseChildIndex(TStringBuf str);
-    void CreateChild(int beforeIndex, const TYPath& path, INode* value);
+    int ParseChildIndex(const TStringBuf& str);
+
+    void CreateChild(
+        INodeFactory* factory,
+        int beforeIndex,
+        const TYPath& path,
+        INode* value);
 
 };
 

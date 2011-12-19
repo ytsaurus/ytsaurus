@@ -66,7 +66,7 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    bool IsTransactionNodeLocked(
+    bool IsLockNeeded(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -79,7 +79,7 @@ public:
     void UnrefNode(ICypressNode & node);
     void UnrefNode(const TNodeId& nodeId);
 
-    NYTree::INode::TPtr CreateNode(
+    TIntrusivePtr<ICypressNodeProxy> CreateNode(
         ERuntimeNodeType type,
         const TTransactionId& transactionId);
 
@@ -151,7 +151,6 @@ private:
     void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
-    void UnrefCreatedNodes(const NTransactionServer::TTransaction& transaction);
     void CommitCreatedNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetTypeHandler(const ICypressNode& node);

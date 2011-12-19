@@ -19,29 +19,45 @@ TNodeFactory::TNodeFactory(
     YASSERT(cypressManager != NULL);
 }
 
+TNodeFactory::~TNodeFactory()
+{
+    FOREACH (const auto& nodeId, CreatedNodeIds) {
+        auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        impl.Unref();
+    }
+}
+
+ICypressNodeProxy::TPtr TNodeFactory::DoCreate(ERuntimeNodeType type)
+{
+    auto node = CypressManager->CreateNode(type, TransactionId);
+    node->GetImplForUpdate().Ref();
+    CreatedNodeIds.push_back(node->GetNodeId());
+    return node;
+}
+
 IStringNode::TPtr TNodeFactory::CreateString()
 {
-    return CypressManager->CreateNode(ERuntimeNodeType::String, TransactionId)->AsString();
+    return DoCreate(ERuntimeNodeType::String)->AsString();
 }
 
 IInt64Node::TPtr TNodeFactory::CreateInt64()
 {
-    return CypressManager->CreateNode(ERuntimeNodeType::Int64, TransactionId)->AsInt64();
+    return DoCreate(ERuntimeNodeType::Int64)->AsInt64();
 }
 
 IDoubleNode::TPtr TNodeFactory::CreateDouble()
 {
-    return CypressManager->CreateNode(ERuntimeNodeType::Double, TransactionId)->AsDouble();
+    return DoCreate(ERuntimeNodeType::Double)->AsDouble();
 }
 
 IMapNode::TPtr TNodeFactory::CreateMap()
 {
-    return CypressManager->CreateNode(ERuntimeNodeType::Map, TransactionId)->AsMap();
+    return DoCreate(ERuntimeNodeType::Map)->AsMap();
 }
 
 IListNode::TPtr TNodeFactory::CreateList()
 {
-    return CypressManager->CreateNode(ERuntimeNodeType::List, TransactionId)->AsList();
+    return DoCreate(ERuntimeNodeType::List)->AsList();
 }
 
 IEntityNode::TPtr TNodeFactory::CreateEntity()
@@ -65,7 +81,7 @@ TMapNodeProxy::TMapNodeProxy(
 
 void TMapNodeProxy::Clear()
 {
-    EnsureLocked();
+    LockIfNeeded();
     
     auto& impl = GetTypedImplForUpdate();
 
@@ -105,7 +121,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 {
     YASSERT(!name.empty());
 
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -124,7 +140,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& name)
 {
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -146,7 +162,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
 
 void TMapNodeProxy::RemoveChild(INode::TPtr child)
 {
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
     
@@ -168,7 +184,7 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     if (oldChild == newChild)
         return;
 
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -213,28 +229,41 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 
 void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    TMapNodeMixin::SetRecursive(path, value);
+    auto factory = CreateFactory();
+    TMapNodeMixin::SetRecursive(~factory, path, value);
 }
 
-IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TMapNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TMapNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    TMapNodeMixin::SetRecursive(path, request);
+    auto factory = CreateFactory();
+    TMapNodeMixin::SetRecursive(~factory, path, request);
     context->Reply();
 }
 
-void TMapNodeProxy::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TMapNodeProxy::SetNodeRecursive(
+    const TYPath& path,
+    TReqSetNode* request,
+    TRspSetNode* response,
+    TCtxSetNode::TPtr context)
 {
     UNUSED(response);
 
+    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value());
-    TMapNodeMixin::SetRecursive(path, value);
+    TMapNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
 
@@ -254,7 +283,7 @@ TListNodeProxy::TListNodeProxy(
 
 void TListNodeProxy::Clear()
 {
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -291,7 +320,7 @@ INode::TPtr TListNodeProxy::FindChild(int index) const
 
 void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
 {
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
@@ -319,7 +348,7 @@ void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
 
 bool TListNodeProxy::RemoveChild(int index)
 {
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
@@ -354,7 +383,7 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     if (oldChild == newChild)
         return;
 
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -390,28 +419,41 @@ int TListNodeProxy::GetChildIndex(INode* child)
 
 void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    TListNodeMixin::SetRecursive(path, value);
+    auto factory = CreateFactory();
+    TListNodeMixin::SetRecursive(~factory, path, value);
 }
 
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TListNodeProxy::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TListNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet::TPtr context)
 {
     UNUSED(response);
 
-    TListNodeMixin::SetRecursive(path, request);
+    auto factory = CreateFactory();
+    TListNodeMixin::SetRecursive(~factory, path, request);
     context->Reply();
 }
 
-void TListNodeProxy::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TListNodeProxy::SetNodeRecursive(
+    const TYPath& path,
+    TReqSetNode* request,
+    TRspSetNode* response,
+    TCtxSetNode::TPtr context)
 {
     UNUSED(response);
 
+    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value());
-    TListNodeMixin::SetRecursive(path, value);
+    TListNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
 
@@ -425,7 +467,9 @@ TRootNodeProxy::TRootNodeProxy(
     : TMapNodeProxy(typeHandler, cypressManager, transactionId, nodeId)
 { }
 
-IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     if (!path.empty() && path[0] == NodeIdMarker) {
         TYPath suffixPath;

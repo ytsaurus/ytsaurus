@@ -72,16 +72,14 @@ class TVirtualEntityNode
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(
-        TYPathServiceProvider* builder,
-        INodeFactory* factory)
+    TVirtualEntityNode(TYPathServiceProvider* builder)
         : Provider(builder)
-        , Factory(factory)
     { }
 
-    virtual INodeFactory* GetFactory() const
+    virtual INodeFactory::TPtr CreateFactory() const
     {
-        return Factory;
+        YASSERT(Parent != NULL);
+        return Parent->CreateFactory();
     }
 
     virtual ICompositeNode::TPtr GetParent() const
@@ -116,31 +114,24 @@ public:
 
 private:
     TYPathServiceProvider::TPtr Provider;
-    INodeFactory* Factory;
 
     ICompositeNode* Parent;
     IMapNode::TPtr Attributes;
 
 };
 
-INode::TPtr CreateVirtualNode(
-    TYPathServiceProvider* provider,
-    INodeFactory* factory)
+INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)
 {
-    return New<TVirtualEntityNode>(provider, factory);
+    return New<TVirtualEntityNode>(provider);
 }
 
-INode::TPtr CreateVirtualNode(
-    IYPathService* service,
-    INodeFactory* factory)
+INode::TPtr CreateVirtualNode(IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
-    return CreateVirtualNode(
-        ~FromFunctor([=] () -> NYTree::IYPathService::TPtr
-            {
-                return service_;
-            }),
-        factory);
+    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathService::TPtr
+        {
+            return service_;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

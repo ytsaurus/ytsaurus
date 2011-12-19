@@ -97,7 +97,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, SetFileChunk)
         ythrow yexception() << "Chunk is already assigned to another chunk list";
     }
 
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 

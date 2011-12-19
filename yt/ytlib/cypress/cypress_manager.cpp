@@ -148,6 +148,12 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    // Check if we're inside a transaction.
+    // If not, find and return the non-branched node.
+    if (transactionId == NullTransactionId) {
+        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    }
+
     // Try to fetch a branched copy.
     auto* branchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
     if (branchedImpl != NULL) {
@@ -204,7 +210,7 @@ ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
     return proxy;
 }
 
-bool TCypressManager::IsTransactionNodeLocked(
+bool TCypressManager::IsLockNeeded(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -213,17 +219,21 @@ bool TCypressManager::IsTransactionNodeLocked(
     // Check if the node is created by the current transaction and is still uncommitted.
     const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
-        return true;
+        return false;
     }
 
-    // Walk up to the root.
+    // Walk up to the root and examine the locks.
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
         const auto& currentImpl = NodeMap.Get(TBranchedNodeId(currentNodeId, NullTransactionId));
-        // Check the locks assigned to the current node.
         FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
             if (lock.GetTransactionId() == transactionId) {
+                // This is our lock.
+                return false;
+            }
+            // This is someone else's lock.
+            if (lock.GetNodeId() == currentNodeId) {
                 return true;
             }
         }
@@ -238,10 +248,7 @@ TLockId TCypressManager::LockTransactionNode(
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (transactionId == NullTransactionId) {
-        ythrow yexception() << "Cannot lock a node outside of a transaction";
-    }
+    YASSERT(transactionId != NullTransactionId);
 
     // NB: Locks are assigned to non-branched nodes.
     const auto& impl = NodeMap.Get(TBranchedNodeId(nodeId, NullTransactionId));
@@ -274,15 +281,11 @@ TLockId TCypressManager::LockTransactionNode(
     return lock.GetId();
 }
 
-INode::TPtr TCypressManager::CreateNode(
+ICypressNodeProxy::TPtr TCypressManager::CreateNode(
     ERuntimeNodeType type,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (transactionId == NullTransactionId) {
-        ythrow yexception() << "Cannot create a node outside of a transaction";
-    }
 
     auto typeHandler = GetTypeHandler(type);
 
@@ -299,10 +302,6 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     INode* manifestNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (transactionId == NullTransactionId) {
-        ythrow yexception() << "Cannot create a node outside of a transaction";
-    }
 
     auto it = TypeNameToHandler.find(typeName);
     if (it == TypeNameToHandler.end()) {
@@ -334,18 +333,22 @@ ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
     INodeTypeHandler* typeHandler,
     TAutoPtr<ICypressNode> node)
 {
-    // Keep a pointer to the node (the ownership is about to transfer to NodeMap).
+    // Set an appropriate state and register the node with the transaction (if any).
+    // When inside a transaction, all newly-created nodes are marked as Uncommitted.
+    // If no transaction is active then the node is marked as Committed.
+    if (transactionId == NullTransactionId) {
+        node->SetState(ENodeState::Committed);
+    } else {
+        node->SetState(ENodeState::Uncommitted);
+
+        // We shall traverse this list on transaction commit and set node status to Committed.
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        transaction.CreatedNodeIds().push_back(nodeId);
+    }
+
+    // Keep a pointer to the node (the ownership will be transferred to NodeMap).
     auto* node_ = ~node;
-
-    // Create a new node.
     NodeMap.Insert(TBranchedNodeId(nodeId, NullTransactionId), node.Release());
-
-    // Register the node with the transaction.
-    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-    transaction.CreatedNodeIds().push_back(nodeId);
-
-    // Each transaction holds an implicit reference to all created nodes.
-    node_->Ref();
 
     LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -413,7 +416,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
         return;
     }
 
-    bool startAutoTransaction = proxy->IsTransactionRequired(context);
+    bool startAutoTransaction = false; //proxy->IsTransactionRequired(context);
 
     TMsgExecuteVerb message;
     message.set_nodeid(proxy->GetNodeId().ToProto());
@@ -671,7 +674,6 @@ void TCypressManager::OnTransactionCommitted(const TTransaction& transaction)
     MergeBranchedNodes(transaction);
     CommitCreatedNodes(transaction);
     UnrefOriginatingNodes(transaction);
-    UnrefCreatedNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
@@ -681,7 +683,6 @@ void TCypressManager::OnTransactionAborted(const TTransaction& transaction)
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
     UnrefOriginatingNodes(transaction);
-    UnrefCreatedNodes(transaction);
 
     // TODO: check that all created nodes died
 }
@@ -732,14 +733,6 @@ void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
     // Drop implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        UnrefNode(nodeId);
-    }
-}
-
-void TCypressManager::UnrefCreatedNodes(const TTransaction& transaction)
-{
-    // Drop implicit references to created nodes.
-    FOREACH (const auto& nodeId, transaction.CreatedNodeIds()) {
         UnrefNode(nodeId);
     }
 }

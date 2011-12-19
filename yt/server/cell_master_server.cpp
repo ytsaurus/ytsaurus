@@ -104,7 +104,7 @@ void TCellMasterServer::Run()
 
     // TODO: fixme
     // Explicitly instrumentation thread creation.
-    NSTAT::EnableStatlog(true);
+    //NSTAT::EnableStatlog(true);
 
     auto metaState = New<TCompositeMetaState>();
 
@@ -177,11 +177,11 @@ void TCellMasterServer::Run()
     SyncYPathSetNode(
         ~orchidRootService,
         "/monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager), orchidFactory));
+        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRootService,
         "/config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName), orchidFactory));
+        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

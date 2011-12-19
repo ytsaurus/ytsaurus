@@ -61,15 +61,18 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
 
     context->SetRequestInfo("ChunkIds: [%s]", ~JoinToString(chunkIds));
 
-    EnsureLocked();
+    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
-    // Check if the table has at least one chunk list.
-    // If not, create not.
+    // Check if the table has at least one chunk list. Create one if needed.
+    // Also create a new chunklist if the node is committed. The latter case
+    // means that chunks are being appended without taking a lock.
     TChunkList* chunkList;
-    if (impl.ChunkListIds().empty()) {
+    if (impl.ChunkListIds().empty() || impl.GetState() == ENodeState::Committed) {
+        // Branched node must already have a final chunk list ready for append.
         YASSERT(impl.GetState() != ENodeState::Branched);
+
         chunkList = &ChunkManager->CreateChunkList();
         impl.ChunkListIds().push_back(chunkList->GetId());
         ChunkManager->RefChunkList(*chunkList);
