@@ -4,7 +4,7 @@
 #include "pattern.h"
 
 #include "../misc/ref_counted_base.h"
-#include "../misc/new_config.h"
+#include "../misc/config.h"
 
 #include <util/system/file.h>
 #include <util/stream/file.h>

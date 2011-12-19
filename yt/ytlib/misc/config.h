@@ -92,6 +92,6 @@ typedef NConfig::TConfigBase TConfigBase;
 
 } // namespace NYT
 
-#define NEW_CONFIG_INL_H_
-#include "new_config-inl.h"
-#undef NEW_CONFIG_INL_H_
+#define CONFIG_INL_H_
+#include "config-inl.h"
+#undef CONFIG_INL_H_
