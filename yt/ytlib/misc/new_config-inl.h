@@ -166,7 +166,9 @@ inline void ValidateSubconfigs(
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
         NYT::NDetail::TEmpty())
 {
-    (*parameter)->Validate(path);
+    if (parameter->Get() != NULL) {
+        (*parameter)->Validate(path);
+    }
 }
 
 // yvector
