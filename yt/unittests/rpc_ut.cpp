@@ -216,7 +216,7 @@ private:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 TEST_F(TRpcTest, Send)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
@@ -329,7 +329,7 @@ TEST_F(TRpcTest, CustomMessage)
     EXPECT_EQ(42, response->GetErrorCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
 }
-
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
