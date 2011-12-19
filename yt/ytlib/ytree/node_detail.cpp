@@ -75,7 +75,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 
             auto attributes = GetAttributes();
             if (~attributes != NULL) {
-                auto sortedChildren = GetSortedIterators(attributes->GetChildren());
+                auto children = attributes->GetChildren();
+                auto sortedChildren = GetSortedIterators(children);
                 FOREACH (const auto& pair, sortedChildren) {
                     writer.OnMapItem(pair->first);
                     TTreeVisitor visitor(&writer);
@@ -202,12 +203,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
             return;
         }
 
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            attributes = GetFactory()->CreateMap();
-            SetAttributes(attributes);
-        }
-
+        auto attributes = EnsureAttributes();
         SyncYPathSet(
             ~IYPathService::FromNode(~attributes),
             "/" + attributePath,
@@ -245,12 +241,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, SetNode)
     if (IsFinalYPath(path)) {
         SetNodeSelf(request, response, context);
     } else if (IsAttributeYPath(path)) {
-        auto attributes = GetAttributes();
-        if (~attributes == NULL) {
-            attributes = GetFactory()->CreateMap();
-            SetAttributes(attributes);
-        }
-
+        auto attributes = EnsureAttributes();
         auto value = reinterpret_cast<INode*>(request->value());
         auto attributePath = ChopYPathAttributeMarker(path);
         SyncYPathSetNode(
@@ -358,6 +349,19 @@ IYPathService::TPtr TNodeBase::GetVirtualAttributeService(const Stroka& name)
     return NULL;
 }
 
+IMapNode::TPtr TNodeBase::EnsureAttributes()
+{
+    auto attributes = GetAttributes();
+    if (~attributes != NULL) {
+        return attributes;
+    }
+
+    auto factory = CreateFactory();
+    attributes = factory->CreateMap();
+    SetAttributes(~attributes);
+    return attributes;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TMapNodeMixin::DoInvoke(IServiceContext* context)
@@ -381,7 +385,9 @@ DEFINE_RPC_SERVICE_METHOD(TMapNodeMixin, List)
     context->Reply();
 }
 
-IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -399,13 +405,19 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(const TYPath& path
     ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
 }
 
-void TMapNodeMixin::SetRecursive(const TYPath& path, NProto::TReqSet* request)
+void TMapNodeMixin::SetRecursive(
+    INodeFactory* factory,
+    const TYPath& path,
+    NProto::TReqSet* request)
 {
-    auto value = DeserializeFromYson(request->value(), GetFactory());
-    TMapNodeMixin::SetRecursive(path, ~value);
+    auto value = DeserializeFromYson(request->value(), factory);
+    TMapNodeMixin::SetRecursive(factory, path, ~value);
 }
 
-void TMapNodeMixin::SetRecursive(const TYPath& path, INode* value)
+void TMapNodeMixin::SetRecursive(
+    INodeFactory* factory,
+    const TYPath& path,
+    INode* value)
 {
     IMapNode::TPtr currentNode = this;
     TYPath currentPath = path;
@@ -422,7 +434,7 @@ void TMapNodeMixin::SetRecursive(const TYPath& path, INode* value)
             break;
         }
 
-        auto intermediateNode = GetFactory()->CreateMap();
+        auto intermediateNode = factory->CreateMap();
         if (!currentNode->AddChild(intermediateNode, prefix)) {
             ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
         }
@@ -434,7 +446,9 @@ void TMapNodeMixin::SetRecursive(const TYPath& path, INode* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
 {
     Stroka prefix;
     TYPath suffixPath;
@@ -457,13 +471,19 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(const TYPath& pat
     }
 }
 
-void TListNodeMixin::SetRecursive(const TYPath& path, NProto::TReqSet* request)
+void TListNodeMixin::SetRecursive(
+    INodeFactory* factory,
+    const TYPath& path,
+    NProto::TReqSet* request)
 {
-    auto value = DeserializeFromYson(request->value(), GetFactory());
-    SetRecursive(path, ~value);
+    auto value = DeserializeFromYson(request->value(), factory);
+    SetRecursive(factory, path, ~value);
 }
 
-void TListNodeMixin::SetRecursive(const TYPath& path, INode* value)
+void TListNodeMixin::SetRecursive(
+    INodeFactory* factory,
+    const TYPath& path,
+    INode* value)
 {
     INode::TPtr currentNode = this;
     TYPath currentPath = path;
@@ -477,9 +497,9 @@ void TListNodeMixin::SetRecursive(const TYPath& path, INode* value)
     }
 
     if (prefix == "+") {
-        return CreateChild(GetChildCount(), suffixPath, value);
+        return CreateChild(factory, GetChildCount(), suffixPath, value);
     } else if (prefix == "-") {
-        return CreateChild(0, suffixPath, value);
+        return CreateChild(factory, 0, suffixPath, value);
     }
 
     char lastPrefixCh = prefix[prefix.length() - 1];
@@ -490,10 +510,10 @@ void TListNodeMixin::SetRecursive(const TYPath& path, INode* value)
     int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.length() - 1));
     switch (lastPrefixCh) {
         case '+':
-            CreateChild(index + 1, suffixPath, value);
+            CreateChild(factory, index + 1, suffixPath, value);
             break;
         case '-':
-            CreateChild(index, suffixPath, value);
+            CreateChild(factory, index, suffixPath, value);
             break;
 
         default:
@@ -501,12 +521,16 @@ void TListNodeMixin::SetRecursive(const TYPath& path, INode* value)
     }
 }
 
-void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* value)
+void TListNodeMixin::CreateChild(
+    INodeFactory* factory,
+    int beforeIndex,
+    const TYPath& path,
+    INode* value)
 {
     if (IsFinalYPath(path)) {
         AddChild(value, beforeIndex);
     } else {
-        auto currentNode = GetFactory()->CreateMap();
+        auto currentNode = factory->CreateMap();
         auto currentPath = path;
         AddChild(currentNode, beforeIndex);
 
@@ -520,7 +544,7 @@ void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* val
                 break;
             }
 
-            auto intermediateNode = GetFactory()->CreateMap();
+            auto intermediateNode = factory->CreateMap();
             YVERIFY(currentNode->AddChild(intermediateNode, prefix));
 
             currentNode = intermediateNode;
@@ -529,7 +553,7 @@ void TListNodeMixin::CreateChild(int beforeIndex, const TYPath& path, INode* val
     }
 }
 
-int TListNodeMixin::ParseChildIndex(TStringBuf str)
+int TListNodeMixin::ParseChildIndex(const TStringBuf& str)
 {
     int index;
     try {

@@ -185,18 +185,21 @@ void TForwardingYsonConsumer::OnMyStringScalar(const Stroka& value, bool hasAttr
 {
     UNUSED(value);
     UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyDoubleScalar(double value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEntity(bool hasAttributes)
@@ -205,39 +208,53 @@ void TForwardingYsonConsumer::OnMyEntity(bool hasAttributes)
 }
 
 void TForwardingYsonConsumer::OnMyBeginList()
-{ }
+{
+    YUNREACHABLE();
+}
 
 void TForwardingYsonConsumer::OnMyListItem()
-{ }
+{
+    YUNREACHABLE();
+}
 
 void TForwardingYsonConsumer::OnMyEndList(bool hasAttributes)
 {
     UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBeginMap()
-{ }
+{
+    YUNREACHABLE();
+}
 
 void TForwardingYsonConsumer::OnMyMapItem(const Stroka& name)
 {
     UNUSED(name);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEndMap(bool hasAttributes)
 {
     UNUSED(hasAttributes);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyBeginAttributes()
-{ }
+{
+    YUNREACHABLE();
+}
 
 void TForwardingYsonConsumer::OnMyAttributesItem(const Stroka& name)
 {
     UNUSED(name);
+    YUNREACHABLE();
 }
 
 void TForwardingYsonConsumer::OnMyEndAttributes()
-{ }
+{
+    YUNREACHABLE();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

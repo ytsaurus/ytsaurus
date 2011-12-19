@@ -26,7 +26,9 @@ TRemoteReader::TRemoteReader(
     , HolderAddresses(holderAddresses)
     , ExecutionTime(0, 1000, 20)
     , CurrentHolder(0)
-{ }
+{
+    YASSERT(config != NULL);
+}
 
 TFuture<IAsyncReader::TReadResult>::TPtr
 TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)

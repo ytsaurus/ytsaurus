@@ -45,13 +45,8 @@ protected:
     virtual void OnMyEntity(bool hasAttributes);
 
     virtual void OnMyBeginList();
-    virtual void OnMyListItem();
-    virtual void OnMyEndList(bool hasAttributes);
-
 
     virtual void OnMyBeginMap();
-    virtual void OnMyMapItem(const Stroka& name);
-    virtual void OnMyEndMap(bool hasAttributes);
 
     virtual void OnMyBeginAttributes();
     virtual void OnMyAttributesItem(const Stroka& name);
@@ -61,7 +56,8 @@ protected:
     typedef TNodeSetterBase TThis;
 
     INode::TPtr Node;
-    ITreeBuilder* Builder;
+    ITreeBuilder* TreeBuilder;
+    INodeFactory::TPtr NodeFactory;
 
     Stroka AttributeName;
     TAutoPtr<ITreeBuilder> AttributeBuilder;
@@ -141,13 +137,13 @@ private:
     virtual void OnMyMapItem(const Stroka& name)
     {
         ItemName = name;
-        Builder->BeginTree();
-        ForwardNode(Builder, ~FromMethod(&TThis::OnForwardingFinished, this));
+        TreeBuilder->BeginTree();
+        ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YVERIFY(Map->AddChild(Builder->EndTree(), ItemName));
+        YVERIFY(Map->AddChild(TreeBuilder->EndTree(), ItemName));
         ItemName.clear();
     }
 
@@ -187,13 +183,13 @@ private:
 
     virtual void OnMyListItem()
     {
-        Builder->BeginTree();
-        ForwardNode(Builder, ~FromMethod(&TThis::OnForwardingFinished, this));
+        TreeBuilder->BeginTree();
+        ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        List->AddChild(Builder->EndTree());
+        List->AddChild(TreeBuilder->EndTree());
     }
 
     virtual void OnMyEndList(bool hasAttributes)

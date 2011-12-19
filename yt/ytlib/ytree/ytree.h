@@ -53,8 +53,14 @@ struct INode
      *  this factory creates ephemeral nodes while for
      *  a persistent implementation (see Cypress) this factory
      *  creates persistent nodes.
+     *  
+     *  Note that each call may produce a new factory instance.
+     *  This is used in Cypress where the factory instance acts as a container holding
+     *  temporary referencing to newly created nodes.
+     *  Each created node must be somehow attached to the tree before
+     *  the factory dies. Otherwise the node also gets disposed.
      */
-    virtual INodeFactory* GetFactory() const = 0;
+    virtual TIntrusivePtr<INodeFactory> CreateFactory() const = 0;
 
     // A bunch of "AsSomething" methods that return a pointer
     // to the same node but typed as "Something".
@@ -299,13 +305,12 @@ struct IEntityNode
 
 //! A factory for creating nodes.
 /*!
- *  \note
  *  All freshly created nodes are roots, i.e. have no parent.
  */
 struct INodeFactory
+    : virtual TRefCountedBase
 {
-    virtual ~INodeFactory()
-    { }
+    typedef TIntrusivePtr<INodeFactory> TPtr;
 
     //! Creates a string node.
     virtual IStringNode::TPtr CreateString() = 0;

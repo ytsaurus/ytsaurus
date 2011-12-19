@@ -26,13 +26,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INode::TPtr CreateVirtualNode(
-    TYPathServiceProvider* provider,
-    INodeFactory* factory);
+INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider);
 
-INode::TPtr CreateVirtualNode(
-    IYPathService* service,
-    INodeFactory* factory);
+INode::TPtr CreateVirtualNode(IYPathService* service);
 
 ////////////////////////////////////////////////////////////////////////////////
 

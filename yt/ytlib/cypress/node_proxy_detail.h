@@ -24,6 +24,7 @@ public:
     TNodeFactory(
         TCypressManager* cypressManager,
         const TTransactionId& transactionId);
+    ~TNodeFactory();
 
     virtual NYTree::IStringNode::TPtr CreateString();
     virtual NYTree::IInt64Node::TPtr CreateInt64();
@@ -35,6 +36,9 @@ public:
 private:
     const TCypressManager::TPtr CypressManager;
     const TTransactionId TransactionId;
+    yvector<TNodeId> CreatedNodeIds;
+
+    ICypressNodeProxy::TPtr DoCreate(ERuntimeNodeType type);
 
 };
 
@@ -65,9 +69,9 @@ public:
         YASSERT(cypressManager != NULL);
     }
 
-    NYTree::INodeFactory* GetFactory() const
+    NYTree::INodeFactory::TPtr CreateFactory() const
     {
-        return &NodeFactory;
+        return New<TNodeFactory>(~CypressManager, TransactionId);
     }
 
     virtual TTransactionId GetTransactionId() const
@@ -273,20 +277,22 @@ protected:
     }
 
 
-    void EnsureLocked()
+    void LockIfNeeded()
     {
-        // A shortcut.
-        if (Locked)
-            return;
-
-        if (CypressManager->IsTransactionNodeLocked(NodeId, TransactionId))
-            return;
-
-        DoLock();
+        if (!Locked && CypressManager->IsLockNeeded(NodeId, TransactionId)) {
+            if (TransactionId == NullTransactionId) {
+                ythrow yexception() << "The requested operation requires a lock but no current transaction is given";
+            }
+            DoLock();
+        }
     }
 
     void DoLock()
     {
+        if (TransactionId == NullTransactionId) {
+            ythrow yexception() << "Cannot lock a node outside of a transaction";
+        }
+
         CypressManager->LockTransactionNode(NodeId, TransactionId);
 
         // Set the flag to speedup further checks.
@@ -296,10 +302,6 @@ protected:
 
     void AttachChild(ICypressNode& child)
     {
-        // One can only attach nodes that are created 
-        // by the current transaction.
-        YASSERT(child.GetState() == ENodeState::Uncommitted);
-
         child.SetParentId(NodeId);
         CypressManager->RefNode(child);
     }
@@ -337,7 +339,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->EnsureLocked();
+        this->LockIfNeeded();
         this->GetTypedImplForUpdate().Value() = value;
     }
 };

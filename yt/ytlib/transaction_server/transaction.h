@@ -15,7 +15,7 @@ class TTransaction
 {
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
 
-    // Transaction manager stuff
+    // Chunk Server stuff
     DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, AllocatedChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, ConfirmedChunkIds);
 

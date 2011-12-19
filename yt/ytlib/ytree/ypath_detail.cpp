@@ -73,7 +73,8 @@ void TYPathServiceBase::DoInvoke(IServiceContext* context)
 
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
-    , Builder(builder)
+    , TreeBuilder(builder)
+    , NodeFactory(node->CreateFactory())
 { }
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
@@ -115,39 +116,16 @@ void TNodeSetterBase::OnMyBeginList()
     ThrowInvalidType(ENodeType::List);
 }
 
-void TNodeSetterBase::OnMyListItem()
-{
-    YUNREACHABLE();
-}
-
-void TNodeSetterBase::OnMyEndList(bool hasAttributes)
-{
-    UNUSED(hasAttributes);
-    YUNREACHABLE();
-}
-
 void TNodeSetterBase::OnMyBeginMap()
 {
     ThrowInvalidType(ENodeType::Map);
-}
-
-void TNodeSetterBase::OnMyMapItem(const Stroka& name)
-{
-    UNUSED(name);
-    YUNREACHABLE();
-}
-
-void TNodeSetterBase::OnMyEndMap(bool hasAttributes)
-{
-    UNUSED(hasAttributes);
-    YUNREACHABLE();
 }
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     auto attributes = Node->GetAttributes();
     if (~attributes == NULL) {
-        Node->SetAttributes(Node->GetFactory()->CreateMap());
+        Node->SetAttributes(NodeFactory->CreateMap());
     } else {
         attributes->Clear();
     }
@@ -157,7 +135,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 {
     YASSERT(~AttributeBuilder == NULL);
     AttributeName = name;
-    AttributeBuilder = CreateBuilderFromFactory(Node->GetFactory());
+    AttributeBuilder = CreateBuilderFromFactory(~NodeFactory);
     AttributeBuilder->BeginTree();
     ForwardNode(~AttributeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
 }
