@@ -13,25 +13,6 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: review this and that
-static const char* const SystemPattern = "$(datetime) $(level) $(category) $(message)";
-
-static const char* const DefaultStdErrWriterName = "StdErr";
-static const ELogLevel DefaultStdErrMinLevel= ELogLevel::Info;
-static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category) $(message)";
-
-static const char* const DefaultFileWriterName = "LogFile";
-static const char* const DefaultFileName = "default.log";
-static const ELogLevel DefaultFileMinLevel = ELogLevel::Debug;
-static const char* const DefaultFilePattern =
-    "$(datetime) $(level) $(category) $(message)$(tab)$(file?) $(line?) $(function?) $(thread?)";
-
-static const char* const AllCategoriesName = "*";
-
-static TLogger Logger(SystemLoggingCategory);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLogger::TLogger(const Stroka& category)
     : Category(category)
     , ConfigVersion(0)
