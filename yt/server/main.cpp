@@ -29,7 +29,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     opts.AddHelpOption();
 
-    const auto chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
+    const auto& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
         .NoArgument()
         .Optional();
 
