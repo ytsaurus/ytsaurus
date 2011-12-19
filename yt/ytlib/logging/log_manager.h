@@ -24,7 +24,7 @@ public:
 
     int GetConfigVersion();
     void GetLoggerConfig(
-        Stroka category,
+        const Stroka& category,
         ELogLevel* minLevel,
         int* configVersion);
 
