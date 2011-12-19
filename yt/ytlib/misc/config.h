@@ -4,8 +4,6 @@
 
 #include "new_config.h"
 
-
-#include <dict/json/json.h>
 #include <util/generic/vector.h>
 #include <util/charset/wide.h>
 #include <util/string/printf.h>
