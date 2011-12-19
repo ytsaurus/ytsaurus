@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "new_config.h"
+#include "config.h"
 
 #include "../ytree/ypath_detail.h"
 

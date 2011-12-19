@@ -11,7 +11,7 @@
 #include "../transaction_server/transaction.h"
 #include "../transaction_server/transaction_manager.h"
 
-#include "../misc/new_config.h"
+#include "../misc/config.h"
 
 namespace NYT {
 namespace NChunkServer {

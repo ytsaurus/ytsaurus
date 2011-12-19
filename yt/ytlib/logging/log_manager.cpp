@@ -10,7 +10,6 @@
 #include "../ytree/ypath_client.h"
 #include "../ytree/ypath_service.h"
 
-#include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NLog {
@@ -60,7 +59,7 @@ struct TRule
         Register("writers", Writers).NonEmpty();
     }
 
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path)
+    virtual void Load(INode* node, const TYPath& path)
     {
         TConfigBase::Load(node, path);
 
@@ -94,9 +93,10 @@ class TLogConfig
 public:
     typedef TIntrusivePtr<TLogConfig> TPtr;
     
-    /*
-     *  Needs to be public for TConfigBase.
-     *  Not for user
+    /*!
+     * Needs to be public for TConfigBase.
+     * Not for public use.
+     * Use #CreateDefault instead.
      */
     TLogConfig()
     {
@@ -130,7 +130,7 @@ public:
         return writers;
     }
 
-    ELogLevel GetMinLevel(Stroka category) const
+    ELogLevel GetMinLevel(const Stroka& category) const
     {
         ELogLevel level = ELogLevel::Maximum;
         FOREACH (const auto& rule, Rules) {
@@ -184,7 +184,7 @@ public:
     }
 
 private:
-    virtual void Validate(const NYTree::TYPath& path) const
+    virtual void Validate(const TYPath& path) const
     {
         TConfigBase::Validate(path);
 
@@ -192,8 +192,8 @@ private:
             FOREACH (const Stroka& writer, rule->Writers) {
                 if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                     ythrow yexception() <<
-                        Sprintf("Writer %s was not defined (Path: %s)",
-                            ~writer,
+                        Sprintf("Unknown writer %s (Path: %s)",
+                            ~writer.Quote(),
                             ~path);
                 }
             }
@@ -222,6 +222,8 @@ private:
                         Writers.insert(MakePair(
                             name, New<TStdErrLogWriter>(pattern))).Second());
                     break;
+                default:
+                    YUNREACHABLE();
             }
         }
     }
@@ -245,17 +247,19 @@ public:
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
     }
 
-    void Configure(NYTree::INode* node, const NYTree::TYPath& path = "/")
+    void Configure(INode* node, const TYPath& path = "/")
     {
         auto config = TLogConfig::CreateFromNode(node, path);
         auto queue = Queue;
         if (~queue != NULL) {
-            queue->GetInvoker()->Invoke(
-                FromMethod(&TImpl::UpdateConfig, this, config));
+            queue->GetInvoker()->Invoke(FromMethod(
+                &TImpl::DoUpdateConfig,
+                this,
+                config));
         }
     }
 
-    void Configure(const Stroka& fileName, const NYTree::TYPath& path)
+    void Configure(const Stroka& fileName, const TYPath& path)
     {
         try {
             LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
@@ -264,7 +268,7 @@ public:
             auto rootService = IYPathService::FromNode(~root);
             auto configNode = SyncYPathGetNode(~rootService, path);
             Configure(~configNode, path);
-        } catch (const yexception& ex) {
+        } catch (const std::exception& ex) {
             LOG_ERROR("Error configuring logging\n%s", ex.what())
         }
     }
@@ -293,12 +297,11 @@ public:
 
     int GetConfigVersion()
     {
-        TGuard<TSpinLock> guard(&SpinLock);
         return ConfigVersion;
     }
 
     void GetLoggerConfig(
-        Stroka category,
+        const Stroka& category,
         ELogLevel* minLevel,
         int* configVersion)
     {
@@ -339,9 +342,9 @@ private:
         }
     }
 
-    void UpdateConfig(TLogConfig::TPtr config)
+    void DoUpdateConfig(TLogConfig::TPtr config)
     {
-        config->FlushWriters();
+        Config->FlushWriters();
 
         TGuard<TSpinLock> guard(&SpinLock);
         Config = config;
@@ -394,7 +397,10 @@ int TLogManager::GetConfigVersion()
     return Impl->GetConfigVersion();
 }
 
-void TLogManager::GetLoggerConfig(Stroka category, ELogLevel* minLevel, int* configVersion)
+void TLogManager::GetLoggerConfig(
+    const Stroka& category,
+    ELogLevel* minLevel,
+    int* configVersion)
 {
     Impl->GetLoggerConfig(category, minLevel, configVersion);
 }
@@ -407,4 +413,4 @@ void TLogManager::Write(const TLogEvent& event)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NLog
-}  // namespace NYT
+} // namespace NYT
