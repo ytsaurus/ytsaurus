@@ -4,6 +4,8 @@
 
 #include "../misc/assert.h"
 
+#include <util/charset/wide.h>
+
 namespace NYT {
 namespace NMetaState {
 
