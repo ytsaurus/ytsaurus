@@ -269,7 +269,7 @@ public:
             auto configNode = SyncYPathGetNode(~rootService, path);
             Configure(~configNode, path);
         } catch (const std::exception& ex) {
-            LOG_ERROR("Error configuring logging\n%s", ex.what())
+            LOG_ERROR("Error while configuring logging\n%s", ex.what())
         }
     }
 
@@ -295,6 +295,9 @@ public:
         }
     }
 
+    /*! 
+     * In some cases, the actual version is greater than the version returned by this method.
+     */
     int GetConfigVersion()
     {
         return ConfigVersion;

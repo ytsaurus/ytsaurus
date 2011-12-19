@@ -51,7 +51,7 @@ public:
     TIntrusivePtr(T* p, bool addReference) throw()
         : T_(p)
     {
-        if (T_ != 0 && addReference) {
+        if (T_ != NULL && addReference) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -59,7 +59,7 @@ public:
     TIntrusivePtr(T* p) throw()
         : T_(p)
     {
-        if (T_ != 0) {
+        if (T_ != NULL) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -68,7 +68,7 @@ public:
     TIntrusivePtr(const TIntrusivePtr& other) throw()
         : T_(other.T_)
     {
-        if (T_ != 0) {
+        if (T_ != NULL) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -81,7 +81,7 @@ public:
         throw()
         : T_(other.Get())
     {
-        if (T_ != 0) {
+        if (T_ != NULL) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -90,7 +90,7 @@ public:
     TIntrusivePtr(TIntrusivePtr&& other) throw()
         : T_(other.T_)
     {
-        other.T_ = 0;
+        other.T_ = NULL;
     }
 
     //! Move constructor with an implicit cast between Convertible classes.
@@ -146,14 +146,21 @@ public:
 
     T& operator*() const throw()
     {
-        YASSERT(T_ != 0);
+        YASSERT(T_ != NULL);
         return *T_;
     }
 
     T* operator->() const throw()
     {
-        YASSERT(T_ != 0);
+        YASSERT(T_ != NULL);
         return  T_;
+    }
+
+    // Implicit conversion to bool.
+    typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
+    operator TUnspecifiedBoolType() const
+    {
+        return T_ != NULL ? &TIntrusivePtr::T_ : NULL;
     }
 
     void Swap(TIntrusivePtr& r) throw()

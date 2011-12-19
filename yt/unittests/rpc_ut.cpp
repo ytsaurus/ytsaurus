@@ -158,7 +158,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
     UNUSED(request);
 }
 
-class TRpcTest
+class DISABLED_TRpcTest
     : public ::testing::Test
 {
     IRpcServer::TPtr RpcServer;
@@ -217,7 +217,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TRpcTest, Send)
+TEST_F(DISABLED_TRpcTest, Send)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
@@ -229,7 +229,7 @@ TEST_F(TRpcTest, Send)
     EXPECT_EQ(142, response->b());
 }
 
-TEST_F(TRpcTest, ManyAsyncSends)
+TEST_F(DISABLED_TRpcTest, ManyAsyncSends)
 {
     int numSends = 1000;
     auto handler = New<TResponseHandler>(numSends);
@@ -247,7 +247,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
     }
 }
 
-TEST_F(TRpcTest, Attachments)
+TEST_F(DISABLED_TRpcTest, Attachments)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->ModifyAttachments();
@@ -267,7 +267,7 @@ TEST_F(TRpcTest, Attachments)
 }
 
 // Now test different types of errors
-TEST_F(TRpcTest, OK)
+TEST_F(DISABLED_TRpcTest, OK)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->ReplyingCall();
@@ -277,7 +277,7 @@ TEST_F(TRpcTest, OK)
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
 
-TEST_F(TRpcTest, TransportError)
+TEST_F(DISABLED_TRpcTest, TransportError)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:9999"));
     auto request = proxy->EmptyCall();
@@ -287,7 +287,7 @@ TEST_F(TRpcTest, TransportError)
     EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
 }
 
-TEST_F(TRpcTest, NoService)
+TEST_F(DISABLED_TRpcTest, NoService)
 {
     TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->EmptyCall();
@@ -297,7 +297,7 @@ TEST_F(TRpcTest, NoService)
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
 }
 
-TEST_F(TRpcTest, NoMethod)
+TEST_F(DISABLED_TRpcTest, NoMethod)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->NotRegistredCall();
@@ -307,7 +307,7 @@ TEST_F(TRpcTest, NoMethod)
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
 }
 
-TEST_F(TRpcTest, Timeout)
+TEST_F(DISABLED_TRpcTest, Timeout)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     proxy->SetTimeout(TDuration::Seconds(1));
@@ -319,7 +319,7 @@ TEST_F(TRpcTest, Timeout)
     EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
 }
 
-TEST_F(TRpcTest, CustomMessage)
+TEST_F(DISABLED_TRpcTest, CustomMessage)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->CustomMessageError();
@@ -329,7 +329,6 @@ TEST_F(TRpcTest, CustomMessage)
     EXPECT_EQ(42, response->GetErrorCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
