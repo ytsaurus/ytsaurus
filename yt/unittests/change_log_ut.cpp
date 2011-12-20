@@ -299,8 +299,8 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
 
         yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
-            TBlob blob(sizeof(ui32));
-            *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
+            TBlob blob(sizeof(ui8));
+            *reinterpret_cast<ui8*>(blob.begin()) = static_cast<ui8>(recordId);
             records[recordId] = MoveRV(blob);
         }
         changeLog->Append(0, records);
