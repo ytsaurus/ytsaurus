@@ -44,7 +44,6 @@ void TFileReader::Open()
         : Transaction->GetId();
 
     LOG_INFO("File reader is open (TransactionId: %s)",
-        ~Path,
         ~transactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
