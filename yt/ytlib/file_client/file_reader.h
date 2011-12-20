@@ -45,9 +45,6 @@ public:
         NTransactionClient::ITransaction* transaction,
         const NYTree::TYPath& path);
 
-    //! Opens the reader. Call this before any other calls.
-    void Open();
-
     //! Returns the size of the file.
     i64 GetSize() const;
 

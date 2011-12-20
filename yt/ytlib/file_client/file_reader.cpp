@@ -34,10 +34,7 @@ TFileReader::TFileReader(
     YASSERT(masterChannel != NULL);
 
     Logger.SetTag(Sprintf("Path: %s", ~Path));
-}
 
-void TFileReader::Open()
-{
     auto transactionId =
         ~Transaction == NULL 
         ? NullTransactionId
