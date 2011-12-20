@@ -458,6 +458,7 @@ add_library( arcadia-utils STATIC
   ${RN_SRCS}
   ${SV_SRCS}
   ${UT_SRCS}
+  ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
