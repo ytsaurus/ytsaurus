@@ -37,10 +37,10 @@ TIntrusivePtr<T> RefCountedSingleton()
 
     instance = obj;
 
-    AtExit(
-        RefCountedSingletonDestroyer<T>,
-        const_cast<T**>(&instance),
-        TSingletonTraits<T>::Priority);
+    //AtExit(
+    //    RefCountedSingletonDestroyer<T>,
+    //    const_cast<T**>(&instance),
+    //    TSingletonTraits<T>::Priority);
 
     return instance;
 }

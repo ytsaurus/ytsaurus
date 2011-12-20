@@ -6,6 +6,7 @@
 
 #include "../chunk_client/file_writer.h"
 #include "../misc/lease_manager.h"
+#include "../logging/tagged_logger.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -100,6 +101,8 @@ private:
     NChunkClient::TChunkFileWriter::TPtr Writer;
 
     TLeaseManager::TLease Lease;
+
+    NLog::TTaggedLogger Logger;
 
     TFuture<TVoid>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const TError& error);

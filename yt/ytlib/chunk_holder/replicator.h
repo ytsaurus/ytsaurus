@@ -8,6 +8,8 @@
 #include "../misc/async_stream_state.h"
 #include "../chunk_client/async_reader.h"
 #include "../chunk_client/async_writer.h"
+#include "../logging/tagged_logger.h"
+
 
 namespace NYT {
 namespace NChunkHolder {
@@ -77,6 +79,8 @@ private:
     NChunkClient::IAsyncWriter::TPtr Writer;
     TCancelableInvoker::TPtr CancelableInvoker;
     
+    NLog::TTaggedLogger Logger;
+
     void Start();
     void Stop();
 

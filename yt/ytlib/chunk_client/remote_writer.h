@@ -12,6 +12,8 @@
 #include "../chunk_holder/chunk_holder_service_rpc.h"
 #include "../actions/action_queue.h"
 
+#include "../logging/tagged_logger.h"
+
 #include <util/generic/deque.h>
 
 namespace NYT {
@@ -156,6 +158,8 @@ private:
     TMetric SendBlocksTiming;
     TMetric FlushBlockTiming;
     TMetric FinishChunkTiming;
+
+    NLog::TTaggedLogger Logger;
 
     /*!
      * Invoked from #Close.

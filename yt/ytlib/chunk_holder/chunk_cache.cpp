@@ -10,6 +10,7 @@
 #include "../chunk_client/sequential_reader.h"
 #include "../chunk_server/chunk_service_rpc.h"
 #include "../election/cell_channel.h"
+#include "../logging/tagged_logger.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -118,11 +119,14 @@ private:
             , ChunkId(chunkId)
             , Cookie(cookie)
             , Invoker(Owner->Location->GetInvoker())
-        { }
+            , Logger(ChunkHolderLogger)
+        {
+            Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+        }
 
         void Start()
         {
-            LOG_INFO("Requesting chunk location (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Requesting chunk location");
             auto request = Owner->ChunkProxy->FindChunk();
             request->set_chunkid(ChunkId.ToProto());
             request->Invoke()->Subscribe(
@@ -143,6 +147,8 @@ private:
         int BlockCount;
         int BlockIndex;
 
+        NLog::TTaggedLogger Logger;
+
         void OnChunkFound(TChunkServiceProxy::TRspFindChunk::TPtr response)
         {
             if (!response->IsOK()) {
@@ -157,8 +163,7 @@ private:
                 return;
             }
 
-            LOG_INFO("Chunk is found (ChunkId: %s, HolderAddresses: [%s])",
-                ~ChunkId.ToString(),
+            LOG_INFO("Chunk is found (HolderAddresses: [%s])",
                 ~JoinToString(holderAddresses));
 
             Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
@@ -175,7 +180,7 @@ private:
                 ChunkId,
                 holderAddresses);
 
-            LOG_INFO("Getting chunk info from holders (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkInfo()->Subscribe(
                 FromMethod(&TThis::OnGotChunkInfo, TPtr(this))
                 ->Via(Invoker));
@@ -189,7 +194,7 @@ private:
                 return;
             }
 
-            LOG_INFO("Chunk info received from holders (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Chunk info received from holders");
             ChunkInfo = result.Value();
 
             // Download all blocks.
@@ -216,8 +221,7 @@ private:
                 return;
             }
 
-            LOG_INFO("Asking for another block (ChunkId: %s, BlockIndex: %d)",
-                ~ChunkId.ToString(),
+            LOG_INFO("Asking for another block (BlockIndex: %d)",
                 BlockIndex);
 
             SequentialReader->AsyncNextBlock()->Subscribe(
@@ -232,10 +236,9 @@ private:
                 return;
             }
 
-            LOG_INFO("Block is received (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Block is received");
 
-            LOG_INFO("Writing block (ChunkId: %s, BlockIndex: %d)",
-                ~ChunkId.ToString(),
+            LOG_INFO("Writing block (BlockIndex: %d)",
                 BlockIndex);
             // NB: This is always done synchronously.
             auto writeResult = FileWriter->AsyncWriteBlock(SequentialReader->GetBlock())->Get();
@@ -243,7 +246,7 @@ private:
                 OnError(writeResult);
                 return;
             }
-            LOG_INFO("Block is written (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Block is written");
 
             ++BlockIndex;
             FetchNextBlock();
@@ -251,21 +254,21 @@ private:
 
         void CloseChunk()
         {
-            LOG_INFO("Closing chunk (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Closing chunk");
             // NB: This is always done synchronously.
             auto closeResult = FileWriter->AsyncClose(ChunkInfo.attributes())->Get();
             if (!closeResult.IsOK()) {
                 OnError(closeResult);
                 return;
             }
-            LOG_INFO("Chunk is closed (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Chunk is closed");
 
             OnSuccess();
         }
 
         void OnSuccess()
         {
-            LOG_INFO("Chunk is downloaded into cache (ChunkId: %s)", ~ChunkId.ToString());
+            LOG_INFO("Chunk is downloaded into cache");
             auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo);
             Cookie->EndInsert(chunk);
             Owner->Register(~chunk);

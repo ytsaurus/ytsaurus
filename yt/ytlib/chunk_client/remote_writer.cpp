@@ -95,6 +95,8 @@ private:
 
     TRemoteWriter::TPtr Writer;
 
+    NLog::TTaggedLogger& Logger;
+
     /*!
      * \note Thread affinity: WriterThread.
      */
@@ -145,6 +147,7 @@ TRemoteWriter::TGroup::TGroup(
     , StartBlockIndex(startBlockIndex)
     , Size(0)
     , Writer(writer)
+    , Logger(Writer->Logger)
 { }
 
 void TRemoteWriter::TGroup::AddBlock(const TSharedRef& block)
@@ -217,8 +220,7 @@ TRemoteWriter::TGroup::PutBlocks(int node)
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
-    LOG_DEBUG("Putting blocks (ChunkId: %s, Blocks: %d-%d, Address: %s)",
-        ~Writer->ChunkId.ToString(), 
+    LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[node]->Address);
@@ -232,8 +234,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(int node)
 
     IsSent[node] = true;
 
-    LOG_DEBUG("Blocks are put (ChunkId: %s, Blocks, %d-%d, Address: %s)",
-        ~Writer->ChunkId.ToString(), 
+    LOG_DEBUG("Blocks are put (Blocks, %d-%d, Address: %s)",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[node]->Address);
@@ -265,8 +266,7 @@ TRemoteWriter::TGroup::SendBlocks(int srcNode, int dstNode)
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
-    LOG_DEBUG("Sending blocks (ChunkId: %s, Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
-        ~Writer->ChunkId.ToString(), 
+    LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[srcNode]->Address,
@@ -307,8 +307,7 @@ void TRemoteWriter::TGroup::OnSentBlocks(int srcNode, int dstNode)
 {
     VERIFY_THREAD_AFFINITY(Writer->WriterThread);
 
-    LOG_DEBUG("Blocks are sent (ChunkId: %s, Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
-        ~Writer->ChunkId.ToString(), 
+    LOG_DEBUG("Blocks are sent (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~Writer->Nodes[srcNode]->Address,
@@ -344,8 +343,7 @@ void TRemoteWriter::TGroup::Process()
 
     YASSERT(Writer->IsInitComplete);
 
-    LOG_DEBUG("Processing group (ChunkId: %s, Blocks: %d-%d)",
-        ~Writer->ChunkId.ToString(),
+    LOG_DEBUG("Processing group (Blocks: %d-%d)",
         StartBlockIndex, 
         GetEndBlockIndex());
 
@@ -389,11 +387,13 @@ TRemoteWriter::TRemoteWriter(
     , SendBlocksTiming(0, 1000, 20)
     , FlushBlockTiming(0, 1000, 20)
     , FinishChunkTiming(0, 1000, 20)
+    , Logger(ChunkClientLogger)
 {
     YASSERT(AliveNodeCount > 0);
 
-    LOG_DEBUG("Writer created (ChunkId: %s, Addresses: [%s])",
-        ~ChunkId.ToString(),
+    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+
+    LOG_DEBUG("Writer created (Addresses: [%s])",
         ~JoinToString(addresses));
 
     InitializeNodes(addresses);
@@ -471,8 +471,7 @@ TRemoteWriter::FlushBlock(int node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Flushing blocks (ChunkId: %s, BlockIndex: %d, Address: %s)",
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Flushing blocks (BlockIndex: %d, Address: %s)",
         blockIndex,
         ~Nodes[node]->Address);
 
@@ -486,8 +485,7 @@ void TRemoteWriter::OnBlockFlushed(int node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Blocks flushed (ChunkId: %s, BlockIndex: %d, Address: %s)",
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Blocks flushed (BlockIndex: %d, Address: %s)",
         blockIndex,
         ~Nodes[node]->Address);
 
@@ -510,8 +508,7 @@ void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window shifted (ChunkId: %s, BlockIndex: %d, Size: %d)",
-            ~ChunkId.ToString(), 
+        LOG_DEBUG("Window shifted (BlockIndex: %d, Size: %d)",
             group->GetEndBlockIndex(),
             group->GetSize());
 
@@ -534,8 +531,7 @@ void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
         return;
     }
 
-    LOG_DEBUG("Writer close requested (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Writer close requested");
 
     IsCloseRequested = true;
     Attributes.CopyFrom(attributes);
@@ -561,8 +557,7 @@ void TRemoteWriter::DoCancel(const TError& error)
     State.Cancel(error);
     Shutdown();
 
-    LOG_DEBUG("Writer canceled (ChunkId: %s)\n%s",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Writer canceled\n%s",
         ~error.ToString());
 }
 
@@ -574,8 +569,7 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Group added (ChunkId: %s, Blocks: %d-%d)", 
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Group added (Blocks: %d-%d)",
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
 
@@ -596,14 +590,12 @@ void TRemoteWriter::OnNodeDied(int node)
     Nodes[node]->IsAlive = false;
     --AliveNodeCount;
 
-    LOG_INFO("Holder died (ChunkId: %s, Address: %s, AliveCount: %d)", 
-        ~ChunkId.ToString(), 
+    LOG_INFO("Holder died (Address: %s, AliveCount: %d)",
         ~Nodes[node]->Address,
         AliveNodeCount);
 
     if (State.IsActive() && AliveNodeCount == 0) {
-        LOG_WARNING("No alive holders left, chunk writing failed (ChunkId: %s)",
-            ~ChunkId.ToString());
+        LOG_WARNING("No alive holders left, chunk writing failed");
         DoCancel(TError("No alive holders left"));
     }
 }
@@ -624,8 +616,7 @@ void TRemoteWriter::CheckResponse(
     } 
 
     // TODO: retry?
-    LOG_ERROR("Error reported by holder (ChunkId: %s, Address: %s)\n%s", 
-        ~ChunkId.ToString(),
+    LOG_ERROR("Error reported by holder (Address: %s)\n%s",
         ~Nodes[node]->Address, 
         ~rsp->GetError().ToString());
 
@@ -653,8 +644,7 @@ void TRemoteWriter::StartSession()
 
 TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
 {
-    LOG_DEBUG("Starting chunk (ChunkId: %s, Address: %s)", 
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Starting chunk (Address: %s)",
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.StartChunk();
@@ -666,8 +656,7 @@ void TRemoteWriter::OnChunkStarted(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk started (ChunkId: %s, Address: %s)", 
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Chunk started (Address: %s)",
         ~Nodes[node]->Address);
 
     SchedulePing(node);
@@ -682,8 +671,7 @@ void TRemoteWriter::OnSessionStarted()
         return;
     }
 
-    LOG_DEBUG("Writer is ready (ChunkId: %s)", 
-        ~ChunkId.ToString());
+    LOG_DEBUG("Writer is ready");
 
     IsInitComplete = true;
     FOREACH(auto& group, Window) {
@@ -702,8 +690,7 @@ void TRemoteWriter::CloseSession()
 
     YASSERT(IsCloseRequested);
 
-    LOG_DEBUG("Closing writer (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Closing writer");
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     for (int node = 0; node < Nodes.ysize(); ++node) {
@@ -729,8 +716,7 @@ TRemoteWriter::FinishChunk(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Finishing chunk (ChunkId: %s, Address: %s)",
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Finishing chunk (Address: %s)",
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.FinishChunk();
@@ -743,8 +729,7 @@ void TRemoteWriter::OnChunkFinished(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk is finished (ChunkId: %s, Address: %s)",
-        ~ChunkId.ToString(), 
+    LOG_DEBUG("Chunk is finished (Address: %s)",
         ~Nodes[node]->Address);
 }
 
@@ -762,8 +747,7 @@ void TRemoteWriter::OnSessionFinished()
 
     CancelAllPings();
 
-    LOG_DEBUG("Writer closed (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Writer closed");
 
     State.FinishOperation();
 }
@@ -772,8 +756,7 @@ void TRemoteWriter::PingSession(int node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Pinging session (ChunkId: %s, Address: %s)",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Pinging session (Address: %s)",
         ~Nodes[node]->Address);
 
     auto req = Nodes[node]->Proxy.PingSession();
@@ -842,8 +825,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
 void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 {
     if (State.IsActive()) {
-        LOG_DEBUG("Block added (ChunkId: %s, BlockIndex: %d)",
-            ~ChunkId.ToString(),
+        LOG_DEBUG("Block added (BlockIndex: %d)",
             BlockCount);
 
         CurrentGroup->AddBlock(data);
@@ -869,7 +851,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 
     State.StartOperation();
 
-    LOG_DEBUG("Requesting close (ChunkId: %s)", ~ChunkId.ToString());
+    LOG_DEBUG("Requesting close");
 
     if (CurrentGroup->GetSize() > 0) {
         WriterThread->GetInvoker()->Invoke(FromMethod(
@@ -899,7 +881,7 @@ void TRemoteWriter::Cancel(const TError& error)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Requesting cancel (ChunkId: %s)", ~ChunkId.ToString());
+    LOG_DEBUG("Requesting cancel");
 
     // Drop the cyclic reference.
     CurrentGroup.Reset();
