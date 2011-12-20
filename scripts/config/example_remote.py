@@ -76,11 +76,14 @@ class Master(Server):
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
        
 class Holder(Server):
-    nodeid = Subclass(xrange(10))
     groupid = Subclass(xrange(10))
-    host = Template('n01-04%(groupid)d%(nodeid)dg')
-    port = Port
+    nodeid = Subclass(xrange(30), 1)
     
+    @propmethod
+    def host(cls):
+        return 'n01-0%dg' % (400 + 30 * cls.groupid + cls.nodeid)
+    
+    port = Port
     params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
