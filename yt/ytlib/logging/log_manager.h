@@ -4,11 +4,6 @@
 
 #include "../ytree/ytree_fwd.h"
 
-//#include <util/generic/map.h>
-//#include <util/generic/pair.h>
-//#include <util/datetime/base.h>
-//#include <util/system/thread.h>
-
 namespace NYT {
 namespace NLog {
 
