@@ -44,7 +44,7 @@ template <class TResult>
 typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnSuccess(IParamAction<TResult>* onSuccess)
 {
-    YASSERT(~OnSuccess_ == NULL);
+    YASSERT(!OnSuccess_);
     OnSuccess_ = onSuccess;
     return this;
 }
@@ -53,7 +53,7 @@ template <class TResult>
 typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnError(IAction* onError)
 {
-    YASSERT(~OnError_ == NULL);
+    YASSERT(!OnError_);
     OnError_ = onError;
     return this;
 }

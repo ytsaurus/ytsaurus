@@ -35,11 +35,11 @@ TRecovery::TRecovery(
     , Epoch(epoch)
     , LeaderId(leaderId)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~changeLogCache != NULL);
-    YASSERT(~snapshotStore != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(metaState);
+    YASSERT(changeLogCache);
+    YASSERT(snapshotStore);
+    YASSERT(controlInvoker);
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -340,11 +340,11 @@ TLeaderRecovery::TLeaderRecovery(
         cellManager->GetSelfId(),
         controlInvoker)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~changeLogCache != NULL);
-    YASSERT(~snapshotStore != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(metaState);
+    YASSERT(changeLogCache);
+    YASSERT(snapshotStore);
+    YASSERT(controlInvoker);
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
@@ -399,11 +399,11 @@ TFollowerRecovery::TFollowerRecovery(
     , TargetVersion(targetVersion)
     , MaxSnapshotId(maxSnapshotId)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~changeLogCache != NULL);
-    YASSERT(~snapshotStore != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(metaState);
+    YASSERT(changeLogCache);
+    YASSERT(snapshotStore);
+    YASSERT(controlInvoker);
 
     VERIFY_THREAD_AFFINITY(ControlThread);
 }

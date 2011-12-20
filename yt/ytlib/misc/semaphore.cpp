@@ -42,7 +42,7 @@ TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(int slots /* = 1 */)
         return StaticResult;
     }
 
-    YASSERT(~AcquireEvent == NULL);
+    YASSERT(!AcquireEvent);
     AcquireEvent = New< TFuture<TVoid> >();
     RequestedSlots = slots;
     return AcquireEvent;

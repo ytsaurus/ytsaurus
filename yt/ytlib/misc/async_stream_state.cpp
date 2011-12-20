@@ -108,7 +108,7 @@ TAsyncError::TPtr TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
-        YASSERT(~CurrentError == NULL);
+        YASSERT(!CurrentError);
         CurrentError = New<TAsyncError>();
         return CurrentError;
     }

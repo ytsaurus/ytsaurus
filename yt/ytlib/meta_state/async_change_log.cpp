@@ -289,7 +289,7 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
     : ChangeLog(changeLog)
     , Impl(RefCountedSingleton<TImpl>())
 {
-    YASSERT(~changeLog != NULL);
+    YASSERT(changeLog);
 }
 
 TAsyncChangeLog::~TAsyncChangeLog()

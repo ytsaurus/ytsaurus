@@ -20,8 +20,8 @@ TCommitterBase::TCommitterBase(
     : MetaState(metaState)
     , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
 {
-    YASSERT(~metaState != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(metaState);
+    YASSERT(controlInvoker);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(metaState->GetStateInvoker(), StateThread);
 }
@@ -85,7 +85,7 @@ public:
         LOG_DEBUG("Sending batched changes (ChangeCount: %d)",
             BatchedChanges.ysize());
 
-        YASSERT(~LogResult != NULL);
+        YASSERT(LogResult);
         Awaiter->Await(
             LogResult,
             FromMethod(&TBatch::OnLocalCommit, TPtr(this)));
@@ -220,11 +220,11 @@ TLeaderCommitter::TLeaderCommitter(
     , FollowerTracker(followerTracker)
     , Epoch(epoch)
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~changeLogCache != NULL);
-    YASSERT(~followerTracker != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(metaState);
+    YASSERT(changeLogCache);
+    YASSERT(followerTracker);
+    YASSERT(controlInvoker);
 }
 
 void TLeaderCommitter::Stop()
@@ -250,7 +250,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(~changeAction != NULL);
+    YASSERT(changeAction);
 
     auto version = MetaState->GetVersion();
     LOG_DEBUG("Starting commit (Version: %s)", ~version.ToString());
@@ -286,7 +286,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
 void TLeaderCommitter::FlushCurrentBatch()
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
-    YASSERT(~CurrentBatch != NULL);
+    YASSERT(CurrentBatch);
 
     CurrentBatch->SendChanges();
     TDelayedInvoker::Cancel(BatchTimeoutCookie);
@@ -301,7 +301,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
 
     if (~CurrentBatch == NULL) {
-        YASSERT(~BatchTimeoutCookie == NULL);
+        YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(TPtr(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
             ~FromMethod(
@@ -342,8 +342,8 @@ TFollowerCommitter::TFollowerCommitter(
     IInvoker::TPtr controlInvoker)
     : TCommitterBase(metaState, controlInvoker)
 {
-    YASSERT(~metaState != NULL);
-    YASSERT(~controlInvoker != NULL);
+    YASSERT(metaState);
+    YASSERT(controlInvoker);
 }
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(

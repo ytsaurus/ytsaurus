@@ -101,7 +101,7 @@ void TSnapshotReader::Open()
 
 TInputStream& TSnapshotReader::GetStream() const
 {
-    YASSERT(~ChecksummableInput != NULL);
+    YASSERT(~ChecksummableInput);
     return *ChecksummableInput;
 }
 
@@ -162,7 +162,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
 
 TOutputStream& TSnapshotWriter::GetStream() const
 {
-    YASSERT(~ChecksummableOutput != NULL);
+    YASSERT(~ChecksummableOutput);
     return *ChecksummableOutput;
 }
 

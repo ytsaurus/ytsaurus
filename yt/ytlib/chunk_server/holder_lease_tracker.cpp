@@ -27,7 +27,7 @@ THolderLeaseTracker::THolderLeaseTracker(
 
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
 {
-    YASSERT(~Invoker != NULL);
+    YASSERT(Invoker);
 
     auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
     YASSERT(pair.Second());
@@ -52,7 +52,7 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
 
 void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
 {
-    YASSERT(~Invoker != NULL);
+    YASSERT(Invoker);
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::RenewLease(holderInfo.Lease);
 }

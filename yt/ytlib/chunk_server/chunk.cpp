@@ -76,7 +76,7 @@ void TChunk::AddLocation(THolderId holderId, bool cached)
 void TChunk::RemoveLocation(THolderId holderId, bool cached)
 {
     if (cached) {
-        YASSERT(~CachedLocations_ != NULL);
+        YASSERT(~CachedLocations_);
         YVERIFY(CachedLocations_->erase(holderId) == 1);
     } else {
         for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {

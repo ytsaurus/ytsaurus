@@ -28,7 +28,7 @@ public:
      */
     void Subscribe(typename T::TPtr action)
     {
-        YASSERT(~action != NULL);
+        YASSERT(action);
 
         TGuard<TSpinLock> guard(SpinLock);
         Actions.push_back(action);
@@ -41,7 +41,7 @@ public:
      */
     bool Unsubscribe(typename T::TPtr action)
     {
-        YASSERT(~action != NULL);
+        YASSERT(action);
 
         TGuard<TSpinLock> guard(SpinLock);
         auto it = std::find(Actions.begin(), Actions.end(), action);

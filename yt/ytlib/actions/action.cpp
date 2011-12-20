@@ -10,7 +10,7 @@ namespace NYT {
 
 IAction::TPtr IAction::Via(IInvoker::TPtr invoker)
 {
-    YASSERT(~invoker != NULL);
+    YASSERT(invoker);
 
     return FromMethod(
         &IInvoker::Invoke,

@@ -466,7 +466,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     } else {
         int index = ParseChildIndex(prefix);
         auto child = FindChild(index);
-        YASSERT(~child != NULL);
+        YASSERT(child);
         return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
 }

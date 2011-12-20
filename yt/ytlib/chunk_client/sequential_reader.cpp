@@ -22,7 +22,7 @@ TSequentialReader::TSequentialReader(
 {
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
-    YASSERT(~ChunkReader != NULL);
+    YASSERT(ChunkReader);
     YASSERT(blockIndexes.ysize() > 0);
     YASSERT(Config->GroupSize <= Config->PrefetchWindowSize);
 

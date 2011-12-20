@@ -738,7 +738,7 @@ void TRemoteWriter::OnSessionFinished()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     // Check that we're not holding any references to groups.
-    YASSERT(~CurrentGroup == NULL);
+    YASSERT(!CurrentGroup);
     YASSERT(Window.empty());
 
     if (State.IsActive()) {

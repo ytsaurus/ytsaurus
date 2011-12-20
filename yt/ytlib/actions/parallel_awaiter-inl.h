@@ -15,7 +15,7 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
     , ResponseCount(0)
     , CancelableInvoker(New<TCancelableInvoker>(invoker))
 {
-    YASSERT(~invoker != NULL);
+    YASSERT(invoker);
 }
 
 
@@ -24,7 +24,7 @@ void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
     TIntrusivePtr< IParamAction<T> > onResult)
 {
-    YASSERT(~result != NULL);
+    YASSERT(result);
 
     typename IParamAction<T>::TPtr wrappedOnResult;
     {

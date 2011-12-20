@@ -145,8 +145,8 @@ private:
         switch (State) {
             case EState::NotConnected:
             case EState::Failed: {
-                YASSERT(~LookupResult == NULL);
-                YASSERT(~Channel == NULL);
+                YASSERT(!LookupResult);
+                YASSERT(!Channel);
                 State = EState::Connecting;
                 auto lookupResult = LookupResult = LeaderLookup->GetLeader();
                 guard.Release();
@@ -157,13 +157,13 @@ private:
             }
 
             case EState::Connected:
-                YASSERT(~LookupResult == NULL);
-                YASSERT(~Channel != NULL);
+                YASSERT(!LookupResult);
+                YASSERT(Channel);
                 return ToFuture(Channel);
 
             case EState::Connecting: {
-                YASSERT(~LookupResult != NULL);
-                YASSERT(~Channel == NULL);
+                YASSERT(LookupResult);
+                YASSERT(!Channel);
                 auto lookupResult = LookupResult;
                 guard.Release();
 
@@ -173,8 +173,8 @@ private:
             }
 
             case EState::Terminated:
-                YASSERT(~LookupResult == NULL);
-                YASSERT(~Channel == NULL);
+                YASSERT(!LookupResult);
+                YASSERT(!Channel);
                 return NULL;
 
             default:

@@ -25,12 +25,12 @@ TCancelableInvoker::TCancelableInvoker(IInvoker::TPtr underlyingInvoker)
     : Canceled(false)
     , UnderlyingInvoker(underlyingInvoker)
 {
-    YASSERT(~underlyingInvoker != NULL);
+    YASSERT(underlyingInvoker);
 }
 
 void TCancelableInvoker::Invoke(IAction::TPtr action)
 {
-    YASSERT(~action != NULL);
+    YASSERT(action);
 
     if (Canceled)
         return;

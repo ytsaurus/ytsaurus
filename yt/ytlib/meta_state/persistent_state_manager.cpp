@@ -493,7 +493,7 @@ public:
                     ~version.ToString(),
                     changeCount);
 
-                YASSERT(~FollowerCommitter != NULL);
+                YASSERT(FollowerCommitter);
 
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
@@ -687,7 +687,7 @@ public:
         YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
-        YASSERT(~LeaderRecovery != NULL);
+        YASSERT(LeaderRecovery);
         LeaderRecovery->Stop();
         LeaderRecovery.Reset();
 
@@ -702,7 +702,7 @@ public:
             TPtr(this),
             Epoch));
 
-        YASSERT(~LeaderCommitter == NULL);
+        YASSERT(!LeaderCommitter);
         LeaderCommitter = New<TLeaderCommitter>(
             ~New<TLeaderCommitter::TConfig>(),
             CellManager,
@@ -715,7 +715,7 @@ public:
             &TThis::OnApplyChange,
             TPtr(this)));
 
-        YASSERT(~SnapshotCreator == NULL);
+        YASSERT(!SnapshotCreator);
         SnapshotCreator = New<TSnapshotCreator>(
             ~New<TSnapshotCreator::TConfig>(),
             CellManager,
@@ -736,7 +736,7 @@ public:
         YASSERT(result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
-        YASSERT(~FollowerRecovery != NULL);
+        YASSERT(FollowerRecovery);
         FollowerRecovery->Stop();
         FollowerRecovery.Reset();
 
@@ -750,12 +750,12 @@ public:
             &TThis::DoFollowerRecoveryComplete,
             TPtr(this)));
 
-        YASSERT(~FollowerCommitter == NULL);
+        YASSERT(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
             MetaState,
             ControlInvoker);
 
-        YASSERT(~SnapshotCreator == NULL);
+        YASSERT(!SnapshotCreator);
         SnapshotCreator = New<TSnapshotCreator>(
             ~New<TSnapshotCreator::TConfig>(),
             CellManager,
@@ -952,13 +952,13 @@ public:
             &TThis::DoStartLeading,
             TPtr(this)));
 
-        YASSERT(~FollowerTracker == NULL);
+        YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
             ~New<TFollowerTracker::TConfig>(),
             CellManager,
             ControlInvoker);
 
-        YASSERT(~FollowerPinger == NULL);
+        YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
             ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
             MetaState,
@@ -969,7 +969,7 @@ public:
             ControlInvoker);
 
 
-        YASSERT(~LeaderRecovery == NULL);
+        YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
             ~Config,
             CellManager,
@@ -1041,7 +1041,7 @@ public:
             &TThis::DoStartFollowing,
             TPtr(this)));
 
-        YASSERT(~FollowerRecovery == NULL);
+        YASSERT(!FollowerRecovery);
     }
 
     void OnElectionStopFollowing()
@@ -1083,7 +1083,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(~EpochControlInvoker == NULL);
+        YASSERT(!EpochControlInvoker);
         EpochControlInvoker = New<TCancelableInvoker>(ControlInvoker);
 
         Epoch = epoch;
@@ -1096,7 +1096,7 @@ public:
         LeaderId = NElection::InvalidPeerId;
         Epoch = TEpoch();
 
-        YASSERT(~EpochControlInvoker != NULL);
+        YASSERT(EpochControlInvoker);
         EpochControlInvoker->Cancel();
         EpochControlInvoker.Reset();
     }
@@ -1105,7 +1105,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(~EpochStateInvoker == NULL);
+        YASSERT(!EpochStateInvoker);
         EpochStateInvoker = New<TCancelableInvoker>(GetStateInvoker());
     }
 
@@ -1113,7 +1113,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(~EpochStateInvoker != NULL);
+        YASSERT(EpochStateInvoker);
         EpochStateInvoker->Cancel();
         EpochStateInvoker.Reset();
     }

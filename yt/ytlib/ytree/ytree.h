@@ -229,7 +229,7 @@ struct IMapNode
     INode::TPtr GetChild(const Stroka& key) const
     {
         auto child = FindChild(key);
-        YASSERT(~child != NULL);
+        YASSERT(child);
         return child;
     }
 
@@ -280,7 +280,7 @@ struct IListNode
     INode::TPtr GetChild(int index) const
     {
         auto child = FindChild(index);
-        YASSERT(~child != NULL);
+        YASSERT(child);
         return child;
     }
 
