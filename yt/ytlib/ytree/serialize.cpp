@@ -7,19 +7,15 @@
 namespace NYT {
 namespace NYTree {
 
-namespace NDetail {
-
-void ProducerFromYsonThunk(IYsonConsumer* consumer, TInputStream* input)
-{
-    TYsonReader reader(consumer);
-    reader.Read(input);
-}
-
-} // NDetail
+////////////////////////////////////////////////////////////////////////////////
 
 TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
 {
-    return FromMethod(&NDetail::ProducerFromYsonThunk, input);
+    return FromFunctor([=] (IYsonConsumer* consumer)
+        {
+            TYsonReader reader(consumer);
+            reader.Read(input);
+        });
 }
 
 INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
@@ -55,6 +51,15 @@ TYson SerializeToYson(const INode* node, TYsonWriter::EFormat format)
     return output.Str();
 }
 
+TYson SerializeToYson(TYsonProducer* producer, TYsonWriter::EFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    producer->Do(&writer);
+    return output.Str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

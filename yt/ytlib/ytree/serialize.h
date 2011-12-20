@@ -27,6 +27,10 @@ TYson SerializeToYson(
     const INode* node,
     TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
 
+TYson SerializeToYson(
+    TYsonProducer* producer,
+    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
