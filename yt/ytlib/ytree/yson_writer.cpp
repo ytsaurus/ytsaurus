@@ -19,7 +19,9 @@ TYsonWriter::TYsonWriter(TOutputStream* stream, EFormat format)
     , IsEmptyEntity(false)
     , Indent(0)
     , Format(format)
-{ }
+{
+    YASSERT(stream);
+}
 
 void TYsonWriter::WriteIndent()
 {

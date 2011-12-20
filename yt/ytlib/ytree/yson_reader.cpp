@@ -18,6 +18,7 @@ namespace NYTree {
 TYsonReader::TYsonReader(IYsonConsumer* consumer)
     : Consumer(consumer)
 {
+    YASSERT(consumer);
     Reset();
 }
 
