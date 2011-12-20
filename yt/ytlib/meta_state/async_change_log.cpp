@@ -153,7 +153,9 @@ public:
             YASSERT(record != NULL);
             YASSERT(!record->WaitingForSync);
 
-            ChangeLog->Append(record->Version.RecordCount, record->Data);
+            yvector<TSharedRef> records;
+            records.push_back(record->Data);
+            ChangeLog->Append(record->Version.RecordCount, records);
 
             {
                 TGuard<TSpinLock> guard(SpinLock);

@@ -41,7 +41,7 @@ public:
     void Create(i32 previousRecordCount);
     void Finalize();
 
-    void Append(i32 recordId, TSharedRef recordData);
+    void Append(i32 firstRecordId, const yvector<TSharedRef>& records);
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
     void Flush();
     void Truncate(i32 recordId);
@@ -410,7 +410,7 @@ void TChangeLog::TImpl::Finalize()
     LOG_DEBUG("Changelog finalized");
 }
 
-void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
+void TChangeLog::TImpl::Append(i32 firstRecordId, const yvector<TSharedRef>& records)
 {
     // Make a coarse check first...
     YASSERT(State == EState::Open || State == EState::Finalized);
@@ -420,32 +420,47 @@ void TChangeLog::TImpl::Append(i32 recordId, TSharedRef recordData)
         LOG_FATAL("Unable to append to a finalized changelog");
     }
 
-    if (recordId != RecordCount) {
+    if (firstRecordId != RecordCount) {
         LOG_FATAL("Unexpected record id in changelog (expected: %d, got: %d)",
             RecordCount,
-            recordId);
+            firstRecordId);
     }
 
-    i32 recordSize = 0;
-    TRecordHeader header(recordId, recordData.Size());
-    header.Checksum = GetChecksum(TRef(recordData.Begin(), recordData.Size()));
+    i32 recordCount = records.ysize();
+    yvector<TChecksum> checksums(recordCount);
+    for (int i = 0; i < recordCount; ++i) {
+        checksums[i] = GetChecksum(records[i]);
+    }
 
     {
         TGuard<TMutex> guard(Mutex);
 
-        Write(*FileOutput, header);
-        recordSize += sizeof(header);
+        for (int i = 0; i < recordCount; ++i) {
+            i32 recordId = firstRecordId + i;
+            const auto& recordData = records[i];
+
+            i32 recordSize = 0;
+            TRecordHeader header(recordId, recordData.Size());
+            header.Checksum = checksums[i];
+
+            Write(*FileOutput, header);
+            recordSize += sizeof(header);
         
-        FileOutput->Write(recordData.Begin(), recordData.Size());
-        recordSize += recordData.Size();
+            FileOutput->Write(recordData.Begin(), recordData.Size());
+            recordSize += recordData.Size();
 
-        WritePadding(*FileOutput, recordSize);
-        recordSize = AlignUp(recordSize);
+            WritePadding(*FileOutput, recordSize);
+            recordSize = AlignUp(recordSize);
 
-        HandleRecord(recordId, recordSize);
+            HandleRecord(recordId, recordSize);
+
+            ++recordId;
+        }
     }
 
-    LOG_TRACE("Changelog record is added (RecordId: %d)", recordId);
+    LOG_DEBUG("Changelog records is added (FirstRecordId: %d, RecordCount: %d)",
+        firstRecordId,
+        records.ysize());
 }
 
 void TChangeLog::TImpl::Flush()
@@ -764,9 +779,9 @@ void TChangeLog::Finalize()
     Impl->Finalize();
 }
 
-void TChangeLog::Append(i32 recordId, TSharedRef recordData)
+void TChangeLog::Append(i32 firstRecordId, const yvector<TSharedRef>& records)
 {
-    Impl->Append(recordId, recordData);
+    Impl->Append(firstRecordId, records);
 }
 
 void TChangeLog::Flush()
