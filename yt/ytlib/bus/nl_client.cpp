@@ -220,7 +220,7 @@ class TClientDispatcher
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
-            if (~nlResponse == NULL)
+            if (!nlResponse)
                 break;
 
             ++callCount;
@@ -285,7 +285,7 @@ class TClientDispatcher
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {
             TAutoPtr<TUdpHttpRequest> nlRequest = Requester->GetRequest();
-            if (~nlRequest == NULL)
+            if (!nlRequest)
                 break;
 
             ++callCount;
@@ -468,7 +468,7 @@ public:
         , Terminated(false)
     {
         Requester = CreateHttpUdpRequester(0);
-        if (~Requester == NULL) {
+        if (!Requester) {
             ythrow yexception() << "Failed to create a client NetLiba requester";
         }
 

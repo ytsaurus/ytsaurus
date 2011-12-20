@@ -559,7 +559,7 @@ void TElectionManager::Reset()
     VoteEpoch = TGuid();
     Epoch = TGuid();
     EpochStart = TInstant();
-    if (~ControlEpochInvoker != NULL) {
+    if (ControlEpochInvoker) {
         ControlEpochInvoker->Cancel();
         ControlEpochInvoker.Reset();
     }

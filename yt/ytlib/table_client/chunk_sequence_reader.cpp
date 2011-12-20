@@ -97,7 +97,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
 void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
 {
     CurrentReader = nextReader;
-    if (~nextReader != NULL) {
+    if (nextReader) {
         NextReader = New< TFuture<TChunkReader::TPtr> >();
         PrepareNextChunk();
 

@@ -251,7 +251,7 @@ public:
     {
         auto config = TLogConfig::CreateFromNode(node, path);
         auto queue = Queue;
-        if (~queue != NULL) {
+        if (queue) {
             queue->GetInvoker()->Invoke(FromMethod(
                 &TImpl::DoUpdateConfig,
                 this,
@@ -276,7 +276,7 @@ public:
     void Flush()
     {
         auto queue = Queue;
-        if (~queue != NULL) {
+        if (queue) {
             FromMethod(&TLogConfig::FlushWriters, Config)
                 ->AsyncVia(queue->GetInvoker())
                 ->Do()
@@ -289,7 +289,7 @@ public:
         Flush();
     
         auto queue = Queue;
-        if (~queue != NULL) {
+        if (queue) {
             Queue.Reset();
             queue->Shutdown();
         }
@@ -317,7 +317,7 @@ public:
     void Write(const TLogEvent& event)
     {
         auto queue = Queue;
-        if (~queue != NULL) {
+        if (queue) {
             queue->GetInvoker()->Invoke(FromMethod(&TImpl::DoWrite, this, event));
 
             // TODO: use system-wide exit function

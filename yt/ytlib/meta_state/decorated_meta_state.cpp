@@ -136,7 +136,7 @@ void TDecoratedMetaState::IncrementRecordCount()
 
 TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
 {
-    if (~CurrentChangeLog != NULL) {
+    if (CurrentChangeLog) {
         return CurrentChangeLog;
     }
 

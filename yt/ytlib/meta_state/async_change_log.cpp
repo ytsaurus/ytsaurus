@@ -206,7 +206,7 @@ public:
     TVoid Finalize(TChangeLog::TPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
-        if (~queue != NULL) {
+        if (queue) {
             queue->Flush();
         }
         changeLog->Finalize();
@@ -219,7 +219,7 @@ public:
     TVoid Flush(TChangeLog::TPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
-        if (~queue != NULL) {
+        if (queue) {
             queue->Flush();
         }
         changeLog->Flush();
@@ -332,7 +332,7 @@ void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRe
 
     auto queue = Impl->FindQueue(ChangeLog);
 
-    if (~queue == NULL) {
+    if (!queue) {
         ChangeLog->Read(firstRecordId, recordCount, result);
         return;
     }
@@ -391,7 +391,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
 {
     auto queue = Impl->FindQueue(ChangeLog);
 
-    if (~queue == NULL) {
+    if (!queue) {
         return ChangeLog->GetRecordCount();
     }
     

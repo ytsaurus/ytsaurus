@@ -96,7 +96,7 @@ public:
         }
 
         auto chunk = FindChunk(blockId.ChunkId);
-        if (~chunk == NULL) {
+        if (!chunk) {
             return ToFuture(TGetBlockResult(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
@@ -124,12 +124,12 @@ private:
     {
         // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
         auto storedChunk = ChunkStore->FindChunk(chunkId);
-        if (~storedChunk != NULL) {
+        if (storedChunk) {
             return storedChunk;
         }
 
         auto cachedChunk = ChunkCache->FindChunk(chunkId);
-        if (~cachedChunk != NULL) {
+        if (cachedChunk) {
             return cachedChunk;
         }
 
@@ -154,7 +154,7 @@ private:
 
         auto reader = readerResult.Value();
         auto data = reader->ReadBlock(blockId.BlockIndex);
-        if (~data == NULL) {
+        if (!~data) {
             cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
                 Sprintf("No such block (BlockId: %s)", ~blockId.ToString())));

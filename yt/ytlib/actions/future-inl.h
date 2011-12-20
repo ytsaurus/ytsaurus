@@ -54,7 +54,7 @@ T TFuture<T>::Get() const
         return Value;
     }
 
-    if (~ReadyEvent == NULL) {
+    if (!ReadyEvent) {
         ReadyEvent.Reset(new Event());
     }
 

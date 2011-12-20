@@ -25,7 +25,7 @@ TTableReader::TTableReader(
 {
     YASSERT(masterChannel != NULL);
 
-    TTransactionId txId = ~Transaction == NULL ? NullTransactionId : Transaction->GetId();
+    TTransactionId txId = !Transaction ? NullTransactionId : Transaction->GetId();
 
     TCypressServiceProxy Proxy(masterChannel);
     Proxy.SetTimeout(Config->CypressRpcTimeout);
@@ -50,7 +50,7 @@ TTableReader::TTableReader(
         INT_MAX);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
-    if (~Transaction != NULL) {
+    if (Transaction) {
         OnAborted_ = FromMethod(
             &TTableReader::OnAborted,
             TPtr(this));
@@ -92,7 +92,7 @@ TValue TTableReader::GetValue()
 
 void TTableReader::Close()
 {
-    if (~Transaction != NULL) {
+    if (Transaction) {
         Transaction->UnsubscribeAborted(OnAborted_);
         OnAborted_.Reset();
     }

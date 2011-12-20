@@ -124,7 +124,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     auto attributes = Node->GetAttributes();
-    if (~attributes == NULL) {
+    if (!attributes) {
         Node->SetAttributes(NodeFactory->CreateMap());
     } else {
         attributes->Clear();
@@ -285,7 +285,7 @@ protected:
     {
         UNUSED(error);
 
-        if (~ResponseHandler != NULL) {
+        if (ResponseHandler) {
             ResponseHandler->Do(responseMessage);
         }
     }

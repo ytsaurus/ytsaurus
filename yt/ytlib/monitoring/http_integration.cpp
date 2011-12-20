@@ -40,7 +40,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
 
 TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
 {
-    if (~pathService == NULL) {
+    if (!pathService) {
         return ToFuture(FormatServiceUnavailableResponse());
     }
 

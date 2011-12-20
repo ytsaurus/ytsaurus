@@ -77,7 +77,7 @@ void LoadSet(TInputStream* input, TSet& set)
 template <class TSet>
 void SaveNullableSet(TOutputStream* output, const TAutoPtr<TSet>& set)
 {
-    if (~set == NULL) {
+    if (!set) {
         ::SaveSize(output, 0);
     } else {
         SaveSet(output, *set);

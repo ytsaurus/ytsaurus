@@ -64,7 +64,7 @@ TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
 void TChunk::AddLocation(THolderId holderId, bool cached)
 {
     if (cached) {
-        if (~CachedLocations_ == NULL) {
+        if (!CachedLocations_) {
             CachedLocations_ = new yhash_set<THolderId>();
         }
         YVERIFY(CachedLocations_->insert(holderId).second);
@@ -92,7 +92,7 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
 yvector<THolderId> TChunk::GetLocations() const
 {
     yvector<THolderId> result(StoredLocations_);
-    if (~CachedLocations_ != NULL) {
+    if (~CachedLocations_) {
         result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
     }
     return result;

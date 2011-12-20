@@ -240,7 +240,7 @@ void TLeaderCommitter::Flush()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(BatchSpinLock);
-    if (~CurrentBatch != NULL) {
+    if (CurrentBatch) {
         FlushCurrentBatch();
     }
 }
@@ -300,7 +300,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
     VERIFY_THREAD_AFFINITY(StateThread);
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
 
-    if (~CurrentBatch == NULL) {
+    if (!CurrentBatch) {
         YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(TPtr(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(

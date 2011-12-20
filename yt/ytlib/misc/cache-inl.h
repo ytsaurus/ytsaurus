@@ -25,7 +25,7 @@ TCacheValueBase<TKey, TValue, THash>::TCacheValueBase(const TKey& key)
 template <class TKey, class TValue, class THash>
 NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 {
-    if (~Cache != NULL) {
+    if (Cache) {
         Cache->Unregister(GetKey());
     }
 }
@@ -67,7 +67,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
     result.reserve(ValueMap.ysize());
     FOREACH (const auto& pair, ValueMap) {
         auto value = TRefCountedBase::DangerousGetPtr<TValue>(pair.Second());
-        if (~value != NULL) {
+        if (value) {
             result.push_back(value);
         }
     }
@@ -94,7 +94,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             }
 
             auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
-            if (~value != NULL) {
+            if (value) {
                 auto* item = new TItem();
                 auto asyncResult = item->AsyncResult;
                 LruList.PushFront(item);
@@ -143,7 +143,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             }
 
             auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
-            if (~value != NULL) {
+            if (value) {
                 auto* item = new TItem(value);
                 ItemMap.insert(MakePair(key, item));
 

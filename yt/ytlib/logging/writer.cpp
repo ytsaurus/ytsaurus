@@ -81,14 +81,14 @@ void TFileLogWriter::EnsureInitialized()
 void TFileLogWriter::Write(const TLogEvent& event)
 {
     EnsureInitialized();
-    if (~LogWriter != NULL) {
+    if (LogWriter) {
         LogWriter->Write(event);
     }
 }
 
 void TFileLogWriter::Flush()
 {
-    if (~LogWriter != NULL) {
+    if (LogWriter) {
         LogWriter->Flush();
     }
 }

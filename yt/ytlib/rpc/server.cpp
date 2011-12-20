@@ -194,7 +194,7 @@ private:
         Stroka serviceName = path;
 
         auto service = GetService(serviceName);
-        if (~service == NULL) {
+        if (!service) {
             Stroka message = Sprintf("Unknown service name (RequestId: %s, ServiceName: %s)",
                 ~requestId.ToString(),
                 ~serviceName);

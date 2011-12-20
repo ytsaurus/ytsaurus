@@ -90,7 +90,7 @@ public:
         if (State == EState::Terminated)
             return;
 
-        if (~Channel != NULL) {
+        if (Channel) {
             Channel->Terminate();
             Channel.Reset();
         }
@@ -117,7 +117,7 @@ private:
         IClientResponseHandler::TPtr responseHandler,
         TDuration timeout)
     {
-        if (~channel == NULL) {
+        if (!channel) {
             responseHandler->OnError(TError(
                 EErrorCode::Unavailable,
                 "Unable to determine the leader"));

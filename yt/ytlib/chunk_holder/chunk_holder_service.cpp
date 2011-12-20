@@ -81,7 +81,7 @@ void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 {
     auto session = SessionManager->FindSession(chunkId);
-    if (~session == NULL) {
+    if (!session) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
             Sprintf("Session is invalid or expired (ChunkId: %s)", ~chunkId.ToString());
     }
@@ -91,7 +91,7 @@ TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = ChunkStore->FindChunk(chunkId);
-    if (~chunk == NULL) {
+    if (!chunk) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
             Sprintf("Chunk it not found (ChunkId: %s)", ~chunkId.ToString());
     }

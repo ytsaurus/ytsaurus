@@ -175,7 +175,7 @@ void TTreeBuilder::AddToList()
 {
     auto child = PopPop();
     auto list = PeekPop()->AsList();
-    if (~child != NULL) {
+    if (child) {
         list->AddChild(child);
     }
 }
@@ -185,7 +185,7 @@ void TTreeBuilder::AddToMap()
     auto child = PopPop();
     auto name = PopName();
     auto map = PeekPop()->AsMap();
-    if (~child != NULL) {
+    if (child) {
         YVERIFY(map->AddChild(child, name));
     }
 }

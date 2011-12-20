@@ -36,7 +36,7 @@ void TParallelAwaiter::Await(
 
         ++RequestCount;
 
-        if (~onResult != NULL) {
+        if (onResult) {
             wrappedOnResult = onResult->Via(CancelableInvoker);
         }
     }
@@ -50,7 +50,7 @@ void TParallelAwaiter::Await(
 template<class T>
 void TParallelAwaiter::OnResult(T result, typename IParamAction<T>::TPtr onResult)
 {
-    if (~onResult != NULL) {
+    if (onResult) {
         onResult->Do(result);
     }
 
@@ -71,14 +71,14 @@ void TParallelAwaiter::OnResult(T result, typename IParamAction<T>::TPtr onResul
         }
     }
 
-    if (invokeOnComplete && ~onComplete != NULL) {
+    if (invokeOnComplete && onComplete) {
         onComplete->Do();
     }
 }
 
 inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
 {
-    if (~onComplete != NULL) {
+    if (onComplete) {
         onComplete = onComplete->Via(CancelableInvoker);
     }
 
@@ -99,7 +99,7 @@ inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
         }
     }
 
-    if (invokeOnComplete && ~onComplete != NULL) {
+    if (invokeOnComplete && onComplete) {
         onComplete->Do();
     }
 }

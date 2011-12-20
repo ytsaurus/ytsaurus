@@ -96,7 +96,7 @@ void TRetriableReader::DoReadBlocks(
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult)
 {
-    if (~reader == NULL) {
+    if (!reader) {
         asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
     }
 
@@ -150,7 +150,7 @@ void TRetriableReader::DoGetChunkInfo(
     TRemoteReader::TPtr reader,
     TFuture<TGetInfoResult>::TPtr result)
 {
-    if (~reader == NULL) {
+    if (!reader) {
         result->Set(TError(NRpc::EErrorCode::Unavailable, CumulativeError));
         return;
     }

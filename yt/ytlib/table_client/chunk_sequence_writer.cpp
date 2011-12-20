@@ -141,7 +141,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         return;
     }
 
-    if (~NextChunk == NULL && IsNextChunkTime()) {
+    if (!NextChunk && IsNextChunkTime()) {
         LOG_DEBUG("Time to prepare next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
             ~TransactionId.ToString(),
             CurrentChunk->GetCurrentSize());
@@ -241,7 +241,7 @@ void TChunkSequenceWriter::Cancel(const TError& error)
     State.Cancel(error);
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
-    if (~CurrentChunk != NULL) {
+    if (CurrentChunk) {
         CurrentChunk->Cancel(error);
     }
 }

@@ -92,7 +92,7 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 
     auto typeHandler = GetTypeHandler(node);
     auto behavior = typeHandler->CreateBehavior(node);
-    if (~behavior == NULL)
+    if (!behavior)
         return;
 
     YVERIFY(NodeBehaviors.insert(MakePair(nodeId.NodeId, behavior)).Second());

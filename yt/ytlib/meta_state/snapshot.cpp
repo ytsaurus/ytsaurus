@@ -112,7 +112,7 @@ i64 TSnapshotReader::GetLength() const
 
 void TSnapshotReader::Close()
 {
-    if (~FileInput == NULL)
+    if (!FileInput)
         return;
 
     LOG_DEBUG("Closing snapshot reader %s", ~FileName);
@@ -168,12 +168,12 @@ TOutputStream& TSnapshotWriter::GetStream() const
 
 void TSnapshotWriter::Close()
 {
-    if (~FileOutput == NULL)
+    if (!FileOutput)
         return;
 
     LOG_DEBUG("Closing snapshot writer %s", ~TempFileName);
 
-    if (~ChecksummableOutput != NULL) {
+    if (~ChecksummableOutput) {
         Checksum = ChecksummableOutput->GetChecksum();
         ChecksummableOutput->Flush();
         ChecksummableOutput.Reset(NULL);

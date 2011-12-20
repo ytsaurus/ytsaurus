@@ -211,7 +211,7 @@ public:
                 //.Item("version").Scalar(MetaState->GetVersion().ToString())
                 .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
-                .DoIf(~tracker != NULL, [=] (TFluentMap fluent)
+                .DoIf(tracker, [=] (TFluentMap fluent)
                     {
                         fluent
                             .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
@@ -248,7 +248,7 @@ public:
 
         // FollowerTracker is modified concurrently from the ControlThread.
         auto followerTracker = FollowerTracker;
-        if (~followerTracker == NULL || !followerTracker->HasActiveQuorum()) {
+        if (!followerTracker || !followerTracker->HasActiveQuorum()) {
             return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
         }
 
@@ -502,7 +502,7 @@ public:
             }
 
             case EPeerStatus::FollowerRecovery: {
-                if (~FollowerRecovery != NULL) {
+                if (FollowerRecovery) {
                     LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
                         ~version.ToString(),
                         changeCount);
@@ -568,7 +568,7 @@ public:
                 break;
 
             case EPeerStatus::FollowerRecovery:
-                if (~FollowerRecovery == NULL) {
+                if (!FollowerRecovery) {
                     FollowerRecovery = New<TFollowerRecovery>(
                         ~Config,
                         CellManager,
@@ -652,7 +652,7 @@ public:
 
             case EPeerStatus::FollowerRecovery: {
                 // TODO: Logging
-                if (~FollowerRecovery != NULL) {
+                if (FollowerRecovery) {
                     auto result = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (result != TRecovery::EResult::OK) {
                         Restart();
@@ -878,12 +878,12 @@ public:
 
         // To prevent multiple restarts.
         auto epochControlInvoker = EpochControlInvoker;
-        if (~epochControlInvoker != NULL) {
+        if (epochControlInvoker) {
             epochControlInvoker->Cancel();
         }
 
         auto epochStateInvoker = EpochStateInvoker;
-        if (~epochStateInvoker != NULL) {
+        if (epochStateInvoker) {
             epochStateInvoker->Cancel();
         }
 
@@ -997,27 +997,27 @@ public:
 
         StopControlEpoch();
 
-        if (~LeaderRecovery != NULL) {
+        if (LeaderRecovery) {
             LeaderRecovery->Stop();
             LeaderRecovery.Reset();
         }
 
-        if (~LeaderCommitter != NULL) {
+        if (LeaderCommitter) {
             LeaderCommitter->Stop();
             LeaderCommitter.Reset();
         }
 
-        if (~FollowerPinger != NULL) {
+        if (FollowerPinger) {
             FollowerPinger->Stop();
             FollowerPinger.Reset();
         }
 
-        if (~FollowerTracker != NULL) {
+        if (FollowerTracker) {
             FollowerTracker->Stop();
             FollowerTracker.Reset();
         }
 
-        if (~SnapshotCreator != NULL) {
+        if (SnapshotCreator) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotCreation,
                 TPtr(this),
@@ -1058,18 +1058,18 @@ public:
 
         StopControlEpoch();
 
-        if (~FollowerRecovery != NULL) {
+        if (FollowerRecovery) {
             // This may happen if the recovery gets interrupted.
             FollowerRecovery->Stop();
             FollowerRecovery.Reset();
         }
 
-        if (~FollowerCommitter != NULL) {
+        if (FollowerCommitter) {
             FollowerCommitter->Stop();
             FollowerCommitter.Reset();
         }
 
-        if (~SnapshotCreator != NULL) {
+        if (SnapshotCreator) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotCreation,
                 TPtr(this),

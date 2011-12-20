@@ -31,7 +31,7 @@ inline void Read(
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
         NYT::NDetail::TEmpty())
 {
-    if (~parameter == NULL) {
+    if (!parameter) {
         parameter = New<T>();
     }
     parameter->Load(node, path);

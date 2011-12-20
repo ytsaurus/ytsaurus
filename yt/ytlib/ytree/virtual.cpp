@@ -22,7 +22,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     ChopYPathToken(path, &prefix, &suffixPath);
 
     auto service = GetItemService(prefix);
-    if (~service == NULL) {
+    if (!service) {
         ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
 

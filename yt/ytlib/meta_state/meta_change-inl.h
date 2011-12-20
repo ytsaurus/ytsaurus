@@ -68,11 +68,11 @@ template <class TResult>
 void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 {
     if (result == ECommitResult::Committed) {
-        if (~OnSuccess_ != NULL) {
+        if (OnSuccess_) {
             OnSuccess_->Do(Result);
         }
     } else {
-        if (~OnError_ != NULL) {
+        if (OnError_) {
             OnError_->Do();
         }
     }
