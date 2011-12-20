@@ -3,7 +3,7 @@
 #include "common.h"
 #include "server.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NBus {
@@ -11,7 +11,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNLBusServerConfig
-    : TConfigBase
+    : TConfigurable
 {
     typedef TIntrusivePtr<TNLBusServerConfig> TPtr;
 

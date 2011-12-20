@@ -4,7 +4,7 @@
 
 #include "../rpc/channel_cache.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NMetaState {

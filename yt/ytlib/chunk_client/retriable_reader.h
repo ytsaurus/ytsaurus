@@ -6,7 +6,7 @@
 #include "../transaction_client/transaction.h"
 #include "../chunk_server/chunk_service_rpc.h"
 #include "../rpc/client.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -21,7 +21,7 @@ public:
     typedef TIntrusivePtr<TRetriableReader> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

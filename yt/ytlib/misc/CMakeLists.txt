@@ -13,7 +13,7 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/metric.cpp
-  ${BASE}/config.cpp
+  ${BASE}/configurable.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
   ${BASE}/ref.cpp
@@ -49,8 +49,8 @@ set( HDRS
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
-  ${BASE}/config-inl.h
-  ${BASE}/config.h
+  ${BASE}/configurable-inl.h
+  ${BASE}/configurable.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor-gen.h

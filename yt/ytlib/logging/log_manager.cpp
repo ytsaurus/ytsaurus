@@ -4,7 +4,7 @@
 #include "writer.h"
 
 #include "../misc/pattern_formatter.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 #include "../ytree/serialize.h"
 #include "../ytree/ypath_client.h"
@@ -38,7 +38,7 @@ static TLogger Logger(SystemLoggingCategory);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRule
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TRule> TPtr;
 
@@ -61,7 +61,7 @@ struct TRule
 
     virtual void Load(INode* node, const TYPath& path)
     {
-        TConfigBase::Load(node, path);
+        TConfigurable::Load(node, path);
 
         if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
             AllCategories = true;
@@ -88,13 +88,13 @@ typedef yvector<ILogWriter::TPtr> TLogWriters;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogConfig
-    : public TConfigBase
+    : public TConfigurable
 {
 public:
     typedef TIntrusivePtr<TLogConfig> TPtr;
     
     /*!
-     * Needs to be public for TConfigBase.
+     * Needs to be public for TConfigurable.
      * Not for public use.
      * Use #CreateDefault instead.
      */
@@ -186,7 +186,7 @@ public:
 private:
     virtual void Validate(const TYPath& path) const
     {
-        TConfigBase::Validate(path);
+        TConfigurable::Validate(path);
 
         FOREACH (const auto& rule, Rules) {
             FOREACH (const Stroka& writer, rule->Writers) {

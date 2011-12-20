@@ -18,7 +18,7 @@ class TSnapshotDownloader
 {
 public:
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

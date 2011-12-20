@@ -4,7 +4,7 @@
 #include "pattern.h"
 
 #include "../misc/ref_counted_base.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -33,7 +33,7 @@ struct ILogWriter
     );
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
@@ -56,7 +56,7 @@ struct ILogWriter
 
         virtual void Validate(const NYTree::TYPath& path) const
         {
-            TConfigBase::Validate(path);
+            TConfigurable::Validate(path);
 
             if (Type == EType::File && FileName.empty()) {
                 ythrow yexception() <<
