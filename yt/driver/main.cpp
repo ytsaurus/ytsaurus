@@ -8,6 +8,9 @@
 #include <yt/ytlib/ytree/yson_writer.h>
 
 #include <util/config/last_getopt.h>
+#include <util/stream/pipe.h>
+
+#include <io.h>
 
 namespace NYT {
 
@@ -15,6 +18,138 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemInput
+    : public TInputStream
+{
+public:
+    TSystemInput(int handle)
+        : Handle(handle)
+    { }
+
+private:
+    int Handle;
+
+    virtual size_t DoRead(void* buf, size_t len)
+    {
+        int result;
+        do {
+            result = read(Handle, buf, len);
+        } while (result < 0 && errno == EINTR);
+        
+
+        if (result < 0) {
+            ythrow yexception() << Sprintf("Error reading from stream (Handle: %d, Error: %d)",
+                Handle,
+                errno);
+        }
+
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemOutput
+    : public TOutputStream
+{
+public:
+    TSystemOutput(int handle)
+        : Handle(handle)
+    { }
+
+private:
+    int Handle;
+
+    virtual void DoWrite(const void* buf, size_t len)
+    {
+        size_t totalWritten = 0;
+        while (totalWritten < len) {
+            int result;
+            do {
+                result = write(Handle, static_cast<const char*>(buf) + totalWritten, len - totalWritten);
+            } while (result < 0 && errno == EINTR);
+
+            if (result == 0) {
+                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: nothing written)",
+                    Handle);
+            }
+            if (result < 0 ) {
+                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: %d)",
+                    Handle,
+                    errno);
+            }
+            
+            totalWritten += result;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStreamProvider
+    : public IDriverStreamProvider
+{
+public:
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
+    {
+        if (spec.empty()) {
+            return new TSystemInput(0);
+        }
+
+        if (spec[0] == '&') {
+            int handle = ParseHandle(spec);
+            return new TSystemInput(handle);
+        }
+
+        if (spec[0] == '<') {
+            return new TFileInput(spec.substr(1));
+        }
+
+        return new TPipeInput(~spec);
+    }
+
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
+    {
+        if (spec.empty()) {
+            return new TSystemOutput(1);
+        }
+
+        if (spec[0] == '&') {
+            int handle = ParseHandle(spec);
+            return new TSystemOutput(handle);
+        }
+
+        if (spec[0] == '>') {
+            if (spec.length() >= 2 && spec[1] == '>') {
+                TFile file(spec.substr(2), OpenAlways | ForAppend | WrOnly | Seq);
+                return new TFileOutput(file);
+            } else {
+                return new TFileOutput(spec.substr(1));
+            }
+        }
+
+        return new TPipeOutput(~spec);
+    }
+
+    virtual TAutoPtr<TOutputStream> CreateErrorStream()
+    {
+        return new TSystemOutput(2);
+    }
+
+private:
+    int ParseHandle(const Stroka& spec)
+    {
+        try {
+            return FromString(TStringBuf(spec.begin() + 1, spec.length() - 1));
+        } catch (const TFromStringException&) {
+            ythrow yexception() << Sprintf("Invalid handle in stream specification %s", ~spec);
+        }
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +168,7 @@ public:
     };
 
     TDriverProgram()
-        : Format(TYsonWriter::EFormat::Text)
-        , ExitCode(0)
+        : ExitCode(0)
         , HaltOnError(false)
     { }
 
@@ -62,12 +196,6 @@ public:
                 .Optional()
                 .RequiredArgument("FORMAT")
                 .StoreResult(&formatStr);
-
-            Stroka boxSuccessStr;
-            const auto& boxSuccessOpt = opts.AddLongOption("box-success", "override success boxing")
-                .Optional()
-                .RequiredArgument("FLAG")
-                .StoreResult(&boxSuccessStr);
 
             const auto& haltOnErrorOpt = opts.AddLongOption("halt-on-error", "halt batch execution upon receiving an error")
                 .Optional()
@@ -98,16 +226,12 @@ public:
             }
 
             if (results.Has(&formatOpt)) {
-                Format = TYsonWriter::EFormat::FromString(formatStr);
-            }
-
-            if (results.Has(&boxSuccessOpt)) {
-                config->BoxSuccess = FromString<bool>(boxSuccessStr);
+                config->Format = TYsonWriter::EFormat::FromString(formatStr);
             }
 
             HaltOnError = results.Has(&haltOnErrorOpt);
 
-            Driver = new TDriver(~config);
+            Driver = new TDriver(~config, &StreamProvider);
 
             if (results.Has(&shellOpt)) {
                 RunShell();
@@ -128,9 +252,9 @@ public:
     }
 
 private:
-    TYsonWriter::EFormat Format;
     int ExitCode;
     bool HaltOnError;
+    TStreamProvider StreamProvider;
     TAutoPtr<TDriver> Driver;
 
     void RunBatch()
@@ -143,10 +267,7 @@ private:
             if (request.empty())
                 continue;
 
-            TYsonWriter writer(&StdOutStream(), Format);
-            auto error = Driver->Execute(request, &writer);
-            Cout << Endl;
-
+            auto error = Driver->Execute(request);
             if (!error.IsOK() && HaltOnError) {
                 ExitCode = 1;
                 break;

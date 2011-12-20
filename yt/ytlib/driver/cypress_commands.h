@@ -13,10 +13,12 @@ struct TGetRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
+    Stroka Out;
 
     TGetRequest()
     {
         Register("path", Path);
+        Register("out", Out).Default(Stroka());
     }
 };
 
@@ -39,11 +41,21 @@ struct TSetRequest
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Value;
+    Stroka In;
 
     TSetRequest()
     {
         Register("path", Path);
-        Register("value", Value);
+        Register("value", Value).Default(NULL);
+        Register("in", In).Default(Stroka());
+    }
+
+    virtual void Validate(const NYTree::TYPath& path = "/") const
+    {
+        TConfigBase::Validate(path);
+        if (!Value && In.empty()) {
+            ythrow yexception() << Sprintf("Neither \"value\" nor \"in\" is specified (Path: %s)", ~path);
+        }
     }
 };
 

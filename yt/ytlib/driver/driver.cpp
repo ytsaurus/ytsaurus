@@ -2,6 +2,7 @@
 #include "driver.h"
 #include "command.h"
 #include "cypress_commands.h"
+#include "file_commands.h"
 
 #include "../ytree/fluent.h"
 #include "../ytree/serialize.h"
@@ -24,41 +25,69 @@ static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSuccessConsumer
+class TOutputStreamConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TSuccessConsumer(IYsonConsumer* responseConsumer, bool box)
-        : ResponseConsumer(responseConsumer)
-        , Box(box)
+    TOutputStreamConsumer(TAutoPtr<TOutputStream> output, TYsonWriter::EFormat format)
+        : Output(output)
+        , BufferedOutput(~Output)
+        , Writer(&BufferedOutput, format)
     {
-        WritePrologue();
-        // NB: No need for TPtr here.
-        ForwardNode(responseConsumer, ~FromMethod(&TSuccessConsumer::OnFinished, this));
+        ForwardNode(&Writer, ~FromFunctor([=] ()
+            {
+                BufferedOutput.Write('\n');
+            }));
     }
 
 private:
-    IYsonConsumer* ResponseConsumer;
-    bool Box;
+    TAutoPtr<TOutputStream> Output;
+    TBufferedOutput BufferedOutput;
+    TYsonWriter Writer;
 
-    void WritePrologue()
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOwningBufferedInput
+    : public TInputStream
+{
+public:
+    TOwningBufferedInput(TAutoPtr<TInputStream> slave)
+        : Slave(slave)
+        , Buffered(~Slave)
+    { }
+
+private:
+    // NB: The order is important.
+    TAutoPtr<TInputStream> Slave;
+    TBufferedInput Buffered;
+
+    virtual size_t DoRead(void* buf, size_t len)
     {
-        if (Box) {
-            ResponseConsumer->OnBeginMap();
-            ResponseConsumer->OnMapItem("success");
-        }
+        return Buffered.Read(buf, len);
     }
+};
 
-    void WriteEpilogue()
-    {
-        if (Box) {
-            ResponseConsumer->OnEndMap();
-        }
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    void OnFinished()
+class TOwningBufferedOutput
+    : public TOutputStream
+{
+public:
+    TOwningBufferedOutput(TAutoPtr<TOutputStream> slave)
+        : Slave(slave)
+        , Buffered(~Slave)
+    { }
+
+private:
+    // NB: The order is important.
+    TAutoPtr<TOutputStream> Slave;
+    TBufferedOutput Buffered;
+
+    virtual void DoWrite(const void* buf, size_t len)
     {
-        WriteEpilogue();
+        Buffered.Write(buf, len);
     }
 };
 
@@ -69,41 +98,47 @@ class TDriver::TImpl
     , public IDriverImpl
 {
 public:
-    TImpl(TConfig* config)
+    TImpl(
+        TConfig* config,
+        IDriverStreamProvider* streamProvider)
         : Config(config)
+        , StreamProvider(streamProvider)
     {
         YASSERT(config != NULL);
-        CellChannel = CreateCellChannel(~config->Masters);
+        YASSERT(streamProvider != NULL);
+
+        MasterChannel = CreateCellChannel(~config->Masters);
 
         RegisterCommand("Get", ~New<TGetCommand>(this));
         RegisterCommand("Set", ~New<TSetCommand>(this));
+
+        RegisterCommand("ReadFile", ~New<TReadFileCommand>(this));
+        RegisterCommand("WriteFile", ~New<TWriteFileCommand>(this));
     }
 
-    TError Execute(
-        const TYson& request,
-        IYsonConsumer* responseConsumer)
+    TError Execute(const TYson& request)
     {
-        ResponseConsumer = responseConsumer;
         Error = TError();
         try {
             GuardedExecute(request);
         } catch (const std::exception& ex) {
             ReplyError(TError(TError::Fail, ex.what()));
         }
-        ResponseConsumer = NULL;
         return Error;
     }
 
-    IChannel::TPtr GetCellChannel() const
+    IChannel::TPtr GetMasterChannel() const
     {
-        return CellChannel;
+        return MasterChannel;
     }
 
     virtual void ReplyError(const TError& error)
     {
         YASSERT(!error.IsOK());
         Error = error;
-        BuildYsonFluently(ResponseConsumer)
+        auto output = StreamProvider->CreateErrorStream();
+        TYsonWriter writer(~output, Config->Format);
+        BuildYsonFluently(&writer)
             .BeginMap()
                 .Item("error").BeginMap()
                     .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
@@ -113,11 +148,43 @@ public:
                     .Item("message").Scalar(error.GetMessage())
                 .EndMap()
             .EndMap();
+        output->Write('\n');
     }
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateSuccessConsumer()
+    virtual void ReplySuccess(const Stroka& spec, const TYson& yson)
     {
-        return new TSuccessConsumer(ResponseConsumer, Config->BoxSuccess);
+        auto consumer = CreateOutputConsumer(spec);
+        TYsonReader reader(~consumer);
+        TStringInput input(yson);
+        reader.Read(&input);
+    }
+
+    virtual TYsonProducer::TPtr CreateInputProducer(const Stroka& spec)
+    {
+        auto stream = CreateInputStream(spec);
+        return FromFunctor([=] (IYsonConsumer* consumer)
+            {
+                TYsonReader reader(consumer);
+                reader.Read(~stream);
+            });
+    }
+
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
+    {
+        auto stream = StreamProvider->CreateInputStream(spec);
+        return new TOwningBufferedInput(stream);
+    }
+
+    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer(const Stroka& spec)
+    {
+        auto stream = CreateOutputStream(spec);
+        return new TOutputStreamConsumer(stream, Config->Format);
+    }
+
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
+    {
+        auto stream = StreamProvider->CreateOutputStream(spec);
+        return new TOwningBufferedOutput(stream);
     }
 
     virtual TTransactionId GetTransactionId()
@@ -137,10 +204,10 @@ public:
 
 private:
     TConfig::TPtr Config;
-    IYsonConsumer* ResponseConsumer;
+    IDriverStreamProvider* StreamProvider;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
-    IChannel::TPtr CellChannel;
+    IChannel::TPtr MasterChannel;
     ITransaction::TPtr Transaction;
 
     void RegisterCommand(const Stroka& name, ICommand* command)
@@ -179,18 +246,18 @@ private:
     
 };
 
-TDriver::TDriver(TConfig* config)
-    : Impl(new TImpl(config))
+TDriver::TDriver(
+    TConfig* config,
+    IDriverStreamProvider* streamProvider)
+    : Impl(new TImpl(config, streamProvider))
 { }
 
 TDriver::~TDriver()
 { }
 
-TError TDriver::Execute(
-    const TYson& request,
-    IYsonConsumer* responseConsumer)
+TError TDriver::Execute(const TYson& request)
 {
-    return Impl->Execute(request, responseConsumer);
+    return Impl->Execute(request);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,14 +15,15 @@ using namespace NCypress;
 
 void TGetCommand::DoExecute(TGetRequest* request)
 {
-    TCypressServiceProxy proxy(~DriverImpl->GetCellChannel());
+    TCypressServiceProxy proxy(~DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get();
     auto ypathResponse = proxy.Execute(request->Path, DriverImpl->GetTransactionId(), ~ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
-        ReplySuccess(ypathResponse->value());
+        TYson value = ypathResponse->value();
+        DriverImpl->ReplySuccess(request->Out, ypathResponse->value());
     } else {
-        ReplyError(ypathResponse->GetError());
+        DriverImpl->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -30,15 +31,22 @@ void TGetCommand::DoExecute(TGetRequest* request)
 
 void TSetCommand::DoExecute(TSetRequest* request)
 {
-    TCypressServiceProxy proxy(~DriverImpl->GetCellChannel());
+    TCypressServiceProxy proxy(~DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Set();
-    ypathRequest->set_value(SerializeToYson(~request->Value));
+
+    TYson value;
+    if (request->Value) {
+        value = SerializeToYson(~request->Value);
+    } else {
+        auto producer = DriverImpl->CreateInputProducer(request->In);
+        value = SerializeToYson(~producer);
+    }
+    ypathRequest->set_value(value);
+
     auto ypathResponse = proxy.Execute(request->Path, DriverImpl->GetTransactionId(), ~ypathRequest)->Get();
 
-    if (ypathResponse->IsOK()) {
-        ReplySuccess();
-    } else {
-        ReplyError(ypathResponse->GetError());
+    if (!ypathResponse->IsOK()) {
+        DriverImpl->ReplyError(ypathResponse->GetError());
     }
 }
 

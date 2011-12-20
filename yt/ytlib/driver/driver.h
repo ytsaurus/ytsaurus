@@ -14,6 +14,18 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IDriverStreamProvider
+{
+    virtual ~IDriverStreamProvider()
+    { }
+
+    virtual TAutoPtr<TInputStream>  CreateInputStream(const Stroka& spec) = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec) = 0;
+    virtual TAutoPtr<TOutputStream> CreateErrorStream() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDriver
     : private TNonCopyable
 {
@@ -24,21 +36,21 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         NElection::TLeaderLookup::TConfig::TPtr Masters;
-        bool BoxSuccess;
+        NYTree::TYsonWriter::EFormat Format;
 
         TConfig()
         {
             Register("masters", Masters);
-            Register("box_success", BoxSuccess).Default(false);
+            Register("format", Format).Default(NYTree::TYsonWriter::EFormat::Text);
         }
     };
 
-    TDriver(TConfig* config);
+    TDriver(
+        TConfig* config,
+        IDriverStreamProvider* streamProvider);
     ~TDriver();
 
-    TError Execute(
-        const NYTree::TYson& request,
-        NYTree::IYsonConsumer* responseConsumer);
+    TError Execute(const NYTree::TYson& request);
 
 private:
     class TImpl;

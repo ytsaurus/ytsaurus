@@ -22,9 +22,16 @@ struct IDriverImpl
     ~IDriverImpl()
     { }
 
-    virtual NRpc::IChannel::TPtr GetCellChannel() const = 0;
+    virtual NRpc::IChannel::TPtr GetMasterChannel() const = 0;
+
+    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec) = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec) = 0;
+
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec) = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec) = 0;
+
     virtual void ReplyError(const TError& error) = 0;
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateSuccessConsumer() = 0;
+    virtual void ReplySuccess(const Stroka& spec, const NYTree::TYson& yson) = 0;
 
     virtual NTransactionClient::TTransactionId GetTransactionId() = 0;
     virtual NTransactionClient::ITransaction::TPtr GetTransaction() = 0;
@@ -66,6 +73,8 @@ public:
         auto typedRequest = New<TRequest>();
         try {
             typedRequest->Load(request);
+            // TODO: fixme
+            typedRequest->Validate();
         }
         catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
@@ -79,30 +88,6 @@ protected:
     TCommandBase(IDriverImpl* driverImpl)
         : DriverImpl(driverImpl)
     { }
-
-    void ReplyError(const TError& error)
-    {
-        DriverImpl->ReplyError(error);
-    }
-
-    void ReplySuccess(const NYTree::TYson& yson)
-    {
-        auto consumer = DriverImpl->CreateSuccessConsumer();
-        NYTree::TYsonReader reader(~consumer);
-        TStringInput input(yson);
-        reader.Read(&input);
-    }
-
-    void ReplySuccess()
-    {
-        NYTree::BuildYsonFluently(~CreateSuccessConsumer())
-            .Entity();
-    }
-
-    TAutoPtr<NYTree::IYsonConsumer> CreateSuccessConsumer()
-    {
-        return DriverImpl->CreateSuccessConsumer();
-    }
 
     virtual void DoExecute(TRequest* request) = 0;
 };
