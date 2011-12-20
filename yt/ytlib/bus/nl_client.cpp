@@ -8,7 +8,7 @@
 #include "../logging/log.h"
 #include "../misc/thread_affinity.h"
 
-#include <quality/NetLiba/UdpHttp.h>
+#include <quality/netliba_v6/udp_http.h>
 
 #include <util/generic/singleton.h>
 #include <util/generic/list.h>
@@ -16,6 +16,8 @@
 
 namespace NYT {
 namespace NBus {
+
+using namespace NNetliba;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,7 +229,7 @@ class TClientDispatcher
         return callCount > 0;
     }
 
-    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
+    void ProcessIncomingNLResponse(NNetliba::TUdpHttpResponse* nlResponse)
     {
         if (nlResponse->Ok != TUdpHttpResponse::OK)
         {

@@ -13,12 +13,13 @@
 #include <util/generic/deque.h>
 #include <util/generic/utility.h>
 
-#include <quality/NetLiba/UdpHttp.h>
+#include <quality/netliba_v6/udp_http.h>
 
 namespace NYT {
 namespace NBus {
 
 using namespace NYTree;
+using namespace NNetliba;
 
 ////////////////////////////////////////////////////////////////////////////////
 
