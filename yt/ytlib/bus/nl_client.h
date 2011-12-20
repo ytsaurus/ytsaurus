@@ -3,7 +3,7 @@
 #include "common.h"
 #include "client.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NBus {
@@ -11,7 +11,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNLBusClientConfig
-    : TConfigBase
+    : TConfigurable
 {
     typedef TIntrusivePtr<TNLBusClientConfig> TPtr;
 

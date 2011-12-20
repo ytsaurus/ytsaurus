@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/misc/config.h>
+#include <yt/ytlib/misc/configurable.h>
 #include <yt/ytlib/meta_state/persistent_state_manager.h>
 
 namespace NYT {
@@ -12,7 +12,7 @@ class TCellMasterServer
 public:
     //! Describes a configuration of TCellMaster.
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

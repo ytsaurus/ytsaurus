@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../misc/codec.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
@@ -23,7 +23,7 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

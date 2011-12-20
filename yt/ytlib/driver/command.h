@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/error.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../ytree/ytree.h"
 #include "../ytree/yson_events.h"
 #include "../ytree/yson_reader.h"
@@ -34,7 +34,7 @@ struct IDriverImpl
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequestBase
-    : TConfigBase
+    : TConfigurable
 {
     Stroka Do;
 

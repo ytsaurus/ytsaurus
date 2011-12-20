@@ -20,7 +20,7 @@ public:
     typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

@@ -22,7 +22,7 @@ public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

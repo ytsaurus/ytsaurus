@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/config.h"
+#include "../ytlib/misc/configurable.h"
 #include "../ytlib/ytree/tree_builder.h"
 #include "../ytlib/ytree/ephemeral.h"
 #include "../ytlib/ytree/fluent.h"
@@ -20,7 +20,7 @@ DECLARE_ENUM(ETestEnum,
 );
 
 struct TTestSubconfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TTestSubconfig> TPtr;
 
@@ -39,7 +39,7 @@ struct TTestSubconfig
 };
 
 struct TTestConfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TTestConfig> TPtr;
     

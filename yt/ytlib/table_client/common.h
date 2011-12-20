@@ -2,7 +2,7 @@
 
 #include "../misc/common.h"
 #include "../logging/log.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NTableClient {

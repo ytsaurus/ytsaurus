@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "config.h"
+#include "configurable.h"
 
 #include "../ytree/ypath_detail.h"
 
@@ -10,7 +10,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TConfigBase::Load(NYTree::INode* node, const NYTree::TYPath& path)
+void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node != NULL);
     NYTree::IMapNode::TPtr mapNode;
@@ -30,7 +30,7 @@ void TConfigBase::Load(NYTree::INode* node, const NYTree::TYPath& path)
     }
 }
 
-void TConfigBase::Validate(const NYTree::TYPath& path) const
+void TConfigurable::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
         pair.Second()->Validate(CombineYPaths(path, pair.First()));

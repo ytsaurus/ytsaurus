@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../misc/lazy_ptr.h"
 
 #include "../ytree/ephemeral.h"
@@ -120,7 +120,7 @@ private:
     }
 
     struct TManifest
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TManifest> TPtr;
 

@@ -58,11 +58,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigBase
+class TConfigurable
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TConfigBase> TPtr;
+    typedef TIntrusivePtr<TConfigurable> TPtr;
 
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "/");
     virtual void Validate(const NYTree::TYPath& path = "/") const;
@@ -86,12 +86,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef NConfig::TConfigBase TConfigBase;
+typedef NConfig::TConfigurable TConfigurable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-#define CONFIG_INL_H_
-#include "config-inl.h"
-#undef CONFIG_INL_H_
+#define CONFIGURABLE_INL_H_
+#include "configurable-inl.h"
+#undef CONFIGURABLE_INL_H_

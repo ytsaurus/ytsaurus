@@ -3,12 +3,12 @@
 #include "common.h"
 #include "election_manager_rpc.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../actions/future.h"
 #include "../actions/parallel_awaiter.h"
 #include "../rpc/client.h"
 #include "../rpc/channel_cache.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NElection {
@@ -27,7 +27,7 @@ public:
 
     //! Lookup configuration.
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

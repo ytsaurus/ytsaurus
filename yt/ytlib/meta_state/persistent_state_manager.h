@@ -3,7 +3,7 @@
 #include "meta_state_manager.h"
 
 #include "../rpc/server.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -12,7 +12,7 @@ namespace NMetaState {
 
 //! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
-    : TConfigBase
+    : TConfigurable
 {
     typedef TIntrusivePtr<TPersistentStateManagerConfig> TPtr;
 
