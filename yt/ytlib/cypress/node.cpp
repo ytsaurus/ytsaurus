@@ -31,7 +31,9 @@ Stroka TBranchedNodeId::ToString() const
 TBranchedNodeId TBranchedNodeId::FromString(const Stroka& s)
 {
     auto tokens = splitStroku(s, ":");
-    YASSERT(1 <= tokens.size() && tokens.size() <= 2);
+    if (tokens.size() < 1 || 2 < tokens.size()) {
+        ythrow yexception() << Sprintf("Invalid number of :-separated tokens in %s", ~s);
+    }
     auto nodeId = TNodeId::FromString(tokens[0]);
 
     TTransactionId transactionId;
