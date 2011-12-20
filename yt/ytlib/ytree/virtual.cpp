@@ -22,7 +22,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     ChopYPathToken(path, &prefix, &suffixPath);
 
     auto service = GetItemService(prefix);
-    if (~service == NULL) {
+    if (!service) {
         ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
     }
 
@@ -54,7 +54,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);
         auto service = GetItemService(key);
-        YASSERT(~service != NULL);
+        YASSERT(service);
         writer.OnRaw(SyncYPathGet(~service, "/"));
     }
     writer.OnEndMap(false);

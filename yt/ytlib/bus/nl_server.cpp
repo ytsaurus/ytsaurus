@@ -13,12 +13,13 @@
 #include <util/generic/deque.h>
 #include <util/generic/utility.h>
 
-#include <quality/NetLiba/UdpHttp.h>
+#include <quality/netliba_v6/udp_http.h>
 
 namespace NYT {
 namespace NBus {
 
 using namespace NYTree;
+using namespace NNetliba;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,7 +170,7 @@ public:
     {
         // Load to a local since the other thread may be calling Finalize.
         auto server = Server;
-        if (~server == NULL) {
+        if (!server) {
             LOG_WARNING("Attempt to reply via a detached bus");
             return NULL;
         }
@@ -322,7 +323,7 @@ bool TNLBusServer::ProcessIncomingNLRequests()
     int callCount = 0;
     while (callCount < Config->MaxNLCallsPerIteration) {
         TAutoPtr<TUdpHttpRequest> nlRequest = Requester->GetRequest();
-        if (~nlRequest == NULL)
+        if (!nlRequest)
             break;
 
         ++callCount;
@@ -357,7 +358,7 @@ bool TNLBusServer::ProcessIncomingNLResponses()
     int callCount = 0;
     while (callCount < Config->MaxNLCallsPerIteration) {
         TAutoPtr<TUdpHttpResponse> nlResponse = Requester->GetResponse();
-        if (~nlResponse == NULL)
+        if (!nlResponse)
             break;
 
         ++callCount;
@@ -419,7 +420,7 @@ bool TNLBusServer::ProcessOutcomingResponses()
             break;
 
         auto response = session->DequeueResponse();
-        if (~response != NULL) {
+        if (response) {
             ++callCount;
             ProcessOutcomingResponse(~session, ~response);
         }
@@ -467,7 +468,7 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
         true);
 
     //auto response = session->DequeueResponse();
-    //if (~response != NULL) {
+    //if (response) {
     //    Requester->SendResponse(nlRequest->ReqId, &response->Data);
 
     //    LOG_DEBUG("Message sent (IsRequest: 0, SessionId: %s, RequestId: %s, Response: %p)",

@@ -49,7 +49,7 @@ struct IYPathService
 
         bool IsHere() const
         {
-            return ~Service_ == NULL;
+            return !Service_;
         }
     };
 

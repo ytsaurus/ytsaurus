@@ -139,11 +139,11 @@ TSnapshotCreator::TSnapshotCreator(
     , ServiceInvoker(serviceInvoker)
     , LocalProgress(ToFuture(TVoid()))
 {
-    YASSERT(~cellManager != NULL);
-    YASSERT(~metaState != NULL);
-    YASSERT(~changeLogCache != NULL);
-    YASSERT(~snapshotStore != NULL);
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(metaState);
+    YASSERT(changeLogCache);
+    YASSERT(snapshotStore);
+    YASSERT(serviceInvoker);
 
     StateInvoker = metaState->GetStateInvoker();
 }

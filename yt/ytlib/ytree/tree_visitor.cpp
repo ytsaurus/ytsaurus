@@ -21,7 +21,7 @@ void TTreeVisitor::Visit(const INode* root)
 void TTreeVisitor::VisitAny(const INode* node)
 {
     auto attributes = node->GetAttributes();
-    bool hasAttributes = ~attributes != NULL && VisitAttributes_;
+    bool hasAttributes = attributes && VisitAttributes_;
 
     switch (node->GetType()) {
         case ENodeType::String:

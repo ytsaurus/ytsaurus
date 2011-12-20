@@ -29,10 +29,10 @@ public:
 
     inline T* Get() const throw()
     {
-        if (~Value == NULL) {
+        if (!Value) {
             TGuard<TLock> guard(Lock);
-            if (~Value == NULL) {
-                Value = ~Factory == NULL ? New<T>() : Factory->Do();
+            if (!Value) {
+                Value = !Factory ? New<T>() : Factory->Do();
             }
         }
         return ~Value;
@@ -74,10 +74,10 @@ public:
 
     inline T* Get() const throw()
     {
-        if (~Value == NULL) {
+        if (!Value) {
             TGuard<TLock> guard(Lock);
-            if (~Value == NULL) {
-                Value = ~Fabric == NULL ? new T() : Fabric->Do();
+            if (!Value) {
+                Value = !Fabric ? new T() : Fabric->Do();
             }
         }
         return ~Value;

@@ -291,7 +291,7 @@ private:
         void Cleanup()
         {
             Owner.Reset();
-            if (~FileWriter != NULL) {
+            if (FileWriter) {
                 FileWriter->Cancel(TError("Chunk download canceled"));
                 FileWriter.Reset();
             }

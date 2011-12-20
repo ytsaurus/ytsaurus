@@ -23,7 +23,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config(config)
     , CellManager(cellManager)
 {
-    YASSERT(~cellManager != NULL);
+    YASSERT(cellManager);
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(

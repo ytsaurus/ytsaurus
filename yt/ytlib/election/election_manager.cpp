@@ -559,7 +559,7 @@ void TElectionManager::Reset()
     VoteEpoch = TGuid();
     Epoch = TGuid();
     EpochStart = TInstant();
-    if (~ControlEpochInvoker != NULL) {
+    if (ControlEpochInvoker) {
         ControlEpochInvoker->Cancel();
         ControlEpochInvoker.Reset();
     }
@@ -626,7 +626,7 @@ void TElectionManager::StartVoteForSelf()
     VoteId = CellManager->GetSelfId();
     VoteEpoch = TGuid::Create();
 
-    YASSERT(~ControlEpochInvoker == NULL);
+    YASSERT(!ControlEpochInvoker);
     ControlEpochInvoker = New<TCancelableInvoker>(ControlInvoker);
 
     auto priority = ElectionCallbacks->GetPriority();
@@ -686,7 +686,7 @@ void TElectionManager::StartLeading()
     StartEpoch(CellManager->GetSelfId(), VoteEpoch);
 
     // Send initial pings.
-    YASSERT(~FollowerPinger == NULL);
+    YASSERT(!FollowerPinger);
     FollowerPinger = New<TFollowerPinger>(this);
     FollowerPinger->Start();
 
@@ -705,7 +705,7 @@ void TElectionManager::StopLeading()
 
     ElectionCallbacks->OnStopLeading();
 
-    YASSERT(~FollowerPinger != NULL);
+    YASSERT(FollowerPinger);
     FollowerPinger->Stop();
     FollowerPinger.Reset();
 

@@ -250,7 +250,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     FOREACH (const auto& jobProtoId, response->jobstostop()) {
         auto jobId = TJobId::FromProto(jobProtoId);
         auto job = Replicator->FindJob(jobId);
-        if (~job == NULL) {
+        if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
                 ~jobId.ToString());
             continue;
@@ -264,7 +264,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         auto jobId = TJobId::FromProto(startInfo.jobid());
         
         auto chunk = ChunkStore->FindChunk(chunkId);
-        if (~chunk == NULL) {
+        if (!chunk) {
             LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s)",
                 ~chunkId.ToString(),
                 ~jobId.ToString());

@@ -36,7 +36,7 @@ target_link_libraries ( ytlib
   arcadia-utils
 
   qmisc
-  NetLiba
+  netliba_v6
   json
 
   # TODO(sandello): arcadia-utils should depend on these targets.

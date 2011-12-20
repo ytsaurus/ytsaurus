@@ -39,7 +39,7 @@ TFileReader::TFileReader(
 void TFileReader::Open()
 {
     auto transactionId =
-        ~Transaction == NULL 
+        !Transaction
         ? NullTransactionId
         : Transaction->GetId();
 
@@ -108,7 +108,7 @@ void TFileReader::Open()
         ~remoteReader);
 
     // Bind to the transaction.
-    if (~Transaction != NULL) {
+    if (Transaction) {
         OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
         Transaction->SubscribeAborted(OnAborted_);
     }
@@ -158,7 +158,7 @@ void TFileReader::Close()
 
 void TFileReader::Finish()
 {
-    if (~Transaction != NULL) {
+    if (Transaction) {
         Transaction->UnsubscribeAborted(OnAborted_);
     }
     OnAborted_.Reset();

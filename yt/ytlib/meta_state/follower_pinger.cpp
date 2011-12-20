@@ -32,9 +32,9 @@ TFollowerPinger::TFollowerPinger(
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(MetaState->GetStateInvoker(), StateThread);
 
-    YASSERT(~FollowerTracker != NULL);
-    YASSERT(~SnapshotStore != NULL);
-    YASSERT(~CellManager != NULL);
+    YASSERT(FollowerTracker);
+    YASSERT(SnapshotStore);
+    YASSERT(CellManager);
 
     PeriodicInvoker = new TPeriodicInvoker(
         FromMethod(&TFollowerPinger::SendPing, TPtr(this))

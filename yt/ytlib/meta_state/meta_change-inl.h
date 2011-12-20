@@ -44,7 +44,7 @@ template <class TResult>
 typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnSuccess(IParamAction<TResult>* onSuccess)
 {
-    YASSERT(~OnSuccess_ == NULL);
+    YASSERT(!OnSuccess_);
     OnSuccess_ = onSuccess;
     return this;
 }
@@ -53,7 +53,7 @@ template <class TResult>
 typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnError(IAction* onError)
 {
-    YASSERT(~OnError_ == NULL);
+    YASSERT(!OnError_);
     OnError_ = onError;
     return this;
 }
@@ -68,11 +68,11 @@ template <class TResult>
 void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 {
     if (result == ECommitResult::Committed) {
-        if (~OnSuccess_ != NULL) {
+        if (OnSuccess_) {
             OnSuccess_->Do(Result);
         }
     } else {
-        if (~OnError_ != NULL) {
+        if (OnError_) {
             OnError_->Do();
         }
     }

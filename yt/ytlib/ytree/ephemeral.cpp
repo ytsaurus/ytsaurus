@@ -185,7 +185,7 @@ ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
 
 void TEphemeralNodeBase::SetParent(ICompositeNode::TPtr parent)
 {
-    YASSERT(~parent == NULL || Parent == NULL);
+    YASSERT(!parent || Parent == NULL);
     Parent = ~parent;
 }
 
@@ -196,7 +196,7 @@ IMapNode::TPtr TEphemeralNodeBase::GetAttributes() const
 
 void TEphemeralNodeBase::SetAttributes(IMapNode::TPtr attributes)
 {
-    if (~Attributes != NULL) {
+    if (Attributes) {
         Attributes->SetParent(NULL);
         Attributes = NULL;
     }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 #include "chunk_holder_service_rpc.pb.h"
 #include "chunk_service_rpc.pb.h"
@@ -20,7 +20,7 @@ namespace NChunkHolder {
 
 //! Describes a chunk location.
 struct TLocationConfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TLocationConfig> TPtr;
 
@@ -39,7 +39,7 @@ struct TLocationConfig
 
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
 

@@ -28,7 +28,7 @@ void TPeriodicInvoker::Stop()
 {
     CancelableInvoker->Cancel();
     auto cookie = Cookie;
-    if (~cookie != NULL) {
+    if (cookie) {
         TDelayedInvoker::Cancel(cookie);
         Cookie.Reset();
     }

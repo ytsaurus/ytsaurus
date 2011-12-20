@@ -58,7 +58,7 @@ public:
     typedef TIntrusivePtr<TLeaderCommitter> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

@@ -11,7 +11,7 @@
 #include "../transaction_server/transaction.h"
 #include "../transaction_server/transaction_manager.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -31,7 +31,7 @@ extern TChunkListId NullChunkListId;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkManagerConfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
 

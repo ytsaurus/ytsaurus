@@ -1,7 +1,7 @@
-#ifndef CONFIG_INL_H_
-#error "Direct inclusion of this file is not allowed, include config.h"
+#ifndef CONFIGURABLE_INL_H_
+#error "Direct inclusion of this file is not allowed, include configurable.h"
 #endif
-#undef CONFIG_INL_H_
+#undef CONFIGURABLE_INL_H_
 
 #include "../ytree/ypath_detail.h"
 
@@ -22,16 +22,16 @@ T CheckedStaticCast(i64 value)
     return static_cast<T>(value);
 }
 
-// TConfigBase::TPtr
+// TConfigurable::TPtr
 template <class T>
 inline void Read(
     TIntrusivePtr<T>& parameter,
     NYTree::INode* node,
     const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
 {
-    if (~parameter == NULL) {
+    if (!parameter) {
         parameter = New<T>();
     }
     parameter->Load(node, path);
@@ -158,12 +158,12 @@ inline void ValidateSubconfigs(
     const NYTree::TYPath& /* path */)
 { }
 
-// TConfigBase
+// TConfigurable
 template <class T>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
     const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigBase>::TType =
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
 {
     if (parameter->Get() != NULL) {
@@ -333,7 +333,7 @@ DEFINE_VALIDATOR(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NConfig::TParameter<T>& TConfigBase::Register(const Stroka& parameterName, T& value)
+NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< TParameter<T> >(value);
     YVERIFY(Parameters.insert(

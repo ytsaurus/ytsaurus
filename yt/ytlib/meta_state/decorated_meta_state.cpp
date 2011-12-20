@@ -24,9 +24,9 @@ TDecoratedMetaState::TDecoratedMetaState(
     , StateQueue(New<TActionQueue>("MetaState"))
     , SnapshotQueue(New<TActionQueue>("Snapshot"))
 {
-    YASSERT(~state != NULL);
-    YASSERT(~snapshotStore != NULL);
-    YASSERT(~changeLogCache != NULL);
+    YASSERT(state);
+    YASSERT(snapshotStore);
+    YASSERT(changeLogCache);
 
     VERIFY_INVOKER_AFFINITY(StateQueue->GetInvoker(), StateThread);
 
@@ -115,7 +115,7 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 
 void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 {
-    YASSERT(~changeAction != NULL);
+    YASSERT(changeAction);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
@@ -136,7 +136,7 @@ void TDecoratedMetaState::IncrementRecordCount()
 
 TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
 {
-    if (~CurrentChangeLog != NULL) {
+    if (CurrentChangeLog) {
         return CurrentChangeLog;
     }
 

@@ -103,7 +103,7 @@ void TJob::Start()
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
-    if (~Writer != NULL) {
+    if (Writer) {
         Writer->Cancel(TError("Replication job stopped"));
     }
 }

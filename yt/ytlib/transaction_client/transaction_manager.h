@@ -3,7 +3,7 @@
 #include "common.h"
 #include "transaction.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../rpc/channel.h"
 #include "../transaction_server/transaction_service_rpc.h"
 
@@ -24,7 +24,7 @@ public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

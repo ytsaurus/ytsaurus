@@ -95,7 +95,7 @@ public:
             Terminated = true;
         }
 
-        YASSERT(~Bus != NULL);
+        YASSERT(Bus);
         Bus->Terminate();
         Bus.Reset();
     }

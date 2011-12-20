@@ -10,7 +10,7 @@
 #include "../actions/invoker.h"
 #include "../rpc/client.h"
 #include "../rpc/server.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NElection {
@@ -40,7 +40,7 @@ public:
     typedef TIntrusivePtr<TElectionManager> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

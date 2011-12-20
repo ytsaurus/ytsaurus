@@ -122,7 +122,7 @@ public:
 
     virtual TTransactionId GetTransactionId()
     {
-        return ~Transaction == NULL ? NullTransactionId : Transaction->GetId();
+        return !Transaction ? NullTransactionId : Transaction->GetId();
     }
 
     virtual ITransaction::TPtr GetTransaction()

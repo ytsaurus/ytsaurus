@@ -74,7 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             }
 
             auto attributes = GetAttributes();
-            if (~attributes != NULL) {
+            if (attributes) {
                 auto children = attributes->GetChildren();
                 auto sortedChildren = GetSortedIterators(children);
                 FOREACH (const auto& pair, sortedChildren) {
@@ -94,14 +94,14 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             ChopYPathToken(attributePath, &prefix, &suffixPath);
 
             auto service = GetVirtualAttributeService(prefix);
-            if (~service != NULL) {
+            if (service) {
                 response->set_value(SyncYPathGet(~service, "/" + suffixPath));
                 context->Reply();
                 return;
             }
 
             auto attributes = GetAttributes();
-            if (~attributes == NULL) {
+            if (!attributes) {
                 ythrow yexception() << "Node has no attributes";
             }
 
@@ -144,7 +144,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, GetNode)
         GetNodeSelf(request, response, context);
     } else if (IsAttributeYPath(path)) {
         auto attributes = GetAttributes();
-        if (~attributes == NULL) {
+        if (!attributes) {
             ythrow yexception() << "Node has no attributes";
         }
 
@@ -197,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
         ChopYPathToken(attributePath, &prefix, &suffixPath);
 
         auto service = GetVirtualAttributeService(prefix);
-        if (~service != NULL) {
+        if (service) {
             SyncYPathSet(~service, "/" + suffixPath, value);
             context->Reply();
             return;
@@ -261,7 +261,7 @@ void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSet
     UNUSED(context);
 
     auto parent = GetParent();
-    if (~parent == NULL) {
+    if (!parent) {
         ythrow yexception() << "Cannot set the root";
     }
 
@@ -296,7 +296,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
             ChopYPathToken(attributePath, &prefix, &suffixPath);
 
             auto attributes = GetAttributes();
-            if (~attributes == NULL) {
+            if (!attributes) {
                 ythrow yexception() << "Node has no attributes";
             }
 
@@ -319,7 +319,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
     auto parent = GetParent();
 
-    if (~parent == NULL) {
+    if (!parent) {
         ythrow yexception() << "Cannot remove the root";
     }
 
@@ -352,7 +352,7 @@ IYPathService::TPtr TNodeBase::GetVirtualAttributeService(const Stroka& name)
 IMapNode::TPtr TNodeBase::EnsureAttributes()
 {
     auto attributes = GetAttributes();
-    if (~attributes != NULL) {
+    if (attributes) {
         return attributes;
     }
 
@@ -394,7 +394,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     ChopYPathToken(path, &prefix, &suffixPath);
 
     auto child = FindChild(prefix);
-    if (~child != NULL) {
+    if (child) {
         return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
 
@@ -466,7 +466,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     } else {
         int index = ParseChildIndex(prefix);
         auto child = FindChild(index);
-        YASSERT(~child != NULL);
+        YASSERT(child);
         return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
     }
 }

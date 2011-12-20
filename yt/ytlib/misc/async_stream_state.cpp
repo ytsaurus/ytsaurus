@@ -40,7 +40,7 @@ void TAsyncStreamState::DoFail(const TError& error)
 {
     YASSERT(!error.IsOK());
     IsActive_ = false;
-    if (~CurrentError != NULL) {
+    if (CurrentError) {
         StaticError = CurrentError;
         CurrentError.Reset();
     } else {
@@ -55,7 +55,7 @@ void TAsyncStreamState::Close()
     YASSERT(IsActive_);
 
     IsActive_ = false;
-    if (~CurrentError != NULL) {
+    if (CurrentError) {
         auto result = CurrentError;
         CurrentError.Reset();
 
@@ -108,7 +108,7 @@ TAsyncError::TPtr TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
-        YASSERT(~CurrentError == NULL);
+        YASSERT(!CurrentError);
         CurrentError = New<TAsyncError>();
         return CurrentError;
     }
@@ -120,7 +120,7 @@ void TAsyncStreamState::FinishOperation(const TError& error)
     YASSERT(!IsOperationFinished);
     IsOperationFinished = true;
     if (error.IsOK()) {
-        if (IsActive_ && ~CurrentError != NULL) {
+        if (IsActive_ && CurrentError) {
             auto currentError = CurrentError;
             CurrentError.Reset();
             // Always release guard before setting future with 

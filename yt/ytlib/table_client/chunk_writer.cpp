@@ -31,7 +31,7 @@ TChunkWriter::TChunkWriter(
     , SentSize(0)
     , CurrentSize(0)
 {
-    YASSERT(~chunkWriter != NULL);
+    YASSERT(chunkWriter);
     
     Attributes.set_codecid(Config->CodecId);
     Attributes.set_rowcount(0);

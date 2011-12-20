@@ -22,8 +22,8 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
 {
-    YASSERT(~metaStateManager != NULL);
-    YASSERT(~metaState != NULL);
+    YASSERT(metaStateManager);
+    YASSERT(metaState);
 
     metaStateManager->OnStartLeading().Subscribe(FromMethod(
         &TThis::OnStartLeading,
@@ -79,7 +79,7 @@ TCompositeMetaState::TSaveContext::TSaveContext(
 
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 {
-    YASSERT(~part != NULL);
+    YASSERT(part);
 
     Parts.push_back(part);
 }
@@ -153,14 +153,14 @@ void TCompositeMetaState::Clear()
 
 void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader::TPtr loader)
 {
-    YASSERT(~loader != NULL);
+    YASSERT(loader);
 
     YVERIFY(Loaders.insert(MakePair(name, loader)).Second());
 }
 
 void TCompositeMetaState::RegisterSaver(const Stroka& name, TSaver::TPtr saver)
 {
-    YASSERT(~saver != NULL);
+    YASSERT(saver);
 
     YVERIFY(Savers.insert(MakePair(name, saver)).Second());
 }
