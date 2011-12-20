@@ -411,7 +411,7 @@ private:
     Stroka ServiceName;
     NLog::TLogger ServiceLogger;
 
-    //! Protects #RuntimeMethodInfos and #OutstandingRequests.
+    //! Protects #RuntimeMethodInfos and #ActiveRequests.
     TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
     yhash_map<IServiceContext::TPtr, TActiveRequest> ActiveRequests;

@@ -64,14 +64,18 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
             ? NULL
             : &methodIt->Second();
 
-        if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
-            Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
-                ~ToString(runtimeInfo->Descriptor.OneWay),
-                ~ToString(context->IsOneWay()),
-                ~ServiceName,
-                ~verb);
-            LOG_WARNING("%s", ~message);
-            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        // TODO (panin): implement and provide here more granulate locking
+        // TODO: look carefully here (added not NULL check of runtimeInfo)
+        if (runtimeInfo != NULL) {
+            if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
+                Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
+                    ~ToString(runtimeInfo->Descriptor.OneWay),
+                    ~ToString(context->IsOneWay()),
+                    ~ServiceName,
+                    ~verb);
+                LOG_WARNING("%s", ~message);
+                context->Reply(TError(EErrorCode::NoSuchVerb, message));
+            }
         }
 
         if (!context->IsOneWay()) {
