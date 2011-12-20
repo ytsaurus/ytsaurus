@@ -296,7 +296,8 @@ public:
     }
 
     /*! 
-     * In some cases, the actual version is greater than the version returned by this method.
+     * In some cases (when Config is being updated at the same time),
+     * the actual version is greater than the version returned by this method.
      */
     int GetConfigVersion()
     {
