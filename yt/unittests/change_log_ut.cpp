@@ -258,34 +258,34 @@ TEST_F(TChangeLogTest, TruncateAppend)
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 
-    int recordId = logRecordCount / 2;
+    int truncatedRecordId = logRecordCount / 2;
     {
         // Truncate
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
-        changeLog->Truncate(recordId);
+        changeLog->Truncate(truncatedRecordId);
 
-        CheckRead<ui32>(changeLog, 0, recordId, recordId);
+        CheckRead<ui32>(changeLog, 0, truncatedRecordId, truncatedRecordId);
     }
     {
         // Append
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
-        yvector<TSharedRef> records(logRecordCount);
-        for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
+        yvector<TSharedRef> records;
+        for (i32 recordId = truncatedRecordId; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            records[recordId] = MoveRV(blob);
+            records.push_back(MoveRV(blob));
         }
-        changeLog->Append(0, records);
+        changeLog->Append(truncatedRecordId, records);
     }
     {
         // Check
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
-        CheckRead<ui32>(changeLog, 0, recordId, recordId);
+        CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 }
 
