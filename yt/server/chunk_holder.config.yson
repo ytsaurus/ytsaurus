@@ -1,0 +1,33 @@
+{
+  locations = ["node1"];
+  masters= {
+     addresses = ["localhost:8000"; "localhost:8001"; "localhost:8002"]
+  };
+
+    "logging"= {
+        "rules"= [
+            {
+                "writers"= ["file"];
+                "categories"= ["*"];
+                "min_level"= "Debug"
+            };
+            {
+                "writers"= ["stdErr"];
+                "categories"= ["*"];
+                "min_level"= "Info"
+            }
+        ];
+        "writers"= {
+            "file" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "File";
+                "file_name"= "chunk_holder.log"
+            };
+
+            "stderr" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "StdErr";
+            }
+        }
+    }
+}

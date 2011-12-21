@@ -1,0 +1,40 @@
+{
+    "meta_state"= {
+        "cell"= {
+            "addresses"= [
+                "localhost:8000",
+                "localhost:8001",
+                "localhost:8002"
+            ]
+        };
+        "snapshot_location"= ".";
+        "max_changes_between_snapshots"= 1000000;
+        "log_location"= "."
+    },
+    "logging"= {
+        "rules"= [
+            {
+                "writers"= ["file"];
+                "categories"= ["*"];
+                "min_level"= "Debug"
+            };
+            {
+                "writers"= ["stdErr"];
+                "categories"= ["*"];
+                "min_level"= "Info"
+            }
+        ];
+        "writers"= {
+            "file" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "File";
+                "file_name"= "master.log"
+            };
+
+            "stderr" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "StdErr";
+            }
+        };
+    }
+}
