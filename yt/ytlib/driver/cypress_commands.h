@@ -52,7 +52,7 @@ struct TSetRequest
 
     virtual void Validate(const NYTree::TYPath& path = "/") const
     {
-        TConfigBase::Validate(path);
+        TConfigurableBase::Validate(path);
         if (!Value && !Stream) {
             ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is specified (Path: %s)", ~path);
         }
