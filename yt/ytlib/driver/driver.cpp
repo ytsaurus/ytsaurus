@@ -121,6 +121,9 @@ public:
 
         RegisterCommand("get", ~New<TGetCommand>(this));
         RegisterCommand("set", ~New<TSetCommand>(this));
+        RegisterCommand("remove", ~New<TRemoveCommand>(this));
+        RegisterCommand("list", ~New<TListCommand>(this));
+        RegisterCommand("create", ~New<TCreateCommand>(this));
 
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
