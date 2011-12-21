@@ -827,7 +827,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (chunk == NULL) {
+        if (!chunk) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
@@ -864,7 +864,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (chunk == NULL) {
+        if (!chunk) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~ToString(cached),
