@@ -159,16 +159,18 @@ void TChunkHolderServer::Run()
         ~controlQueue->GetInvoker());
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
+    auto orchidPathService = IYPathService::FromNode(~orchidRoot);
     httpServer->Register(
         "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
         "/orchid",
-        ~GetYPathHttpHandler(FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
-            {
-                return orchidPathService;
-            })));
+        ~NMonitoring::GetYPathHttpHandler(
+            ~FromFunctor([=] () -> IYPathService::TPtr
+                {
+                    return orchidPathService;
+                }),
+            ~controlQueue->GetInvoker()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

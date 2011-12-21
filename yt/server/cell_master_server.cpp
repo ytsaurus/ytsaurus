@@ -219,29 +219,32 @@ void TCellMasterServer::Run()
         ~chunkManager));
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    auto orchidPathService = ToFuture(IYPathService::FromNode(~orchidRoot));
+    auto orchidPathService = IYPathService::FromNode(~orchidRoot);
     httpServer->Register(
         "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(FromFunctor([=] () -> TFuture<IYPathService::TPtr>::TPtr
-            {
-                return orchidPathService;
-            })));
+        ~NMonitoring::GetYPathHttpHandler(
+            ~FromFunctor([=] () -> IYPathService::TPtr
+                {
+                    return orchidPathService;
+                }),
+            ~metaStateManager->GetStateInvoker()));
     httpServer->Register(
         "/cypress",
-        ~NMonitoring::GetYPathHttpHandler(FromFunctor([=] () -> IYPathService::TPtr
-            {
-                auto status = metaStateManager->GetStateStatus();
-                if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
-                    return NULL;
-                }
-                return IYPathService::FromNode(~cypressManager->GetNodeProxy(
-                    RootNodeId,
-                    NTransactionServer::NullTransactionId));
-            })
-        ->AsyncVia(metaStateManager->GetStateInvoker())));            
+        ~NMonitoring::GetYPathHttpHandler(
+            ~FromFunctor([=] () -> IYPathService::TPtr
+                {
+                    auto status = metaStateManager->GetStateStatus();
+                    if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
+                        return NULL;
+                    }
+                    return IYPathService::FromNode(~cypressManager->GetNodeProxy(
+                        RootNodeId,
+                        NTransactionServer::NullTransactionId));
+                }),
+            ~metaStateManager->GetStateInvoker()));
 
     metaStateManager->Start();
 
