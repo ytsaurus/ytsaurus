@@ -91,13 +91,13 @@ class Holder(Server):
     config = Template({ 
         'masters' : { 'addresses' : MasterAddresses },
         'chunk_store_locations' : [
-            { 'path' : '/yt/disk1/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk2/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk3/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk4/chunk_store', 'quota' : storeQuota }
+            { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk3/data/chunk_store', 'quota' : storeQuota },
+            { 'path' : '/yt/disk4/data/chunk_store', 'quota' : storeQuota }
         ],
         'chunk_cache_location' : {
-            'path' : '/yt/disk1/chunk_cache', 'quota' : cacheQuota
+            'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { },
         'cache_sequential_reader' : { },
