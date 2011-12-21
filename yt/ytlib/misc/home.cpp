@@ -13,9 +13,9 @@ namespace NYT {
 Stroka GetHomePath()
 {
 #ifdef _win_
-    Stroka path;
-    SHGetSpecialFolderPath(0, ~path, CSIDL_PROFILE, 0);
-    return path;
+    char buffer[1024];
+    SHGetSpecialFolderPath(0, buffer, CSIDL_PROFILE, 0);
+    return Stroka(buffer);
 #else
     return std::getenv("HOME");
 #endif
