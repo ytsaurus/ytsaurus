@@ -22,7 +22,7 @@ TServiceContextBase::TServiceContextBase(
     , OneWay(header.has_one_way() ? header.one_way() : false)
     , Replied(false)
 {
-    YASSERT(requestMessage != NULL);
+    YASSERT(requestMessage);
 
     const auto& parts = requestMessage->GetParts();
     YASSERT(parts.size() >= 2);

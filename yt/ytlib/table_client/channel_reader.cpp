@@ -42,7 +42,7 @@ void TChannelReader::SetBlock(TSharedRef&& block)
 
 bool TChannelReader::NextRow()
 {
-    if (CurrentBlock.Begin() == NULL) {
+    if (!CurrentBlock.Begin()) {
         return false;
     }
 

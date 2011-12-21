@@ -33,8 +33,8 @@ TCypressService::TCypressService(
     , CypressManager(cypressManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(server != NULL);
+    YASSERT(cypressManager);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 
@@ -44,7 +44,7 @@ TCypressService::TCypressService(
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
 {
     if (transactionId != NullTransactionId &&
-        TransactionManager->FindTransaction(transactionId) == NULL)
+        !TransactionManager->FindTransaction(transactionId))
     {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());

@@ -231,9 +231,9 @@ void SetNodeFromProducer(
     TYsonProducer* producer,
     ITreeBuilder* builder)
 {
-    YASSERT(node != NULL);
-    YASSERT(producer != NULL);
-    YASSERT(builder != NULL);
+    YASSERT(node);
+    YASSERT(producer);
+    YASSERT(builder);
 
     TNodeSetter<TNode> setter(node, builder);
     producer->Do(&setter);

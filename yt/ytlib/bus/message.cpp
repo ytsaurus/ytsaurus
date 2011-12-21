@@ -63,7 +63,7 @@ IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs)
 
 IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart, int sliceSize)
 {
-    YASSERT(message != NULL);
+    YASSERT(message);
     YASSERT(sliceStart >= 0 && sliceStart + sliceSize <= message->GetParts().ysize());
 
     auto parts = message->GetParts();
@@ -76,7 +76,7 @@ IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart, int sli
 
 IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart)
 {
-    YASSERT(message != NULL);
+    YASSERT(message);
     YASSERT(sliceStart >= 0 && sliceStart <= message->GetParts().ysize());
 
     return CreateMessageFromSlice(

@@ -44,7 +44,7 @@ protected:
     {
         auto proxy = CypressManager->GetNodeProxy(NodeId, NullTransactionId);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
-        YASSERT(typedProxy != NULL);
+        YASSERT(typedProxy);
         return typedProxy;
     }
 

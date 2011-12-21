@@ -106,8 +106,8 @@ public:
         : Config(config)
         , StreamProvider(streamProvider)
     {
-        YASSERT(config != NULL);
-        YASSERT(streamProvider != NULL);
+        YASSERT(config);
+        YASSERT(streamProvider);
 
         MasterChannel = CreateCellChannel(~config->Masters);
 

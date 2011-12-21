@@ -114,7 +114,7 @@ void CleanTempFiles(const Stroka& path)
     TFileList fileList;
     fileList.Fill(path);
     const char* fileName;
-    while ((fileName = fileList.Next()) != NULL) {
+    while (fileName = fileList.Next()) {
         Stroka fullName = path + "/" + Stroka(fileName);
         if (fullName.has_suffix(TempFileSuffix)) {
             LOG_INFO("Removing file %s", ~fullName);

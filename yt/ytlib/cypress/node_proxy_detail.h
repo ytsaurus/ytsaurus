@@ -65,8 +65,8 @@ public:
         , NodeFactory(cypressManager, transactionId)
         , Locked(false)
     {
-        YASSERT(typeHandler != NULL);
-        YASSERT(cypressManager != NULL);
+        YASSERT(typeHandler);
+        YASSERT(cypressManager);
     }
 
     NYTree::INodeFactory::TPtr CreateFactory() const
@@ -272,7 +272,7 @@ protected:
 
     static ICypressNodeProxy* ToProxy(INode* node)
     {
-        YASSERT(node != NULL);
+        YASSERT(node);
         return &dynamic_cast<ICypressNodeProxy&>(*node);
     }
 

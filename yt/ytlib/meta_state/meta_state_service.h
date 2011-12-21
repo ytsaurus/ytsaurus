@@ -27,7 +27,7 @@ protected:
             loggingCategory)
         , MetaStateManager(metaStateManager)
     {
-        YASSERT(metaStateManager != NULL);
+        YASSERT(metaStateManager);
     }
 
     template <class TContext>

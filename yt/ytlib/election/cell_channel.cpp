@@ -70,8 +70,8 @@ public:
         IClientResponseHandler* responseHandler,
         TDuration timeout)
     {
-        YASSERT(request != NULL);
-        YASSERT(responseHandler != NULL);
+        YASSERT(request);
+        YASSERT(responseHandler);
         YASSERT(State != EState::Terminated);
 
         GetChannel()->Subscribe(FromMethod(

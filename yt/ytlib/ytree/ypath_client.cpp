@@ -42,7 +42,7 @@ IMessage::TPtr TYPathRequest::Serialize()
 
 void TYPathResponse::Deserialize(NBus::IMessage* message)
 {
-    YASSERT(message != NULL);
+    YASSERT(message);
 
     auto header = GetResponseHeader(message);
     Error_ = GetResponseError(header);

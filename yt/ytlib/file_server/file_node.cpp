@@ -129,7 +129,7 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
 
-    if (chunk == NULL || !chunk->IsConfirmed()) {
+    if (!chunk || !chunk->IsConfirmed()) {
         BuildYsonFluently(param.Consumer).Scalar(-1);
         return;
     }
@@ -142,7 +142,7 @@ void TFileNodeTypeHandler::GetCodecId(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
 
-    if (chunk == NULL || !chunk->IsConfirmed()) {
+    if (!chunk || !chunk->IsConfirmed()) {
         BuildYsonFluently(param.Consumer).Scalar(-1);
         return;
     }
@@ -159,7 +159,7 @@ void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)
 void TFileNodeTypeHandler::GetChunkId(const TGetAttributeParam& param)
 {
     const auto* chunk = GetChunk(*param.Node);
-    auto chunkId = chunk == NULL ? NChunkClient::TChunkId() : chunk->GetId();
+    auto chunkId = !chunk ? NChunkClient::TChunkId() : chunk->GetId();
     BuildYsonFluently(param.Consumer).Scalar(chunkId.ToString());
 }
 

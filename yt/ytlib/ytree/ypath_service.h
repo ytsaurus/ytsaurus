@@ -39,7 +39,7 @@ struct IYPathService
 
         static TResolveResult There(IYPathService* service, const TYPath& path)
         {
-            YASSERT(service != NULL);
+            YASSERT(service);
 
             TResolveResult result;
             result.Service_ = service;

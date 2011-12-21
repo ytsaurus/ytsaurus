@@ -39,10 +39,9 @@ TFileWriter::TFileWriter(
     , BlockCount(0)
     , Logger(FileClientLogger)
 {
+    YASSERT(masterChannel);
+
     // TODO: use totalReplicaCount
-
-    YASSERT(masterChannel != NULL);
-
     Logger.SetTag(Sprintf("Path: %s", ~Path));
 
     LOG_INFO("File writer is open (TransactionId: %s)", ~TransactionId.ToString());

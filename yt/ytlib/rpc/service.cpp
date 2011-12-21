@@ -23,14 +23,14 @@ TServiceBase::TServiceBase(
     , ServiceName(serviceName)
     , ServiceLogger(loggingCategory)
 {
-    YASSERT(defaultServiceInvoker != NULL);
+    YASSERT(defaultServiceInvoker);
 }
 
 void TServiceBase::RegisterMethod(
     const TMethodDescriptor& descriptor,
     IInvoker* invoker)
 {
-    YASSERT(invoker != NULL);
+    YASSERT(invoker);
 
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -50,7 +50,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 
 void TServiceBase::OnBeginRequest(IServiceContext* context)
 {
-    YASSERT(context != NULL);
+    YASSERT(context);
 
     Stroka verb = context->GetVerb();
     
@@ -66,7 +66,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 
         // TODO (panin): implement and provide here more granulate locking
         // TODO: look carefully here (added not NULL check of runtimeInfo)
-        if (runtimeInfo != NULL) {
+        if (runtimeInfo) {
             if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
                 Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
                     ~ToString(runtimeInfo->Descriptor.OneWay),
@@ -84,7 +84,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         }
     }
 
-    if (runtimeInfo == NULL) {
+    if (!runtimeInfo) {
         Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~verb);
@@ -99,7 +99,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 
 void TServiceBase::OnEndRequest(IServiceContext* context)
 {
-    YASSERT(context != NULL);
+    YASSERT(context);
     YASSERT(!context->IsOneWay());
 
     TGuard<TSpinLock> guard(SpinLock);
@@ -108,7 +108,7 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
     YASSERT(it != ActiveRequests.end());
     
     auto& request = it->Second();
-    if (request.RuntimeInfo != NULL) {
+    if (request.RuntimeInfo) {
         request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
     }
 

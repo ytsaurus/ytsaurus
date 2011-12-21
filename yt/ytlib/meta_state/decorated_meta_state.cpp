@@ -65,7 +65,7 @@ void TDecoratedMetaState::Clear()
 
 TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
 {
-    YASSERT(output != NULL);
+    YASSERT(output);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started saving snapshot");
@@ -83,7 +83,7 @@ void TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
-    YASSERT(input != NULL);
+    YASSERT(input);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started loading snapshot %d", segmentId);

@@ -54,7 +54,7 @@ public:
         const TSharedRef& changeData,
         IAction* changeAction = NULL)
     {
-        if (changeAction == NULL) {
+        if (!changeAction) {
             MetaState->ApplyChange(changeData);
         } else {
             changeAction->Do();

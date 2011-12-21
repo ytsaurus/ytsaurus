@@ -41,8 +41,8 @@ public:
         IClientResponseHandler* responseHandler,
         TDuration timeout)
     {
-        YASSERT(request != NULL);
-        YASSERT(responseHandler != NULL);
+        YASSERT(request);
+        YASSERT(responseHandler);
 
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -236,7 +236,7 @@ private:
 
 IChannel::TPtr CreateBusChannel(NBus::IBusClient* client)
 {
-    YASSERT(client != NULL);
+    YASSERT(client);
 
     return New<TChannel>(client);
 }

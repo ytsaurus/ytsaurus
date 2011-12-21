@@ -23,7 +23,7 @@ TTableReader::TTableReader(
     : Config(config)
     , Transaction(transaction)
 {
-    YASSERT(masterChannel != NULL);
+    YASSERT(masterChannel);
 
     TTransactionId txId = !Transaction ? NullTransactionId : Transaction->GetId();
 

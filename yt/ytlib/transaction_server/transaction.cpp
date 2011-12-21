@@ -19,7 +19,7 @@ TAutoPtr<TTransaction> TTransaction::Clone() const
 
 void TTransaction::Save(TOutputStream* output) const
 {
-    YASSERT(output != NULL);
+    YASSERT(output);
 
     ::Save(output, AllocatedChunkIds_);
     ::Save(output, ConfirmedChunkIds_);
@@ -30,7 +30,7 @@ void TTransaction::Save(TOutputStream* output) const
 
 TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream* input)
 {
-    YASSERT(input != NULL);
+    YASSERT(input);
 
     auto* transaction = new TTransaction(id);
     ::Load(input, transaction->AllocatedChunkIds_);

@@ -254,7 +254,7 @@ TEST_F(TMetaStateMapTest, StressSave)
                 TValue* ptr = map.FindForUpdate(key);
                 auto it = checkMap.find(key);
                 if (it == checkMap.end()) {
-                    EXPECT_IS_TRUE(ptr == NULL);
+                    EXPECT_IS_TRUE(!ptr);
                 } else {
                     EXPECT_EQ(ptr->Value, it->second);
                     it->second = value;

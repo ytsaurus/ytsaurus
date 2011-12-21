@@ -31,7 +31,7 @@ TFileReader::TFileReader(
     , BlockIndex(0)
     , Logger(FileClientLogger)
 {
-    YASSERT(masterChannel != NULL);
+    YASSERT(masterChannel);
 
     Logger.SetTag(Sprintf("Path: %s", ~Path));
 
