@@ -41,7 +41,7 @@ public:
             Register("codec_id", CodecId).Default(ECodecId::None);
             Register("total_replica_count", TotalReplicaCount).Default(3).GreaterThanOrEqual(1);
             Register("upload_replica_count", UploadReplicaCount).Default(2).GreaterThanOrEqual(1);
-            Register("remote_writer", RemoteWriter).Default(New<NChunkClient::TRemoteWriter::TConfig>());
+            Register("remote_writer", RemoteWriter).DefaultNew();
         }
 
         virtual void Validate(const NYTree::TYPath& path = "/")
