@@ -20,13 +20,13 @@ TMessageRearranger::TMessageRearranger(
     , Timeout(timeout)
     , ExpectedSequenceId(-1)
 {
-    YASSERT(onMessage != NULL);
+    YASSERT(onMessage);
 }
 
 void TMessageRearranger::EnqueueMessage(IMessage* message, TSequenceId sequenceId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(message != NULL);
+    YASSERT(message);
 
     TGuard<TSpinLock> guard(SpinLock);
 

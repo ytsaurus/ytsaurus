@@ -251,7 +251,7 @@ TNLBusServer::~TNLBusServer()
 
 void TNLBusServer::Start(IMessageHandler* handler)
 {
-    YASSERT(handler != NULL);
+    YASSERT(handler);
     YASSERT(!Started);
 
     Requester = CreateHttpUdpRequester(Config->Port);

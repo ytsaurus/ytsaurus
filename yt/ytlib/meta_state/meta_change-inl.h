@@ -89,9 +89,9 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     TResult (TTarget::* func)(const TMessage&),
     TTarget* target)
 {
-    YASSERT(metaStateManager != NULL);
-    YASSERT(func != NULL);
-    YASSERT(target != NULL);
+    YASSERT(metaStateManager);
+    YASSERT(func);
+    YASSERT(target);
 
     NProto::TMsgChangeHeader header;
     header.set_changetype(message.GetTypeName());
@@ -112,8 +112,8 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     const TMessage& message,
     IFunc<TResult>* func)
 {
-    YASSERT(metaStateManager != NULL);
-    YASSERT(func != NULL);
+    YASSERT(metaStateManager);
+    YASSERT(func);
 
     NProto::TMsgChangeHeader header;
     header.set_changetype(message.GetTypeName());

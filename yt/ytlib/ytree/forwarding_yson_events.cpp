@@ -31,7 +31,7 @@ void TForwardingYsonConsumer::DoForward(
     int depth)
 {
     YASSERT(ForwardingConsumer == NULL);
-    YASSERT(consumer != NULL);
+    YASSERT(consumer);
 
     ForwardingConsumer = consumer;
     ForwardingDepth = depth;

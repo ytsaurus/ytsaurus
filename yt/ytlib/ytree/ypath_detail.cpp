@@ -333,9 +333,9 @@ void ResolveYPath(
     IYPathService::TPtr* suffixService,
     TYPath* suffixPath)
 {
-    YASSERT(rootService != NULL);
-    YASSERT(suffixService != NULL);
-    YASSERT(suffixPath != NULL);
+    YASSERT(rootService);
+    YASSERT(suffixService);
+    YASSERT(suffixPath);
 
     IYPathService::TPtr currentService = rootService;
     auto currentPath = ChopYPathRootMarker(path);
@@ -369,8 +369,8 @@ void WrapYPathRequest(
     NRpc::TClientRequest* outerRequest,
     NBus::IMessage* innerRequestMessage)
 {
-    YASSERT(outerRequest != NULL);
-    YASSERT(innerRequestMessage != NULL);
+    YASSERT(outerRequest);
+    YASSERT(innerRequestMessage);
 
     const auto& parts = innerRequestMessage->GetParts();
     outerRequest->Attachments() = yvector<TSharedRef>(parts.begin(), parts.end());
@@ -379,7 +379,7 @@ void WrapYPathRequest(
 NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext)
 {
-    YASSERT(outerContext != NULL);
+    YASSERT(outerContext);
 
     const auto& parts = outerContext->RequestAttachments();
     YASSERT(parts.ysize() >= 2);
@@ -391,8 +391,8 @@ void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage)
 {
-    YASSERT(outerContext != NULL);
-    YASSERT(responseMessage != NULL);
+    YASSERT(outerContext);
+    YASSERT(responseMessage);
 
     outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
 }
@@ -404,7 +404,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler)
 {
-    YASSERT(requestMessage != NULL);
+    YASSERT(requestMessage);
 
     TRequestHeader header;
     header.set_path(path);
@@ -419,7 +419,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 NBus::IMessage::TPtr UnwrapYPathResponse(
     TClientResponse* outerResponse)
 {
-    YASSERT(outerResponse != NULL);
+    YASSERT(outerResponse);
 
     auto parts = outerResponse->Attachments();
     return CreateMessageFromParts(parts);

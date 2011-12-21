@@ -12,7 +12,7 @@ using namespace NYTree;
 
 void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
-    YASSERT(node != NULL);
+    YASSERT(node);
     NYTree::IMapNode::TPtr mapNode;
     try {
         mapNode = node->AsMap();

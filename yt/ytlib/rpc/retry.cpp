@@ -69,9 +69,9 @@ public:
         , OriginalHandler(originalHandler)
         , Timeout(timeout)
     {
-        YASSERT(channel != NULL);
-        YASSERT(request != NULL);
-        YASSERT(originalHandler != NULL);
+        YASSERT(channel);
+        YASSERT(request);
+        YASSERT(originalHandler);
     }
 
     void Send() 
@@ -181,7 +181,7 @@ TRetriableChannel::TRetriableChannel(
     : UnderlyingChannel_(underlyingChannel)
     , Config_(config)
 {
-    YASSERT(underlyingChannel != NULL);
+    YASSERT(underlyingChannel);
 }
 
 void TRetriableChannel::Send(
@@ -189,8 +189,8 @@ void TRetriableChannel::Send(
     IClientResponseHandler* responseHandler, 
     TDuration timeout)
 {
-    YASSERT(request != NULL);
-    YASSERT(responseHandler != NULL);
+    YASSERT(request);
+    YASSERT(responseHandler);
 
     auto retriableRequest = New<TRetriableRequest>(
         this,

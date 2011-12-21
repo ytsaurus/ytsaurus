@@ -580,7 +580,7 @@ TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
 IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(handler != NULL);
+    YASSERT(handler);
 
     auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);

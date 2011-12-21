@@ -150,7 +150,7 @@ public:
         //! Actually appends the record and flushes the queue if required.
         void DoAppend(TRecord* record)
         {
-            YASSERT(record != NULL);
+            YASSERT(record);
             YASSERT(!record->WaitingForSync);
 
             yvector<TSharedRef> records;

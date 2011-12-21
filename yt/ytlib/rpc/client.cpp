@@ -19,7 +19,7 @@ TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
 {
-    YASSERT(channel != NULL);
+    YASSERT(channel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +33,7 @@ TClientRequest::TClientRequest(
     , RequestId_(TRequestId::Create())
     , Channel(channel)
 {
-    YASSERT(channel != NULL);
+    YASSERT(channel);
 }
 
 IMessage::TPtr TClientRequest::Serialize() const
@@ -110,7 +110,7 @@ IMessage::TPtr TClientResponse::GetResponseMessage() const
 
 void TClientResponse::Deserialize(IMessage* responseMessage)
 {
-    YASSERT(responseMessage != NULL);
+    YASSERT(responseMessage);
     YASSERT(!ResponseMessage);
 
     ResponseMessage = responseMessage;

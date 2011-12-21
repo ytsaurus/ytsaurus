@@ -42,7 +42,7 @@ TChunkHolderService::TChunkHolderService(
     , BlockStore(blockStore)
     , SessionManager(sessionManager)
 {
-    YASSERT(server != NULL);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));

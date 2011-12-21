@@ -28,7 +28,7 @@ TChunk::TChunk(const TChunk& other)
     , StoredLocations_(other.StoredLocations_)
     , RefCounter(other.RefCounter)
 {
-    if (~other.CachedLocations_ != NULL) {
+    if (~other.CachedLocations_) {
         CachedLocations_ = new yhash_set<THolderId>(*other.CachedLocations_);
     }
 }

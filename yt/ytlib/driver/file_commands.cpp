@@ -26,7 +26,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
     while (true) {
         auto block = reader->Read();
-        if (~block == NULL)
+        if (!block)
             break;
 
         output->Write(block.Begin(), block.Size());

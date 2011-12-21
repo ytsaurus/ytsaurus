@@ -101,9 +101,9 @@ public:
         , ReadOnly(false)
         , CommitInProgress(false)
     {
-        YASSERT(controlInvoker != NULL);
-        YASSERT(metaState != NULL);
-        YASSERT(server != NULL);
+        YASSERT(controlInvoker);
+        YASSERT(metaState);
+        YASSERT(server);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));

@@ -155,7 +155,7 @@ public:
         , Logger(RpcLogger)
         , Context(context)
     {
-        YASSERT(context != NULL);
+        YASSERT(context);
 
         if (!DeserializeProtobuf(&Request_, context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
@@ -200,7 +200,7 @@ public:
 
     IAction::TPtr Wrap(IAction* action)
     {
-        YASSERT(action != NULL);
+        YASSERT(action);
         return Context->Wrap(action);
     }
 
@@ -284,7 +284,7 @@ public:
 
     IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
-        YASSERT(paramAction != NULL);
+        YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 
@@ -311,7 +311,7 @@ public:
 
     IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
     {
-        YASSERT(paramAction != NULL);
+        YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(TPtr(this)));
     }
 };
@@ -342,7 +342,7 @@ protected:
             , Handler(handler)
             , OneWay(oneWay)
         {
-            YASSERT(handler != NULL);
+            YASSERT(handler);
         }
 
         //! Service method name.

@@ -33,8 +33,8 @@ TCypressService::TCypressService(
     , CypressManager(cypressManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(server != NULL);
+    YASSERT(cypressManager);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 

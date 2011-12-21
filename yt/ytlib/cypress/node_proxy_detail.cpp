@@ -16,7 +16,7 @@ TNodeFactory::TNodeFactory(
     : CypressManager(cypressManager)
     , TransactionId(transactionId)
 {
-    YASSERT(cypressManager != NULL);
+    YASSERT(cypressManager);
 }
 
 TNodeFactory::~TNodeFactory()

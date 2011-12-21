@@ -29,9 +29,9 @@ TChunkReplication::TChunkReplication(
     , ChunkPlacement(chunkPlacement)
     , Invoker(invoker)
 {
-    YASSERT(chunkManager != NULL);
-    YASSERT(chunkPlacement != NULL);
-    YASSERT(invoker != NULL);
+    YASSERT(chunkManager);
+    YASSERT(chunkPlacement);
+    YASSERT(invoker);
 
     ScheduleNextRefresh();
 }
@@ -412,7 +412,7 @@ void TChunkReplication::GetReplicaStatistics(
     }
 
     const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
-    if (jobList != NULL) {
+    if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
         FOREACH(auto holderId, chunk.StoredLocations()) {
             const auto& holder = ChunkManager->GetHolder(holderId);
@@ -474,7 +474,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
     FOREACH(auto holderId, chunk.StoredLocations()) {
         auto* holderInfo = FindHolderInfo(holderId);
-        if (holderInfo != NULL) {
+        if (holderInfo) {
             holderInfo->ChunksToReplicate.erase(chunk.GetId());
             holderInfo->ChunksToRemove.erase(chunk.GetId());
         }
@@ -575,7 +575,7 @@ void TChunkReplication::OnRefresh()
             break;
 
         auto* chunk = ChunkManager->FindChunk(entry.ChunkId);
-        if (chunk != NULL) {
+        if (chunk) {
             Refresh(*chunk);
         }
 

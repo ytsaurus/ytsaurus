@@ -31,8 +31,8 @@ TChunkService::TChunkService(
     , ChunkManager(chunkManager)
     , TransactionManager(transactionManager)
 {
-    YASSERT(chunkManager != NULL);
-    YASSERT(server != NULL);
+    YASSERT(chunkManager);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));

@@ -40,10 +40,10 @@ TMasterConnector::TMasterConnector(
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    YASSERT(chunkStore != NULL);
-    YASSERT(sessionManager != NULL);
-    YASSERT(replicator != NULL);
-    YASSERT(serviceInvoker != NULL);
+    YASSERT(chunkStore);
+    YASSERT(sessionManager);
+    YASSERT(replicator);
+    YASSERT(serviceInvoker);
 
     auto channel = CreateCellChannel(~Config->Masters);
     Proxy.Reset(new TProxy(~channel));

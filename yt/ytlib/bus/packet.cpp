@@ -64,7 +64,7 @@ bool EncodeMessagePacket(
     TSequenceId sequenceId,
     TBlob* data)
 {
-    YASSERT(message != NULL);
+    YASSERT(message);
 
     const auto& parts = message->GetParts();
 

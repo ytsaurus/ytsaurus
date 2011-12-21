@@ -63,7 +63,7 @@ template <class TKey, class TValue, class TTraits, class THash >
 void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* value)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
-    YASSERT(value != NULL);
+    YASSERT(value);
 
     switch (State) {
         case EState::SavingSnapshot: {
@@ -153,7 +153,7 @@ const TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) 
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto* value = Find(key);
-    YASSERT(value != NULL);
+    YASSERT(value);
     return *value;
 }
 
@@ -163,7 +163,7 @@ TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::GetForUpdate(const TKey& ke
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto* value = FindForUpdate(key);
-    YASSERT(value != NULL);
+    YASSERT(value);
     return *value;
 }
 
@@ -418,7 +418,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::MergeTempTablesIfNeeded()
     FOREACH (const auto& pair, PatchMap) {
         auto* value = pair.Second();
         auto mainIt = PrimaryMap.find(pair.First());
-        if (value != NULL) {
+        if (value) {
             if (mainIt == PrimaryMap.end()) {
                 YVERIFY(PrimaryMap.insert(MakePair(pair.First(), value)).Second());
             } else {

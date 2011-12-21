@@ -82,8 +82,8 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -138,8 +138,8 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -242,8 +242,8 @@ INodeTypeHandler::TPtr CreateHolderTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return New<THolderTypeHandler>(cypressManager, chunkManager);
 }
@@ -401,8 +401,8 @@ INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return New<THolderMapTypeHandler>(metaStateManager, cypressManager, chunkManager);
 }

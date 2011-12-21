@@ -58,7 +58,7 @@ public:
     {
         if (AtomicDecrement(RefCounter) == 0) {
 #ifdef ENABLE_REF_COUNTED_TRACKING
-            YASSERT(Cookie != NULL);
+            YASSERT(Cookie);
             TRefCountedTracker::Get()->Unregister(Cookie);
 #endif
             delete this;

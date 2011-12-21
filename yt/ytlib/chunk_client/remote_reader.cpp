@@ -27,7 +27,7 @@ TRemoteReader::TRemoteReader(
     , ExecutionTime(0, 1000, 20)
     , CurrentHolder(0)
 {
-    YASSERT(config != NULL);
+    YASSERT(config);
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr

@@ -480,7 +480,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 {
     YASSERT(firstRecordId >= 0);
     YASSERT(recordCount >= 0);
-    YASSERT(result != NULL);
+    YASSERT(result);
 
     YASSERT(State == EState::Open || State == EState::Finalized);
 

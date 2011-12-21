@@ -21,8 +21,8 @@ THolderLeaseTracker::THolderLeaseTracker(
     , ChunkManager(chunkManager)
     , Invoker(invoker)
 {
-    YASSERT(chunkManager != NULL);
-    YASSERT(invoker != NULL);
+    YASSERT(chunkManager);
+    YASSERT(invoker);
 }
 
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)

@@ -32,8 +32,8 @@ TSession::TSession(
     , HasChunkInfo(0)
     , Logger(ChunkHolderLogger)
 {
-    YASSERT(sessionManager != NULL);
-    YASSERT(location != NULL);
+    YASSERT(sessionManager);
+    YASSERT(location);
 
     Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
@@ -356,9 +356,9 @@ TSessionManager::TSessionManager(
     , ChunkStore(chunkStore)
     , ServiceInvoker(serviceInvoker)
 {
-    YASSERT(blockStore != NULL);
-    YASSERT(chunkStore != NULL);
-    YASSERT(serviceInvoker != NULL);
+    YASSERT(blockStore);
+    YASSERT(chunkStore);
+    YASSERT(serviceInvoker);
 }
 
 TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const

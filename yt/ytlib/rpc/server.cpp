@@ -38,9 +38,9 @@ public:
         , Service(service)
         , Logger(loggingCategory)
     {
-        YASSERT(replyBus != NULL);
-        YASSERT(service != NULL);
-        YASSERT(service != NULL);
+        YASSERT(replyBus);
+        YASSERT(service);
+        YASSERT(service);
     }
 
 private:
@@ -108,7 +108,7 @@ public:
 
     virtual void RegisterService(IService* service)
     {
-        YASSERT(service != NULL);
+        YASSERT(service);
 
         YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
         LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());

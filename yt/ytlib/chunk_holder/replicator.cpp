@@ -34,10 +34,10 @@ TJob::TJob(
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
     , Logger(ChunkHolderLogger)
 {
-    YASSERT(serviceInvoker != NULL);
-    YASSERT(chunkStore != NULL);
-    YASSERT(blockStore != NULL);
-    YASSERT(chunk != NULL);
+    YASSERT(serviceInvoker);
+    YASSERT(chunkStore);
+    YASSERT(blockStore);
+    YASSERT(chunk);
 
     Logger.SetTag(Sprintf("JobId: %s", ~JobId.ToString()));
 }
@@ -209,9 +209,9 @@ TReplicator::TReplicator(
     , BlockStore(blockStore)
     , ServiceInvoker(serviceInvoker)
 {
-    YASSERT(chunkStore != NULL);
-    YASSERT(blockStore != NULL);
-    YASSERT(serviceInvoker != NULL);
+    YASSERT(chunkStore);
+    YASSERT(blockStore);
+    YASSERT(serviceInvoker);
 }
 
 TJob::TPtr TReplicator::StartJob(

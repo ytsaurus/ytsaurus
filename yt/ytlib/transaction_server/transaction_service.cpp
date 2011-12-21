@@ -24,8 +24,8 @@ TTransactionService::TTransactionService(
         TransactionServerLogger.GetCategory())
     , TransactionManager(transactionManager)
 {
-    YASSERT(transactionManager != NULL);
-    YASSERT(server != NULL);
+    YASSERT(transactionManager);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));

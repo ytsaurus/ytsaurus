@@ -12,7 +12,7 @@ namespace NYTree {
 
 IYPathService::TPtr IYPathService::FromNode(INode* node)
 {
-    YASSERT(node != NULL);
+    YASSERT(node);
     auto* service = dynamic_cast<IYPathService*>(node);
     if (service == NULL) {
         ythrow yexception() << "Node does not support YPath";

@@ -33,7 +33,7 @@ void TFuture<T>::Set(T value)
         IsSet_ = true;
 
         Event* event = ~ReadyEvent;
-        if (event != NULL) {
+        if (event) {
             event->Signal();
         }
 

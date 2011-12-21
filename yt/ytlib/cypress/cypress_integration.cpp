@@ -53,7 +53,7 @@ private:
 INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
     TCypressManager* cypressManager)
 {
-    YASSERT(cypressManager != NULL);
+    YASSERT(cypressManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -104,7 +104,7 @@ private:
 INodeTypeHandler::TPtr CreateLockMapTypeHandler(
     TCypressManager* cypressManager)
 {
-    YASSERT(cypressManager != NULL);
+    YASSERT(cypressManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,

@@ -53,8 +53,8 @@ NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TTransactionManager* transactionManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(transactionManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(transactionManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
