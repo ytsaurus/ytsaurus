@@ -93,8 +93,8 @@ bool TRange::IsInfinite() const
 
 void TChannel::AddColumn(const TColumn& column)
 {
-    FOREACH(auto& oldColumn, Columns){
-        if (oldColumn == column) {
+    FOREACH(const auto& existingColumn, Columns) {
+        if (existingColumn == column) {
             return;
         }
     }
@@ -125,7 +125,7 @@ NProto::TChannel TChannel::ToProto() const
     return protoChannel;
 }
 
-NYT::NTableClient::TChannel TChannel::FromProto( const NProto::TChannel& protoChannel )
+NYT::NTableClient::TChannel TChannel::FromProto(const NProto::TChannel& protoChannel)
 {
     TChannel result;
     for (int i = 0; i < protoChannel.columns_size(); ++i) {
@@ -194,7 +194,7 @@ bool TChannel::Overlaps(const TRange& range) const
     }
 
     FOREACH(auto& currentRange, Ranges) {
-        if (currentRange.Overlaps(range)){
+        if (currentRange.Overlaps(range)) {
             return true;
         }
     }
@@ -228,7 +228,6 @@ bool TChannel::IsEmpty() const
 {
     return Columns.empty() && Ranges.empty();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
