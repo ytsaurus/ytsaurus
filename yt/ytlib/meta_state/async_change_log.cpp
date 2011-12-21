@@ -4,6 +4,7 @@
 #include "../misc/foreach.h"
 #include "../misc/singleton.h"
 #include "../actions/action_util.h"
+#include "../misc/thread_affinity.h"
 
 #include <util/system/thread.h>
 
@@ -20,225 +21,314 @@ static i32 UnflushedRecordsThreshold = 100000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncChangeLog::TImpl
-    : public TActionQueue
+class TChangeLogQueue
+    : public TRefCountedBase
 {
 public:
-    ////////////////////////////////////////////////////////////////////////////////
+    typedef TIntrusivePtr<TChangeLogQueue> TPtr;
+    typedef TAsyncChangeLog::TAppendResult TAppendResult;
 
-    //! Queue for asynchronous appending of the changes to the changelog.
-    /*!
-     * Internally, this class delegates all the work to the underlying changelog
-     * and eventually performs I/O synchronization hence marking changes as flushed.
-     */
-    class TChangeLogQueue
-        : public TRefCountedBase
-    {
-    public:
-        typedef TIntrusivePtr<TChangeLogQueue> TPtr;
+    // Guarded by TImpl::SpinLock
+    TAtomic UseCount;
 
-        //! Constructs an empty queue around underlying changelog.
-        TChangeLogQueue(TChangeLog::TPtr changeLog)
-            : ChangeLog(changeLog)
-            , UnflushedBytes(0)
-            , UnflushedRecords(0)
-        { }
-
-        //! Lazily appends the record to the changelog.
-        IAction::TPtr Append(
-            const TMetaVersion& version,
-            const TSharedRef& data,
-            TAppendResult::TPtr result)
-        {
-            THolder<TRecord> recordHolder(new TRecord(version, data, result));
-            TRecord* record = ~recordHolder;
-
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                Records.PushBack(recordHolder.Release());
-            }
-
-            return FromMethod(&TChangeLogQueue::DoAppend, TPtr(this), record);
-        }
-
-        //! Flushes the underlying changelog.
-        void Flush()
-        {
-            ChangeLog->Flush();
-
-            UnflushedBytes = 0;
-            UnflushedRecords = 0;
-
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                // Curse you, arcadia/util!
-                Records.ForEach(SweepRecord);
-            }
-
-            LOG_DEBUG("Async changelog is flushed (ChangeLogId: %d)", ChangeLog->GetId());
-        }
-
-        //! Checks if the queue is empty. Note that despite the fact that this call locks
-        //! the list to perform the actual check, its result is only meaningful when
-        //! no additional records may be enqueued into it.
-        bool IsEmpty() const
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            return Records.Empty();
-        }
-
-        //! An unflushed record (auxiliary structure).
-        struct TRecord : public TIntrusiveListItem<TRecord>
-        {
-            TMetaVersion Version;
-            TSharedRef Data;
-            TAsyncChangeLog::TAppendResult::TPtr Result;
-            bool WaitingForSync;
-
-            TRecord(
-                const TMetaVersion& version,
-                const TSharedRef& data,
-                const TAsyncChangeLog::TAppendResult::TPtr& result)
-                : Version(version)
-                , Data(data)
-                , Result(result)
-                , WaitingForSync(false)
-            { }
-        }; // struct TRecord
-
-        //! A list of unflushed records (auxiliary structure).
-        /*!
-         * \note
-         * Currently, the queue is based on the linked list to prevent accidental
-         * memory reallocations. It should be taken into account that this incurs
-         * a memory allocation for each enqueued record. Hence in the future
-         * more refined memory strategy should be used.
-         */
-        class TRecords : public TIntrusiveListWithAutoDelete<TRecord, TDelete>
-        {
-        }; // class TRecords
-
-        //! Underlying changelog.
-        TChangeLog::TPtr ChangeLog;
-
-        //! Number of currently unflushed bytes (since the last synchronization).
-        i32 UnflushedBytes;
-
-        //! Number of currently unflushed records (since the last synchronization).
-        i32 UnflushedRecords;
-
-        //! A list of unflushed records.
-        TRecords Records;
-
-        //! Preserves the atomicity of the operations on the list.
-        mutable TSpinLock SpinLock;
-
-    private:
-        //! Sweep operation performed during #Flush.
-        static void SweepRecord(TRecord* record)
-        {
-            if (record->WaitingForSync) {
-                record->Result->Set(TVoid());
-                record->Unlink();
-                delete record;
-
-                LOG_TRACE("Async changelog record is committed (Version: %s)",
-                    ~record->Version.ToString());
-            }
-        }
-
-        //! Actually appends the record and flushes the queue if required.
-        void DoAppend(TRecord* record)
-        {
-            YASSERT(record);
-            YASSERT(!record->WaitingForSync);
-
-            yvector<TSharedRef> records;
-            records.push_back(record->Data);
-            ChangeLog->Append(record->Version.RecordCount, records);
-
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                record->WaitingForSync = true;
-            }
-
-            UnflushedBytes += record->Data.Size();
-            UnflushedRecords += 1;
-
-            if (UnflushedBytes >= UnflushedBytesThreshold ||
-                UnflushedRecords >= UnflushedRecordsThreshold)
-            {
-                LOG_DEBUG("Async changelog unflushed threshold reached (ChangeLogId: %d)", ChangeLog->GetId());
-                Flush();
-            }
-        }
-
-    }; // class TChangeLogQueue
-
-    ////////////////////////////////////////////////////////////////////////////////
-
-    TImpl()
-        : TActionQueue("AsyncChangeLog")
+    TChangeLogQueue(TChangeLog::TPtr changeLog)
+        : UseCount(0)
+        , ChangeLog(changeLog)
+        , FlushedRecordCount(changeLog->GetRecordCount())
+        , Result(New<TAppendResult>())
+        , UnflushedBytes(0)
     { }
 
-    void Append(
-        TChangeLog::TPtr changeLog,
-        i32 recordId,
-        const TSharedRef& data,
-        TAppendResult::TPtr result)
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
     {
-        TChangeLogQueue::TPtr queue;
+        TAppendResult::TPtr result;
+
+        bool doFlush = false;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            auto it = ChangeLogQueues.find(changeLog);
-            if (it == ChangeLogQueues.end()) {
-                queue = New<TChangeLogQueue>(changeLog);
-                it = ChangeLogQueues.insert(MakePair(changeLog, queue)).first;
-            } else {
-                queue = it->second;
+            if (recordId != DoGetRecordCount()) {
+                LOG_FATAL("Unexpected record id in changelog (expected: %d, got: %d, ChangeLogId: %d)",
+                    DoGetRecordCount(),
+                    recordId,
+                    ChangeLog->GetId());
             }
+
+            RecordsToAppend.push_back(data);
+            UnflushedBytes += data.Size();
+
+            if (UnflushedBytes >= UnflushedBytesThreshold ||
+                RecordsToAppend.ysize() >= UnflushedRecordsThreshold)
+            {
+                LOG_DEBUG("Async changelog unflushed threshold reached (ChangeLogId: %d)",
+                    ChangeLog->GetId());
+                doFlush = true;
+            }
+
+            result = Result;
         }
 
-        TMetaVersion version(changeLog->GetId(), recordId);
-        GetInvoker()->Invoke(queue->Append(version, data, result));
+        if (doFlush)
+            Flush();
 
-        LOG_TRACE("Async changelog record is enqueued (Version: %s)", ~version.ToString());
+        return result;
     }
 
-    TVoid Finalize(TChangeLog::TPtr changeLog)
+    void Flush()
+    {
+        TAppendResult::TPtr result;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            result = Result;
+            Result = New<TAppendResult>();
+            
+            ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+                        
+            YASSERT(RecordsToFlush.ysize() == 0);
+            RecordsToFlush.insert(
+                RecordsToFlush.end(),
+                RecordsToAppend.begin(),
+                RecordsToAppend.end());
+            RecordsToAppend.clear();
+
+            UnflushedBytes = 0;
+        }
+
+        ChangeLog->Flush();
+        result->Set(TVoid());
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            FlushedRecordCount += RecordsToFlush.ysize();
+            RecordsToFlush.clear();
+        }
+    }
+
+    int GetRecordCount()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        return DoGetRecordCount();
+    }
+
+    bool IsEmpty()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        return RecordsToAppend.ysize() == 0 && RecordsToFlush.ysize() == 0;
+    }
+
+    // Can return less records than recordCount
+    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
+    {
+        i32 flushedRecordCount;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            flushedRecordCount = FlushedRecordCount;            
+            
+            CopyRecords(
+                FlushedRecordCount,
+                RecordsToFlush,
+                firstRecordId,
+                recordCount,
+                result);
+
+            CopyRecords(
+                FlushedRecordCount + RecordsToFlush.ysize(),
+                RecordsToAppend,
+                firstRecordId,
+                recordCount,
+                result);
+        }
+
+        if (firstRecordId < flushedRecordCount) {
+            yvector<TSharedRef> buffer;
+            i32 neededRecordCount =
+                Min(recordCount, flushedRecordCount - firstRecordId);
+            ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
+            YASSERT(buffer.ysize() == neededRecordCount);
+
+            buffer.insert(
+                buffer.end(),
+                result->begin(),
+                result->end());
+
+            result->swap(buffer);
+        }
+    }
+
+private:
+    int DoGetRecordCount() const
+    {
+        //VERIFY_SPINLOCK_AFFINITY(SpinLock);
+        return FlushedRecordCount + RecordsToFlush.ysize() + RecordsToAppend.ysize();
+    }
+
+    static void CopyRecords(
+        i32 firstRecordId,
+        const yvector<TSharedRef>& records,
+        i32 neededFirstRecordId,
+        i32 neededRecordCount,
+        yvector<TSharedRef>* result)
+    {
+        i32 size = records.ysize();
+        i32 begin = neededFirstRecordId - firstRecordId;
+        i32 end = neededFirstRecordId + neededRecordCount - firstRecordId;
+        auto beginIt = records.begin() + Max(begin, 0);
+        auto endIt = records.begin() + Min(end, size);
+        result->insert(
+            result->end(),
+            beginIt,
+            endIt);
+    }
+    
+    TChangeLog::TPtr ChangeLog;
+    
+    TSpinLock SpinLock;
+    i32 FlushedRecordCount;
+    yvector<TSharedRef> RecordsToAppend;
+    yvector<TSharedRef> RecordsToFlush;
+    TAppendResult::TPtr Result;
+    i32 UnflushedBytes;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAsyncChangeLog::TImpl
+{
+public:
+    typedef TAsyncChangeLog::TAppendResult TAppendResult;
+
+    static TImpl* Get()
+    {
+        return Singleton<TImpl>();
+    }
+
+    TImpl()
+        : Thread(ThreadFunc, static_cast<void*>(this))
+        , WakeupEvent(Event::rManual)
+        , Finished(false)
+    {
+        Thread.Start();    
+    }
+
+    ~TImpl()
+    {
+        Finished = false;
+        WakeupEvent.Signal();
+        Thread.Join();
+    }
+
+    TAppendResult::TPtr Append(
+        TChangeLog::TPtr changeLog,
+        i32 recordId,
+        const TSharedRef& data)
+    {
+        LOG_TRACE("Async changelog record is enqueued (Version: %s)",
+            ~TMetaVersion(changeLog->GetId(), recordId).ToString());
+
+        auto queue = FindOrCreateQueue(changeLog);
+        auto result = queue->Append(recordId, data);
+        AtomicDecrement(queue->UseCount);
+        return result;
+    }
+
+    void Read(
+        TChangeLog::TPtr changeLog,
+        i32 firstRecordId,
+        i32 recordCount,
+        yvector<TSharedRef>* result)
+    {
+        YASSERT(firstRecordId >= 0);
+        YASSERT(recordCount >= 0);
+        YASSERT(result);
+
+        if (recordCount == 0)
+            return;
+        
+        auto queue = FindQueue(changeLog);
+        if (queue) {
+            queue->Read(firstRecordId, recordCount, result);
+            AtomicDecrement(queue->UseCount);
+        } else {
+            changeLog->Read(firstRecordId, recordCount, result);
+        }
+    }
+
+    void Flush(TChangeLog::TPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
         if (queue) {
             queue->Flush();
-        }
-        changeLog->Finalize();
-
-        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
-
-        return TVoid();
-    }
-
-    TVoid Flush(TChangeLog::TPtr changeLog)
-    {
-        auto queue = FindQueue(changeLog);
-        if (queue) {
-            queue->Flush();
+            AtomicDecrement(queue->UseCount);
         }
         changeLog->Flush();
-        return TVoid();
     }
 
-    TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog)
+    i32 GetRecordCount(TChangeLog::TPtr changeLog)
+    {
+        auto queue = FindQueue(changeLog);
+        if (queue) {
+            auto result = queue->GetRecordCount();
+            AtomicDecrement(queue->UseCount);
+            return result;
+        } else {
+            return changeLog->GetRecordCount();
+        }
+    }
+
+    void Finalize(TChangeLog::TPtr changeLog)
+    {
+        auto queue = FindQueue(changeLog);
+        if (queue) {
+            queue->Flush();
+            AtomicDecrement(queue->UseCount);
+        }
+        changeLog->Finalize();
+        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
+    }
+
+    void Truncate(TChangeLog::TPtr changeLog, i32 atRecordId)
+    {
+        // TODO: Later on this can be improved to asynchronous behaviour by
+        // getting rid of explicit synchronization.
+        Flush(changeLog);
+
+        return changeLog->Truncate(atRecordId);
+    }
+
+private:
+    TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
-        return it != ChangeLogQueues.end() ? it->second : NULL;
+        if (it == ChangeLogQueues.end())
+            return NULL;
+
+        auto& queue = it->Second();
+        ++queue->UseCount;
+        return queue;
     }
 
-    virtual void OnIdle()
+    TChangeLogQueue::TPtr FindOrCreateQueue(TChangeLog::TPtr changeLog)
     {
-        LOG_DEBUG("Async changelog thread is idle");
+        TGuard<TSpinLock> guard(SpinLock);
+        TChangeLogQueue::TPtr queue;
 
+        auto it = ChangeLogQueues.find(changeLog);
+        if (it != ChangeLogQueues.end()) {
+            queue = it->Second();
+        } else {
+            queue = New<TChangeLogQueue>(changeLog);
+            YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).Second());
+        }
+
+        ++queue->UseCount;
+        return queue;
+    }
+
+    void FlushQueues()
+    {
         // Take a snapshot.
         yvector<TChangeLogQueue::TPtr> queues;
         {
@@ -260,36 +350,72 @@ public:
         FOREACH(auto& queue, queues) {
             queue->Flush();
         }
+    }
 
-        // Sweep the empty queues.
-        {
-            // Taking this lock ensures that if a queue is found empty then it can be safely
-            // erased from the map.
-            TGuard<TSpinLock> guard(SpinLock);
-            TChangeLogQueueMap::iterator it, jt;
-            for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
-                jt = it++;
-                auto queue = jt->second;
-                if (queue->IsEmpty()) {
-                    ChangeLogQueues.erase(jt);
-                    LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", queue->ChangeLog->GetId());
-                }
+    // Returns if there are any queues in the map
+    bool CleanQueues()
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        
+        TChangeLogQueueMap::iterator it, jt;
+        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
+            jt = it++;
+            auto queue = jt->second;
+            if (queue->UseCount == 0 && queue->IsEmpty()) {
+                LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", jt->first);
+                ChangeLogQueues.erase(jt);
+            }
+        }
+
+        return !ChangeLogQueues.empty();
+    }
+
+    // Returns if there are any queues in the map
+    bool FlushAndClean()
+    {
+        FlushQueues();
+        return CleanQueues();
+    }
+
+    static void* ThreadFunc(void* param)
+    {
+        auto* impl = (TImpl*) param;
+        impl->ThreadMain();
+        return NULL;
+    }
+    
+    void ThreadMain()
+    {
+        NThread::SetCurrentThreadName("AsyncChangeLog");
+
+        while (!Finished) {
+            if (FlushAndClean())
+                continue;
+
+            WakeupEvent.Reset();
+
+            if (FlushAndClean())
+                continue;
+
+            if (!Finished) {
+                WakeupEvent.Wait();
             }
         }
     }
 
-private:
     typedef yhash_map<TChangeLog::TPtr, TChangeLogQueue::TPtr> TChangeLogQueueMap;
 
     TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;
+    TThread Thread;
+    Event WakeupEvent;
+    volatile bool Finished;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
     : ChangeLog(changeLog)
-    , Impl(RefCountedSingleton<TImpl>())
 {
     YASSERT(changeLog);
 }
@@ -301,87 +427,22 @@ TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {
-    auto result = New<TAppendResult>();
-    Impl->Append(ChangeLog, recordId, data, result);
-    return result;
+    return TImpl::Get()->Append(ChangeLog, recordId, data);
 }
 
 void TAsyncChangeLog::Finalize()
 {
-    FromMethod(&TImpl::Finalize, Impl, ChangeLog)
-        ->AsyncVia(Impl->GetInvoker())
-        ->Do()
-        ->Get();
+    TImpl::Get()->Finalize(ChangeLog);
 }
 
 void TAsyncChangeLog::Flush()
 {
-    FromMethod(&TImpl::Flush, Impl, ChangeLog)
-        ->AsyncVia(Impl->GetInvoker())
-        ->Do()
-        ->Get();
+    TImpl::Get()->Flush(ChangeLog);
 }
 
 void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
 {
-    YASSERT(firstRecordId >= 0);
-    YASSERT(recordCount >= 0);
-    YASSERT(result);
-
-    if (recordCount == 0) {
-        return;
-    }
-
-    auto queue = Impl->FindQueue(ChangeLog);
-
-    if (!queue) {
-        ChangeLog->Read(firstRecordId, recordCount, result);
-        return;
-    }
-
-    // Determine whether unflushed records intersect with requested records.
-    // To achieve this we have to lock the queue in order to iterate
-    // through currently flushing record.
-    TGuard<TSpinLock> guard(queue->SpinLock);
-
-    i32 lastRecordId = firstRecordId + recordCount; // Non-inclusive.
-    i32 firstUnflushedRecordId = lastRecordId;
-
-    yvector<TSharedRef> unflushedRecords;
-
-    FOREACH(const auto& record, queue->Records) {
-        i32 currentId = record.Version.RecordCount;
-
-        if (currentId >= lastRecordId)
-            break;
-
-        if (currentId  < firstRecordId)
-            continue;
-
-        firstUnflushedRecordId = Min(firstUnflushedRecordId, currentId);
-
-        unflushedRecords.push_back(record.Data);
-    }
-
-    // At this moment we can release the lock.
-    guard.Release();
-
-    if (unflushedRecords.empty()) {
-        ChangeLog->Read(firstRecordId, recordCount, result);
-        return;
-    }
-
-    ChangeLog->Read(firstRecordId, firstUnflushedRecordId - firstRecordId, result);
-
-    i32 firstUnreadRecordId = firstRecordId + result->ysize();
-
-    if (firstUnreadRecordId != firstUnflushedRecordId) {
-        LOG_FATAL("Gap found while reading changelog (FirstUnreadRecordId: %d, FirstUnflushedRecordId: %d)",
-            firstUnreadRecordId,
-            firstUnflushedRecordId);
-    } else {
-        result->insert(result->end(), unflushedRecords.begin(), unflushedRecords.end());
-    }
+    TImpl::Get()->Read(ChangeLog, firstRecordId, recordCount, result);
 }
 
 i32 TAsyncChangeLog::GetId() const
@@ -391,20 +452,7 @@ i32 TAsyncChangeLog::GetId() const
 
 i32 TAsyncChangeLog::GetRecordCount() const
 {
-    auto queue = Impl->FindQueue(ChangeLog);
-
-    if (!queue) {
-        return ChangeLog->GetRecordCount();
-    }
-    
-    TGuard<TSpinLock> guard(queue->SpinLock);
-    if (queue->Records.Empty()) {
-        return ChangeLog->GetRecordCount();
-    } else {
-        auto it = queue->Records.End();
-        --it;
-        return it->Version.RecordCount + 1;
-    }
+    return TImpl::Get()->GetRecordCount(ChangeLog);
 }
 
 i32 TAsyncChangeLog::GetPrevRecordCount() const
@@ -419,11 +467,7 @@ bool TAsyncChangeLog::IsFinalized() const
 
 void TAsyncChangeLog::Truncate(i32 atRecordId)
 {
-    // TODO: Later on this can be improved to asynchronous behaviour by
-    // getting rid of explicit synchronization.
-    Flush();
-
-    return ChangeLog->Truncate(atRecordId);
+    return TImpl::Get()->Truncate(ChangeLog, atRecordId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

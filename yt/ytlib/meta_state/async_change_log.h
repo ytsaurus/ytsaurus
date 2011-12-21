@@ -32,10 +32,6 @@ public:
 
     typedef TFuture<TVoid> TAppendResult;
 
-    //! Finalizes the changelog.
-    //! \see TChangeLog::Finalize
-    void Finalize();
-
     //! Enqueues record to be appended to the changelog.
     /*!
      * Internally, asynchronous append to the changelog goes as follows.
@@ -61,37 +57,26 @@ public:
 
     //! Reads records from the changelog.
     //! \see TChangeLog::Read
+    //! Can return less records than recordCount
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
 
     //! Truncates the changelog at the specified record.
     //! \see TChangeLog::Truncate
     void Truncate(i32 atRecordId);
 
+    //! Finalizes the changelog.
+    //! \see TChangeLog::Finalize
+    void Finalize();
+        
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
 private:
-    TChangeLog::TPtr ChangeLog;
-
-private:
-    //! Actual workhorse behind all the TAsyncChangeLog s.
-    /*!
-     * This class spawns a separate thread which performs all the actual work with
-     * all the changelogs. This is somewhat serialization point.
-     *
-     * To sustain adequate latency all modifications of the changelogs are
-     * asynchronous and buffered with eventual synchronization when the buffers
-     * become too large.
-     *
-     * \see UnflushedBytesThreshold
-     * \see UnflushedRecordsThreshold
-     */
-    //! {
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
-    //! }
+
+    TChangeLog::TPtr ChangeLog;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
