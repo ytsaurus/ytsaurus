@@ -37,7 +37,7 @@ class Base(AggrBase):
         '/home/yt/build/lib/libjson.so',
         '/home/yt/build/lib/libarczlib.so.1.2.3',
         '/home/yt/build/lib/libqmisc.so',
-        '/home/yt/build/lib/libNetLiba.so'
+        '/home/yt/build/lib/libnetliba_v6.so'
     ]
     
     def get_log(cls, fd):
