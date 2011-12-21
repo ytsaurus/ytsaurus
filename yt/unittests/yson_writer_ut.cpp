@@ -58,6 +58,7 @@ TEST_F(TYsonWriterTest, BinaryInt64)
 
     writer.OnInt64Scalar(value, false);
 
+    Run();
 }
 
 TEST_F(TYsonWriterTest, EmptyMap)
