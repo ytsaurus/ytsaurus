@@ -96,6 +96,13 @@ public:
         return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
     }
 
+    // Implicit conversion to bool.
+    typedef char* TRef::*TUnspecifiedBoolType;
+    operator TUnspecifiedBoolType() const
+    {
+        return Data != NULL ? &TRef::Data : NULL;
+    }
+
 private:
     char* Data;
     size_t Size_;
@@ -192,6 +199,13 @@ public:
     bool operator != (const TSharedRef& other) const
     {
         return !(*this == other);
+    }
+
+    // Implicit conversion to bool.
+    typedef TRef TSharedRef::*TUnspecifiedBoolType;
+    operator TUnspecifiedBoolType() const
+    {
+        return Ref ? &TSharedRef::Ref : NULL;
     }
 
 private:
