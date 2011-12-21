@@ -54,16 +54,24 @@ public:
         }
     };
 
+    //! Initializes an instance.
     TFileWriter(
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         const NYTree::TYPath& path);
 
+    //! Adds another chunk of data.
+    /*!
+     *  This chunk does not necessary makes up a block. The writer maintains an internal buffer
+     *  and splits the input data into parts of equal size (see TConfig::BlockSize).
+     */
     void Write(TRef data);
 
+    //! Cancels the writing process releasing all resources.
     void Cancel();
 
+    //! Closes the writer.
     void Close();
 
 private:

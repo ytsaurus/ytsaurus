@@ -75,7 +75,7 @@ TFileWriter::TFileWriter(
     LOG_INFO("Node is created (NodeId: %s)", ~NodeId.ToString());
 
     // Create a chunk.
-    LOG_INFO("Creating chunk (UploadReplicaCount: %d)", Config->UploadReplicaCount);
+    LOG_INFO("Creating a chunk (UploadReplicaCount: %d)", Config->UploadReplicaCount);
 
     auto allocateChunk = ChunkProxy->AllocateChunk();
     allocateChunk->set_transactionid(TransactionId.ToProto());

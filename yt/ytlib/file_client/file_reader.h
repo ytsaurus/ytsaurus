@@ -39,6 +39,7 @@ public:
         }
     };
 
+    //! Initializes an instance.
     TFileReader(
         TConfig* config,
         NRpc::IChannel* masterChannel,
