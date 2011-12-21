@@ -39,6 +39,8 @@ private:
 
     int PeekChar();
 
+    static bool IsLetter(int ch);
+    static bool IsDigit(int ch);
     static bool IsWhitespace(int ch);
     void SkipWhitespaces();
 
