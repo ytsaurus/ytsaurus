@@ -341,7 +341,7 @@ void TRemoteWriter::TGroup::Process()
         return;
     }
 
-    YASSERT(Writer->IsInitComplete);
+    YASSERT(Writer->InitComplete);
 
     LOG_DEBUG("Processing group (Blocks: %d-%d)",
         StartBlockIndex, 
@@ -376,7 +376,7 @@ TRemoteWriter::TRemoteWriter(
     const yvector<Stroka>& addresses)
     : ChunkId(chunkId) 
     , Config(config)
-    , IsInitComplete(false)
+    , InitComplete(false)
     , IsCloseRequested(false)
     , WindowSlots(config->WindowSize)
     , AliveNodeCount(addresses.ysize())
@@ -536,7 +536,7 @@ void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
     IsCloseRequested = true;
     Attributes.CopyFrom(attributes);
 
-    if (Window.empty() && IsInitComplete) {
+    if (Window.empty() && InitComplete) {
         CloseSession();
     }
 }
@@ -575,7 +575,7 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
 
     Window.push_back(group);
 
-    if (IsInitComplete) {
+    if (InitComplete) {
         group->Process();
     }
 }
@@ -673,7 +673,7 @@ void TRemoteWriter::OnSessionStarted()
 
     LOG_DEBUG("Writer is ready");
 
-    IsInitComplete = true;
+    InitComplete = true;
     FOREACH(auto& group, Window) {
         group->Process();
     }

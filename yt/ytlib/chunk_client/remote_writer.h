@@ -32,7 +32,7 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        //! Maximum number of blocks that may be concurrently present in the window.
+        //! Maximum window size (in bytes).
         int WindowSize;
         
         //! Maximum group size (in bytes).
@@ -45,9 +45,9 @@ public:
          */
         TDuration HolderRpcTimeout;
 
-        //! Timeout specifying a maximum allowed period of time without RPC request to ChunkHolder.
+        //! Maximum allowed period of time without RPC requests to holders.
         /*!
-         * If no activity  occurred during this period, PingSession call will be sent.
+         *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
          */
         TDuration SessionPingInterval;
 
@@ -59,14 +59,13 @@ public:
             Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
         }
 
-        void Validate(const NYTree::TYPath& path /* = "" */) const
+        void Validate(const NYTree::TYPath& path = "/") const
         {
             TConfigurable::Validate(path);
             if (WindowSize < GroupSize) {
-                ythrow yexception() << "window_size must be greater or equal to group_size";
+                ythrow yexception() << "\"window_size\" cannot be less than \"group_size\"";
             }
         }
-
     };
 
     /*!
@@ -131,7 +130,7 @@ private:
 
     TAsyncStreamState State;
 
-    bool IsInitComplete;
+    bool InitComplete;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
