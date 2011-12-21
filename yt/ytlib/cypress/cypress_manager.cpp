@@ -405,6 +405,8 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
 
 void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* context)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
     if (proxy == NULL || !proxy->IsLogged(context)) {
         LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
@@ -511,7 +513,7 @@ TVoid TCypressManager::DoExecuteVerb(
             ~transaction->GetId().ToString());
     }
 
-    LOG_INFO_IF(!IsRecovery(), "Executing logged operation (Path: %s, Verb: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Executing a logged operation (Path: %s, Verb: %s, TransactionId: %s)",
         ~context->GetPath(),
         ~context->GetVerb(),
         ~proxy->GetTransactionId().ToString());
