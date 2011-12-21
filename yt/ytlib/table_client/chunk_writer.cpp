@@ -123,7 +123,8 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
 TChunkWriter::~TChunkWriter()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // TODO: check this
+    // VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.IsActive());
 }
 
