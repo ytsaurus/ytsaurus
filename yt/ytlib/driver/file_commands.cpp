@@ -22,7 +22,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         DriverImpl->GetCurrentTransaction(),
         request->Path);
 
-    auto output = DriverImpl->CreateOutputStream(request->Stream);
+    auto output = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
 
     while (true) {
         auto block = reader->Read();
@@ -45,7 +45,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         DriverImpl->GetCurrentTransaction(),
         request->Path);
 
-    auto input = DriverImpl->CreateInputStream(request->Stream);
+    auto input = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
     
     TBlob buffer(config->BlockSize);
     while (true) {

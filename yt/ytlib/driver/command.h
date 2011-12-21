@@ -53,7 +53,11 @@ struct TRequestBase
     {
         Register("do", Do);
     }
+
+    static IParamAction<const NYTree::INode::TPtr&>::TPtr StreamSpecIsValid;
 };
+
+Stroka ToStreamSpec(NYTree::INode::TPtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

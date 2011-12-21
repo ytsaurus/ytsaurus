@@ -11,12 +11,12 @@ struct TDownloadRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
-    Stroka Stream;
+    NYTree::INode::TPtr Stream;
 
     TDownloadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream).Default(Stroka());
+        Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -38,12 +38,12 @@ struct TUploadRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
-    Stroka Stream;
+    NYTree::INode::TPtr Stream;
 
     TUploadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream).Default(Stroka());
+        Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 };
 

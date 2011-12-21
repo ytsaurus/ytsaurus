@@ -24,7 +24,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
-        DriverImpl->ReplySuccess(ypathResponse->value(), request->Stream);
+        DriverImpl->ReplySuccess(ypathResponse->value(), ToStreamSpec(request->Stream));
     } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
@@ -41,7 +41,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
     if (request->Value) {
         value = SerializeToYson(~request->Value);
     } else {
-        auto producer = DriverImpl->CreateInputProducer(request->Stream);
+        auto producer = DriverImpl->CreateInputProducer(ToStreamSpec(request->Stream));
         value = SerializeToYson(~producer);
     }
     ypathRequest->set_value(value);

@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/driver )
 set( SRCS
   ${BASE}/common.cpp
   ${BASE}/driver.cpp
+  ${BASE}/command.cpp
   ${BASE}/cypress_commands.cpp
   ${BASE}/transaction_commands.cpp
   ${BASE}/file_commands.cpp

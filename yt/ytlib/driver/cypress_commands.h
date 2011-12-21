@@ -13,12 +13,12 @@ struct TGetRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
-    Stroka Stream;
+    NYTree::INode::TPtr Stream;
 
     TGetRequest()
     {
         Register("path", Path);
-        Register("stream", Stream).Default(Stroka());
+        Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -41,19 +41,19 @@ struct TSetRequest
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Value;
-    Stroka Stream;
+    NYTree::INode::TPtr Stream;
 
     TSetRequest()
     {
         Register("path", Path);
         Register("value", Value).Default(NULL);
-        Register("stream", Stream).Default(Stroka());
+        Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 
     virtual void Validate(const NYTree::TYPath& path = "/") const
     {
         TConfigBase::Validate(path);
-        if (!Value && Stream.empty()) {
+        if (!Value && !Stream) {
             ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is specified (Path: %s)", ~path);
         }
     }
