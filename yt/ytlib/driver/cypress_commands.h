@@ -134,7 +134,7 @@ struct TCreateRequest
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;
     Stroka Type;
-    NYTree::TYson Manifest;
+    NYTree::INode::TPtr Manifest;
 
     TCreateRequest()
     {
