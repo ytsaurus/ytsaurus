@@ -95,7 +95,9 @@ void TActionQueueBase::ThreadMain()
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
-                    OnIdle();
+                    TIMEIT("actionqueue.idletime", "tv",
+                        OnIdle();
+                    )
                     WakeupEvent.Wait();
                     if (Finished) {
                         break;
