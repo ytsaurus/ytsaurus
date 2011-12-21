@@ -141,6 +141,7 @@ struct TCreateRequest
         Register("path", Path);
         Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
         Register("type", Type);
+        Register("manifest", Manifest);
     }
 };
 
