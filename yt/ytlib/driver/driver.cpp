@@ -4,6 +4,7 @@
 #include "transaction_commands.h"
 #include "cypress_commands.h"
 #include "file_commands.h"
+#include "table_commands.h"
 
 #include "../ytree/fluent.h"
 #include "../ytree/serialize.h"
@@ -123,6 +124,9 @@ public:
 
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
+
+        RegisterCommand("read", ~New<TReadCommand>(this));
+        RegisterCommand("write", ~New<TWriteCommand>(this));
     }
 
     TError Execute(const TYson& request)

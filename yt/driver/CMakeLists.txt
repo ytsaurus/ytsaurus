@@ -9,9 +9,11 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_client
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_client
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/file_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/transaction_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
-  ${CMAKE_BINARY_DIR}/yt/ytlib/file_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
   ${CMAKE_BINARY_DIR}/yt/ytlib/election
   ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
