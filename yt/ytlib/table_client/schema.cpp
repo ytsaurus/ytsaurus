@@ -229,6 +229,12 @@ bool TChannel::IsEmpty() const
     return Columns.empty() && Ranges.empty();
 }
 
+TChannel TChannel::Universal()
+{
+    TChannel result;
+    result.AddRange(TRange(""));
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -65,12 +65,19 @@ public:
 
     const yvector<TColumn>& GetColumns() const;
 
+    //! Returns a channel containing range from empty string to infinity.
+    static TChannel Universal();
+
 private:
     friend void operator -= (TChannel& lhs, const TChannel& rhs);
 
     yvector<TColumn> Columns;
     yvector<TRange> Ranges;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
