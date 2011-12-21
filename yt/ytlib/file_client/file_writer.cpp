@@ -27,9 +27,7 @@ TFileWriter::TFileWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
-    const TYPath& path,
-    int totalReplicaCount,
-    int uploadReplicaCount)
+    const TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
@@ -41,10 +39,9 @@ TFileWriter::TFileWriter(
     , BlockCount(0)
     , Logger(FileClientLogger)
 {
-    YASSERT(masterChannel != NULL);
-
     // TODO: use totalReplicaCount
-    UNUSED(totalReplicaCount);
+
+    YASSERT(masterChannel != NULL);
 
     Logger.SetTag(Sprintf("Path: %s", ~Path));
 
@@ -78,11 +75,11 @@ TFileWriter::TFileWriter(
     LOG_INFO("Node is created (NodeId: %s)", ~NodeId.ToString());
 
     // Create a chunk.
-    LOG_INFO("Creating chunk (UploadReplicaCount: %d)", uploadReplicaCount);
+    LOG_INFO("Creating chunk (UploadReplicaCount: %d)", Config->UploadReplicaCount);
 
     auto allocateChunk = ChunkProxy->AllocateChunk();
     allocateChunk->set_transactionid(TransactionId.ToProto());
-    allocateChunk->set_replicacount(uploadReplicaCount);
+    allocateChunk->set_replicacount(Config->UploadReplicaCount);
 
     auto createChunkResponse = allocateChunk->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
