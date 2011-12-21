@@ -148,13 +148,28 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-TYson SyncYPathGet(IYPathService* rootService, const TYPath& path)
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path)
 {
     auto request = TYPathProxy::Get();
     request->SetPath(path);
-    auto response = ExecuteVerb(rootService, ~request)->Get();
-    response->ThrowIfError();
-    return response->value();
+    return
+        ExecuteVerb(rootService, ~request)
+        ->Apply(FromFunctor([] (TYPathProxy::TRspGet::TPtr response)
+            {
+                return
+                    response->IsOK()
+                    ? TValueOrError<TYson>(response->value())
+                    : TValueOrError<TYson>(response->GetError());
+            }));
+}
+
+TYson SyncYPathGet(IYPathService* rootService, const TYPath& path)
+{
+    auto result = AsyncYPathGet(rootService, path)->Get();
+    if (!result.IsOK()) {
+        ythrow yexception() << result.GetMessage();
+    }
+    return result.Value();
 }
 
 INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path)
