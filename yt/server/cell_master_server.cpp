@@ -231,7 +231,7 @@ void TCellMasterServer::Run()
             })));
     httpServer->Register(
         "/cypress",
-        ~NMonitoring::GetYPathHttpHandler(~FromFunctor([=] () -> IYPathService::TPtr
+        ~NMonitoring::GetYPathHttpHandler(FromFunctor([=] () -> IYPathService::TPtr
             {
                 auto status = metaStateManager->GetStateStatus();
                 if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
