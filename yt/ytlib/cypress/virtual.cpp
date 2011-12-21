@@ -174,9 +174,9 @@ private:
 
     static void GetManifest(const TGetAttributeParam& param)
     {
-        TYsonReader reader(param.Consumer);
         TStringInput input(param.Node->GetManifest());
-        reader.Read(&input);
+        TYsonReader reader(param.Consumer, &input);
+        reader.Read();
     }
 };
 

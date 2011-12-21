@@ -31,9 +31,9 @@ public:
     {
         TStringStream outputStream;
         TYsonWriter writer(&outputStream, TYsonWriter::EFormat::Text);
-        TYsonReader reader(&writer);
         TStringInput input(data);
-        reader.Read(&input);
+        TYsonReader reader(&writer, &input);
+        reader.Read();
         return outputStream.Str();
     }
 

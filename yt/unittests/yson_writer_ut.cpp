@@ -20,7 +20,15 @@ namespace NYTree {
 class TYsonWriterTest: public ::testing::Test
 {
 public:
+    TStringStream Stream;
     StrictMock<TMockYsonConsumer> Mock;
+
+    void Run()
+    {
+        Stream.Flush();
+        TYsonReader reader(&Mock, &Stream);
+        reader.Read();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,14 +40,11 @@ TEST_F(TYsonWriterTest, BinaryString)
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar(value, false));
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&Stream, TYsonWriter::EFormat::Binary);
 
     writer.OnStringScalar(value, false);
 
-    stream.Flush();
-    TYsonReader reader(&Mock);
-    reader.Read(&stream);
+    Run();
 }
 
 TEST_F(TYsonWriterTest, BinaryInt64)
@@ -49,14 +54,10 @@ TEST_F(TYsonWriterTest, BinaryInt64)
     InSequence dummy;
     EXPECT_CALL(Mock, OnInt64Scalar(value, false));
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&Stream, TYsonWriter::EFormat::Binary);
 
     writer.OnInt64Scalar(value, false);
 
-    stream.Flush();
-    TYsonReader reader(&Mock);
-    reader.Read(&stream);
 }
 
 TEST_F(TYsonWriterTest, EmptyMap)
@@ -66,16 +67,12 @@ TEST_F(TYsonWriterTest, EmptyMap)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap(false));
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&Stream, TYsonWriter::EFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnEndMap(false);
 
-    stream.Flush();
-    TYsonReader reader(&Mock);
-    reader.Read(&stream);
-
+    Run();
 }
 
 TEST_F(TYsonWriterTest, OneItemMap)
@@ -87,18 +84,14 @@ TEST_F(TYsonWriterTest, OneItemMap)
     EXPECT_CALL(Mock, OnStringScalar("world", false));
     EXPECT_CALL(Mock, OnEndMap(false));
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&Stream, TYsonWriter::EFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnMapItem("hello");
     writer.OnStringScalar("world", false);
     writer.OnEndMap(false);
 
-    stream.Flush();
-    TYsonReader reader(&Mock);
-    reader.Read(&stream);
-
+    Run();
 }
 
 TEST_F(TYsonWriterTest, MapWithAttributes)
@@ -137,8 +130,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
     EXPECT_CALL(Mock, OnEndAttributes());
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&Stream, TYsonWriter::EFormat::Binary);
 
     writer.OnBeginMap();
 
@@ -173,9 +165,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
     writer.OnEndAttributes();
 
-    stream.Flush();
-    TYsonReader reader(&Mock);
-    reader.Read(&stream);
+    Run();
 }
 
 TEST_F(TYsonWriterTest, Escaping)

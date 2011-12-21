@@ -24,8 +24,8 @@ public:
     void Run()
     {
         TMemoryInput inputStream(Input.c_str(), Input.length());
-        TYsonReader reader(&Mock);
-        reader.Read(&inputStream);
+        TYsonReader reader(&Mock, &inputStream);
+        reader.Read();
     }
 };
 
