@@ -80,8 +80,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     INode::TPtr configNode;
     try {
         TIFStream configStream(configFileName);
-        TYson configYson = configStream.ReadAll();
-        configNode = DeserializeFromYson(configYson);
+        configNode = DeserializeFromYson(&configStream);
     } catch (...) {
         ythrow yexception() << Sprintf("Error reading server configuration\n%s",
             ~CurrentExceptionMessage());
