@@ -262,17 +262,19 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     FOREACH (const auto& startInfo, response->jobstostart()) {
         auto chunkId = TChunkId::FromProto(startInfo.chunkid());
         auto jobId = TJobId::FromProto(startInfo.jobid());
+        auto jobType = EJobType(startInfo.type());
         
         auto chunk = ChunkStore->FindChunk(chunkId);
         if (!chunk) {
-            LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s)",
+            LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s, JobType: %s)",
                 ~chunkId.ToString(),
-                ~jobId.ToString());
+                ~jobId.ToString(),
+                ~jobType.ToString());
             continue;
         }
 
         Replicator->StartJob(
-            EJobType(startInfo.type()),
+            jobType,
             jobId,
             ~chunk,
             FromProto<Stroka>(startInfo.targetaddresses()));
