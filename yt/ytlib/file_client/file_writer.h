@@ -49,7 +49,7 @@ public:
             TConfigurable::Validate(path);
             
             if (TotalReplicaCount < UploadReplicaCount) {
-                ythrow yexception() << "total_replica_count cannot be less than upload_replica_count";
+                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
             }
         }
     };
