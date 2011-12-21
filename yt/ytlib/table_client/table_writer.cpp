@@ -7,8 +7,9 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NTransactionClient;
+using namespace NYTree;
 using namespace NCypress;
+using namespace NTransactionClient;
 using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,7 @@ TTableWriter::TTableWriter(
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
     const TSchema& schema,
-    const Stroka& path)
+    const TYPath& path)
     : Config(config)
     , Path(path)
     , Transaction(transaction)
@@ -48,7 +49,7 @@ void TTableWriter::Open()
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 }
 
-bool TTableWriter::NodeExists(const Stroka& path)
+bool TTableWriter::NodeExists(const TYPath& path)
 {
     auto req = TCypressYPathProxy::GetId();
 

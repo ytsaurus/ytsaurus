@@ -37,10 +37,10 @@ public:
     TChunkSequenceReader(
         TConfig* config,
         const TChannel& channel,
-        const NTransactionClient::TTransactionId transactionId,
-        NRpc::IChannel::TPtr masterChannel,
+        const NTransactionClient::TTransactionId& transactionId,
+        NRpc::IChannel* masterChannel,
         // ToDo: use rvalue reference.
-        yvector<NChunkClient::TChunkId>& chunks,
+        const yvector<NChunkClient::TChunkId>& chunks,
         int startRow,
         int endRow);
 
@@ -52,7 +52,7 @@ public:
 
     bool NextColumn();
 
-    TValue GetValue();
+    TValue GetValue() const;
 
     TColumn GetColumn() const;
 
@@ -70,7 +70,7 @@ private:
     const TConfig::TPtr Config;
     const TChannel Channel;
     const NTransactionClient::TTransactionId TransactionId;
-    const yvector<NChunkClient::TChunkId> Chunks;
+    const yvector<NChunkClient::TChunkId> ChunkIds;
     const int StartRow;
     const int EndRow;
 

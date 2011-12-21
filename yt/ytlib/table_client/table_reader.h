@@ -35,15 +35,15 @@ public:
 
     TTableReader(
         TConfig* config,
-        NTransactionClient::ITransaction::TPtr transaction,
         NRpc::IChannel* masterChannel,
+        NTransactionClient::ITransaction* transaction,
         const TChannel& readChannel,
-        const Stroka& path);
+        const NYTree::TYPath& path);
 
     bool NextRow();
     bool NextColumn();
-    TColumn GetColumn();
-    TValue GetValue();
+    TColumn GetColumn() const;
+    TValue GetValue() const;
     void Close();
 
 private:

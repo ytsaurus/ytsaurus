@@ -418,7 +418,7 @@ TColumn TChunkReader::GetColumn() const
     return CurrentColumn;
 }
 
-TValue TChunkReader::GetValue()
+TValue TChunkReader::GetValue() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());

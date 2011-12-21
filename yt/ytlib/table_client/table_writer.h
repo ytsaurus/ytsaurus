@@ -40,7 +40,7 @@ public:
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         const TSchema& schema,
-        const Stroka& path);
+        const NYTree::TYPath& path);
 
     void Open();
     void Write(const TColumn& column, TValue value);
