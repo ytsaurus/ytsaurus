@@ -828,6 +828,12 @@ private:
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (!chunk) {
+            // Holders may still contain cached replicas of chunks that no longer exist.
+            // Here we just silently ignore this case.
+            if (cached) {
+                return;
+            }
+
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
@@ -840,7 +846,7 @@ private:
             return;
         }
 
-        // Use size reported by the holder.
+        // Use the size reported by the holder, but check it for consistency first.
         if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
             LOG_FATAL("Chunk size mismatch (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
                 ~chunkId.ToString(),
