@@ -15,8 +15,8 @@ using namespace NTableServer;
 
 TTableWriter::TTableWriter(
     TConfig* config,
-    NRpc::IChannel::TPtr masterChannel,
-    ITransaction::TPtr transaction,
+    NRpc::IChannel* masterChannel,
+    ITransaction* transaction,
     const TSchema& schema,
     const Stroka& path)
     : Config(config)
@@ -25,19 +25,17 @@ TTableWriter::TTableWriter(
     , MasterChannel(masterChannel)
     , Writer(New<TChunkSequenceWriter>(
         ~config->ChunkSequenceWriter, 
-        schema, 
+        ~MasterChannel,
         Transaction->GetId(), 
-        MasterChannel))
-    , Proxy(~masterChannel)
+        schema))
+    , Proxy(masterChannel)
 {
     YASSERT(masterChannel);
     YASSERT(transaction);
 
-    Proxy.SetTimeout(Config->RpcTimeout);
+    Proxy.SetTimeout(Config->MasterRpcTimeout);
 
-    OnAborted_ = FromMethod(
-        &TTableWriter::OnAborted,
-        TPtr(this));
+    OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
     Transaction->SubscribeAborted(OnAborted_);
 
     if (!NodeExists(path)) {
@@ -105,7 +103,7 @@ void TTableWriter::Close()
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
     auto req = TTableYPathProxy::AddTableChunks();
-    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunkids(), Writer->GetWrittenChunks());
+    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunkids(), Writer->GetWrittenChunkIds());
 
     auto rsp = Proxy.Execute(
         GetYPathFromNodeId(NodeId),
