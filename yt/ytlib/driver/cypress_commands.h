@@ -54,7 +54,10 @@ struct TSetRequest
     {
         TConfigurable::Validate(path);
         if (!Value && !Stream) {
-            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is specified (Path: %s)", ~path);
+            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given (Path: %s)", ~path);
+        }
+        if (Value && Stream) {
+            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given (Path: %s)", ~path);
         }
     }
 };
