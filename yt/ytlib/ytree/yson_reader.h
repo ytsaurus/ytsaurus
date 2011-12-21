@@ -12,10 +12,9 @@ namespace NYTree {
 class TYsonReaderBase
     : private TNonCopyable
 {
-public:
+protected:
     TYsonReaderBase(IYsonConsumer* consumer, TInputStream* stream);
 
-protected:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 

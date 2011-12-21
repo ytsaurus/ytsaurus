@@ -20,6 +20,7 @@ TYsonReaderBase::TYsonReaderBase(IYsonConsumer* consumer, TInputStream* stream)
     , Stream(stream)
 {
     YASSERT(consumer);
+    YASSERT(stream);
     Reset();
 }
 
@@ -514,7 +515,7 @@ void TYsonReader::Read()
 bool TYsonFragmentReader::HasNext()
 {
     SkipWhitespaces();
-    return (PeekChar() != Eos);
+    return PeekChar() != Eos;
 }
 
 void TYsonFragmentReader::ReadNext()
