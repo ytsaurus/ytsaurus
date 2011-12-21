@@ -28,30 +28,41 @@ public:
 
         i64 MaxChunkSize;
 
-        //! When current chunk size relative to #MaxChunkSize
-        //! overcomes this threshold (in percents), it's time to prepare the next chunk.
+        //! When current chunk size relative to #MaxChunkSize overcomes this threshold (given in percents)
+        //! the writer prepares the next chunk.
         int NextChunkThreshold;
 
-        int ReplicationFactor;
+        int TotalReplicaCount;
+        int UploadReplicaCount;
 
-        TChunkWriter::TConfig::TPtr TableChunk;
-        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteChunk;
+        TChunkWriter::TConfig::TPtr ChunkWriter;
+        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
 
         TConfig()
         {
             Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(256 * 1024 * 1024);
             Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(100).Default(70);
-            Register("replication_factor", ReplicationFactor).GreaterThanOrEqual(1).Default(2);
-            Register("table_chunk", TableChunk);
-            Register("remote_chunk", RemoteChunk);
+            Register("total_replica_count", UploadReplicaCount).GreaterThanOrEqual(1).Default(3);
+            Register("upload_replica_count", UploadReplicaCount).GreaterThanOrEqual(1).Default(2);
+            Register("chunk_writer", ChunkWriter).DefaultNew();
+            Register("remote_writer", RemoteWriter).DefaultNew();
+        }
+
+        virtual void Validate(const NYTree::TYPath& path = "/")
+        {
+            TConfigurable::Validate(path);
+
+            if (TotalReplicaCount < UploadReplicaCount) {
+                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            }
         }
     };
 
     TChunkSequenceWriter(
         TConfig* config,
-        const TSchema& schema,
+        NRpc::IChannel* masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        NRpc::IChannel::TPtr masterChannel);
+        const TSchema& schema);
 
     TAsyncError::TPtr AsyncOpen();
     void Write(const TColumn& column, TValue value);
@@ -59,12 +70,12 @@ public:
     TAsyncError::TPtr AsyncClose();
     void Cancel(const TError& error);
 
-    const yvector<NChunkClient::TChunkId>& GetWrittenChunks() const;
+    const yvector<NChunkClient::TChunkId>& GetWrittenChunkIds() const;
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
 
-        void CreateNextChunk();
+    void CreateNextChunk();
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
     void FinishCurrentChunk();
 
@@ -80,12 +91,11 @@ private:
     void OnClose();
 
     TConfig::TPtr Config;
+    TProxy Proxy;
+    const NTransactionClient::TTransactionId TransactionId;
     const TSchema Schema;
 
-    const NTransactionClient::TTransactionId TransactionId;
-
     TAsyncStreamState State;
-    TProxy Proxy;
 
     //! Protects #CurrentChunk.
     TSpinLock CurrentSpinLock;
