@@ -403,7 +403,7 @@ void TChunkReplication::GetReplicaStatistics(
 {
     *desiredCount = GetDesiredReplicaCount(chunk);
     *storedCount = chunk.StoredLocations().ysize();
-    *cachedCount = ~chunk.CachedLocations() == NULL ? 0 : static_cast<int>(chunk.CachedLocations()->size());
+    *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
     *plusCount = 0;
     *minusCount = 0;
 

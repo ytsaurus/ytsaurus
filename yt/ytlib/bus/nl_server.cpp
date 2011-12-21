@@ -595,7 +595,7 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
     consumer->OnInt64Scalar(Config->Port);
 
     auto requester = Requester;
-    if (requester.Get() != NULL) {
+    if (requester.Get()) {
         consumer->OnMapItem("nl_requester");
         consumer->OnStringScalar(requester->GetDebugInfo());
     }

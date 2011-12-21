@@ -43,12 +43,12 @@ const char* TValue::End() const
 
 bool TValue::IsEmpty() const
 {
-    return (Data.Begin() != NULL) && (Data.Size() == 0);
+    return (Data.Begin() && Data.Size() == 0);
 }
 
 bool TValue::IsNull() const
 {
-    return Data.Begin() == NULL;
+    return !Data.Begin();
 }
 
 Stroka TValue::ToString() const

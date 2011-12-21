@@ -64,7 +64,7 @@ TChunkHolderService::~TChunkHolderService()
 
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 {
-    if (~SessionManager->FindSession(chunkId) != NULL) {
+    if (SessionManager->FindSession(chunkId)) {
         ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
             Sprintf("Session %s already exists", ~chunkId.ToString());
     }
@@ -72,7 +72,7 @@ void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 
 void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 {
-    if (~ChunkStore->FindChunk(chunkId) != NULL) {
+    if (ChunkStore->FindChunk(chunkId)) {
         ythrow TServiceException(EErrorCode::ChunkAlreadyExists) <<
             Sprintf("Chunk %s already exists", ~chunkId.ToString());
     }

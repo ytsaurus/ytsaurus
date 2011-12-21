@@ -63,7 +63,7 @@ void TChunkService::ValidateChunkId(const TChunkId& chunkId)
 
 void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    if (TransactionManager->FindTransaction(transactionId) == NULL) {
+    if (!TransactionManager->FindTransaction(transactionId)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
     }

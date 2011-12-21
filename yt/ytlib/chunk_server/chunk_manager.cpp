@@ -365,7 +365,7 @@ private:
             DoRemoveChunkFromLocation(chunk, false, holderId);
         }
 
-        if (~chunk.CachedLocations() != NULL) {
+        if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
                 DoRemoveChunkFromLocation(chunk, true, holderId);
             }
@@ -827,7 +827,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (!chunk) {
+        if (chunk == NULL) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
@@ -864,7 +864,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (!chunk) {
+        if (chunk == NULL) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~ToString(cached),
@@ -1101,7 +1101,7 @@ void TChunkManager::FillHolderAddresses(
         addresses->Add()->assign(holder.GetAddress());
     }
 
-    if (~chunk.CachedLocations() != NULL) {
+    if (~chunk.CachedLocations()) {
         FOREACH(auto holderId, *chunk.CachedLocations()) {
             const THolder& holder = GetHolder(holderId);
             addresses->Add()->assign(holder.GetAddress());

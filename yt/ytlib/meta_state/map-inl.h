@@ -50,7 +50,7 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::~TMetaStateMap()
             }
             PrimaryMap.clear();
             FOREACH (const auto& pair, PatchMap) {
-                if (pair.Second() != NULL) {
+                if (pair.Second()) {
                     delete pair.Second();
                 }
             }
@@ -72,7 +72,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
                 YASSERT(PrimaryMap.find(key) == PrimaryMap.end());
                 YVERIFY(PatchMap.insert(MakePair(key, value)).Second());
             } else {
-                YASSERT(patchIt->Second() == NULL);
+                YASSERT(!patchIt->Second());
                 patchIt->Second() = value;
             }
             break;
@@ -190,7 +190,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
                 YASSERT(mainIt != PrimaryMap.end());
                 YVERIFY(PatchMap.insert(TItem(key, NULL)).Second());
             } else {
-                YASSERT(patchIt->Second() != NULL);
+                YASSERT(patchIt->Second());
                 delete patchIt->Second();
                 if (mainIt == PrimaryMap.end()) {
                     PatchMap.erase(patchIt);
@@ -211,7 +211,7 @@ bool TMetaStateMap<TKey, TValue, TTraits, THash>::Contains(const TKey& key) cons
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Find(key) != NULL;
+    return Find(key);
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -231,7 +231,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
         }
         case EState::SavingSnapshot: {
             FOREACH (const auto& pair, PatchMap) {
-                if (pair.Second() != NULL) {
+                if (pair.Second()) {
                     delete pair.Second();
                 }
             }
@@ -276,12 +276,12 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
         case EState::SavingSnapshot: {
             FOREACH(const auto& pair, PrimaryMap) {
                 auto patchIt = PatchMap.find(pair.First());
-                if (patchIt == PatchMap.end() || patchIt->Second() != NULL) {
+                if (patchIt == PatchMap.end() || patchIt->Second()) {
                     keys.push_back(pair.First());
                 }
             }
             FOREACH(const auto& pair, PatchMap) {
-                if (pair.Second() != NULL) {
+                if (pair.Second()) {
                     auto primaryIt = PrimaryMap.find(pair.First());
                     if (primaryIt == PrimaryMap.end()) {
                         keys.push_back(pair.First());

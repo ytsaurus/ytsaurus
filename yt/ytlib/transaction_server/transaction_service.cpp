@@ -37,7 +37,7 @@ TTransactionService::TTransactionService(
 
 void TTransactionService::ValidateTransactionId(const TTransactionId& id)
 {
-    if (TransactionManager->FindTransaction(id) == NULL) {
+    if (!TransactionManager->FindTransaction(id)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) <<
             Sprintf("Unknown or expired transaction id (TransactionId: %s)",
                 ~id.ToString());

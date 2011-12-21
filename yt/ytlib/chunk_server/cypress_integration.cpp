@@ -53,7 +53,7 @@ private:
                                 const auto& holder = ChunkManager->GetHolder(holderId);
                                 fluent.Item().Scalar(holder.GetAddress());
                             })
-                        .DoIf(~chunk->CachedLocations() != NULL, [=] (TFluentMap fluent)
+                        .DoIf(~chunk->CachedLocations(), [=] (TFluentMap fluent)
                             {
                                 fluent
                                     .Item("cached_locations")
@@ -232,7 +232,7 @@ private:
     void GetAlive(const TGetAttributeParam& param)
     {
         Stroka address = GetAddress(*param.Node);
-        bool alive = ChunkManager->FindHolder(address) != NULL;
+        bool alive = ChunkManager->FindHolder(address);
         BuildYsonFluently(param.Consumer)
             .Scalar(alive);
     }
@@ -288,7 +288,7 @@ private:
         Stroka address = holder.GetAddress();
 
         auto node = GetProxy();
-        if (~node->FindChild(address) != NULL)
+        if (node->FindChild(address))
             return;
 
         // TODO: use fluent
@@ -388,7 +388,7 @@ private:
             .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
                 {
                     Stroka address = pair.first;
-                    if (ChunkManager->FindHolder(address) == NULL) {
+                    if (!ChunkManager->FindHolder(address)) {
                         param.Consumer->OnListItem();
                         param.Consumer->OnStringScalar(address);
                     }

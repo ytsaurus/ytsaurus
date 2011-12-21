@@ -166,7 +166,7 @@ inline void ValidateSubconfigs(
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
 {
-    if (parameter->Get() != NULL) {
+    if (parameter->Get()) {
         (*parameter)->Validate(path);
     }
 }
