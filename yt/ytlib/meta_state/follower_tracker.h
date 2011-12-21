@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TFollowerTracker> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

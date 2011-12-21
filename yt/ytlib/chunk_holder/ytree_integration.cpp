@@ -38,7 +38,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto chunk = ChunkStore->FindChunk(id);
-        if (~chunk == NULL) {
+        if (!chunk) {
             return NULL;
         }
 

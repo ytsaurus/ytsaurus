@@ -104,14 +104,14 @@ TClientResponse::TClientResponse(const TRequestId& requestId)
 
 IMessage::TPtr TClientResponse::GetResponseMessage() const
 {
-    YASSERT(~ResponseMessage != NULL);
+    YASSERT(ResponseMessage);
     return ResponseMessage;
 }
 
 void TClientResponse::Deserialize(IMessage* responseMessage)
 {
     YASSERT(responseMessage != NULL);
-    YASSERT(~ResponseMessage == NULL);
+    YASSERT(!ResponseMessage);
 
     ResponseMessage = responseMessage;
 

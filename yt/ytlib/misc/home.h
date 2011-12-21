@@ -1,18 +1,13 @@
-﻿#pragma once
+#pragma once
 
-#include "../misc/common.h"
-#include "../logging/log.h"
-#include "../misc/configurable.h"
+#include "common.h"
 
 namespace NYT {
-namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableClientLogger;
+Stroka GetHomePath();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
 } // namespace NYT
-

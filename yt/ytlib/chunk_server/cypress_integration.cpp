@@ -337,8 +337,8 @@ public:
         , ChunkManager(chunkManager)
     {
         // NB: No smartpointer for this here.
-        RegisterGetter("alive_holders", FromMethod(&TThis::GetAliveHolders, this));
-        RegisterGetter("dead_holders", FromMethod(&TThis::GetDeadHolders, this));
+        RegisterGetter("alive", FromMethod(&TThis::GetAliveHolders, this));
+        RegisterGetter("dead", FromMethod(&TThis::GetDeadHolders, this));
     }
 
     virtual ERuntimeNodeType GetRuntimeType()

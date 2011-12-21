@@ -212,7 +212,7 @@ public:
 
     virtual TTransactionId GetCurrentTransactionId()
     {
-        return ~Transaction == NULL ? NullTransactionId : Transaction->GetId();
+        return !Transaction ? NullTransactionId : Transaction->GetId();
     }
 
     virtual ITransaction* GetCurrentTransaction(bool required)

@@ -35,7 +35,7 @@ public:
     static bool RenewLease(TLease lease)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(~lease != NULL);
+        YASSERT(lease);
 
         TGuard<TSpinLock> guard(lease->SpinLock);
         if (!lease->IsValid)
@@ -51,7 +51,7 @@ public:
     static bool CloseLease(TLease lease)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(~lease != NULL);
+        YASSERT(lease);
 
         TGuard<TSpinLock> guard(lease->SpinLock);
         if (!lease->IsValid)

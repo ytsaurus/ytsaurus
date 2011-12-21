@@ -125,6 +125,17 @@ int TYsonReader::PeekChar()
     return Lookahead;
 }
 
+bool TYsonReader::IsLetter(int ch)
+{
+    return (('a' <= ch && ch <= 'z') ||
+            ('A' <= ch && ch <= 'Z'));
+}
+
+bool TYsonReader::IsDigit(int ch)
+{
+    return ('0' <= ch && ch <= '9');
+}
+
 bool TYsonReader::IsWhitespace(int ch)
 {
     return
@@ -149,7 +160,15 @@ Stroka TYsonReader::ReadString()
             return ReadBinaryString();
         case '"':
             return ReadQuoteStartingString();
+        case Eos:
+            ythrow yexception() << Sprintf("Premature end-of-stream while expecting string literal in YSON %s",
+                ~GetPositionInfo());
         default:
+            if (!(IsLetter(ch) || ch == '_')) {
+                ythrow yexception() << Sprintf("Expecting string literal but found %s in YSON %s",
+                ~Stroka(static_cast<char>(ch)).Quote(),
+                ~GetPositionInfo());
+            }
             return ReadLetterStartingString();
     }
 }
@@ -163,7 +182,7 @@ Stroka TYsonReader::ReadQuoteStartingString()
     while (true) {
         int ch = ReadChar();
         if (ch == Eos) {
-            ythrow yexception() << Sprintf("Premature end-of-stream while parsing string literal in YSON %s",
+            ythrow yexception() << Sprintf("Premature end-of-stream while reading string literal in YSON %s",
                 ~GetPositionInfo());
         }
         if (ch == '"' && trailingSlashesCount % 2 == 0) {
@@ -186,10 +205,9 @@ Stroka TYsonReader::ReadLetterStartingString()
     Stroka result;
     while (true) {
         int ch = PeekChar();
-        if (!(ch >= 'a' && ch <= 'z' ||
-              ch >= 'A' && ch <= 'Z' ||
+        if (!(IsLetter(ch) ||
               ch == '_' ||
-              ch >= '0' && ch <= '9' && !result.Empty()))
+              IsDigit(ch) && !result.Empty()))
               break;
         ReadChar();
         result.append(static_cast<char>(ch));
@@ -210,14 +228,12 @@ Stroka TYsonReader::ReadBinaryString()
     return ReadChars(length, true);
 }
 
-
-
 Stroka TYsonReader::ReadNumeric()
 {
     Stroka result;
     while (true) {
         int ch = PeekChar();
-        if (!(ch >= '0' && ch <= '9' ||
+        if (!(IsDigit(ch) ||
               ch == '+' ||
               ch == '-' ||
               ch == '.' ||
@@ -262,14 +278,17 @@ void TYsonReader::ParseAny()
             ParseBinaryDouble();
             break;
 
+        case Eos:
+            ythrow yexception() << Sprintf("Premature end-of-stream in YSON %s",
+                ~GetPositionInfo());
+
         default:
-            if (ch >= '0' && ch <= '9' ||
+            if (IsDigit(ch) ||
                 ch == '+' ||
                 ch == '-')
             {
                 ParseNumeric();
-            } else if (ch >= 'a' && ch <= 'z' ||
-                       ch >= 'A' && ch <= 'Z' ||
+            } else if (IsLetter(ch) ||
                        ch == '_' ||
                        ch == '"')
             {

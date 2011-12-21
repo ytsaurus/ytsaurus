@@ -32,7 +32,6 @@ add_subdirectory(contrib/yajl)
 add_subdirectory(contrib)
 
 add_subdirectory(quality/Misc)
-add_subdirectory(quality/NetLiba)
 add_subdirectory(quality/netliba_v6)
 
 add_subdirectory(library/json)

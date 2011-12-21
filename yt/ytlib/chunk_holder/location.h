@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "../logging/tagged_logger.h"
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -91,6 +93,7 @@ private:
     TActionQueue::TPtr ActionQueue;
     int SessionCount;
 
+    NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

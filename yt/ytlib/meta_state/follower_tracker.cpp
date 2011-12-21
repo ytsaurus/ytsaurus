@@ -20,8 +20,8 @@ TFollowerTracker::TFollowerTracker(
 {
     VERIFY_INVOKER_AFFINITY(serviceInvoker, ControlThread);
 
-    YASSERT(~cellManager != NULL);
-    YASSERT(~serviceInvoker != NULL);
+    YASSERT(cellManager);
+    YASSERT(serviceInvoker);
 
     FollowerStates = yvector<TFollowerState>(cellManager->GetPeerCount());
 

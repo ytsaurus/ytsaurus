@@ -29,7 +29,10 @@ TLocation::TLocation(
     , UsedSpace(0)
     , ActionQueue(New<TActionQueue>(threadName))
     , SessionCount(0)
-{ }
+    , Logger(ChunkHolderLogger)
+{
+    Logger.SetTag(Sprintf("LocationPath: %s", ~Config->Path.Quote()));
+}
 
 ELocationType TLocation::GetType() const
 {
@@ -57,8 +60,7 @@ i64 TLocation::GetAvailableSpace()
     try {
         AvailableSpace = NFS::GetAvailableSpace(path);
     } catch (...) {
-        LOG_FATAL("Failed to compute available space at %s\n%s",
-            ~path.Quote(),
+        LOG_FATAL("Failed to compute available space\n%s",
             ~CurrentExceptionMessage());
     }
 
@@ -109,16 +111,14 @@ Stroka TLocation::GetPath() const
 void TLocation::IncrementSessionCount()
 {
     ++SessionCount;
-    LOG_DEBUG("Location session count incremented (Path: %s, SessionCount: %d)",
-        ~GetPath(),
+    LOG_DEBUG("Location session count incremented (SessionCount: %d)",
         SessionCount);
 }
 
 void TLocation::DecrementSessionCount()
 {
     --SessionCount;
-    LOG_DEBUG("Location session count decremented (Path: %s, SessionCount: %d)",
-        ~GetPath(),
+    LOG_DEBUG("Location session count decremented (SessionCount: %d)",
         SessionCount);
 }
     
@@ -150,7 +150,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
 {
     auto path = GetPath();
 
-    LOG_INFO("Scanning storage location %s", ~path);
+    LOG_INFO("Scanning storage location");
 
     NFS::ForcePath(path);
     NFS::CleanTempFiles(path);
@@ -191,6 +191,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
             descriptor.Size = NFS::GetFileSize(chunkDataFileName) + NFS::GetFileSize(chunkMetaFileName);
             result.push_back(descriptor);
         } else if (!hasMeta) {
+            //TODO: fix message considering tag path
             LOG_WARNING("Missing meta file for %s, removing data file", ~chunkDataFileName.Quote());
             RemoveFile(chunkDataFileName);
         } else if (!hasData) {

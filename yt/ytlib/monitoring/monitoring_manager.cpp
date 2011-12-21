@@ -108,7 +108,7 @@ void TMonitoringManager::Visit(IYsonConsumer* consumer)
 TYsonProducer::TPtr TMonitoringManager::GetProducer()
 {
     YASSERT(IsStarted);
-    YASSERT(~Root != NULL);
+    YASSERT(Root);
 
     return FromMethod(&TMonitoringManager::Visit, TPtr(this));
 }

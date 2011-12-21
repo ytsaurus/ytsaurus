@@ -91,11 +91,13 @@ TEST_F(TChangeLogTest, Finalized)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
 
         changeLog->Flush();
         EXPECT_EQ(changeLog->IsFinalized(), false);
@@ -121,11 +123,13 @@ TEST_F(TChangeLogTest, ReadWrite)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
 
         changeLog->Flush();
 
@@ -150,11 +154,13 @@ TEST_F(TChangeLogTest, TestCorrupted)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
 
         changeLog->Flush();
     }
@@ -174,7 +180,9 @@ TEST_F(TChangeLogTest, TestCorrupted)
 
         TBlob blob(sizeof(i32));
         *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-        changeLog->Append(logRecordCount - 1, TSharedRef(MoveRV(blob)));
+        yvector<TSharedRef> records;
+        records.push_back(MoveRV(blob));
+        changeLog->Append(logRecordCount - 1, records);
         changeLog->Flush();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
@@ -198,11 +206,13 @@ TEST_F(TChangeLogTest, Truncate)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
 
         changeLog->Flush();
 
@@ -234,11 +244,13 @@ TEST_F(TChangeLogTest, TruncateAppend)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
             *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
 
         changeLog->Flush();
 
@@ -246,32 +258,34 @@ TEST_F(TChangeLogTest, TruncateAppend)
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 
-    int recordId = logRecordCount / 2;
+    int truncatedRecordId = logRecordCount / 2;
     {
         // Truncate
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
-        changeLog->Truncate(recordId);
+        changeLog->Truncate(truncatedRecordId);
 
-        CheckRead<ui32>(changeLog, 0, recordId, recordId);
+        CheckRead<ui32>(changeLog, 0, truncatedRecordId, truncatedRecordId);
     }
     {
         // Append
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
-        for (i32 i = recordId; i < logRecordCount; ++i) {
+        yvector<TSharedRef> records;
+        for (i32 recordId = truncatedRecordId; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui32));
-            *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(i);
-            changeLog->Append(i, TSharedRef(MoveRV(blob)));
+            *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(recordId);
+            records.push_back(MoveRV(blob));
         }
+        changeLog->Append(truncatedRecordId, records);
     }
     {
         // Check
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
-        CheckRead<ui32>(changeLog, 0, recordId, recordId);
+        CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 }
 
@@ -283,11 +297,13 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
+        yvector<TSharedRef> records(logRecordCount);
         for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
             TBlob blob(sizeof(ui8));
             *reinterpret_cast<ui8*>(blob.begin()) = static_cast<ui8>(recordId);
-            changeLog->Append(recordId, TSharedRef(MoveRV(blob)));
+            records[recordId] = MoveRV(blob);
         }
+        changeLog->Append(0, records);
     }
     {
         TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);

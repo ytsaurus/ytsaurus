@@ -124,7 +124,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     auto attributes = Node->GetAttributes();
-    if (~attributes == NULL) {
+    if (!attributes) {
         Node->SetAttributes(NodeFactory->CreateMap());
     } else {
         attributes->Clear();
@@ -133,7 +133,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 {
-    YASSERT(~AttributeBuilder == NULL);
+    YASSERT(!AttributeBuilder);
     AttributeName = name;
     AttributeBuilder = CreateBuilderFromFactory(~NodeFactory);
     AttributeBuilder->BeginTree();
@@ -142,7 +142,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 
 void TNodeSetterBase::OnForwardingFinished()
 {
-    YASSERT(~AttributeBuilder != NULL);
+    YASSERT(~AttributeBuilder);
     YVERIFY(Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName));
     AttributeBuilder.Destroy();
     AttributeName.clear();
@@ -285,7 +285,7 @@ protected:
     {
         UNUSED(error);
 
-        if (~ResponseHandler != NULL) {
+        if (ResponseHandler) {
             ResponseHandler->Do(responseMessage);
         }
     }

@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/codec.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_rpc.h"
@@ -23,7 +23,7 @@ public:
     typedef TIntrusivePtr<TFileReader> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
     

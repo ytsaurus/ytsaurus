@@ -3,7 +3,7 @@
 #include "common.h"
 #include "channel.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NRpc {
@@ -11,7 +11,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRetryConfig
-    : public TConfigBase
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TRetryConfig> TPtr;
     

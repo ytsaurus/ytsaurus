@@ -4,7 +4,7 @@
 #include "async_reader.h"
 #include "reader_thread.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../misc/async_stream_state.h"
 #include "../misc/enum.h"
 #include "../misc/cyclic_buffer.h"
@@ -25,7 +25,7 @@ public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
@@ -47,7 +47,7 @@ public:
                 ythrow yexception() << "Group size cannot be larger than prefetch window size";
             }
 
-            TConfigBase::Validate(path);
+            TConfigurable::Validate(path);
         }
      };
 

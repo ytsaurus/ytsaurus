@@ -61,8 +61,8 @@ using std::string; // hack for guid.h to work
 #include <util/ysaveload.h>
 #include <util/str_stl.h>
 
-#include <quality/NetLiba/UdpHttp.h>
-#include <quality/NetLiba/UdpAddress.h>
+#include <quality/netliba_v6/udp_http.h>
+#include <quality/netliba_v6/udp_address.h>
 
 #include <library/json/json_writer.h>
 

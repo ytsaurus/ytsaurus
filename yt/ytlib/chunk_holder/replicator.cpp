@@ -32,11 +32,14 @@ TJob::TJob(
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
     , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , Logger(ChunkHolderLogger)
 {
     YASSERT(serviceInvoker != NULL);
     YASSERT(chunkStore != NULL);
     YASSERT(blockStore != NULL);
     YASSERT(chunk != NULL);
+
+    Logger.SetTag(Sprintf("JobId: %s", ~JobId.ToString()));
 }
 
 EJobType TJob::GetType() const
@@ -68,22 +71,19 @@ void TJob::Start()
 {
     switch (JobType) {
         case EJobType::Remove: {
-            LOG_INFO("Removal job started (JobId: %s, ChunkId: %s)",
-                ~JobId.ToString(),
+            LOG_INFO("Removal job started (ChunkId: %s)",
                 ~Chunk->GetId().ToString());
 
             ChunkStore->RemoveChunk(~Chunk);
 
-            LOG_DEBUG("Removal job completed (JobId: %s)",
-                ~JobId.ToString());
+            LOG_DEBUG("Removal job completed");
 
             State = EJobState::Completed;
             break;
         }
 
         case EJobType::Replicate: {
-            LOG_INFO("Replication job started (JobId: %s, TargetAddresses: [%s], ChunkId: %s)",
-                ~JobId.ToString(),
+            LOG_INFO("Replication job started (TargetAddresses: [%s], ChunkId: %s)",
                 ~JoinToString(TargetAddresses),
                 ~Chunk->GetId().ToString());
 
@@ -103,7 +103,7 @@ void TJob::Start()
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
-    if (~Writer != NULL) {
+    if (Writer) {
         Writer->Cancel(TError("Replication job stopped"));
     }
 }
@@ -111,8 +111,7 @@ void TJob::Stop()
 void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
 {
     if (!result.IsOK()) {
-        LOG_WARNING("Error getting chunk info (JobId: %s)\n%s",
-            ~JobId.ToString(),
+        LOG_WARNING("Error getting chunk info\n%s",
             ~result.ToString());
 
         State = EJobState::Failed;
@@ -132,8 +131,7 @@ void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
 void TJob::ReplicateBlock(TError error, int blockIndex)
 {
     if (!error.IsOK()) {
-        LOG_WARNING("Replication failed (JobId: %s, BlockIndex: %d)\n%s",
-            ~JobId.ToString(),
+        LOG_WARNING("Replication failed (BlockIndex: %d)\n%s",
             blockIndex,
             ~error.ToString());
 
@@ -142,8 +140,7 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
     }
 
     if (blockIndex >= static_cast<int>(ChunkInfo.blocks_size())) {
-        LOG_DEBUG("All blocks are enqueued for replication (JobId: %s)",
-            ~JobId.ToString());
+        LOG_DEBUG("All blocks are enqueued for replication");
 
         Writer->AsyncClose(ChunkInfo.attributes())->Subscribe(
             FromMethod(
@@ -155,8 +152,7 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
 
     TBlockId blockId(Chunk->GetId(), blockIndex);
 
-    LOG_DEBUG("Retrieving block for replication (JobId: %s, BlockIndex: %d)",
-        ~JobId.ToString(), 
+    LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)",
         blockIndex);
 
     BlockStore->GetBlock(blockId)->Subscribe(
@@ -170,8 +166,7 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
 void TJob::OnBlockLoaded(TBlockStore::TGetBlockResult result, int blockIndex)
 {
     if (!result.IsOK()) {
-        LOG_WARNING("Error getting block for replication (JobId: %s, BlockIndex: %d)\n%s",
-            ~JobId.ToString(),
+        LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
             blockIndex,
             ~result.ToString());
 
@@ -191,13 +186,12 @@ void TJob::OnBlockLoaded(TBlockStore::TGetBlockResult result, int blockIndex)
 void TJob::OnWriterClosed(TError error)
 {
     if (error.IsOK()) {
-        LOG_DEBUG("Replication job completed (JobId: %s)", ~JobId.ToString());
+        LOG_DEBUG("Replication job completed");
 
         Writer.Reset();
         State = EJobState::Completed;
     } else {
-        LOG_WARNING("Replication job failed (JobId: %s)\n%s",
-            ~JobId.ToString(),
+        LOG_WARNING("Replication job failed\n%s",
             ~error.ToString());
 
         Writer.Reset();

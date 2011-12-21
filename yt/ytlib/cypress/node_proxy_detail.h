@@ -111,7 +111,7 @@ public:
     virtual void SetParent(NYTree::ICompositeNode::TPtr parent)
     {
         GetImplForUpdate().SetParentId(
-            ~parent == NULL
+            !parent
             ? NullNodeId
             : ToProxy(~parent)->GetNodeId());
     }
@@ -132,7 +132,7 @@ public:
             impl.SetAttributesId(NullNodeId);
         }
 
-        if (~attributes != NULL) {
+        if (attributes) {
             auto* attrProxy = ToProxy(~attributes);
             auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
             AttachChild(attrImpl);

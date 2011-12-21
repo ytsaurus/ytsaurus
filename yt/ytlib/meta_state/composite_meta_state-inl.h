@@ -14,7 +14,7 @@ template<class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
-    YASSERT(~changeMethod != NULL);
+    YASSERT(changeMethod);
 
     Stroka changeType = TMessage().GetTypeName();
     auto action = FromMethod(
@@ -29,7 +29,7 @@ void TMetaStatePart::MethodThunk(
     const TRef& changeData,
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
 {
-    YASSERT(~changeMethod != NULL);
+    YASSERT(changeMethod);
 
     TMessage message;
     YVERIFY(DeserializeProtobuf(&message, changeData));

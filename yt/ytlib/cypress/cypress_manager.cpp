@@ -75,7 +75,7 @@ void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
 {
     auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
-    YASSERT(~handler != NULL);
+    YASSERT(handler);
     return handler;
 }
 
@@ -92,7 +92,7 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 
     auto typeHandler = GetTypeHandler(node);
     auto behavior = typeHandler->CreateBehavior(node);
-    if (~behavior == NULL)
+    if (!behavior)
         return;
 
     YVERIFY(NodeBehaviors.insert(MakePair(nodeId.NodeId, behavior)).Second());
@@ -206,7 +206,7 @@ ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
     const TTransactionId& transactionId)
 {
     auto proxy = FindNodeProxy(nodeId, transactionId);
-    YASSERT(~proxy != NULL);
+    YASSERT(proxy);
     return proxy;
 }
 

@@ -281,7 +281,7 @@ void TTransactionManager::OnPingResponse(
         }
     }
     
-    if (~transaction == NULL)
+    if (!transaction)
         return;
 
     if (!rsp->IsOK()) {

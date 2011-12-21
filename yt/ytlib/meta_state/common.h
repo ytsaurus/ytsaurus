@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../misc/common.h"
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../logging/log.h"
 #include "../election/common.h"
 
@@ -68,7 +68,7 @@ DECLARE_ENUM(ECommitResult,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellConfig
-    : TConfigBase
+    : TConfigurable
 {
     typedef TIntrusivePtr<TCellConfig> TPtr;
 
@@ -86,7 +86,7 @@ struct TCellConfig
 
     virtual void Validate(const NYTree::TYPath& path = "") const
     {
-        TConfigBase::Validate(path);
+        TConfigurable::Validate(path);
         if (Id == NElection::InvalidPeerId) {
             ythrow yexception() << "Missing peer id";
         }

@@ -32,7 +32,7 @@ public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
     struct TConfig
-        : public TConfigBase
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

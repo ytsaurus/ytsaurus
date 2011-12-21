@@ -20,9 +20,9 @@ class TLazyHolder
 public:
     inline T* Get() const throw()
     {
-        if (~Value == NULL) {
+        if (!Value) {
             TGuard<TLock> guard(Lock);
-            if (~Value == NULL) {
+            if (!Value) {
                 Value.Reset(new T());
             }
         }

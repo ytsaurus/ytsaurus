@@ -36,12 +36,11 @@ TFileReader::TFileReader(
     Logger.SetTag(Sprintf("Path: %s", ~Path));
 
     auto transactionId =
-        ~Transaction == NULL 
+        !Transaction
         ? NullTransactionId
         : Transaction->GetId();
 
     LOG_INFO("File reader is open (TransactionId: %s)",
-        ~Path,
         ~transactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
@@ -106,7 +105,7 @@ TFileReader::TFileReader(
         ~remoteReader);
 
     // Bind to the transaction.
-    if (~Transaction != NULL) {
+    if (Transaction) {
         OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
         Transaction->SubscribeAborted(OnAborted_);
     }
@@ -156,7 +155,7 @@ void TFileReader::Close()
 
 void TFileReader::Finish()
 {
-    if (~Transaction != NULL) {
+    if (Transaction) {
         Transaction->UnsubscribeAborted(OnAborted_);
     }
     OnAborted_.Reset();

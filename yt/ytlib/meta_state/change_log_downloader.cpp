@@ -17,7 +17,7 @@ TChangeLogDownloader::TChangeLogDownloader(
     : Config(config)
     , CellManager(cellManager)
 {
-    YASSERT(~cellManager != NULL);
+    YASSERT(cellManager);
 }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(

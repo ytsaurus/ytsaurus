@@ -30,8 +30,8 @@ TTableWriter::TTableWriter(
         MasterChannel))
     , Proxy(~masterChannel)
 {
-    YASSERT(~masterChannel != NULL);
-    YASSERT(~transaction != NULL);
+    YASSERT(masterChannel);
+    YASSERT(transaction);
 
     Proxy.SetTimeout(Config->RpcTimeout);
 

@@ -35,7 +35,7 @@ TChunkSequenceWriter::TChunkSequenceWriter(
 
 void TChunkSequenceWriter::CreateNextChunk()
 {
-    YASSERT(~NextChunk == NULL);
+    YASSERT(!NextChunk);
 
     NextChunk = New< TFuture<TChunkWriter::TPtr> >();
 
@@ -55,7 +55,7 @@ void TChunkSequenceWriter::CreateNextChunk()
 void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(~NextChunk != NULL);
+    YASSERT(NextChunk);
 
     if (!State.IsActive()) {
         return;
@@ -114,7 +114,7 @@ void TChunkSequenceWriter::Write(const TColumn& column, TValue value)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~CurrentChunk != NULL);
+    YASSERT(CurrentChunk);
 
     CurrentChunk->Write(column, value);
 }
@@ -141,7 +141,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         return;
     }
 
-    if (~NextChunk == NULL && IsNextChunkTime()) {
+    if (!NextChunk && IsNextChunkTime()) {
         LOG_DEBUG("Time to prepare next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
             ~TransactionId.ToString(),
             CurrentChunk->GetCurrentSize());
@@ -152,7 +152,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         LOG_DEBUG("Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
             ~TransactionId.ToString(),
             CurrentChunk->GetCurrentSize());
-        YASSERT(~NextChunk != NULL);
+        YASSERT(NextChunk);
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk();
         NextChunk->Subscribe(FromMethod(
@@ -241,7 +241,7 @@ void TChunkSequenceWriter::Cancel(const TError& error)
     State.Cancel(error);
 
     TGuard<TSpinLock> guard(CurrentSpinLock);
-    if (~CurrentChunk != NULL) {
+    if (CurrentChunk) {
         CurrentChunk->Cancel(error);
     }
 }

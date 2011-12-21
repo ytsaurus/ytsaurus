@@ -312,7 +312,7 @@ bool TChunkReader::HasNextRow() const
 {
     // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer == NULL);
+    YASSERT(!Initializer);
 
     return CurrentRow < EndRow - 1;
 }
@@ -321,7 +321,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
 {
     // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer == NULL);
+    YASSERT(!Initializer);
 
     CurrentChannel = 0;
     IsColumnValid = false;
@@ -375,7 +375,7 @@ bool TChunkReader::NextColumn()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer == NULL);
+    YASSERT(!Initializer);
     YASSERT(IsRowValid);
 
     while (true) {
@@ -410,7 +410,7 @@ TColumn TChunkReader::GetColumn() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer == NULL);
+    YASSERT(!Initializer);
 
     YASSERT(IsRowValid);
     YASSERT(IsColumnValid);
@@ -422,7 +422,7 @@ TValue TChunkReader::GetValue()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
-    YASSERT(~Initializer == NULL);
+    YASSERT(!Initializer);
 
     YASSERT(IsRowValid);
     YASSERT(IsColumnValid);

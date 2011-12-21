@@ -6,14 +6,15 @@ set( SRCS
   ${BASE}/blob_output.cpp
   ${BASE}/checksum.cpp
   ${BASE}/codec.cpp
+  ${BASE}/configurable.cpp
   ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
+  ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/metric.cpp
-  ${BASE}/config.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
   ${BASE}/ref.cpp
@@ -32,6 +33,8 @@ set( HDRS
   ${BASE}/checksum.h
   ${BASE}/codec.h
   ${BASE}/common.h
+  ${BASE}/configurable-inl.h
+  ${BASE}/configurable.h
   ${BASE}/cyclic_buffer.h
   ${BASE}/delayed_invoker.h
   ${BASE}/demangle.h
@@ -41,6 +44,7 @@ set( HDRS
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
+  ${BASE}/home.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
   ${BASE}/lazy_holder.h
@@ -49,8 +53,6 @@ set( HDRS
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
-  ${BASE}/config-inl.h
-  ${BASE}/config.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor-gen.h

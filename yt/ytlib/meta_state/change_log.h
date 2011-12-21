@@ -31,7 +31,7 @@ public:
     void Create(i32 prevRecordCount);
     void Finalize();
 
-    void Append(i32 recordId, TSharedRef recordData);
+    void Append(i32 firstRecordId, const yvector<TSharedRef>& records);
     void Flush();
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
     void Truncate(i32 atRecordId);

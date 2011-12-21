@@ -4,13 +4,15 @@
 #include "async_writer.h"
 #include "chunk_service_rpc.pb.h"
 
-#include "../misc/config.h"
+#include "../misc/configurable.h"
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
 #include "../misc/thread_affinity.h"
 
 #include "../chunk_holder/chunk_holder_service_rpc.h"
 #include "../actions/action_queue.h"
+
+#include "../logging/tagged_logger.h"
 
 #include <util/generic/deque.h>
 
@@ -26,7 +28,7 @@ public:
     typedef TIntrusivePtr<TRemoteWriter> TPtr;
 
     struct TConfig
-        : TConfigBase
+        : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
@@ -59,7 +61,7 @@ public:
 
         void Validate(const NYTree::TYPath& path /* = "" */) const
         {
-            TConfigBase::Validate(path);
+            TConfigurable::Validate(path);
             if (WindowSize < GroupSize) {
                 ythrow yexception() << "window_size must be greater or equal to group_size";
             }
@@ -156,6 +158,8 @@ private:
     TMetric SendBlocksTiming;
     TMetric FlushBlockTiming;
     TMetric FinishChunkTiming;
+
+    NLog::TTaggedLogger Logger;
 
     /*!
      * Invoked from #Close.

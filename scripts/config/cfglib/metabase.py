@@ -12,8 +12,9 @@ def get_classmethod_type():
 ClassMethodType = get_classmethod_type()
 
 class Subclass(object):
-    def __init__(self, iterable):
+    def __init__(self, iterable, priority=0):
         self._data  = iterable
+        self.priority = priority
         
     def __iter__(self):
         for x in self._data:
@@ -208,7 +209,9 @@ class ConfigMeta(type):
         ConfigMeta.process_templates(cls, templates.items())
 
         #generate subclasses from enumerables
-        for k, v in subclasses.iteritems():
+        lst = [x for x in subclasses.iteritems()]
+        lst.sort(key=lambda x:x[1].priority)
+        for k, v in lst:
             try:
                 for i, value in enumerate(v):
                     subcls = ConfigMeta.__new__(mcls, str(i), (cls, ), {k : value})

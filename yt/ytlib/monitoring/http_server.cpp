@@ -1,13 +1,8 @@
 #include "stdafx.h"
 #include "http_server.h"
 
-#if USE_NETLIBA_HTTP
-#include <quality/NetLiba/HttpServer.h>
-#include <quality/NetLiba/HttpRequest.h>
-#else
 #include <util/server/http.h>
 #include <util/string/http.h>
-#endif
 #include <quality/Misc/HPTimer.h>
 
 #include <yt/ytlib/misc/assert.h>

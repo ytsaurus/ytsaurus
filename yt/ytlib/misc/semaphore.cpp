@@ -21,7 +21,7 @@ void TAsyncSemaphore::Release(int slots /* = 1 */)
     FreeSlotCount += slots;
     YASSERT(FreeSlotCount <= MaxFreeSlots);
 
-    if (~AcquireEvent != NULL && FreeSlotCount > 0) {
+    if (AcquireEvent && FreeSlotCount > 0) {
         FreeSlotCount -= RequestedSlots;
         RequestedSlots = 0;
         auto event = AcquireEvent;
@@ -42,7 +42,7 @@ TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(int slots /* = 1 */)
         return StaticResult;
     }
 
-    YASSERT(~AcquireEvent == NULL);
+    YASSERT(!AcquireEvent);
     AcquireEvent = New< TFuture<TVoid> >();
     RequestedSlots = slots;
     return AcquireEvent;

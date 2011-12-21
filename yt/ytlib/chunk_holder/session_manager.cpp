@@ -30,9 +30,12 @@ TSession::TSession(
     , FirstUnwritten(0)
     , Size(0)
     , HasChunkInfo(0)
+    , Logger(ChunkHolderLogger)
 {
     YASSERT(sessionManager != NULL);
     YASSERT(location != NULL);
+
+    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Location->IncrementSessionCount();
 
@@ -96,14 +99,12 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("Retrieving a block that is not received (ChunkId: %s, WindowStart: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
+            Sprintf("Retrieving a block that is not received (WindowStart: %d, BlockIndex: %d)",
             WindowStart,
             blockIndex);
     }
 
-    LOG_DEBUG("Chunk block retrieved (ChunkId: %s, BlockIndex: %d)",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Chunk block retrieved (BlockIndex: %d)",
         blockIndex);
 
     return slot.Block;
@@ -168,21 +169,18 @@ void TSession::EnqueueWrites()
 
 TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 {
-    LOG_DEBUG("Start writing chunk block (ChunkId: %s, BlockIndex: %d)",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Start writing chunk block (BlockIndex: %d)",
         blockIndex);
 
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
     } catch (...) {
-        LOG_FATAL("Error writing chunk block (ChunkId: %s, BlockIndex: %d)\n%s",
-            ~ChunkId.ToString(),
+        LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
             ~CurrentExceptionMessage());
     }
 
-    LOG_DEBUG("Chunk block written (ChunkId: %s, BlockIndex: %d)",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Chunk block written (BlockIndex: %d)",
         blockIndex);
 
     return TVoid();
@@ -207,8 +205,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     const TSlot& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("Flushing an empty block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
+            Sprintf("Flushing an empty block (WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             WindowStart,
             Window.ysize(),
             blockIndex);
@@ -235,8 +232,7 @@ TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
-                Sprintf("Finishing a session with an unflushed block (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-                ~ChunkId.ToString(),
+                Sprintf("Finishing a session with an unflushed block (WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
                 WindowStart,
                 Window.ysize(),
                 blockIndex);
@@ -263,8 +259,7 @@ void TSession::DoOpenFile()
 {
     Writer = New<TChunkFileWriter>(ChunkId, FileName);
 
-    LOG_DEBUG("Chunk file opened (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Chunk file opened");
 }
 
 void TSession::DeleteFile(const TError& error)
@@ -279,8 +274,7 @@ void TSession::DoDeleteFile(const TError& error)
 {
     Writer->Cancel(error);
 
-    LOG_DEBUG("Chunk file deleted (ChunkId: %s)\n%s",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Chunk file deleted\n%s",
         ~error.ToString());
 }
 
@@ -300,13 +294,11 @@ NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
     } catch (...) {
-        LOG_FATAL("Error closing chunk file (ChunkId: %s)\n%s",
-            ~ChunkId.ToString(),
+        LOG_FATAL("Error closing chunk file\n%s",
             ~CurrentExceptionMessage());
     }
 
-    LOG_DEBUG("Chunk file closed (ChunkId: %s)",
-        ~ChunkId.ToString());
+    LOG_DEBUG("Chunk file closed");
 
     return TVoid();
 }
@@ -322,8 +314,7 @@ void TSession::ReleaseBlocks(i32 flushedBlockIndex)
         ++WindowStart;
     }
 
-    LOG_DEBUG("Released blocks (ChunkId: %s, WindowStart: %d)",
-        ~ChunkId.ToString(),
+    LOG_DEBUG("Released blocks (WindowStart: %d)",
         WindowStart);
 }
 
@@ -336,8 +327,7 @@ void TSession::VerifyInWindow(i32 blockIndex)
 {
     if (!IsInWindow(blockIndex)) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("Accessing a block out of the window (ChunkId: %s, WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
-            ~ChunkId.ToString(),
+            Sprintf("Accessing a block out of the window (WindowStart: %d, WindowSize: %d, BlockIndex: %d)",
             WindowStart,
             Window.ysize(),
             blockIndex);
