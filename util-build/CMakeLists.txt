@@ -438,6 +438,13 @@ SET( UT_SRCS
   ${UT_BASE}/httpdate.h
 )
 
+if (UNIX)
+  # not important for Win, may be useful only for Unixes
+  SET( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
+else()
+  SET( LFA_SRC )
+endif()
+
 add_library( arcadia-utils STATIC
   ${SRCS}
   ${G_SRCS}
@@ -458,7 +465,7 @@ add_library( arcadia-utils STATIC
   ${RN_SRCS}
   ${SV_SRCS}
   ${UT_SRCS}
-  ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp
+  ${LFA_SRC}
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
