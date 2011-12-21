@@ -18,7 +18,35 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequest* request)
 {
+    auto stream = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
 
+    auto reader = New<TTableReader>(
+        ~DriverImpl->GetConfig()->TableReader,
+        DriverImpl->GetMasterChannel(),
+        DriverImpl->GetCurrentTransaction(),
+        // TODO: fixme
+        TChannel::Universal(),
+        request->Path);
+
+    auto format = DriverImpl->GetConfig()->OutputFormat;
+
+    try {
+        while (reader->NextRow()) {
+            TYsonWriter writer(~stream, format);
+            writer.OnBeginMap();
+            while (reader->NextColumn()) {
+                writer.OnMapItem(reader->GetColumn());
+                writer.OnStringScalar(reader->GetValue().ToString());
+            }
+            writer.OnEndMap();
+            stream->Write('\n');
+        }
+    } catch (...) {
+        reader->Close();
+        throw;
+    }
+
+    reader->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,42 +177,47 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
         ~DriverImpl->GetConfig()->TableWriter,
         DriverImpl->GetMasterChannel(),
         DriverImpl->GetCurrentTransaction(true),
-        // TODO: provider proper schema
+        // TODO: provide proper schema
         TSchema(),
         request->Path);
 
     writer->Open();
 
-    TRowConsumer consumer(~writer);
+    try {
+        TRowConsumer consumer(~writer);
 
-    if (request->Value) {
-        auto value = request->Value;
-        switch (value->GetType()) {
-            case ENodeType::List: {
-                FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                    TTreeVisitor visitor(&consumer);
-                    visitor.Visit(~child);
+        if (request->Value) {
+            auto value = request->Value;
+            switch (value->GetType()) {
+                case ENodeType::List: {
+                    FOREACH (const auto& child, value->AsList()->GetChildren()) {
+                        TTreeVisitor visitor(&consumer);
+                        visitor.Visit(~child);
+                    }
+                    break;
                 }
-                break;
-            }
 
-            case ENodeType::Map: {
-                TTreeVisitor visitor(&consumer);
-                visitor.Visit(~value);
-                break;
-            }
+                case ENodeType::Map: {
+                    TTreeVisitor visitor(&consumer);
+                    visitor.Visit(~value);
+                    break;
+                }
 
-            default:
-                YUNREACHABLE();
+                default:
+                    YUNREACHABLE();
+            }
+        } else {
+            auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
+            TYsonFragmentReader reader(&consumer, ~stream);
+            while (reader.HasNext()) {
+                reader.ReadNext();
+            }
         }
-    } else {
-        auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
-        TYsonFragmentReader reader(&consumer, ~stream);
-        while (reader.HasNext()) {
-            reader.ReadNext();
-        }
+    } catch (...) {
+        // TODO: uncomment this once Cancel is ready
+        // writer->Cancel();
+        throw;
     }
-
 
     writer->Close();
 }
