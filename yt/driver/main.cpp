@@ -10,7 +10,11 @@
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 
+#ifdef _win_
 #include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace NYT {
 
