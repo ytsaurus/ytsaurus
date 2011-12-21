@@ -335,7 +335,7 @@ bool TNLBusServer::ProcessIncomingNLRequests()
 void TNLBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
 {
     auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
-    if (header == NULL)
+    if (!header)
         return;
 
     switch (header->Type) {
@@ -375,7 +375,7 @@ void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     }
 
     auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
-    if (header == NULL)
+    if (!header)
         return;
 
     switch (header->Type) {

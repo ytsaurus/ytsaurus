@@ -30,7 +30,7 @@ void TForwardingYsonConsumer::DoForward(
     IAction* onForwardingFinished,
     int depth)
 {
-    YASSERT(ForwardingConsumer == NULL);
+    YASSERT(!ForwardingConsumer);
     YASSERT(consumer);
 
     ForwardingConsumer = consumer;
@@ -55,7 +55,7 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
 
 void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyStringScalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnStringScalar(value, hasAttributes);
@@ -65,7 +65,7 @@ void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttrib
 
 void TForwardingYsonConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyInt64Scalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnInt64Scalar(value, hasAttributes);
@@ -75,7 +75,7 @@ void TForwardingYsonConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
 
 void TForwardingYsonConsumer::OnDoubleScalar(double value, bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyDoubleScalar(value, hasAttributes);
     } else {
         ForwardingConsumer->OnDoubleScalar(value, hasAttributes);
@@ -85,7 +85,7 @@ void TForwardingYsonConsumer::OnDoubleScalar(double value, bool hasAttributes)
 
 void TForwardingYsonConsumer::OnEntity(bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyEntity(hasAttributes);
     } else {
         ForwardingConsumer->OnEntity(hasAttributes);
@@ -95,7 +95,7 @@ void TForwardingYsonConsumer::OnEntity(bool hasAttributes)
 
 void TForwardingYsonConsumer::OnBeginList()
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyBeginList();
     } else {
         ForwardingConsumer->OnBeginList();
@@ -105,7 +105,7 @@ void TForwardingYsonConsumer::OnBeginList()
 
 void TForwardingYsonConsumer::OnListItem()
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyListItem();
     } else {
         ForwardingConsumer->OnListItem();
@@ -114,7 +114,7 @@ void TForwardingYsonConsumer::OnListItem()
 
 void TForwardingYsonConsumer::OnEndList(bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyEndList(hasAttributes);
     } else {
         ForwardingConsumer->OnEndList(hasAttributes);
@@ -124,7 +124,7 @@ void TForwardingYsonConsumer::OnEndList(bool hasAttributes)
 
 void TForwardingYsonConsumer::OnBeginMap()
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyBeginMap();
     } else {
         ForwardingConsumer->OnBeginMap();
@@ -134,7 +134,7 @@ void TForwardingYsonConsumer::OnBeginMap()
 
 void TForwardingYsonConsumer::OnMapItem(const Stroka& name)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyMapItem(name);
     } else {
         ForwardingConsumer->OnMapItem(name);
@@ -143,7 +143,7 @@ void TForwardingYsonConsumer::OnMapItem(const Stroka& name)
 
 void TForwardingYsonConsumer::OnEndMap(bool hasAttributes)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyEndMap(hasAttributes);
     } else {
         ForwardingConsumer->OnEndMap(hasAttributes);
@@ -153,7 +153,7 @@ void TForwardingYsonConsumer::OnEndMap(bool hasAttributes)
 
 void TForwardingYsonConsumer::OnBeginAttributes()
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyBeginAttributes();
     } else {
         ForwardingConsumer->OnBeginAttributes();
@@ -162,7 +162,7 @@ void TForwardingYsonConsumer::OnBeginAttributes()
 
 void TForwardingYsonConsumer::OnAttributesItem(const Stroka& name)
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyAttributesItem(name);
     } else {
         ForwardingConsumer->OnAttributesItem(name);
@@ -171,7 +171,7 @@ void TForwardingYsonConsumer::OnAttributesItem(const Stroka& name)
 
 void TForwardingYsonConsumer::OnEndAttributes()
 {
-    if (ForwardingConsumer == NULL) {
+    if (!ForwardingConsumer) {
         OnMyEndAttributes();
     } else {
         ForwardingConsumer->OnEndAttributes();

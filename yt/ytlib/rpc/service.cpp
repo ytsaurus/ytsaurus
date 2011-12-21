@@ -84,7 +84,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         }
     }
 
-    if (runtimeInfo == NULL) {
+    if (!runtimeInfo) {
         Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~verb);

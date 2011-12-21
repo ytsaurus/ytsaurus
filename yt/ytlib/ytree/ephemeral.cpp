@@ -185,7 +185,7 @@ ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
 
 void TEphemeralNodeBase::SetParent(ICompositeNode::TPtr parent)
 {
-    YASSERT(!parent || Parent == NULL);
+    YASSERT(!parent || !Parent);
     Parent = ~parent;
 }
 

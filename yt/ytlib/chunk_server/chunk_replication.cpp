@@ -169,7 +169,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     yvector<TJobStartInfo>* jobsToStart)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
-    if (chunk == NULL) {
+    if (!chunk) {
         LOG_INFO("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
@@ -331,7 +331,7 @@ void TChunkReplication::ScheduleJobs(
     yvector<TJobStartInfo>* jobsToStart)
 {
     auto* holderInfo = FindHolderInfo(holder.GetId());
-    if (holderInfo == NULL)
+    if (!holderInfo)
         return;
 
     // Schedule replication jobs.

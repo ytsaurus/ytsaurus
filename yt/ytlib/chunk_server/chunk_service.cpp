@@ -46,7 +46,7 @@ TChunkService::TChunkService(
  void TChunkService::ValidateHolderId(THolderId holderId)
 {
     const auto* holder = ChunkManager->FindHolder(holderId);
-    if (holder == NULL) {
+    if (!holder) {
         ythrow TServiceException(EErrorCode::NoSuchHolder) <<
             Sprintf("Invalid or expired holder id (HolderId: %d)", holderId);
     }
@@ -55,7 +55,7 @@ TChunkService::TChunkService(
 void TChunkService::ValidateChunkId(const TChunkId& chunkId)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
-    if (chunk == NULL) {
+    if (!chunk) {
         ythrow TServiceException(EErrorCode::NoSuchChunk) <<
             Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
     }
@@ -124,7 +124,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
     FOREACH(const auto& jobInfo, request->jobs()) {
         auto jobId = TJobId::FromProto(jobInfo.jobid());
         const TJob* job = ChunkManager->FindJob(jobId);
-        if (job == NULL) {
+        if (!job) {
             LOG_INFO("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
@@ -226,7 +226,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, ConfirmChunks)
     FOREACH (const auto& chunkInfo, request->chunks()) {
         auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
         auto* chunk = ChunkManager->FindChunk(chunkId);
-        if (chunk == NULL) {
+        if (!chunk) {
             ythrow TServiceException(EErrorCode::NotEnoughHolders) <<
                 Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }

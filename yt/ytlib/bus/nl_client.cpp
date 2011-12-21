@@ -238,7 +238,7 @@ class TClientDispatcher
         }
 
         auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
-        if (header == NULL)
+        if (!header)
             return;
 
         switch (header->Type) {
@@ -297,7 +297,7 @@ class TClientDispatcher
     void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
     {
         auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
-        if (header == NULL)
+        if (!header)
             return;
 
         switch (header->Type) {

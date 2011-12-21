@@ -23,7 +23,7 @@ bool DecodeMessagePacket(
     TSequenceId* sequenceId)
 {
     auto* header = ParsePacketHeader<TMultipartPacketHeader>(data);
-    if (header == NULL)
+    if (!header)
         return false;
 
     if (header->PartCount < 0 || header->PartCount > TMultipartPacketHeader::MaxParts) {

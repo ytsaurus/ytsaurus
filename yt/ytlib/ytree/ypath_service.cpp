@@ -14,7 +14,7 @@ IYPathService::TPtr IYPathService::FromNode(INode* node)
 {
     YASSERT(node);
     auto* service = dynamic_cast<IYPathService*>(node);
-    if (service == NULL) {
+    if (!service) {
         ythrow yexception() << "Node does not support YPath";
     }
     return service;

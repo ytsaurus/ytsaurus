@@ -38,7 +38,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto* chunk = ChunkManager->FindChunk(id);
-        if (chunk == NULL) {
+        if (!chunk) {
             return NULL;
         }
 
@@ -115,7 +115,7 @@ private:
     {
         auto id = TChunkListId::FromString(key);
         auto* chunkList = ChunkManager->FindChunkList(id);
-        if (chunkList == NULL) {
+        if (!chunkList) {
             return NULL;
         }
 

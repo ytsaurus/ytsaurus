@@ -255,7 +255,7 @@ public:
         CommitInProgress = true;
 
         auto changeAction_ =
-            changeAction == NULL
+            !changeAction
             ? FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData)
             : changeAction;
 

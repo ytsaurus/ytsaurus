@@ -32,7 +32,7 @@ public:
     //! Called from #New functions to initialize the tracking cookie.
     inline void BindToCookie(TRefCountedTracker::TCookie cookie)
     {
-        YASSERT(Cookie == NULL);
+        YASSERT(!Cookie);
         Cookie = cookie;
         TRefCountedTracker::Get()->Register(cookie);
 

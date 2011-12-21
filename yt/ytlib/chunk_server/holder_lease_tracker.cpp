@@ -61,7 +61,7 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
 {
     // Check if the holder is still registered.
     auto* holderInfo = FindHolderInfo(holderId);
-    if (holderInfo == NULL)
+    if (!holderInfo)
         return;
 
     LOG_INFO("Holder expired (HolderId: %d)", holderId);
