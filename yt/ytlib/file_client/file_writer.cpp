@@ -11,25 +11,29 @@
 namespace NYT {
 namespace NFileClient {
 
+using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
 using namespace NProto;
 using namespace NChunkHolder::NProto;
+using namespace NTransactionClient;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriter::TFileWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
-    NTransactionClient::ITransaction* transaction,
-    const NYTree::TYPath& path,
+    ITransaction* transaction,
+    const TYPath& path,
     int totalReplicaCount,
     int uploadReplicaCount)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
+    , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , Path(path)
     , Closed(false)
     , Aborted(false)
@@ -38,15 +42,13 @@ TFileWriter::TFileWriter(
     , Logger(FileClientLogger)
 {
     YASSERT(masterChannel != NULL);
-    YASSERT(transaction != NULL);
 
     // TODO: use totalReplicaCount
     UNUSED(totalReplicaCount);
 
     Logger.SetTag(Sprintf("Path: %s", ~Path));
 
-    LOG_INFO("File writer is open (TransactionId: %s)",
-        ~Transaction->GetId().ToString());
+    LOG_INFO("File writer is open (TransactionId: %s)", ~TransactionId.ToString());
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
     CypressProxy->SetTimeout(config->MasterRpcTimeout);
@@ -63,7 +65,7 @@ TFileWriter::TFileWriter(
 
     auto createNodeResponse = CypressProxy->Execute(
         Path,
-        Transaction->GetId(),
+        TransactionId,
         ~createNodeRequest)->Get();
 
     if (!createNodeResponse->IsOK()) {
@@ -79,7 +81,7 @@ TFileWriter::TFileWriter(
     LOG_INFO("Creating chunk (UploadReplicaCount: %d)", uploadReplicaCount);
 
     auto allocateChunk = ChunkProxy->AllocateChunk();
-    allocateChunk->set_transactionid(transaction->GetId().ToProto());
+    allocateChunk->set_transactionid(TransactionId.ToProto());
     allocateChunk->set_replicacount(uploadReplicaCount);
 
     auto createChunkResponse = allocateChunk->Invoke()->Get();
@@ -103,9 +105,11 @@ TFileWriter::TFileWriter(
 
     Codec = GetCodec(Config->CodecId);
 
-    // Bind to the transaction.
-    OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
-    transaction->SubscribeAborted(OnAborted_);
+    if (transaction) {
+        // Bind to the transaction.
+        OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
+        transaction->SubscribeAborted(OnAborted_);
+    }
 }
 
 void TFileWriter::Write(TRef data)
@@ -187,7 +191,7 @@ void TFileWriter::Close()
     LOG_INFO("Confirming chunk");
 
     auto confirmChunksRequest = ChunkProxy->ConfirmChunks();
-    confirmChunksRequest->set_transactionid(Transaction->GetId().ToProto());
+    confirmChunksRequest->set_transactionid(TransactionId.ToProto());
     *confirmChunksRequest->add_chunks() = Writer->GetConfirmationInfo();
 
     auto confirmChunksResponse = confirmChunksRequest->Invoke()->Get();
@@ -207,7 +211,7 @@ void TFileWriter::Close()
 
     auto setChunkResponse =
         CypressProxy
-        ->Execute(GetYPathFromNodeId(NodeId), Transaction->GetId(), ~setChunkRequest)
+        ->Execute(GetYPathFromNodeId(NodeId), TransactionId, ~setChunkRequest)
         ->Get();
 
     if (!setChunkResponse->IsOK()) {
@@ -237,15 +241,17 @@ void TFileWriter::FlushBlock()
     
     LOG_INFO("Block is written (BlockIndex: %d)", BlockCount);
 
-    // AsyncWriteBlock should have done this already, so this is just a precaution.
+    // AsyncWriteBlock has likely cleared the buffer by swapping it out, but let's make it sure.
     Buffer.clear();
     ++BlockCount;
 }
 
 void TFileWriter::Finish()
 {
-    Transaction->UnsubscribeAborted(OnAborted_);
-    OnAborted_.Reset();
+    if (Transaction) {
+        Transaction->UnsubscribeAborted(OnAborted_);
+        OnAborted_.Reset();
+    }
     Buffer.clear();
     Closed = true;
 }

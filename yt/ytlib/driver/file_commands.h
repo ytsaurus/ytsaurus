@@ -7,56 +7,56 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadFileRequest
+struct TDownloadRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
-    Stroka Out;
+    Stroka Stream;
 
-    TReadFileRequest()
+    TDownloadRequest()
     {
         Register("path", Path);
-        Register("out", Out).Default(Stroka());
+        Register("stream", Stream).Default(Stroka());
     }
 };
 
-class TReadFileCommand
-    : public TCommandBase<TReadFileRequest>
+class TDownloadCommand
+    : public TCommandBase<TDownloadRequest>
 {
 public:
-    TReadFileCommand(IDriverImpl* driverImpl)
+    TDownloadCommand(IDriverImpl* driverImpl)
         : TCommandBase(driverImpl)
     { }
 
 private:
-    virtual void DoExecute(TReadFileRequest* request);
+    virtual void DoExecute(TDownloadRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteFileRequest
+struct TUploadRequest
     : TRequestBase
 {
     NYTree::TYPath Path;
-    Stroka In;
+    Stroka Stream;
 
-    TWriteFileRequest()
+    TUploadRequest()
     {
         Register("path", Path);
-        Register("in", In).Default(Stroka());
+        Register("stream", Stream).Default(Stroka());
     }
 };
 
-class TWriteFileCommand
-    : public TCommandBase<TWriteFileRequest>
+class TUploadCommand
+    : public TCommandBase<TUploadRequest>
 {
 public:
-    TWriteFileCommand(IDriverImpl* driverImpl)
+    TUploadCommand(IDriverImpl* driverImpl)
         : TCommandBase(driverImpl)
     { }
 
 private:
-    virtual void DoExecute(TWriteFileRequest* request);
+    virtual void DoExecute(TUploadRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

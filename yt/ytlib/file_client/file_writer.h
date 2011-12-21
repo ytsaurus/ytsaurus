@@ -46,6 +46,7 @@ public:
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         const NYTree::TYPath& path,
+        // TODO: consider making it a part of TConfig
         int totalReplicaCount = 3,
         int uploadReplicaCount = 2);
 
@@ -59,6 +60,7 @@ private:
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionServer::TTransactionId TransactionId;
     NYTree::TYPath Path;
     bool Closed;
     volatile bool Aborted;
