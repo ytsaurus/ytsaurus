@@ -4,6 +4,7 @@
 
 #ifdef _win_
 #include <windows.h>
+#include <Shlobj.h>
 #endif
 
 namespace NYT {
