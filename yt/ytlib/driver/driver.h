@@ -4,10 +4,14 @@
 
 #include "../misc/config.h"
 #include "../misc/error.h"
-#include "../election/leader_lookup.h"
 #include "../ytree/ytree.h"
 #include "../ytree/yson_events.h"
 #include "../ytree/yson_writer.h"
+// TODO: consider using forward declarations.
+#include "../election/leader_lookup.h"
+#include "../transaction_client/transaction_manager.h"
+#include "../file_client/file_reader.h"
+#include "../file_client/file_writer.h"
 
 namespace NYT {
 namespace NDriver {
@@ -35,13 +39,19 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
+        NYTree::TYsonWriter::EFormat OutputFormat;
         NElection::TLeaderLookup::TConfig::TPtr Masters;
-        NYTree::TYsonWriter::EFormat Format;
+        NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
+        NFileClient::TFileReader::TConfig::TPtr FileDownloader;
+        NFileClient::TFileWriter::TConfig::TPtr FileUploader;
 
         TConfig()
         {
+            Register("output_format", OutputFormat).Default(NYTree::TYsonWriter::EFormat::Text);
             Register("masters", Masters);
-            Register("format", Format).Default(NYTree::TYsonWriter::EFormat::Text);
+            Register("transaction_manager", TransactionManager).DefaultNew();
+            Register("file_downloader", FileDownloader).DefaultNew();
+            Register("file_uploader", FileUploader).DefaultNew();
         }
     };
 

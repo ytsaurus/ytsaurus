@@ -10,21 +10,19 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NFileClient;
 
-// TODO: make configurable
-static const int WriteBlockSize = 1 << 20;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadFileCommand::DoExecute(TReadFileRequest* request)
+void TDownloadCommand::DoExecute(TDownloadRequest* request)
 {
+    auto config = DriverImpl->GetConfig()->FileDownloader;
+
     auto reader = New<TFileReader>(
-        // TODO: fixme
-        ~New<TFileReader::TConfig>(),
-        ~DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(),
+        ~config,
+        DriverImpl->GetMasterChannel(),
+        DriverImpl->GetCurrentTransaction(),
         request->Path);
 
-    auto output = DriverImpl->CreateOutputStream(request->Out);
+    auto output = DriverImpl->CreateOutputStream(request->Stream);
 
     while (true) {
         auto block = reader->Read();
@@ -37,20 +35,23 @@ void TReadFileCommand::DoExecute(TReadFileRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TWriteFileCommand::DoExecute(TWriteFileRequest* request)
+void TUploadCommand::DoExecute(TUploadRequest* request)
 {
+    auto config = DriverImpl->GetConfig()->FileUploader;
+
     auto writer = New<TFileWriter>(
-        // TODO: fixme
-        ~New<TFileWriter::TConfig>(),
-        ~DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(),
+        ~config,
+        DriverImpl->GetMasterChannel(),
+        DriverImpl->GetCurrentTransaction(),
         request->Path);
 
-    auto input = DriverImpl->CreateInputStream(request->In);
+    auto input = DriverImpl->CreateInputStream(request->Stream);
     
-    TBlob buffer(WriteBlockSize);
+    TBlob buffer(config->BlockSize);
     while (true) {
         size_t bytesRead = input->Read(buffer.begin(), buffer.size());
+        if (bytesRead == 0)
+            break;
         TRef block(buffer.begin(), bytesRead);
         writer->Write(block);
     }

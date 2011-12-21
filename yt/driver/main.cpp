@@ -226,7 +226,7 @@ public:
             }
 
             if (results.Has(&formatOpt)) {
-                config->Format = TYsonWriter::EFormat::FromString(formatStr);
+                config->OutputFormat = TYsonWriter::EFormat::FromString(formatStr);
             }
 
             HaltOnError = results.Has(&haltOnErrorOpt);

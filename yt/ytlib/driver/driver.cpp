@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "driver.h"
 #include "command.h"
+#include "transaction_commands.h"
 #include "cypress_commands.h"
 #include "file_commands.h"
 
@@ -109,11 +110,19 @@ public:
 
         MasterChannel = CreateCellChannel(~config->Masters);
 
-        RegisterCommand("Get", ~New<TGetCommand>(this));
-        RegisterCommand("Set", ~New<TSetCommand>(this));
+        TransactionManager = New<TTransactionManager>(
+            ~config->TransactionManager,
+            ~MasterChannel);
 
-        RegisterCommand("ReadFile", ~New<TReadFileCommand>(this));
-        RegisterCommand("WriteFile", ~New<TWriteFileCommand>(this));
+        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
+        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
+        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
+
+        RegisterCommand("get", ~New<TGetCommand>(this));
+        RegisterCommand("set", ~New<TSetCommand>(this));
+
+        RegisterCommand("download", ~New<TDownloadCommand>(this));
+        RegisterCommand("upload", ~New<TUploadCommand>(this));
     }
 
     TError Execute(const TYson& request)
@@ -122,22 +131,29 @@ public:
         try {
             GuardedExecute(request);
         } catch (const std::exception& ex) {
-            ReplyError(TError(TError::Fail, ex.what()));
+            ReplyError(TError(ex.what()));
         }
         return Error;
     }
 
-    IChannel::TPtr GetMasterChannel() const
+
+    virtual TConfig* GetConfig() const
     {
-        return MasterChannel;
+        return ~Config;
     }
+
+    IChannel* GetMasterChannel() const
+    {
+        return ~MasterChannel;
+    }
+
 
     virtual void ReplyError(const TError& error)
     {
         YASSERT(!error.IsOK());
         Error = error;
         auto output = StreamProvider->CreateErrorStream();
-        TYsonWriter writer(~output, Config->Format);
+        TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
                 .Item("error").BeginMap()
@@ -151,13 +167,14 @@ public:
         output->Write('\n');
     }
 
-    virtual void ReplySuccess(const Stroka& spec, const TYson& yson)
+    virtual void ReplySuccess(const TYson& yson, const Stroka& spec)
     {
         auto consumer = CreateOutputConsumer(spec);
         TYsonReader reader(~consumer);
         TStringInput input(yson);
         reader.Read(&input);
     }
+
 
     virtual TYsonProducer::TPtr CreateInputProducer(const Stroka& spec)
     {
@@ -178,7 +195,7 @@ public:
     virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer(const Stroka& spec)
     {
         auto stream = CreateOutputStream(spec);
-        return new TOutputStreamConsumer(stream, Config->Format);
+        return new TOutputStreamConsumer(stream, Config->OutputFormat);
     }
 
     virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
@@ -187,17 +204,26 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-    virtual TTransactionId GetTransactionId()
+
+    virtual TTransactionManager* GetTransactionManager()
+    {
+        return ~TransactionManager;
+    }
+
+    virtual TTransactionId GetCurrentTransactionId()
     {
         return ~Transaction == NULL ? NullTransactionId : Transaction->GetId();
     }
 
-    virtual ITransaction::TPtr GetTransaction()
+    virtual ITransaction* GetCurrentTransaction(bool required)
     {
-        return Transaction;
+        if (!Transaction && required) {
+            ythrow yexception() << "No current transaction";
+        }
+        return ~Transaction;
     }
 
-    virtual void SetTransaction(ITransaction* transaction)
+    virtual void SetCurrentTransaction(ITransaction* transaction)
     {
         Transaction = transaction;
     }
@@ -208,6 +234,7 @@ private:
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
+    TTransactionManager::TPtr TransactionManager;
     ITransaction::TPtr Transaction;
 
     void RegisterCommand(const Stroka& name, ICommand* command)
@@ -245,6 +272,8 @@ private:
     }
     
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TDriver::TDriver(
     TConfig* config,

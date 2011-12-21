@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "driver.h"
 
 #include "../misc/error.h"
 #include "../misc/config.h"
@@ -11,6 +12,7 @@
 #include "../ytree/fluent.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
+#include "../transaction_client/transaction_manager.h"
 
 namespace NYT {
 namespace NDriver {
@@ -22,20 +24,22 @@ struct IDriverImpl
     ~IDriverImpl()
     { }
 
-    virtual NRpc::IChannel::TPtr GetMasterChannel() const = 0;
+    virtual TDriver::TConfig* GetConfig() const = 0;
+    virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec) = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec) = 0;
+    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = Stroka()) = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = Stroka()) = 0;
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec) = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec) = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = Stroka()) = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = Stroka()) = 0;
 
     virtual void ReplyError(const TError& error) = 0;
-    virtual void ReplySuccess(const Stroka& spec, const NYTree::TYson& yson) = 0;
+    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = Stroka()) = 0;
 
-    virtual NTransactionClient::TTransactionId GetTransactionId() = 0;
-    virtual NTransactionClient::ITransaction::TPtr GetTransaction() = 0;
-    virtual void SetTransaction(NTransactionClient::ITransaction* transaction) = 0;
+    virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
+    virtual NTransactionClient::TTransactionId GetCurrentTransactionId() = 0;
+    virtual NTransactionClient::ITransaction* GetCurrentTransaction(bool required = false) = 0;
+    virtual void SetCurrentTransaction(NTransactionClient::ITransaction* transaction) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

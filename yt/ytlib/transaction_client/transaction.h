@@ -2,8 +2,6 @@
 
 #include "common.h"
 
-#include "../actions/signal.h"
-
 namespace NYT {
 namespace NTransactionClient {
 
@@ -30,7 +28,7 @@ struct ITransaction
     /*!
      *  \note
      *  This call may block.
-     *  TODO: exceptions?
+     *  Does not throw.
      *  Safe to call multiple times.
      * 
      *  Thread affinity: ClientThread.

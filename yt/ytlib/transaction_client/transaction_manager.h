@@ -28,12 +28,6 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TConfig()
-        {
-            Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
-            Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
-        }
-
         //! An internal between successive transaction pings.
         TDuration PingPeriod;
 
@@ -46,6 +40,12 @@ public:
          *  since they are done synchronously.
          */
         TDuration MasterRpcTimeout;
+
+        TConfig()
+        {
+            Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
+            Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
+        }
     };
 
     //! Initializes an instance.
