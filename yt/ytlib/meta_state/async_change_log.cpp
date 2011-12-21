@@ -160,7 +160,7 @@ public:
 private:
     int DoGetRecordCount() const
     {
-        //VERIFY_SPINLOCK_AFFINITY(SpinLock);
+        VERIFY_SPINLOCK_AFFINITY(SpinLock);
         return FlushedRecordCount + RecordsToFlush.ysize() + RecordsToAppend.ysize();
     }
 

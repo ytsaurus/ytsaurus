@@ -73,7 +73,7 @@ private:
 // TODO: remove this dirty hack.
 STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
 #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
-    YASSERT(*reinterpret_cast<TAtomic*>(&(spinLock)) != 0);
+    YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
     invoker->Invoke(FromMethod(&::NYT::NThreadAffinity::TSlot::Check, &slot ## __Slot))
