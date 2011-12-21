@@ -13,8 +13,8 @@ TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
 {
     return FromFunctor([=] (IYsonConsumer* consumer)
         {
-            TYsonReader reader(consumer);
-            reader.Read(input);
+            TYsonReader reader(consumer, input);
+            reader.Read();
         });
 }
 
@@ -22,8 +22,8 @@ INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    TYsonReader reader(~builder);
-    reader.Read(input);
+    TYsonReader reader(~builder, input);
+    reader.Read();
     return builder->EndTree();
 }
 

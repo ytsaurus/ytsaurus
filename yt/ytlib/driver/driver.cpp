@@ -170,9 +170,9 @@ public:
     virtual void ReplySuccess(const TYson& yson, const Stroka& spec)
     {
         auto consumer = CreateOutputConsumer(spec);
-        TYsonReader reader(~consumer);
         TStringInput input(yson);
-        reader.Read(&input);
+        TYsonReader reader(~consumer, &input);
+        reader.Read();
     }
 
 
@@ -181,8 +181,8 @@ public:
         auto stream = CreateInputStream(spec);
         return FromFunctor([=] (IYsonConsumer* consumer)
             {
-                TYsonReader reader(consumer);
-                reader.Read(~stream);
+                TYsonReader reader(consumer, ~stream);
+                reader.Read();
             });
     }
 

@@ -29,10 +29,10 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
     // TODO(sandello): Use Serialize.h
     TStringStream output;
     TJsonAdapter adapter(&output);
-    TYsonReader ysonReader(&adapter);
     TStringStream ysonStream;
     ysonStream << response->value();
-    ysonReader.Read(&ysonStream);
+    TYsonReader ysonReader(&adapter, &ysonStream);
+    ysonReader.Read();
     adapter.Flush();
 
     return FormatOKResponse(output.Str());
