@@ -21,7 +21,7 @@ namespace NDriver {
 
 struct IDriverImpl
 {
-    ~IDriverImpl()
+    virtual ~IDriverImpl()
     { }
 
     virtual TDriver::TConfig* GetConfig() const = 0;
