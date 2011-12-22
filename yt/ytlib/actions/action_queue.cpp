@@ -21,7 +21,7 @@ TQueueInvoker::TQueueInvoker(TActionQueueBase* owner)
 
 void TQueueInvoker::Invoke(IAction::TPtr action)
 {
-    if (Owner->Finished) {
+    if (!Owner) {
         LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
     } else {
         LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
@@ -32,12 +32,12 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
     }
 }
 
-void TQueueInvoker::Shutdown()
+void TQueueInvoker::OnShutdown()
 {
-    Owner.Reset();
+    Owner = 0;
 }
 
-bool TQueueInvoker::DequeueAndExecute()
+bool TQueueInvoker::OnDequeueAndExecute()
 {
     TItem item;
     if (!Queue.Dequeue(&item))
@@ -89,9 +89,10 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
-    try {
-        NThread::SetCurrentThreadName(~ThreadName);
-        while (!Finished) {
+    NThread::SetCurrentThreadName(~ThreadName);
+
+    while (!Finished) {
+        try {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
@@ -103,12 +104,10 @@ void TActionQueueBase::ThreadMain()
                     }
                 }
             }
+        } catch (...) {
+            LOG_FATAL("Unhandled exception in the action queue\n%s", ~CurrentExceptionMessage());
         }
-    } catch (...) {
-        LOG_FATAL("Unhandled exception in the action queue\n%s", ~CurrentExceptionMessage());
     }
-
-    OnShutdown();
 }
 
 void TActionQueueBase::Shutdown()
@@ -130,18 +129,18 @@ TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
     Start();
 }
 
+TActionQueue::~TActionQueue()
+{
+    QueueInvoker->OnShutdown();
+}
+
 bool TActionQueue::DequeueAndExecute()
 {
-    return QueueInvoker->DequeueAndExecute();
+    return QueueInvoker->OnDequeueAndExecute();
 }
 
 void TActionQueue::OnIdle()
 { }
-
-void TActionQueue::OnShutdown()
-{
-    QueueInvoker->Shutdown();
-}
 
 IInvoker::TPtr TActionQueue::GetInvoker()
 {
@@ -165,12 +164,15 @@ TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const Stroka
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
         QueueInvokers[priority] = New<TQueueInvoker>(this);
     }
+
     Start();
 }
 
 TPrioritizedActionQueue::~TPrioritizedActionQueue()
 {
-    Shutdown();
+    for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
+        QueueInvokers[priority]->OnShutdown();
+    }
 }
 
 IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
@@ -182,7 +184,7 @@ IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
 bool TPrioritizedActionQueue::DequeueAndExecute()
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        if (QueueInvokers[priority]->DequeueAndExecute()) {
+        if (QueueInvokers[priority]->OnDequeueAndExecute()) {
             return true;
         }
     }
@@ -191,13 +193,6 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
 
 void TPrioritizedActionQueue::OnIdle()
 { }
-
-void TPrioritizedActionQueue::OnShutdown()
-{
-    for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        QueueInvokers[priority]->Shutdown();
-    }
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 

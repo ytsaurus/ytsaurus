@@ -25,13 +25,13 @@ public:
     TQueueInvoker(TActionQueueBase* owner);
 
     void Invoke(IAction::TPtr action);
-    void Shutdown();
-    bool DequeueAndExecute();
+    void OnShutdown();
+    bool OnDequeueAndExecute();
 
 private:
     typedef TPair<IAction::TPtr, ui64> TItem;
 
-    TIntrusivePtr<TActionQueueBase> Owner;
+    TActionQueueBase* Owner;
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
 };
@@ -55,7 +55,6 @@ protected:
 
     virtual bool DequeueAndExecute() = 0;
     virtual void OnIdle() = 0;
-    virtual void OnShutdown() = 0;
 
 private:
     friend class TQueueInvoker;
@@ -82,6 +81,7 @@ public:
     // TActionQueue is used internally by the logging infrastructure,
     // which passes enableLogging = false to prevent infinite recursion.
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
+    virtual ~TActionQueue();
 
     IInvoker::TPtr GetInvoker();
 
@@ -90,7 +90,6 @@ public:
 protected:
     virtual bool DequeueAndExecute();
     virtual void OnIdle();
-    virtual void OnShutdown();
 
 private:
     TIntrusivePtr<TQueueInvoker> QueueInvoker;
@@ -106,15 +105,13 @@ public:
     typedef TIntrusivePtr<TPrioritizedActionQueue> TPtr;
 
     TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
-
-    ~TPrioritizedActionQueue();
+    virtual ~TPrioritizedActionQueue();
 
     IInvoker::TPtr GetInvoker(int priority);
 
 protected:
     virtual bool DequeueAndExecute();
     virtual void OnIdle();
-    virtual void OnShutdown();
 
 private:
     autoarray< TIntrusivePtr<TQueueInvoker> > QueueInvokers;
