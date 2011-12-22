@@ -39,6 +39,11 @@ void PrintCallStackAux(TOutputStream& output, const char* file, int line)
 #endif
 }
 
+void PrintCallStack()
+{
+    PrintCallStackAux(Cerr, __FILE__, __LINE__);
+}
+
 void Break()
 {
 #if defined(__GNUC__)

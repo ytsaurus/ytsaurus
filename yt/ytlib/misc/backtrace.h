@@ -19,7 +19,7 @@ void PrintCallStackAux(TOutputStream& output, const char* file, int line);
 
 //! Prints current call stack to the standard error.
 //! \see PrintCallStackAux
-#define PrintCallStack() PrintCallStackAux(Cerr, __FILE__, __LINE__)
+void PrintCallStack();
 
 //! Breaks program execution and triggers debugger.
 /*!
