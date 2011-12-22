@@ -65,6 +65,16 @@ public:
         }
     }
 
+    //! Returns current number of references to the object.
+    /*!
+     * Note that you should never ever use this method in production code.
+     * This method is mainly for debugging purposes.
+     */
+    inline TAtomic GetRefCounter() throw()
+    {
+        return RefCounter;
+    }
+
     //! Tries to obtain an intrusive pointer for an object that may had
     //! already lost all of its references and, thus, is about to be deleted.
     /*!
