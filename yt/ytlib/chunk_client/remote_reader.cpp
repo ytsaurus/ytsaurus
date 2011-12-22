@@ -192,7 +192,7 @@ bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
 
     if (holderIndex == CurrentHolderIndex) {
         CumulativeErrorMessage += Sprintf("\n[%s] %s",
-            HolderAddresses[holderIndex],
+            ~HolderAddresses[holderIndex],
             ~error.ToString());
 
         ++CurrentHolderIndex;
