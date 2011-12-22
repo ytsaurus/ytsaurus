@@ -1,0 +1,11 @@
+{do=create;path="/sys/masters/0/orchid";type=orchid;manifest={remote_address="meta01-001g:9091"}}
+{do=create;path="/sys/masters/1/orchid";type=orchid;manifest={remote_address="meta01-002g:9091"}}
+{do=create;path="/sys/masters/2/orchid";type=orchid;manifest={remote_address="mtea01-003g:9091"}}
+
+{do=create;path="/sys/holders";type=holder_map;manifest={}}
+
+{do=create;path="/sys/chunks";type=chunk_map;manifest={}}
+{do=create;path="/sys/chunk_lists";type=chunk_list_map;manifest={}}
+{do=create;path="/sys/nodes";type=node_map;manifest={}}
+{do=create;path="/sys/locks";type=lock_map;manifest={}}
+{do=create;path="/sys/transactions";type=transaction_map;manifest={}}
