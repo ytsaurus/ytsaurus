@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "remote_reader.h"
 #include "holder_channel_cache.h"
-#include "reader_thread.h"
 
 #include "../misc/foreach.h"
+#include "../misc/string.h"
+#include "../misc/thread_affinity.h"
 #include "../actions/action_util.h"
 
 namespace NYT {
@@ -25,10 +26,15 @@ TRemoteReader::TRemoteReader(
     , ChunkId(chunkId)
     , HolderAddresses(holderAddresses)
     , ExecutionTime(0, 1000, 20)
-    , CurrentHolder(0)
+    , CurrentHolderIndex(0)
+    , Logger(ChunkClientLogger)
 {
-    std::random_shuffle(HolderAddresses.begin(), HolderAddresses.end());
     YASSERT(config);
+
+    std::random_shuffle(HolderAddresses.begin(), HolderAddresses.end());
+
+    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    LOG_DEBUG("Reader created (Addresses: [%s])", ~JoinToString(HolderAddresses));
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr
@@ -41,108 +47,172 @@ TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
     return result;
 }
 
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TRemoteReader::AsyncGetChunkInfo()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto result = New< TFuture<TGetInfoResult> >();
-    DoGetChunkInfo(result);
-    return result;
-}
-
 void TRemoteReader::DoReadBlocks(
     const yvector<int>& blockIndexes, 
     TFuture<TReadResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    int holderIndex;
+    if (!GetCurrentHolderIndex(&holderIndex)) {
+        result->Set(GetCumulativeError());
+        return;
+    }
+    auto holderAddress = HolderAddresses[holderIndex];
+
+    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: %s)",
+        ~holderAddress,
+        ~JoinToString(blockIndexes));
+
+    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[holderIndex]));
     proxy.SetTimeout(Config->HolderRpcTimeout);
 
-    auto req = proxy.GetBlocks();
-    req->set_chunk_id(ChunkId.ToProto());
+    auto request = proxy.GetBlocks();
+    request->set_chunk_id(ChunkId.ToProto());
 
     FOREACH(auto index, blockIndexes) {
-        req->add_block_indexes(index);
+        request->add_block_indexes(index);
     }
 
-    req->Invoke()->Subscribe(
-        FromMethod(
-            &TRemoteReader::OnBlocksRead, 
-            TPtr(this), 
-            result,
-            blockIndexes)
-        ->Via(ReaderThread->GetInvoker()));
+    request->Invoke()->Subscribe(FromMethod(
+        &TRemoteReader::OnBlocksRead, 
+        TPtr(this), 
+        result,
+        blockIndexes,
+        holderIndex));
 }
 
 void TRemoteReader::OnBlocksRead(
-    TProxy::TRspGetBlocks::TPtr rsp,
-    TFuture<TReadResult>::TPtr result, 
-    const yvector<int>& blockIndexes)
+    TProxy::TRspGetBlocks::TPtr response,
+    TFuture<TReadResult>::TPtr asyncResult, 
+    const yvector<int>& blockIndexes,
+    int holderIndex)
 {
-    VERIFY_THREAD_AFFINITY(Response);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    if (rsp->IsOK()) {
-        ExecutionTime.AddDelta(rsp->GetStartTime());
-
-        yvector<TSharedRef> blocks;
-        for (int i = 0; i < rsp->Attachments().ysize(); i++) {
-            // Since all attachments reference the same RPC response
-            // memory will be freed only when all the blocks die.
-            blocks.push_back(rsp->Attachments()[i]);
-        }
-        result->Set(TReadResult(MoveRV(blocks)));
-    } else if (ChangeCurrentHolder()) {
-        DoReadBlocks(blockIndexes, result);
-    } else {
-        result->Set(rsp->GetError());
+    if (response->IsOK()) {
+        LOG_DEBUG("Blocks received (HolderAddress: %s)", ~HolderAddresses[holderIndex]);
+        ExecutionTime.AddDelta(response->GetStartTime());
+        asyncResult->Set(TReadResult(MoveRV(response->Attachments())));
+        return;
     }
+    
+    LOG_WARNING("Error requesting blocks from holder (HolderAddress: %s)%s",
+        ~HolderAddresses[holderIndex],
+        ~response->GetError().ToString());
+
+    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+        DoReadBlocks(blockIndexes, asyncResult);
+        return;
+    }
+
+    asyncResult->Set(GetCumulativeError());
+}
+
+TFuture<IAsyncReader::TGetInfoResult>::TPtr TRemoteReader::AsyncGetChunkInfo()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    LOG_DEBUG("Getting chunk info");
+
+    auto result = New< TFuture<TGetInfoResult> >();
+    DoGetChunkInfo(result);
+    return result;
 }
 
 void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
-    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[CurrentHolder]));
+    int holderIndex;
+    if (!GetCurrentHolderIndex(&holderIndex)) {
+        result->Set(GetCumulativeError());
+        return;
+    }
+    auto holderAddress = HolderAddresses[holderIndex];
+
+    TProxy proxy(~HolderChannelCache->GetChannel(holderAddress));
     proxy.SetTimeout(Config->HolderRpcTimeout);
     
     auto request = proxy.GetChunkInfo();
     request->set_chunk_id(ChunkId.ToProto());
 
-    return request->Invoke()->Subscribe(
-        FromMethod(
-            &TRemoteReader::OnGotChunkInfo,
-            TPtr(this),
-            result)
-        ->Via(ReaderThread->GetInvoker()));
+    LOG_DEBUG("Requesting chunk info from holder (HolderAddress: %s)", ~holderAddress);
+
+    return request->Invoke()->Subscribe(FromMethod(
+        &TRemoteReader::OnGotChunkInfo,
+        TPtr(this),
+        result,
+        holderIndex));
 }
 
 void TRemoteReader::OnGotChunkInfo(
     TProxy::TRspGetChunkInfo::TPtr response,
-    TFuture<TGetInfoResult>::TPtr asyncResult)
+    TFuture<TGetInfoResult>::TPtr asyncResult,
+    int holderIndex)
 {
-    VERIFY_THREAD_AFFINITY(Response);
-
     if (response->IsOK()) {
+        LOG_DEBUG("Chunk info received (HolderAddress: %s)", ~HolderAddresses[holderIndex]);
         asyncResult->Set(response->chunk_info());
-    } else if (ChangeCurrentHolder()) {
-        DoGetChunkInfo(asyncResult);
-    } else {
-        asyncResult->Set(response->GetError());
+        return;
     }
+    
+    LOG_WARNING("Error requesting chunk info (HolderAddress: %s)%s",
+        ~HolderAddresses[holderIndex],
+        ~response->GetError().ToString());
+
+    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+        DoGetChunkInfo(asyncResult);
+        return;
+    }
+
+    auto error = GetCumulativeError();
+    asyncResult->Set(error);
 }
 
-bool TRemoteReader::ChangeCurrentHolder()
+bool TRemoteReader::GetCurrentHolderIndex(int* holderIndex) const
 {
-    // Thread affinity is important here to ensure no race conditions on #CurrentHolder.
-    VERIFY_THREAD_AFFINITY(Response);
-
-    ++CurrentHolder;
-    if (CurrentHolder < HolderAddresses.ysize()) {
+    TGuard<TSpinLock> guard(SpinLock);
+    if (CurrentHolderIndex < HolderAddresses.ysize()) {
+        *holderIndex = CurrentHolderIndex;
         return true;
     } else {
         return false;
     }
+}
+
+bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(!error.IsOK());
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    YASSERT(holderIndex <= CurrentHolderIndex);
+
+    if (holderIndex == CurrentHolderIndex) {
+        CumulativeErrorMessage += Sprintf("\n[%s] %s",
+            HolderAddresses[holderIndex],
+            ~error.ToString());
+
+        ++CurrentHolderIndex;
+
+        if (CurrentHolderIndex >= HolderAddresses.ysize()) {
+            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)",
+                ~ChunkId.ToString(),
+                ~CumulativeErrorMessage));
+
+            LOG_WARNING("%s", ~CumulativeError.ToString());
+        }
+    }
+
+    return CumulativeError.IsOK();
+}
+
+TError TRemoteReader::GetCumulativeError() const
+{
+    YASSERT(!CumulativeError.IsOK());
+    return CumulativeError;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

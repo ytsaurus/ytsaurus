@@ -3,9 +3,9 @@
 #include "common.h"
 #include "async_reader.h"
 
+#include "../logging/tagged_logger.h"
 #include "../misc/metric.h"
 #include "../misc/configurable.h"
-#include "../misc/thread_affinity.h"
 #include "../chunk_holder/chunk_holder_service_proxy.h"
 
 namespace NYT {
@@ -50,29 +50,38 @@ private:
         TFuture<TReadResult>::TPtr result);
 
     void OnBlocksRead(
-        TProxy::TRspGetBlocks::TPtr rsp,
+        TProxy::TRspGetBlocks::TPtr response,
         TFuture<TReadResult>::TPtr result,
-        const yvector<int>& blockIndexes);
+        const yvector<int>& blockIndexes,
+        int holderIndex);
 
     void DoGetChunkInfo(
         TFuture<TGetInfoResult>::TPtr result);
 
     void OnGotChunkInfo(
         TProxy::TRspGetChunkInfo::TPtr response,
-        TFuture<TGetInfoResult>::TPtr result);
+        TFuture<TGetInfoResult>::TPtr result,
+        int holderIndex);
 
-    bool ChangeCurrentHolder();
+    bool GetCurrentHolderIndex(int* holderIndex) const;
+    bool ChangeCurrentHolder(int holderIndex, const TError& error);
+
+    TError GetCumulativeError() const;
 
     TConfig::TPtr Config;
     const TChunkId ChunkId;
 
     yvector<Stroka> HolderAddresses;
 
-    int CurrentHolder;
-
     TMetric ExecutionTime;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Response);
+    NLog::TTaggedLogger Logger;
+
+    TSpinLock SpinLock;
+    int CurrentHolderIndex;
+    Stroka CumulativeErrorMessage;
+    TError CumulativeError;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
