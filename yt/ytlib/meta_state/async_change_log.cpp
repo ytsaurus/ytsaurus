@@ -174,9 +174,9 @@ private:
         i32 size = records.ysize();
         i32 begin = neededFirstRecordId - firstRecordId;
         i32 end = neededFirstRecordId + neededRecordCount - firstRecordId;
-        auto beginIt = records.begin() + Max(begin, 0);
-        auto endIt = records.begin() + Min(end, size);
-        if (endIt > beginIt) {
+        auto beginIt = records.begin() + Min(Max(begin, 0), size);
+        auto endIt = records.begin() + Min(Max(end, 0), size);
+        if (endIt != beginIt) {
             result->insert(
                 result->end(),
                 beginIt,
