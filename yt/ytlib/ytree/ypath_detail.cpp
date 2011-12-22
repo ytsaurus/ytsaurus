@@ -345,7 +345,7 @@ void ResolveYPath(
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (...) {
-            ythrow yexception() << Sprintf("Error resolving YPath (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
                 ~path,
                 ~verb,
                 ~ComputeResolvedYPath(path, currentPath),
