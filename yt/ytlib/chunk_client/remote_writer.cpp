@@ -393,8 +393,7 @@ TRemoteWriter::TRemoteWriter(
 
     Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-    LOG_DEBUG("Writer created (Addresses: [%s])",
-        ~JoinToString(addresses));
+    LOG_DEBUG("Writer created (Addresses: [%s])", ~JoinToString(addresses));
 
     InitializeNodes(addresses);
 
