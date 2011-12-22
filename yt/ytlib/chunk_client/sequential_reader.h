@@ -37,14 +37,14 @@ public:
 
         TConfig()
         {
-            Register("window_size", PrefetchWindowSize).Default(40).GreaterThan(0);
+            Register("prefetch_window_size", PrefetchWindowSize).Default(40).GreaterThan(0);
             Register("group_size", GroupSize).Default(8).GreaterThan(0);
         }
 
         virtual void Validate(const NYTree::TYPath& path = "") const
         {
             if (GroupSize > PrefetchWindowSize) {
-                ythrow yexception() << "Group size cannot be larger than prefetch window size";
+                ythrow yexception() << "\"group_size\" cannot be larger than \"prefetch_window_size\"";
             }
 
             TConfigurable::Validate(path);
