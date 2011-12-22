@@ -18,7 +18,7 @@ class TChunk;
 class TBlockStore;
 class TSessionManager;
 class TSession;
-class TReplicator;
+class TJobExecutor;
 
 class TChunkHolderService
     : public NRpc::TServiceBase

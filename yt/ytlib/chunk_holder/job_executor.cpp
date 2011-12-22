@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "replicator.h"
+#include "job_executor.h"
 
 #include "../misc/assert.h"
 #include "../misc/string.h"
@@ -201,7 +201,7 @@ void TJob::OnWriterClosed(TError error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicator::TReplicator(
+TJobExecutor::TJobExecutor(
     TChunkStore* chunkStore,
     TBlockStore* blockStore,
     IInvoker* serviceInvoker)
@@ -214,7 +214,7 @@ TReplicator::TReplicator(
     YASSERT(serviceInvoker);
 }
 
-TJob::TPtr TReplicator::StartJob(
+TJob::TPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunk* chunk,
@@ -234,7 +234,7 @@ TJob::TPtr TReplicator::StartJob(
     return job;
 }
 
-void TReplicator::StopJob(TJob* job)
+void TJobExecutor::StopJob(TJob* job)
 {
     job->Stop();
     YVERIFY(Jobs.erase(job->GetJobId()) == 1);
@@ -244,13 +244,13 @@ void TReplicator::StopJob(TJob* job)
         ~job->GetState().ToString());
 }
 
-TJob::TPtr TReplicator::FindJob(const TJobId& jobId)
+TJob::TPtr TJobExecutor::FindJob(const TJobId& jobId)
 {
     auto it = Jobs.find(jobId);
     return it == Jobs.end() ? NULL : it->Second();
 }
 
-yvector<TJob::TPtr> TReplicator::GetAllJobs()
+yvector<TJob::TPtr> TJobExecutor::GetAllJobs()
 {
     yvector<TJob::TPtr> result;
     FOREACH(const auto& pair, Jobs) {
@@ -259,7 +259,7 @@ yvector<TJob::TPtr> TReplicator::GetAllJobs()
     return result;
 }
 
-void TReplicator::StopAllJobs()
+void TJobExecutor::StopAllJobs()
 {
     FOREACH(auto& pair, Jobs) {
         pair.second->Stop();

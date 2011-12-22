@@ -29,7 +29,7 @@ DECLARE_ENUM(EJobType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicator;
+class TJobExecutor;
 
 //! Id of a job.
 typedef TGuid TJobId;
@@ -66,7 +66,7 @@ public:
     TChunk::TPtr GetChunk() const;
 
 private:
-    friend class TReplicator;
+    friend class TJobExecutor;
 
     TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;
@@ -113,14 +113,14 @@ private:
  *  Using master-controlled id assignment eliminates the need for additional RPC round-trips
  *  for getting these ids from the holder.
  */
-class TReplicator
+class TJobExecutor
     : public TRefCountedBase
 {
 public:
-    typedef TIntrusivePtr<TReplicator> TPtr;
+    typedef TIntrusivePtr<TJobExecutor> TPtr;
 
     //! Constructs a new instance.
-    TReplicator(
+    TJobExecutor(
         TChunkStore* chunkStore,
         TBlockStore* blockStore,
         IInvoker* serviceInvoker);

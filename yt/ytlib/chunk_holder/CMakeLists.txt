@@ -7,10 +7,10 @@ set( SRCS
   ${BASE}/chunk_holder_service.cpp
   ${BASE}/chunk_store.cpp
   ${BASE}/common.cpp
+  ${BASE}/job_executor.cpp
   ${BASE}/location.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/reader_cache.cpp
-  ${BASE}/replicator.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
 )
@@ -22,10 +22,10 @@ set( HDRS
   ${BASE}/chunk_holder_service_proxy.h
   ${BASE}/chunk_store.h
   ${BASE}/common.h
+  ${BASE}/job_executor.h
   ${BASE}/location.h
   ${BASE}/master_connector.h
   ${BASE}/reader_cache.h
-  ${BASE}/replicator.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
 )

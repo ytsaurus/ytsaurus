@@ -52,7 +52,7 @@ using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
 using NChunkHolder::TBlockStore;
 using NChunkHolder::TSessionManager;
-using NChunkHolder::TReplicator;
+using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
 using NChunkHolder::TMasterConnector;
 using NChunkHolder::CreateChunkMapService;
@@ -102,7 +102,7 @@ void TChunkHolderServer::Run()
         ~chunkStore,
         ~controlQueue->GetInvoker());
 
-    auto replicator = New<TReplicator>(
+    auto jobExecutor = New<TJobExecutor>(
         ~chunkStore,
         ~blockStore,
         ~controlQueue->GetInvoker());
@@ -112,7 +112,7 @@ void TChunkHolderServer::Run()
         ~chunkStore,
         ~chunkCache,
         ~sessionManager,
-        ~replicator,
+        ~jobExecutor,
         ~controlQueue->GetInvoker());
 
     auto chunkHolderService = New<TChunkHolderService>(

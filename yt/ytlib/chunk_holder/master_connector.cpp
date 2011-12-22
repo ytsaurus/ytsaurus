@@ -28,13 +28,13 @@ TMasterConnector::TMasterConnector(
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TSessionManager* sessionManager,
-    TReplicator* replicator,
+    TJobExecutor* jobExecutor,
     IInvoker* serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
     , ChunkCache(chunkCache)
     , SessionManager(sessionManager)
-    , Replicator(replicator)
+    , JobExecutor(jobExecutor)
     , ServiceInvoker(serviceInvoker)
     , Registered(false)
     , IncrementalHeartbeat(false)
@@ -42,7 +42,7 @@ TMasterConnector::TMasterConnector(
 {
     YASSERT(chunkStore);
     YASSERT(sessionManager);
-    YASSERT(replicator);
+    YASSERT(jobExecutor);
     YASSERT(serviceInvoker);
 
     auto channel = CreateCellChannel(~Config->Masters);
@@ -170,7 +170,7 @@ void TMasterConnector::SendHeartbeat()
         }
     }
 
-    FOREACH (const auto& job, Replicator->GetAllJobs()) {
+    FOREACH (const auto& job, JobExecutor->GetAllJobs()) {
         auto* info = request->add_jobs();
         info->set_jobid(job->GetJobId().ToProto());
         info->set_state(job->GetState());
@@ -249,14 +249,14 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
 
     FOREACH (const auto& jobProtoId, response->jobstostop()) {
         auto jobId = TJobId::FromProto(jobProtoId);
-        auto job = Replicator->FindJob(jobId);
+        auto job = JobExecutor->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
                 ~jobId.ToString());
             continue;
         }
 
-        Replicator->StopJob(~job);
+        JobExecutor->StopJob(~job);
     }
 
     FOREACH (const auto& startInfo, response->jobstostart()) {
@@ -273,7 +273,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             continue;
         }
 
-        Replicator->StartJob(
+        JobExecutor->StartJob(
             jobType,
             jobId,
             ~chunk,
