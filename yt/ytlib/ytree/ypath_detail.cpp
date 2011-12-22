@@ -125,7 +125,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 {
     auto attributes = Node->GetAttributes();
     if (!attributes) {
-        Node->SetAttributes(NodeFactory->CreateMap());
+        Node->SetAttributes(~NodeFactory->CreateMap());
     } else {
         attributes->Clear();
     }
@@ -143,7 +143,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 void TNodeSetterBase::OnForwardingFinished()
 {
     YASSERT(~AttributeBuilder);
-    YVERIFY(Node->GetAttributes()->AddChild(AttributeBuilder->EndTree(), AttributeName));
+    YVERIFY(Node->GetAttributes()->AddChild(~AttributeBuilder->EndTree(), AttributeName));
     AttributeBuilder.Destroy();
     AttributeName.clear();
 }

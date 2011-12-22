@@ -87,9 +87,9 @@ public:
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNode::TPtr parent)
+    virtual void SetParent(ICompositeNode* parent)
     {
-        Parent = ~parent;
+        Parent = parent;
     }
 
     virtual IMapNode::TPtr GetAttributes() const
@@ -97,7 +97,7 @@ public:
         return Attributes;
     }
 
-    virtual void SetAttributes(IMapNode::TPtr attributes)
+    virtual void SetAttributes(IMapNode* attributes)
     {
         Attributes = attributes;
     }

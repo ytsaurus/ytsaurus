@@ -143,7 +143,7 @@ private:
 
     void OnForwardingFinished()
     {
-        YVERIFY(Map->AddChild(TreeBuilder->EndTree(), ItemName));
+        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemName));
         ItemName.clear();
     }
 
@@ -189,7 +189,7 @@ private:
 
     void OnForwardingFinished()
     {
-        List->AddChild(TreeBuilder->EndTree());
+        List->AddChild(~TreeBuilder->EndTree());
     }
 
     virtual void OnMyEndList(bool hasAttributes)

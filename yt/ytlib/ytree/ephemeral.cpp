@@ -23,10 +23,10 @@ public:
     virtual INodeFactory::TPtr CreateFactory() const;
 
     virtual ICompositeNode::TPtr GetParent() const;
-    virtual void SetParent(ICompositeNode::TPtr parent);
+    virtual void SetParent(ICompositeNode* parent);
 
     virtual IMapNode::TPtr GetAttributes() const;
-    virtual void SetAttributes(IMapNode::TPtr attributes);
+    virtual void SetAttributes(IMapNode* attributes);
 
 private:
     ICompositeNode* Parent;
@@ -108,10 +108,10 @@ public:
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const;
     virtual INode::TPtr FindChild(const Stroka& name) const;
-    virtual bool AddChild(INode::TPtr child, const Stroka& name);
+    virtual bool AddChild(INode* child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
-    virtual void RemoveChild(INode::TPtr child);
+    virtual void ReplaceChild(INode* oldChild, INode* newChild);
+    virtual void RemoveChild(INode* child);
     virtual Stroka GetChildKey(INode* child);
 
 private:
@@ -120,8 +120,8 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
 };
 
@@ -138,10 +138,10 @@ public:
     virtual int GetChildCount() const;
     virtual yvector<INode::TPtr> GetChildren() const;
     virtual INode::TPtr FindChild(int index) const;
-    virtual void AddChild(INode::TPtr child, int beforeIndex = -1);
+    virtual void AddChild(INode* child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild);
-    virtual void RemoveChild(INode::TPtr child);
+    virtual void ReplaceChild(INode* oldChild, INode* newChild);
+    virtual void RemoveChild(INode* child);
     virtual int GetChildIndex(INode* child);
 
 private:
@@ -149,8 +149,8 @@ private:
     yhash_map<INode::TPtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
 };
 
@@ -183,10 +183,10 @@ ICompositeNode::TPtr TEphemeralNodeBase::GetParent() const
     return Parent;
 }
 
-void TEphemeralNodeBase::SetParent(ICompositeNode::TPtr parent)
+void TEphemeralNodeBase::SetParent(ICompositeNode* parent)
 {
     YASSERT(!parent || !Parent);
-    Parent = ~parent;
+    Parent = parent;
 }
 
 IMapNode::TPtr TEphemeralNodeBase::GetAttributes() const
@@ -194,7 +194,7 @@ IMapNode::TPtr TEphemeralNodeBase::GetAttributes() const
     return Attributes;
 }
 
-void TEphemeralNodeBase::SetAttributes(IMapNode::TPtr attributes)
+void TEphemeralNodeBase::SetAttributes(IMapNode* attributes)
 {
     if (Attributes) {
         Attributes->SetParent(NULL);
@@ -230,7 +230,7 @@ INode::TPtr TMapNode::FindChild(const Stroka& name) const
     return it == NameToChild.end() ? NULL : it->Second();
 }
 
-bool TMapNode::AddChild(INode::TPtr child, const Stroka& name)
+bool TMapNode::AddChild(INode* child, const Stroka& name)
 {
     YASSERT(!name.empty());
 
@@ -257,7 +257,7 @@ bool TMapNode::RemoveChild(const Stroka& name)
     return true;
 }
 
-void TMapNode::RemoveChild(INode::TPtr child)
+void TMapNode::RemoveChild(INode* child)
 {
     child->SetParent(NULL);
 
@@ -269,7 +269,7 @@ void TMapNode::RemoveChild(INode::TPtr child)
     YVERIFY(NameToChild.erase(name) == 1);
 }
 
-void TMapNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+void TMapNode::ReplaceChild(INode* oldChild, INode* newChild)
 {
     if (oldChild == newChild)
         return;
@@ -314,7 +314,7 @@ void TMapNode::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet::TPtr context)
+    TCtxSet* context)
 {
     UNUSED(response);
 
@@ -327,7 +327,7 @@ void TMapNode::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,
     TRspSetNode* response,
-    TCtxSetNode::TPtr context)
+    TCtxSetNode* context)
 {
     UNUSED(response);
 
@@ -363,7 +363,7 @@ INode::TPtr TListNode::FindChild(int index) const
     return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
 }
 
-void TListNode::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
+void TListNode::AddChild(INode* child, int beforeIndex /*= -1*/)
 {
     if (beforeIndex < 0) {
         YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).Second());
@@ -397,7 +397,7 @@ bool TListNode::RemoveChild(int index)
     return true;
 }
 
-void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+void TListNode::ReplaceChild(INode* oldChild, INode* newChild)
 {
     auto it = ChildToIndex.find(oldChild);
     YASSERT(it != ChildToIndex.end());
@@ -412,9 +412,9 @@ void TListNode::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
     newChild->SetParent(this);
 }
 
-void TListNode::RemoveChild(INode::TPtr child)
+void TListNode::RemoveChild(INode* child)
 {
-    int index = GetChildIndex(~child);
+    int index = GetChildIndex(child);
     YVERIFY(RemoveChild(index));
 }
 
@@ -436,7 +436,7 @@ void TListNode::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet::TPtr context)
+    TCtxSet* context)
 {
     UNUSED(response);
 
@@ -449,7 +449,7 @@ void TListNode::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,
     TRspSetNode* response,
-    TCtxSetNode::TPtr context)
+    TCtxSetNode* context)
 {
     UNUSED(response);
 

@@ -168,7 +168,7 @@ void TTreeBuilder::OnEndAttributes()
     OnEndMap(false);
     auto attributes = PopPop()->AsMap();
     auto node = PeekPop();
-    node->SetAttributes(attributes);
+    node->SetAttributes(~attributes);
 }
 
 void TTreeBuilder::AddToList()
@@ -176,7 +176,7 @@ void TTreeBuilder::AddToList()
     auto child = PopPop();
     auto list = PeekPop()->AsList();
     if (child) {
-        list->AddChild(child);
+        list->AddChild(~child);
     }
 }
 
@@ -186,7 +186,7 @@ void TTreeBuilder::AddToMap()
     auto name = PopName();
     auto map = PeekPop()->AsMap();
     if (child) {
-        YVERIFY(map->AddChild(child, name));
+        YVERIFY(map->AddChild(~child, name));
     }
 }
 

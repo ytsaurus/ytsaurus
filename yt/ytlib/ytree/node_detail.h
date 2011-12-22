@@ -59,24 +59,24 @@ protected:
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Get);
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
-    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context);
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetNode);
-    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context);
-    virtual void GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context);
+    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
+    virtual void GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Set);
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SetNode);
-    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
-    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context);
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
 
     virtual yvector<Stroka> GetVirtualAttributeNames();
     virtual IYPathService::TPtr GetVirtualAttributeService(const Stroka& name);
@@ -160,7 +160,7 @@ public: \
         return this; \
     } \
     \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context) \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context) \
     { \
         UNUSED(response); \
         DoSetSelf< ::NYT::NYTree::I##name##Node >(this, request->value()); \
