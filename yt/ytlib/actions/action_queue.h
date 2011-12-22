@@ -22,7 +22,7 @@ class TQueueInvoker
 public:
     typedef TIntrusivePtr<TQueueInvoker> TPtr;
 
-    TQueueInvoker(TActionQueueBase* owner);
+    TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
 
     void Invoke(IAction::TPtr action);
     void OnShutdown();
@@ -31,6 +31,7 @@ public:
 private:
     typedef TPair<IAction::TPtr, ui64> TItem;
 
+    bool EnableLogging;
     TActionQueueBase* Owner;
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
