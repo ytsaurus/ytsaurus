@@ -588,19 +588,23 @@ void TNLBusServer::UnregisterSession(TSession* session)
 
 void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
 {
-    // TODO: more, fluently
-    consumer->OnBeginMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("port").Scalar(Config->Port)
+            .Do([=] (TFluentMap fluent)
+                {
+                    auto requester = Requester;
+                    if (requester.Get()) {
+                        TRequesterQueueStats stats;
+                        requester->GetRequestQueueSize(&stats);
 
-    consumer->OnMapItem("port");
-    consumer->OnInt64Scalar(Config->Port);
-
-    auto requester = Requester;
-    if (requester.Get()) {
-        consumer->OnMapItem("nl_requester");
-        consumer->OnStringScalar(requester->GetDebugInfo());
-    }
-
-    consumer->OnEndMap();
+                        fluent.Item("request_count").Scalar(static_cast<i64>(stats.ReqCount));
+                        fluent.Item("request_queue_size").Scalar(static_cast<i64>(stats.ReqQueueSize));
+                        fluent.Item("response_count").Scalar(static_cast<i64>(stats.RespCount));
+                        fluent.Item("response_queue_size").Scalar(static_cast<i64>(stats.RespQueueSize));
+                    }
+                })
+         .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
