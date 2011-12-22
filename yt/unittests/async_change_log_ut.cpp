@@ -29,8 +29,10 @@ protected:
     {
         TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("AsyncChangeLog")));
         TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
+
         ChangeLog = New<TChangeLog>(TemporaryFile->Name(), 0);
         ChangeLog->Create(0);
+
         AsyncChangeLog.Reset(new TAsyncChangeLog(ChangeLog));
 
         ActionQueue = New<TActionQueue>();
@@ -38,11 +40,7 @@ protected:
     }
 
     virtual void TearDown()
-    {
-        TemporaryFile.Reset(0);
-        TemporaryIndexFile.Reset(0);
-        AsyncChangeLog.Reset(0);
-    }
+    { }
 
 public:
     static void CheckRecord(ui32 data, yvector<TSharedRef>& result)
@@ -52,7 +50,6 @@ public:
         EXPECT_EQ(sizeof(data), record.Size());
         EXPECT_EQ(       data , *(reinterpret_cast<ui32*>(record.Begin())));
     }
-
 };
 
 TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, ui32 recordId) {
