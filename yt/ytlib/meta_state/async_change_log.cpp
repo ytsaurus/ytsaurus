@@ -214,6 +214,11 @@ public:
         Thread.Start();    
     }
 
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
     TAppendResult::TPtr Append(
         TChangeLog::TPtr changeLog,
         i32 recordId,

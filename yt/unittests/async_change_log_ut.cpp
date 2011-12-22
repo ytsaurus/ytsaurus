@@ -84,7 +84,6 @@ TEST_F(TAsyncChangeLogTest, ReadLastOnes)
         }
     }
     result->Get();
-    TAsyncChangeLog::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
