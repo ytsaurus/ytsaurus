@@ -65,7 +65,7 @@ bool TQueueInvoker::OnDequeueAndExecute()
 
 TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
     : EnableLogging(enableLogging)
-    , Finished(false)
+    , Running(true)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
     , ThreadName(threadName)
@@ -90,17 +90,16 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
-    NThread::SetCurrentThreadName(~ThreadName);
-
-    while (!Finished) {
-        try {
+    try {
+        NThread::SetCurrentThreadName(~ThreadName);
+        while (Running) {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
                     TIMEIT("actionqueue.idletime", "tv",
                         OnIdle();
                     )
-                    if (!Finished) {
+                    if (Running) {
                         WakeupEvent.Wait();
                     }
                 }
@@ -113,10 +112,10 @@ void TActionQueueBase::ThreadMain()
 
 void TActionQueueBase::Shutdown()
 {
-    if (Finished)
+    if (!Running)
         return;
 
-    Finished = true;
+    Running = false;
     WakeupEvent.Signal();
     Thread.Join();
 }

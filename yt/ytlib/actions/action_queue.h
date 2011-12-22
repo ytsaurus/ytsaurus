@@ -64,7 +64,7 @@ private:
     void ThreadMain();
 
     bool EnableLogging;
-    volatile bool Finished;
+    volatile bool Running;
     Event WakeupEvent;
     TThread Thread;
     Stroka ThreadName;
