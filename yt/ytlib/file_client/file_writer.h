@@ -6,9 +6,9 @@
 #include "../misc/codec.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
-#include "../cypress/cypress_service_rpc.h"
+#include "../cypress/cypress_service_proxy.h"
 #include "../chunk_client/remote_writer.h"
-#include "../chunk_server/chunk_service_rpc.h"
+#include "../chunk_server/chunk_service_proxy.h"
 #include "../logging/tagged_logger.h"
 
 namespace NYT {

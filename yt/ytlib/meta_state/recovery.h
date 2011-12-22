@@ -4,7 +4,7 @@
 #include "meta_state.h"
 #include "persistent_state_manager.h"
 #include "decorated_meta_state.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"
 #include "change_log_cache.h"

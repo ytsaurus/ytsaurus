@@ -6,7 +6,7 @@
 #include "../misc/metric.h"
 #include "../misc/configurable.h"
 #include "../misc/thread_affinity.h"
-#include "../chunk_holder/chunk_holder_service_rpc.h"
+#include "../chunk_holder/chunk_holder_service_proxy.h"
 
 namespace NYT {
 namespace NChunkClient {

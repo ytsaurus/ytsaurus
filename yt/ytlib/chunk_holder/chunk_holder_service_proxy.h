@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_holder_service_rpc.pb.h"
+#include "chunk_holder_service.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"

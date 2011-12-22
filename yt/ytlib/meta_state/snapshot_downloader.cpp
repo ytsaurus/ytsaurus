@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "snapshot_downloader.h"
 #include "snapshot.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 
 #include "../actions/action_util.h"
 #include "../actions/future.h"

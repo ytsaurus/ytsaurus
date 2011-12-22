@@ -3,8 +3,7 @@
 #include "home.h"
 
 #ifdef _win_
-#include <windows.h>
-#include <Shlobj.h>
+#include <shlobj.h>
 #endif
 
 namespace NYT {

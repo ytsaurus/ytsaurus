@@ -4,7 +4,7 @@
 #include "remote_reader.h"
 
 #include "../transaction_client/transaction.h"
-#include "../chunk_server/chunk_service_rpc.h"
+#include "../chunk_server/chunk_service_proxy.h"
 #include "../rpc/client.h"
 #include "../misc/configurable.h"
 

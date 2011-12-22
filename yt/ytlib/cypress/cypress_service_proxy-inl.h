@@ -1,5 +1,5 @@
-#ifndef CYPRESS_SERVICE_RPC_INL_H_
-#error "Direct inclusion of this file is not allowed, include cypress_service_rpc.h"
+#ifndef CYPRESS_SERVICE_PROXY_INL_H_
+#error "Direct inclusion of this file is not allowed, include cypress_service_proxy.h"
 #endif
 
 #include "../rpc/service.h"

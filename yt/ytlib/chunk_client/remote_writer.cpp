@@ -2,7 +2,7 @@
 #include "remote_writer.h"
 #include "holder_channel_cache.h"
 #include "writer_thread.h"
-#include "chunk_holder_service_rpc.pb.h"
+#include "chunk_holder_service.pb.h"
 
 #include "../misc/serialize.h"
 #include "../misc/metric.h"

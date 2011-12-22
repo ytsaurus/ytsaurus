@@ -129,10 +129,10 @@ int TLocation::GetSessionCount() const
 
 Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
 {
-    ui8 firstByte = static_cast<ui8>(chunkId.Parts[0] >> 24);
+    ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[2] >> 24);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%x/%s", firstByte, ~chunkId.ToString()));
+        Sprintf("%x/%s", firstHashByte, ~chunkId.ToString()));
 }
 
 namespace {

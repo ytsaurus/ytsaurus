@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cypress_ypath_rpc.h"
+#include "cypress_ypath_proxy.h"
 
 namespace NYT {
 namespace NCypress {

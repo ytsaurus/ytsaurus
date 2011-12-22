@@ -4,7 +4,7 @@
 #include "../ytree/ephemeral.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/tree_visitor.h"
-#include "../ytree/ypath_rpc.h"
+#include "../ytree/ypath_proxy.h"
 #include "../actions/action_util.h"
 #include "../misc/assert.h"
 

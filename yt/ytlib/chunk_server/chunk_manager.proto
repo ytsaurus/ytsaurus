@@ -1,6 +1,6 @@
 package NYT.NChunkServer.NProto;
 
-import "yt/ytlib/chunk_server/chunk_service_rpc.proto";
+import "yt/ytlib/chunk_server/chunk_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

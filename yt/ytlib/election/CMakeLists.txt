@@ -9,7 +9,7 @@ set( HDRS
   ${BASE}/cell_channel.h
   ${BASE}/common.h
   ${BASE}/election_manager.h
-  ${BASE}/election_manager_rpc.h
+  ${BASE}/election_manager_proxy.h
   ${BASE}/leader_lookup.h
 )
 
@@ -18,4 +18,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/election_manager_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/election_manager.proto YT_SOURCE_FILES )

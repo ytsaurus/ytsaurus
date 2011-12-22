@@ -2,14 +2,14 @@
 
 #include "common.h"
 #include "async_writer.h"
-#include "chunk_service_rpc.pb.h"
+#include "chunk_service.pb.h"
 
 #include "../misc/configurable.h"
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
 #include "../misc/thread_affinity.h"
 
-#include "../chunk_holder/chunk_holder_service_rpc.h"
+#include "../chunk_holder/chunk_holder_service_proxy.h"
 #include "../actions/action_queue.h"
 
 #include "../logging/tagged_logger.h"

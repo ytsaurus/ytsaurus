@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "meta_state_manager.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 #include "cell_manager.h"
 #include "follower_tracker.h"
 #include "snapshot_store.h"

@@ -1,6 +1,6 @@
 from ytbase import *
 
-GetLog = FileDescr('get_log', ('aggregate', 'exec'))
+#GetLog = FileDescr('get_log', ('aggregate', 'exec'))
 Prepare = FileDescr('prepare', ('aggregate', 'exec', ))
 DoRun = FileDescr('do_run', ('remote', 'exec'))
 DoStop = FileDescr('do_stop', ('remote', 'exec'))
@@ -8,7 +8,7 @@ DoClean = FileDescr('do_clean', ('remote', 'exec'))
 DoTest = FileDescr('do_test', ('remote', 'exec'))
 Test = FileDescr('test', ('aggregate', 'exec'))
 
-Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, GetLog, Test, DoTest]
+Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, Test, DoTest]
 
 ################################################################
 
@@ -101,11 +101,16 @@ class RemoteNode(Node):
         print >>fd, ulimit
         print >>fd, cls.export_ld_path
         print >>fd, wrap_cmd(cls.run_tmpl, timeout=0)
-    
-    def run(cls, fd):
-        print >>fd, shebang
-        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_run_path))
-        
+
+    def defaultFile(cls, fd, descr):
+        if descr.name.startswith('do_'):
+            Node.defaultFile(cls, fd, descr)
+        else:
+            # run corresponding do- file
+            print >>fd, shebang
+            path = getattr(cls, "do_" + descr.name + "_path")
+            print >>fd, wrap_cmd(cmd_ssh % (cls.host, path))    
+
     stop_tmpl = Template(cmd_stop)
     def do_stop(cls, fd):
         print >>fd, shebang
@@ -119,19 +124,6 @@ class RemoteNode(Node):
         print >>fd, 'if [ $? -eq 0 ]; then'
         print >>fd, 'echo "Node is dead: %s, host: %s"' % (cls.work_dir, cls.host)
         print >>fd, 'fi' 
-    
-    def stop(cls, fd):
-        print >>fd, shebang
-        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_stop_path))
-
-    def test(cls, fd):
-        print >>fd, shebang
-        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_test_path))
-        
-    def clean(cls, fd):
-        print >>fd, shebang
-        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cls.do_clean_path))
-
 
 class RemoteServer(RemoteNode, ServerNode):
     pass

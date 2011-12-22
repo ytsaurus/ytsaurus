@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "chunk_manager.h"
-#include "chunk_service_rpc.h"
+#include "chunk_service_proxy.h"
 
 #include "../meta_state/meta_state_service.h"
 #include "../rpc/server.h"

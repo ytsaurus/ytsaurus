@@ -136,7 +136,7 @@ void SaveMap(TOutputStream* output, const TMap& map)
 //! Alignment size; measured in bytes and must be a power of two.
 const size_t YTAlignment = 8;
 
-STATIC_ASSERT(!(YTAlignment & (YTAlignment - 1)));
+static_assert(!(YTAlignment & (YTAlignment - 1)), "YTAlignment should be a power of two.");
 
 //! Returns padding size: number of bytes required to make size
 //! a factor of #YTAlignment.

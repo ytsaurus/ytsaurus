@@ -8,7 +8,7 @@
 #include "../chunk_client/file_writer.h"
 #include "../chunk_client/remote_reader.h"
 #include "../chunk_client/sequential_reader.h"
-#include "../chunk_server/chunk_service_rpc.h"
+#include "../chunk_server/chunk_service_proxy.h"
 #include "../election/cell_channel.h"
 #include "../logging/tagged_logger.h"
 

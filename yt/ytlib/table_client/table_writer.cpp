@@ -2,7 +2,7 @@
 #include "table_writer.h"
 
 #include "../misc/sync.h"
-#include "../cypress/cypress_ypath_rpc.h"
+#include "../cypress/cypress_ypath_proxy.h"
 
 namespace NYT {
 namespace NTableClient {

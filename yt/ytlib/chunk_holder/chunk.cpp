@@ -2,7 +2,7 @@
 #include "chunk.h"
 #include "location.h"
 #include "reader_cache.h"
-#include "chunk_holder_service_rpc.h"
+#include "chunk_holder_service_proxy.h"
 
 namespace NYT {
 namespace NChunkHolder {

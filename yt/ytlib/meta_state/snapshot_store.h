@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "snapshot.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 
 #include "../misc/error.h"
 

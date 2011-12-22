@@ -6,7 +6,7 @@
 #include "../ytree/fluent.h"
 #include "../cypress/virtual.h"
 #include "../cypress/node_proxy_detail.h"
-#include "../cypress/cypress_ypath_rpc.h"
+#include "../cypress/cypress_ypath_proxy.h"
 
 namespace NYT {
 namespace NChunkServer {

@@ -19,7 +19,7 @@ set( HDRS
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_holder_service.h
-  ${BASE}/chunk_holder_service_rpc.h
+  ${BASE}/chunk_holder_service_proxy.h
   ${BASE}/chunk_store.h
   ${BASE}/common.h
   ${BASE}/location.h
@@ -36,4 +36,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
-protoc( ${BASE}/chunk_holder_service_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_holder_service.proto YT_SOURCE_FILES )

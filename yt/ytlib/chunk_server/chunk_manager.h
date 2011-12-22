@@ -6,7 +6,7 @@
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
-#include "chunk_service_rpc.h"
+#include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "chunk_manager.pb.h"
 

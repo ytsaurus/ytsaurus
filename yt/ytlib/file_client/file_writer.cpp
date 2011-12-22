@@ -5,8 +5,8 @@
 #include "../misc/string.h"
 #include "../misc/sync.h"
 #include "../misc/serialize.h"
-#include "../cypress/cypress_ypath_rpc.h"
-#include "../file_server/file_ypath_rpc.h"
+#include "../cypress/cypress_ypath_proxy.h"
+#include "../file_server/file_ypath_proxy.h"
 
 namespace NYT {
 namespace NFileClient {

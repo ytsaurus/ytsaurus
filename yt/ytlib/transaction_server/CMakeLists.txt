@@ -13,7 +13,7 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_service.h
-  ${BASE}/transaction_service_rpc.h
+  ${BASE}/transaction_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -22,4 +22,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/transaction_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/transaction_service_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/transaction_service.proto YT_SOURCE_FILES )

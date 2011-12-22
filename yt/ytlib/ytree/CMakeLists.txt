@@ -33,7 +33,7 @@ set( HDRS
   ${BASE}/ypath_client-inl.h
   ${BASE}/ypath_client.h
   ${BASE}/ypath_detail.h
-  ${BASE}/ypath_rpc.h
+  ${BASE}/ypath_proxy.h
   ${BASE}/ypath_service.h
   ${BASE}/yson_events-mock.h
   ${BASE}/yson_events.h
@@ -50,4 +50,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/ypath_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/ypath.proto YT_SOURCE_FILES )

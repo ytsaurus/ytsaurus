@@ -44,7 +44,7 @@ set( HDRS
   ${BASE}/meta_change.h
   ${BASE}/meta_state.h
   ${BASE}/meta_state_manager.h
-  ${BASE}/meta_state_manager_rpc.h
+  ${BASE}/meta_state_manager_proxy.h
   ${BASE}/meta_state_service.h
   ${BASE}/persistent_state_manager.h
   ${BASE}/recovery.h
@@ -61,4 +61,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/meta_state_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/meta_state_manager_rpc.proto YT_SOURCE_FILES )

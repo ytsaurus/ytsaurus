@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "ypath_detail.h"
-#include "ypath_rpc.pb.h"
+#include "ypath.pb.h"
 
 namespace NYT {
 namespace NYTree {

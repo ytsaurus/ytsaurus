@@ -75,7 +75,13 @@ class Master(Server):
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
        
+
+CleanCache = FileDescr('clean_cache', ('aggregate', 'exec'))
+DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
+
 class Holder(Server):
+    files = Server.files + [CleanCache, DoCleanCache]
+
     groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(30), 1)
     
@@ -99,7 +105,9 @@ class Holder(Server):
         'chunk_cache_location' : {
             'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
-        'cache_remote_reader' : { },
+        'cache_remote_reader' : { 
+            'holder_rpc_timeout' : 5 * 60 * 1000
+        },
         'cache_sequential_reader' : { },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,
@@ -113,42 +121,10 @@ class Holder(Server):
             print >>fd, 'rm -rf %s' % location['path']
         print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']
 
-class Client(Base, RemoteNode):
-    bin_path = '/home/yt/build/bin/send_chunk'
-
-    params = Template('--config %(config_path)s')
-
-    host = Subclass(opts.limit_iter('--clients', 
-        ['n01-04%0.2dg' % d for d in xrange(5, 90)]))
-
-    config = Template({ 
-        'replication_factor' : 2,
-        'block_size' : 2 ** 20,
-
-        'thread_pool' : {
-            'pool_size' : 1,
-            'task_count' : 100
-        },
-
-        'logging' : Logging,
-
-        'masters' : {
-            'addresses' : MasterAddresses
-        },
-
-        'data_source' : {
-            'size' : (2 ** 20) * 256
-        },
-
-        'chunk_writer' : {
-            'window_size' : 40,
-            'group_size' : 8 * (2 ** 20)
-        } 
-    })
-
-    def do_clean(cls, fd):
+    def do_clean_cache(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']
+
 
 configure(Base)
     
