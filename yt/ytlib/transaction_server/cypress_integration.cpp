@@ -35,7 +35,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto* transaction = TransactionManager->FindTransaction(id);
-        if (transaction == NULL) {
+        if (!transaction) {
             return NULL;
         }
 
@@ -53,8 +53,8 @@ NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TTransactionManager* transactionManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(transactionManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(transactionManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,

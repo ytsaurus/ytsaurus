@@ -18,69 +18,70 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(TYPathProxy::TRspGet::TPtr response)
+Stroka OnResponse(TValueOrError<TYson> response)
 {
-    if (!response->IsOK()) {
+    if (!response.IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
-        return FormatInternalServerErrorResponse(
-            response->GetError().ToString().Quote());
+        return FormatInternalServerErrorResponse(response.ToString().Quote());
     }
 
     // TODO(sandello): Use Serialize.h
     TStringStream output;
     TJsonAdapter adapter(&output);
-    TYsonReader ysonReader(&adapter);
-    TStringStream ysonStream;
-    ysonStream << response->value();
-    ysonReader.Read(&ysonStream);
+    TStringInput input(response.Value());
+    TYsonReader reader(&adapter, &input);
+    reader.Read();
     adapter.Flush();
 
     return FormatOKResponse(output.Str());
 }
 
-TFuture<Stroka>::TPtr AsyncGet(IYPathService::TPtr pathService, TYPath path)
+TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider::TPtr provider, const TYPath& path)
 {
-    if (!pathService) {
+    auto service = provider->Do();
+    if (!service) {
         return ToFuture(FormatServiceUnavailableResponse());
     }
-
-    auto request = TYPathProxy::Get();
-    request->SetPath(path);
-    auto response = ExecuteVerb(~pathService, ~request);
-
-    return response->Apply(FromMethod(&OnResponse));
+    return AsyncYPathGet(~service, path)->Apply(FromMethod(&OnResponse));
 }
 
 } // namespace <anonymous>
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-    TYPathServiceAsyncProvider::TPtr asyncProvider)
+    TYPathServiceProvider* provider,
+    IInvoker* invoker)
 {
+    TYPathServiceProvider::TPtr provider_ = provider;
+    IInvoker::TPtr invoker_ = invoker;
     return FromFunctor([=] (Stroka path) -> TFuture<Stroka>::TPtr
-    {
-        return asyncProvider
-            ->Do()
-            ->Apply(FromMethod(&AsyncGet, path));
-    });
+        {
+            return
+                FromMethod(
+                    &HandleRequest,
+                    provider_,
+                    path)
+                ->AsyncVia(invoker_)
+                ->Do();
+        });
 }
 
 TServer::TSyncHandler::TPtr GetProfilingHttpHandler()
 {
     return FromFunctor([] (Stroka path) -> Stroka
-    {
-        if (path == "/") {
-            return FormatOKResponse(
-                NSTAT::GetDump(NSTAT::PLAINTEXT_LATEST));
-        } else if (path == "/full") {
-            return FormatOKResponse(
-                NSTAT::GetDump(NSTAT::PLAINTEXT_FULL));
-        } else if (path == "/fullw") {
-            return FormatOKResponse(
-                NSTAT::GetDump(NSTAT::PLAINTEXT_FULL_WITH_TIMES));
-        } else {
-            return FormatNotFoundResponse();
-        }        
-    });
+        {
+            if (path == "/") {
+                return FormatOKResponse(
+                    NSTAT::GetDump(NSTAT::PLAINTEXT_LATEST));
+            } else if (path == "/full") {
+                return FormatOKResponse(
+                    NSTAT::GetDump(NSTAT::PLAINTEXT_FULL));
+            } else if (path == "/fullw") {
+                return FormatOKResponse(
+                    NSTAT::GetDump(NSTAT::PLAINTEXT_FULL_WITH_TIMES));
+            } else {
+                return FormatNotFoundResponse();
+            }        
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

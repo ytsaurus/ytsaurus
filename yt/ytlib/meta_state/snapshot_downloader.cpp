@@ -30,7 +30,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
     i32 segmentId,
     TFile* snapshotFile)
 {
-    YASSERT(snapshotFile != NULL);
+    YASSERT(snapshotFile);
 
     TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
     TPeerId sourceId = snapshotInfo.SourceId;

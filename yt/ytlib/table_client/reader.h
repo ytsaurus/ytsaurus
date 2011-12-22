@@ -31,7 +31,7 @@ struct IAsyncReader
     virtual TAsyncError::TPtr AsyncNextRow() = 0;
 
     virtual bool NextColumn() = 0;
-    virtual TValue GetValue() = 0;
+    virtual TValue GetValue() const = 0;
     virtual TColumn GetColumn() const = 0;
 
     virtual void Cancel(const TError& error) = 0;

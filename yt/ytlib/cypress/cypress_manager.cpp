@@ -37,7 +37,7 @@ TCypressManager::TCypressManager(
     , LockIdGenerator(0x465901ab71fe2671)
     , RuntimeTypeToHandler(static_cast<int>(ERuntimeNodeType::Last))
 {
-    YASSERT(transactionManager != NULL);
+    YASSERT(transactionManager);
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 
     transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
@@ -126,7 +126,7 @@ const ICypressNode* TCypressManager::FindTransactionNode(
 
     // First try to fetch a branched copy.
     auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
-    if (impl == NULL) {
+    if (!impl) {
         // Then try a non-branched one.
         impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     }
@@ -138,7 +138,7 @@ const ICypressNode& TCypressManager::GetTransactionNode(
     const TTransactionId& transactionId)
 {
     auto* impl = FindTransactionNode(nodeId, transactionId);
-    YASSERT(impl != NULL);
+    YASSERT(impl);
     return *impl;
 }
 
@@ -156,14 +156,14 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
 
     // Try to fetch a branched copy.
     auto* branchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
-    if (branchedImpl != NULL) {
+    if (branchedImpl) {
         YASSERT(branchedImpl->GetState() == ENodeState::Branched);
         return branchedImpl;
     }
 
     // Then fetch an unbranched copy and check if we have a valid node at all.
     auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-    if (nonbranchedImpl == NULL) {
+    if (!nonbranchedImpl) {
         return NULL;
     }
 
@@ -182,7 +182,7 @@ ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* impl = FindTransactionNodeForUpdate(nodeId, transactionId);
-    YASSERT(impl != NULL);
+    YASSERT(impl);
     return *impl;
 }
 
@@ -194,7 +194,7 @@ ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
 
     YASSERT(nodeId != NullNodeId);
     const auto* impl = FindTransactionNode(nodeId, transactionId);
-    if (impl == NULL) {
+    if (!impl) {
         return NULL;
     }
 
@@ -218,7 +218,7 @@ bool TCypressManager::IsLockNeeded(
 
     // Check if the node is created by the current transaction and is still uncommitted.
     const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
-    if (impl != NULL && impl->GetState() == ENodeState::Uncommitted) {
+    if (impl && impl->GetState() == ENodeState::Uncommitted) {
         return false;
     }
 
@@ -408,12 +408,12 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
-    if (proxy == NULL || !proxy->IsLogged(context)) {
+    if (!proxy || !proxy->IsLogged(context)) {
         LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
             ~context->GetPath(),
             ~context->GetVerb(),
-            proxy == NULL ? "N/A" : ~proxy->GetNodeId().ToString(),
-            proxy == NULL ? "N/A" : ~proxy->GetTransactionId().ToString());
+            !proxy ? "N/A" : ~proxy->GetNodeId().ToString(),
+            !proxy ? "N/A" : ~proxy->GetTransactionId().ToString());
         service->Invoke(context);
         return;
     }

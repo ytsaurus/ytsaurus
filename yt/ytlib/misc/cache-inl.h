@@ -177,7 +177,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        YASSERT(~value->Cache == NULL);
+        YASSERT(!value->Cache);
         value->Cache = this;
 
         auto it = ItemMap.find(key);

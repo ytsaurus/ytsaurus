@@ -29,9 +29,9 @@ TChunkReplication::TChunkReplication(
     , ChunkPlacement(chunkPlacement)
     , Invoker(invoker)
 {
-    YASSERT(chunkManager != NULL);
-    YASSERT(chunkPlacement != NULL);
-    YASSERT(invoker != NULL);
+    YASSERT(chunkManager);
+    YASSERT(chunkPlacement);
+    YASSERT(invoker);
 
     ScheduleNextRefresh();
 }
@@ -169,7 +169,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     yvector<TJobStartInfo>* jobsToStart)
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
-    if (chunk == NULL) {
+    if (!chunk) {
         LOG_INFO("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
@@ -331,7 +331,7 @@ void TChunkReplication::ScheduleJobs(
     yvector<TJobStartInfo>* jobsToStart)
 {
     auto* holderInfo = FindHolderInfo(holder.GetId());
-    if (holderInfo == NULL)
+    if (!holderInfo)
         return;
 
     // Schedule replication jobs.
@@ -403,7 +403,7 @@ void TChunkReplication::GetReplicaStatistics(
 {
     *desiredCount = GetDesiredReplicaCount(chunk);
     *storedCount = chunk.StoredLocations().ysize();
-    *cachedCount = ~chunk.CachedLocations() == NULL ? 0 : static_cast<int>(chunk.CachedLocations()->size());
+    *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
     *plusCount = 0;
     *minusCount = 0;
 
@@ -412,7 +412,7 @@ void TChunkReplication::GetReplicaStatistics(
     }
 
     const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
-    if (jobList != NULL) {
+    if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
         FOREACH(auto holderId, chunk.StoredLocations()) {
             const auto& holder = ChunkManager->GetHolder(holderId);
@@ -474,7 +474,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
     FOREACH(auto holderId, chunk.StoredLocations()) {
         auto* holderInfo = FindHolderInfo(holderId);
-        if (holderInfo != NULL) {
+        if (holderInfo) {
             holderInfo->ChunksToReplicate.erase(chunk.GetId());
             holderInfo->ChunksToRemove.erase(chunk.GetId());
         }
@@ -575,7 +575,7 @@ void TChunkReplication::OnRefresh()
             break;
 
         auto* chunk = ChunkManager->FindChunk(entry.ChunkId);
-        if (chunk != NULL) {
+        if (chunk) {
             Refresh(*chunk);
         }
 

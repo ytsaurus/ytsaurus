@@ -15,31 +15,16 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonReader::TYsonReader(IYsonConsumer* consumer)
+TYsonReaderBase::TYsonReaderBase(IYsonConsumer* consumer, TInputStream* stream)
     : Consumer(consumer)
+    , Stream(stream)
 {
     YASSERT(consumer);
+    YASSERT(stream);
     Reset();
 }
 
-void TYsonReader::Read(TInputStream* stream)
-{
-    try {
-        Stream = stream;
-        ParseAny();
-        int ch = ReadChar();
-        if (ch != Eos) {
-            ythrow yexception() << Sprintf("Unexpected symbol %s in YSON %s",
-                ~Stroka(static_cast<char>(ch)).Quote(),
-                ~GetPositionInfo());
-        }
-    } catch (...) {
-        Reset();
-        throw;
-    }
-}
-
-Stroka TYsonReader::GetPositionInfo()
+Stroka TYsonReaderBase::GetPositionInfo()
 {
     return Sprintf("(Line: %d, Position: %d, Offset: %d)",
         LineIndex,
@@ -47,16 +32,15 @@ Stroka TYsonReader::GetPositionInfo()
         Offset);
 }
 
-void TYsonReader::Reset()
+void TYsonReaderBase::Reset()
 {
-    Stream = NULL;
     Lookahead = NoLookahead;
     LineIndex = 1;
     Position = 1;
     Offset = 0;
 }
 
-int TYsonReader::ReadChar(bool binaryInput)
+int TYsonReaderBase::ReadChar(bool binaryInput)
 {
     if (Lookahead == NoLookahead) {
         PeekChar();
@@ -76,7 +60,7 @@ int TYsonReader::ReadChar(bool binaryInput)
     return result;
 }
 
-Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
+Stroka TYsonReaderBase::ReadChars(int charCount, bool binaryInput)
 {
     Stroka result;
     result.reserve(charCount);
@@ -93,7 +77,7 @@ Stroka TYsonReader::ReadChars(int charCount, bool binaryInput)
     return result;
 }
 
-void TYsonReader::ExpectChar(char expectedCh)
+void TYsonReaderBase::ExpectChar(char expectedCh)
 {
     int readCh = ReadChar();
     if (readCh == Eos) {
@@ -109,7 +93,7 @@ void TYsonReader::ExpectChar(char expectedCh)
     }
 }
 
-int TYsonReader::PeekChar()
+int TYsonReaderBase::PeekChar()
 {
     if (Lookahead != NoLookahead) {
         return Lookahead;
@@ -125,18 +109,18 @@ int TYsonReader::PeekChar()
     return Lookahead;
 }
 
-bool TYsonReader::IsLetter(int ch)
+bool TYsonReaderBase::IsLetter(int ch)
 {
     return (('a' <= ch && ch <= 'z') ||
             ('A' <= ch && ch <= 'Z'));
 }
 
-bool TYsonReader::IsDigit(int ch)
+bool TYsonReaderBase::IsDigit(int ch)
 {
     return ('0' <= ch && ch <= '9');
 }
 
-bool TYsonReader::IsWhitespace(int ch)
+bool TYsonReaderBase::IsWhitespace(int ch)
 {
     return
         ch == '\n' ||
@@ -145,14 +129,14 @@ bool TYsonReader::IsWhitespace(int ch)
         ch == ' ';
 }
 
-void TYsonReader::SkipWhitespaces()
+void TYsonReaderBase::SkipWhitespaces()
 {
     while (IsWhitespace(PeekChar())) {
         ReadChar();
     }
 }
 
-Stroka TYsonReader::ReadString()
+Stroka TYsonReaderBase::ReadString()
 {
     int ch = PeekChar();
     switch (ch) {
@@ -173,7 +157,7 @@ Stroka TYsonReader::ReadString()
     }
 }
 
-Stroka TYsonReader::ReadQuoteStartingString()
+Stroka TYsonReaderBase::ReadQuoteStartingString()
 {
     ExpectChar('"');
 
@@ -200,7 +184,7 @@ Stroka TYsonReader::ReadQuoteStartingString()
     return UnescapeC(result);
 }
 
-Stroka TYsonReader::ReadLetterStartingString()
+Stroka TYsonReaderBase::ReadLetterStartingString()
 {
     Stroka result;
     while (true) {
@@ -215,7 +199,7 @@ Stroka TYsonReader::ReadLetterStartingString()
     return UnescapeC(result);
 }
 
-Stroka TYsonReader::ReadBinaryString()
+Stroka TYsonReaderBase::ReadBinaryString()
 {
     ExpectChar(StringMarker);
     YASSERT(Lookahead == NoLookahead);
@@ -228,7 +212,7 @@ Stroka TYsonReader::ReadBinaryString()
     return ReadChars(length, true);
 }
 
-Stroka TYsonReader::ReadNumeric()
+Stroka TYsonReaderBase::ReadNumeric()
 {
     Stroka result;
     while (true) {
@@ -249,7 +233,7 @@ Stroka TYsonReader::ReadNumeric()
     return result;
 }
 
-void TYsonReader::ParseAny()
+void TYsonReaderBase::ParseAny()
 {
     SkipWhitespaces();
     int ch = PeekChar();
@@ -302,13 +286,13 @@ void TYsonReader::ParseAny()
     }
 }
 
-bool TYsonReader::HasAttributes()
+bool TYsonReaderBase::HasAttributes()
 {
     SkipWhitespaces();
     return PeekChar() == BeginAttributesSymbol;
 }
 
-void TYsonReader::ParseAttributesItem()
+void TYsonReaderBase::ParseAttributesItem()
 {
     SkipWhitespaces();
     Stroka name = ReadString();
@@ -322,7 +306,7 @@ void TYsonReader::ParseAttributesItem()
     ParseAny();
 }
 
-void TYsonReader::ParseAttributes()
+void TYsonReaderBase::ParseAttributes()
 {
     SkipWhitespaces();
     if (PeekChar() != BeginAttributesSymbol)
@@ -343,13 +327,13 @@ void TYsonReader::ParseAttributes()
     Consumer->OnEndAttributes();
 }
 
-void TYsonReader::ParseListItem()
+void TYsonReaderBase::ParseListItem()
 {
     Consumer->OnListItem();
     ParseAny();
 }
 
-void TYsonReader::ParseList()
+void TYsonReaderBase::ParseList()
 {
     YVERIFY(ReadChar() == BeginListSymbol);
     Consumer->OnBeginList();
@@ -373,7 +357,7 @@ void TYsonReader::ParseList()
     }
 }
 
-void TYsonReader::ParseMapItem()
+void TYsonReaderBase::ParseMapItem()
 {
     SkipWhitespaces();
     Stroka name = ReadString();
@@ -387,7 +371,7 @@ void TYsonReader::ParseMapItem()
     ParseAny();
 }
 
-void TYsonReader::ParseMap()
+void TYsonReaderBase::ParseMap()
 {
     YVERIFY(ReadChar() == BeginMapSymbol);
     Consumer->OnBeginMap();
@@ -411,13 +395,13 @@ void TYsonReader::ParseMap()
     }
 }
 
-void TYsonReader::ParseEntity()
+void TYsonReaderBase::ParseEntity()
 {
     Consumer->OnEntity(true);
     ParseAttributes();
 }
 
-void TYsonReader::ParseString()
+void TYsonReaderBase::ParseString()
 {
     Stroka value = ReadString();
     if (HasAttributes()) {
@@ -428,7 +412,7 @@ void TYsonReader::ParseString()
     }
 }
 
-bool TYsonReader::SeemsInteger(const Stroka& str)
+bool TYsonReaderBase::SeemsInteger(const Stroka& str)
 {
     for (int i = 0; i < static_cast<int>(str.length()); ++i) {
         char ch = str[i];
@@ -438,7 +422,7 @@ bool TYsonReader::SeemsInteger(const Stroka& str)
     return true;
 }
 
-void TYsonReader::ParseNumeric()
+void TYsonReaderBase::ParseNumeric()
 {
     Stroka str = ReadNumeric();
     if (SeemsInteger(str)) {
@@ -476,7 +460,7 @@ void TYsonReader::ParseNumeric()
     }
 }
 
-void TYsonReader::ParseBinaryInt64()
+void TYsonReaderBase::ParseBinaryInt64()
 {
     ExpectChar(Int64Marker);
     YASSERT(Lookahead == NoLookahead);
@@ -494,7 +478,7 @@ void TYsonReader::ParseBinaryInt64()
     }
 }
 
-void TYsonReader::ParseBinaryDouble()
+void TYsonReaderBase::ParseBinaryDouble()
 {
     ExpectChar(DoubleMarker);
     YASSERT(Lookahead == NoLookahead);
@@ -511,6 +495,32 @@ void TYsonReader::ParseBinaryDouble()
     } else {
         Consumer->OnDoubleScalar(value, false);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TYsonReader::Read()
+{
+    ParseAny();
+    int ch = ReadChar();
+    if (ch != Eos) {
+        ythrow yexception() << Sprintf("Unexpected symbol %s while expecting end-of-file in YSON %s",
+            ~Stroka(static_cast<char>(ch)).Quote(),
+            ~GetPositionInfo());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TYsonFragmentReader::HasNext()
+{
+    SkipWhitespaces();
+    return PeekChar() != Eos;
+}
+
+void TYsonFragmentReader::ReadNext()
+{
+    ParseAny();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

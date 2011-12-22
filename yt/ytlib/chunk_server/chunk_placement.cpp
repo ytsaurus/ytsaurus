@@ -22,7 +22,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 TChunkPlacement::TChunkPlacement(TChunkManager* chunkManager)
     : ChunkManager(chunkManager)
 {
-    YASSERT(chunkManager != NULL);
+    YASSERT(chunkManager);
 }
 
 void TChunkPlacement::OnHolderRegistered(const THolder& holder)
@@ -119,7 +119,7 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
     }
 
     const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
-    if (jobList != NULL) {
+    if (jobList) {
         FOREACH(const auto& jobId, jobList->JobIds()) {
             const auto& job = ChunkManager->GetJob(jobId);
             if (job.GetType() == EJobType::Replicate && job.GetChunkId() == chunk.GetId()) {
@@ -220,7 +220,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
     }
 
     auto* sink = ChunkManager->FindReplicationSink(targetHolder.GetAddress());
-    if (sink != NULL) {
+    if (sink) {
         if (static_cast<int>(sink->JobIds.size()) >= MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;

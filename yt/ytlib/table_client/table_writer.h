@@ -1,4 +1,5 @@
 ﻿#pragma once
+
 #include "common.h"
 #include "chunk_sequence_writer.h"
 
@@ -24,22 +25,22 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration RpcTimeout;
+        TDuration MasterRpcTimeout;
         TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
 
         TConfig()
         {
-            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
-            Register("chunk_sequence_writer", ChunkSequenceWriter);
+            Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
+            Register("chunk_sequence_writer", ChunkSequenceWriter).DefaultNew();
         }
     };
 
     TTableWriter(
         TConfig* config,
-        NRpc::IChannel::TPtr masterChannel,
-        NTransactionClient::ITransaction::TPtr transaction,
+        NRpc::IChannel* masterChannel,
+        NTransactionClient::ITransaction* transaction,
         const TSchema& schema,
-        const Stroka& path);
+        const NYTree::TYPath& path);
 
     void Open();
     void Write(const TColumn& column, TValue value);

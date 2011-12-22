@@ -29,8 +29,8 @@ TOrchidService::TOrchidService(
         OrchidLogger.GetCategory())
     , Root(root)
 {
-    YASSERT(root != NULL);
-    YASSERT(server != NULL);
+    YASSERT(root);
+    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 

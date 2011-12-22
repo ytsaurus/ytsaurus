@@ -43,12 +43,12 @@ const char* TValue::End() const
 
 bool TValue::IsEmpty() const
 {
-    return (Data.Begin() != NULL) && (Data.Size() == 0);
+    return (Data.Begin() && Data.Size() == 0);
 }
 
 bool TValue::IsNull() const
 {
-    return Data.Begin() == NULL;
+    return !Data.Begin();
 }
 
 Stroka TValue::ToString() const
@@ -63,7 +63,7 @@ TBlob TValue::ToBlob() const
 
 int TValue::Save(TOutputStream* out)
 {
-    YASSERT(out != NULL);
+    YASSERT(out);
 
     if (IsNull()) {
         return WriteVarUInt64(out, 0);
@@ -77,7 +77,7 @@ int TValue::Save(TOutputStream* out)
 
 TValue TValue::Load(TMemoryInput* input)
 {
-    YASSERT(input != NULL);
+    YASSERT(input);
 
     ui64 size;
     ReadVarUInt64(input, &size);

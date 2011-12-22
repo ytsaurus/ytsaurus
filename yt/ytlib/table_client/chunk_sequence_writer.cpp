@@ -19,16 +19,18 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkSequenceWriter::TChunkSequenceWriter(
     TConfig* config,
-    const TSchema& schema,
+    NRpc::IChannel* masterChannel,
     const TTransactionId& transactionId,
-    NRpc::IChannel::TPtr masterChannel)
+    const TSchema& schema)
     : Config(config)
-    , Schema(schema)
+    , Proxy(masterChannel)
     , TransactionId(transactionId)
-    , Proxy(~masterChannel)
+    , Schema(schema)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(config);
+    YASSERT(masterChannel);
 
     CreateNextChunk();
 }
@@ -41,10 +43,10 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     LOG_DEBUG("Allocating new chunk (TransactionId: %s; ReplicaCount: %d)",
         ~TransactionId.ToString(),
-        Config->ReplicationFactor);
+        Config->UploadReplicaCount);
 
     auto req = Proxy.AllocateChunk();
-    req->set_replicacount(Config->ReplicationFactor);
+    req->set_replicacount(Config->UploadReplicaCount);
     req->set_transactionid(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(FromMethod(
@@ -62,9 +64,8 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
     }
 
     if (rsp->IsOK()) {
-        const auto& protoAddresses = rsp->holderaddresses();
-        yvector<Stroka> addresses(protoAddresses.begin(), protoAddresses.end());
-        TChunkId chunkId = TChunkId::FromProto(rsp->chunkid());
+        auto addresses = FromProto<Stroka>(rsp->holderaddresses());
+        auto chunkId = TChunkId::FromProto(rsp->chunkid());
 
         LOG_DEBUG("Allocated new chunk (Addresses: [%s]; ChunkId: %s)",
             ~JoinToString(addresses),
@@ -73,12 +74,12 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
         // ToDo: consider using iterators in constructor to 
         // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
-            ~Config->RemoteChunk,
-            TChunkId::FromProto(rsp->chunkid()),
+            ~Config->RemoteWriter,
+            chunkId,
             addresses);
 
-        NextChunk->Set(new TChunkWriter(
-            ~Config->TableChunk,
+        NextChunk->Set(New<TChunkWriter>(
+            ~Config->ChunkWriter,
             chunkWriter,
             Schema));
 
@@ -246,7 +247,7 @@ void TChunkSequenceWriter::Cancel(const TError& error)
     }
 }
 
-const yvector<TChunkId>& TChunkSequenceWriter::GetWrittenChunks() const
+const yvector<TChunkId>& TChunkSequenceWriter::GetWrittenChunkIds() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(State.IsClosed());

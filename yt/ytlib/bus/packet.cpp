@@ -23,7 +23,7 @@ bool DecodeMessagePacket(
     TSequenceId* sequenceId)
 {
     auto* header = ParsePacketHeader<TMultipartPacketHeader>(data);
-    if (header == NULL)
+    if (!header)
         return false;
 
     if (header->PartCount < 0 || header->PartCount > TMultipartPacketHeader::MaxParts) {
@@ -64,7 +64,7 @@ bool EncodeMessagePacket(
     TSequenceId sequenceId,
     TBlob* data)
 {
-    YASSERT(message != NULL);
+    YASSERT(message);
 
     const auto& parts = message->GetParts();
 

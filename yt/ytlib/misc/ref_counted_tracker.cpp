@@ -16,6 +16,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedTracker* TRefCountedTracker::Get()
+{
+    return Singleton<TRefCountedTracker>();
+}
+
 TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);

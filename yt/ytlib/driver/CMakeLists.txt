@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/cypress_commands.cpp
   ${BASE}/transaction_commands.cpp
   ${BASE}/file_commands.cpp
+  ${BASE}/table_commands.cpp
 )
 set( HDRS
   ${BASE}/common.h

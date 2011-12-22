@@ -110,7 +110,7 @@ public:
         const Stroka& verb)
         : TClientRequest(channel, path, verb)
     {
-        YASSERT(channel != NULL);
+        YASSERT(channel);
     }
 
     typename TFuture< TIntrusivePtr<TTypedResponse> >::TPtr Invoke()

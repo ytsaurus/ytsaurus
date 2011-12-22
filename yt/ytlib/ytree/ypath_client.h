@@ -145,6 +145,9 @@ ExecuteVerb(
     TTypedRequest* request,
     IYPathExecutor* executor = ~GetDefaultExecutor());
 
+//! Asynchronously executes "Get" verb. 
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path);
+
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncYPathGet(IYPathService* rootService, const TYPath& path);
 

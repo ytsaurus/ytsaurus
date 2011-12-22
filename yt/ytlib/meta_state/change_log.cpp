@@ -90,7 +90,7 @@ private:
         }
     };
 
-    STATIC_ASSERT(sizeof(TLogHeader) == 20);
+    static_assert(sizeof(TLogHeader) == 20, "Binary size of TLogHeader has changed.");
 
     #pragma pack(pop)
 
@@ -117,7 +117,7 @@ private:
         { }
     };
 
-    STATIC_ASSERT(sizeof(TRecordHeader) == 16);
+    static_assert(sizeof(TRecordHeader) == 16, "Binary size of TRecordHeader has changed.");
 
     #pragma pack(pop)
 
@@ -157,7 +157,7 @@ private:
         }
     };
 
-    STATIC_ASSERT(sizeof(TLogIndexHeader) == 16);
+    static_assert(sizeof(TLogIndexHeader) == 16, "Binary size of TLogIndexHeader has changed.");
 
     #pragma pack(pop)
 
@@ -176,7 +176,7 @@ private:
         }
     };
 
-    STATIC_ASSERT(sizeof(TLogIndexRecord) == 8);
+    static_assert(sizeof(TLogIndexRecord) == 8, "Binary size of TLogIndexRecord has changed.");
 
     #pragma pack(pop)
 
@@ -480,7 +480,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 {
     YASSERT(firstRecordId >= 0);
     YASSERT(recordCount >= 0);
-    YASSERT(result != NULL);
+    YASSERT(result);
 
     YASSERT(State == EState::Open || State == EState::Finalized);
 

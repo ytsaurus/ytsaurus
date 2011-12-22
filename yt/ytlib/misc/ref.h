@@ -27,7 +27,7 @@ public:
     //! Creates a reference for a given block of memory.
     TRef(void* data, size_t size)
     {
-        YASSERT(data != NULL || size == 0);
+        YASSERT(data || size == 0);
         Data = reinterpret_cast<char*>(data);
         Size_ = size;
     }
@@ -70,7 +70,7 @@ public:
      */
     TBlob ToBlob() const
     {
-        YASSERT(Data != NULL);
+        YASSERT(Data);
         return TBlob(Begin(), End());
     }
 
@@ -100,7 +100,7 @@ public:
     typedef char* TRef::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
-        return Data != NULL ? &TRef::Data : NULL;
+        return Data ? &TRef::Data : NULL;
     }
 
 private:

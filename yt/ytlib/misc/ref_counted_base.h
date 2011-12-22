@@ -32,7 +32,7 @@ public:
     //! Called from #New functions to initialize the tracking cookie.
     inline void BindToCookie(TRefCountedTracker::TCookie cookie)
     {
-        YASSERT(Cookie == NULL);
+        YASSERT(!Cookie);
         Cookie = cookie;
         TRefCountedTracker::Get()->Register(cookie);
 
@@ -58,7 +58,7 @@ public:
     {
         if (AtomicDecrement(RefCounter) == 0) {
 #ifdef ENABLE_REF_COUNTED_TRACKING
-            YASSERT(Cookie != NULL);
+            YASSERT(Cookie);
             TRefCountedTracker::Get()->Unregister(Cookie);
 #endif
             delete this;

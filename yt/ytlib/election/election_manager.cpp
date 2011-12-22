@@ -35,10 +35,10 @@ TElectionManager::TElectionManager(
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
 {
-    YASSERT(cellManager != NULL);
-    YASSERT(controlInvoker != NULL);
-    YASSERT(electionCallbacks != NULL);
-    YASSERT(server != NULL);
+    YASSERT(cellManager);
+    YASSERT(controlInvoker);
+    YASSERT(electionCallbacks);
+    YASSERT(server);
 
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 

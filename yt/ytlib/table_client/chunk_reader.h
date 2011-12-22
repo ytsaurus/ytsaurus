@@ -64,7 +64,7 @@ public:
      *  by the reader as long as the current row does not change. The client
      *  must make an explicit copy of it if needed.
      */
-    TValue GetValue();
+    TValue GetValue() const;
 
     void Cancel(const TError& error);
 

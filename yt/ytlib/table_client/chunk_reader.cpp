@@ -294,7 +294,7 @@ TChunkReader::TChunkReader(
     , EndRow(endRow)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(chunkReader != NULL);
+    YASSERT(chunkReader);
 
     Initializer = New<TInitializer>(config, this, chunkReader);
 }
@@ -418,7 +418,7 @@ TColumn TChunkReader::GetColumn() const
     return CurrentColumn;
 }
 
-TValue TChunkReader::GetValue()
+TValue TChunkReader::GetValue() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());

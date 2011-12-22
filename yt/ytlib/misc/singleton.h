@@ -21,14 +21,14 @@ TIntrusivePtr<T> RefCountedSingleton()
 
     YASSERT(instance != reinterpret_cast<T*>(-1));
 
-    if (EXPECT_TRUE(instance != NULL)) {
+    if (EXPECT_TRUE(instance)) {
         return instance;
     }
 
     static TSpinLock spinLock;
     TGuard<TSpinLock> guard(spinLock);
 
-    if (instance != NULL) {
+    if (instance) {
         return instance;
     }
 

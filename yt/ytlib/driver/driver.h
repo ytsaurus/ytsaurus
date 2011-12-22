@@ -12,6 +12,8 @@
 #include "../transaction_client/transaction_manager.h"
 #include "../file_client/file_reader.h"
 #include "../file_client/file_writer.h"
+#include "../table_client/table_reader.h"
+#include "../table_client/table_writer.h"
 
 namespace NYT {
 namespace NDriver {
@@ -42,16 +44,20 @@ public:
         NYTree::TYsonWriter::EFormat OutputFormat;
         NElection::TLeaderLookup::TConfig::TPtr Masters;
         NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
-        NFileClient::TFileReader::TConfig::TPtr FileDownloader;
-        NFileClient::TFileWriter::TConfig::TPtr FileUploader;
+        NFileClient::TFileReader::TConfig::TPtr FileReader;
+        NFileClient::TFileWriter::TConfig::TPtr FileWriter;
+        NTableClient::TTableReader::TConfig::TPtr TableReader;
+        NTableClient::TTableWriter::TConfig::TPtr TableWriter;
 
         TConfig()
         {
             Register("output_format", OutputFormat).Default(NYTree::TYsonWriter::EFormat::Text);
             Register("masters", Masters);
             Register("transaction_manager", TransactionManager).DefaultNew();
-            Register("file_downloader", FileDownloader).DefaultNew();
-            Register("file_uploader", FileUploader).DefaultNew();
+            Register("file_reader", FileReader).DefaultNew();
+            Register("file_writer", FileWriter).DefaultNew();
+            Register("table_reader", TableReader).DefaultNew();
+            Register("table_writer", TableWriter).DefaultNew();
         }
     };
 

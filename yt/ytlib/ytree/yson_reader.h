@@ -9,15 +9,12 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonReader
+class TYsonReaderBase
     : private TNonCopyable
 {
-public:
-    TYsonReader(IYsonConsumer* consumer);
+protected:
+    TYsonReaderBase(IYsonConsumer* consumer, TInputStream* stream);
 
-    void Read(TInputStream* stream);
-
-private:
     static const int Eos = -1;
     static const int NoLookahead = -2;
 
@@ -73,6 +70,33 @@ private:
     static bool SeemsInteger(const Stroka& str);
     void ParseNumeric();
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonReader
+    : public TYsonReaderBase
+{
+public:
+    TYsonReader(IYsonConsumer* consumer, TInputStream* stream)
+        : TYsonReaderBase(consumer, stream)
+    { }
+
+    void Read();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonFragmentReader
+    : public TYsonReaderBase
+{
+public:
+    TYsonFragmentReader(IYsonConsumer* consumer, TInputStream* stream)
+        : TYsonReaderBase(consumer, stream)
+    { }
+
+    bool HasNext();
+    void ReadNext();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

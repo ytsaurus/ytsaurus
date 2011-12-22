@@ -28,20 +28,18 @@ Stroka TBranchedNodeId::ToString() const
         ~TransactionId.ToString());
 }
 
-TBranchedNodeId TBranchedNodeId::FromString(const Stroka& s)
+TBranchedNodeId TBranchedNodeId::FromString(const Stroka& str)
 {
-    auto tokens = splitStroku(s, ":");
+    auto tokens = splitStroku(str, ":");
     if (tokens.size() < 1 || 2 < tokens.size()) {
-        ythrow yexception() << Sprintf("Invalid number of :-separated tokens in %s", ~s);
+        ythrow yexception() << Sprintf("Invalid number of tokens in %s", ~str.Quote());
     }
-    auto nodeId = TNodeId::FromString(tokens[0]);
 
-    TTransactionId transactionId;
-    if (tokens.size() == 2) {
-        transactionId = TTransactionId::FromString(tokens[1]);
-    } else {
-        transactionId = NullTransactionId;
-    }
+    auto nodeId = TNodeId::FromString(tokens[0]);
+    auto transactionId =
+        tokens.size() == 2
+        ? TTransactionId::FromString(tokens[1])
+        : NullTransactionId;
     return TBranchedNodeId(nodeId, transactionId);
 }
 

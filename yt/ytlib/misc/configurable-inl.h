@@ -166,7 +166,7 @@ inline void ValidateSubconfigs(
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
 {
-    if (parameter->Get() != NULL) {
+    if (parameter->Get()) {
         (*parameter)->Validate(path);
     }
 }
@@ -208,7 +208,7 @@ TParameter<T>::TParameter(T& parameter)
 template <class T>
 void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
-    if (node != NULL) {
+    if (node) {
         try {
             Read(Parameter, node, path);
         } catch (...) {

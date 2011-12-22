@@ -234,7 +234,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (FindTransaction(id) == NULL)
+    if (!FindTransaction(id))
         return;
 
     LOG_INFO("Transaction expired (TransactionId: %s)",

@@ -247,6 +247,11 @@ public:
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
     }
 
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
     void Configure(INode* node, const TYPath& path = "/")
     {
         auto config = TLogConfig::CreateFromNode(node, path);

@@ -4,6 +4,7 @@
 #include "transaction_commands.h"
 #include "cypress_commands.h"
 #include "file_commands.h"
+#include "table_commands.h"
 
 #include "../ytree/fluent.h"
 #include "../ytree/serialize.h"
@@ -105,8 +106,8 @@ public:
         : Config(config)
         , StreamProvider(streamProvider)
     {
-        YASSERT(config != NULL);
-        YASSERT(streamProvider != NULL);
+        YASSERT(config);
+        YASSERT(streamProvider);
 
         MasterChannel = CreateCellChannel(~config->Masters);
 
@@ -120,9 +121,15 @@ public:
 
         RegisterCommand("get", ~New<TGetCommand>(this));
         RegisterCommand("set", ~New<TSetCommand>(this));
+        RegisterCommand("remove", ~New<TRemoveCommand>(this));
+        RegisterCommand("list", ~New<TListCommand>(this));
+        RegisterCommand("create", ~New<TCreateCommand>(this));
 
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
+
+        RegisterCommand("read", ~New<TReadCommand>(this));
+        RegisterCommand("write", ~New<TWriteCommand>(this));
     }
 
     TError Execute(const TYson& request)
@@ -170,9 +177,9 @@ public:
     virtual void ReplySuccess(const TYson& yson, const Stroka& spec)
     {
         auto consumer = CreateOutputConsumer(spec);
-        TYsonReader reader(~consumer);
         TStringInput input(yson);
-        reader.Read(&input);
+        TYsonReader reader(~consumer, &input);
+        reader.Read();
     }
 
 
@@ -181,8 +188,8 @@ public:
         auto stream = CreateInputStream(spec);
         return FromFunctor([=] (IYsonConsumer* consumer)
             {
-                TYsonReader reader(consumer);
-                reader.Read(~stream);
+                TYsonReader reader(consumer, ~stream);
+                reader.Read();
             });
     }
 

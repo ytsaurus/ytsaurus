@@ -38,6 +38,8 @@ struct TIntrusivePtrTraits<const T>
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template<class T>
 class TIntrusivePtr
 {
@@ -51,7 +53,7 @@ public:
     TIntrusivePtr(T* p, bool addReference) throw()
         : T_(p)
     {
-        if (T_ != NULL && addReference) {
+        if (T_ && addReference) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -59,7 +61,7 @@ public:
     TIntrusivePtr(T* p) throw()
         : T_(p)
     {
-        if (T_ != NULL) {
+        if (T_) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -68,7 +70,7 @@ public:
     TIntrusivePtr(const TIntrusivePtr& other) throw()
         : T_(other.T_)
     {
-        if (T_ != NULL) {
+        if (T_) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -81,7 +83,7 @@ public:
         throw()
         : T_(other.Get())
     {
-        if (T_ != NULL) {
+        if (T_) {
             TIntrusivePtrTraits<T>::Ref(T_);
         }
     }
@@ -107,7 +109,7 @@ public:
     //! Destructor.
     ~TIntrusivePtr()
     {
-        if (T_ != NULL) {
+        if (T_) {
             TIntrusivePtrTraits<T>::UnRef(T_);
         }
     }
@@ -146,13 +148,13 @@ public:
 
     T& operator*() const throw()
     {
-        YASSERT(T_ != NULL);
+        YASSERT(T_);
         return *T_;
     }
 
     T* operator->() const throw()
     {
-        YASSERT(T_ != NULL);
+        YASSERT(T_);
         return  T_;
     }
 
@@ -160,7 +162,7 @@ public:
     typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
-        return T_ != NULL ? &TIntrusivePtr::T_ : NULL;
+        return T_ ? &TIntrusivePtr::T_ : NULL;
     }
 
     void Swap(TIntrusivePtr& r) throw()

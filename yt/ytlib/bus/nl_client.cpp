@@ -238,7 +238,7 @@ class TClientDispatcher
         }
 
         auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
-        if (header == NULL)
+        if (!header)
             return;
 
         switch (header->Type) {
@@ -297,7 +297,7 @@ class TClientDispatcher
     void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
     {
         auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
-        if (header == NULL)
+        if (!header)
             return;
 
         switch (header->Type) {
@@ -580,7 +580,7 @@ TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
 IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(handler != NULL);
+    YASSERT(handler);
 
     auto bus = New<TBus>(this, handler);
     TClientDispatcher::Get()->EnqueueBusRegister(bus);

@@ -31,8 +31,8 @@ public:
         , State(EState::Active)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
-        YASSERT(cellChannel != NULL);
-        YASSERT(transactionManager != NULL);
+        YASSERT(cellChannel);
+        YASSERT(transactionManager);
 
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
@@ -222,7 +222,7 @@ TTransactionManager::TTransactionManager(
     : Config(config)
     , Channel(channel)
 {
-    YASSERT(channel != NULL);
+    YASSERT(channel);
 }
 
 ITransaction::TPtr TTransactionManager::StartTransaction()

@@ -54,9 +54,9 @@ public:
         // Some random number.
         , ChunkListIdGenerator(0x761ba739c541fcd0)
     {
-        YASSERT(chunkManager != NULL);
-        YASSERT(transactionManager != NULL);
-        YASSERT(holderRegistry != NULL);
+        YASSERT(chunkManager);
+        YASSERT(transactionManager);
+        YASSERT(holderRegistry);
 
         RegisterMethod(this, &TImpl::AllocateChunk);
         RegisterMethod(this, &TImpl::ConfirmChunks);
@@ -365,7 +365,7 @@ private:
             DoRemoveChunkFromLocation(chunk, false, holderId);
         }
 
-        if (~chunk.CachedLocations() != NULL) {
+        if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
                 DoRemoveChunkFromLocation(chunk, true, holderId);
             }
@@ -411,7 +411,7 @@ private:
         THolderId holderId = HolderIdGenerator.Next();
     
         const auto* existingHolder = FindHolder(address);
-        if (existingHolder != NULL) {
+        if (existingHolder) {
             LOG_INFO_IF(!IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
                 existingHolder->GetId());
@@ -827,7 +827,13 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (chunk == NULL) {
+        if (!chunk) {
+            // Holders may still contain cached replicas of chunks that no longer exist.
+            // Here we just silently ignore this case.
+            if (cached) {
+                return;
+            }
+
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
@@ -840,7 +846,7 @@ private:
             return;
         }
 
-        // Use size reported by the holder.
+        // Use the size reported by the holder, but check it for consistency first.
         if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
             LOG_FATAL("Chunk size mismatch (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
                 ~chunkId.ToString(),
@@ -864,7 +870,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);
-        if (chunk == NULL) {
+        if (!chunk) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~ToString(cached),
@@ -880,7 +886,7 @@ private:
     TJobList& GetOrCreateJobListForUpdate(const TChunkId& id)
     {
         auto* list = FindJobListForUpdate(id);
-        if (list != NULL)
+        if (list)
             return *list;
 
         JobListMap.Insert(id, new TJobList(id));
@@ -1101,7 +1107,7 @@ void TChunkManager::FillHolderAddresses(
         addresses->Add()->assign(holder.GetAddress());
     }
 
-    if (~chunk.CachedLocations() != NULL) {
+    if (~chunk.CachedLocations()) {
         FOREACH(auto holderId, *chunk.CachedLocations()) {
             const THolder& holder = GetHolder(holderId);
             addresses->Add()->assign(holder.GetAddress());

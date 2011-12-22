@@ -30,6 +30,8 @@ public:
         i64 BlockSize;
         TDuration MasterRpcTimeout;
         ECodecId CodecId;
+        int TotalReplicaCount;
+        int UploadReplicaCount;
         NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
 
         TConfig()
@@ -37,23 +39,39 @@ public:
             Register("block_size", BlockSize).Default(1024 * 1024).GreaterThan(0);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
             Register("codec_id", CodecId).Default(ECodecId::None);
-            Register("remote_writer", RemoteWriter).Default(New<NChunkClient::TRemoteWriter::TConfig>());
+            Register("total_replica_count", TotalReplicaCount).Default(3).GreaterThanOrEqual(1);
+            Register("upload_replica_count", UploadReplicaCount).Default(2).GreaterThanOrEqual(1);
+            Register("remote_writer", RemoteWriter).DefaultNew();
+        }
+
+        virtual void Validate(const NYTree::TYPath& path = "/")
+        {
+            TConfigurable::Validate(path);
+            
+            if (TotalReplicaCount < UploadReplicaCount) {
+                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            }
         }
     };
 
+    //! Initializes an instance.
     TFileWriter(
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
-        const NYTree::TYPath& path,
-        // TODO: consider making it a part of TConfig
-        int totalReplicaCount = 3,
-        int uploadReplicaCount = 2);
+        const NYTree::TYPath& path);
 
+    //! Adds another chunk of data.
+    /*!
+     *  This chunk does not necessary makes up a block. The writer maintains an internal buffer
+     *  and splits the input data into parts of equal size (see TConfig::BlockSize).
+     */
     void Write(TRef data);
 
+    //! Cancels the writing process releasing all resources.
     void Cancel();
 
+    //! Closes the writer.
     void Close();
 
 private:

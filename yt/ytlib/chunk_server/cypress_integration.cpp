@@ -38,7 +38,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto* chunk = ChunkManager->FindChunk(id);
-        if (chunk == NULL) {
+        if (!chunk) {
             return NULL;
         }
 
@@ -53,7 +53,7 @@ private:
                                 const auto& holder = ChunkManager->GetHolder(holderId);
                                 fluent.Item().Scalar(holder.GetAddress());
                             })
-                        .DoIf(~chunk->CachedLocations() != NULL, [=] (TFluentMap fluent)
+                        .DoIf(~chunk->CachedLocations(), [=] (TFluentMap fluent)
                             {
                                 fluent
                                     .Item("cached_locations")
@@ -82,8 +82,8 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -115,7 +115,7 @@ private:
     {
         auto id = TChunkListId::FromString(key);
         auto* chunkList = ChunkManager->FindChunkList(id);
-        if (chunkList == NULL) {
+        if (!chunkList) {
             return NULL;
         }
 
@@ -138,8 +138,8 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -232,7 +232,7 @@ private:
     void GetAlive(const TGetAttributeParam& param)
     {
         Stroka address = GetAddress(*param.Node);
-        bool alive = ChunkManager->FindHolder(address) != NULL;
+        bool alive = ChunkManager->FindHolder(address);
         BuildYsonFluently(param.Consumer)
             .Scalar(alive);
     }
@@ -242,8 +242,8 @@ INodeTypeHandler::TPtr CreateHolderTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return New<THolderTypeHandler>(cypressManager, chunkManager);
 }
@@ -288,7 +288,7 @@ private:
         Stroka address = holder.GetAddress();
 
         auto node = GetProxy();
-        if (~node->FindChild(address) != NULL)
+        if (node->FindChild(address))
             return;
 
         // TODO: use fluent
@@ -388,7 +388,7 @@ private:
             .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
                 {
                     Stroka address = pair.first;
-                    if (ChunkManager->FindHolder(address) == NULL) {
+                    if (!ChunkManager->FindHolder(address)) {
                         param.Consumer->OnListItem();
                         param.Consumer->OnStringScalar(address);
                     }
@@ -401,8 +401,8 @@ INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
-    YASSERT(cypressManager != NULL);
-    YASSERT(chunkManager != NULL);
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
 
     return New<THolderMapTypeHandler>(metaStateManager, cypressManager, chunkManager);
 }

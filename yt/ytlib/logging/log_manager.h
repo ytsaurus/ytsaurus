@@ -39,3 +39,10 @@ private:
 
 } // namespace NLog
 } // namespace NYT
+
+template <>
+struct TSingletonTraits<NYT::NLog::TLogManager> {
+    enum {
+        Priority = 2048
+    };
+};

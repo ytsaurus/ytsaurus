@@ -78,7 +78,7 @@ public:
 
     virtual INodeFactory::TPtr CreateFactory() const
     {
-        YASSERT(Parent != NULL);
+        YASSERT(Parent);
         return Parent->CreateFactory();
     }
 

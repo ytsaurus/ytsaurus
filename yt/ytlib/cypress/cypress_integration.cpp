@@ -33,7 +33,7 @@ private:
     {
         auto branchedNodeId = TBranchedNodeId::FromString(key);
         auto* node = CypressManager->FindNode(branchedNodeId);
-        if (node == NULL) {
+        if (!node) {
             return NULL;
         }
 
@@ -53,7 +53,7 @@ private:
 INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
     TCypressManager* cypressManager)
 {
-    YASSERT(cypressManager != NULL);
+    YASSERT(cypressManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,
@@ -85,7 +85,7 @@ private:
     {
         auto id = TLockId::FromString(key);
         auto* lock = CypressManager->FindLock(id);
-        if (lock == NULL) {
+        if (!lock) {
             return NULL;
         }
 
@@ -104,7 +104,7 @@ private:
 INodeTypeHandler::TPtr CreateLockMapTypeHandler(
     TCypressManager* cypressManager)
 {
-    YASSERT(cypressManager != NULL);
+    YASSERT(cypressManager);
 
     return CreateVirtualTypeHandler(
         cypressManager,

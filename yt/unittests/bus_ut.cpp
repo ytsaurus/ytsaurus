@@ -135,7 +135,7 @@ void TestReplies(int numRequests, int numParts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TBusTest, DISABLED_OK)
+TEST(TBusTest, OK)
 {
     auto server = StartBusServer(~New<TEmptyBusHandler>());
     auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
@@ -146,7 +146,7 @@ TEST(TBusTest, DISABLED_OK)
     server->Stop();
 }
 
-TEST(TBusTest, DISABLED_Failed)
+TEST(TBusTest, Failed)
 {
     auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
@@ -155,12 +155,12 @@ TEST(TBusTest, DISABLED_Failed)
     EXPECT_EQ(ESendResult::Failed, result);
 }
 
-TEST(TBusTest, DISABLED_OneReply)
+TEST(TBusTest, OneReply)
 {
     TestReplies(1, 1);
 }
 
-TEST(TBusTest, DISABLED_ManyReplies)
+TEST(TBusTest, ManyReplies)
 {
     TestReplies(1000, 100);
 }

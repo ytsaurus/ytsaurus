@@ -14,7 +14,7 @@ using namespace NFileClient;
 
 void TDownloadCommand::DoExecute(TDownloadRequest* request)
 {
-    auto config = DriverImpl->GetConfig()->FileDownloader;
+    auto config = DriverImpl->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
         ~config,
@@ -26,9 +26,9 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
     while (true) {
         auto block = reader->Read();
-        if (~block == NULL)
+        if (!block) {
             break;
-
+        }
         output->Write(block.Begin(), block.Size());
     }
 }
@@ -37,7 +37,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
 void TUploadCommand::DoExecute(TUploadRequest* request)
 {
-    auto config = DriverImpl->GetConfig()->FileUploader;
+    auto config = DriverImpl->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
         ~config,

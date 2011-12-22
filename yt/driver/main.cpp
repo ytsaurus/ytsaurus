@@ -7,6 +7,9 @@
 #include <yt/ytlib/ytree/serialize.h>
 #include <yt/ytlib/ytree/yson_writer.h>
 
+#include <yt/ytlib/misc/home.h>
+#include <yt/ytlib/misc/fs.h>
+
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 
@@ -22,6 +25,7 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
+static const char* DefaultConfigFileName = ".ytdriver.config.yson";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,10 +195,6 @@ public:
                 .RequiredArgument("FILENAME")
                 .StoreResult(&configFileName);
 
-            const auto& shellOpt = opts.AddLongOption("shell", "run in shell mode")
-                .Optional()
-                .NoArgument();
-
             Stroka formatStr;
             const auto& formatOpt = opts.AddLongOption("format", "output format: Text, Pretty or Binary (default is Text)")
                 .Optional()
@@ -207,27 +207,26 @@ public:
 
             TOptsParseResult results(&opts, argc, argv);
 
-            auto config = New<TConfig>();
-            if (results.Has(&configOpt)) {
-                INode::TPtr configNode;
-                try {
-                    TIFStream configStream(configFileName);
-                    TYson configYson = configStream.ReadAll();
-                    configNode = DeserializeFromYson(configYson);
-                } catch (const std::exception& ex) {
-                    ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
-                }
-
-                try {
-                    config->Load(~configNode);
-                } catch (const std::exception& ex) {
-                    ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
-                }
-
-                NLog::TLogManager::Get()->Configure(~config->Logging);
-            } else {
-                config->Validate();
+            if (!results.Has(&configOpt)) {
+                configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
             }
+
+            auto config = New<TConfig>();
+            INode::TPtr configNode;
+            try {
+                TIFStream configStream(configFileName);
+                configNode = DeserializeFromYson(&configStream);
+            } catch (const std::exception& ex) {
+                ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
+            }
+
+            try {
+                config->Load(~configNode);
+            } catch (const std::exception& ex) {
+                ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+            }
+
+            NLog::TLogManager::Get()->Configure(~config->Logging);
 
             if (results.Has(&formatOpt)) {
                 config->OutputFormat = TYsonWriter::EFormat::FromString(formatStr);
@@ -237,11 +236,7 @@ public:
 
             Driver = new TDriver(~config, &StreamProvider);
 
-            if (results.Has(&shellOpt)) {
-                RunShell();
-            } else {
-                RunBatch();
-            }
+            RunBatch();
         } catch (const std::exception& ex) {
             LOG_ERROR("%s", ex.what());
             ExitCode = 1;
@@ -277,11 +272,6 @@ private:
                 break;
             }
         }
-    }
-
-    void RunShell()
-    {
-        YUNIMPLEMENTED();
     }
 };
 

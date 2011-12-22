@@ -68,7 +68,7 @@ static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
     formatter.AddProperty("message", FormatMessage(event.Message));
     formatter.AddProperty("category", event.Category);
     formatter.AddProperty("tab", "\t");
-    if (event.FileName != NULL) {
+    if (event.FileName) {
         formatter.AddProperty("file", NFS::GetFileName(event.FileName));
     }
     if (event.Line != TLogEvent::InvalidLine) {
@@ -77,7 +77,7 @@ static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
     if (event.ThreadId != NThread::InvalidThreadId) {
         formatter.AddProperty("thread", ToString(event.ThreadId));
     }
-    if (event.Function != NULL) {
+    if (event.Function) {
         formatter.AddProperty("function", event.Function);
     }
 }

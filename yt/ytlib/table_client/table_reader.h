@@ -23,27 +23,27 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration CypressRpcTimeout;
+        TDuration MasterRpcTimeout;
         TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
 
         TConfig()
         {
-            Register("cypress_rpc_timeout", CypressRpcTimeout).Default(TDuration::Seconds(5));
-            Register("chunk_sequence_reader", ChunkSequenceReader).Default(New<TChunkSequenceReader::TConfig>());
+            Register("cypress_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
+            Register("chunk_sequence_reader", ChunkSequenceReader).DefaultNew();
         }
     };
 
     TTableReader(
         TConfig* config,
-        NTransactionClient::ITransaction::TPtr transaction,
         NRpc::IChannel* masterChannel,
+        NTransactionClient::ITransaction* transaction,
         const TChannel& readChannel,
-        const Stroka& path);
+        const NYTree::TYPath& path);
 
     bool NextRow();
     bool NextColumn();
-    TColumn GetColumn();
-    TValue GetValue();
+    TColumn GetColumn() const;
+    TValue GetValue() const;
     void Close();
 
 private:

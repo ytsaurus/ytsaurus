@@ -15,15 +15,15 @@ using namespace NChunkClient;
 TChunkSequenceReader::TChunkSequenceReader(
     TConfig* config,
     const TChannel& channel,
-    const NTransactionClient::TTransactionId transactionId,
-    NRpc::IChannel::TPtr masterChannel,
-    yvector<NChunkClient::TChunkId>& chunks,
+    const NTransactionClient::TTransactionId& transactionId,
+    NRpc::IChannel* masterChannel,
+    const yvector<NChunkClient::TChunkId>& chunkIds,
     int startRow,
     int endRow)
     : Config(config)
     , Channel(channel)
     , TransactionId(transactionId)
-    , Chunks(chunks)
+    , ChunkIds(chunkIds)
     , StartRow(startRow)
     , EndRow(endRow)
     , MasterChannel(masterChannel)
@@ -36,22 +36,22 @@ TChunkSequenceReader::TChunkSequenceReader(
 void TChunkSequenceReader::PrepareNextChunk()
 {
     YASSERT(!NextReader->IsSet());
-    YASSERT(NextChunkIndex < Chunks.ysize());
+    YASSERT(NextChunkIndex < ChunkIds.ysize());
 
     ++NextChunkIndex;
-    if (NextChunkIndex == Chunks.ysize()) {
+    if (NextChunkIndex == ChunkIds.ysize()) {
         NextReader->Set(NULL);
         return;
     }
 
     TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
         ~Config->RetriableReader, 
-        Chunks[NextChunkIndex],
+        ChunkIds[NextChunkIndex],
         TransactionId,
         ~MasterChannel);
 
     int startRow = NextChunkIndex == 0 ? StartRow : 0;
-    int endRow = NextChunkIndex == Chunks.ysize() - 1 ? 
+    int endRow = NextChunkIndex == ChunkIds.ysize() - 1 ? 
         EndRow : std::numeric_limits<int>::max();
 
     TChunkReader::TPtr chunkReader = New<TChunkReader>(
@@ -131,7 +131,7 @@ bool TChunkSequenceReader::HasNextRow() const
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(NextChunkIndex > 0);
-    return NextChunkIndex < Chunks.ysize() || CurrentReader->HasNextRow();
+    return NextChunkIndex < ChunkIds.ysize() || CurrentReader->HasNextRow();
 }
 
 TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
@@ -154,7 +154,7 @@ bool NYT::NTableClient::TChunkSequenceReader::NextColumn()
     return CurrentReader->NextColumn();
 }
 
-TValue TChunkSequenceReader::GetValue()
+TValue TChunkSequenceReader::GetValue() const
 {
     return CurrentReader->GetValue();
 }

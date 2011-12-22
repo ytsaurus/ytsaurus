@@ -251,7 +251,7 @@ TNLBusServer::~TNLBusServer()
 
 void TNLBusServer::Start(IMessageHandler* handler)
 {
-    YASSERT(handler != NULL);
+    YASSERT(handler);
     YASSERT(!Started);
 
     Requester = CreateHttpUdpRequester(Config->Port);
@@ -335,7 +335,7 @@ bool TNLBusServer::ProcessIncomingNLRequests()
 void TNLBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
 {
     auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
-    if (header == NULL)
+    if (!header)
         return;
 
     switch (header->Type) {
@@ -375,7 +375,7 @@ void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     }
 
     auto* header = ParsePacketHeader<TPacketHeader>(nlResponse->Data);
-    if (header == NULL)
+    if (!header)
         return;
 
     switch (header->Type) {
@@ -595,7 +595,7 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
     consumer->OnInt64Scalar(Config->Port);
 
     auto requester = Requester;
-    if (requester.Get() != NULL) {
+    if (requester.Get()) {
         consumer->OnMapItem("nl_requester");
         consumer->OnStringScalar(requester->GetDebugInfo());
     }
