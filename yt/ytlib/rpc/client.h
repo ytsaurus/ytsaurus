@@ -71,6 +71,7 @@ class TClientRequest
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
 
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
@@ -83,7 +84,8 @@ protected:
     TClientRequest(
         IChannel* channel,
         const Stroka& path,
-        const Stroka& verb);
+        const Stroka& verb,
+        bool oneWay);
 
     virtual TBlob SerializeBody() const = 0;
 
@@ -107,11 +109,10 @@ public:
     TTypedClientRequest(
         IChannel* channel,
         const Stroka& path,
-        const Stroka& verb)
-        : TClientRequest(channel, path, verb)
-    {
-        YASSERT(channel);
-    }
+        const Stroka& verb,
+        bool oneWay)
+        : TClientRequest(channel, path, verb, oneWay)
+    { }
 
     typename TFuture< TIntrusivePtr<TResponse> >::TPtr Invoke()
     {
@@ -137,6 +138,7 @@ private:
         }
         return blob;
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,7 +301,7 @@ private:
     TReq##method::TPtr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method) \
+            New<TReq##method>(~Channel, ServiceName, #method, false) \
             ->SetTimeout(Timeout_); \
     }
 
@@ -313,7 +315,7 @@ private:
     TReq##method::TPtr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method) \
+            New<TReq##method>(~Channel, ServiceName, #method, true) \
             ->SetTimeout(Timeout_); \
     }
 

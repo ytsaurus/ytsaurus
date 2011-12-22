@@ -27,10 +27,12 @@ TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
 TClientRequest::TClientRequest(
     IChannel* channel,
     const Stroka& path,
-    const Stroka& verb)
+    const Stroka& verb,
+    bool oneWay)
     : Path_(path)
     , Verb_(verb)
     , RequestId_(TRequestId::Create())
+    , OneWay_(oneWay)
     , Channel(channel)
 {
     YASSERT(channel);
@@ -38,12 +40,13 @@ TClientRequest::TClientRequest(
 
 IMessage::TPtr TClientRequest::Serialize() const
 {
-    auto bodyData = SerializeBody();
-
     TRequestHeader header;
     header.set_request_id(RequestId_.ToProto());
     header.set_path(Path_);
     header.set_verb(Verb_);
+    header.set_one_way(OneWay_);
+
+    auto bodyData = SerializeBody();
 
     return CreateRequestMessage(
         header,
