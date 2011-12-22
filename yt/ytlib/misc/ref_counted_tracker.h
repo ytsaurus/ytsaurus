@@ -38,10 +38,8 @@ private:
 public:
     typedef TItem* TCookie;
 
-    static TRefCountedTracker* Get()
-    {
-        return Singleton<TRefCountedTracker>();
-    }
+public:
+    static TRefCountedTracker* Get();
 
     TCookie GetCookie(TKey key);
 
@@ -75,3 +73,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+template <>
+struct TSingletonTraits<NYT::TRefCountedTracker> {
+    enum {
+        Priority = 1024
+    };
+};
