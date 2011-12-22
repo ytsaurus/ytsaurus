@@ -2,7 +2,7 @@
 #include "http_integration.h"
 
 #include "../ytree/json_adapter.h"
-#include "../ytree/ypath_rpc.h"
+#include "../ytree/ypath_proxy.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/ypath_detail.h"
 

@@ -5,8 +5,8 @@
 
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
-#include "../cypress/cypress_service_rpc.h"
-#include "../table_server/table_ypath_rpc.h"
+#include "../cypress/cypress_service_proxy.h"
+#include "../table_server/table_ypath_proxy.h"
 
 namespace NYT {
 namespace NTableClient {

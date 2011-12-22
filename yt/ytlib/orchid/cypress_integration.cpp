@@ -10,7 +10,7 @@
 
 #include "../cypress/virtual.h"
 
-#include "../orchid/orchid_service_rpc.h"
+#include "../orchid/orchid_service_proxy.h"
 
 #include "../rpc/channel.h"
 #include "../rpc/message.h"

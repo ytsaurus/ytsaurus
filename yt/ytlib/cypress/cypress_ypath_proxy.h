@@ -1,9 +1,9 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_ypath_rpc.pb.h"
+#include "cypress_ypath.pb.h"
 
-#include "../ytree/ypath_rpc.h"
+#include "../ytree/ypath_proxy.h"
 
 namespace NYT {
 namespace NCypress {

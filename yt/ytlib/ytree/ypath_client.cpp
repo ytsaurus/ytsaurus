@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "ypath_client.h"
-#include "ypath_rpc.h"
+#include "ypath_proxy.h"
 #include "ypath_detail.h"
 #include "rpc.pb.h"
 

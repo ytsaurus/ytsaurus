@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "orchid_service_rpc.h"
+#include "orchid_service_proxy.h"
 
 #include "../ytree/ytree.h"
 

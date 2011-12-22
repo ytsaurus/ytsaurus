@@ -2,7 +2,7 @@
 
 #include "block_store.h"
 #include "chunk_store.h"
-#include "chunk_holder_service_rpc.h"
+#include "chunk_holder_service_proxy.h"
 
 #include "../chunk_client/file_writer.h"
 #include "../misc/lease_manager.h"

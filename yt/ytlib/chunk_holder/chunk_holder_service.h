@@ -1,8 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_holder_service_rpc.pb.h"
-#include "chunk_holder_service_rpc.h"
+#include "chunk_holder_service.pb.h"
+#include "chunk_holder_service_proxy.h"
 
 #include "../rpc/server.h"
 

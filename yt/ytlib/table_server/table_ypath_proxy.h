@@ -1,23 +1,23 @@
 #pragma once
 
 #include "common.h"
-#include "file_ypath_rpc.pb.h"
+#include "table_ypath.pb.h"
 
-#include "../ytree/ypath_rpc.h"
+#include "../ytree/ypath_proxy.h"
 
 namespace NYT {
-namespace NFileServer {
+namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileYPathProxy
+struct TTableYPathProxy
     : NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, GetFileChunk);
-    DEFINE_YPATH_PROXY_METHOD(NProto, SetFileChunk);
+    DEFINE_YPATH_PROXY_METHOD(NProto, AddTableChunks);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetTableChunks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFileServer
+} // namespace NTableServer
 } // namespace NYT

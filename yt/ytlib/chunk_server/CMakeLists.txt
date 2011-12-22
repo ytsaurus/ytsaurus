@@ -1,4 +1,4 @@
-#:updatable
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server )
 set( SRCS
   ${BASE}/chunk.cpp
@@ -22,7 +22,7 @@ set( HDRS
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_replication.h
   ${BASE}/chunk_service.h
-  ${BASE}/chunk_service_rpc.h
+  ${BASE}/chunk_service_proxy.h
   ${BASE}/common.h
   ${BASE}/cypress_integration.h
   ${BASE}/holder.h
@@ -38,4 +38,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/chunk_service_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )

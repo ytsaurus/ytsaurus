@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "orchid_service_rpc.pb.h"
+#include "orchid_service.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"

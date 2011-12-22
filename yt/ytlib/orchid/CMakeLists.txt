@@ -9,7 +9,7 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/cypress_integration.h
   ${BASE}/orchid_service.h
-  ${BASE}/orchid_service_rpc.h
+  ${BASE}/orchid_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -17,4 +17,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/orchid_service_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/orchid_service.proto YT_SOURCE_FILES )

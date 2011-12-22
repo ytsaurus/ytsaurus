@@ -3,7 +3,7 @@
 
 #include "change_log.h"
 #include "change_log_cache.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 #include "snapshot.h"
 #include "snapshot_creator.h"
 #include "recovery.h"

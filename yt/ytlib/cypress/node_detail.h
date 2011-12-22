@@ -3,7 +3,7 @@
 #include "common.h"
 #include "node.h"
 #include "cypress_manager.h"
-#include "ypath_rpc.pb.h"
+#include "ypath.pb.h"
 
 #include "../misc/serialize.h"
 #include "../ytree/node_detail.h"

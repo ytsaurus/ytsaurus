@@ -3,7 +3,7 @@
 #include "common.h"
 #include "meta_state.h"
 #include "decorated_meta_state.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 #include "cell_manager.h"
 #include "async_change_log.h"
 
