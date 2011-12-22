@@ -27,6 +27,7 @@ TRemoteReader::TRemoteReader(
     , ExecutionTime(0, 1000, 20)
     , CurrentHolder(0)
 {
+    std::random_shuffle(HolderAddresses.begin(), HolderAddresses.end());
     YASSERT(config);
 }
 

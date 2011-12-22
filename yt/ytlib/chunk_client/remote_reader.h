@@ -66,7 +66,7 @@ private:
     TConfig::TPtr Config;
     const TChunkId ChunkId;
 
-    const yvector<Stroka> HolderAddresses;
+    yvector<Stroka> HolderAddresses;
 
     int CurrentHolder;
 
