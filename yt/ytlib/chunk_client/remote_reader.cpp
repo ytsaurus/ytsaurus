@@ -7,6 +7,8 @@
 #include "../misc/thread_affinity.h"
 #include "../actions/action_util.h"
 
+#include <util/random/shuffle.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -31,7 +33,7 @@ TRemoteReader::TRemoteReader(
 {
     YASSERT(config);
 
-    std::random_shuffle(HolderAddresses.begin(), HolderAddresses.end());
+    Shuffle(HolderAddresses.begin(), HolderAddresses.end());
 
     Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
     LOG_DEBUG("Reader created (Addresses: [%s])", ~JoinToString(HolderAddresses));
