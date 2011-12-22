@@ -1,39 +1,30 @@
 #pragma once
 
-#include <yt/ytlib/misc/configurable.h>
-#include <yt/ytlib/meta_state/persistent_state_manager.h>
+#include <yt/ytlib/chunk_holder/common.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterServer
+class TSchedulerBootstrap
 {
 public:
-    //! Describes a configuration of TCellMaster.
     struct TConfig
         : TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        //! Meta state configuration.
-        NMetaState::TPersistentStateManagerConfig::TPtr MetaState;
-
-        //! RPC interface port number.
         int RpcPort;
-
-        //! HTTP monitoring interface port number.
         int MonitoringPort;
 
         TConfig()
         {
-            Register("meta_state", MetaState);
             Register("rpc_port", RpcPort).Default(9000);
             Register("monitoring_port", MonitoringPort).Default(10000);
         }
     };
 
-    TCellMasterServer(
+    TSchedulerBootstrap(
         const Stroka& configFileName,
         TConfig* config);
 

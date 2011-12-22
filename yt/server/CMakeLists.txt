@@ -1,7 +1,8 @@
 set( SRCS
   main.cpp
-  cell_master_server.cpp
-  chunk_holder_server.cpp
+  cell_master_bootstrap.cpp
+  chunk_holder_bootstrap.cpp
+  scheduler_bootstrap.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

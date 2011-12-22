@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_holder_server.h"
+#include "chunk_holder_bootstrap.h"
 
 #include <yt/ytlib/bus/nl_server.h>
 
@@ -59,14 +59,14 @@ using NChunkHolder::CreateChunkMapService;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolderServer::TChunkHolderServer(
+TChunkHolderBootstrap::TChunkHolderBootstrap(
     const Stroka& configFileName,
     TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
 
-void TChunkHolderServer::Run()
+void TChunkHolderBootstrap::Run()
 {
     LOG_INFO("Starting chunk holder");
 

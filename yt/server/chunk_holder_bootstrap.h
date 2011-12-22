@@ -6,12 +6,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkHolderServer
+class TChunkHolderBootstrap
 {
 public:
     typedef NChunkHolder::TChunkHolderConfig TConfig;
 
-    TChunkHolderServer(
+    TChunkHolderBootstrap(
         const Stroka& configFileName,
         TConfig* config);
 
