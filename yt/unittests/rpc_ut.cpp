@@ -36,6 +36,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
+
 };
 
 const Stroka TMyProxy::ServiceName = "MyService";
@@ -55,6 +57,7 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
 };
 
 const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
@@ -101,9 +104,10 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
 
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
@@ -214,7 +218,6 @@ private:
 
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(DISABLED_TRpcTest, Send)
@@ -222,8 +225,7 @@ TEST_F(DISABLED_TRpcTest, Send)
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
     request->set_a(42);
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_IS_TRUE(response->IsOK());
     EXPECT_EQ(142, response->b());
@@ -242,9 +244,7 @@ TEST_F(DISABLED_TRpcTest, ManyAsyncSends)
         request->Invoke()->Subscribe(FromMethod(&TResponseHandler::CheckReply, handler, i + 100));
     }
 
-    if (!handler->Event_.WaitT(TDuration::Seconds(4))) {
-        EXPECT_IS_TRUE(false); // timeout occured
-    }
+    EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
 
 TEST_F(DISABLED_TRpcTest, Attachments)
@@ -256,8 +256,7 @@ TEST_F(DISABLED_TRpcTest, Attachments)
     request->Attachments().push_back(SharedRefFromString("from"));
     request->Attachments().push_back(SharedRefFromString("TMyProxy"));
 
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     const auto& attachments = response->Attachments();
     EXPECT_EQ(3, attachments.ysize());
@@ -271,8 +270,7 @@ TEST_F(DISABLED_TRpcTest, OK)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->ReplyingCall();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
@@ -281,8 +279,7 @@ TEST_F(DISABLED_TRpcTest, TransportError)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:9999"));
     auto request = proxy->EmptyCall();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
 }
@@ -291,8 +288,7 @@ TEST_F(DISABLED_TRpcTest, NoService)
 {
     TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->EmptyCall();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
 }
@@ -301,8 +297,7 @@ TEST_F(DISABLED_TRpcTest, NoMethod)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->NotRegistredCall();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
 }
@@ -313,22 +308,71 @@ TEST_F(DISABLED_TRpcTest, Timeout)
     proxy->SetTimeout(TDuration::Seconds(1));
 
     auto request = proxy->EmptyCall();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
 }
 
-TEST_F(DISABLED_TRpcTest, CustomMessage)
+TEST_F(DISABLED_TRpcTest, CustomErrorMessage)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->CustomMessageError();
-    auto result = request->Invoke();
-    auto response = result->Get();
+    auto response = request->Invoke()->Get();
 
     EXPECT_EQ(42, response->GetErrorCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Different types of errors in one-way rpc
+// TODO: think about refactoring
+TEST_F(DISABLED_TRpcTest, OneWayOK)
+{
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy->OneWay();
+    auto response = request->Invoke()->Get();
+
+    EXPECT_EQ(TError::OK, response->GetErrorCode());
+}
+
+TEST_F(DISABLED_TRpcTest, OneWayTransportError)
+{
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:9999"));
+    auto request = proxy->OneWay();
+    auto response = request->Invoke()->Get();
+
+    EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
+}
+
+TEST_F(DISABLED_TRpcTest, OneWayNoService)
+{
+    TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy->OneWay();
+    auto response = request->Invoke()->Get();
+
+    EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
+}
+
+TEST_F(DISABLED_TRpcTest, OneWayNoMethod)
+{
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy->NotRegistredOneWay();
+    auto response = request->Invoke()->Get();
+
+    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
+}
+
+//TEST_F(DISABLED_TRpcTest, Timeout)
+//{
+//    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+//    proxy->SetTimeout(TDuration::Seconds(1));
+
+//    auto request = proxy->OneWay();
+//    auto response = request->Invoke()->Get();
+
+//    EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
