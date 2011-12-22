@@ -73,6 +73,8 @@ public:
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
+    static void Shutdown();
+
 private:
     class TImpl;
 

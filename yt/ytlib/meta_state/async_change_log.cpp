@@ -176,10 +176,12 @@ private:
         i32 end = neededFirstRecordId + neededRecordCount - firstRecordId;
         auto beginIt = records.begin() + Max(begin, 0);
         auto endIt = records.begin() + Min(end, size);
-        result->insert(
-            result->end(),
-            beginIt,
-            endIt);
+        if (endIt > beginIt) {
+            result->insert(
+                result->end(),
+                beginIt,
+                endIt);
+        }
     }
     
     TChangeLog::TPtr ChangeLog;
@@ -212,13 +214,6 @@ public:
         Thread.Start();    
     }
 
-    ~TImpl()
-    {
-        Finished = false;
-        WakeupEvent.Signal();
-        Thread.Join();
-    }
-
     TAppendResult::TPtr Append(
         TChangeLog::TPtr changeLog,
         i32 recordId,
@@ -230,6 +225,7 @@ public:
         auto queue = FindOrCreateQueue(changeLog);
         auto result = queue->Append(recordId, data);
         AtomicDecrement(queue->UseCount);
+        WakeupEvent.Signal();
         return result;
     }
 
@@ -295,6 +291,13 @@ public:
         Flush(changeLog);
 
         return changeLog->Truncate(atRecordId);
+    }
+
+    void Shutdown()
+    {
+        Finished = true;
+        WakeupEvent.Signal();
+        Thread.Join();
     }
 
 private:
@@ -468,6 +471,11 @@ bool TAsyncChangeLog::IsFinalized() const
 void TAsyncChangeLog::Truncate(i32 atRecordId)
 {
     return TImpl::Get()->Truncate(ChangeLog, atRecordId);
+}
+
+void TAsyncChangeLog::Shutdown()
+{
+    TImpl::Get()->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
