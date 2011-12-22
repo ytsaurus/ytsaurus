@@ -98,7 +98,7 @@ private:
         ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
             &TInitializer::OnFirstBlock,
             TPtr(this),
-            0));
+            0)->Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels()
@@ -253,7 +253,7 @@ private:
         if (selectedChannelIndex < SelectedChannels.ysize()) {
             ChunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
                 FromMethod(&TInitializer::OnFirstBlock, TPtr(this), selectedChannelIndex)
-            );
+                    ->Via(ReaderThread->GetInvoker()));
         } else {
             // Initialization complete.
             ChunkReader->Initializer.Reset();

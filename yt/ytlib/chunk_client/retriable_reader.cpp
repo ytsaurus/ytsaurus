@@ -20,13 +20,11 @@ TRetriableReader::TRetriableReader(
 {
     Proxy.SetTimeout(Config->MasterRpcTimeout);
 
-    TGuard<TSpinLock> guard(SpinLock);
     RequestHolders();
 }
 
 void TRetriableReader::RequestHolders()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
     auto req = Proxy.FindChunk();
     req->set_chunkid(ChunkId.ToProto());
     req->Invoke()->Subscribe(FromMethod(
@@ -46,7 +44,7 @@ void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
 
     auto holderAddresses = FromProto<Stroka>(rsp->holderaddresses());
     if (holderAddresses.empty()) {
-        AppendError("Chunk is unavailable");
+        AppendError("Chunk is lost.");
         Retry();
         return;
     }
