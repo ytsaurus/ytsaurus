@@ -365,7 +365,7 @@ private:
             jt = it++;
             auto queue = jt->second;
             if (queue->UseCount == 0 && queue->IsEmpty()) {
-                LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", jt->first);
+                LOG_DEBUG("Async changelog queue is swept (ChangeLogId: %d)", jt->first->GetId());
                 ChangeLogQueues.erase(jt);
             }
         }
