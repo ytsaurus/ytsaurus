@@ -24,7 +24,7 @@ class FileDescr(object):
         if not method:
             self.method = name
         else:
-            self.method= method
+            self.method = method
 
 Config = FileDescr('config', ('remote', ), 'yson', 'makeConfig')
 Run = FileDescr('run', ('aggregate', 'exec', ))
@@ -68,12 +68,19 @@ class Node(AggrBase):
     def makeConfig(cls, fd):
         import yson
         yson.dump(cls.config, fd, indent='  ')
-        
+
+    def defaultFile(cls, fd, descr):
+        raise "No file creation method for node (%s) and file %s" % (cls.path, desrc.name)
+
     def makeFiles(cls):
         for descr in cls.files:
             with open(cls.local_path(descr.filename), 'w') as fd:
-                method = getattr(cls, descr.method)
-                method(fd)
+                method = getattr(cls, descr.method, None)
+                if method:
+                    method(fd)
+                else:
+                    cls.defaultFile(fd, descr)
+
             if 'exec' in descr.attrs:
                 make_executable(fd.name)
                 
