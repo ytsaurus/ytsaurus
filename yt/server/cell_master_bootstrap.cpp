@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cell_master_server.h"
+#include "cell_master_bootstrap.h"
 
 #include <yt/ytlib/ytree/tree_builder.h>
 #include <yt/ytlib/ytree/ephemeral.h>
@@ -86,14 +86,14 @@ using NTableServer::CreateTableTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellMasterServer::TCellMasterServer(
+TCellMasterBootstrap::TCellMasterBootstrap(
     const Stroka& configFileName,
     TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
 
-void TCellMasterServer::Run()
+void TCellMasterBootstrap::Run()
 {
     // TODO: extract method
     Stroka address = Config->MetaState->Cell->Addresses.at(Config->MetaState->Cell->Id);

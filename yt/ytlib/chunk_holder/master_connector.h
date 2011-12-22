@@ -4,7 +4,7 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "session_manager.h"
-#include "replicator.h"
+#include "job_executor.h"
 #include "chunk_service.pb.h"
 
 #include "../rpc/channel.h"
@@ -34,7 +34,7 @@ public:
         TChunkStore* chunkStore,
         TChunkCache* chunkCache,
         TSessionManager* sessionManager,
-        TReplicator* replicator,
+        TJobExecutor* jobExecutor,
         IInvoker* serviceInvoker);
 
 private:
@@ -50,7 +50,7 @@ private:
     TChunkStore::TPtr ChunkStore;
     TChunkCache::TPtr ChunkCache;
     TSessionManager::TPtr SessionManager;
-    TReplicator::TPtr Replicator;
+    TJobExecutor::TPtr JobExecutor;
 
     //! All state modifications are carried out via this invoker.
     IInvoker::TPtr ServiceInvoker;

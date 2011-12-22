@@ -1,6 +1,7 @@
 #include "stdafx.h"
-#include "cell_master_server.h"
-#include "chunk_holder_server.h"
+#include "cell_master_bootstrap.h"
+#include "chunk_holder_bootstrap.h"
+#include "scheduler_bootstrap.h"
 
 #include <yt/ytlib/misc/enum.h>
 #include <yt/ytlib/logging/log_manager.h>
@@ -37,6 +38,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .NoArgument()
         .Optional();
 
+    const auto& schedulerOpt = opts.AddLongOption("scheduler", "start scheduler")
+        .NoArgument()
+        .Optional();
+
     int port = -1;
     opts.AddLongOption("port", "port to listen")
         .Optional()
@@ -59,12 +64,17 @@ EExitCode GuardedMain(int argc, const char* argv[])
     // Figure out the mode: cell master or chunk holder.
     bool isCellMaster = results.Has(&cellMasterOpt);
     bool isChunkHolder = results.Has(&chunkHolderOpt);
+    bool isScheduler = results.Has(&schedulerOpt);
 
     int modeCount = 0;
     if (isChunkHolder) {
         ++modeCount;
     }
     if (isCellMaster) {
+        ++modeCount;
+    }
+
+    if (isScheduler) {
         ++modeCount;
     }
 
@@ -88,7 +98,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isChunkHolder) {
-        auto config = New<TChunkHolderServer::TConfig>();
+        auto config = New<TChunkHolderBootstrap::TConfig>();
         try {
             config->Load(~configNode);
             config->Validate();
@@ -107,12 +117,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
             config->RpcPort = port;
         }
 
-        TChunkHolderServer chunkHolderServer(configFileName, ~config);
-        chunkHolderServer.Run();
+        TChunkHolderBootstrap chunkHolderBootstrap(configFileName, ~config);
+        chunkHolderBootstrap.Run();
     }
 
     if (isCellMaster) {
-        auto config = New<TCellMasterServer::TConfig>();
+        auto config = New<TCellMasterBootstrap::TConfig>();
         try {
             config->Load(~configNode);
             
@@ -127,8 +137,22 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ~CurrentExceptionMessage());
         }
 
-        TCellMasterServer cellMasterServer(configFileName, ~config);
-        cellMasterServer.Run();
+        TCellMasterBootstrap cellMasterBootstrap(configFileName, ~config);
+        cellMasterBootstrap.Run();
+    }
+
+    if (isScheduler) {
+        auto config = New<TSchedulerBootstrap::TConfig>();
+        try {
+            config->Load(~configNode);
+            config->Validate();
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
+                ~CurrentExceptionMessage());
+        }
+
+        TSchedulerBootstrap schedulerBootstrap(configFileName, ~config);
+        schedulerBootstrap.Run();
     }
 
     // Actually this will never happen.

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_holder_server.h"
+#include "chunk_holder_bootstrap.h"
 
 #include <yt/ytlib/bus/nl_server.h>
 
@@ -52,21 +52,21 @@ using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
 using NChunkHolder::TBlockStore;
 using NChunkHolder::TSessionManager;
-using NChunkHolder::TReplicator;
+using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
 using NChunkHolder::TMasterConnector;
 using NChunkHolder::CreateChunkMapService;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolderServer::TChunkHolderServer(
+TChunkHolderBootstrap::TChunkHolderBootstrap(
     const Stroka& configFileName,
     TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
 
-void TChunkHolderServer::Run()
+void TChunkHolderBootstrap::Run()
 {
     LOG_INFO("Starting chunk holder");
 
@@ -102,7 +102,7 @@ void TChunkHolderServer::Run()
         ~chunkStore,
         ~controlQueue->GetInvoker());
 
-    auto replicator = New<TReplicator>(
+    auto jobExecutor = New<TJobExecutor>(
         ~chunkStore,
         ~blockStore,
         ~controlQueue->GetInvoker());
@@ -112,7 +112,7 @@ void TChunkHolderServer::Run()
         ~chunkStore,
         ~chunkCache,
         ~sessionManager,
-        ~replicator,
+        ~jobExecutor,
         ~controlQueue->GetInvoker());
 
     auto chunkHolderService = New<TChunkHolderService>(

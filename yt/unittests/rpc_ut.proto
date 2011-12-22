@@ -26,4 +26,5 @@ message TReqNotRegistredCall { }
 message TRspNotRegistredCall { }
 
 message TReqOneWay { }
+message TReqNotRegistredOneWay { }
 

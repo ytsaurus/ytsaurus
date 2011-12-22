@@ -5,7 +5,7 @@
 #include "../logging/log.h"
 
 #include "../chunk_holder/common.h"
-#include "../chunk_holder/replicator.h"
+#include "../chunk_holder/job_executor.h"
 
 #include "../transaction_server/common.h"
 #include "../transaction_server/transaction.h"

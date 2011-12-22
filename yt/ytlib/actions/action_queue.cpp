@@ -14,17 +14,18 @@ static NLog::TLogger Logger("ActionQueue");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TQueueInvoker::TQueueInvoker(TActionQueueBase* owner)
-    : Owner(owner)
+TQueueInvoker::TQueueInvoker(TActionQueueBase* owner, bool enableLogging)
+    : EnableLogging(enableLogging)
+    , Owner(owner)
     , QueueSize(0)
 { }
 
 void TQueueInvoker::Invoke(IAction::TPtr action)
 {
     if (!Owner) {
-        LOG_TRACE_IF(Owner->EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
     } else {
-        LOG_TRACE_IF(Owner->EnableLogging, "Action is enqueued (Action: %p)", ~action);
+        LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
         Queue.Enqueue(MakePair(action, GetCycleCount()));
         auto size = AtomicIncrement(QueueSize);
         DATA_POINT("actionqueue.size", "smv", size);
@@ -51,11 +52,11 @@ bool TQueueInvoker::OnDequeueAndExecute()
 
     IAction::TPtr action = item.First();
     
-    LOG_TRACE_IF(Owner->EnableLogging, "Action started (Action: %p)", ~action);
+    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
     TIMEIT("actionqueue.executiontime", "tv",
         action->Do();
     )
-    LOG_TRACE_IF(Owner->EnableLogging, "Action stopped (Action: %p)", ~action);
+    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
 
     return true;
 }
@@ -125,7 +126,7 @@ void TActionQueueBase::Shutdown()
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
     : TActionQueueBase(threadName, enableLogging)
 {
-    QueueInvoker = New<TQueueInvoker>(this);
+    QueueInvoker = New<TQueueInvoker>(this, enableLogging);
     Start();
 }
 
@@ -162,7 +163,7 @@ TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const Stroka
     , QueueInvokers(priorityCount)
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        QueueInvokers[priority] = New<TQueueInvoker>(this);
+        QueueInvokers[priority] = New<TQueueInvoker>(this, true);
     }
 
     Start();
