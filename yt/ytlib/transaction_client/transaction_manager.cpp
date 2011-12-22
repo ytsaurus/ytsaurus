@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
 
-#include "../transaction_server/transaction_service_rpc.h"
+#include "../transaction_server/transaction_service_proxy.h"
 #include "../actions/signal.h"
 #include "../misc/assert.h"
 #include "../misc/property.h"

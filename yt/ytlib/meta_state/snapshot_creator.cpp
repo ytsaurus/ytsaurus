@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot_creator.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 
 #include "../misc/serialize.h"
 #include "../actions/action_util.h"

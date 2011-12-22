@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "election_manager_rpc.h"
+#include "election_manager_proxy.h"
 
 #include "../misc/configurable.h"
 #include "../actions/future.h"

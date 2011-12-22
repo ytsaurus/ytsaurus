@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_service_rpc.h"
+#include "cypress_service_proxy.h"
 #include "cypress_manager.h"
 
 #include "../rpc/server.h"

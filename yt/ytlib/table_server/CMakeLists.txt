@@ -9,7 +9,7 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/table_node.h
   ${BASE}/table_node_proxy.h
-  ${BASE}/table_ypath_rpc.h
+  ${BASE}/table_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -17,4 +17,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/table_ypath_rpc.proto YT_SOURCE_FILES )
+protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )

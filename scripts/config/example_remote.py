@@ -105,7 +105,9 @@ class Holder(Server):
         'chunk_cache_location' : {
             'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
-        'cache_remote_reader' : { },
+        'cache_remote_reader' : { 
+            'holder_rpc_timeout' : 5 * 60 * 1000
+        },
         'cache_sequential_reader' : { },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,

@@ -3,7 +3,7 @@
 #include "common.h"
 #include "node_proxy.h"
 #include "node_detail.h"
-#include "cypress_ypath_rpc.pb.h"
+#include "cypress_ypath.pb.h"
 
 #include "../ytree/ytree.h"
 #include "../ytree/ypath_service.h"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "cypress_service_rpc.pb.h"
+#include "cypress_service.pb.h"
 
 #include "../ytree/ypath_client.h"
 #include "../ytree/ypath_detail.h"
@@ -47,6 +47,6 @@ public:
 } // namespace NCypress
 } // namespace NYT
 
-#define CYPRESS_SERVICE_RPC_INL_H_
-#include "cypress_service_rpc-inl.h"
-#undef CYPRESS_SERVICE_RPC_INL_H_
+#define CYPRESS_SERVICE_PROXY_INL_H_
+#include "cypress_service_proxy-inl.h"
+#undef CYPRESS_SERVICE_PROXY_INL_H_

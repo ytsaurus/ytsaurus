@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "election_manager_rpc.pb.h"
+#include "election_manager.pb.h"
 
 #include "../rpc/service.h"
 #include "../rpc/client.h"

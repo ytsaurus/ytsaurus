@@ -6,7 +6,7 @@
 #include "../misc/configurable.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
-#include "../cypress/cypress_service_rpc.h"
+#include "../cypress/cypress_service_proxy.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../chunk_client/remote_reader.h"
 #include "../logging/tagged_logger.h"

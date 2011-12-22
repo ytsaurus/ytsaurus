@@ -3,8 +3,8 @@
 #include "../misc/common.h"
 #include "../misc/configurable.h"
 
-#include "chunk_holder_service_rpc.pb.h"
-#include "chunk_service_rpc.pb.h"
+#include "chunk_holder_service.pb.h"
+#include "chunk_service.pb.h"
 
 #include "../chunk_client/common.h"
 #include "../chunk_client/remote_reader.h"

@@ -3,7 +3,7 @@
 #include "common.h"
 #include "change_log.h"
 #include "async_change_log.h"
-#include "meta_state_manager_rpc.h"
+#include "meta_state_manager_proxy.h"
 
 #include "../misc/cache.h"
 

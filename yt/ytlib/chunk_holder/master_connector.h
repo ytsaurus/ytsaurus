@@ -5,10 +5,10 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 #include "replicator.h"
-#include "chunk_service_rpc.pb.h"
+#include "chunk_service.pb.h"
 
 #include "../rpc/channel.h"
-#include "../chunk_server/chunk_service_rpc.h"
+#include "../chunk_server/chunk_service_proxy.h"
 
 namespace NYT {
 namespace NChunkHolder {
