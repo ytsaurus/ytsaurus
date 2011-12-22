@@ -52,10 +52,10 @@ IMessage::TPtr TClientRequest::Serialize() const
 }
 
 void TClientRequest::DoInvoke(
-    TClientResponse* response,
+    IClientResponseHandler* responseHandler,
     TDuration timeout)
 {
-    Channel->Send(this, response, timeout);
+    Channel->Send(this, responseHandler, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

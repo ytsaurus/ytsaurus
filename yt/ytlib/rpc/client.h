@@ -16,13 +16,15 @@ namespace NRpc {
 
 class TClientRequest;
 
-template <class TRequestMessage, class TResponseMessage>
+template <class TRequestMessage, class TResponse>
 class TTypedClientRequest;
 
 class TClientResponse;
 
-template<class TRequestMessage, class TResponseMessage>
+template <class TResponseMessage>
 class TTypedClientResponse;
+
+class TOneWayClientResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,24 +87,22 @@ protected:
 
     virtual TBlob SerializeBody() const = 0;
 
-    void DoInvoke(TClientResponse* response, TDuration timeout);
+    void DoInvoke(IClientResponseHandler* responseHandler, TDuration timeout);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestMessage, class TResponseMessage>
+template <class TRequestMessage, class TResponse>
 class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
 {
 private:
-    typedef TTypedClientResponse<TRequestMessage, TResponseMessage> TTypedResponse;
     TDuration Timeout;
 
 public:
-    typedef TTypedClientRequest<TRequestMessage, TResponseMessage> TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
+    typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
     TTypedClientRequest(
         IChannel* channel,
@@ -113,15 +113,15 @@ public:
         YASSERT(channel);
     }
 
-    typename TFuture< TIntrusivePtr<TTypedResponse> >::TPtr Invoke()
+    typename TFuture< TIntrusivePtr<TResponse> >::TPtr Invoke()
     {
-        auto response = NYT::New< TTypedClientResponse<TRequestMessage, TResponseMessage> >(GetRequestId());
+        auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
         DoInvoke(~response, Timeout);
         return asyncResult;
     }
 
-    TIntrusivePtr<TThis> SetTimeout(TDuration timeout)
+    TIntrusivePtr<TTypedClientRequest> SetTimeout(TDuration timeout)
     {
         Timeout = timeout;
         return this;
@@ -211,8 +211,6 @@ public:
     NBus::IMessage::TPtr GetResponseMessage() const;
 
 protected:
-    friend class TClientRequest;
-
     TClientResponse(const TRequestId& requestId);
 
     virtual void DeserializeBody(const TRef& data) = 0;
@@ -231,7 +229,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestMessage, class TResponseMessage>
+template <class TResponseMessage>
 class TTypedClientResponse
     : public TClientResponse
     , public TResponseMessage
@@ -244,15 +242,13 @@ public:
         , AsyncResult(NYT::New< TFuture<TPtr> >())
     { }
 
-private:
-    friend class TTypedClientRequest<TRequestMessage, TResponseMessage>;
-
-    typename TFuture<TPtr>::TPtr AsyncResult;
-
     typename TFuture<TPtr>::TPtr GetAsyncResult()
     {
         return AsyncResult;
     }
+
+private:
+    typename TFuture<TPtr>::TPtr AsyncResult;
 
     virtual void FireCompleted()
     {
@@ -278,18 +274,17 @@ class TOneWayClientResponse
 public:
     typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
 
-protected:
-    friend class TClientRequest;
-
-    TFuture<TPtr>::TPtr AsyncResult;
-
     TOneWayClientResponse(const TRequestId& requestId);
+
+    TFuture<TPtr>::TPtr GetAsyncResult();
+
+private:
+    TFuture<TPtr>::TPtr AsyncResult;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();
     virtual void OnResponse(NBus::IMessage* message);
 
-    TFuture<TPtr>::TPtr GetAsyncResult();
     virtual void FireCompleted();
 
 };
@@ -297,8 +292,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
-    typedef ::NYT::NRpc::TTypedClientResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
     typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \
@@ -311,9 +306,9 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse::TPtr> TReq##method; \
-    typedef ::NYT::NRpc::TOneWayClientResponse::TPtr TRsp##method; \
-    typedef ::NYT::TFuture< ::NYT::NRpc::TOneWayClientResponse::TPtr > TInv##method; \
+    typedef ::NYT::NRpc::TOneWayClientResponse TRsp##method; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
+    typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
     TReq##method::TPtr method() \
     { \
