@@ -3,6 +3,8 @@
 namespace NYT {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! TIsConvertible<U, T>::Value is True iff #S is convertable to #T.
 template<class U, class T>
 struct TIsConvertible
@@ -40,5 +42,7 @@ struct TEnableIfConvertible
     : public TEnableIfConvertibleImpl< TIsConvertible<U, T>::Value >
 { };
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
-} //namespace NYT
+} // namespace NYT
