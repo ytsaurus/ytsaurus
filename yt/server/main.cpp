@@ -25,6 +25,8 @@ DECLARE_ENUM(EExitCode,
 
 EExitCode GuardedMain(int argc, const char* argv[])
 {
+    srand(time(NULL));
+
     // Configure options parser.
     TOpts opts;
 
