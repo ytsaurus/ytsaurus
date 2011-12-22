@@ -191,7 +191,6 @@ yvector<TChunkDescriptor> TLocation::Scan()
             descriptor.Size = NFS::GetFileSize(chunkDataFileName) + NFS::GetFileSize(chunkMetaFileName);
             result.push_back(descriptor);
         } else if (!hasMeta) {
-            //TODO: fix message considering tag path
             LOG_WARNING("Missing meta file for %s, removing data file", ~chunkDataFileName.Quote());
             RemoveFile(chunkDataFileName);
         } else if (!hasData) {
