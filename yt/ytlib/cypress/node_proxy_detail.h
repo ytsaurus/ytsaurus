@@ -108,12 +108,12 @@ public:
         return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
-    virtual void SetParent(NYTree::ICompositeNode::TPtr parent)
+    virtual void SetParent(NYTree::ICompositeNode* parent)
     {
         GetImplForUpdate().SetParentId(
-            !parent
-            ? NullNodeId
-            : ToProxy(~parent)->GetNodeId());
+            parent
+            ? ToProxy(parent)->GetNodeId()
+            : NullNodeId);
     }
 
 
@@ -123,7 +123,7 @@ public:
         return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsMap();
     }
 
-    virtual void SetAttributes(NYTree::IMapNode::TPtr attributes)
+    virtual void SetAttributes(NYTree::IMapNode* attributes)
     {
         auto& impl = GetImplForUpdate();
         if (impl.GetAttributesId() != NullNodeId) {
@@ -133,7 +133,7 @@ public:
         }
 
         if (attributes) {
-            auto* attrProxy = ToProxy(~attributes);
+            auto* attrProxy = ToProxy(attributes);
             auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
             AttachChild(attrImpl);
             impl.SetAttributesId(attrProxy->GetNodeId());
@@ -484,18 +484,18 @@ public:
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
     virtual INode::TPtr FindChild(const Stroka& name) const;
-    virtual bool AddChild(NYTree::INode::TPtr child, const Stroka& name);
+    virtual bool AddChild(NYTree::INode* child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);
-    virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
-    virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
+    virtual void RemoveChild(NYTree::INode* child);
     virtual Stroka GetChildKey(INode* child);
 
 protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
 };
 
@@ -518,17 +518,17 @@ public:
     virtual int GetChildCount() const;
     virtual yvector<INode::TPtr> GetChildren() const;
     virtual INode::TPtr FindChild(int index) const;
-    virtual void AddChild(NYTree::INode::TPtr child, int beforeIndex = -1);
+    virtual void AddChild(NYTree::INode* child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
-    virtual void ReplaceChild(NYTree::INode::TPtr oldChild, NYTree::INode::TPtr newChild);
-    virtual void RemoveChild(NYTree::INode::TPtr child);
+    virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
+    virtual void RemoveChild(NYTree::INode* child);
     virtual int GetChildIndex(INode* child);
 
 protected:
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context);
-    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context);
+    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
 };
 

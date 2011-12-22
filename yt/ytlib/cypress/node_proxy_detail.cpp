@@ -117,7 +117,7 @@ INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
     return it == map.end() ? NULL : GetProxy(it->second);
 }
 
-bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
+bool TMapNodeProxy::AddChild(INode* child, const Stroka& name)
 {
     YASSERT(!name.empty());
 
@@ -125,7 +125,7 @@ bool TMapNodeProxy::AddChild(INode::TPtr child, const Stroka& name)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto* childProxy = ToProxy(~child);
+    auto* childProxy = ToProxy(child);
     auto childId = childProxy->GetNodeId();
 
     if (!impl.NameToChild().insert(MakePair(name, childId)).second)
@@ -160,13 +160,13 @@ bool TMapNodeProxy::RemoveChild(const Stroka& name)
     return true;
 }
 
-void TMapNodeProxy::RemoveChild(INode::TPtr child)
+void TMapNodeProxy::RemoveChild(INode* child)
 {
     LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
     
-    auto* childProxy = ToProxy(~child);
+    auto* childProxy = ToProxy(child);
     auto& childImpl = childProxy->GetImplForUpdate();
 
     auto it = impl.ChildToName().find(childProxy->GetNodeId());
@@ -179,7 +179,7 @@ void TMapNodeProxy::RemoveChild(INode::TPtr child)
     DetachChild(childImpl);
 }
 
-void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
 {
     if (oldChild == newChild)
         return;
@@ -188,9 +188,9 @@ void TMapNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto* oldChildProxy = ToProxy(~oldChild);
+    auto* oldChildProxy = ToProxy(oldChild);
     auto& oldChildImpl = oldChildProxy->GetImplForUpdate();
-    auto* newChildProxy = ToProxy(~newChild);
+    auto* newChildProxy = ToProxy(newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl.ChildToName().find(oldChildProxy->GetNodeId());
@@ -244,7 +244,7 @@ void TMapNodeProxy::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet::TPtr context)
+    TCtxSet* context)
 {
     UNUSED(response);
 
@@ -257,7 +257,7 @@ void TMapNodeProxy::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,
     TRspSetNode* response,
-    TCtxSetNode::TPtr context)
+    TCtxSetNode* context)
 {
     UNUSED(response);
 
@@ -318,14 +318,14 @@ INode::TPtr TListNodeProxy::FindChild(int index) const
     return index >= 0 && index < list.ysize() ? GetProxy(list[index]) : NULL;
 }
 
-void TListNodeProxy::AddChild(INode::TPtr child, int beforeIndex /*= -1*/)
+void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
 {
     LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
 
-    auto* childProxy = ToProxy(~child);
+    auto* childProxy = ToProxy(child);
     auto childId = childProxy->GetNodeId();
     auto& childImpl = childProxy->GetImplForUpdate();
 
@@ -372,13 +372,13 @@ bool TListNodeProxy::RemoveChild(int index)
     return true;
 }
 
-void TListNodeProxy::RemoveChild(INode::TPtr child)
+void TListNodeProxy::RemoveChild(INode* child)
 {
-    int index = GetChildIndex(~child);
+    int index = GetChildIndex(child);
     YVERIFY(RemoveChild(index));
 }
 
-void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
+void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
 {
     if (oldChild == newChild)
         return;
@@ -387,9 +387,9 @@ void TListNodeProxy::ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild)
 
     auto& impl = GetTypedImplForUpdate();
 
-    auto* oldChildProxy = ToProxy(~oldChild);
+    auto* oldChildProxy = ToProxy(oldChild);
     auto& oldChildImpl = oldChildProxy->GetImplForUpdate();
-    auto* newChildProxy = ToProxy(~newChild);
+    auto* newChildProxy = ToProxy(newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl.ChildToIndex().find(oldChildProxy->GetNodeId());
@@ -434,7 +434,7 @@ void TListNodeProxy::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet::TPtr context)
+    TCtxSet* context)
 {
     UNUSED(response);
 
@@ -447,7 +447,7 @@ void TListNodeProxy::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,
     TRspSetNode* response,
-    TCtxSetNode::TPtr context)
+    TCtxSetNode* context)
 {
     UNUSED(response);
 

@@ -55,7 +55,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
-        GetSelf(request, response, context);
+        GetSelf(request, response, ~context);
     } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
@@ -109,11 +109,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             context->Reply();
         }
     } else {
-        GetRecursive(path, request, response, context);
+        GetRecursive(path, request, response, ~context);
     }
 }
 
-void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
+void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     UNUSED(request);
     
@@ -126,7 +126,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet::TPtr conte
     context->Reply();
 }
 
-void TNodeBase::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet::TPtr context)
+void TNodeBase::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -141,7 +141,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, GetNode)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
-        GetNodeSelf(request, response, context);
+        GetNodeSelf(request, response, ~context);
     } else if (IsAttributeYPath(path)) {
         auto attributes = GetAttributes();
         if (!attributes) {
@@ -155,11 +155,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, GetNode)
         response->set_value(reinterpret_cast<i64>(static_cast<INode*>(~value)));
         context->Reply();
     } else {
-        GetNodeRecursive(path, request, response, context);
+        GetNodeRecursive(path, request, response, ~context);
     }
 }
 
-void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context)
+void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context)
 {
     UNUSED(request);
 
@@ -167,7 +167,7 @@ void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGet
     context->Reply();
 }
 
-void TNodeBase::GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode::TPtr context)
+void TNodeBase::GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -182,7 +182,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
-        SetSelf(request, response, context);
+        SetSelf(request, response, ~context);
     } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
@@ -210,11 +210,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
             value);
         context->Reply();
     } else {
-        SetRecursive(path, request, response, context);
+        SetRecursive(path, request, response, ~context);
     }
 }
 
-void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -224,7 +224,7 @@ void TNodeBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet::TPtr conte
         "Verb is not supported";
 }
 
-void TNodeBase::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet::TPtr context)
+void TNodeBase::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -239,7 +239,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, SetNode)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
-        SetNodeSelf(request, response, context);
+        SetNodeSelf(request, response, ~context);
     } else if (IsAttributeYPath(path)) {
         auto attributes = EnsureAttributes();
         auto value = reinterpret_cast<INode*>(request->value());
@@ -250,11 +250,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, SetNode)
             value);
         context->Reply();
     } else {
-        SetNodeRecursive(path, request, response, context);
+        SetNodeRecursive(path, request, response, ~context);
     }
 }
 
-void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -270,7 +270,7 @@ void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSet
     context->Reply();
 }
 
-void TNodeBase::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode::TPtr context)
+void TNodeBase::SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -285,7 +285,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
 {
     TYPath path = context->GetPath();
     if (IsFinalYPath(path)) {
-        RemoveSelf(request, response, context);
+        RemoveSelf(request, response, ~context);
     } else if (IsAttributeYPath(path)) {
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
@@ -308,11 +308,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
         }
         context->Reply();
     } else {    
-        RemoveRecursive(path, request, response, context);
+        RemoveRecursive(path, request, response, ~context);
     }
 }
 
-void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
+void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -327,7 +327,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     context->Reply();
 }
 
-void TNodeBase::RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove::TPtr context)
+void TNodeBase::RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
 {
     UNUSED(path);
     UNUSED(request);
@@ -435,7 +435,7 @@ void TMapNodeMixin::SetRecursive(
         }
 
         auto intermediateNode = factory->CreateMap();
-        if (!currentNode->AddChild(intermediateNode, prefix)) {
+        if (!currentNode->AddChild(~intermediateNode, prefix)) {
             ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
         }
 
@@ -532,7 +532,7 @@ void TListNodeMixin::CreateChild(
     } else {
         auto currentNode = factory->CreateMap();
         auto currentPath = path;
-        AddChild(currentNode, beforeIndex);
+        AddChild(~currentNode, beforeIndex);
 
         while (true) {
             Stroka prefix;
@@ -545,7 +545,7 @@ void TListNodeMixin::CreateChild(
             }
 
             auto intermediateNode = factory->CreateMap();
-            YVERIFY(currentNode->AddChild(intermediateNode, prefix));
+            YVERIFY(currentNode->AddChild(~intermediateNode, prefix));
 
             currentNode = intermediateNode;
             currentPath = suffixPath;

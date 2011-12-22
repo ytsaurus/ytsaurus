@@ -82,7 +82,7 @@ struct INode
     virtual TIntrusivePtr<IMapNode> GetAttributes() const = 0;
     //! Sets the attribute map. NULL is a viable value indicating that
     //! no such map is assigned.
-    virtual void SetAttributes(TIntrusivePtr<IMapNode> attributes) = 0;
+    virtual void SetAttributes(IMapNode* attributes) = 0;
 
     //! Returns the parent of the node.
     //! NULL indicates that the current node is the root.
@@ -94,7 +94,7 @@ struct INode
      *  
      *  This method must not be called explicitly.
      */
-    virtual void SetParent(TIntrusivePtr<ICompositeNode> parent) = 0;
+    virtual void SetParent(ICompositeNode* parent) = 0;
 
     //! A helper method for retrieving a scalar value from a node.
     //! Invokes an appropriate "AsSomething" call followed by "GetValue".
@@ -181,10 +181,10 @@ struct ICompositeNode
     virtual int GetChildCount() const = 0;
     //! Replaces one child by the other.
     //! #newChild must be a root.
-    virtual void ReplaceChild(INode::TPtr oldChild, INode::TPtr newChild) = 0;
+    virtual void ReplaceChild(INode* oldChild, INode* newChild) = 0;
     //! Removes a child.
     //! The removed child becomes a root.
-    virtual void RemoveChild(INode::TPtr child) = 0;
+    virtual void RemoveChild(INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +217,7 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INode::TPtr child, const Stroka& key) = 0;
+    virtual bool AddChild(INode* child, const Stroka& key) = 0;
     //! Removes a child by its index.
     /*!
      *  \param index A key.
@@ -268,7 +268,7 @@ struct IListNode
      *  \note
      *  #child must be a root.
      */
-    virtual void AddChild(INode::TPtr child, int beforeIndex = -1) = 0;
+    virtual void AddChild(INode* child, int beforeIndex = -1) = 0;
     //! Removes a child by its index.
     /*!
      *  \param index An index.
