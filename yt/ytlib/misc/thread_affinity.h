@@ -34,7 +34,8 @@ namespace NThreadAffinity {
 
 // Check that the cast TThread::TId -> TAtomic is safe.
 // NB: TAtomic is volatile intptr_t.
-STATIC_ASSERT(sizeof(TThread::TId) == sizeof(intptr_t));
+static_assert(sizeof(TThread::TId) == sizeof(intptr_t),
+    "Current implementation assumes that TThread::ID can be atomically swapped.");
 
 class TSlot
 {
@@ -71,7 +72,9 @@ private:
     slot ## __Slot.Check()
 
 // TODO: remove this dirty hack.
-STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
+static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
+    "Current implementation assumes that TSpinLock fits within implementation.");
+
 #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
     YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
@@ -89,7 +92,7 @@ STATIC_ASSERT(sizeof(TSpinLock) == sizeof(TAtomic));
 #endif
 
 //! This is a mere declaration and intentionally does not check anything.
-#define VERIFY_THREAD_AFFINITY_ANY()         do { } while(0)
+#define VERIFY_THREAD_AFFINITY_ANY()           do { } while(0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
