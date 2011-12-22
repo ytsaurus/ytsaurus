@@ -133,7 +133,7 @@ private:
         if (IsRpcError(error)) {
             int count = AtomicIncrement(CurrentAttempt);
 
-            CumulativeErrorMessage.append(Sprintf("\n[%d]: %s",
+            CumulativeErrorMessage.append(Sprintf("\n[#%d] %s",
                 count,
                 ~error.ToString()));
 
@@ -147,7 +147,7 @@ private:
 
                 OriginalHandler->OnError(TError(
                     EErrorCode::Unavailable,
-                    "Retriable request has failed, details follow:" + CumulativeErrorMessage));
+                    "Retriable request failed, details follow" + CumulativeErrorMessage));
             }
         } else {
             State = EState::Done;
