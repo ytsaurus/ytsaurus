@@ -96,8 +96,8 @@ TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = ChunkStore->FindChunk(chunkId);
     if (!chunk) {
-        ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Chunk it not found (ChunkId: %s)", ~chunkId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
+            Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
     }
     return chunk;
 }
