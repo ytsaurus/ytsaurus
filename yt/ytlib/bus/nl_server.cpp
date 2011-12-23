@@ -7,6 +7,7 @@
 #include "../actions/action_util.h"
 #include "../logging/log.h"
 #include "../misc/assert.h"
+#include "../misc/thread_affinity.h"
 #include "../ytree/fluent.h"
 
 #include <util/generic/list.h>
@@ -40,6 +41,7 @@ public:
     virtual void Stop();
 
     virtual void GetMonitoringInfo(IYsonConsumer* consumer);
+    virtual TBusStatistics GetStatistics();
 
 private:
     class TSession;
@@ -59,6 +61,10 @@ private:
     TSessionMap SessionMap;
     TPingMap PingMap;
     TLockFreeQueue< TIntrusivePtr<TSession> > SessionsWithPendingResponses;
+
+    TSpinLock StatisticsLock;
+    TBusStatistics Statistics;
+    TInstant StatisticsTimestamp;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();
@@ -588,6 +594,8 @@ void TNLBusServer::UnregisterSession(TSession* session)
 
 void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("port").Scalar(Config->Port)
@@ -613,6 +621,40 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
                     }
                 })
          .EndMap();
+}
+
+
+TBusStatistics TNLBusServer::GetStatistics()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TGuard<TSpinLock> guard(StatisticsLock);
+        // TODO: refactor or get rid of this code
+        if (TInstant::Now() < StatisticsTimestamp + TDuration::MilliSeconds(100)) {
+            return Statistics;
+        }
+    }
+
+    TBusStatistics statistics;
+
+    auto requester = Requester;
+    if (Requester.Get()) {
+        TRequesterPendingDataStats nlStatistics;
+        requester->GetPendingDataSize(&nlStatistics);
+        statistics.RequestCount = static_cast<i64>(nlStatistics.InpCount);
+        statistics.RequestDataSize = static_cast<i64>(nlStatistics.InpDataSize);
+        statistics.ResponseCount = static_cast<i64>(nlStatistics.OutCount);
+        statistics.ResponseDataSize = static_cast<i64>(nlStatistics.OutDataSize);
+    }
+
+    {
+        TGuard<TSpinLock> guard(StatisticsLock);
+        Statistics = statistics;
+        StatisticsTimestamp = TInstant::Now();
+    }
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
