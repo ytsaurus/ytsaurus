@@ -31,7 +31,7 @@ public:
     TChunkHolderService(
         TConfig* config,
         IInvoker* serviceInvoker,
-        NRpc::IRpcServer* server,
+        NBus::IBusServer* server,
         TChunkStore* chunkStore,
         TChunkCache* chunkcache,
         TReaderCache* readerCache,
@@ -45,6 +45,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TConfig::TPtr Config;
+    TIntrusivePtr<NBus::IBusServer> BusServer;
     TIntrusivePtr<TChunkStore> ChunkStore;
     TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;

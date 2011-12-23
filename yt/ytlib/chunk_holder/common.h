@@ -69,6 +69,8 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
+    i64 ResponseThrottlingSize;
+
     //! Regular storage locations.
     yvector<TLocationConfig::TPtr> ChunkStorageLocations;
 
@@ -91,6 +93,8 @@ struct TChunkHolderConfig
      */
     TChunkHolderConfig()
     {
+        // TODO: consider GreaterThan(0)
+
         Register("max_cached_blocks_size", MaxCachedBlocksSize).GreaterThan(0).Default(1024 * 1024);
         Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
         Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
@@ -98,6 +102,7 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10000);
+        Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
         Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
         Register("cache_remote_reader", CacheRemoteReader);

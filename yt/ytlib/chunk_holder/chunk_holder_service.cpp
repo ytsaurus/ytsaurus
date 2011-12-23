@@ -25,7 +25,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolderService::TChunkHolderService(
     TConfig* config,
     IInvoker* serviceInvoker,
-    NRpc::IRpcServer* server,
+    NBus::IBusServer* server,
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TReaderCache* readerCache,
@@ -36,6 +36,7 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
+    , BusServer(server)
     , ChunkStore(chunkStore)
     , ChunkCache(chunkCache)
     , ReaderCache(readerCache)
@@ -43,6 +44,11 @@ TChunkHolderService::TChunkHolderService(
     , SessionManager(sessionManager)
 {
     YASSERT(server);
+    YASSERT(chunkStore);
+    YASSERT(chunkCache);
+    YASSERT(readerCache);
+    YASSERT(blockStore);
+    YASSERT(sessionManager);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
@@ -53,8 +59,6 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
-    
-    server->RegisterService(this);
 }
 
 // Do not remove this!
@@ -219,8 +223,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         ~chunkId.ToString(),
         blockCount);
 
-    i64 responseDataSize = 0; // TODO: fill it
+    i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
     i64 pendingReadSize = BlockStore->GetPendingReadSize();
+    if (responseDataSize + pendingReadSize > Config->ResponseThrottlingSize) {
+        context->Reply(TError(NRpc::EErrorCode::Unavailable,
+            Sprintf("Pending response data size limit exceeded, throttling engaged (PendingSize: % PRId64, Limit: % PRId64)",
+                responseDataSize + pendingReadSize,
+                Config->ResponseThrottlingSize)));
+    }
 
     response->Attachments().resize(blockCount);
 
