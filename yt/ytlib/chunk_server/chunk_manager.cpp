@@ -328,11 +328,27 @@ private:
     {
         auto transactionId = TTransactionId::FromProto(message.transactionid());
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-
+        
         FOREACH (const auto& chunkInfo, message.chunks()) {
-            // TODO: add hinted locations
             auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
             auto& chunk = ChunkMap.GetForUpdate(chunkId);
+            
+            auto& holderAddresses = chunkInfo.holderaddresses();
+            FOREACH (const auto& address, holderAddresses) {
+                auto it = HolderAddressMap.find(address);
+                if (it == HolderAddressMap.end()) {
+                    LOG_WARNING("Chunk is confirmed at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                        ~chunkId.ToString(),
+                        ~address);
+                    continue;
+                }
+                auto holderId = it->Second();
+                chunk.AddLocation(holderId, false);
+
+                auto& holder = HolderMap.GetForUpdate(holderId);
+                // TODO: mark it unapproved
+                holder.AddChunk(chunkId, false);
+            }
 
             // Skip chunks that are already confirmed.
             if (chunk.IsConfirmed()) {
