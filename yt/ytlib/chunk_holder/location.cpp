@@ -159,8 +159,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
     yhash_set<TChunkId> chunkIds;
 
     TFileList fileList;
-    // NB: 2 is the recursion depth
-    fileList.Fill(path, TStringBuf(), TStringBuf(), 2);
+    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = fileList.Next();
