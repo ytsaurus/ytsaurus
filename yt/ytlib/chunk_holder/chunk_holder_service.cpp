@@ -225,12 +225,17 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
     i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
     i64 pendingReadSize = BlockStore->GetPendingReadSize();
-    if (responseDataSize + pendingReadSize > Config->ResponseThrottlingSize) {
-        context->Reply(TError(NRpc::EErrorCode::Unavailable,
+    i64 pendingSize = responseDataSize + pendingReadSize;
+    if (pendingSize > Config->ResponseThrottlingSize) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
             Sprintf("Pending response data size limit exceeded, throttling engaged (PendingSize: %" PRId64 ", Limit: %" PRId64 ")",
-                responseDataSize + pendingReadSize,
+                pendingSize,
                 Config->ResponseThrottlingSize)));
+        return;
     }
+
+    LOG_DEBUG("GetBlocks: PendingSize: %" PRId64, pendingSize);
 
     response->Attachments().resize(blockCount);
 

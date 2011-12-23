@@ -1,4 +1,4 @@
-#pragma once
+f#pragma once
 
 #include "common.h"
 #include "chunk_holder_service.pb.h"
@@ -18,7 +18,6 @@ class TChunk;
 class TBlockStore;
 class TSessionManager;
 class TSession;
-class TJobExecutor;
 
 class TChunkHolderService
     : public NRpc::TServiceBase
