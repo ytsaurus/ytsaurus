@@ -601,28 +601,14 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
             .Item("port").Scalar(Config->Port)
             .Do([=] (TFluentMap fluent)
                 {
-                    auto requester = Requester;
-                    if (requester.Get()) {
-                        TRequesterQueueStats queueStats;
-                        requester->GetRequestQueueSize(&queueStats);
-
-                        fluent.Item("request_count").Scalar(static_cast<i64>(queueStats.ReqCount));
-                        fluent.Item("request_queue_size").Scalar(static_cast<i64>(queueStats.ReqQueueSize));
-                        fluent.Item("response_count").Scalar(static_cast<i64>(queueStats.RespCount));
-                        fluent.Item("response_queue_size").Scalar(static_cast<i64>(queueStats.RespQueueSize));
-
-                        TRequesterPendingDataStats pendingStats;
-                        requester->GetPendingDataSize(&pendingStats);
-
-                        fluent.Item("_request_count").Scalar(static_cast<i64>(pendingStats.InpCount));
-                        fluent.Item("_request_queue_size").Scalar(static_cast<i64>(pendingStats.InpDataSize));
-                        fluent.Item("_response_count").Scalar(static_cast<i64>(pendingStats.OutCount));
-                        fluent.Item("_response_queue_size").Scalar(static_cast<i64>(pendingStats.OutDataSize));
-                    }
+                    auto statistics = GetStatistics();
+                    fluent.Item("request_count").Scalar(statistics.RequestCount);
+                    fluent.Item("request_data_size").Scalar(statistics.RequestDataSize);
+                    fluent.Item("response_count").Scalar(statistics.ResponseCount);
+                    fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
                 })
          .EndMap();
 }
-
 
 TBusStatistics TNLBusServer::GetStatistics()
 {
