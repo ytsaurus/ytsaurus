@@ -83,7 +83,7 @@ void TRetriableReader::OnRetryFailed(const TError& error, int retryIndex, bool f
             ~CumulativeErrorMessage));
         AsyncReader.Reset();
         guard.Release();
-        if (!asyncReader.IsSet()) {
+        if (!asyncReader->IsSet()) {
             asyncReader->Set(NULL);
         }
     }
