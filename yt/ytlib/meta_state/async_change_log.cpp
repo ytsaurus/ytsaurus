@@ -76,6 +76,7 @@ public:
     void Flush()
     {
         TAppendResult::TPtr result;
+        int recordsToFlushCount;
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -83,9 +84,11 @@ public:
             result = Result;
             Result = New<TAppendResult>();
             
-            ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+            recordsToFlushCount = RecordsToFlush.ysize();
+            ChangeLog->Append(
+                FlushedRecordCount + recordsToFlushCount,
+                RecordsToAppend);
                         
-            YASSERT(RecordsToFlush.ysize() == 0);
             RecordsToFlush.insert(
                 RecordsToFlush.end(),
                 RecordsToAppend.begin(),
@@ -100,8 +103,15 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += RecordsToFlush.ysize();
-            RecordsToFlush.clear();
+            FlushedRecordCount += recordsToFlushCount;
+
+            if (RecordsToFlush.ysize() == recordsToFlushCount) {
+                RecordsToFlush.clear();
+            } else {
+                RecordsToFlush.erase(
+                    RecordsToFlush.begin(),
+                    RecordsToFlush.begin() + recordsToFlushCount);
+            }
         }
     }
 
