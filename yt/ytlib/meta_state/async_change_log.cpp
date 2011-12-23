@@ -41,6 +41,8 @@ public:
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TAppendResult::TPtr result;
 
         bool doFlush = false;
@@ -75,26 +77,20 @@ public:
 
     void Flush()
     {
-        TAppendResult::TPtr result;
-        int recordsToFlushCount;
+        VERIFY_THREAD_AFFINITY(Flush);
 
+        TAppendResult::TPtr result;
         {
             TGuard<TSpinLock> guard(SpinLock);
+
+            YASSERT(RecordsToFlush.empty());
+
+            ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+            RecordsToFlush.swap(RecordsToAppend);
 
             result = Result;
             Result = New<TAppendResult>();
             
-            recordsToFlushCount = RecordsToFlush.ysize();
-            ChangeLog->Append(
-                FlushedRecordCount + recordsToFlushCount,
-                RecordsToAppend);
-                        
-            RecordsToFlush.insert(
-                RecordsToFlush.end(),
-                RecordsToAppend.begin(),
-                RecordsToAppend.end());
-            RecordsToAppend.clear();
-
             UnflushedBytes = 0;
         }
 
@@ -103,26 +99,38 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += recordsToFlushCount;
-
-            if (RecordsToFlush.ysize() == recordsToFlushCount) {
-                RecordsToFlush.clear();
-            } else {
-                RecordsToFlush.erase(
-                    RecordsToFlush.begin(),
-                    RecordsToFlush.begin() + recordsToFlushCount);
-            }
+            FlushedRecordCount += RecordsToFlush.ysize();
+            RecordsToFlush.clear();
         }
+    }
+
+    void WaitFlush()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TAppendResult::TPtr result;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
+                return;
+            }
+            result = Result;
+        }
+        result->Get();
     }
 
     int GetRecordCount()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(SpinLock);
         return DoGetRecordCount();
     }
 
     bool IsEmpty()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(SpinLock);
         return RecordsToAppend.ysize() == 0 && RecordsToFlush.ysize() == 0;
     }
@@ -130,6 +138,8 @@ public:
     // Can return less records than recordCount
     void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         i32 flushedRecordCount;
 
         {
@@ -202,6 +212,8 @@ private:
     yvector<TSharedRef> RecordsToFlush;
     TAppendResult::TPtr Result;
     i32 UnflushedBytes;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,7 +282,7 @@ public:
     {
         auto queue = FindQueue(changeLog);
         if (queue) {
-            queue->Flush();
+            queue->WaitFlush();
             AtomicDecrement(queue->UseCount);
         }
         changeLog->Flush();
