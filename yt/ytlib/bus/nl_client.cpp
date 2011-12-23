@@ -629,7 +629,8 @@ void TNLBusClient::TBus::Terminate()
 
 TSequenceId TNLBusClient::TBus::GenerateSequenceId()
 {
-    return AtomicIncrement(SequenceId);
+    // Subtract 1 to start from zero.
+    return AtomicIncrement(SequenceId) - 1;
 }
 
 void TNLBusClient::TBus::ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
