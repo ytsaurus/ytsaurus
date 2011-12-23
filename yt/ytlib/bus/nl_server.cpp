@@ -625,7 +625,7 @@ TBusStatistics TNLBusServer::GetStatistics()
     TBusStatistics statistics;
 
     auto requester = Requester;
-    if (Requester.Get()) {
+    if (requester.Get()) {
         TRequesterPendingDataStats nlStatistics;
         requester->GetPendingDataSize(&nlStatistics);
         statistics.RequestCount = static_cast<i64>(nlStatistics.InpCount);
