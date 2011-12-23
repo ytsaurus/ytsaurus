@@ -11,6 +11,7 @@ namespace NChunkClient {
 TRetriableReader::TRetriableReader(
     TConfig* config,
     const TChunkId& chunkId,
+    yvector<Stroka>& holderAddresses,
     const NTransactionClient::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     IRemoteReaderFactory* readerFactory)
@@ -21,170 +22,193 @@ TRetriableReader::TRetriableReader(
     , Proxy(masterChannel)
     , AsyncReader(New< TFuture<IAsyncReader::TPtr> >())
     , FailCount(0)
+    , RetryIndex(0)
 {
     Proxy.SetTimeout(Config->MasterRpcTimeout);
 
-    RequestHolders();
+    if (holderAddresses.empty()) {
+        RequestHolders(0);
+    } else {
+        SetAsyncReader(holderAddresses);
+    }
 }
 
-void TRetriableReader::RequestHolders()
+void TRetriableReader::SetAsyncReader(const yvector<Stroka>& holderAddresses)
+{
+    AsyncReader->Set(ReaderFactory->Create(ChunkId, holderAddresses));
+}
+
+void TRetriableReader::GetAsyncReader(
+    TFuture<IAsyncReader::TPtr>::TPtr* asyncReader,
+    int* retryIndex)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    if (CumulativeError.IsOK()) {
+        *asyncReader = AsyncReader;
+        *retryIndex = FailCount;
+    } else {
+        *asyncReader = ToFuture(IAsyncReader::TPtr(NULL));
+        *retryIndex = -1;
+    }
+}
+
+void TRetriableReader::OnRetryFailed(const TError& error, int retryIndex, bool fatal)
+{
+    YASSERT(!error.IsOK());
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (FailCount != retryIndex)
+        return;
+
+    CumulativeErrorMessage.append(Sprintf("\n[#%d]: %s",
+        FailCount,
+        ~error.GetMessage()));
+
+    ++FailCount;
+    if (FailCount < Config->RetryCount && !fatal) {
+        if (AsyncReader->IsSet()) {
+            AsyncReader = New< TFuture<IAsyncReader::TPtr> >();
+        }
+        TDelayedInvoker::Submit(
+            ~FromMethod(
+                &TRetriableReader::RequestHolders,
+                TPtr(this),
+                FailCount),
+            Config->BackoffTime);
+    } else {
+        auto asyncReader = AsyncReader;
+        CumulativeError = TError(Sprintf("Retriable chunk reader failed, details follow (ChunkId: %s)%s",
+            ~ChunkId.ToString(),
+            ~CumulativeErrorMessage));
+        AsyncReader.Reset();
+        guard.Release();
+        asyncReader->Set(NULL);
+    }
+}
+
+TError TRetriableReader::GetCumulativeError() const
+{
+    YASSERT(!CumulativeError.IsOK());
+    return CumulativeError;
+}
+
+void TRetriableReader::RequestHolders(int retryIndex)
 {
     auto req = Proxy.FindChunk();
     req->set_chunkid(ChunkId.ToProto());
     req->Invoke()->Subscribe(FromMethod(
         &TRetriableReader::OnGotHolders,
-        TPtr(this))); 
+        TPtr(this),
+        retryIndex)); 
 }
 
-void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
+void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp, int retryIndex)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-
-    if (!rsp->IsOK()) {
-        AppendError(rsp->GetError().ToString());
-        Retry();
-        return;
+    if (rsp->IsOK()) {
+        auto holderAddresses = FromProto<Stroka>(rsp->holderaddresses());
+        if (holderAddresses.empty()) {
+            OnRetryFailed(TError("Chunk is lost"), retryIndex, false);
+        } else {
+            SetAsyncReader(holderAddresses);
+        }
+    } else {
+        OnRetryFailed(
+            rsp->GetError(),
+            retryIndex,
+            rsp->GetErrorCode() == TProxy::EErrorCode::NoSuchChunk);
     }
-
-    auto holderAddresses = FromProto<Stroka>(rsp->holderaddresses());
-    if (holderAddresses.empty()) {
-        AppendError("Chunk is lost.");
-        Retry();
-        return;
-    }
-
-    auto reader = ReaderFactory->Create(ChunkId, holderAddresses);
-    AsyncReader->Set(reader);
-}
-
-void TRetriableReader::Retry()
-{
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
-    YASSERT(FailCount <= Config->RetryCount);
-
-    ++FailCount;
-    AsyncReader = New< TFuture<IAsyncReader::TPtr> >();
-    if (FailCount == Config->RetryCount) {
-        AsyncReader->Set(NULL);
-        return;
-    }
-
-    TDelayedInvoker::Submit(
-        ~FromMethod(&TRetriableReader::RequestHolders, TPtr(this)),
-        Config->BackoffTime);
-}
-
-void TRetriableReader::AppendError(const Stroka& message)
-{
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
-    CumulativeError.append(Sprintf("\n[%d]: %s",
-        FailCount,
-        ~message));
 }
 
 IAsyncReader::TAsyncReadResult::TPtr TRetriableReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
-    auto asyncResult = New< TFuture<TReadResult> >();
-    AsyncReader->Subscribe(FromMethod(
-        &TRetriableReader::DoReadBlocks,
-        TPtr(this), 
-        blockIndexes,
-        asyncResult));
+    auto asyncResult = New<TAsyncReadResult>();
+    DoReadBlocks(blockIndexes, asyncResult);
     return asyncResult;
 }
 
 void TRetriableReader::DoReadBlocks(
-    IAsyncReader::TPtr reader,
     const yvector<int>& blockIndexes,
-    TFuture<TReadResult>::TPtr asyncResult)
+    TAsyncReadResult::TPtr asyncResult)
 {
-    if (!reader) {
-        asyncResult->Set(TReadResult(NRpc::EErrorCode::Unavailable,  CumulativeError));
-    }
+    TRetriableReader::TPtr this_ = this;
 
-    reader->AsyncReadBlocks(blockIndexes)->Subscribe(FromMethod(
-        &TRetriableReader::OnBlocksRead,
-        TPtr(this),
-        blockIndexes,
-        asyncResult,
-        reader));
+    TFuture<IAsyncReader::TPtr>::TPtr asyncReader;
+    int retryIndex;
+    GetAsyncReader(&asyncReader, &retryIndex);
+    
+    asyncReader->Subscribe(FromFunctor([=] (IAsyncReader::TPtr reader)
+        {
+            if (!reader) {
+                asyncResult->Set(GetCumulativeError());
+                return;
+            }
+
+            reader->AsyncReadBlocks(blockIndexes)->Subscribe(FromMethod(
+                &TRetriableReader::OnBlocksRead,
+                this_,
+                blockIndexes,
+                asyncResult,
+                retryIndex));
+        }));
 }
 
 void TRetriableReader::OnBlocksRead(
-    TReadResult result,
+    TReadResult readResult,
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult,
-    IAsyncReader::TPtr reader)
+    int retryIndex)
 {
-    if (result.IsOK()) {
-        asyncResult->Set(result);
+    if (!readResult.IsOK()) {
+        OnRetryFailed(readResult, retryIndex, false);
+        DoReadBlocks(blockIndexes, asyncResult);
         return;
     }
-
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (AsyncReader->IsSet() && ~reader == ~AsyncReader->Get()) {
-            CumulativeError.append(Sprintf("\n[%d]: %s",
-                FailCount,
-                ~result.GetMessage()));
-            Retry();
-        }
-    }
-
-    AsyncReader->Subscribe(FromMethod(
-        &TRetriableReader::DoReadBlocks,
-        TPtr(this), 
-        blockIndexes,
-        asyncResult));
+    asyncResult->Set(readResult);
 }
 
 IAsyncReader::TAsyncGetInfoResult::TPtr TRetriableReader::AsyncGetChunkInfo()
 {
-    auto asyncResult = New< TFuture<TGetInfoResult> >();
-    AsyncReader->Subscribe(FromMethod(
-        &TRetriableReader::DoGetChunkInfo,
-        TPtr(this),
-        asyncResult));
+    auto asyncResult = New<TAsyncGetInfoResult>();
+    DoGetChunkInfo(asyncResult);
     return asyncResult;
 }
 
 void TRetriableReader::DoGetChunkInfo(
-    IAsyncReader::TPtr reader,
-    TFuture<TGetInfoResult>::TPtr result)
+    TAsyncGetInfoResult::TPtr asyncResult)
 {
-    if (!reader) {
-        result->Set(TError(NRpc::EErrorCode::Unavailable, CumulativeError));
-        return;
-    }
+    TRetriableReader::TPtr this_ = this;
 
-    reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
-        &TRetriableReader::OnGotChunkInfo,
-        TPtr(this),
-        result,
-        reader));
+    TFuture<IAsyncReader::TPtr>::TPtr asyncReader;
+    int retryIndex;
+    GetAsyncReader(&asyncReader, &retryIndex);
+    
+    asyncReader->Subscribe(FromFunctor([=] (IAsyncReader::TPtr reader)
+        {
+            if (!reader) {
+                asyncResult->Set(GetCumulativeError());
+                return;
+            }
+
+            reader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+                &TRetriableReader::OnGotChunkInfo,
+                this_,
+                asyncResult,
+                retryIndex));
+        }));
 }
 
 void TRetriableReader::OnGotChunkInfo(
-    TGetInfoResult result,
-    TFuture<TGetInfoResult>::TPtr asyncResult,
-    IAsyncReader::TPtr reader)
+    TGetInfoResult infoResult,
+    TAsyncGetInfoResult::TPtr asyncResult,
+    int retryIndex)
 {
-    if (result.IsOK()) {
-        asyncResult->Set(result);
+    if (!infoResult.IsOK()) {
+        OnRetryFailed(infoResult, retryIndex, false);
+        DoGetChunkInfo(asyncResult);
         return;
     }
-
-    if (AsyncReader->IsSet() && ~reader == ~AsyncReader->Get()) {
-        CumulativeError.append(Sprintf("\n[%d]: %s",
-            FailCount,
-            ~result.GetMessage()));
-        Retry();
-    }
-
-    AsyncReader->Subscribe(FromMethod(
-        &TRetriableReader::DoGetChunkInfo,
-        TPtr(this), 
-        asyncResult));
+    asyncResult->Set(infoResult);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

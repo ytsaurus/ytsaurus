@@ -48,6 +48,7 @@ void TChunkSequenceReader::PrepareNextChunk()
     auto retriableReader = New<TRetriableReader>(
         ~Config->RetriableReader,
         ChunkIds[NextChunkIndex],
+        yvector<Stroka>(),
         TransactionId,
         ~MasterChannel,
         ~remoteReaderFactory);

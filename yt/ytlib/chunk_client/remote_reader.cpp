@@ -61,7 +61,7 @@ private:
         int holderIndex);
 
     bool GetCurrentHolderIndex(int* holderIndex) const;
-    bool ChangeCurrentHolder(int holderIndex, const TError& error);
+    bool OnCurrentHolderFailed(int holderIndex, const TError& error);
 
     TError GetCumulativeError() const;
 
@@ -166,7 +166,7 @@ void TRemoteReader::OnBlocksRead(
         ~HolderAddresses[holderIndex],
         ~response->GetError().ToString());
 
-    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
         DoReadBlocks(blockIndexes, asyncResult);
         return;
     }
@@ -226,7 +226,7 @@ void TRemoteReader::OnGotChunkInfo(
         ~HolderAddresses[holderIndex],
         ~response->GetError().ToString());
 
-    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
         DoGetChunkInfo(asyncResult);
         return;
     }
@@ -246,7 +246,7 @@ bool TRemoteReader::GetCurrentHolderIndex(int* holderIndex) const
     }
 }
 
-bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
+bool TRemoteReader::OnCurrentHolderFailed(int holderIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(!error.IsOK());

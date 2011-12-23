@@ -140,6 +140,7 @@ private:
             RetriableReader = New<TRetriableReader>(
                 ~Owner->Config->CacheRetriableReader,
                 ChunkId,
+                yvector<Stroka>(),
                 NullTransactionId,
                 ~Owner->MasterChannel,
                 ~readerFactory);

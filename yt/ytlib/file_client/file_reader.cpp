@@ -61,17 +61,18 @@ TFileReader::TFileReader(
     }
 
     ChunkId = TChunkId::FromProto(getChunkResponse->chunkid());
-    auto addresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
+    auto holderAddresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
 
     LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
-        ~JoinToString(addresses));
+        ~JoinToString(holderAddresses));
 
     auto remoteReaderFactory = CreateRemoteReaderFactory(~Config->RemoteReader);
 
     auto retriableReader = New<TRetriableReader>(
         ~Config->RetriableReader,
         ChunkId,
+        holderAddresses,
         transactionId,
         ~MasterChannel,
         ~remoteReaderFactory);
