@@ -200,7 +200,7 @@ bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
         ++CurrentHolderIndex;
 
         if (CurrentHolderIndex >= HolderAddresses.ysize()) {
-            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)",
+            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)%s",
                 ~ChunkId.ToString(),
                 ~CumulativeErrorMessage));
 
