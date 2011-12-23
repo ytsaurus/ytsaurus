@@ -69,6 +69,8 @@ public:
      */
     TCachedBlock::TPtr PutBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
 
+    i64 GetPendingReadSize() const;
+
 private:
     class TBlockCache;
     friend class TBlockCache;

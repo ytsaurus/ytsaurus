@@ -219,6 +219,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         ~chunkId.ToString(),
         blockCount);
 
+    i64 responseDataSize = 0; // TODO: fill it
+    i64 pendingReadSize = BlockStore->GetPendingReadSize();
+
     response->Attachments().resize(blockCount);
 
     auto awaiter = New<TParallelAwaiter>();
