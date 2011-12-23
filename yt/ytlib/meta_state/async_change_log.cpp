@@ -302,18 +302,15 @@ public:
 
     void Finalize(TChangeLog::TPtr changeLog)
     {
-        auto queue = FindQueue(changeLog);
-        if (queue) {
-            queue->Flush();
-            AtomicDecrement(queue->UseCount);
-        }
+        Flush(changeLog);
+
         changeLog->Finalize();
         LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
     }
 
     void Truncate(TChangeLog::TPtr changeLog, i32 atRecordId)
     {
-        // TODO: Later on this can be improved to asynchronous behaviour by
+        // TODO: Later on this can be improved to asynchronous behavior by
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
