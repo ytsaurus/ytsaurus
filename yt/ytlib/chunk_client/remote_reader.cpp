@@ -62,7 +62,7 @@ void TRemoteReader::DoReadBlocks(
     }
     auto holderAddress = HolderAddresses[holderIndex];
 
-    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: %s)",
+    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: [%s])",
         ~holderAddress,
         ~JoinToString(blockIndexes));
 
