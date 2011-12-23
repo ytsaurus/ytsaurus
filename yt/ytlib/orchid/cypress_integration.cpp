@@ -14,6 +14,7 @@
 
 #include "../rpc/channel.h"
 #include "../rpc/message.h"
+#include "../rpc/channel_cache.h"
 
 #include "../misc/new.h"
 

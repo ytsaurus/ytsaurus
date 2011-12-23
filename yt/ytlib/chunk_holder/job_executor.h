@@ -16,23 +16,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EJobState,
-    (Running)
-    (Completed)
-    (Failed)
-);
-
-DECLARE_ENUM(EJobType,
-    (Replicate)
-    (Remove)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobExecutor;
-
-//! Id of a job.
-typedef TGuid TJobId;
 
 //! Represents a replication job on a chunk holder.
 class TJob

@@ -1,13 +1,14 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
-
 #include "chunk_holder_service.pb.h"
 #include "chunk_service.pb.h"
 
+#include "../misc/common.h"
+#include "../misc/configurable.h"
+
 #include "../chunk_client/common.h"
 #include "../chunk_client/remote_reader.h"
+#include "../chunk_client/retriable_reader.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../election/leader_lookup.h"
 #include "../misc/guid.h"
@@ -77,8 +78,11 @@ struct TChunkHolderConfig
     //! Location used for caching chunks.
     TLocationConfig::TPtr ChunkCacheLocation;
 
+    //! Retriable reader configuration used to download chunks into cache.
+    NChunkClient::TRetriableReader::TConfig::TPtr CacheRetriableReader;
+
     //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TRemoteReader::TConfig::TPtr CacheRemoteReader;
+    NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
 
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
@@ -105,8 +109,9 @@ struct TChunkHolderConfig
         Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
         Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
-        Register("cache_remote_reader", CacheRemoteReader);
-        Register("cache_sequential_reader", CacheSequentialReader);
+        Register("cache_retriable_reader", CacheRetriableReader).DefaultNew();
+        Register("cache_remote_reader", CacheRemoteReader).DefaultNew();
+        Register("cache_sequential_reader", CacheSequentialReader).DefaultNew();
         Register("masters", Masters);
     }
 };

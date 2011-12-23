@@ -1,17 +1,8 @@
 #pragma once
 
 #include "../misc/common.h"
-
-#include "../logging/log.h"
-
-#include "../chunk_holder/common.h"
-#include "../chunk_holder/job_executor.h"
-
-#include "../transaction_server/common.h"
-#include "../transaction_server/transaction.h"
-#include "../transaction_server/transaction_manager.h"
-
 #include "../misc/configurable.h"
+#include "../logging/log.h"
 
 namespace NYT {
 namespace NChunkServer {

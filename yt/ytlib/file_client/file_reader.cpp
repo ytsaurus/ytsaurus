@@ -47,7 +47,7 @@ TFileReader::TFileReader(
     CypressProxy->SetTimeout(Config->MasterRpcTimeout);
 
     // Get chunk info.
-    LOG_INFO("Getting chunk info");
+    LOG_INFO("Getting file chunk");
 
     auto getChunkRequest = TFileYPathProxy::GetFileChunk();
     auto getChunkResponse = CypressProxy->Execute(
@@ -63,22 +63,20 @@ TFileReader::TFileReader(
     ChunkId = TChunkId::FromProto(getChunkResponse->chunkid());
     auto addresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
 
-    if (addresses.empty()) {
-        // TODO: Monster says we should wait here
-        LOG_ERROR_AND_THROW(yexception(), "Chunk is lost (ChunkId: %s)", ~ChunkId.ToString());
-    }
-
     LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
         ~JoinToString(addresses));
 
-    // ToDo: use TRetriableReader.
-    auto remoteReader = New<TRemoteReader>(
-        ~Config->RemoteReader,
-        ChunkId,
-        addresses);
+    auto remoteReaderFactory = CreateRemoteReaderFactory(~Config->RemoteReader);
 
-    auto getInfoResult = remoteReader->AsyncGetChunkInfo()->Get();
+    auto retriableReader = New<TRetriableReader>(
+        ~Config->RetriableReader,
+        ChunkId,
+        transactionId,
+        ~MasterChannel,
+        ~remoteReaderFactory);
+
+    auto getInfoResult = retriableReader->AsyncGetChunkInfo()->Get();
     if (!getInfoResult.IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from holder\n%s",
             ~getInfoResult.ToString());
@@ -87,7 +85,7 @@ TFileReader::TFileReader(
 
     BlockCount = chunkInfo.blocks_size();
     Size = chunkInfo.size();
-    TFileChunkAttributes fileAttributes =
+    TFileChunkAttributes fileAttributes = 
         chunkInfo.attributes().GetExtension(TFileChunkAttributes::FileAttributes);
     auto codecId = ECodecId(fileAttributes.codecid());
     Codec = GetCodec(codecId);
@@ -102,7 +100,7 @@ TFileReader::TFileReader(
     SequentialReader = New<TSequentialReader>(
         ~Config->SequentialReader,
         blockIndexes,
-        ~remoteReader);
+        ~retriableReader);
 
     // Bind to the transaction.
     if (Transaction) {

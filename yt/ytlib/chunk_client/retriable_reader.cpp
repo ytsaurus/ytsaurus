@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "retriable_reader.h"
 
+#include "../misc/thread_affinity.h"
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -10,12 +12,14 @@ TRetriableReader::TRetriableReader(
     TConfig* config,
     const TChunkId& chunkId,
     const NTransactionClient::TTransactionId& transactionId,
-    NRpc::IChannel* masterChannel)
+    NRpc::IChannel* masterChannel,
+    IRemoteReaderFactory* readerFactory)
     : Config(config)
     , ChunkId(chunkId)
     , TransactionId(transactionId)
+    , ReaderFactory(readerFactory)
     , Proxy(masterChannel)
-    , AsyncReader(New< TFuture<TRemoteReader::TPtr> >())
+    , AsyncReader(New< TFuture<IAsyncReader::TPtr> >())
     , FailCount(0)
 {
     Proxy.SetTimeout(Config->MasterRpcTimeout);
@@ -49,7 +53,7 @@ void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp)
         return;
     }
 
-    auto reader = New<TRemoteReader>(~Config->RemoteReader, ChunkId, holderAddresses);
+    auto reader = ReaderFactory->Create(ChunkId, holderAddresses);
     AsyncReader->Set(reader);
 }
 
@@ -59,7 +63,7 @@ void TRetriableReader::Retry()
     YASSERT(FailCount <= Config->RetryCount);
 
     ++FailCount;
-    AsyncReader = New< TFuture<TRemoteReader::TPtr> >();
+    AsyncReader = New< TFuture<IAsyncReader::TPtr> >();
     if (FailCount == Config->RetryCount) {
         AsyncReader->Set(NULL);
         return;
@@ -90,7 +94,7 @@ IAsyncReader::TAsyncReadResult::TPtr TRetriableReader::AsyncReadBlocks(const yve
 }
 
 void TRetriableReader::DoReadBlocks(
-    TRemoteReader::TPtr reader,
+    IAsyncReader::TPtr reader,
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult)
 {
@@ -110,7 +114,7 @@ void TRetriableReader::OnBlocksRead(
     TReadResult result,
     const yvector<int>& blockIndexes,
     TFuture<TReadResult>::TPtr asyncResult,
-    TRemoteReader::TPtr reader)
+    IAsyncReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);
@@ -145,7 +149,7 @@ IAsyncReader::TAsyncGetInfoResult::TPtr TRetriableReader::AsyncGetChunkInfo()
 }
 
 void TRetriableReader::DoGetChunkInfo(
-    TRemoteReader::TPtr reader,
+    IAsyncReader::TPtr reader,
     TFuture<TGetInfoResult>::TPtr result)
 {
     if (!reader) {
@@ -163,7 +167,7 @@ void TRetriableReader::DoGetChunkInfo(
 void TRetriableReader::OnGotChunkInfo(
     TGetInfoResult result,
     TFuture<TGetInfoResult>::TPtr asyncResult,
-    TRemoteReader::TPtr reader)
+    IAsyncReader::TPtr reader)
 {
     if (result.IsOK()) {
         asyncResult->Set(result);

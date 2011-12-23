@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common.h"
 #include "async_reader.h"
 #include "remote_reader.h"
@@ -31,14 +32,11 @@ public:
         int RetryCount;
         TDuration MasterRpcTimeout;
 
-        TRemoteReader::TConfig::TPtr RemoteReader;
-
         TConfig()
         {
             Register("backoff_time", BackoffTime).Default(TDuration::Seconds(5));
             Register("retry_count", RetryCount).Default(5);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
-            Register("remote_reader", RemoteReader).DefaultNew();
         }
     };
 
@@ -46,7 +44,8 @@ public:
         TConfig* config,
         const TChunkId& chunkId,
         const NTransactionClient::TTransactionId& transactionId,
-        NRpc::IChannel* masterChannel);
+        NRpc::IChannel* masterChannel,
+        IRemoteReaderFactory* readerFactory);
 
     TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
     TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
@@ -59,7 +58,7 @@ private:
     void Retry();
     
     void DoReadBlocks(
-        TRemoteReader::TPtr reader,
+        IAsyncReader::TPtr reader,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult);
     
@@ -67,27 +66,28 @@ private:
         TReadResult result,
         const yvector<int>& blockIndexes,
         TFuture<TReadResult>::TPtr asyncResult,
-        TRemoteReader::TPtr reader);
+        IAsyncReader::TPtr reader);
 
     void DoGetChunkInfo(
-        TRemoteReader::TPtr reader,
+        IAsyncReader::TPtr reader,
         TFuture<TGetInfoResult>::TPtr result);
     
     void OnGotChunkInfo(
         TGetInfoResult infoResult,
         TFuture<TGetInfoResult>::TPtr result,
-        TRemoteReader::TPtr reader);
+        IAsyncReader::TPtr reader);
 
     void AppendError(const Stroka& message);
-
+    
     TConfig::TPtr Config;
     const TChunkId ChunkId;
     const NTransactionClient::TTransactionId TransactionId;
+    IRemoteReaderFactory::TPtr ReaderFactory;
     TProxy Proxy;
 
     //! Protects #FailCount and #UnderlyingReader.
     TSpinLock SpinLock;
-    TFuture<TRemoteReader::TPtr>::TPtr AsyncReader;
+    TFuture<IAsyncReader::TPtr>::TPtr AsyncReader;
     int FailCount;
     Stroka CumulativeError;
 };

@@ -2,6 +2,8 @@
 
 #include "holder.h"
 
+#include "../misc/lease_manager.h"
+
 namespace NYT {
 namespace NChunkServer {
 

@@ -12,7 +12,6 @@
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NMetaState;
 using namespace NChunkServer::NProto;
 using namespace NChunkClient;
 using namespace NRpc;

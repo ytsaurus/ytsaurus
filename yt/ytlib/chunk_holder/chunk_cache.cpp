@@ -5,12 +5,13 @@
 #include "../misc/thread_affinity.h"
 #include "../misc/serialize.h"
 #include "../misc/string.h"
+#include "../logging/tagged_logger.h"
 #include "../chunk_client/file_writer.h"
 #include "../chunk_client/remote_reader.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../chunk_server/chunk_service_proxy.h"
 #include "../election/cell_channel.h"
-#include "../logging/tagged_logger.h"
+#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -18,6 +19,8 @@ namespace NChunkHolder {
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
+using namespace NRpc;
+using namespace NTransactionServer;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,9 +43,7 @@ public:
         , Config(config)
         , Location(location)
     {
-        auto channel = CreateCellChannel(~config->Masters);
-        ChunkProxy = new TChunkServiceProxy (~channel);
-        ChunkProxy->SetTimeout(config->MasterRpcTimeout);
+        MasterChannel = CreateCellChannel(~config->Masters);
     }
 
     void Register(TCachedChunk* chunk)
@@ -82,7 +83,7 @@ public:
 private:
     TChunkHolderConfig::TPtr Config;
     TLocation::TPtr Location;
-    TAutoPtr<TChunkServiceProxy> ChunkProxy;
+    IChannel::TPtr MasterChannel;
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
@@ -126,11 +127,26 @@ private:
 
         void Start()
         {
-            LOG_INFO("Requesting chunk location");
-            auto request = Owner->ChunkProxy->FindChunk();
-            request->set_chunkid(ChunkId.ToProto());
-            request->Invoke()->Subscribe(
-                FromMethod(&TThis::OnChunkFound, TPtr(this))
+            Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
+            try {
+                NFS::ForcePath(NFS::GetDirectoryName(fileName));
+                FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
+            } catch (...) {
+                LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
+            }
+
+            auto readerFactory = CreateRemoteReaderFactory(~Owner->Config->CacheRemoteReader);
+
+            RetriableReader = New<TRetriableReader>(
+                ~Owner->Config->CacheRetriableReader,
+                ChunkId,
+                NullTransactionId,
+                ~Owner->MasterChannel,
+                ~readerFactory);
+
+            LOG_INFO("Getting chunk info from holders");
+            RetriableReader->AsyncGetChunkInfo()->Subscribe(
+                FromMethod(&TThis::OnGotChunkInfo, TPtr(this))
                 ->Via(Invoker));
         }
 
@@ -141,50 +157,13 @@ private:
         IInvoker::TPtr Invoker;
 
         TChunkFileWriter::TPtr FileWriter;
-        TRemoteReader::TPtr RemoteReader;
+        TRetriableReader::TPtr RetriableReader;
         TSequentialReader::TPtr SequentialReader;
         TChunkInfo ChunkInfo;
         int BlockCount;
         int BlockIndex;
 
         NLog::TTaggedLogger Logger;
-
-        void OnChunkFound(TChunkServiceProxy::TRspFindChunk::TPtr response)
-        {
-            if (!response->IsOK()) {
-                auto message = Sprintf("Error requesting chunk location\n%s", ~response->GetError().ToString());
-                OnError(TError(EErrorCode::MasterError, message));
-                return;
-            }
-
-            auto holderAddresses = FromProto<Stroka>(response->holderaddresses());
-            if (holderAddresses.empty()) {
-                OnError(TError(EErrorCode::ChunkLost, "Chunk is lost"));
-                return;
-            }
-
-            LOG_INFO("Chunk is found (HolderAddresses: [%s])",
-                ~JoinToString(holderAddresses));
-
-            Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
-            try {
-                NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
-            } catch (...) {
-                LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
-            }
-
-            // ToDo: use TRetriableReader.
-            RemoteReader = New<TRemoteReader>(
-                ~Owner->Config->CacheRemoteReader,
-                ChunkId,
-                holderAddresses);
-
-            LOG_INFO("Getting chunk info from holders");
-            RemoteReader->AsyncGetChunkInfo()->Subscribe(
-                FromMethod(&TThis::OnGotChunkInfo, TPtr(this))
-                ->Via(Invoker));
-        }
 
         void OnGotChunkInfo(IAsyncReader::TGetInfoResult result)
         {
@@ -208,7 +187,7 @@ private:
             SequentialReader = New<TSequentialReader>(
                 ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
-                ~RemoteReader);
+                ~RetriableReader);
 
             BlockIndex = 0;
             FetchNextBlock();
@@ -295,7 +274,7 @@ private:
                 FileWriter->Cancel(TError("Chunk download canceled"));
                 FileWriter.Reset();
             }
-            RemoteReader.Reset();
+            RetriableReader.Reset();
             SequentialReader.Reset();
         }
     };
