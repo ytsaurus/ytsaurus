@@ -162,13 +162,13 @@ private:
         auto blockSize = blockInfo.size();
         
         AtomicAdd(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size increased (BlockSize: %" PRId64 ", PendingReadSize: %" PRId64,
+        LOG_DEBUG("Pending read size increased (BlockSize: %" PRId64 ", PendingReadSize: %" PRISZT,
             blockSize,
             PendingReadSize_);
 
         auto data = reader->ReadBlock(blockId.BlockIndex);
         AtomicSub(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64 ", PendingReadSize: %" PRId64,
+        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64 ", PendingReadSize: %" PRISZT,
             blockSize,
             PendingReadSize_);
 
