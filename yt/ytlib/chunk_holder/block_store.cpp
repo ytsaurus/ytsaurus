@@ -34,6 +34,44 @@ TCachedBlock::~TCachedBlock()
     LOG_DEBUG("Purged cached block (BlockId: %s)", ~GetKey().ToString());
 }
 
+yvector<TPeerInfo> TCachedBlock::GetPeers()
+{
+    SweepExpiredPeers();
+    return Peers;
+}
+
+void TCachedBlock::AddPeer(const TPeerInfo& peer)
+{
+    SweepExpiredPeers();
+
+    // Check if we already have this peer's address. If so, just update the expiration time.
+    // TODO(babenko): one could optimize this by mering with SweepExpiredPeers.
+    FOREACH (auto& existingPeer, Peers) {
+        if (existingPeer.Address == peer.Address) {
+            existingPeer = peer;
+            return;
+        }
+    }
+
+    // This is a new address, add the peer.
+    Peers.push_back(peer);
+}
+
+void TCachedBlock::SweepExpiredPeers()
+{
+    auto now = TInstant::Now();
+    auto it = Peers.begin();
+    auto jt = it;
+    while (it != Peers.end()) {
+        if (it->ExpirationTime > now) {
+            *jt = *it;
+            ++jt;
+        }
+        ++it;
+    }
+    Peers.erase(jt, Peers.end());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TStoreImpl 

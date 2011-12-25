@@ -44,6 +44,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TConfig::TPtr Config;
+    IInvoker::TPtr ServiceInvoker;
     TIntrusivePtr<NBus::IBusServer> BusServer;
     TIntrusivePtr<TChunkStore> ChunkStore;
     TIntrusivePtr<TChunkCache> ChunkCache;
@@ -52,7 +53,6 @@ private:
     TIntrusivePtr<TSessionManager> SessionManager;
 
     NRpc::TChannelCache ChannelCache;
-
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NProto, FinishChunk);
@@ -69,6 +69,8 @@ private:
 
     TIntrusivePtr<TSession> GetSession(const NChunkClient::TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const NChunkClient::TChunkId& chunkId);
+
+    bool CheckThrottling() const;
 
     void OnFinishedChunk(
         TVoid,

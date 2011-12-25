@@ -25,8 +25,23 @@ public:
     //! Returns block data.
     TSharedRef GetData() const;
 
+    //! Gets peers possibly holding this block.
+    /*!
+     *  Also sweeps expired peers.
+     */
+    yvector<NChunkClient::TPeerInfo> GetPeers();
+
+    //! Register a new peer.
+    /*!
+     *  Also sweeps expired peers.
+     */
+    void AddPeer(const NChunkClient::TPeerInfo& peer);
+
 private:
     TSharedRef Data;
+    yvector<NChunkClient::TPeerInfo> Peers;
+
+    void SweepExpiredPeers();
 
 };
 
@@ -61,6 +76,13 @@ public:
      * enqueues a disk-read action to the appropriate IO queue.
      */
     TAsyncGetBlockResult::TPtr GetBlock(const NChunkClient::TBlockId& blockId);
+
+    //! Tries to find a block in the cache.
+    /*!
+     *  If the block is not available immediately, it returns NULL.
+     *  No IO is queued.
+     */
+    TCachedBlock::TPtr FindBlock(const NChunkClient::TBlockId& blockId);
 
     //! Puts a block into the store.
     /*!

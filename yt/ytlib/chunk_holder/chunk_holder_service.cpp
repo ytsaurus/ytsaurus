@@ -36,6 +36,7 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
+    , ServiceInvoker(serviceInvoker)
     , BusServer(server)
     , ChunkStore(chunkStore)
     , ChunkCache(chunkCache)
@@ -102,6 +103,19 @@ TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
     return chunk;
 }
 
+bool TChunkHolderService::CheckThrottling() const
+{
+    i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
+    i64 pendingReadSize = BlockStore->GetPendingReadSize();
+    i64 pendingSize = responseDataSize + pendingReadSize;
+    if (pendingSize > Config->ResponseThrottlingSize) {
+        LOG_DEBUG("Throttling is active (PendingSize: %" PRId64 ")", pendingSize);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
@@ -110,8 +124,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s",
-        ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
@@ -128,8 +141,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto& attributes = request->attributes();
     
-    context->SetRequestInfo("ChunkId: %s",
-        ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto session = GetSession(chunkId);
 
@@ -223,50 +235,89 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         ~chunkId.ToString(),
         blockCount);
 
-    i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
-    i64 pendingReadSize = BlockStore->GetPendingReadSize();
-    i64 pendingSize = responseDataSize + pendingReadSize;
-    if (pendingSize > Config->ResponseThrottlingSize) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            Sprintf("Pending response data size limit exceeded, throttling engaged (PendingSize: %" PRId64 ", Limit: %" PRId64 ")",
-                pendingSize,
-                Config->ResponseThrottlingSize)));
-        return;
-    }
+    bool throttling = CheckThrottling();
 
-    LOG_DEBUG("GetBlocks: PendingSize: %" PRId64, pendingSize);
+    auto chunk = ChunkStore->FindChunk(chunkId);
+    bool hasChunk = chunk;
 
-    response->Attachments().resize(blockCount);
+    // This will hold the blocks we fetch.
+    TSharedPtr< yvector<TCachedBlock::TPtr> > blocks(new yvector<TCachedBlock::TPtr>());
 
-    auto awaiter = New<TParallelAwaiter>();
+    // NB: All callbacks should be handled in the service thread.
+    auto awaiter = New<TParallelAwaiter>(ServiceInvoker);
 
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->block_indexes(index);
-
-        LOG_DEBUG("GetBlocks: (Index: %d)", blockIndex);
-
         TBlockId blockId(chunkId, blockIndex);
-        awaiter->Await(
-            BlockStore->GetBlock(blockId),
-            FromFunctor([=] (TBlockStore::TGetBlockResult result)
-                {
-                    if (!result.IsOK()) {
-                        awaiter->Cancel();
-                        context->Reply(result);
-                        return;
-                    }
+        
+        auto* blockInfo = response->add_blocks();
 
-                    auto block = result.Value();
-                    context->Response().Attachments()[index] = block->GetData();
-                }));
+        if (!throttling && hasChunk) {
+            // Fetch the actual data (either from cache or from disk).
+
+            blockInfo->set_data_attached(true);
+
+            awaiter->Await(
+                BlockStore->GetBlock(blockId),
+                FromFunctor([=] (TBlockStore::TGetBlockResult result)
+                    {
+                        if (!result.IsOK()) {
+                            awaiter->Cancel();
+                            context->Reply(result);
+                            return;
+                        }
+
+                        auto block = result.Value();
+                        (*blocks)[index] = block;
+                    }));
+
+            LOG_DEBUG("GetBlocks: Retrieving block (BlockIndex: %d)", blockIndex);
+        } else {
+            // Cannot send the actual data to the client (we either don't have it or throttling is engaged).
+            // But let's try to provide a hint a least.
+
+            blockInfo->set_data_attached(false);
+            auto block = BlockStore->FindBlock(blockId);
+            if (block) {
+                auto peers = block->GetPeers();
+
+                FOREACH (const auto& peer, peers) {
+                    blockInfo->add_peer_addresses(peer.Address);
+                }
+
+                LOG_DEBUG("GetBlocks: Attaching peer information (BlockIndex: %d, PeerCount: %d)",
+                    blockIndex,
+                    peers.ysize());
+            } else {
+                LOG_DEBUG("GetBlocks: Nothing is known about the block (BlockIndex: %d)");
+            }
+        }
     }
 
     awaiter->Complete(FromFunctor([=] ()
         {
-            if (!context->IsReplied()) {
-                LOG_DEBUG("GetBlocks: All blocks are fetched");
-                context->Reply();
+            if (context->IsReplied())
+                return;
+
+            // Prepare the attachments and reply.
+            for (int index = 0; index < blockCount; ++index) {
+                auto block = (*blocks)[index];
+                response->Attachments().push_back(block ? block->GetData() : TSharedRef());
+            }
+
+            context->Reply();
+
+            // Register the peer that we had just sent the reply to.
+            if (request->has_peer_address() && request->has_peer_expiration_time()) {
+                TPeerInfo peer(
+                    request->peer_address(),
+                    TInstant(request->peer_expiration_time()));
+                for (int index = 0; index < blockCount; ++index) {
+                    auto block = (*blocks)[index];
+                    if (block) {
+                        block->AddPeer(peer);
+                    }
+                }
             }
         }));
 }

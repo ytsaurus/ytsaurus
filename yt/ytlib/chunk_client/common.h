@@ -73,6 +73,23 @@ inline bool operator!=(const TBlockId& blockId1, const TBlockId& blockId2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Keeps information about a peer possibly holding a block.
+struct TPeerInfo
+{
+    Stroka Address;
+    TInstant ExpirationTime;
+
+    TPeerInfo()
+    { }
+
+    TPeerInfo(const Stroka& address, TInstant expirationTime)
+        : Address(address)
+        , ExpirationTime(expirationTime)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
 

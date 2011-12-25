@@ -64,10 +64,20 @@ message TReqGetBlocks
 {
     required bytes chunk_id = 1;
     repeated int32 block_indexes = 2;
+    optional string peer_address = 3;
+    optional uint64 peer_expiration_time = 4;
 }
 
 message TRspGetBlocks
-{ }
+{
+    message TBlockInfo
+    {
+        required bool data_attached = 1;
+        repeated string peer_addresses = 2;
+    }
+
+    repeated TBlockInfo blocks = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
