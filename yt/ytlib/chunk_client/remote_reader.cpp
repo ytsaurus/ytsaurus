@@ -327,16 +327,20 @@ private:
         YASSERT(response->blocks_size() == blockCount);
         YASSERT(response->Attachments().size() == blockCount);
 
+        int receivedBlockCount = 0;
+        int oldPeerCount = PeerAddresses.ysize();
+
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
             TBlockId blockId(Reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Block is fetched from holder (BlockIndex: %d)", blockIndex);
+                LOG_INFO("Received block from holder (BlockIndex: %d)", blockIndex);
                 auto block = response->Attachments()[index];
                 YASSERT(block);
                 Reader->BlockCache->Put(blockId, block);
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
+                ++receivedBlockCount;
             } else {
                 auto addresses = FromProto<Stroka>(blockInfo.peer_addresses());
                 if (!addresses.empty()) {
@@ -347,6 +351,10 @@ private:
                 }
             }
         }
+
+        LOG_INFO("Finished processing holder reply (BlocksReceived: %d, PeersAdded: %d)",
+            receivedBlockCount,
+            PeerAddresses.ysize() - oldPeerCount);
     }
 
     virtual void OnGotSeeds()
@@ -397,18 +405,15 @@ private:
     {
         if (response->IsOK()) {
             ProcessReceivedBlocks(~request, ~response);
+        } else {
+            LOG_WARNING("Error getting blocks from holder\n%s", ~response->GetError().ToString());
+        }
+
+        ++PeerIndex;
+        if (PeerIndex < PeerAddresses.ysize()) {
             RequestBlocks();
         } else {
-            LOG_WARNING("Error getting blocks from holder (Address: %s)\n%s",
-                ~PeerAddresses[PeerIndex],
-                ~response->GetError().ToString());
-
-            ++PeerIndex;
-            if (PeerIndex < PeerAddresses.ysize()) {
-                RequestBlocks();
-            } else {
-                OnRetryFailed(TError("Unable to fetch all chunk blocks"));
-            }
+            OnRetryFailed(TError("Unable to fetch all chunk blocks"));
         }
     }
 
@@ -497,9 +502,7 @@ private:
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_info());
         } else {
-            LOG_WARNING("Error getting chunk info from holder (Address: %s)\n%s",
-                ~SeedAddresses[SeedIndex],
-                ~response->GetError().ToString());
+            LOG_WARNING("Error getting chunk info from holder\n%s", ~response->GetError().ToString());
 
             ++SeedIndex;
             if (SeedIndex < SeedAddresses.ysize()) {
