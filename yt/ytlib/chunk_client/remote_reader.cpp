@@ -266,20 +266,20 @@ private:
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> FetchedBlocks;
 
-    //! Holder addresses tried during the current retry.
-    yhash_set<Stroka> TriedAddresses;
-
     //! List of candidates to try.
-    yvector<Stroka> PeerAddresses;
+    yvector<Stroka> PeerAddressList;
+
+    //! Same as #PeerAddressList, but as a set.
+    yhash_set<Stroka> PeerAddressSet;
 
     //! Current index in #CandidateAddresses.
     int PeerIndex;
 
     void Cleanup()
     {
-        PeerAddresses.clear();
+        PeerAddressList.clear();
+        PeerAddressSet.clear();
         PeerIndex = 0;
-        TriedAddresses.clear();
     }
 
     void AddPeers(yvector<Stroka>& addresses)
@@ -287,12 +287,13 @@ private:
         // Remove duplicates and shuffle.
         std::sort(addresses.begin(), addresses.end());
         addresses.erase(std::unique(addresses.begin(), addresses.end()), addresses.end());
-        // TODO(babenko): use std::random_shuffle here but make sure is uses true randomness.
+        // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
         Shuffle(addresses.begin(), addresses.end());
 
         FOREACH (const auto& address, addresses) {
-            if (TriedAddresses.find(address) == TriedAddresses.end()) {
-                PeerAddresses.push_back(address);
+            if (PeerAddressSet.find(address) == PeerAddressSet.end()) {
+                PeerAddressList.push_back(address);
+                YVERIFY(PeerAddressSet.insert(address).second);
                 LOG_INFO("Peer added (Address: %s)", ~address);
             }
         }
@@ -333,8 +334,7 @@ private:
         YASSERT(response->Attachments().size() == blockCount);
 
         int receivedBlockCount = 0;
-        int oldPeerCount = PeerAddresses.ysize();
-
+        yvector<Stroka> receivedPeers;
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
             TBlockId blockId(Reader->ChunkId, blockIndex);
@@ -347,19 +347,19 @@ private:
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
             } else if (Reader->Config->EnablePeering) {
-                auto addresses = FromProto<Stroka>(blockInfo.peer_addresses());
-                if (!addresses.empty()) {
-                    LOG_INFO("Received peer addresses (BlockIndex: %d, PeerCount: %d)",
-                        blockIndex,
-                        addresses.ysize());
-                    AddPeers(addresses);
-                }
+                receivedPeers.insert(
+                    receivedPeers.begin(),
+                    blockInfo.peer_addresses().begin(),
+                    blockInfo.peer_addresses().end());
             }
         }
 
+        int oldPeerCount = PeerAddressList.ysize();
+        AddPeers(receivedPeers);
+
         LOG_INFO("Finished processing holder reply (BlocksReceived: %d, PeersAdded: %d)",
             receivedBlockCount,
-            PeerAddresses.ysize() - oldPeerCount);
+            PeerAddressList.ysize() - oldPeerCount);
     }
 
     virtual void OnGotSeeds()
@@ -379,13 +379,11 @@ private:
             return;
         }
 
-        auto address = PeerAddresses[PeerIndex];
+        auto address = PeerAddressList[PeerIndex];
 
         LOG_INFO("Requesting blocks from holder (Address: %s, BlockIndexes: [%s])",
             ~address,
             ~JoinToString(unfetchedBlockIndexes));
-
-        YVERIFY(TriedAddresses.insert(address).second);
 
         auto channel = HolderChannelCache->GetChannel(address);
 
@@ -417,7 +415,7 @@ private:
         }
 
         ++PeerIndex;
-        if (PeerIndex < PeerAddresses.ysize()) {
+        if (PeerIndex < PeerAddressList.ysize()) {
             RequestBlocks();
         } else {
             OnRetryFailed(TError("Unable to fetch all chunk blocks"));
