@@ -281,6 +281,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                             LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
                         } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
                             // This is really sad. We neither have the full chunk nor this particular block.
+                            blockInfo->set_data_attached(false);
                             LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
                         } else {
                             // Something went wrong while fetching the block.
@@ -305,9 +306,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
             // Register the peer that we had just sent the reply to.
             if (request->has_peer_address() && request->has_peer_expiration_time()) {
-                TPeerInfo peer(
-                    request->peer_address(),
-                    TInstant(request->peer_expiration_time()));
+                TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
                 FOREACH (auto& block, *blocks) {
                     if (block) {
                         block->AddPeer(peer);
