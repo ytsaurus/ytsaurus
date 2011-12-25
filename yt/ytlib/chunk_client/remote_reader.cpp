@@ -4,10 +4,10 @@
 
 #include "../misc/foreach.h"
 #include "../misc/string.h"
-#include "../misc/metric.h"
 #include "../misc/thread_affinity.h"
+#include "../misc/delayed_invoker.h"
 #include "../logging/tagged_logger.h"
-#include "../actions/action_util.h"
+#include "../chunk_server/chunk_service_proxy.h"
 #include "../chunk_holder/chunk_holder_service_proxy.h"
 
 #include <util/random/shuffle.h>
@@ -15,13 +15,17 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NRpc;
+using namespace NChunkHolder;
 using namespace NChunkHolder::NProto;
+using namespace NChunkServer;
+using namespace NChunkServer::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkClientLogger;
-
-///////////////////////////////////////////////////////////////////////////////
+class TSessionBase;
+class TReadSession;
+class TGetInfoSession;
 
 class TRemoteReader
     : public IAsyncReader
@@ -31,284 +35,520 @@ public:
     typedef TRemoteReaderConfig TConfig;
 
     TRemoteReader(
-        TConfig* config,
+        TRemoteReaderConfig* config,
+        IBlockCache* blockCache,
+        IChannel* masterChannel,
         const TChunkId& chunkId,
-        const yvector<Stroka>& holderAddresses);
+        const yvector<Stroka>& seedAddresses,
+        const TPeerInfo& peer)
+        : Config(config)
+        , BlockCache(blockCache)
+        , ChunkId(chunkId)
+        , Peer(peer)
+        , Logger(ChunkClientLogger)
+    {
+        Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-    TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+        if (seedAddresses.empty()) {
+            LOG_INFO("Reader created, no seeds are given");
+        } else {
+            GetSeedsResult = ToFuture(TGetSeedsResult(seedAddresses));
+            LOG_INFO("Reader created (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
+        }
 
-    TFuture<IAsyncReader::TGetInfoResult>::TPtr AsyncGetChunkInfo();
+        Proxy = new TProxy(masterChannel);
+        Proxy->SetTimeout(config->MasterRpcTimeout);
+    }
+
+    TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
+
+    typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
+    typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
+
+    TAsyncGetSeedsResult::TPtr AsyncGetSeeds()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(SpinLock);
+        if (!GetSeedsResult) {
+            LOG_INFO("Fresh chunk seeds are needed");
+            GetSeedsResult = New<TAsyncGetSeedsResult>();
+            TDelayedInvoker::Submit(
+                ~FromMethod(&TRemoteReader::DoFindChunk, TPtr(this)),
+                LastFindChunkTime + Config->BackoffTime);
+        }
+
+        return GetSeedsResult;
+    }
+
+    void DiscardSeeds(TAsyncGetSeedsResult* result)
+    {
+        YASSERT(result);
+        YASSERT(result->IsSet());
+
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (GetSeedsResult != result)
+            return;
+
+        YASSERT(GetSeedsResult->IsSet());
+        GetSeedsResult.Reset();
+    }
 
 private:
-    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
+    friend class TSessionBase;
+    friend class TReadSession;
+    friend class TGetInfoSession;
 
-    void DoReadBlocks(
-        const yvector<int>& blockIndexes, 
-        TFuture<TReadResult>::TPtr result);
+    typedef TChunkServiceProxy TProxy;
 
-    void OnBlocksRead(
-        TProxy::TRspGetBlocks::TPtr response,
-        TFuture<TReadResult>::TPtr result,
-        const yvector<int>& blockIndexes,
-        int holderIndex);
-
-    void DoGetChunkInfo(
-        TFuture<TGetInfoResult>::TPtr result);
-
-    void OnGotChunkInfo(
-        TProxy::TRspGetChunkInfo::TPtr response,
-        TFuture<TGetInfoResult>::TPtr result,
-        int holderIndex);
-
-    bool GetCurrentHolderIndex(int* holderIndex) const;
-    bool OnCurrentHolderFailed(int holderIndex, const TError& error);
-
-    TError GetCumulativeError() const;
-
-    TConfig::TPtr Config;
-    const TChunkId ChunkId;
-
-    yvector<Stroka> HolderAddresses;
-
-    TMetric ExecutionTime;
-
+    TRemoteReaderConfig::TPtr Config;
+    IBlockCache::TPtr BlockCache;
+    TChunkId ChunkId;
+    TPeerInfo Peer;
     NLog::TTaggedLogger Logger;
 
-    TSpinLock SpinLock;
-    int CurrentHolderIndex;
-    Stroka CumulativeErrorMessage;
-    TError CumulativeError;
+    TAutoPtr<TProxy> Proxy;
 
+    TSpinLock SpinLock;
+    TAsyncGetSeedsResult::TPtr GetSeedsResult;
+    TInstant LastFindChunkTime;
+
+    void DoFindChunk()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_INFO("Asking the master about seeds");
+
+        auto request = Proxy->FindChunk();
+        request->set_chunkid(ChunkId.ToProto());
+        request->Invoke()->Subscribe(FromMethod(&TRemoteReader::OnChunkFound, TPtr(this)));
+    }
+
+    void OnChunkFound(TProxy::TRspFindChunk::TPtr response)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YASSERT(GetSeedsResult);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            LastFindChunkTime = TInstant::Now();
+        }
+
+        if (response->IsOK()) {
+            const auto& seedAddresses = FromProto<Stroka>(response->holderaddresses());
+            if (seedAddresses.empty()) {
+                auto message = Stroka("Chunk is lost");
+                LOG_WARNING("%s", ~message);
+                GetSeedsResult->Set(TError(message));
+            } else {
+                LOG_INFO("Chunk seeds found (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
+                GetSeedsResult->Set(seedAddresses);
+            }
+        } else {
+            auto message = Sprintf("Error requesting chunk seeds from master\n%s",
+                ~response->GetError().ToString());
+            LOG_WARNING("%s", ~message);
+            GetSeedsResult->Set(TError(message));
+        }
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteReader::TRemoteReader(
-    TConfig* config,
-    const TChunkId& chunkId,
-    const yvector<Stroka>& holderAddresses)
-    : Config(config)
-    , ChunkId(chunkId)
-    , HolderAddresses(holderAddresses)
-    , ExecutionTime(0, 1000, 20)
-    , CurrentHolderIndex(0)
-    , Logger(ChunkClientLogger)
+class TSessionBase
+    : public TRefCountedBase
 {
-    YASSERT(config);
+protected:
+    typedef TIntrusivePtr<TSessionBase> TPtr;
 
-    Shuffle(HolderAddresses.begin(), HolderAddresses.end());
+    TRemoteReader::TPtr Reader;
+    int RetryIndex;
+    TRemoteReader::TAsyncGetSeedsResult::TPtr GetSeedsResult;
+    NLog::TTaggedLogger Logger;
+    yvector<Stroka> SeedAddresses;
 
-    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
-    LOG_DEBUG("Reader created (Addresses: [%s])", ~JoinToString(HolderAddresses));
-}
+    TSessionBase(TRemoteReader* reader)
+        : Reader(reader)
+        , RetryIndex(0)
+        , Logger(ChunkClientLogger)
+    { }
 
-TFuture<IAsyncReader::TReadResult>::TPtr
-TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
+    void NewRetry()
+    {
+        YASSERT(!GetSeedsResult);
 
-    auto result = New< TFuture<TReadResult> >();
-    DoReadBlocks(blockIndexes, result);
-    return result;
-}
+        LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
-void TRemoteReader::DoReadBlocks(
-    const yvector<int>& blockIndexes, 
-    TFuture<TReadResult>::TPtr result)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    int holderIndex;
-    if (!GetCurrentHolderIndex(&holderIndex)) {
-        result->Set(GetCumulativeError());
-        return;
-    }
-    auto holderAddress = HolderAddresses[holderIndex];
-
-    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: [%s])",
-        ~holderAddress,
-        ~JoinToString(blockIndexes));
-
-    TProxy proxy(~HolderChannelCache->GetChannel(HolderAddresses[holderIndex]));
-    proxy.SetTimeout(Config->HolderRpcTimeout);
-
-    auto request = proxy.GetBlocks();
-    request->set_chunk_id(ChunkId.ToProto());
-
-    FOREACH(auto index, blockIndexes) {
-        request->add_block_indexes(index);
+        TPtr this_ = this;
+        GetSeedsResult = Reader->AsyncGetSeeds();
+        GetSeedsResult->Subscribe(FromFunctor([=] (TRemoteReader::TGetSeedsResult result)
+            {
+                if (result.IsOK()) {
+                    SeedAddresses = result.Value();
+                    this_->OnGotSeeds();
+                } else {
+                    OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n",
+                        RetryIndex,
+                        ~result.ToString())));
+                }
+            }));
     }
 
-    request->Invoke()->Subscribe(FromMethod(
-        &TRemoteReader::OnBlocksRead, 
-        TPtr(this), 
-        result,
-        blockIndexes,
-        holderIndex));
-}
-
-void TRemoteReader::OnBlocksRead(
-    TProxy::TRspGetBlocks::TPtr response,
-    TFuture<TReadResult>::TPtr asyncResult, 
-    const yvector<int>& blockIndexes,
-    int holderIndex)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (response->IsOK()) {
-        LOG_DEBUG("Blocks received (HolderAddress: %s)", ~HolderAddresses[holderIndex]);
-        ExecutionTime.AddDelta(response->GetStartTime());
-        asyncResult->Set(TReadResult(MoveRV(response->Attachments())));
-        return;
-    }
-    
-    LOG_WARNING("Error requesting blocks from holder (HolderAddress: %s)%s",
-        ~HolderAddresses[holderIndex],
-        ~response->GetError().ToString());
-
-    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
-        DoReadBlocks(blockIndexes, asyncResult);
-        return;
-    }
-
-    asyncResult->Set(GetCumulativeError());
-}
-
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TRemoteReader::AsyncGetChunkInfo()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    LOG_DEBUG("Getting chunk info");
-
-    auto result = New< TFuture<TGetInfoResult> >();
-    DoGetChunkInfo(result);
-    return result;
-}
-
-void TRemoteReader::DoGetChunkInfo(TFuture<TGetInfoResult>::TPtr result)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    
-    int holderIndex;
-    if (!GetCurrentHolderIndex(&holderIndex)) {
-        result->Set(GetCumulativeError());
-        return;
-    }
-    auto holderAddress = HolderAddresses[holderIndex];
-
-    TProxy proxy(~HolderChannelCache->GetChannel(holderAddress));
-    proxy.SetTimeout(Config->HolderRpcTimeout);
-    
-    auto request = proxy.GetChunkInfo();
-    request->set_chunk_id(ChunkId.ToProto());
-
-    LOG_DEBUG("Requesting chunk info from holder (HolderAddress: %s)", ~holderAddress);
-
-    return request->Invoke()->Subscribe(FromMethod(
-        &TRemoteReader::OnGotChunkInfo,
-        TPtr(this),
-        result,
-        holderIndex));
-}
-
-void TRemoteReader::OnGotChunkInfo(
-    TProxy::TRspGetChunkInfo::TPtr response,
-    TFuture<TGetInfoResult>::TPtr asyncResult,
-    int holderIndex)
-{
-    if (response->IsOK()) {
-        LOG_DEBUG("Chunk info received (HolderAddress: %s)", ~HolderAddresses[holderIndex]);
-        asyncResult->Set(response->chunk_info());
-        return;
-    }
-    
-    LOG_WARNING("Error requesting chunk info (HolderAddress: %s)%s",
-        ~HolderAddresses[holderIndex],
-        ~response->GetError().ToString());
-
-    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
-        DoGetChunkInfo(asyncResult);
-        return;
-    }
-
-    auto error = GetCumulativeError();
-    asyncResult->Set(error);
-}
-
-bool TRemoteReader::GetCurrentHolderIndex(int* holderIndex) const
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    if (CurrentHolderIndex < HolderAddresses.ysize()) {
-        *holderIndex = CurrentHolderIndex;
-        return true;
-    } else {
-        return false;
-    }
-}
-
-bool TRemoteReader::OnCurrentHolderFailed(int holderIndex, const TError& error)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(!error.IsOK());
-
-    TGuard<TSpinLock> guard(SpinLock);
-
-    YASSERT(holderIndex <= CurrentHolderIndex);
-
-    if (holderIndex == CurrentHolderIndex) {
-        CumulativeErrorMessage += Sprintf("\n[%s] %s",
-            ~HolderAddresses[holderIndex],
+    void OnRetryFailed(const TError& error)
+    {
+        LOG_INFO("Retry failed (RetryIndex: %d)\n%s",
+            RetryIndex,
             ~error.ToString());
 
-        ++CurrentHolderIndex;
+        YASSERT(GetSeedsResult);
+        Reader->DiscardSeeds(~GetSeedsResult);
 
-        if (CurrentHolderIndex >= HolderAddresses.ysize()) {
-            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)%s",
-                ~ChunkId.ToString(),
-                ~CumulativeErrorMessage));
-
-            LOG_WARNING("%s", ~CumulativeError.ToString());
+        if (RetryIndex < Reader->Config->RetryCount) {
+            ++RetryIndex;
+            NewRetry();
+        } else {
+            OnSessionFailed(TError(Sprintf("All retries failed (RetryCount: %d)",
+                RetryIndex)));
         }
     }
 
-    return CumulativeError.IsOK();
-}
+    virtual void OnGotSeeds() = 0;
+    virtual void OnSessionFailed(const TError& error) = 0;
 
-TError TRemoteReader::GetCumulativeError() const
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TReadSession
+    : public TSessionBase
 {
-    YASSERT(!CumulativeError.IsOK());
-    return CumulativeError;
+public:
+    typedef TIntrusivePtr<TReadSession> TPtr;
+
+    TReadSession(TRemoteReader* reader, const yvector<int>& blockIndexes)
+        : TSessionBase(reader)
+        , AsyncResult(New<IAsyncReader::TAsyncReadResult>())
+        , BlockIndexes(blockIndexes)
+    {
+        // TODO: use stack here
+        Logger.SetTag(Sprintf("ChunkId: %s, ReadSession: %p",
+            ~Reader->ChunkId.ToString(),
+            this));
+
+        FetchBlocksFromCache();
+
+        if (GetUnfetchedBlockIndexes().empty()) {
+            LOG_INFO("All chunk blocks are fetched from cache");
+            OnSessionSucceeded();
+        } else {
+            NewRetry();
+        }
+    }
+
+    IAsyncReader::TAsyncReadResult::TPtr GetAsyncResult() const
+    {
+        return AsyncResult;
+    }
+
+private:
+    //! Async result representing the session.
+    IAsyncReader::TAsyncReadResult::TPtr AsyncResult;
+
+    //! Block indexes to read during the session.
+    yvector<int> BlockIndexes;
+
+    //! Blocks that are fetched so far.
+    yhash_map<int, TSharedRef> FetchedBlocks;
+
+    //! Holder addresses tried during the current retry.
+    yhash_set<Stroka> TriedAddresses;
+
+    //! List of candidates to try.
+    yvector<Stroka> PeerAddresses;
+
+    //! Current index in #CandidateAddresses.
+    int PeerIndex;
+
+    void Cleanup()
+    {
+        PeerAddresses.clear();
+        PeerIndex = 0;
+        TriedAddresses.clear();
+    }
+
+    void AddPeers(yvector<Stroka>& addresses)
+    {
+        Shuffle(addresses.begin(), addresses.end());
+        FOREACH (const auto& address, addresses) {
+            if (TriedAddresses.find(address) == TriedAddresses.end()) {
+                PeerAddresses.push_back(address);
+                LOG_INFO("Peer added (Address: %s)", ~address);
+            }
+        }
+    }
+
+    yvector<int> GetUnfetchedBlockIndexes()
+    {
+        yvector<int> result;
+        result.reserve(BlockIndexes.size());
+        FOREACH (int blockIndex, BlockIndexes) {
+            if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
+                result.push_back(blockIndex);
+            }
+        }
+        return result;
+    }
+
+    void FetchBlocksFromCache()
+    {
+        FOREACH (int blockIndex, BlockIndexes) {
+            if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
+                TBlockId blockId(Reader->ChunkId, blockIndex);
+                auto block = Reader->BlockCache->Find(blockId);
+                if (block) {
+                    LOG_INFO("Block is fetched from cache (BlockIndex: %d)", blockIndex);
+                    YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
+                }
+            }
+        }
+    }
+
+    void ProcessesReceivedBlocks(
+        TChunkHolderServiceProxy::TReqGetBlocks* request,
+        TChunkHolderServiceProxy::TRspGetBlocks* response)
+    {
+        size_t blockCount = request->block_indexes_size();
+        YASSERT(response->blocks_size() == blockCount);
+        YASSERT(response->Attachments().size() == blockCount);
+
+        for (int index = 0; index < static_cast<int>(blockCount); ++index) {
+            int blockIndex = request->block_indexes(index);
+            TBlockId blockId(Reader->ChunkId, blockIndex);
+            const auto& blockInfo = response->blocks(index);
+            if (blockInfo.data_attached()) {
+                LOG_INFO("Block is fetched from holder (BlockIndex: %d)", blockIndex);
+                auto block = response->Attachments()[index];
+                YASSERT(block);
+                Reader->BlockCache->Put(blockId, block);
+                YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
+            } else {
+                auto addresses = FromProto<Stroka>(blockInfo.peer_addresses());
+                if (!addresses.empty()) {
+                    LOG_INFO("Received peer addresses (BlockIndex: %d, PeerCount: %d)",
+                        blockIndex,
+                        addresses.ysize());
+                    AddPeers(addresses);
+                }
+            }
+        }
+    }
+
+    virtual void OnGotSeeds()
+    {
+        Cleanup();
+        AddPeers(SeedAddresses);
+        RequestBlocks();
+    }
+
+    void RequestBlocks()
+    {
+        TPtr this_ = this;
+
+        FetchBlocksFromCache();
+
+        auto unfetchedBlockIndexes = GetUnfetchedBlockIndexes();
+        if (unfetchedBlockIndexes.empty()) {
+            OnSessionSucceeded();
+            return;
+        }
+
+        auto address = PeerAddresses[PeerIndex];
+
+        LOG_INFO("Requesting blocks from holder (Address: %s, BlockIndexes: %s)",
+            ~address,
+            ~JoinToString(unfetchedBlockIndexes));
+
+        auto channel = HolderChannelCache->GetChannel(address);
+
+        TChunkHolderServiceProxy proxy(~channel);
+        proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+
+        auto request = proxy.GetBlocks();
+        request->set_chunk_id(Reader->ChunkId.ToProto());
+        ToProto(*request->mutable_block_indexes(), unfetchedBlockIndexes);
+        if (!Reader->Peer.IsNull()) {
+            request->set_peer_address(Reader->Peer.Address);
+            request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
+        }
+
+        request->Invoke()->Subscribe(FromFunctor([=] (TChunkHolderServiceProxy::TRspGetBlocks::TPtr response)
+        {
+            if (response->IsOK()) {
+                ProcessesReceivedBlocks(~request, ~response);
+            } else {
+                LOG_WARNING("Error getting blocks from holder (Address: %s)\n%s",
+                    ~address,
+                    ~response->GetError().ToString());
+
+                if (PeerIndex < PeerAddresses.ysize()) {
+                    ++PeerIndex;
+                    RequestBlocks();
+                } else {
+                    OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+                }
+            }
+        }));
+    }
+
+    virtual void OnSessionSucceeded()
+    {
+        LOG_INFO("All chunk blocks are fetched");
+
+        yvector<TSharedRef> blocks;
+        blocks.reserve(BlockIndexes.size());
+        FOREACH (int blockIndex, BlockIndexes) {
+            auto block = FetchedBlocks[blockIndex];
+            YASSERT(block);
+            blocks.push_back(block);
+        }
+        AsyncResult->Set(IAsyncReader::TReadResult(blocks));
+    }
+
+    virtual void OnSessionFailed(const TError& error)
+    {
+        TError wrappedError(Sprintf("Error fetching chunk blocks\n%s",
+            ~error.ToString()));
+
+        LOG_ERROR("%s", ~wrappedError.ToString());
+
+        AsyncResult->Set(wrappedError);
+    }
+};
+
+TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    return New<TReadSession>(this, blockIndexes)->GetAsyncResult();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TRemoteReaderFactory
-    : public IRemoteReaderFactory
+class TGetInfoSession
+    : public TSessionBase
 {
 public:
-    TRemoteReaderFactory(TRemoteReaderConfig* config)
-        : Config(config)
-    { }
+    typedef TIntrusivePtr<TGetInfoSession> TPtr;
 
-    virtual IAsyncReader::TPtr Create(
-        const TChunkId& chunkId,
-        const yvector<Stroka>& holderAddresses)
+    TGetInfoSession(TRemoteReader* reader)
+        : TSessionBase(reader)
+        , AsyncResult(New<IAsyncReader::TAsyncGetInfoResult>())
+        , SeedIndex(0)
     {
-        return New<TRemoteReader>(
-            ~Config,
-            chunkId,
-            holderAddresses);
+        // TODO: use stack here
+        Logger.SetTag(Sprintf("ChunkId: %s, GetInfoSession: %p",
+            ~Reader->ChunkId.ToString(),
+            this));
+
+        NewRetry();
+    }
+
+    IAsyncReader::TAsyncGetInfoResult::TPtr GetAsyncResult() const
+    {
+        return AsyncResult;
     }
 
 private:
-    TRemoteReaderConfig::TPtr Config;
+    //! Async result representing the session.
+    IAsyncReader::TAsyncGetInfoResult::TPtr AsyncResult;
 
+    //! Current index in #SeedAddresses.
+    int SeedIndex;
+
+    void RequestInfo()
+    {
+        TPtr this_ = this;
+
+        auto address = SeedAddresses[SeedIndex];
+
+        LOG_INFO("Requesting chunk info from holder (Address: %s)", ~address);
+
+        auto channel = HolderChannelCache->GetChannel(address);
+
+        TChunkHolderServiceProxy proxy(~channel);
+        proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+
+        auto request = proxy.GetChunkInfo();
+        request->set_chunk_id(Reader->ChunkId.ToProto());
+        request->Invoke()->Subscribe(FromFunctor([=] (TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)
+            {
+                if (response->IsOK()) {
+                    OnSessionSucceeded(response->chunk_info());
+                } else {
+                    LOG_WARNING("Error getting chunk info from holder (Address: %s)\n%s",
+                        ~address,
+                        ~response->GetError().ToString());
+
+                    if (SeedIndex < SeedAddresses.ysize()) {
+                        ++SeedIndex;
+                        RequestInfo();
+                    } else {
+                        OnRetryFailed(TError("Unable to get chunk info"));
+                    }
+                }
+            }));
+    }
+
+    virtual void OnGotSeeds()
+    {
+        RequestInfo();
+    }
+
+    void OnSessionSucceeded(const TChunkInfo& info)
+    {
+        LOG_INFO("Chunk info is obtained");
+        AsyncResult->Set(IAsyncReader::TGetInfoResult(info));
+    }
+
+    virtual void OnSessionFailed(const TError& error)
+    {
+        TError wrappedError(Sprintf("Error getting chunk info\n%s",
+            ~error.ToString()));
+
+        LOG_ERROR("%s", ~wrappedError.ToString());
+
+        AsyncResult->Set(wrappedError);
+    }
 };
 
-IRemoteReaderFactory::TPtr CreateRemoteReaderFactory(TRemoteReaderConfig* config)
+TRemoteReader::TAsyncGetInfoResult::TPtr TRemoteReader::AsyncGetChunkInfo()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    return New<TGetInfoSession>(this)->GetAsyncResult();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+IAsyncReader::TPtr CreateRemoteReader(
+    TRemoteReaderConfig* config,
+    IBlockCache* blockCache,
+    NRpc::IChannel* masterChannel,
+    const TChunkId& chunkId,
+    const yvector<Stroka>& seedAddresses,
+    const TPeerInfo& peer)
 {
     YASSERT(config);
-    return New<TRemoteReaderFactory>(config);
+    YASSERT(blockCache);
+    YASSERT(masterChannel);
+
+    return New<TRemoteReader>(
+        config,
+        blockCache,
+        masterChannel,
+        chunkId,
+        seedAddresses,
+        peer);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

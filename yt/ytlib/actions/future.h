@@ -20,7 +20,7 @@ class TFuture
     volatile bool IsSet_;
     T Value;
     mutable TSpinLock SpinLock;
-    mutable THolder<Event> ReadyEvent;
+    mutable ::THolder<Event> ReadyEvent;
 
     yvector<typename IParamAction<T>::TPtr> Subscribers;
 

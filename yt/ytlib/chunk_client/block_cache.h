@@ -23,13 +23,13 @@ struct IBlockCache
     /*!
      *  If a block with the given id is already present, then the request is ignored.
      */
-    void Put(const TBlockId& id, const TSharedRef& data);
+    virtual void Put(const TBlockId& id, const TSharedRef& data) = 0;
 
     //! Fetches a block from the cache.
     /*!
      *  If no such block is present, then NULL is returned.
      */
-    TSharedRef Find(const TBlockId& id);
+    virtual TSharedRef Find(const TBlockId& id) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

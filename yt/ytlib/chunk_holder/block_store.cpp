@@ -85,11 +85,11 @@ public:
     TStoreImpl(
         TChunkHolderConfig* config,
         TChunkStore* chunkStore,
-        TChunkCache* chunkCache,
+//        TChunkCache* chunkCache,
         TReaderCache* readerCache)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , ChunkStore(chunkStore)
-        , ChunkCache(chunkCache)
+//        , ChunkCache(chunkCache)
         , ReaderCache(readerCache)
         , PendingReadSize_(0)
     { }
@@ -169,6 +169,9 @@ public:
     }
 
 private:
+    // TODO(babenko): fix this
+    friend class TBlockStore;
+
     TChunkStore::TPtr ChunkStore;
     TChunkCache::TPtr ChunkCache;
     TReaderCache::TPtr ReaderCache;
@@ -267,12 +270,12 @@ private:
 TBlockStore::TBlockStore(
     TChunkHolderConfig* config,
     TChunkStore* chunkStore,
-    TChunkCache* chunkCache,
+    //TChunkCache* chunkCache,
     TReaderCache* readerCache)
     : StoreImpl(New<TStoreImpl>(
         config,
         chunkStore,
-        chunkCache,
+//        chunkCache,
         readerCache))
     , CacheImpl(New<TCacheImpl>(~StoreImpl))
 { }
@@ -280,6 +283,11 @@ TBlockStore::TBlockStore(
 TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
     return StoreImpl->Get(blockId);
+}
+
+TCachedBlock::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
+{
+    return StoreImpl->Find(blockId);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
@@ -292,9 +300,14 @@ i64 TBlockStore::GetPendingReadSize() const
     return StoreImpl->GetPendingReadSize();
 }
 
-IBlockCache* TBlockStore::GetCache()
+IBlockCache* TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
+}
+
+void TBlockStore::SetChunkCache(TChunkCache* chunkCache)
+{
+    StoreImpl->ChunkCache = chunkCache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

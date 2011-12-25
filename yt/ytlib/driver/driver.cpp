@@ -12,6 +12,7 @@
 #include "../ytree/yson_reader.h"
 #include "../ytree/ephemeral.h"
 #include "../election/cell_channel.h"
+#include "../chunk_client/client_block_cache.h"
 
 namespace NYT {
 namespace NDriver {
@@ -20,6 +21,7 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NElection;
 using namespace NTransactionClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +112,9 @@ public:
         YASSERT(streamProvider);
 
         MasterChannel = CreateCellChannel(~config->Masters);
+
+        // TODO: make configurable
+        BlockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
 
         TransactionManager = New<TTransactionManager>(
             ~config->TransactionManager,
@@ -212,6 +217,11 @@ public:
     }
 
 
+    virtual IBlockCache* GetBlockCache()
+    {
+        return ~BlockCache;
+    }
+
     virtual TTransactionManager* GetTransactionManager()
     {
         return ~TransactionManager;
@@ -241,6 +251,7 @@ private:
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
+    IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
     ITransaction::TPtr Transaction;
 

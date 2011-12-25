@@ -20,6 +20,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         ~config,
         DriverImpl->GetMasterChannel(),
         DriverImpl->GetCurrentTransaction(),
+        DriverImpl->GetBlockCache(),
         request->Path);
 
     auto output = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));

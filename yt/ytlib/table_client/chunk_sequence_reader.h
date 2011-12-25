@@ -4,7 +4,8 @@
 #include "reader.h"
 #include "chunk_reader.h"
 
-#include "../chunk_client/retriable_reader.h"
+#include "../chunk_client/block_cache.h"
+#include "../chunk_client/remote_reader.h"
 #include "../transaction_client/transaction.h"
 #include "../misc/async_stream_state.h"
 
@@ -24,13 +25,11 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        NChunkClient::TRetriableReader::TConfig::TPtr RetriableReader;
         NChunkClient::TRemoteReaderConfig::TPtr RemoteReader;
         NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
 
         TConfig()
         {
-            Register("retriable_reader", RetriableReader).DefaultNew();
             Register("remote_reader", RemoteReader).DefaultNew();
             Register("sequential_reader", SequentialReader).DefaultNew();
         }
@@ -41,8 +40,10 @@ public:
         const TChannel& channel,
         const NTransactionClient::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
+        NChunkClient::IBlockCache* blockCache,
         // ToDo: use rvalue reference.
-        const yvector<NChunkClient::TChunkId>& chunks,
+        const yvector<NChunkClient::TChunkId>& chunkIds,
+        // TODO(babenko): fixme, make i64
         int startRow,
         int endRow);
 
@@ -69,12 +70,13 @@ private:
     void OnNextRow(TError error);
 
 
-    const TConfig::TPtr Config;
-    const TChannel Channel;
-    const NTransactionClient::TTransactionId TransactionId;
-    const yvector<NChunkClient::TChunkId> ChunkIds;
-    const int StartRow;
-    const int EndRow;
+    TConfig::TPtr Config;
+    TChannel Channel;
+    NChunkClient::IBlockCache::TPtr BlockCache;
+    NTransactionClient::TTransactionId TransactionId;
+    yvector<NChunkClient::TChunkId> ChunkIds;
+    int StartRow;
+    int EndRow;
 
     NRpc::IChannel::TPtr MasterChannel;
 

@@ -6,8 +6,6 @@
 namespace NYT {
 namespace NTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,11 +15,13 @@ TChunkSequenceReader::TChunkSequenceReader(
     const TChannel& channel,
     const NTransactionClient::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
+    NChunkClient::IBlockCache* blockCache,
     const yvector<NChunkClient::TChunkId>& chunkIds,
     int startRow,
     int endRow)
     : Config(config)
     , Channel(channel)
+    , BlockCache(blockCache)
     , TransactionId(transactionId)
     , ChunkIds(chunkIds)
     , StartRow(startRow)
@@ -44,23 +44,25 @@ void TChunkSequenceReader::PrepareNextChunk()
         return;
     }
 
-    auto remoteReaderFactory = CreateRemoteReaderFactory(~Config->RemoteReader);
-    auto retriableReader = New<TRetriableReader>(
-        ~Config->RetriableReader,
-        ChunkIds[NextChunkIndex],
-        yvector<Stroka>(),
-        TransactionId,
+    auto remoteReader = CreateRemoteReader(
+        ~Config->RemoteReader,
+        ~BlockCache,
         ~MasterChannel,
-        ~remoteReaderFactory);
+        ChunkIds[NextChunkIndex]);
 
-    int startRow = NextChunkIndex == 0 ? StartRow : 0;
-    int endRow = NextChunkIndex == ChunkIds.ysize() - 1 ? 
-        EndRow : std::numeric_limits<int>::max();
+    int startRow =
+        NextChunkIndex == 0
+        ? StartRow
+        : 0;
+    int endRow =
+        NextChunkIndex == ChunkIds.ysize() - 1
+        ?  EndRow
+        : std::numeric_limits<int>::max();
 
-    TChunkReader::TPtr chunkReader = New<TChunkReader>(
+    auto chunkReader = New<TChunkReader>(
         ~Config->SequentialReader,
         Channel,
-        ~retriableReader,
+        ~remoteReader,
         startRow,
         endRow);
 

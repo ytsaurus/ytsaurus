@@ -11,6 +11,7 @@
 #include "../ytree/yson_writer.h"
 #include "../ytree/fluent.h"
 #include "../rpc/channel.h"
+#include "../chunk_client/block_cache.h"
 #include "../transaction_client/transaction.h"
 #include "../transaction_client/transaction_manager.h"
 
@@ -36,6 +37,7 @@ struct IDriverImpl
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = Stroka()) = 0;
 
+    virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
     virtual NTransactionClient::TTransactionId GetCurrentTransactionId() = 0;
     virtual NTransactionClient::ITransaction* GetCurrentTransaction(bool required = false) = 0;

@@ -8,23 +8,23 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TClientCacheConfig
+struct TClientBlockCacheConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TClientCacheConfig> TPtr;
+    typedef TIntrusivePtr<TClientBlockCacheConfig> TPtr;
 
     //! The maximum number of bytes that block are allowed to occupy.
     //! Zero means that no blocks are cached.
     i64 MaxSize;
 
-    TClientCacheConfig()
+    TClientBlockCacheConfig()
     {
         Register("max_size", MaxSize).Default(0).GreaterThanOrEqual(0);
     }
 };
 
 //! Creates a simple client-side block cache.
-IBlockCache::TPtr CreateClientBlockCache(TClientCacheConfig* config);
+IBlockCache::TPtr CreateClientBlockCache(TClientBlockCacheConfig* config);
 
 ///////////////////////////////////////////////////////////////////////////////
 

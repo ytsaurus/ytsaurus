@@ -201,6 +201,20 @@ inline void ToProto(
     }
 }
 
+template <class T>
+inline void ToProto(
+    ::google::protobuf::RepeatedField<T>& proto,
+    const yvector<T>& array,
+    bool clear = true)
+{
+    if (clear) {
+        proto.Clear();
+    }
+    for (int i = 0; i < array.ysize(); ++i) {
+        *proto.Add() = array[i];
+    }
+}
+
 template <class TArrayItem, class TProtoItem>
 inline yvector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)

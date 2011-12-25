@@ -86,15 +86,19 @@ void TChunkHolderBootstrap::Run()
         ~Config,
         ~readerCache);
 
-    auto chunkCache = New<TChunkCache>(
-        ~Config,
-        ~readerCache);
-
     auto blockStore = New<TBlockStore>(
         ~Config,
         ~chunkStore,
-        ~chunkCache,
+        //~chunkCache,
         ~readerCache);
+
+    auto chunkCache = New<TChunkCache>(
+        ~Config,
+        ~readerCache,
+        ~blockStore);
+
+    // TODO(babenko): fix this
+    blockStore->SetChunkCache(~chunkCache);
 
     auto sessionManager = New<TSessionManager>(
         ~Config,

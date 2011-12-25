@@ -17,6 +17,7 @@ TTableReader::TTableReader(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
+    NChunkClient::IBlockCache* blockCache,
     const TChannel& readChannel,
     const TYPath& path)
     : Config(config)
@@ -44,9 +45,11 @@ TTableReader::TTableReader(
         readChannel,
         transactionId,
         masterChannel,
+        blockCache,
         FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunkids()),
         0,
-        INT_MAX);
+        // TODO(babenko): fixme, make i64
+        std::numeric_limits<int>::max());
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {

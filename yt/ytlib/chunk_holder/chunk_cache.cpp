@@ -38,7 +38,8 @@ public:
 
     TImpl(
         TChunkHolderConfig* config,
-        TLocation* location)
+        TLocation* location,
+        TBlockStore* blockStore)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
         , Location(location)
@@ -83,6 +84,7 @@ public:
 private:
     TChunkHolderConfig::TPtr Config;
     TLocation::TPtr Location;
+    TBlockStore::TPtr BlockStore;
     IChannel::TPtr MasterChannel;
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
@@ -135,18 +137,21 @@ private:
                 LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
             }
 
-            auto readerFactory = CreateRemoteReaderFactory(~Owner->Config->CacheRemoteReader);
+            // TODO(babenko): refactor
+            TPeerInfo peer(
+                Sprintf("%s:%d", ~HostName(), Owner->Config->RpcPort),
+                TInstant::Now() + TDuration::Seconds(60));
 
-            RetriableReader = New<TRetriableReader>(
-                ~Owner->Config->CacheRetriableReader,
+            RemoteReader = CreateRemoteReader(
+                ~Owner->Config->CacheRemoteReader,
+                Owner->BlockStore->GetBlockCache(),
+                ~Owner->MasterChannel,
                 ChunkId,
                 yvector<Stroka>(),
-                NullTransactionId,
-                ~Owner->MasterChannel,
-                ~readerFactory);
+                peer);
 
             LOG_INFO("Getting chunk info from holders");
-            RetriableReader->AsyncGetChunkInfo()->Subscribe(
+            RemoteReader->AsyncGetChunkInfo()->Subscribe(
                 FromMethod(&TThis::OnGotChunkInfo, TPtr(this))
                 ->Via(Invoker));
         }
@@ -158,7 +163,7 @@ private:
         IInvoker::TPtr Invoker;
 
         TChunkFileWriter::TPtr FileWriter;
-        TRetriableReader::TPtr RetriableReader;
+        IAsyncReader::TPtr RemoteReader;
         TSequentialReader::TPtr SequentialReader;
         TChunkInfo ChunkInfo;
         int BlockCount;
@@ -169,8 +174,7 @@ private:
         void OnGotChunkInfo(IAsyncReader::TGetInfoResult result)
         {
             if (!result.IsOK()) {
-                auto message = Sprintf("Error requesting chunk info from holders\n%s", ~result.ToString());
-                OnError(TError(EErrorCode::HolderError, message));
+                OnError(result);
                 return;
             }
 
@@ -188,7 +192,7 @@ private:
             SequentialReader = New<TSequentialReader>(
                 ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
-                ~RetriableReader);
+                ~RemoteReader);
 
             BlockIndex = 0;
             FetchNextBlock();
@@ -212,7 +216,7 @@ private:
         void OnNextBlock(TError error)
         {
             if (!error.IsOK()) {
-                OnError(TError(EErrorCode::HolderError, error.ToString()));
+                OnError(error);
                 return;
             }
 
@@ -275,7 +279,7 @@ private:
                 FileWriter->Cancel(TError("Chunk download canceled"));
                 FileWriter.Reset();
             }
-            RetriableReader.Reset();
+            RemoteReader.Reset();
             SequentialReader.Reset();
         }
     };
@@ -285,7 +289,8 @@ private:
 
 TChunkCache::TChunkCache(
     TChunkHolderConfig* config,
-    TReaderCache* readerCache)
+    TReaderCache* readerCache,
+    TBlockStore* blockStore)
 {
     LOG_INFO("Chunk cache scan started");
 
@@ -294,7 +299,8 @@ TChunkCache::TChunkCache(
         ~config->ChunkCacheLocation,
         readerCache,
         "ChunkCache");
-    Impl = New<TImpl>(config, ~location);
+
+    Impl = New<TImpl>(config, ~location, blockStore);
 
     try {
         FOREACH (const auto& descriptor, location->Scan()) {

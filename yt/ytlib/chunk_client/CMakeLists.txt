@@ -8,7 +8,6 @@ set( SRCS
   ${BASE}/reader_thread.cpp
   ${BASE}/remote_reader.cpp
   ${BASE}/remote_writer.cpp
-  ${BASE}/retriable_reader.cpp
   ${BASE}/sequential_reader.cpp
   ${BASE}/writer_thread.cpp
   ${BASE}/client_block_cache.cpp
@@ -24,7 +23,6 @@ set( HDRS
   ${BASE}/reader_thread.h
   ${BASE}/remote_reader.h
   ${BASE}/remote_writer.h
-  ${BASE}/retriable_reader.h
   ${BASE}/sequential_reader.h
   ${BASE}/writer_thread.h
   ${BASE}/block_cache.h

@@ -86,6 +86,11 @@ struct TPeerInfo
         : Address(address)
         , ExpirationTime(expirationTime)
     { }
+
+    bool IsNull() const
+    {
+        return Address.empty();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

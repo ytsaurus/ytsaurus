@@ -62,8 +62,11 @@ public:
     TBlockStore(
         TChunkHolderConfig* config,
         TChunkStore* chunkStore,
-        TChunkCache* chunkCache,
+//        TChunkCache* chunkCache,
         TReaderCache* readerCache);
+
+    // TODO(babenko): fix this
+    void SetChunkCache(TChunkCache* chunkCache);
 
     typedef TValueOrError<TCachedBlock::TPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
@@ -95,7 +98,7 @@ public:
     i64 GetPendingReadSize() const;
 
     //! Returns a caching adapter.
-    NChunkClient::IBlockCache* GetCache();
+    NChunkClient::IBlockCache* GetBlockCache();
 
 private:
     class TStoreImpl;

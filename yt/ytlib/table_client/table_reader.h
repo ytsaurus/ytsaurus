@@ -6,6 +6,7 @@
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_proxy.h"
 #include "../table_server/table_ypath_proxy.h"
+#include "../chunk_client/block_cache.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -37,6 +38,7 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
+        NChunkClient::IBlockCache* blockCache,
         const TChannel& readChannel,
         const NYTree::TYPath& path);
 

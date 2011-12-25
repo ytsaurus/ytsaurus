@@ -24,6 +24,7 @@ void TReadCommand::DoExecute(TReadRequest* request)
         ~DriverImpl->GetConfig()->TableReader,
         DriverImpl->GetMasterChannel(),
         DriverImpl->GetCurrentTransaction(),
+        DriverImpl->GetBlockCache(),
         // TODO: fixme
         TChannel::Universal(),
         request->Path);

@@ -8,7 +8,7 @@
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_proxy.h"
 #include "../chunk_client/sequential_reader.h"
-#include "../chunk_client/retriable_reader.h"
+#include "../chunk_client/block_cache.h"
 #include "../chunk_client/remote_reader.h"
 #include "../logging/tagged_logger.h"
 
@@ -29,14 +29,12 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
     
         TDuration MasterRpcTimeout;
-        NChunkClient::TRetriableReader::TConfig::TPtr RetriableReader;
         NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
         NChunkClient::TRemoteReaderConfig::TPtr RemoteReader;
 
         TConfig()
         {
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
-            Register("retriable_reader", RetriableReader).DefaultNew();
             Register("sequential_reader", SequentialReader).DefaultNew();
             Register("remote_reader", RemoteReader).DefaultNew();
         }
@@ -47,6 +45,7 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
+        NChunkClient::IBlockCache* blockCache,
         const NYTree::TYPath& path);
 
     //! Returns the size of the file.

@@ -3,6 +3,7 @@
 #include "common.h"
 #include "chunk.h"
 #include "reader_cache.h"
+#include "block_store.h"
 #include "location.h"
 
 #include "../misc/property.h"
@@ -33,7 +34,8 @@ public:
     //! Constructs a new instance.
     TChunkCache(
         TChunkHolderConfig* config,
-        TReaderCache* readerCache);
+        TReaderCache* readerCache,
+        TBlockStore* blockStore);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TCachedChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);
@@ -46,12 +48,6 @@ public:
 
     typedef TValueOrError<TCachedChunk::TPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
-
-    DECLARE_ENUM(EErrorCode,
-        ((MasterError)(1))
-        ((HolderError)(2))
-        ((ChunkLost)(3))
-    );
 
     //! Downloads a chunk into the cache.
     /*!

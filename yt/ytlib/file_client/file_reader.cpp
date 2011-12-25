@@ -21,6 +21,7 @@ TFileReader::TFileReader(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
+    NChunkClient::IBlockCache* blockCache,
     const NYTree::TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
@@ -67,17 +68,14 @@ TFileReader::TFileReader(
         ~ChunkId.ToString(),
         ~JoinToString(holderAddresses));
 
-    auto remoteReaderFactory = CreateRemoteReaderFactory(~Config->RemoteReader);
-
-    auto retriableReader = New<TRetriableReader>(
-        ~Config->RetriableReader,
-        ChunkId,
-        holderAddresses,
-        transactionId,
+    auto remoteReader = CreateRemoteReader(
+        ~Config->RemoteReader,
+        blockCache,
         ~MasterChannel,
-        ~remoteReaderFactory);
+        ChunkId,
+        holderAddresses);
 
-    auto getInfoResult = retriableReader->AsyncGetChunkInfo()->Get();
+    auto getInfoResult = remoteReader->AsyncGetChunkInfo()->Get();
     if (!getInfoResult.IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from holder\n%s",
             ~getInfoResult.ToString());
@@ -101,7 +99,7 @@ TFileReader::TFileReader(
     SequentialReader = New<TSequentialReader>(
         ~Config->SequentialReader,
         blockIndexes,
-        ~retriableReader);
+        ~remoteReader);
 
     // Bind to the transaction.
     if (Transaction) {
