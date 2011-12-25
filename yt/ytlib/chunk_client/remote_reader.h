@@ -25,6 +25,8 @@ struct TRemoteReaderConfig
     TDuration BackoffTime;
     //! Maximum number of attempts.
     int RetryCount;
+    //! Enable fetching blocks from peers suggested by seeds.
+    bool EnablePeering;
 
     TRemoteReaderConfig()
     {
@@ -32,6 +34,7 @@ struct TRemoteReaderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("backoff_time", BackoffTime).Default(TDuration::Seconds(1));
         Register("retry_count", RetryCount).Default(300);
+        Register("enable_peering", EnablePeering).Default(true);
     }
 };
 

@@ -346,7 +346,7 @@ private:
                 Reader->BlockCache->Put(blockId, block);
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
-            } else {
+            } else if (Reader->Config->EnablePeering) {
                 auto addresses = FromProto<Stroka>(blockInfo.peer_addresses());
                 if (!addresses.empty()) {
                     LOG_INFO("Received peer addresses (BlockIndex: %d, PeerCount: %d)",
