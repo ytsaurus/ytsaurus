@@ -284,7 +284,12 @@ private:
 
     void AddPeers(yvector<Stroka>& addresses)
     {
+        // Remove duplicates and shuffle.
+        std::sort(addresses.begin(), addresses.end());
+        addresses.erase(std::unique(addresses.begin(), addresses.end()), addresses.end());
+        // TODO(babenko): use std::random_shuffle here but make sure is uses true randomness.
         Shuffle(addresses.begin(), addresses.end());
+
         FOREACH (const auto& address, addresses) {
             if (TriedAddresses.find(address) == TriedAddresses.end()) {
                 PeerAddresses.push_back(address);
