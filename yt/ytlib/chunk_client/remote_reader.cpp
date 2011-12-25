@@ -49,11 +49,12 @@ public:
     {
         Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-        if (seedAddresses.empty()) {
-            LOG_INFO("Reader created, no seeds are given");
-        } else {
+        LOG_INFO("Reader created (SeedAddresses: [%s], EnablePeering: %s)",
+            ~JoinToString(seedAddresses),
+            ~ToString(Config->EnablePeering));
+
+        if (!seedAddresses.empty()) {
             GetSeedsResult = ToFuture(TGetSeedsResult(seedAddresses));
-            LOG_INFO("Reader created (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
         }
 
         Proxy = new TProxy(masterChannel);
