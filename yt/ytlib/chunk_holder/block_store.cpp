@@ -96,24 +96,30 @@ public:
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
-        TInsertCookie cookie(blockId);
-        if (BeginInsert(&cookie)) {
-            auto block = New<TCachedBlock>(blockId, data);
-            cookie.EndInsert(block);
+        while (true) {
+            TInsertCookie cookie(blockId);
+            if (BeginInsert(&cookie)) {
+                auto block = New<TCachedBlock>(blockId, data);
+                cookie.EndInsert(block);
 
-            LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
-                ~blockId.ToString(),
-                data.Size());
+                LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
+                    ~blockId.ToString(),
+                    data.Size());
 
-            return block;
-        } else {
+                return block;
+            }
+
+            auto result = cookie.GetAsyncResult()->Get();
+            if (!result.IsOK()) {
+                // Looks like a parallel Get request has completed unsuccessfully.
+                continue;
+            }
+
             // This is a cruel reality.
             // Since we never evict blocks of removed chunks from the cache
             // it is possible for a block to be put there more than once.
             // We shall reuse the cached copy but for sanity's sake let's
             // check that the content is the same.
-            auto result = cookie.GetAsyncResult()->Get();
-            YASSERT(result.IsOK());
             auto block = result.Value();
 
             if (!TRef::CompareContent(data, block->GetData())) {
@@ -137,9 +143,10 @@ public:
 
         auto chunk = FindChunk(blockId.ChunkId);
         if (!chunk) {
-            return ToFuture(TGetBlockResult(
+            cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
+            return cookie->GetAsyncResult();
         }
      
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
