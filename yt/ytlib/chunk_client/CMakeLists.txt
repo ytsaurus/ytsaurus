@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/retriable_reader.cpp
   ${BASE}/sequential_reader.cpp
   ${BASE}/writer_thread.cpp
+  ${BASE}/client_block_cache.cpp
 )
 set( HDRS
   ${BASE}/async_reader.h
@@ -26,6 +27,8 @@ set( HDRS
   ${BASE}/retriable_reader.h
   ${BASE}/sequential_reader.h
   ${BASE}/writer_thread.h
+  ${BASE}/block_cache.h
+  ${BASE}/client_block_cache.h
 )
 
 list(APPEND YT_SOURCE_FILES

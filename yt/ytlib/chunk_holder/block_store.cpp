@@ -36,15 +36,15 @@ TCachedBlock::~TCachedBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TBlockCache 
+class TBlockStore::TStoreImpl 
     : public TWeightLimitedCache<TBlockId, TCachedBlock>
 {
 public:
-    typedef TIntrusivePtr<TBlockCache> TPtr;
+    typedef TIntrusivePtr<TStoreImpl> TPtr;
 
     DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
 
-    TBlockCache(
+    TStoreImpl(
         TChunkHolderConfig* config,
         TChunkStore* chunkStore,
         TChunkCache* chunkCache,
@@ -58,15 +58,15 @@ public:
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
     {
-        LOG_DEBUG("Putting block into store (BlockId: %s, BlockSize: %d)",
-            ~blockId.ToString(),
-            static_cast<int>(data.Size()));
-
         TInsertCookie cookie(blockId);
         if (BeginInsert(&cookie)) {
             auto block = New<TCachedBlock>(blockId, data);
             cookie.EndInsert(block);
-            LOG_DEBUG("Block is put into cache (BlockId: %s)", ~blockId.ToString());
+
+            LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
+                ~blockId.ToString(),
+                data.Size());
+
             return block;
         } else {
             // This is a cruel reality.
@@ -84,17 +84,16 @@ public:
             }
 
             LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~blockId.ToString());
+
             return block;
         }
     }
 
     TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
     {
-        LOG_DEBUG("Getting block from store (BlockId: %s)", ~blockId.ToString());
-
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Block is already cached (BlockId: %s)", ~blockId.ToString());
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
             return cookie->GetAsyncResult();
         }
 
@@ -105,17 +104,30 @@ public:
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
         }
      
-        LOG_DEBUG("Loading block into cache (BlockId: %s)", ~blockId.ToString());
+        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         auto invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
-            &TBlockCache::DoReadBlock,
+            &TStoreImpl::DoReadBlock,
             TPtr(this),
             chunk,
             blockId,
             cookie));
         
         return cookie->GetAsyncResult();
+    }
+
+    TCachedBlock::TPtr Find(const TBlockId& blockId)
+    {
+        auto asyncResult = Lookup(blockId);
+        TGetBlockResult result;
+        if (asyncResult && asyncResult->TryGet(&result) && result.IsOK()) {
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
+            return result.Value();
+        } else {
+            LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
+            return NULL;
+        }
     }
 
 private:
@@ -188,31 +200,63 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlockStore::TCacheImpl
+    : public IBlockCache
+{
+public:
+    TCacheImpl(TStoreImpl* storeImpl)
+        : StoreImpl(storeImpl)
+    { }
+
+    void Put(const TBlockId& id, const TSharedRef& data)
+    {
+        StoreImpl->Put(id, data);
+    }
+
+    TSharedRef Find(const TBlockId& id)
+    {
+        auto block = StoreImpl->Find(id);
+        return block ? block->GetData() : TSharedRef();
+    }
+
+private:
+    TStoreImpl::TPtr StoreImpl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBlockStore::TBlockStore(
     TChunkHolderConfig* config,
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TReaderCache* readerCache)
-    : BlockCache(New<TBlockCache>(
+    : StoreImpl(New<TStoreImpl>(
         config,
         chunkStore,
         chunkCache,
         readerCache))
+    , CacheImpl(New<TCacheImpl>(~StoreImpl))
 { }
 
 TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
-    return BlockCache->Get(blockId);
+    return StoreImpl->Get(blockId);
 }
 
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
 {
-    return BlockCache->Put(blockId, data);
+    return StoreImpl->Put(blockId, data);
 }
 
 i64 TBlockStore::GetPendingReadSize() const
 {
-    return BlockCache->GetPendingReadSize();
+    return StoreImpl->GetPendingReadSize();
+}
+
+IBlockCache* TBlockStore::GetCache()
+{
+    return ~CacheImpl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

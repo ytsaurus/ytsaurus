@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/cache.h"
-#include "../chunk_client/common.h"
+#include "../chunk_client/block_cache.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -69,13 +69,20 @@ public:
      */
     TCachedBlock::TPtr PutBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
 
+    //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
-private:
-    class TBlockCache;
-    friend class TBlockCache;
+    //! Returns a caching adapter.
+    NChunkClient::IBlockCache* GetCache();
 
-    TIntrusivePtr<TBlockCache> BlockCache;
+private:
+    class TStoreImpl;
+    friend class TStoreImpl;
+
+    class TCacheImpl;
+
+    TIntrusivePtr<TStoreImpl> StoreImpl;
+    TIntrusivePtr<TCacheImpl> CacheImpl;
 
 };
 
