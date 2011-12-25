@@ -6,6 +6,7 @@
 #include "session_manager.h"
 
 #include "../misc/serialize.h"
+#include "../misc/string.h"
 #include "../actions/action_util.h"
 #include "../actions/parallel_awaiter.h"
 
@@ -231,14 +232,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
     
-    context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
+    context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s",
         ~chunkId.ToString(),
-        blockCount);
+        ~JoinToString(request->block_indexes()));
 
     bool throttling = CheckThrottling();
-
-    auto chunk = ChunkStore->FindChunk(chunkId);
-    bool hasChunk = chunk;
 
     // This will hold the blocks we fetch.
     TSharedPtr< yvector<TCachedBlock::TPtr> > blocks(new yvector<TCachedBlock::TPtr>(blockCount));
@@ -252,54 +250,51 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         
         auto* blockInfo = response->add_blocks();
 
-        if (!throttling && hasChunk) {
-            // Fetch the actual data (either from cache or from disk).
-
-            blockInfo->set_data_attached(true);
-
-            awaiter->Await(
-                BlockStore->GetBlock(blockId),
-                FromFunctor([=] (TBlockStore::TGetBlockResult result)
-                    {
-                        if (!result.IsOK()) {
-                            awaiter->Cancel();
-                            context->Reply(result);
-                            return;
-                        }
-
-                        auto block = result.Value();
-                        (*blocks)[index] = block;
-                    }));
-
-            LOG_DEBUG("GetBlocks: Retrieving block (BlockIndex: %d)", blockIndex);
-        } else {
-            // Cannot send the actual data to the client (we either don't have it or throttling is engaged).
+        if (throttling) {
+            // Cannot send the actual data to the client due to throttling.
             // But let's try to provide a hint a least.
-
             blockInfo->set_data_attached(false);
             auto block = BlockStore->FindBlock(blockId);
             if (block) {
                 auto peers = block->GetPeers();
-
-                FOREACH (const auto& peer, peers) {
-                    blockInfo->add_peer_addresses(peer.Address);
+                if (!peers.empty()) {
+                    FOREACH (const auto& peer, peers) {
+                        blockInfo->add_peer_addresses(peer.Address);
+                    }
+                    LOG_DEBUG("GetBlocks: Peers suggested (BlockIndex: %d, PeerCount: %d)",
+                        blockIndex,
+                        peers.ysize());
                 }
-
-                LOG_DEBUG("GetBlocks: Attaching peer information (BlockIndex: %d, PeerCount: %d)",
-                    blockIndex,
-                    peers.ysize());
-            } else {
-                LOG_DEBUG("GetBlocks: Nothing is known about the block (BlockIndex: %d)",
-                    blockIndex);
             }
+        } else {
+            // Fetch the actual data (either from cache or from disk).
+            LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
+            awaiter->Await(
+                BlockStore->GetBlock(blockId),
+                FromFunctor([=] (TBlockStore::TGetBlockResult result)
+                    {
+                        if (result.IsOK()) {
+                            // Attach the real data.
+                            blockInfo->set_data_attached(true);
+                            auto block = result.Value();
+                            (*blocks)[index] = block;
+                            LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
+                        } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
+                            // This is really sad. We neither have the full chunk nor this particular block.
+                            LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
+                        } else {
+                            // Something went wrong while fetching the block.
+                            // The most probable cause is that a non-existing block was requested for a chunk
+                            // that is registered at the holder.
+                            awaiter->Cancel();
+                            context->Reply(result);
+                        }
+                    }));
         }
     }
 
     awaiter->Complete(FromFunctor([=] ()
         {
-            if (context->IsReplied())
-                return;
-
             // Prepare the attachments and reply.
             for (int index = 0; index < blockCount; ++index) {
                 auto block = (*blocks)[index];
@@ -313,8 +308,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                 TPeerInfo peer(
                     request->peer_address(),
                     TInstant(request->peer_expiration_time()));
-                for (int index = 0; index < blockCount; ++index) {
-                    auto block = (*blocks)[index];
+                FOREACH (auto& block, *blocks) {
                     if (block) {
                         block->AddPeer(peer);
                     }
