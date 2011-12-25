@@ -289,7 +289,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                     blockIndex,
                     peers.ysize());
             } else {
-                LOG_DEBUG("GetBlocks: Nothing is known about the block (BlockIndex: %d)");
+                LOG_DEBUG("GetBlocks: Nothing is known about the block (BlockIndex: %d)",
+                    blockIndex);
             }
         }
     }
