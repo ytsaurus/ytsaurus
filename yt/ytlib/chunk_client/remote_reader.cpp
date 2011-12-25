@@ -403,8 +403,8 @@ private:
                 ~PeerAddresses[PeerIndex],
                 ~response->GetError().ToString());
 
+            ++PeerIndex;
             if (PeerIndex < PeerAddresses.ysize()) {
-                ++PeerIndex;
                 RequestBlocks();
             } else {
                 OnRetryFailed(TError("Unable to fetch all chunk blocks"));
@@ -501,8 +501,8 @@ private:
                 ~SeedAddresses[SeedIndex],
                 ~response->GetError().ToString());
 
+            ++SeedIndex;
             if (SeedIndex < SeedAddresses.ysize()) {
-                ++SeedIndex;
                 RequestInfo();
             } else {
                 OnRetryFailed(TError("Unable to get chunk info"));
