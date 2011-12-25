@@ -380,6 +380,8 @@ private:
             ~address,
             ~JoinToString(unfetchedBlockIndexes));
 
+        YVERIFY(TriedAddresses.insert(address).second);
+
         auto channel = HolderChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
