@@ -58,7 +58,7 @@ class Master(Server):
             },
             'snapshot_path' : '%(work_dir)s/snapshots',
             'log_path' : '%(work_dir)s/logs',
-            'max_changes_between_snapshots' : 1000
+            'max_changes_between_snapshots' : 1000000
         },            
         'logging' : Logging
     })
@@ -106,11 +106,11 @@ class Holder(Server):
             'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { 
-            'holder_rpc_timeout' : 5 * 60 * 1000
+            'holder_rpc_timeout' : 10 * 1000
         },
-        'cache_sequential_reader' : { },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,
+        'response_throttling_size' : 500 * 1024 * 1024,
         'logging' : Logging
     })
     
