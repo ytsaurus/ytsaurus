@@ -119,7 +119,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_INFO("Asking the master about seeds");
+        LOG_INFO("Requesting chunk seeds from the master");
 
         auto request = Proxy->FindChunk();
         request->set_chunkid(ChunkId.ToProto());
@@ -139,13 +139,11 @@ private:
         if (response->IsOK()) {
             const auto& seedAddresses = FromProto<Stroka>(response->holderaddresses());
             if (seedAddresses.empty()) {
-                auto message = Stroka("Chunk is lost");
-                LOG_WARNING("%s", ~message);
-                GetSeedsResult->Set(TError(message));
+                LOG_WARNING("Chunk is lost");
             } else {
                 LOG_INFO("Chunk seeds found (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
-                GetSeedsResult->Set(seedAddresses);
             }
+            GetSeedsResult->Set(seedAddresses);
         } else {
             auto message = Sprintf("Error requesting chunk seeds from master\n%s",
                 ~response->GetError().ToString());
@@ -181,29 +179,35 @@ protected:
 
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
-        TPtr this_ = this;
         GetSeedsResult = Reader->AsyncGetSeeds();
-        GetSeedsResult->Subscribe(FromFunctor([=] (TRemoteReader::TGetSeedsResult result)
-            {
-                if (result.IsOK()) {
-                    SeedAddresses = result.Value();
-                    this_->OnGotSeeds();
-                } else {
-                    OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n",
-                        RetryIndex,
-                        ~result.ToString())));
-                }
-            }));
+        GetSeedsResult->Subscribe(FromMethod(&TSessionBase::OnGetSeedsReply, TPtr(this)));
+    }
+
+    void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
+    {
+        if (result.IsOK()) {
+            SeedAddresses = result.Value();
+            if (SeedAddresses.empty()) {
+                OnRetryFailed(TError("Chunk is lost"));
+            } else {
+                OnGotSeeds();
+            }
+        } else {
+            OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
+                RetryIndex,
+                ~result.ToString())));
+        }
     }
 
     void OnRetryFailed(const TError& error)
     {
-        LOG_INFO("Retry failed (RetryIndex: %d)\n%s",
+        LOG_WARNING("Retry failed (RetryIndex: %d)\n%s",
             RetryIndex,
             ~error.ToString());
 
         YASSERT(GetSeedsResult);
         Reader->DiscardSeeds(~GetSeedsResult);
+        GetSeedsResult.Reset();
 
         if (RetryIndex < Reader->Config->RetryCount) {
             ++RetryIndex;
@@ -315,7 +319,7 @@ private:
         }
     }
 
-    void ProcessesReceivedBlocks(
+    void ProcessReceivedBlocks(
         TChunkHolderServiceProxy::TReqGetBlocks* request,
         TChunkHolderServiceProxy::TRspGetBlocks* response)
     {
@@ -354,8 +358,6 @@ private:
 
     void RequestBlocks()
     {
-        TPtr this_ = this;
-
         FetchBlocksFromCache();
 
         auto unfetchedBlockIndexes = GetUnfetchedBlockIndexes();
@@ -366,7 +368,7 @@ private:
 
         auto address = PeerAddresses[PeerIndex];
 
-        LOG_INFO("Requesting blocks from holder (Address: %s, BlockIndexes: %s)",
+        LOG_INFO("Requesting blocks from holder (Address: %s, BlockIndexes: [%s])",
             ~address,
             ~JoinToString(unfetchedBlockIndexes));
 
@@ -383,23 +385,31 @@ private:
             request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
         }
 
-        request->Invoke()->Subscribe(FromFunctor([=] (TChunkHolderServiceProxy::TRspGetBlocks::TPtr response)
-        {
-            if (response->IsOK()) {
-                ProcessesReceivedBlocks(~request, ~response);
-            } else {
-                LOG_WARNING("Error getting blocks from holder (Address: %s)\n%s",
-                    ~address,
-                    ~response->GetError().ToString());
+        request->Invoke()->Subscribe(FromMethod(
+            &TReadSession::OnGotBlocks,
+            TPtr(this),
+            request));
+    }
 
-                if (PeerIndex < PeerAddresses.ysize()) {
-                    ++PeerIndex;
-                    RequestBlocks();
-                } else {
-                    OnRetryFailed(TError("Unable to fetch all chunk blocks"));
-                }
+    void OnGotBlocks(
+        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response,
+        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request)
+    {
+        if (response->IsOK()) {
+            ProcessReceivedBlocks(~request, ~response);
+            RequestBlocks();
+        } else {
+            LOG_WARNING("Error getting blocks from holder (Address: %s)\n%s",
+                ~PeerAddresses[PeerIndex],
+                ~response->GetError().ToString());
+
+            if (PeerIndex < PeerAddresses.ysize()) {
+                ++PeerIndex;
+                RequestBlocks();
+            } else {
+                OnRetryFailed(TError("Unable to fetch all chunk blocks"));
             }
-        }));
+        }
     }
 
     virtual void OnSessionSucceeded()
@@ -468,8 +478,6 @@ private:
 
     void RequestInfo()
     {
-        TPtr this_ = this;
-
         auto address = SeedAddresses[SeedIndex];
 
         LOG_INFO("Requesting chunk info from holder (Address: %s)", ~address);
@@ -481,23 +489,25 @@ private:
 
         auto request = proxy.GetChunkInfo();
         request->set_chunk_id(Reader->ChunkId.ToProto());
-        request->Invoke()->Subscribe(FromFunctor([=] (TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)
-            {
-                if (response->IsOK()) {
-                    OnSessionSucceeded(response->chunk_info());
-                } else {
-                    LOG_WARNING("Error getting chunk info from holder (Address: %s)\n%s",
-                        ~address,
-                        ~response->GetError().ToString());
+        request->Invoke()->Subscribe(FromMethod(&TGetInfoSession::OnGotChunkInfo, TPtr(this)));
+    }
 
-                    if (SeedIndex < SeedAddresses.ysize()) {
-                        ++SeedIndex;
-                        RequestInfo();
-                    } else {
-                        OnRetryFailed(TError("Unable to get chunk info"));
-                    }
-                }
-            }));
+    void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)
+    {
+        if (response->IsOK()) {
+            OnSessionSucceeded(response->chunk_info());
+        } else {
+            LOG_WARNING("Error getting chunk info from holder (Address: %s)\n%s",
+                ~SeedAddresses[SeedIndex],
+                ~response->GetError().ToString());
+
+            if (SeedIndex < SeedAddresses.ysize()) {
+                ++SeedIndex;
+                RequestInfo();
+            } else {
+                OnRetryFailed(TError("Unable to get chunk info"));
+            }
+        }
     }
 
     virtual void OnGotSeeds()

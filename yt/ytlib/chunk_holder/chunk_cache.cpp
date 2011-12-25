@@ -43,6 +43,7 @@ public:
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
         , Location(location)
+        , BlockStore(blockStore)
     {
         MasterChannel = CreateCellChannel(~config->Masters);
     }

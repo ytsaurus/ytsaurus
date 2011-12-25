@@ -241,7 +241,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     bool hasChunk = chunk;
 
     // This will hold the blocks we fetch.
-    TSharedPtr< yvector<TCachedBlock::TPtr> > blocks(new yvector<TCachedBlock::TPtr>());
+    TSharedPtr< yvector<TCachedBlock::TPtr> > blocks(new yvector<TCachedBlock::TPtr>(blockCount));
 
     // NB: All callbacks should be handled in the service thread.
     auto awaiter = New<TParallelAwaiter>(ServiceInvoker);
