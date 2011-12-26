@@ -114,7 +114,7 @@ void TCellMasterBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~busServer);
 
-    auto metaStateManager = CreatePersistentStateManager(
+    auto metaStateManager = CreateAndRegisterPersistentStateManager(
         ~Config->MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
