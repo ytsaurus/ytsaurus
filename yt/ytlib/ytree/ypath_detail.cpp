@@ -20,6 +20,10 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char YPathRootMarker = '/';
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
     if (IsFinalYPath(path)) {
@@ -160,11 +164,11 @@ void TNodeSetterBase::OnMyEndAttributes()
 TYPath ChopYPathRootMarker(const TYPath& path)
 {
     if (path.empty()) {
-        ythrow yexception() << "YPath cannot be empty, use \"/\" to denote the root";
+        ythrow yexception() << Sprintf("YPath cannot be empty, use \"%c\" to denote the root", YPathRootMarker);
     }
 
-    if (path[0] != '/') {
-        ythrow yexception() << "YPath must start with \"/\"";
+    if (path[0] != YPathRootMarker) {
+        ythrow yexception() << Sprintf("YPath must start with \"%c\"", YPathRootMarker);
     }
 
     return path.substr(1);
@@ -181,7 +185,7 @@ void ChopYPathToken(
         *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
-            case '/':
+            case YPathRootMarker:
                 *prefix = path.substr(0, index);
                 *suffixPath =
                     index == path.length() - 1
@@ -239,7 +243,7 @@ bool IsEmptyYPath(const TYPath& path)
 
 bool IsFinalYPath(const TYPath& path)
 {
-    return path.empty() || path == "/";
+    return path.empty() || (path.size() == 1 && path[0] == YPathRootMarker);
 }
 
 bool IsAttributeYPath(const TYPath& path)
