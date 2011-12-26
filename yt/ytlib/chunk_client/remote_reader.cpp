@@ -394,7 +394,7 @@ private:
             if (!requestBlockIndexes.empty()) {
                 LOG_INFO("Requesting blocks from peer (Address: %s, BlockIndexes: [%s])",
                     ~address,
-                    ~JoinToString(requestBlockIndexes));
+                    ~JoinToString(unfetchedBlockIndexes));
 
                 auto channel = HolderChannelCache->GetChannel(address);
 
@@ -403,7 +403,7 @@ private:
 
                 auto request = proxy.GetBlocks();
                 request->set_chunk_id(Reader->ChunkId.ToProto());
-                ToProto(*request->mutable_block_indexes(), requestBlockIndexes);
+                ToProto(*request->mutable_block_indexes(), unfetchedBlockIndexes);
                 if (!Reader->Peer.IsNull()) {
                     request->set_peer_address(Reader->Peer.Address);
                     request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
