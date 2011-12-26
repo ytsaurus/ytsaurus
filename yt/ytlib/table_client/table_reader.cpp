@@ -46,7 +46,7 @@ TTableReader::TTableReader(
         transactionId,
         masterChannel,
         blockCache,
-        FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunkids()),
+        FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunk_ids()),
         0,
         // TODO(babenko): fixme, make i64
         std::numeric_limits<int>::max());
