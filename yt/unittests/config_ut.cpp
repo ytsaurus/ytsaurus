@@ -66,6 +66,8 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
     EXPECT_EQ("ListItem1", subconfig->MyStringList[1]);
     EXPECT_EQ("ListItem2", subconfig->MyStringList[2]);
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
+
+    EXPECT_EQ(0, subconfig->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, Complete)
@@ -133,9 +135,8 @@ TEST(TConfigTest, Complete)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
-    config->Validate();
-
+    config->LoadAndValidate(~configNode->AsMap());
+    
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(~config->Subconfig);
     EXPECT_EQ(2, config->SubconfigList.ysize());
@@ -148,6 +149,8 @@ TEST(TConfigTest, Complete)
     auto it2 = config->SubconfigMap.find("sub2");
     EXPECT_IS_FALSE(it2 == config->SubconfigMap.end());
     TestCompleteSubconfig(~it2->Second());
+
+    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -164,8 +167,7 @@ TEST(TConfigTest, MissingParameter)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
-    config->Validate();
+    config->LoadAndValidate(~configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
@@ -174,6 +176,9 @@ TEST(TConfigTest, MissingParameter)
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.ysize());
     EXPECT_EQ(0, config->SubconfigMap.ysize());
+ 
+    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
+    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, MissingSubconfig)
@@ -187,8 +192,7 @@ TEST(TConfigTest, MissingSubconfig)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
-    config->Validate();
+    config->LoadAndValidate(~configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
@@ -197,6 +201,35 @@ TEST(TConfigTest, MissingSubconfig)
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.ysize());
     EXPECT_EQ(0, config->SubconfigMap.ysize());
+  
+    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
+    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
+}
+
+TEST(TConfigTest, Options)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(~builder)
+        .BeginMap()
+            .Item("my_string").Scalar("TestString")
+            .Item("option").Scalar(1)
+        .EndMap();
+    auto configNode = builder->EndTree();
+
+    auto config = New<TTestConfig>();
+    config->LoadAndValidate(~configNode->AsMap());
+
+    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
+
+    auto optionsNode = config->GetOptions();
+    EXPECT_EQ(1, optionsNode->GetChildCount());
+    FOREACH (const auto& pair, optionsNode->GetChildren()) {
+        const auto& name = pair.First();
+        auto child = pair.Second();
+        EXPECT_EQ("option", name);
+        EXPECT_EQ(1, child->AsInt64()->GetValue());
+    }
 }
 
 TEST(TConfigTest, MissingRequiredParameter)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mpl.h"
+#include "property.h"
 
 #include "../actions/action.h"
 #include "../actions/action_util.h"
@@ -17,7 +18,7 @@ struct IParameter
     typedef TIntrusivePtr<IParameter> TPtr;
 
     // node can be NULL
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path) = 0;
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;
 };
 
@@ -35,7 +36,7 @@ public:
 
     explicit TParameter(T& parameter);
 
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
     
 public: // for users
@@ -64,9 +65,13 @@ class TConfigurable
 public:
     typedef TIntrusivePtr<TConfigurable> TPtr;
 
-    void LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path = "/");
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "/");
+    TConfigurable();
+
+    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = "/");
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = "/");
     virtual void Validate(const NYTree::TYPath& path = "/") const;
+
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
 
 protected:
     template <class T>

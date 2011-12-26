@@ -26,7 +26,7 @@ T CheckedStaticCast(i64 value)
 template <class T>
 inline void Read(
     TIntrusivePtr<T>& parameter,
-    NYTree::INode* node,
+    const NYTree::INode* node,
     const NYTree::TYPath& path,
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
@@ -38,37 +38,37 @@ inline void Read(
 }
 
 // i64
-inline void Read(i64& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(i64& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = node->AsInt64()->GetValue();
 }
 
 // i32
-inline void Read(i32& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(i32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
 }
 
 // ui32
-inline void Read(ui32& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(ui32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
 }
 
 // double
-inline void Read(double& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(double& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = node->AsDouble()->GetValue();
 }
 
 // Stroka
-inline void Read(Stroka& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(Stroka& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = node->AsString()->GetValue();
 }
 
 // bool
-inline void Read(bool& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(bool& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     Stroka value = node->AsString()->GetValue();
     if (value == "True") {
@@ -85,7 +85,7 @@ inline void Read(bool& parameter, NYTree::INode* node, const NYTree::TYPath& /* 
 }
 
 // TDuration
-inline void Read(TDuration& parameter, NYTree::INode* node, const NYTree::TYPath& /* path */)
+inline void Read(TDuration& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
@@ -94,7 +94,7 @@ inline void Read(TDuration& parameter, NYTree::INode* node, const NYTree::TYPath
 template <class T>
 inline void Read(
     T& parameter,
-    NYTree::INode* node, 
+    const NYTree::INode* node, 
     const NYTree::TYPath& /* path */,
     typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
         NYT::NDetail::TEmpty())
@@ -106,15 +106,15 @@ inline void Read(
 // INode::TPtr
 inline void Read(
     NYTree::INode::TPtr& parameter,
-    NYTree::INode* node,
+    const NYTree::INode* node,
     const NYTree::TYPath& /* path */)
 {
-    parameter = node;
+    parameter = const_cast<NYTree::INode*>(node);
 }
 
 // yvector
 template <class T>
-inline void Read(yvector<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+inline void Read(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -126,7 +126,7 @@ inline void Read(yvector<T>& parameter, NYTree::INode* node, const NYTree::TYPat
 
 // yhash_set
 template <class T>
-inline void Read(yhash_set<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+inline void Read(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -139,7 +139,7 @@ inline void Read(yhash_set<T>& parameter, NYTree::INode* node, const NYTree::TYP
 
 // yhash_map
 template <class T>
-inline void Read(yhash_map<Stroka, T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -206,7 +206,7 @@ TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
+void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node) {
         try {

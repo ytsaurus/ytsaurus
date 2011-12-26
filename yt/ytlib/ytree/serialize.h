@@ -8,6 +8,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+INode::TPtr CloneNode(
+    const INode* node,
+    INodeFactory* factory = GetEphemeralNodeFactory());
+
 TYsonProducer::TPtr ProducerFromYson(TInputStream* input);
 
 INode::TPtr DeserializeFromYson(

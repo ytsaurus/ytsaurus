@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "configurable.h"
 
+#include "../ytree/ephemeral.h"
+#include "../ytree/serialize.h"
 #include "../ytree/ypath_detail.h"
 
 namespace NYT {
@@ -10,16 +12,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TConfigurable::LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path)
+TConfigurable::TConfigurable()
+    : Options_(GetEphemeralNodeFactory()->CreateMap())
+{ }
+
+void TConfigurable::LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path)
 {
     Load(node, path);
     Validate(path);
 }
 
-void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
+void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node);
-    NYTree::IMapNode::TPtr mapNode;
+    TIntrusivePtr<const IMapNode> mapNode;
     try {
         mapNode = node->AsMap();
     } catch(...) {
@@ -33,6 +39,15 @@ void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
         auto childPath = CombineYPaths(path, name);
         auto child = mapNode->FindChild(name); // can be NULL
         pair.Second()->Load(~child, childPath);
+    }
+
+    Options_->Clear();
+    FOREACH (const auto& pair, mapNode->GetChildren()) {
+        const auto& name = pair.First();
+        auto child = pair.Second();
+        if (Parameters.find(name) == Parameters.end()) {
+            Options_->AddChild(~CloneNode(~child), name);
+        }
     }
 }
 
