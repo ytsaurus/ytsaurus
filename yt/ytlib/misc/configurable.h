@@ -64,6 +64,7 @@ class TConfigurable
 public:
     typedef TIntrusivePtr<TConfigurable> TPtr;
 
+    void LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path = "/");
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "/");
     virtual void Validate(const NYTree::TYPath& path = "/") const;
 

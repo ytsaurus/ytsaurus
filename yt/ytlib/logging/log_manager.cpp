@@ -177,8 +177,7 @@ public:
     static TPtr CreateFromNode(INode* node, const TYPath& path = "/")
     {
         auto config = New<TLogConfig>();
-        config->Load(node, path);
-        config->Validate(path);
+        config->LoadAndValidate(node, path);
         config->CreateWriters();
         return config;
     }
