@@ -102,8 +102,9 @@ void TSchedulerBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~rpcServer,
         ~controlQueue->GetInvoker());
+
+    rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     auto orchidPathService = IYPathService::FromNode(~orchidRoot);

@@ -16,8 +16,7 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 
 TTransactionService::TTransactionService(
     IMetaStateManager* metaStateManager,
-    TTransactionManager* transactionManager,
-    NRpc::IRpcServer* server)
+    TTransactionManager* transactionManager)
     : TMetaStateServiceBase(
         metaStateManager,
         TTransactionServiceProxy::GetServiceName(),
@@ -25,14 +24,11 @@ TTransactionService::TTransactionService(
     , TransactionManager(transactionManager)
 {
     YASSERT(transactionManager);
-    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
-
-    server->RegisterService(this);
 }
 
 void TTransactionService::ValidateTransactionId(const TTransactionId& id)

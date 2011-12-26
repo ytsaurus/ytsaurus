@@ -22,8 +22,7 @@ public:
     //! Creates an instance.
     TTransactionService(
         NMetaState::IMetaStateManager* metaStateManager,
-        TTransactionManager* transactionManager,
-        NRpc::IRpcServer* server);
+        TTransactionManager* transactionManager);
 
 private:
     typedef TTransactionService TThis;

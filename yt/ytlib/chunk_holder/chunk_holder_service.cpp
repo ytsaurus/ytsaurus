@@ -25,7 +25,6 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolderService::TChunkHolderService(
     TConfig* config,
     IInvoker* serviceInvoker,
-    NRpc::IRpcServer* server,
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TReaderCache* readerCache,
@@ -42,8 +41,6 @@ TChunkHolderService::TChunkHolderService(
     , BlockStore(blockStore)
     , SessionManager(sessionManager)
 {
-    YASSERT(server);
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
@@ -53,8 +50,6 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
-    
-    server->RegisterService(this);
 }
 
 // Do not remove this!

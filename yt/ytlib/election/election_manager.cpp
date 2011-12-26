@@ -22,8 +22,7 @@ TElectionManager::TElectionManager(
     TConfig* config,
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
-    IElectionCallbacks* electionCallbacks,
-    NRpc::IRpcServer* server)
+    IElectionCallbacks* electionCallbacks)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),
@@ -38,7 +37,6 @@ TElectionManager::TElectionManager(
     YASSERT(cellManager);
     YASSERT(controlInvoker);
     YASSERT(electionCallbacks);
-    YASSERT(server);
 
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
@@ -46,7 +44,6 @@ TElectionManager::TElectionManager(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
-    server->RegisterService(this);
 }
 
 void TElectionManager::Start()

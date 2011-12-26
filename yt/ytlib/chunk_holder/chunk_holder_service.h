@@ -31,7 +31,6 @@ public:
     TChunkHolderService(
         TConfig* config,
         IInvoker* serviceInvoker,
-        NRpc::IRpcServer* server,
         TChunkStore* chunkStore,
         TChunkCache* chunkcache,
         TReaderCache* readerCache,

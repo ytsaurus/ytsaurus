@@ -22,8 +22,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 TChunkService::TChunkService(
     NMetaState::IMetaStateManager* metaStateManager,
     TChunkManager* chunkManager,
-    NTransactionServer::TTransactionManager* transactionManager,
-    NRpc::IRpcServer* server)
+    NTransactionServer::TTransactionManager* transactionManager)
     : TMetaStateServiceBase(
         metaStateManager,
         TChunkServiceProxy::GetServiceName(),
@@ -32,15 +31,12 @@ TChunkService::TChunkService(
     , TransactionManager(transactionManager)
 {
     YASSERT(chunkManager);
-    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChunk));
-
-    server->RegisterService(this);
 }
 
  void TChunkService::ValidateHolderId(THolderId holderId)
