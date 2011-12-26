@@ -35,7 +35,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, CheckAll);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
 
 };
@@ -85,18 +87,20 @@ class TMyService
 public:
     typedef TIntrusivePtr<TMyService> TPtr;
     typedef TMyService TThis;
-    TMyService(IInvoker* invoker)
-        : TServiceBase(
-            invoker,
-            TMyProxy::ServiceName,
-            "Main")
+    TMyService(IInvoker* invoker, Event* event)
+        : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
+        , Event_(event)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
+
         RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OneWay));
+        RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(CheckAll));
+
+        // Note: NotRegistredCall and NotRegistredOneWay are not registred
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
@@ -104,10 +108,15 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
+
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
+private:
+    // To signal for one-way rpc requests when processed the request
+    Event* Event_;
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
@@ -162,6 +171,21 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
     UNUSED(request);
 }
 
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
+{
+    EXPECT_EQ(12345, request->value());
+    EXPECT_EQ(true, request->ok());
+    EXPECT_EQ(Stroka("hello, TMyService"), request->message());
+
+    const auto& attachments = request->Attachments();
+    EXPECT_EQ(3, attachments.ysize());
+    EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
+    EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
+    EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
+
+    Event_->Signal();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcTest
@@ -173,7 +197,6 @@ class TRpcTest
     TActionQueue::TPtr Queue;
 
 public:
-
     virtual void SetUp()
     {
         auto busConfig = New<NBus::TNLBusServerConfig>();
@@ -184,7 +207,7 @@ public:
 
         Queue = New<TActionQueue>();
 
-        RpcServer->RegisterService(~New<TMyService>(~Queue->GetInvoker()));
+        RpcServer->RegisterService(~New<TMyService>(~Queue->GetInvoker(), &ReadyEvent));
         RpcServer->Start();
     }
 
@@ -192,6 +215,9 @@ public:
     {
         RpcServer->Stop();
     }
+
+    // For services to signal when they processed incoming onewey rpc request
+    Event ReadyEvent;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,6 +356,24 @@ TEST_F(TRpcTest, CustomErrorMessage)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TRpcTest, OneWaySend)
+{
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy->CheckAll();
+
+    request->set_value(12345);
+    request->set_ok(true);
+    request->set_message(Stroka("hello, TMyService"));
+    request->Attachments().push_back(SharedRefFromString("Attachments"));
+    request->Attachments().push_back(SharedRefFromString("are"));
+    request->Attachments().push_back(SharedRefFromString("ok"));
+
+    auto response = request->Invoke()->Get();
+    EXPECT_EQ(TError::OK, response->GetErrorCode());
+
+    EXPECT_IS_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
+}
 
 // Different types of errors in one-way rpc
 // TODO: think about refactoring
