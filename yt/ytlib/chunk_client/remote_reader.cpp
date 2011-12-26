@@ -123,7 +123,7 @@ private:
         LOG_INFO("Requesting chunk seeds from the master");
 
         auto request = Proxy->FindChunk();
-        request->set_chunkid(ChunkId.ToProto());
+        request->set_chunk_id(ChunkId.ToProto());
         request->Invoke()->Subscribe(FromMethod(&TRemoteReader::OnChunkFound, TPtr(this)));
     }
 
@@ -138,7 +138,7 @@ private:
         }
 
         if (response->IsOK()) {
-            auto seedAddresses = FromProto<Stroka>(response->holderaddresses());
+            auto seedAddresses = FromProto<Stroka>(response->holder_addresses());
 
             // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
             Shuffle(seedAddresses.begin(), seedAddresses.end());
