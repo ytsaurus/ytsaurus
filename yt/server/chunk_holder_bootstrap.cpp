@@ -126,8 +126,6 @@ void TChunkHolderBootstrap::Run()
         ~sessionManager);
     rpcServer->RegisterService(~chunkHolderService);
 
-    rpcServer->RegisterService(~chunkHolderService);
-
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
