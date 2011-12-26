@@ -334,6 +334,8 @@ private:
             auto& chunk = ChunkMap.GetForUpdate(chunkId);
             
             auto& holderAddresses = chunkInfo.holder_addresses();
+            YASSERT(holderAddresses.size() != 0);
+
             FOREACH (const auto& address, holderAddresses) {
                 auto it = HolderAddressMap.find(address);
                 if (it == HolderAddressMap.end()) {

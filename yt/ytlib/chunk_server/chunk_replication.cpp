@@ -307,6 +307,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
         return EScheduleFlags::None;
     }
     
+    LostChunkIds_.erase(chunkId);
+    UnderReplicatedChunkIds_.erase(chunkId);
+    OverReplicatedChunkIds_.erase(chunkId);
+
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
     startInfo.set_job_id(jobId.ToProto());
@@ -479,16 +483,23 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             holderInfo->ChunksToRemove.erase(chunk.GetId());
         }
     }
+    auto chunkId = chunk.GetId();
+    LostChunkIds_.erase(chunkId);
+    OverReplicatedChunkIds_.erase(chunkId);
+    UnderReplicatedChunkIds_.erase(chunkId);
 
     if (storedCount == 0) {
         LOG_INFO("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
+        LostChunkIds_.insert(chunkId);
     } else if (storedCount - minusCount > desiredCount) {
+        OverReplicatedChunkIds_.insert(chunkId);
+
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
-            LOG_INFO("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+            LOG_WARNING("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
                 desiredCount);
@@ -512,10 +523,12 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
-    } else if (storedCount + plusCount < desiredCount && minusCount == 0) {
+    } else if (storedCount + plusCount < desiredCount) {
+        UnderReplicatedChunkIds_.insert(chunkId);
+
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
-            LOG_INFO("Chunk is under-replicated, waiting for pending removals to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+            LOG_WARNING("Chunk is under-replicated, waiting for pending removals to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
                 desiredCount);

@@ -20,11 +20,15 @@ public:
     typedef TIntrusivePtr<TChunkReplication> TPtr;
     typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
     typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
-
+    
     TChunkReplication(
         TChunkManager* chunkManager,
         TChunkPlacement* chunkPlacement,
         IInvoker* invoker);
+
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, LostChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, UnderReplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, OverReplicatedChunkIds);
 
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
