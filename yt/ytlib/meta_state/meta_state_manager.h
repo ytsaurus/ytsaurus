@@ -53,21 +53,31 @@ struct IMetaStateManager
      */
     virtual IInvoker::TPtr GetEpochStateInvoker() = 0;
 
+    //! Commits the change.
     /*!
-     * \note Thread affinity: StateThread
+     *  If this is not a leader then #ECommitResult::InvalidStatus is returned.
+     *  If this is a leader but without and active quorum, then #ECommitResult::NotCommitted is returned.
+     *  If the state is read-only, then #ECommitResult::ReadOnly is returned.
+     *  
+     *  \param changeData A blob describing the change to be send to followers.
+     *  \param changeAction An optional action that is called to perform the changes at the leader,
+     *  if NULL then #IMetaState::ApplyChange with #changeData is invoked.
+     *
+     *  \note Thread affinity: StateThread
      */
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction = NULL) = 0;
 
+    //! Toggles read-only mode.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
     virtual void SetReadOnly(bool readOnly) = 0;
 
     //! Returns monitoring info.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
 
