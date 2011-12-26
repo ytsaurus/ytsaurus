@@ -36,7 +36,7 @@ public:
 
         TConfig()
         {
-            Register("block_size", BlockSize).Default(1024 * 1024).GreaterThan(0);
+            Register("block_size", BlockSize).Default(256 * 1024).GreaterThan(0);
             Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
             Register("codec_id", CodecId).Default(ECodecId::None);
             Register("total_replica_count", TotalReplicaCount).Default(3).GreaterThanOrEqual(1);
