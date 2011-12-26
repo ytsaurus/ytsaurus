@@ -69,7 +69,7 @@ TFileWriter::TFileWriter(
             ~createNodeResponse->GetError().ToString());
     }
 
-    NodeId = TNodeId::FromProto(createNodeResponse->nodeid());
+    NodeId = TNodeId::FromProto(createNodeResponse->node_id());
 
     LOG_INFO("Node is created (NodeId: %s)", ~NodeId.ToString());
 
@@ -77,8 +77,8 @@ TFileWriter::TFileWriter(
     LOG_INFO("Creating a chunk (UploadReplicaCount: %d)", Config->UploadReplicaCount);
 
     auto allocateChunk = ChunkProxy->AllocateChunk();
-    allocateChunk->set_transactionid(TransactionId.ToProto());
-    allocateChunk->set_replicacount(Config->UploadReplicaCount);
+    allocateChunk->set_transaction_id(TransactionId.ToProto());
+    allocateChunk->set_replica_count(Config->UploadReplicaCount);
 
     auto createChunkResponse = allocateChunk->Invoke()->Get();
     if (!createChunkResponse->IsOK()) {
@@ -86,8 +86,8 @@ TFileWriter::TFileWriter(
             ~createChunkResponse->GetError().ToString());
     }
 
-    ChunkId = TChunkId::FromProto(createChunkResponse->chunkid());
-    auto addresses = FromProto<Stroka>(createChunkResponse->holderaddresses());
+    ChunkId = TChunkId::FromProto(createChunkResponse->chunk_id());
+    auto addresses = FromProto<Stroka>(createChunkResponse->holder_addresses());
 
     LOG_INFO("Chunk is created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
@@ -167,9 +167,9 @@ void TFileWriter::Close()
     // Construct chunk attributes.
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::File);
-    auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::FileAttributes);
+    auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
     fileAttributes->set_size(Size);
-    fileAttributes->set_codecid(Config->CodecId);
+    fileAttributes->set_codec_id(Config->CodecId);
     
     // Close the chunk.
     LOG_INFO("Closing chunk");
@@ -187,7 +187,7 @@ void TFileWriter::Close()
     LOG_INFO("Confirming chunk");
 
     auto confirmChunksRequest = ChunkProxy->ConfirmChunks();
-    confirmChunksRequest->set_transactionid(TransactionId.ToProto());
+    confirmChunksRequest->set_transaction_id(TransactionId.ToProto());
     *confirmChunksRequest->add_chunks() = Writer->GetConfirmationInfo();
 
     auto confirmChunksResponse = confirmChunksRequest->Invoke()->Get();
@@ -203,7 +203,7 @@ void TFileWriter::Close()
     LOG_INFO("Attaching chunk to file");
 
     auto setChunkRequest = TFileYPathProxy::SetFileChunk();
-    setChunkRequest->set_chunkid(ChunkId.ToProto());
+    setChunkRequest->set_chunk_id(ChunkId.ToProto());
 
     auto setChunkResponse =
         CypressProxy

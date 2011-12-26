@@ -4,8 +4,8 @@ package NYT.NElection.NProto;
 
 message TReqPingFollower
 {
-    required int32 LeaderId = 1;
-    required bytes Epoch = 2;
+    required int32 leader_id = 1;
+    required bytes epoch = 2;
 }
 
 message TRspPingFollower
@@ -18,12 +18,12 @@ message TReqGetStatus
 
 message TRspGetStatus
 {
-    required int32 State = 1;
-    required int32 VoteId = 2;
-    required bytes VoteEpoch = 3;
-    required int64 Priority = 4;
-    required int32 SelfId = 5;
-    repeated bytes PeerAddresses = 6;
+    required int32 state = 1;
+    required int32 vote_id = 2;
+    required bytes vote_epoch = 3;
+    required int64 priority = 4;
+    required int32 self_id = 5;
+    repeated bytes peer_addresses = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

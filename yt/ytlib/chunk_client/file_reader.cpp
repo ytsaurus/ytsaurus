@@ -58,7 +58,7 @@ void TChunkFileReader::Open()
     }
 
     ChunkInfo.set_id(chunkMeta.id());
-    ChunkInfo.set_metachecksum(checksum);
+    ChunkInfo.set_meta_checksum(checksum);
     ChunkInfo.mutable_blocks()->MergeFrom(chunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(chunkMeta.attributes());
 

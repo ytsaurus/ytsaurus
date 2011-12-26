@@ -86,7 +86,7 @@ NMetaState::TMetaChange<TVoid>::TPtr
 TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
 {
     TMsgCommitTransaction message;
-    message.set_transactionid(id.ToProto());
+    message.set_transaction_id(id.ToProto());
     return CreateMetaChange(
         ~MetaStateManager,
         message,
@@ -113,7 +113,7 @@ TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& mess
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = TTransactionId::FromProto(message.transactionid());
+    auto id = TTransactionId::FromProto(message.transaction_id());
 
     auto& transaction = TransactionMap.GetForUpdate(id);
     CommitTransaction(transaction);
@@ -124,7 +124,7 @@ NMetaState::TMetaChange<TVoid>::TPtr
 TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
 {
     TMsgAbortTransaction message;
-    message.set_transactionid(id.ToProto());
+    message.set_transaction_id(id.ToProto());
     return CreateMetaChange(
         ~MetaStateManager,
         message,
@@ -151,7 +151,7 @@ TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& messag
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = TTransactionId::FromProto(message.transactionid());
+    auto id = TTransactionId::FromProto(message.transaction_id());
     auto& transaction = TransactionMap.GetForUpdate(id);
     AbortTransaction(transaction);
     return TVoid();

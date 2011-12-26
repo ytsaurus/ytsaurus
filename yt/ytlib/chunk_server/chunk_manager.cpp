@@ -116,7 +116,7 @@ public:
         YASSERT(transactionId != NTransactionServer::NullTransactionId);
 
         TMsgAllocateChunk message;
-        message.set_transactionid(transactionId.ToProto());
+        message.set_transaction_id(transactionId.ToProto());
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -236,7 +236,7 @@ public:
     TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId)
     {
         TMsgUnregisterHolder message;
-        message.set_holderid(holderId);
+        message.set_holder_id(holderId);
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -305,7 +305,7 @@ private:
 
     TChunkId AllocateChunk(const TMsgAllocateChunk& message)
     {
-        auto transactionId = TTransactionId::FromProto(message.transactionid());
+        auto transactionId = TTransactionId::FromProto(message.transaction_id());
 
         auto chunkId = ChunkIdGenerator.Next();
         auto* chunk = new TChunk(chunkId);
@@ -326,14 +326,14 @@ private:
 
     TVoid ConfirmChunks(const TMsgConfirmChunks& message)
     {
-        auto transactionId = TTransactionId::FromProto(message.transactionid());
+        auto transactionId = TTransactionId::FromProto(message.transaction_id());
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         
         FOREACH (const auto& chunkInfo, message.chunks()) {
-            auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
+            auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
             auto& chunk = ChunkMap.GetForUpdate(chunkId);
             
-            auto& holderAddresses = chunkInfo.holderaddresses();
+            auto& holderAddresses = chunkInfo.holder_addresses();
             FOREACH (const auto& address, holderAddresses) {
                 auto it = HolderAddressMap.find(address);
                 if (it == HolderAddressMap.end()) {
@@ -461,7 +461,7 @@ private:
 
     TVoid UnregisterHolder(const TMsgUnregisterHolder& message)
     { 
-        auto holderId = message.holderid();
+        auto holderId = message.holder_id();
 
         const auto& holder = GetHolder(holderId);
 
@@ -473,7 +473,7 @@ private:
 
     TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
     {
-        auto holderId = message.holderid();
+        auto holderId = message.holder_id();
         auto statistics = NChunkHolder::THolderStatistics::FromProto(message.statistics());
 
         auto& holder = GetHolderForUpdate(holderId);
@@ -484,11 +484,11 @@ private:
             ChunkPlacement->OnHolderUpdated(holder);
         }
 
-        FOREACH(const auto& chunkInfo, message.addedchunks()) {
+        FOREACH(const auto& chunkInfo, message.added_chunks()) {
             ProcessAddedChunk(holder, chunkInfo);
         }
 
-        FOREACH(const auto& chunkInfo, message.removedchunks()) {
+        FOREACH(const auto& chunkInfo, message.removed_chunks()) {
             ProcessRemovedChunk(holder, chunkInfo);
         }
 
@@ -502,22 +502,22 @@ private:
             holderId,
             ~ToString(isFirstHeartbeat),
             ~statistics.ToString(),
-            static_cast<int>(message.addedchunks_size()),
-            static_cast<int>(message.removedchunks_size()));
+            static_cast<int>(message.added_chunks_size()),
+            static_cast<int>(message.removed_chunks_size()));
 
         return TVoid();
     }
 
     TVoid HeartbeatResponse(const TMsgHeartbeatResponse& message)
     {
-        auto holderId = message.holderid();
+        auto holderId = message.holder_id();
         auto& holder = GetHolderForUpdate(holderId);
 
-        FOREACH(const auto& startInfo, message.startedjobs()) {
+        FOREACH(const auto& startInfo, message.started_jobs()) {
             DoAddJob(holder, startInfo);
         }
 
-        FOREACH(auto protoJobId, message.stoppedjobs()) {
+        FOREACH(auto protoJobId, message.stopped_jobs()) {
             const auto& job = GetJob(TJobId::FromProto(protoJobId));
             DoRemoveJob(holder, job);
         }
@@ -525,8 +525,8 @@ private:
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
             ~holder.GetAddress(),
             holderId,
-            static_cast<int>(message.startedjobs_size()),
-            static_cast<int>(message.stoppedjobs_size()));
+            static_cast<int>(message.started_jobs_size()),
+            static_cast<int>(message.stopped_jobs_size()));
 
         return TVoid();
     }
@@ -770,9 +770,9 @@ private:
 
     void DoAddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
     {
-        auto chunkId = TChunkId::FromProto(jobInfo.chunkid());
-        auto jobId = TJobId::FromProto(jobInfo.jobid());
-        auto targetAddresses = FromProto<Stroka>(jobInfo.targetaddresses());
+        auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
+        auto jobId = TJobId::FromProto(jobInfo.job_id());
+        auto targetAddresses = FromProto<Stroka>(jobInfo.target_addresses());
         auto jobType = EJobType(jobInfo.type());
 
         auto* job = new TJob(
@@ -842,7 +842,7 @@ private:
         const TReqHolderHeartbeat::TChunkAddInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
+        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
         i64 size = chunkInfo.size();
         bool cached = chunkInfo.cached();
 
@@ -886,7 +886,7 @@ private:
         const TReqHolderHeartbeat::TChunkRemoveInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunkid());
+        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunkForUpdate(chunkId);

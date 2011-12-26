@@ -305,7 +305,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 snapshotId = request->snapshotid();
+        i32 snapshotId = request->snapshot_id();
 
         context->SetRequestInfo("SnapshotId: %d",
             snapshotId);
@@ -339,7 +339,7 @@ public:
 
         UNUSED(response);
 
-        i32 snapshotId = request->snapshotid();
+        i32 snapshotId = request->snapshot_id();
         i64 offset = request->offset();
         i32 length = request->length();
 
@@ -386,7 +386,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 changeLogId = request->changelogid();
+        i32 changeLogId = request->change_log_id();
 
         context->SetRequestInfo("ChangeLogId: %d",
             changeLogId);
@@ -400,7 +400,7 @@ public:
         auto changeLog = result.Value();
         i32 recordCount = changeLog->GetRecordCount();
         
-        response->set_recordcount(recordCount);
+        response->set_record_count(recordCount);
         
         context->SetResponseInfo("RecordCount: %d", recordCount);
         context->Reply();
@@ -412,9 +412,9 @@ public:
 
         UNUSED(response);
 
-        i32 changeLogId = request->changelogid();
-        i32 startRecordId = request->startrecordid();
-        i32 recordCount = request->recordcount();
+        i32 changeLogId = request->change_log_id();
+        i32 startRecordId = request->start_record_id();
+        i32 recordCount = request->record_count();
     
         context->SetRequestInfo("ChangeLogId: %d, StartRecordId: %d, RecordCount: %d",
             changeLogId,
@@ -444,7 +444,7 @@ public:
                         ~CurrentExceptionMessage());
                 }
 
-                context->Response().set_recordsread(recordData.ysize());
+                context->Response().set_records_read(recordData.ysize());
                 context->Response().Attachments().insert(
                     context->Response().Attachments().end(),
                     recordData.begin(),
@@ -460,8 +460,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TEpoch epoch = TEpoch::FromProto(request->epoch());
-        i32 segmentId = request->segmentid();
-        i32 recordCount = request->recordcount();
+        i32 segmentId = request->segment_id();
+        i32 recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
 
         context->SetRequestInfo("Epoch: %s, Version: %s",
@@ -529,11 +529,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 segmentId = request->segmentid();
-        i32 recordCount = request->recordcount();
+        i32 segmentId = request->segment_id();
+        i32 recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
         auto epoch = TEpoch::FromProto(request->epoch());
-        i32 maxSnapshotId = request->maxsnapshotid();
+        i32 maxSnapshotId = request->max_snapshot_id();
 
         context->SetRequestInfo("Version: %s,  Epoch: %s, MaxSnapshotId: %d",
             ~version.ToString(),
@@ -598,10 +598,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epoch = TEpoch::FromProto(request->epoch());
-        i32 segmentId = request->segmentid();
-        i32 recordCount = request->recordcount();
+        i32 segmentId = request->segment_id();
+        i32 recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
-        bool createSnapshot = request->createsnapshot();
+        bool createSnapshot = request->create_snapshot();
 
         context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
             ~epoch.ToString(),
@@ -786,10 +786,10 @@ public:
 
                 auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
                 auto request = proxy->AdvanceSegment();
-                request->set_segmentid(version.SegmentId);
-                request->set_recordcount(version.RecordCount);
+                request->set_segment_id(version.SegmentId);
+                request->set_record_count(version.RecordCount);
                 request->set_epoch(epoch.ToProto());
-                request->set_createsnapshot(false);
+                request->set_create_snapshot(false);
                 request->Invoke()->Subscribe(FromMethod(
                     &TThis::OnRemoteAdvanceSegment,
                     TPtr(this),

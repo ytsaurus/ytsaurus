@@ -8,17 +8,17 @@ message TFileChunkAttributes
 {
     extend NYT.NChunkHolder.NProto.TChunkAttributes
     {
-        required TFileChunkAttributes FileAttributes = 100;
+        required TFileChunkAttributes file_attributes = 100;
     }
 
     // Number of blocks in chunk.
-    //required int32 BlockCount = 1;
+    //required int32 block_count = 1;
 
     // The real size of the file (as uploaded by the client).
-    required int64 Size = 1;
+    required int64 size = 1;
 
     // Id of the codec using for storing blocks.
-    required int32 CodecId = 2;
+    required int32 codec_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

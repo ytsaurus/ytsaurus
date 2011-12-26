@@ -117,7 +117,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
     if (ypathResponse->IsOK()) {
         auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
-        auto nodeId = TNodeId::FromProto(ypathResponse->nodeid());
+        auto nodeId = TNodeId::FromProto(ypathResponse->node_id());
         BuildYsonFluently(~consumer)
             .BeginMap()
                 .Item("node_id").Scalar(nodeId.ToString())

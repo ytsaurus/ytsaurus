@@ -134,7 +134,7 @@ void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
         return;
     }
 
-    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
+    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::file_attributes);
     BuildYsonFluently(param.Consumer).Scalar(attributes.size());
 }
 
@@ -147,8 +147,8 @@ void TFileNodeTypeHandler::GetCodecId(const TGetAttributeParam& param)
         return;
     }
 
-    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::FileAttributes);
-    BuildYsonFluently(param.Consumer).Scalar(ECodecId(attributes.codecid()).ToString());
+    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::file_attributes);
+    BuildYsonFluently(param.Consumer).Scalar(ECodecId(attributes.codec_id()).ToString());
 }
 
 void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)

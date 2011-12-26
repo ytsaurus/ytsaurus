@@ -45,10 +45,10 @@ public:
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
             proxy->SetTimeout(config->Timeout);
             auto request = proxy->AdvanceSegment();
-            request->set_segmentid(Version.SegmentId);
-            request->set_recordcount(Version.RecordCount);
+            request->set_segment_id(Version.SegmentId);
+            request->set_record_count(Version.RecordCount);
             request->set_epoch(Creator->Epoch.ToProto());
-            request->set_createsnapshot(true);
+            request->set_create_snapshot(true);
 
             Awaiter->Await(
                 request->Invoke(),

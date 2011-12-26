@@ -46,8 +46,8 @@ void TChunkSequenceWriter::CreateNextChunk()
         Config->UploadReplicaCount);
 
     auto req = Proxy.AllocateChunk();
-    req->set_replicacount(Config->UploadReplicaCount);
-    req->set_transactionid(TransactionId.ToProto());
+    req->set_replica_count(Config->UploadReplicaCount);
+    req->set_transaction_id(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(FromMethod(
         &TChunkSequenceWriter::OnChunkCreated,
@@ -64,8 +64,8 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
     }
 
     if (rsp->IsOK()) {
-        auto addresses = FromProto<Stroka>(rsp->holderaddresses());
-        auto chunkId = TChunkId::FromProto(rsp->chunkid());
+        auto addresses = FromProto<Stroka>(rsp->holder_addresses());
+        auto chunkId = TChunkId::FromProto(rsp->chunk_id());
 
         LOG_DEBUG("Allocated new chunk (Addresses: [%s]; ChunkId: %s)",
             ~JoinToString(addresses),

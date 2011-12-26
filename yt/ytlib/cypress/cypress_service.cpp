@@ -53,7 +53,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 {
     UNUSED(response);
 
-    auto transactionId = TTransactionId::FromProto(request->transactionid());
+    auto transactionId = TTransactionId::FromProto(request->transaction_id());
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
     auto requestHeader = GetRequestHeader(~requestMessage);

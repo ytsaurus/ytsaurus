@@ -2,12 +2,12 @@ package NMyRpc;
 
 message TReqSomeCall
 {
-    required int32 A = 1;
+    required int32 a = 1;
 }
 
 message TRspSomeCall
 {
-    required int32 B = 1;
+    required int32 b = 1;
 }
 
 message TReqModifyAttachments { }

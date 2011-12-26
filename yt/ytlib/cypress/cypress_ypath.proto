@@ -12,13 +12,13 @@ message TRspLock
 
 message TReqCreate
 {
-    required bytes Type = 1;
-    required bytes Manifest = 2;
+    required bytes type = 1;
+    required bytes manifest = 2;
 }
 
 message TRspCreate
 {
-    required bytes NodeId = 1;
+    required bytes node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +28,7 @@ message TReqGetId
 
 message TRspGetId
 {
-    required bytes NodeId = 1;
+    required bytes node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

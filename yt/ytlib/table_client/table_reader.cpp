@@ -44,7 +44,7 @@ TTableReader::TTableReader(
         readChannel,
         transactionId,
         masterChannel,
-        FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunkids()),
+        FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunk_ids()),
         0,
         INT_MAX);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);

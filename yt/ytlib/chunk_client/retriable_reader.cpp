@@ -98,7 +98,7 @@ TError TRetriableReader::GetCumulativeError() const
 void TRetriableReader::RequestHolders(int retryIndex)
 {
     auto req = Proxy.FindChunk();
-    req->set_chunkid(ChunkId.ToProto());
+    req->set_chunk_id(ChunkId.ToProto());
     req->Invoke()->Subscribe(FromMethod(
         &TRetriableReader::OnGotHolders,
         TPtr(this),
@@ -108,7 +108,7 @@ void TRetriableReader::RequestHolders(int retryIndex)
 void TRetriableReader::OnGotHolders(TProxy::TRspFindChunk::TPtr rsp, int retryIndex)
 {
     if (rsp->IsOK()) {
-        auto holderAddresses = FromProto<Stroka>(rsp->holderaddresses());
+        auto holderAddresses = FromProto<Stroka>(rsp->holder_addresses());
         if (holderAddresses.empty()) {
             OnRetryFailed(TError("Chunk is lost"), retryIndex, false);
         } else {

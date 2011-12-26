@@ -54,7 +54,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, StartTransaction)
         ->InitiateStartTransaction()
         ->OnSuccess(~FromFunctor([=] (TTransactionId id)
             {
-                response->set_transactionid(id.ToProto());
+                response->set_transaction_id(id.ToProto());
 
                 context->SetResponseInfo("TransactionId: %s",
                     ~id.ToString());
@@ -69,7 +69,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, CommitTransaction)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -88,7 +88,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, AbortTransaction)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -107,7 +107,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, RenewTransactionLease)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());

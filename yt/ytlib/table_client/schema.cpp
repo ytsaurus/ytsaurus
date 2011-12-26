@@ -37,13 +37,13 @@ NProto::TRange TRange::ToProto() const
     NProto::TRange protoRange;
     protoRange.set_begin(Begin_);
     protoRange.set_end(End_);
-    protoRange.set_isinfinite(IsInfinite_);
+    protoRange.set_is_infinite(IsInfinite_);
     return protoRange;
 }
 
 TRange TRange::FromProto(const NProto::TRange& protoRange)
 {
-    if (protoRange.isinfinite()) {
+    if (protoRange.is_infinite()) {
         return TRange(protoRange.begin());
     } else {
         return TRange(protoRange.begin(), protoRange.end());

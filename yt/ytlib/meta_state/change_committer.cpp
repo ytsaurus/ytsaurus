@@ -98,8 +98,8 @@ public:
             proxy->SetTimeout(Committer->Config->RpcTimeout);
 
             auto request = proxy->ApplyChanges();
-            request->set_segmentid(StartVersion.SegmentId);
-            request->set_recordcount(StartVersion.RecordCount);
+            request->set_segment_id(StartVersion.SegmentId);
+            request->set_record_count(StartVersion.RecordCount);
             request->set_epoch(Committer->Epoch.ToProto());
             FOREACH(const auto& change, BatchedChanges) {
                 request->Attachments().push_back(change);

@@ -81,8 +81,8 @@ private:
             return;
         }
 
-        Attributes = result.Value().attributes().GetExtension(NProto::TTableChunkAttributes::TableAttributes);
-        ChunkReader->Codec = GetCodec(ECodecId(Attributes.codecid()));
+        Attributes = result.Value().attributes().GetExtension(NProto::TTableChunkAttributes::table_attributes);
+        ChunkReader->Codec = GetCodec(ECodecId(Attributes.codec_id()));
 
         SelectChannels();
         YASSERT(SelectedChannels.size() > 0);
@@ -163,16 +163,16 @@ private:
                 // one row behind its real starting row. E.g. for the first row of 
                 // the channel we consider start row to be -1.
                 startRow = lastRow - 1;
-                lastRow += protoBlock.rowcount();
+                lastRow += protoBlock.row_count();
 
                 if (lastRow > ChunkReader->StartRow) {
                     blockHeap.push_back(TBlockInfo(
-                        protoBlock.blockindex(),
+                        protoBlock.block_index(),
                         blockIndex,
                         channelIdx,
                         lastRow));
 
-                    result.push_back(protoBlock.blockindex());
+                    result.push_back(protoBlock.block_index());
                     StartRows.push_back(startRow);
                     break;
                 }
@@ -208,13 +208,13 @@ private:
                 const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
 
                 blockHeap.push_back(TBlockInfo(
-                    protoBlock.blockindex(),
+                    protoBlock.block_index(),
                     nextBlockIndex,
                     currentBlock.ChannelIndex,
-                    currentBlock.LastRow + protoBlock.rowcount()));
+                    currentBlock.LastRow + protoBlock.row_count()));
 
                 std::push_heap(blockHeap.begin(), blockHeap.end());
-                result.push_back(protoBlock.blockindex());
+                result.push_back(protoBlock.block_index());
             } else {
                 // EndRow is not set, so we reached the end of the chunk.
                 ChunkReader->EndRow = currentBlock.LastRow;

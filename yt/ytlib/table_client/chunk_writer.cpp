@@ -33,8 +33,8 @@ TChunkWriter::TChunkWriter(
 {
     YASSERT(chunkWriter);
     
-    Attributes.set_codecid(Config->CodecId);
-    Attributes.set_rowcount(0);
+    Attributes.set_codec_id(Config->CodecId);
+    Attributes.set_row_count(0);
 
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
@@ -95,7 +95,7 @@ TAsyncError::TPtr TChunkWriter::AsyncEndRow()
     CurrentSize = SentSize;
     UsedColumns.clear();
     
-    Attributes.set_rowcount(Attributes.rowcount() + 1);
+    Attributes.set_row_count(Attributes.row_count() + 1);
 
     State.StartOperation();
     ContinueEndRow(State.GetCurrentError(), 0);
@@ -110,8 +110,8 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     auto channel = ChannelWriters[channelIndex];
 
     NProto::TBlockInfo* blockInfo = Attributes.mutable_channels(channelIndex)->add_blocks();
-    blockInfo->set_blockindex(CurrentBlockIndex);
-    blockInfo->set_rowcount(channel->GetCurrentRowCount());
+    blockInfo->set_block_index(CurrentBlockIndex);
+    blockInfo->set_row_count(channel->GetCurrentRowCount());
 
     auto data = Codec->Compress(channel->FlushBlock());
 
@@ -173,7 +173,7 @@ void TChunkWriter::ContinueClose(
     // Write attributes.
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::Table);
-    *attributes.MutableExtension(TTableChunkAttributes::TableAttributes) = Attributes;
+    *attributes.MutableExtension(TTableChunkAttributes::table_attributes) = Attributes;
     
     ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,

@@ -4,7 +4,7 @@ package NYT.NTableServer.NProto;
 
 message TReqAddTableChunks
 {
-    repeated bytes ChunkIds = 1;
+    repeated bytes chunk_ids = 1;
 }
 
 message TRspAddTableChunks
@@ -17,7 +17,7 @@ message TReqGetTableChunks
 
 message TRspGetTableChunks
 {
-    repeated bytes ChunkIds = 1;
+    repeated bytes chunk_ids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

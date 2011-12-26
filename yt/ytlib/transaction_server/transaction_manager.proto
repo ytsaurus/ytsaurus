@@ -7,12 +7,12 @@ message TMsgStartTransaction
 
 message TMsgCommitTransaction
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 message TMsgAbortTransaction
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

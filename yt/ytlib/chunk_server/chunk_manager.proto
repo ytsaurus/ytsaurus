@@ -6,39 +6,39 @@ import "yt/ytlib/chunk_server/chunk_service.proto";
 
 message TMsgRegisterHolder
 {
-    required bytes Address = 1;
-    required THolderStatistics Statistics = 2;
+    required bytes address = 1;
+    required THolderStatistics statistics = 2;
 }
 
 message TMsgUnregisterHolder
 {
-    required int32 HolderId = 1;
+    required int32 holder_id = 1;
 }
 
 message TMsgAllocateChunk
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 message TMsgConfirmChunks
 {
-    required bytes TransactionId = 1;
-    repeated TReqConfirmChunks.TChunkInfo Chunks = 2;
+    required bytes transaction_id = 1;
+    repeated TReqConfirmChunks.TChunkInfo chunks = 2;
 }
 
 message TMsgHeartbeatRequest
 {
-    required int32 HolderId = 1;
-    required THolderStatistics Statistics = 2;
-    repeated TReqHolderHeartbeat.TChunkAddInfo AddedChunks = 3;
-    repeated TReqHolderHeartbeat.TChunkRemoveInfo RemovedChunks = 4;
+    required int32 holder_id = 1;
+    required THolderStatistics statistics = 2;
+    repeated TReqHolderHeartbeat.TChunkAddInfo added_chunks = 3;
+    repeated TReqHolderHeartbeat.TChunkRemoveInfo removed_chunks = 4;
 }
 
 message TMsgHeartbeatResponse
 {
-    required int32 HolderId = 1;
-    repeated TRspHolderHeartbeat.TJobStartInfo StartedJobs = 2;
-    repeated bytes StoppedJobs = 3;
+    required int32 holder_id = 1;
+    repeated TRspHolderHeartbeat.TJobStartInfo started_jobs = 2;
+    repeated bytes stopped_jobs = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,7 @@ TCypressServiceProxy::Execute(
     innerRequest->SetPath(path);
 
     auto outerRequest = Execute();
-    outerRequest->set_transactionid(transactionId.ToProto());
+    outerRequest->set_transaction_id(transactionId.ToProto());
 
     auto innerRequestMessage = innerRequest->Serialize();
     NYTree::WrapYPathRequest(~outerRequest, ~innerRequestMessage);
