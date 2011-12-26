@@ -49,7 +49,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-    auto keys = GetKeys();
+    auto keys = GetKeys(); // use some limit
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);

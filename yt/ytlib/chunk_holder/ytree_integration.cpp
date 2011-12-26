@@ -23,7 +23,7 @@ public:
 private:
     TChunkStore::TPtr ChunkStore;
 
-    virtual yvector<Stroka> GetKeys()
+    virtual yvector<Stroka> GetKeys() const
     {
         auto chunks = ChunkStore->GetChunks();
         yvector<Stroka> keys;
@@ -34,7 +34,7 @@ private:
         return keys;
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
         auto chunk = ChunkStore->FindChunk(id);

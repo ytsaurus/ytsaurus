@@ -278,6 +278,10 @@ public:
             jobsToStop);
     }
 
+    const yhash_set<TChunkId>& LostChunkIds() const;
+    const yhash_set<TChunkId>& OverReplicatedChunkIds() const;
+    const yhash_set<TChunkId>& UnderReplicatedChunkIds() const;
+
 private:
     typedef TImpl TThis;
 
@@ -991,6 +995,10 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Holder, THolder, THolderId, Holde
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplication);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverReplicatedChunkIds, *ChunkReplication);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderReplicatedChunkIds, *ChunkReplication);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
@@ -1145,6 +1153,10 @@ DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 
 DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
 DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
+
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverReplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderReplicatedChunkIds, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

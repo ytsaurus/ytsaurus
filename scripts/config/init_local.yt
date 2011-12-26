@@ -5,6 +5,10 @@
 {do=create;path="/sys/holders";type=holder_map;manifest={}}
 
 {do=create;path="/sys/chunks";type=chunk_map;manifest={}}
+{do=create;path="/sys/lost_chunks";type=lost_chunk_map;manifest={}}
+{do=create;path="/sys/over_replicated_chunks";type=over_replicated_chunk_map;manifest={}}
+{do=create;path="/sys/under_replicated_chunks";type=under_replicated_chunk_map;manifest={}}
+
 {do=create;path="/sys/chunk_lists";type=chunk_list_map;manifest={}}
 {do=create;path="/sys/nodes";type=node_map;manifest={}}
 {do=create;path="/sys/locks";type=lock_map;manifest={}}
