@@ -56,7 +56,7 @@ struct TPersistentStateManagerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreatePersistentStateManager(
+IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,

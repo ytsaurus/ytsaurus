@@ -66,7 +66,7 @@ bool TTableWriter::NodeExists(const TYPath& path)
         return false;
     }
 
-    NodeId = TNodeId::FromProto(rsp->nodeid());
+    NodeId = TNodeId::FromProto(rsp->node_id());
     return true;
 }
 
@@ -86,7 +86,7 @@ void TTableWriter::CreateTableNode(const Stroka& nodePath)
             ~error.ToString());
     }
 
-    NodeId = TNodeId::FromProto(rsp->nodeid());
+    NodeId = TNodeId::FromProto(rsp->node_id());
 }
 
 void TTableWriter::Write(const TColumn& column, TValue value)
@@ -104,7 +104,7 @@ void TTableWriter::Close()
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
     auto req = TTableYPathProxy::AddTableChunks();
-    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunkids(), Writer->GetWrittenChunkIds());
+    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunk_ids(), Writer->GetWrittenChunkIds());
 
     auto rsp = Proxy.Execute(
         GetYPathFromNodeId(NodeId),

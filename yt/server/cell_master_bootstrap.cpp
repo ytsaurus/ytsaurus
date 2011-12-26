@@ -114,7 +114,7 @@ void TCellMasterBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~busServer);
 
-    auto metaStateManager = CreatePersistentStateManager(
+    auto metaStateManager = CreateAndRegisterPersistentStateManager(
         ~Config->MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
@@ -127,8 +127,8 @@ void TCellMasterBootstrap::Run()
 
     auto transactionService = New<TTransactionService>(
         ~metaStateManager,
-        ~transactionManager,
-        ~rpcServer);
+        ~transactionManager);
+    rpcServer->RegisterService(~transactionService);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
@@ -138,8 +138,8 @@ void TCellMasterBootstrap::Run()
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
         ~cypressManager,
-        ~transactionManager,
-        ~rpcServer);
+        ~transactionManager);
+    rpcServer->RegisterService(~cypressService);
 
     auto holderRegistry = CreateHolderRegistry(~cypressManager);
 
@@ -153,8 +153,8 @@ void TCellMasterBootstrap::Run()
     auto chunkService = New<TChunkService>(
         ~metaStateManager,
         ~chunkManager,
-        ~transactionManager,
-        ~rpcServer);
+        ~transactionManager);
+    rpcServer->RegisterService(~chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -185,8 +185,8 @@ void TCellMasterBootstrap::Run()
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
-        ~rpcServer,
         ~controlQueue->GetInvoker());
+    rpcServer->RegisterService(~orchidRpcService);
 
     cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
         ~cypressManager,

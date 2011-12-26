@@ -16,8 +16,7 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 
 TTransactionService::TTransactionService(
     IMetaStateManager* metaStateManager,
-    TTransactionManager* transactionManager,
-    NRpc::IRpcServer* server)
+    TTransactionManager* transactionManager)
     : TMetaStateServiceBase(
         metaStateManager,
         TTransactionServiceProxy::GetServiceName(),
@@ -25,14 +24,11 @@ TTransactionService::TTransactionService(
     , TransactionManager(transactionManager)
 {
     YASSERT(transactionManager);
-    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RenewTransactionLease));
-
-    server->RegisterService(this);
 }
 
 void TTransactionService::ValidateTransactionId(const TTransactionId& id)
@@ -58,7 +54,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, StartTransaction)
         ->InitiateStartTransaction()
         ->OnSuccess(~FromFunctor([=] (TTransactionId id)
             {
-                response->set_transactionid(id.ToProto());
+                response->set_transaction_id(id.ToProto());
 
                 context->SetResponseInfo("TransactionId: %s",
                     ~id.ToString());
@@ -73,7 +69,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, CommitTransaction)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -92,7 +88,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, AbortTransaction)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());
@@ -111,7 +107,7 @@ DEFINE_RPC_SERVICE_METHOD(TTransactionService, RenewTransactionLease)
 {
     UNUSED(response);
 
-    auto id = TTransactionId::FromProto(request->transactionid());
+    auto id = TTransactionId::FromProto(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %s",
         ~id.ToString());

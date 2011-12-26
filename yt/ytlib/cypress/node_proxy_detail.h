@@ -212,7 +212,7 @@ protected:
     {
         UNUSED(request);
 
-        response->set_nodeid(GetNodeId().ToProto());
+        response->set_node_id(GetNodeId().ToProto());
         context->Reply();
     }
 
@@ -458,7 +458,7 @@ protected:
             ~manifest);
         CreateRecursive(context->GetPath(), ~value);
 
-        response->set_nodeid(value->GetNodeId().ToProto());
+        response->set_node_id(value->GetNodeId().ToProto());
 
         context->Reply();
     }

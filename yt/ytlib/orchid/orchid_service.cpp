@@ -21,7 +21,6 @@ static NLog::TLogger& Logger(OrchidLogger);
 
 TOrchidService::TOrchidService(
     NYTree::INode* root,
-    NRpc::IRpcServer* server,
     IInvoker* invoker)
     : NRpc::TServiceBase(
         invoker,
@@ -30,11 +29,8 @@ TOrchidService::TOrchidService(
     , Root(root)
 {
     YASSERT(root);
-    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-
-    server->RegisterService(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

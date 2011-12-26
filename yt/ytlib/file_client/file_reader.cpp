@@ -34,7 +34,7 @@ TFileReader::TFileReader(
 {
     YASSERT(masterChannel);
 
-    Logger.SetTag(Sprintf("Path: %s", ~Path));
+    Logger.AddTag(Sprintf("Path: %s", ~Path));
 
     auto transactionId =
         !Transaction
@@ -61,8 +61,8 @@ TFileReader::TFileReader(
             ~getChunkResponse->GetError().ToString());
     }
 
-    ChunkId = TChunkId::FromProto(getChunkResponse->chunkid());
-    auto holderAddresses = FromProto<Stroka>(getChunkResponse->holderaddresses());
+    ChunkId = TChunkId::FromProto(getChunkResponse->chunk_id());
+    auto holderAddresses = FromProto<Stroka>(getChunkResponse->holder_addresses());
 
     LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
@@ -85,8 +85,8 @@ TFileReader::TFileReader(
     BlockCount = chunkInfo.blocks_size();
     Size = chunkInfo.size();
     TFileChunkAttributes fileAttributes = 
-        chunkInfo.attributes().GetExtension(TFileChunkAttributes::FileAttributes);
-    auto codecId = ECodecId(fileAttributes.codecid());
+        chunkInfo.attributes().GetExtension(TFileChunkAttributes::file_attributes);
+    auto codecId = ECodecId(fileAttributes.codec_id());
     Codec = GetCodec(codecId);
 
     // Take all blocks.

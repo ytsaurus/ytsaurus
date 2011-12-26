@@ -27,9 +27,19 @@ void TTaggedLogger::Write(const TLogEvent& event)
     InnerLogger.Write(modifiedEvent);
 }
 
+void TTaggedLogger::AddTag(const Stroka& tag)
+{
+    if (Tags.empty()) {
+        Tags = tag;
+    } else {
+        Tags += ", ";
+        Tags += tag;
+    }
+}
+
 Stroka TTaggedLogger::GetTaggedMessage(const Stroka& originalMessage) const
 {
-    if (Tag_.length() == 0) {
+    if (Tags.length() == 0) {
         return originalMessage;
     }
 
@@ -40,12 +50,12 @@ Stroka TTaggedLogger::GetTaggedMessage(const Stroka& originalMessage) const
     if (endIndex > 0 && originalMessage[endIndex - 1] == ')') {
         return
             originalMessage.substr(0, endIndex - 1) +
-            ", " + Tag_ +
+            ", " + Tags +
             originalMessage.substr(endIndex - 1);
     } else {
         return
             originalMessage.substr(0, endIndex) +
-            " (" + Tag_ + ")" +
+            " (" + Tags + ")" +
             originalMessage.substr(endIndex);
     }
 }

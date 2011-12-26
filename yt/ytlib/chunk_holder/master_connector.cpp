@@ -130,7 +130,7 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
         return;
     }
 
-    HolderId = response->holderid();
+    HolderId = response->holder_id();
     Registered = true;
     IncrementalHeartbeat = false;
 
@@ -143,7 +143,7 @@ void TMasterConnector::SendHeartbeat()
     auto request = Proxy->HolderHeartbeat();
 
     YASSERT(HolderId != InvalidHolderId);
-    request->set_holderid(HolderId);
+    request->set_holder_id(HolderId);
 
     auto statistics = ComputeStatistics();
     *request->mutable_statistics() = statistics.ToProto();
@@ -153,25 +153,25 @@ void TMasterConnector::SendHeartbeat()
         ReportedRemoved = RemovedSinceLastSuccess;
 
         FOREACH (auto chunk, ReportedAdded) {
-            *request->add_addedchunks() = GetAddInfo(~chunk);
+            *request->add_added_chunks() = GetAddInfo(~chunk);
         }
 
         FOREACH (auto chunk, ReportedRemoved) {
-            *request->add_removedchunks() = GetRemoveInfo(~chunk);
+            *request->add_removed_chunks() = GetRemoveInfo(~chunk);
         }
     } else {
         FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
-            *request->add_addedchunks() = GetAddInfo(~chunk);
+            *request->add_added_chunks() = GetAddInfo(~chunk);
         }
 
         FOREACH (const auto& chunk, ChunkCache->GetChunks()) {
-            *request->add_addedchunks() = GetAddInfo(~chunk);
+            *request->add_added_chunks() = GetAddInfo(~chunk);
         }
     }
 
     FOREACH (const auto& job, JobExecutor->GetAllJobs()) {
         auto* info = request->add_jobs();
-        info->set_jobid(job->GetJobId().ToProto());
+        info->set_job_id(job->GetJobId().ToProto());
         info->set_state(job->GetState());
     }
 
@@ -181,15 +181,15 @@ void TMasterConnector::SendHeartbeat()
 
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~statistics.ToString(),
-        static_cast<int>(request->addedchunks_size()),
-        static_cast<int>(request->removedchunks_size()),
+        static_cast<int>(request->added_chunks_size()),
+        static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));
 }
 
 TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
 {
     TReqHolderHeartbeat::TChunkAddInfo info;
-    info.set_chunkid(chunk->GetId().ToProto());
+    info.set_chunk_id(chunk->GetId().ToProto());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     info.set_size(chunk->GetSize());
     return info;
@@ -198,7 +198,7 @@ TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* ch
 TReqHolderHeartbeat::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(const TChunk* chunk)
 {
     TReqHolderHeartbeat::TChunkRemoveInfo info;
-    info.set_chunkid(chunk->GetId().ToProto());
+    info.set_chunk_id(chunk->GetId().ToProto());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     return info;
 }
@@ -246,7 +246,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         IncrementalHeartbeat = true;
     }
 
-    FOREACH (const auto& jobProtoId, response->jobstostop()) {
+    FOREACH (const auto& jobProtoId, response->jobs_to_stop()) {
         auto jobId = TJobId::FromProto(jobProtoId);
         auto job = JobExecutor->FindJob(jobId);
         if (!job) {
@@ -258,9 +258,9 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         JobExecutor->StopJob(~job);
     }
 
-    FOREACH (const auto& startInfo, response->jobstostart()) {
-        auto chunkId = TChunkId::FromProto(startInfo.chunkid());
-        auto jobId = TJobId::FromProto(startInfo.jobid());
+    FOREACH (const auto& startInfo, response->jobs_to_start()) {
+        auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
+        auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
         
         auto chunk = ChunkStore->FindChunk(chunkId);
@@ -276,7 +276,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             jobType,
             jobId,
             ~chunk,
-            FromProto<Stroka>(startInfo.targetaddresses()));
+            FromProto<Stroka>(startInfo.target_addresses()));
     }
 }
 

@@ -6,23 +6,23 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 
 message THolderStatistics
 {
-    required int64 AvailableSpace = 1;
-    required int64 UsedSpace = 2;
-    required int32 ChunkCount = 3;
-    required int32 SessionCount = 4;
+    required int64 available_space = 1;
+    required int64 used_space = 2;
+    required int32 chunk_count = 3;
+    required int32 session_count = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRegisterHolder
 {
-    required bytes Address = 1;
-    required THolderStatistics Statistics = 2;
+    required bytes address = 1;
+    required THolderStatistics statistics = 2;
 }
 
 message TRspRegisterHolder
 {
-    required int32 HolderId = 1;
+    required int32 holder_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,28 +31,28 @@ message TReqHolderHeartbeat
 {
     message TChunkAddInfo
     {
-        required bytes ChunkId = 1;
-        required bool Cached = 2;
-        required int64 Size = 3;
+        required bytes chunk_id = 1;
+        required bool cached = 2;
+        required int64 size = 3;
     }
 
     message TChunkRemoveInfo
     {
-        required bytes ChunkId = 1;
-        required bool Cached = 2;
+        required bytes chunk_id = 1;
+        required bool cached = 2;
     }
 
     message TJobInfo
     {
-        required bytes JobId = 1;
-        required int32 State = 2;
+        required bytes job_id = 1;
+        required int32 state = 2;
     }
 
-    required int32 HolderId = 1;
-    required THolderStatistics Statistics = 2;
+    required int32 holder_id = 1;
+    required THolderStatistics statistics = 2;
 
-    repeated TChunkAddInfo AddedChunks = 3;
-    repeated TChunkRemoveInfo RemovedChunks = 4;
+    repeated TChunkAddInfo added_chunks = 3;
+    repeated TChunkRemoveInfo removed_chunks = 4;
 
     repeated TJobInfo Jobs = 5;
 }
@@ -61,29 +61,29 @@ message TRspHolderHeartbeat
 {
     message TJobStartInfo
     {
-        required int32 Type = 1;
-        required bytes JobId = 2;
-        required bytes ChunkId = 3;
-        repeated bytes TargetAddresses = 4;
+        required int32 type = 1;
+        required bytes job_id = 2;
+        required bytes chunk_id = 3;
+        repeated bytes target_addresses = 4;
     }
 
-    repeated bytes ChunksToRemove = 1;
-    repeated TJobStartInfo JobsToStart = 2;
-    repeated bytes JobsToStop = 3;
+    repeated bytes chunks_to_remove = 1;
+    repeated TJobStartInfo jobs_to_start = 2;
+    repeated bytes jobs_to_stop = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAllocateChunk
 {
-    required bytes TransactionId = 1;
-    required int32 ReplicaCount = 2;
+    required bytes transaction_id = 1;
+    required int32 replica_count = 2;
 }
 
 message TRspAllocateChunk
 {
-    required bytes ChunkId = 1;
-    repeated bytes HolderAddresses = 2;
+    required bytes chunk_id = 1;
+    repeated bytes holder_addresses = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,13 +92,13 @@ message TReqConfirmChunks
 {
     message TChunkInfo
     {
-        required bytes ChunkId = 1;
-        repeated bytes HolderAddresses = 2;
-        required NChunkHolder.NProto.TChunkAttributes Attributes = 3;
+        required bytes chunk_id = 1;
+        repeated bytes holder_addresses = 2;
+        required NChunkHolder.NProto.TChunkAttributes attributes = 3;
     }
 
-    required bytes TransactionId = 1;
-    repeated TChunkInfo Chunks = 2;
+    required bytes transaction_id = 1;
+    repeated TChunkInfo chunks = 2;
 }
 
 message TRspConfirmChunks
@@ -108,12 +108,12 @@ message TRspConfirmChunks
 
 message TReqFindChunk
 {
-    required bytes ChunkId = 1;
+    required bytes chunk_id = 1;
 }
 
 message TRspFindChunk
 {
-    repeated bytes HolderAddresses = 1;
+    repeated bytes holder_addresses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

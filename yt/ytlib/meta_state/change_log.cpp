@@ -236,7 +236,7 @@ TChangeLog::TImpl::TImpl(
     , RecordCount(-1)
     , Logger(MetaStateLogger)
 {
-    Logger.SetTag(Sprintf("ChangeLogId: %d", Id));
+    Logger.AddTag(Sprintf("ChangeLogId: %d", Id));
 }
 
 void TChangeLog::TImpl::Open()

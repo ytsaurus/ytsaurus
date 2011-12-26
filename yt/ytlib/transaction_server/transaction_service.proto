@@ -7,14 +7,14 @@ message TReqStartTransaction
 
 message TRspStartTransaction
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqCommitTransaction
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 message TRspCommitTransaction
@@ -24,7 +24,7 @@ message TRspCommitTransaction
 
 message TReqAbortTransaction
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 message TRspAbortTransaction
@@ -34,7 +34,7 @@ message TRspAbortTransaction
 
 message TReqRenewTransactionLease
 {
-    required bytes TransactionId = 1;
+    required bytes transaction_id = 1;
 }
 
 message TRspRenewTransactionLease

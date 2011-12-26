@@ -57,7 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
 {
     UNUSED(response);
 
-    auto chunkIds = FromProto<TChunkId>(request->chunkids());
+    auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
 
     context->SetRequestInfo("ChunkIds: [%s]", ~JoinToString(chunkIds));
 
@@ -102,7 +102,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetTableChunks)
         chunkIds.insert(chunkIds.end(), chunkList.ChunkIds().begin(), chunkList.ChunkIds().end());
     }
 
-    ToProto<TChunkId, Stroka>(*response->mutable_chunkids(), chunkIds);
+    ToProto<TChunkId, Stroka>(*response->mutable_chunk_ids(), chunkIds);
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
     context->Reply();

@@ -137,7 +137,7 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
     }
 
     ChunkInfo.set_id(Id.ToProto());
-    ChunkInfo.set_metachecksum(header.Checksum);
+    ChunkInfo.set_meta_checksum(header.Checksum);
     ChunkInfo.set_size(DataSize + metaBlob.size() + sizeof (TChunkMetaHeader));
     ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(ChunkMeta.attributes());

@@ -35,7 +35,7 @@ TSession::TSession(
     YASSERT(sessionManager);
     YASSERT(location);
 
-    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Location->IncrementSessionCount();
 

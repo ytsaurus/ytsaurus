@@ -114,7 +114,7 @@ void TChunkReplication::ProcessExistingJobs(
     // TODO: check for missing jobs
     // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
-        auto jobId = TJobId::FromProto(jobInfo.jobid());
+        auto jobId = TJobId::FromProto(jobInfo.job_id());
         const auto& job = ChunkManager->GetJob(jobId);
         auto jobState = EJobState(jobInfo.state());
         switch (jobState) {
@@ -225,10 +225,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_job_id(jobId.ToProto());
     startInfo.set_type(EJobType::Replicate);
-    startInfo.set_chunkid(chunkId.ToProto());
-    ToProto(*startInfo.mutable_targetaddresses(), targetAddresses);
+    startInfo.set_chunk_id(chunkId.ToProto());
+    ToProto(*startInfo.mutable_target_addresses(), targetAddresses);
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
@@ -277,10 +277,10 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_job_id(jobId.ToProto());
     startInfo.set_type(EJobType::Replicate);
-    startInfo.set_chunkid(chunkId.ToProto());
-    startInfo.add_targetaddresses(targetHolder.GetAddress());
+    startInfo.set_chunk_id(chunkId.ToProto());
+    startInfo.add_target_addresses(targetHolder.GetAddress());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
@@ -309,9 +309,9 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_jobid(jobId.ToProto());
+    startInfo.set_job_id(jobId.ToProto());
     startInfo.set_type(EJobType::Remove);
-    startInfo.set_chunkid(chunkId.ToProto());
+    startInfo.set_chunk_id(chunkId.ToProto());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",

@@ -391,7 +391,7 @@ TRemoteWriter::TRemoteWriter(
 {
     YASSERT(AliveNodeCount > 0);
 
-    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     LOG_DEBUG("Writer created (Addresses: [%s])", ~JoinToString(addresses));
 
@@ -920,11 +920,11 @@ TReqConfirmChunks::TChunkInfo TRemoteWriter::GetConfirmationInfo()
     YASSERT(State.IsClosed());
 
     TReqConfirmChunks::TChunkInfo info;
-    info.set_chunkid(ChunkId.ToProto());
+    info.set_chunk_id(ChunkId.ToProto());
     *info.mutable_attributes() = Attributes;
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
-            info.add_holderaddresses(node->Address);
+            info.add_holder_addresses(node->Address);
         }
     }
 

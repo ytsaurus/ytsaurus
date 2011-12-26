@@ -22,8 +22,7 @@ TElectionManager::TElectionManager(
     TConfig* config,
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
-    IElectionCallbacks* electionCallbacks,
-    NRpc::IRpcServer* server)
+    IElectionCallbacks* electionCallbacks)
     : TServiceBase(
         controlInvoker,
         TProxy::GetServiceName(),
@@ -38,7 +37,6 @@ TElectionManager::TElectionManager(
     YASSERT(cellManager);
     YASSERT(controlInvoker);
     YASSERT(electionCallbacks);
-    YASSERT(server);
 
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
@@ -46,7 +44,6 @@ TElectionManager::TElectionManager(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
-    server->RegisterService(this);
 }
 
 void TElectionManager::Start()
@@ -119,7 +116,7 @@ private:
         auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
         proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
         auto request = proxy->PingFollower();
-        request->set_leaderid(ElectionManager->CellManager->GetSelfId());
+        request->set_leader_id(ElectionManager->CellManager->GetSelfId());
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
@@ -311,9 +308,9 @@ private:
         }
 
         auto state = TProxy::EState(response->state());
-        auto vote = response->voteid();
+        auto vote = response->vote_id();
         auto priority = response->priority();
-        auto epoch = TEpoch::FromProto(response->voteepoch());
+        auto epoch = TEpoch::FromProto(response->vote_epoch());
         
         LOG_DEBUG("Received status from peer (PeerId: %d, Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
             peerId,
@@ -482,7 +479,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto epoch = TEpoch::FromProto(request->epoch());
-    auto leaderId = request->leaderid();
+    auto leaderId = request->leader_id();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
         ~epoch.ToString(),
@@ -530,12 +527,12 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
     auto priority = ElectionCallbacks->GetPriority();
 
     response->set_state(State);
-    response->set_voteid(VoteId);
+    response->set_vote_id(VoteId);
     response->set_priority(priority);
-    response->set_voteepoch(VoteEpoch.ToProto());
-    response->set_selfid(CellManager->GetSelfId());
+    response->set_vote_epoch(VoteEpoch.ToProto());
+    response->set_self_id(CellManager->GetSelfId());
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-        response->add_peeraddresses(CellManager->GetPeerAddress(id));
+        response->add_peer_addresses(CellManager->GetPeerAddress(id));
     }
 
     context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",

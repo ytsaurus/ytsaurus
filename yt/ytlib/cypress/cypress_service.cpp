@@ -24,8 +24,7 @@ static NLog::TLogger& Logger = CypressLogger;
 TCypressService::TCypressService(
     IInvoker* invoker,
     TCypressManager* cypressManager,
-    TTransactionManager* transactionManager,
-    NRpc::IRpcServer* server)
+    TTransactionManager* transactionManager)
     : NRpc::TServiceBase(
         invoker,
         TCypressServiceProxy::GetServiceName(),
@@ -34,11 +33,8 @@ TCypressService::TCypressService(
     , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager);
-    YASSERT(server);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-
-    server->RegisterService(this);
 }
 
 void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
@@ -57,7 +53,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 {
     UNUSED(response);
 
-    auto transactionId = TTransactionId::FromProto(request->transactionid());
+    auto transactionId = TTransactionId::FromProto(request->transaction_id());
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
     auto requestHeader = GetRequestHeader(~requestMessage);

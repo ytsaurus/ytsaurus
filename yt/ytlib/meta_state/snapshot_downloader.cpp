@@ -60,7 +60,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         proxy->SetTimeout(Config->LookupTimeout);
 
         auto request = proxy->GetSnapshotInfo();
-        request->set_snapshotid(snapshotId);
+        request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TSnapshotDownloader::OnResponse,
             awaiter, asyncResult, peerId));
@@ -153,7 +153,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
         auto request = proxy->ReadSnapshot();
-        request->set_snapshotid(snapshotId);
+        request->set_snapshot_id(snapshotId);
         request->set_offset(downloadedLength);
         i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));
         request->set_length(blockSize);

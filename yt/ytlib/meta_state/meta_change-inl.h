@@ -94,7 +94,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     YASSERT(target);
 
     NProto::TMsgChangeHeader header;
-    header.set_changetype(message.GetTypeName());
+    header.set_change_type(message.GetTypeName());
 
     auto changeData = SerializeChange(header, message);
 
@@ -116,7 +116,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     YASSERT(func);
 
     NProto::TMsgChangeHeader header;
-    header.set_changetype(message.GetTypeName());
+    header.set_change_type(message.GetTypeName());
 
     auto changeData = SerializeChange(header, message);
 

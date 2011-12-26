@@ -21,8 +21,7 @@ public:
     TCypressService(
         IInvoker* invoker,
         TCypressManager* cypressManager,
-        NTransactionServer::TTransactionManager* transactionManager,
-        NRpc::IRpcServer* server);
+        NTransactionServer::TTransactionManager* transactionManager);
 
 private:
     typedef TCypressService TThis;

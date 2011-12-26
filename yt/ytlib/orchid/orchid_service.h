@@ -22,7 +22,6 @@ public:
     //! Creates an instance.
     TOrchidService(
         NYTree::INode* root,
-        NRpc::IRpcServer* server,
         IInvoker* invoker);
 
 private:

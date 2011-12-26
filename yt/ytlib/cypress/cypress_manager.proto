@@ -4,10 +4,9 @@ package NYT.NCypress.NProto;
 
 message TMsgExecuteVerb
 {
-    required bytes NodeId = 1;
-    required bytes TransactionId = 2;
-    required bool StartAutoTransaction = 3;
-    repeated bytes RequestParts = 4;
+    required bytes node_id = 1;
+    required bytes transaction_id = 2;
+    repeated bytes request_parts = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

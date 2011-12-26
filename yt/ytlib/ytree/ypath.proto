@@ -7,7 +7,7 @@ message TReqGet
 
 message TRspGet
 {
-    required bytes Value = 1;
+    required bytes value = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,14 +17,14 @@ message TReqGetNode
 
 message TRspGetNode
 {
-    required int64 Value = 1;
+    required int64 value = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqSet
 {
-    required bytes Value = 1;
+    required bytes value = 1;
 }
 
 message TRspSet
@@ -34,7 +34,7 @@ message TRspSet
 
 message TReqSetNode
 {
-    required int64 Value = 1;
+    required int64 value = 1;
 }
 
 message TRspSetNode
@@ -55,7 +55,7 @@ message TReqList
 
 message TRspList
 {
-    repeated bytes Keys = 1;
+    repeated bytes keys = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

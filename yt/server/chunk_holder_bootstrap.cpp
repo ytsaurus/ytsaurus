@@ -128,7 +128,6 @@ void TChunkHolderBootstrap::Run()
         ~readerCache,
         ~blockStore,
         ~sessionManager);
-
     rpcServer->RegisterService(~chunkHolderService);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -161,8 +160,8 @@ void TChunkHolderBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~rpcServer,
         ~controlQueue->GetInvoker());
+    rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     auto orchidPathService = IYPathService::FromNode(~orchidRoot);

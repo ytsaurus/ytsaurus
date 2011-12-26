@@ -63,7 +63,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
     TChunkId chunkId;
     auto chunkListId = impl.GetChunkListId();
     if (chunkListId == NullChunkId) {
-        response->set_chunkid(NullChunkId.ToProto());
+        response->set_chunk_id(NullChunkId.ToProto());
 
         context->SetResponseInfo("ChunkId: %s", ~NullChunkId.ToString());
     } else {
@@ -73,12 +73,12 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
 
         const auto& chunk = ChunkManager->GetChunk(chunkId);
 
-        response->set_chunkid(chunkId.ToProto());
-        ChunkManager->FillHolderAddresses(response->mutable_holderaddresses(), chunk);
+        response->set_chunk_id(chunkId.ToProto());
+        ChunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
         context->SetResponseInfo("ChunkId: %s, HolderAddresses: [%s]",
             ~chunkId.ToString(),
-            ~JoinToString(response->holderaddresses()));
+            ~JoinToString(response->holder_addresses()));
     }
 
     context->Reply();
@@ -88,7 +88,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, SetFileChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunkid());
+    auto chunkId = TChunkId::FromProto(request->chunk_id());
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
