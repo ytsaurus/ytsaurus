@@ -123,7 +123,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isCellMaster) {
         auto config = New<TCellMasterBootstrap::TConfig>();
         try {
-            config->LoadAndValidate(~configNode);
+            config->Load(~configNode);
             
             // Override peer id.
             if (peerId != InvalidPeerId) {
