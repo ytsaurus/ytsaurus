@@ -278,6 +278,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                             blockInfo->set_data_attached(true);
                             auto block = result.Value();
                             (*blocks)[index] = block;
+                            response->Attachments()[index] = block->GetData();
                             LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
                         } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
                             // This is really sad. We neither have the full chunk nor this particular block.
@@ -296,11 +297,20 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
     awaiter->Complete(FromFunctor([=] ()
         {
-            // Prepare the attachments and reply.
-            for (int index = 0; index < blockCount; ++index) {
-                auto block = (*blocks)[index];
-                response->Attachments().push_back(block ? block->GetData() : TSharedRef());
+            // Compute statistics.
+            int blocksWithData = 0;
+            int blocksWithPeers = 0;
+            FOREACH (const auto& blockInfo, response->blocks()) {
+                if (blockInfo.data_attached()) {
+                    ++blocksWithData;
+                } else if (blockInfo.peer_addresses_size() != 0) {
+                    ++blocksWithPeers;
+                }
             }
+
+            context->SetResponseInfo("BlocksWithData: %d, BlocksWithPeers: %d",
+                blocksWithData,
+                blocksWithPeers);
 
             context->Reply();
 
