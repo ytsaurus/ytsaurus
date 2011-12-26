@@ -24,10 +24,15 @@ public:
 private:
     TCypressManager::TPtr CypressManager;
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = CypressManager->GetNodeIds();
-        return ConvertToStrings(ids.begin(), ids.end(), ids.size());
+        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
+    }
+
+    virtual size_t GetSize() const
+    {
+        return CypressManager->GetNodeCount();
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
@@ -77,10 +82,15 @@ public:
 private:
     TCypressManager::TPtr CypressManager;
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = CypressManager->GetLockIds();
-        return ConvertToStrings(ids.begin(), ids.end(), ids.size());
+        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
+    }
+
+    virtual size_t GetSize() const
+    {
+        return CypressManager->GetLockCount();
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const

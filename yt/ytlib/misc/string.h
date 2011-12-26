@@ -44,11 +44,11 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIter>
-yvector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t sizeHint = 0)
+yvector<Stroka> ConvertToStrings(TIter begin, size_t count)
 {
     yvector<Stroka> result;
-    result.reserve(sizeHint);
-    for (TIter it = begin; it != end; ++it) {
+    result.reserve(count);
+    for (TIter it = begin; result.size() != count; ++it) {
         result.push_back(it->ToString());
     }
     return result;

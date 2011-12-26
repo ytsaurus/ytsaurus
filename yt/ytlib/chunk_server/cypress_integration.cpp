@@ -61,14 +61,23 @@ private:
         return chunkIds.find(chunkId) != chunkIds.end();
     }
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
             const auto& chunkIds = ChunkManager->GetChunkIds();
-            return ConvertToStrings(chunkIds.begin(), chunkIds.end(), chunkIds.size());
+            return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
         } else {
             const auto& chunkIds = GetFilteredChunkIds();
-            return ConvertToStrings(chunkIds.begin(), chunkIds.end(), chunkIds.size());
+            return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
+        }
+    }
+
+    virtual size_t GetSize() const
+    {
+        if (Filter == EChunkFilter::All) {
+            return ChunkManager->GetChunkCount();
+        } else {
+            return GetFilteredChunkIds().size();
         }
     }
 
@@ -194,10 +203,15 @@ public:
 private:
     TChunkManager::TPtr ChunkManager;
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& chunkListIds = ChunkManager->GetChunkListIds();
-        return ConvertToStrings(chunkListIds.begin(), chunkListIds.end(), chunkListIds.size());
+        return ConvertToStrings(chunkListIds.begin(), Min(chunkListIds.size(), sizeLimit));
+    }
+
+    virtual size_t GetSize() const
+    {
+        return ChunkManager->GetChunkListCount();
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const

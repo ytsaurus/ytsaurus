@@ -26,10 +26,15 @@ public:
 private:
     TTransactionManager::TPtr TransactionManager;
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = TransactionManager->GetTransactionIds();
-        return ConvertToStrings(ids.begin(), ids.end(), ids.size());
+        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
+    }
+
+    virtual size_t GetSize() const
+    {
+        return TransactionManager->GetTransactionCount();
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const

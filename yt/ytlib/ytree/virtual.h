@@ -13,9 +13,8 @@ class TVirtualMapBase
     : public TYPathServiceBase
 {
 protected:
-    virtual yvector<Stroka> GetKeys() const = 0;
-    //virtual yvector<Stroka> GetKeys(int sizeLimit) const = 0;
-    //virtual int GetSize() const = 0;
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const = 0;
+    virtual size_t GetSize() const = 0;
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const = 0;
 
 private:
