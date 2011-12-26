@@ -72,8 +72,8 @@ message TRspGetBlocks
 {
     message TBlockInfo
     {
-        required bool data_attached = 2;
-        repeated string peer_addresses = 3;
+        required bool data_attached = 1;
+        repeated string peer_addresses = 2;
     }
 
     repeated TBlockInfo blocks = 1;
