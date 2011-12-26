@@ -40,7 +40,7 @@ public:
 
         TConfig()
         {
-            Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(256 * 1024 * 1024);
+            Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(1024 * 1024 * 1024);
             Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(100).Default(70);
             Register("total_replica_count", UploadReplicaCount).GreaterThanOrEqual(1).Default(3);
             Register("upload_replica_count", UploadReplicaCount).GreaterThanOrEqual(1).Default(2);
