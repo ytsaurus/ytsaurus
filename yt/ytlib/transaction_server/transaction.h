@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../chunk_holder/common.h"
+#include "../chunk_client/common.h"
 #include "../cypress/common.h"
 
 namespace NYT {

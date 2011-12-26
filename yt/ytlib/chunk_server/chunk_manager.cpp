@@ -348,6 +348,10 @@ private:
                 auto& holder = HolderMap.GetForUpdate(holderId);
                 // TODO: mark it unapproved
                 holder.AddChunk(chunkId, false);
+
+                if (IsLeader()) {
+                    ChunkReplication->OnReplicaAdded(holder, chunk);
+                }
             }
 
             // Skip chunks that are already confirmed.

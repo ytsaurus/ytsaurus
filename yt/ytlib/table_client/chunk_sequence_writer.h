@@ -5,7 +5,7 @@
 #include "chunk_writer.h"
 
 #include "../misc/thread_affinity.h"
-
+#include "../actions/parallel_awaiter.h"
 #include "../chunk_server/chunk_service_proxy.h"
 #include "../chunk_client/remote_writer.h"
 #include "../transaction_client/transaction.h"

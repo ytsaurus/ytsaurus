@@ -6,6 +6,7 @@
 
 #include "../misc/property.h"
 #include "../misc/serialize.h"
+#include "../chunk_client/common.h"
 
 namespace NYT {
 namespace NChunkServer {

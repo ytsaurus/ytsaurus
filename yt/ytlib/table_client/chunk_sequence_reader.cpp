@@ -44,11 +44,14 @@ void TChunkSequenceReader::PrepareNextChunk()
         return;
     }
 
-    TRetriableReader::TPtr retriableReader = New<TRetriableReader>(
-        ~Config->RetriableReader, 
+    auto remoteReaderFactory = CreateRemoteReaderFactory(~Config->RemoteReader);
+    auto retriableReader = New<TRetriableReader>(
+        ~Config->RetriableReader,
         ChunkIds[NextChunkIndex],
+        yvector<Stroka>(),
         TransactionId,
-        ~MasterChannel);
+        ~MasterChannel,
+        ~remoteReaderFactory);
 
     int startRow = NextChunkIndex == 0 ? StartRow : 0;
     int endRow = NextChunkIndex == ChunkIds.ysize() - 1 ? 

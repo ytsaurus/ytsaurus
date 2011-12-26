@@ -4,8 +4,11 @@
 
 #include "../misc/foreach.h"
 #include "../misc/string.h"
+#include "../misc/metric.h"
 #include "../misc/thread_affinity.h"
+#include "../logging/tagged_logger.h"
 #include "../actions/action_util.h"
+#include "../chunk_holder/chunk_holder_service_proxy.h"
 
 #include <util/random/shuffle.h>
 
@@ -17,6 +20,66 @@ using namespace NChunkHolder::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkClientLogger;
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRemoteReader
+    : public IAsyncReader
+{
+public:
+    typedef TIntrusivePtr<TRemoteReader> TPtr;
+    typedef TRemoteReaderConfig TConfig;
+
+    TRemoteReader(
+        TConfig* config,
+        const TChunkId& chunkId,
+        const yvector<Stroka>& holderAddresses);
+
+    TFuture<TReadResult>::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+
+    TFuture<IAsyncReader::TGetInfoResult>::TPtr AsyncGetChunkInfo();
+
+private:
+    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
+
+    void DoReadBlocks(
+        const yvector<int>& blockIndexes, 
+        TFuture<TReadResult>::TPtr result);
+
+    void OnBlocksRead(
+        TProxy::TRspGetBlocks::TPtr response,
+        TFuture<TReadResult>::TPtr result,
+        const yvector<int>& blockIndexes,
+        int holderIndex);
+
+    void DoGetChunkInfo(
+        TFuture<TGetInfoResult>::TPtr result);
+
+    void OnGotChunkInfo(
+        TProxy::TRspGetChunkInfo::TPtr response,
+        TFuture<TGetInfoResult>::TPtr result,
+        int holderIndex);
+
+    bool GetCurrentHolderIndex(int* holderIndex) const;
+    bool OnCurrentHolderFailed(int holderIndex, const TError& error);
+
+    TError GetCumulativeError() const;
+
+    TConfig::TPtr Config;
+    const TChunkId ChunkId;
+
+    yvector<Stroka> HolderAddresses;
+
+    TMetric ExecutionTime;
+
+    NLog::TTaggedLogger Logger;
+
+    TSpinLock SpinLock;
+    int CurrentHolderIndex;
+    Stroka CumulativeErrorMessage;
+    TError CumulativeError;
+
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +125,7 @@ void TRemoteReader::DoReadBlocks(
     }
     auto holderAddress = HolderAddresses[holderIndex];
 
-    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: %s)",
+    LOG_DEBUG("Requesting blocks from holder (HolderAddress: %s, BlockIndexes: [%s])",
         ~holderAddress,
         ~JoinToString(blockIndexes));
 
@@ -103,7 +166,7 @@ void TRemoteReader::OnBlocksRead(
         ~HolderAddresses[holderIndex],
         ~response->GetError().ToString());
 
-    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
         DoReadBlocks(blockIndexes, asyncResult);
         return;
     }
@@ -163,7 +226,7 @@ void TRemoteReader::OnGotChunkInfo(
         ~HolderAddresses[holderIndex],
         ~response->GetError().ToString());
 
-    if (ChangeCurrentHolder(holderIndex, response->GetError())) {
+    if (OnCurrentHolderFailed(holderIndex, response->GetError())) {
         DoGetChunkInfo(asyncResult);
         return;
     }
@@ -183,7 +246,7 @@ bool TRemoteReader::GetCurrentHolderIndex(int* holderIndex) const
     }
 }
 
-bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
+bool TRemoteReader::OnCurrentHolderFailed(int holderIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(!error.IsOK());
@@ -200,7 +263,7 @@ bool TRemoteReader::ChangeCurrentHolder(int holderIndex, const TError& error)
         ++CurrentHolderIndex;
 
         if (CurrentHolderIndex >= HolderAddresses.ysize()) {
-            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)",
+            CumulativeError = TError(Sprintf("Remote chunk reader failed, details follow (ChunkId: %s)%s",
                 ~ChunkId.ToString(),
                 ~CumulativeErrorMessage));
 
@@ -215,6 +278,37 @@ TError TRemoteReader::GetCumulativeError() const
 {
     YASSERT(!CumulativeError.IsOK());
     return CumulativeError;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRemoteReaderFactory
+    : public IRemoteReaderFactory
+{
+public:
+    TRemoteReaderFactory(TRemoteReaderConfig* config)
+        : Config(config)
+    { }
+
+    virtual IAsyncReader::TPtr Create(
+        const TChunkId& chunkId,
+        const yvector<Stroka>& holderAddresses)
+    {
+        return New<TRemoteReader>(
+            ~Config,
+            chunkId,
+            holderAddresses);
+    }
+
+private:
+    TRemoteReaderConfig::TPtr Config;
+
+};
+
+IRemoteReaderFactory::TPtr CreateRemoteReaderFactory(TRemoteReaderConfig* config)
+{
+    YASSERT(config);
+    return New<TRemoteReaderFactory>(config);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

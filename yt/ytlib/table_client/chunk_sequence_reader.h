@@ -25,11 +25,13 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         NChunkClient::TRetriableReader::TConfig::TPtr RetriableReader;
+        NChunkClient::TRemoteReaderConfig::TPtr RemoteReader;
         NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
 
         TConfig()
         {
             Register("retriable_reader", RetriableReader).DefaultNew();
+            Register("remote_reader", RemoteReader).DefaultNew();
             Register("sequential_reader", SequentialReader).DefaultNew();
         }
     };

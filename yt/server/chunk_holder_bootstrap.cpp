@@ -118,11 +118,14 @@ void TChunkHolderBootstrap::Run()
     auto chunkHolderService = New<TChunkHolderService>(
         ~Config,
         ~controlQueue->GetInvoker(),
+        ~busServer,
         ~chunkStore,
         ~chunkCache,
         ~readerCache,
         ~blockStore,
         ~sessionManager);
+    rpcServer->RegisterService(~chunkHolderService);
+
     rpcServer->RegisterService(~chunkHolderService);
 
     auto monitoringManager = New<TMonitoringManager>();

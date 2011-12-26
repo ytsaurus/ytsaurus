@@ -5,6 +5,12 @@
 #include "../misc/property.h"
 #include "../misc/serialize.h"
 
+#include "../chunk_client/common.h"
+#include "../chunk_holder/chunk_holder_service_proxy.h"
+
+// TODO: remove this
+#include "../chunk_holder/common.h"
+
 namespace NYT {
 namespace NChunkServer {
 

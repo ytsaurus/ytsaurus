@@ -52,7 +52,7 @@ TChunkStore::TChunkStore(
 
 void TChunkStore::RegisterChunk(TStoredChunk* chunk)
 {
-    YASSERT(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
+    YVERIFY(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
     chunk->GetLocation()->RegisterChunk(chunk);
 
     LOG_DEBUG("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",

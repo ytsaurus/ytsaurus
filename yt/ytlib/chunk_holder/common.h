@@ -1,13 +1,14 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
-
 #include "chunk_holder_service.pb.h"
 #include "chunk_service.pb.h"
 
+#include "../misc/common.h"
+#include "../misc/configurable.h"
+
 #include "../chunk_client/common.h"
 #include "../chunk_client/remote_reader.h"
+#include "../chunk_client/retriable_reader.h"
 #include "../chunk_client/sequential_reader.h"
 #include "../election/leader_lookup.h"
 #include "../misc/guid.h"
@@ -69,14 +70,19 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
+    i64 ResponseThrottlingSize;
+
     //! Regular storage locations.
     yvector<TLocationConfig::TPtr> ChunkStorageLocations;
 
     //! Location used for caching chunks.
     TLocationConfig::TPtr ChunkCacheLocation;
 
+    //! Retriable reader configuration used to download chunks into cache.
+    NChunkClient::TRetriableReader::TConfig::TPtr CacheRetriableReader;
+
     //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TRemoteReader::TConfig::TPtr CacheRemoteReader;
+    NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
 
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
@@ -91,6 +97,8 @@ struct TChunkHolderConfig
      */
     TChunkHolderConfig()
     {
+        // TODO: consider GreaterThan(0)
+
         Register("max_cached_blocks_size", MaxCachedBlocksSize).GreaterThan(0).Default(1024 * 1024);
         Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
         Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
@@ -98,10 +106,12 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10000);
+        Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
         Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
-        Register("cache_remote_reader", CacheRemoteReader);
-        Register("cache_sequential_reader", CacheSequentialReader);
+        Register("cache_retriable_reader", CacheRetriableReader).DefaultNew();
+        Register("cache_remote_reader", CacheRemoteReader).DefaultNew();
+        Register("cache_sequential_reader", CacheSequentialReader).DefaultNew();
         Register("masters", Masters);
     }
 };

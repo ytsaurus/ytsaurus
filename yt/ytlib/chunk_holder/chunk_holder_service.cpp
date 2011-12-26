@@ -25,6 +25,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TChunkHolderService::TChunkHolderService(
     TConfig* config,
     IInvoker* serviceInvoker,
+    NBus::IBusServer* server,
     TChunkStore* chunkStore,
     TChunkCache* chunkCache,
     TReaderCache* readerCache,
@@ -35,12 +36,20 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         Logger.GetCategory())
     , Config(config)
+    , BusServer(server)
     , ChunkStore(chunkStore)
     , ChunkCache(chunkCache)
     , ReaderCache(readerCache)
     , BlockStore(blockStore)
     , SessionManager(sessionManager)
 {
+    YASSERT(server);
+    YASSERT(chunkStore);
+    YASSERT(chunkCache);
+    YASSERT(readerCache);
+    YASSERT(blockStore);
+    YASSERT(sessionManager);
+
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
@@ -87,8 +96,8 @@ TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = ChunkStore->FindChunk(chunkId);
     if (!chunk) {
-        ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Chunk it not found (ChunkId: %s)", ~chunkId.ToString());
+        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
+            Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
     }
     return chunk;
 }
@@ -213,6 +222,20 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     context->SetRequestInfo("ChunkId: %s, BlockCount: %d",
         ~chunkId.ToString(),
         blockCount);
+
+    i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
+    i64 pendingReadSize = BlockStore->GetPendingReadSize();
+    i64 pendingSize = responseDataSize + pendingReadSize;
+    if (pendingSize > Config->ResponseThrottlingSize) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            Sprintf("Pending response data size limit exceeded, throttling engaged (PendingSize: %" PRId64 ", Limit: %" PRId64 ")",
+                pendingSize,
+                Config->ResponseThrottlingSize)));
+        return;
+    }
+
+    LOG_DEBUG("GetBlocks: PendingSize: %" PRId64, pendingSize);
 
     response->Attachments().resize(blockCount);
 

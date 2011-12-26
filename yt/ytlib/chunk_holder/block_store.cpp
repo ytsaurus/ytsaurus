@@ -42,6 +42,8 @@ class TBlockStore::TBlockCache
 public:
     typedef TIntrusivePtr<TBlockCache> TPtr;
 
+    DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
+
     TBlockCache(
         TChunkHolderConfig* config,
         TChunkStore* chunkStore,
@@ -51,6 +53,7 @@ public:
         , ChunkStore(chunkStore)
         , ChunkCache(chunkCache)
         , ReaderCache(readerCache)
+        , PendingReadSize_(0)
     { }
 
     TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
@@ -111,7 +114,7 @@ public:
             chunk,
             blockId,
             cookie));
-
+        
         return cookie->GetAsyncResult();
     }
 
@@ -153,8 +156,23 @@ private:
         }
 
         auto reader = readerResult.Value();
+
+        const auto& chunkInfo = reader->GetChunkInfo();
+        const auto& blockInfo = chunkInfo.blocks(blockId.BlockIndex);
+        auto blockSize = blockInfo.size();
+        
+        AtomicAdd(PendingReadSize_, blockSize);
+        LOG_DEBUG("Pending read size increased (BlockSize: %d, PendingReadSize: %" PRISZT,
+            blockSize,
+            PendingReadSize_);
+
         auto data = reader->ReadBlock(blockId.BlockIndex);
-        if (!~data) {
+        AtomicSub(PendingReadSize_, blockSize);
+        LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
+            blockSize,
+            PendingReadSize_);
+
+        if (!data) {
             cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
                 Sprintf("No such block (BlockId: %s)", ~blockId.ToString())));
@@ -190,6 +208,11 @@ TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& bl
 TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
 {
     return BlockCache->Put(blockId, data);
+}
+
+i64 TBlockStore::GetPendingReadSize() const
+{
+    return BlockCache->GetPendingReadSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,6 @@ class TChunk;
 class TBlockStore;
 class TSessionManager;
 class TSession;
-class TJobExecutor;
 
 class TChunkHolderService
     : public NRpc::TServiceBase
@@ -31,6 +30,7 @@ public:
     TChunkHolderService(
         TConfig* config,
         IInvoker* serviceInvoker,
+        NBus::IBusServer* server,
         TChunkStore* chunkStore,
         TChunkCache* chunkcache,
         TReaderCache* readerCache,
@@ -44,6 +44,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TConfig::TPtr Config;
+    TIntrusivePtr<NBus::IBusServer> BusServer;
     TIntrusivePtr<TChunkStore> ChunkStore;
     TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;

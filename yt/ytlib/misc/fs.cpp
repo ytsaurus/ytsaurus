@@ -105,21 +105,20 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s",
-        ~path.Quote());
+    LOG_INFO("Cleaning temp files in %s", ~path.Quote());
 
     if (!isexist(~path))
         return;
 
     TFileList fileList;
-    fileList.Fill(path);
-    const char* fileName;
-    while (fileName = fileList.Next()) {
-        Stroka fullName = path + "/" + Stroka(fileName);
-        if (fullName.has_suffix(TempFileSuffix)) {
-            LOG_INFO("Removing file %s", ~fullName);
-            if (!NFS::Remove(~fullName)) {
-                LOG_ERROR("Error removing %s",  ~fullName);
+    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
+    i32 size = fileList.Size();
+    for (i32 i = 0; i < size; ++i) {
+        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
+        if (fileName.has_suffix(TempFileSuffix)) {
+            LOG_INFO("Removing file %s", ~fileName);
+            if (!NFS::Remove(~fileName)) {
+                LOG_ERROR("Error removing %s",  ~fileName);
             }
         }
     }

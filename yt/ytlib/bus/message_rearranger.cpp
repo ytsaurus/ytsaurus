@@ -18,7 +18,7 @@ TMessageRearranger::TMessageRearranger(
     TDuration timeout)
     : OnMessageDequeued(onMessage)
     , Timeout(timeout)
-    , ExpectedSequenceId(-1)
+    , ExpectedSequenceId(0)
 {
     YASSERT(onMessage);
 }
@@ -30,7 +30,7 @@ void TMessageRearranger::EnqueueMessage(IMessage* message, TSequenceId sequenceI
 
     TGuard<TSpinLock> guard(SpinLock);
 
-    if (sequenceId == ExpectedSequenceId || ExpectedSequenceId < 0) {
+    if (sequenceId == ExpectedSequenceId) {
         LOG_DEBUG("Pass-through message (Message: %p, SequenceId: %" PRId64 ")",
             message,
             sequenceId);

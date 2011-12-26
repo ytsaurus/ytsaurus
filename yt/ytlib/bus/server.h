@@ -10,6 +10,21 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBusStatistics
+{
+    TBusStatistics()
+        : RequestCount(0)
+        , RequestDataSize(0)
+        , ResponseCount(0)
+        , ResponseDataSize(0)
+    { }
+
+    i64 RequestCount;
+    i64 RequestDataSize;
+    i64 ResponseCount;
+    i64 ResponseDataSize;
+};
+
 struct IBusServer
     : virtual TRefCountedBase
 {
@@ -17,7 +32,9 @@ struct IBusServer
 
     virtual void Start(IMessageHandler* handler) = 0;
     virtual void Stop() = 0;
+
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
+    virtual TBusStatistics GetStatistics() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

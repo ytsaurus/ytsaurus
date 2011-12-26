@@ -2,6 +2,9 @@
 
 #include "common.h"
 
+#include "../chunk_client/common.h"
+#include "../chunk_holder/chunk_holder_service_proxy.h"
+
 namespace NYT {
 namespace NChunkServer {
 
