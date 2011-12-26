@@ -28,8 +28,8 @@ struct TPacketHeader
 struct TMultipartPacketHeader
     : public TPacketHeader
 {
-    static const i32 MaxParts = 1 << 14;
-    static const i32 MaxPartSize = 1 << 24;
+    static const i32 MaxParts = 1 << 28;
+    static const i32 MaxPartSize = 1 << 28;
 
     TSequenceId SequenceId;
     i32 PartCount;
