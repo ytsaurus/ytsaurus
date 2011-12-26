@@ -44,12 +44,21 @@ void TCachedBlock::AddPeer(const TPeerInfo& peer)
 {
     SweepExpiredPeers();
 
-    auto it = Peers.begin();
-    while (it != Peers.end() && it->ExpirationTime > peer.ExpirationTime) {
-        ++it;
+    for (auto it = Peers.begin(); it != Peers.end(); ++it) {
+        if (it->Address == peer.Address) {
+            Peers.erase(it);
+            break;
+        }
     }
+    
+    {
+        auto it = Peers.begin();
+        while (it != Peers.end() && it->ExpirationTime > peer.ExpirationTime) {
+            ++it;
+        }
 
-    Peers.insert(it, peer);
+        Peers.insert(it, peer);
+    }
 
     // TODO(babenko): make configurable
     const int MaxPeers = 64;
