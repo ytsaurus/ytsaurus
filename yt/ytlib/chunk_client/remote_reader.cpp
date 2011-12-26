@@ -77,7 +77,7 @@ public:
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
                 ~FromMethod(&TRemoteReader::DoFindChunk, TPtr(this)),
-                LastFindChunkTime + Config->BackoffTime);
+                LastFindChunkTime + Config->RetryBackoffTime);
         }
 
         return GetSeedsResult;
@@ -181,7 +181,7 @@ protected:
         Logger.AddTag(Sprintf("ChunkId: %s", ~Reader->ChunkId.ToString()));
     }
 
-    void NewRetry()
+    virtual void NewRetry()
     {
         YASSERT(!GetSeedsResult);
 
@@ -251,9 +251,10 @@ public:
         if (GetUnfetchedBlockIndexes().empty()) {
             LOG_INFO("All chunk blocks are fetched from cache");
             OnSessionSucceeded();
-        } else {
-            NewRetry();
+            return;
         }
+
+        NewRetry();
     }
 
     IAsyncReader::TAsyncReadResult::TPtr GetAsyncResult() const
@@ -282,14 +283,33 @@ private:
     //! List of candidates to try.
     yvector<Stroka> PeerAddressList;
 
-    //! Current index in #CandidateAddresses.
+    //! Current pass index.
+    int PassIndex;
+
+    //! Current index in #PeerAddressList.
     int PeerIndex;
 
-    void Cleanup()
+
+    virtual void NewRetry()
+    {
+        PassIndex = 0;
+        TSessionBase::NewRetry();
+    }
+
+    void NewPass()
     {
         PeerAddressList.clear();
         PeerBlocksMap.clear();
         PeerIndex = 0;
+
+        // Mark the seeds as having all blocks.
+        FOREACH(const auto& address, SeedAddresses) {
+            FOREACH(int blockIndex, BlockIndexes) {
+                AddPeer(address, blockIndex);
+            }
+        }
+
+        RequestPeer();
     }
 
     void AddPeer(const Stroka& address, int blockIndex)
@@ -360,19 +380,10 @@ private:
 
     virtual void OnGotSeeds()
     {
-        Cleanup();
-
-        // Mark the seeds as having all blocks.
-        FOREACH(const auto& address, SeedAddresses) {
-            FOREACH(int blockIndex, BlockIndexes) {
-                AddPeer(address, blockIndex);
-            }
-        }
-
-        RequestBlocks();
+        NewPass();
     }
 
-    void RequestBlocks()
+    void RequestPeer()
     {
         while (true) {
             FetchBlocksFromCache();
@@ -384,7 +395,14 @@ private:
             }
 
             if (PeerIndex >= PeerAddressList.ysize()) {
-                OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+                ++PassIndex;
+                if (PassIndex >= Reader->Config->PassCount) {
+                    OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+                } else {
+                    TDelayedInvoker::Submit(
+                        ~FromMethod(&TReadSession::NewPass, TPtr(this)),
+                        Reader->Config->PassBackoffTime);
+                }
                 return;
             }
 
@@ -434,7 +452,7 @@ private:
                 ~response->GetError().ToString());
         }
 
-        RequestBlocks();
+        RequestPeer();
     }
 
     void ProcessReceivedBlocks(
