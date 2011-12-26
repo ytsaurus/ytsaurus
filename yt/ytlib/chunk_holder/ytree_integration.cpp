@@ -23,18 +23,25 @@ public:
 private:
     TChunkStore::TPtr ChunkStore;
 
-    virtual yvector<Stroka> GetKeys()
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         auto chunks = ChunkStore->GetChunks();
         yvector<Stroka> keys;
         keys.reserve(chunks.ysize());
         FOREACH (auto chunk, chunks) {
             keys.push_back(chunk->GetId().ToString());
+            if (keys.size() == sizeLimit)
+                break;
         }
         return keys;
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    virtual size_t GetSize() const
+    {
+        return ChunkStore->GetChunks().size(); // TODO(MRoizner): avoid copying
+    }
+
+    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
         auto chunk = ChunkStore->FindChunk(id);

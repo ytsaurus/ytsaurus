@@ -26,12 +26,18 @@ public:
 private:
     TTransactionManager::TPtr TransactionManager;
 
-    virtual yvector<Stroka> GetKeys()
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        return ConvertToStrings(TransactionManager->GetTransactionIds());
+        const auto& ids = TransactionManager->GetTransactionIds();
+        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    virtual size_t GetSize() const
+    {
+        return TransactionManager->GetTransactionCount();
+    }
+
+    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
         auto* transaction = TransactionManager->FindTransaction(id);

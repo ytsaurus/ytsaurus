@@ -14,7 +14,7 @@ namespace NYT {
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
  */
-template<class TIterator>
+template <class TIterator>
 Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimiter = ", ")
 {
     Stroka result;
@@ -35,7 +35,7 @@ Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimit
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
  */
-template<class TCollection>
+template <class TCollection>
 Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 {
     return JoinToString(items.begin(), items.end(), delimiter);
@@ -43,13 +43,13 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-yvector<Stroka> ConvertToStrings(yvector<T> elements)
+template <class TIter>
+yvector<Stroka> ConvertToStrings(TIter begin, size_t count)
 {
-    yvector <Stroka> result;
-    result.reserve(elements.ysize());
-    FOREACH(const auto& element, elements) {
-        result.push_back(element.ToString());
+    yvector<Stroka> result;
+    result.reserve(count);
+    for (TIter it = begin; result.size() != count; ++it) {
+        result.push_back(it->ToString());
     }
     return result;
 }

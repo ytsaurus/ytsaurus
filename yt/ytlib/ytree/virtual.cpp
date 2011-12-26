@@ -49,7 +49,10 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-    auto keys = GetKeys();
+    auto keys = GetKeys(5); // TODO(MRoizner): make configurable, default is 100-1000
+    auto size = GetSize();
+
+    // TODO(MRoizner): use fluent
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);
@@ -57,7 +60,15 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
         YASSERT(service);
         writer.OnRaw(SyncYPathGet(~service, "/"));
     }
-    writer.OnEndMap(false);
+    writer.OnEndMap(true);
+    writer.OnBeginAttributes();
+    writer.OnAttributesItem("size");
+    writer.OnInt64Scalar(size);
+    if (keys.ysize() != size) {
+        writer.OnAttributesItem("incomplete");
+        writer.OnStringScalar("True");
+    }
+    writer.OnEndAttributes();
 
     response->set_value(stream.Str());
     context->Reply();

@@ -16,6 +16,18 @@ NCypress::INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 
+NCypress::INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
+    NCypress::TCypressManager* cypressManager,
+    TChunkManager* chunkManager);
+
+NCypress::INodeTypeHandler::TPtr CreateOverReplicatedChunkMapTypeHandler(
+    NCypress::TCypressManager* cypressManager,
+    TChunkManager* chunkManager);
+
+NCypress::INodeTypeHandler::TPtr CreateUnderReplicatedChunkMapTypeHandler(
+    NCypress::TCypressManager* cypressManager,
+    TChunkManager* chunkManager);
+
 NCypress::INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);

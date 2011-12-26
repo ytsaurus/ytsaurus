@@ -10,6 +10,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TConfigurable::LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path)
+{
+    Load(node, path);
+    Validate(path);
+}
+
 void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node);

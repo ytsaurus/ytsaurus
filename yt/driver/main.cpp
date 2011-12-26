@@ -222,7 +222,7 @@ public:
             }
 
             try {
-                config->Load(~configNode);
+                config->LoadAndValidate(~configNode);
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
             }

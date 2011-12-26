@@ -105,6 +105,10 @@ public:
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk& chunk);
 
+    const yhash_set<NChunkClient::TChunkId>& LostChunkIds() const;
+    const yhash_set<NChunkClient::TChunkId>& OverReplicatedChunkIds() const;
+    const yhash_set<NChunkClient::TChunkId>& UnderReplicatedChunkIds() const;
+
 private:
     class TImpl;
     

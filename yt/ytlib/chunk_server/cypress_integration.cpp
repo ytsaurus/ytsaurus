@@ -22,21 +22,73 @@ class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkMap(TChunkManager* chunkManager)
+    DECLARE_ENUM(EChunkFilter,
+        (All)
+        (Lost)
+        (OverReplicated)
+        (UnderReplicated)
+    );
+
+    TVirtualChunkMap(TChunkManager* chunkManager, EChunkFilter filter)
         : ChunkManager(chunkManager)
+        , Filter(filter)
     { }
 
 private:
     TChunkManager::TPtr ChunkManager;
+    EChunkFilter Filter;
 
-    virtual yvector<Stroka> GetKeys()
+    const yhash_set<TChunkId>& GetFilteredChunkIds() const
     {
-        return ConvertToStrings(ChunkManager->GetChunkIds());
+        switch (Filter) {
+            case EChunkFilter::Lost:
+                return ChunkManager->LostChunkIds();
+            case EChunkFilter::OverReplicated:
+                return ChunkManager->OverReplicatedChunkIds();
+            case EChunkFilter::UnderReplicated:
+                return ChunkManager->UnderReplicatedChunkIds();
+            default:
+                YUNREACHABLE();
+        }
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    bool CheckFilter(const TChunkId& chunkId) const
+    {
+        if (Filter == EChunkFilter::All)
+            return true;
+
+        const auto& chunkIds = GetFilteredChunkIds();
+        return chunkIds.find(chunkId) != chunkIds.end();
+    }
+
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    {
+        if (Filter == EChunkFilter::All) {
+            const auto& chunkIds = ChunkManager->GetChunkIds();
+            return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
+        } else {
+            const auto& chunkIds = GetFilteredChunkIds();
+            return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
+        }
+    }
+
+    virtual size_t GetSize() const
+    {
+        if (Filter == EChunkFilter::All) {
+            return ChunkManager->GetChunkCount();
+        } else {
+            return GetFilteredChunkIds().size();
+        }
+    }
+
+    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
+
+        if (!CheckFilter(id)) {
+            return NULL;
+        }
+
         auto* chunk = ChunkManager->FindChunk(id);
         if (!chunk) {
             return NULL;
@@ -90,7 +142,52 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
         ERuntimeNodeType::ChunkMap,
         // TODO: extract type name
         "chunk_map",
-        ~New<TVirtualChunkMap>(chunkManager));
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::All));
+}
+
+INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
+
+    return CreateVirtualTypeHandler(
+        cypressManager,
+        ERuntimeNodeType::ChunkMap,
+        // TODO: extract type name
+        "lost_chunk_map",
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
+}
+
+INodeTypeHandler::TPtr CreateOverReplicatedChunkMapTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
+
+    return CreateVirtualTypeHandler(
+        cypressManager,
+        ERuntimeNodeType::ChunkMap,
+        // TODO: extract type name
+        "over_replicated_chunk_map",
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::OverReplicated));
+}
+
+INodeTypeHandler::TPtr CreateUnderReplicatedChunkMapTypeHandler(
+    TCypressManager* cypressManager,
+    TChunkManager* chunkManager)
+{
+    YASSERT(cypressManager);
+    YASSERT(chunkManager);
+
+    return CreateVirtualTypeHandler(
+        cypressManager,
+        ERuntimeNodeType::ChunkMap,
+        // TODO: extract type name
+        "under_replicated_chunk_map",
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::UnderReplicated));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,12 +203,18 @@ public:
 private:
     TChunkManager::TPtr ChunkManager;
 
-    virtual yvector<Stroka> GetKeys()
+    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        return ConvertToStrings(ChunkManager->GetChunkListIds());
+        const auto& chunkListIds = ChunkManager->GetChunkListIds();
+        return ConvertToStrings(chunkListIds.begin(), Min(chunkListIds.size(), sizeLimit));
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key)
+    virtual size_t GetSize() const
+    {
+        return ChunkManager->GetChunkListCount();
+    }
+
+    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkListId::FromString(key);
         auto* chunkList = ChunkManager->FindChunkList(id);

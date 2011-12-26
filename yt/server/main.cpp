@@ -100,8 +100,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isChunkHolder) {
         auto config = New<TChunkHolderBootstrap::TConfig>();
         try {
-            config->Load(~configNode);
-            config->Validate();
+            config->LoadAndValidate(~configNode);
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
                 ~CurrentExceptionMessage());
@@ -124,7 +123,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isCellMaster) {
         auto config = New<TCellMasterBootstrap::TConfig>();
         try {
-            config->Load(~configNode);
+            config->LoadAndValidate(~configNode);
             
             // Override peer id.
             if (peerId != InvalidPeerId) {
@@ -144,8 +143,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isScheduler) {
         auto config = New<TSchedulerBootstrap::TConfig>();
         try {
-            config->Load(~configNode);
-            config->Validate();
+            config->LoadAndValidate(~configNode);
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
                 ~CurrentExceptionMessage());

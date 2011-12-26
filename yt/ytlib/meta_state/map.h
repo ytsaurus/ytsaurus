@@ -267,7 +267,8 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName ## ForUpdate(const idType& id); \
-    yvector<idType> Get ## entityName ## Ids();
+    yvector<idType> Get ## entityName ## Ids(); \
+    int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
     const entityType* declaringType::Find ## entityName(const idType& id) const \
@@ -293,6 +294,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     yvector<idType> declaringType::Get ## entityName ## Ids() \
     { \
         return (map).GetKeys(); \
+    } \
+    \
+    int declaringType::Get ## entityName ## Count() const \
+    { \
+        return (map).GetSize(); \
     }
 
 #define DELEGATE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, delegateTo) \
@@ -319,6 +325,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     yvector<idType> declaringType::Get ## entityName ## Ids() \
     { \
         return (delegateTo).Get ## entityName ## Ids(); \
+    } \
+    \
+    int declaringType::Get ## entityName ## Count() const \
+    { \
+        return (delegateTo).Get ## entityName ## Count(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
