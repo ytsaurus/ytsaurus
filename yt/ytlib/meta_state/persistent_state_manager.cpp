@@ -90,7 +90,8 @@ public:
     TPersistentStateManager(
         TConfig* config,
         IInvoker* controlInvoker,
-        IMetaState* metaState)
+        IMetaState* metaState,
+        NRpc::IRpcServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , ControlStatus(EPeerStatus::Stopped)
         , StateStatus(EPeerStatus::Stopped)
@@ -100,9 +101,6 @@ public:
         , ReadOnly(false)
         , CommitInProgress(false)
     {
-        YASSERT(controlInvoker);
-        YASSERT(metaState);
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
@@ -138,6 +136,9 @@ public:
             ~CellManager,
             controlInvoker,
             ~New<TElectionCallbacks>(this));
+
+        server->RegisterService(this);
+        server->RegisterService(~ElectionManager);
     }
 
     void Start()
@@ -1222,10 +1223,15 @@ IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
     IMetaState* metaState,
     NRpc::IRpcServer* server)
 {
-    auto persistentMetaStateManager = New<TPersistentStateManager>(
-        config, controlInvoker, metaState);
-    server->RegisterService(~persistentMetaStateManager);
-    return persistentMetaStateManager;
+    YASSERT(controlInvoker);
+    YASSERT(metaState);
+    YASSERT(server);
+
+    return New<TPersistentStateManager>(
+        config,
+        controlInvoker,
+        metaState,
+        server);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
