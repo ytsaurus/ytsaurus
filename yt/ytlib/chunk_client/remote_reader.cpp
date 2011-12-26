@@ -47,7 +47,7 @@ public:
         , Peer(peer)
         , Logger(ChunkClientLogger)
     {
-        Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
         LOG_INFO("Reader created (SeedAddresses: [%s], EnablePeering: %s)",
             ~JoinToString(seedAddresses),
@@ -138,12 +138,17 @@ private:
         }
 
         if (response->IsOK()) {
-            const auto& seedAddresses = FromProto<Stroka>(response->holderaddresses());
+            auto seedAddresses = FromProto<Stroka>(response->holderaddresses());
+
+            // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
+            Shuffle(seedAddresses.begin(), seedAddresses.end());
+
             if (seedAddresses.empty()) {
                 LOG_WARNING("Chunk is lost");
             } else {
                 LOG_INFO("Chunk seeds found (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
             }
+
             GetSeedsResult->Set(seedAddresses);
         } else {
             auto message = Sprintf("Error requesting chunk seeds from master\n%s",
@@ -172,7 +177,9 @@ protected:
         : Reader(reader)
         , RetryIndex(0)
         , Logger(ChunkClientLogger)
-    { }
+    {
+        Logger.AddTag(Sprintf("ChunkId: %s", ~Reader->ChunkId.ToString()));
+    }
 
     void NewRetry()
     {
@@ -237,10 +244,7 @@ public:
         , AsyncResult(New<IAsyncReader::TAsyncReadResult>())
         , BlockIndexes(blockIndexes)
     {
-        // TODO: use stack here
-        Logger.SetTag(Sprintf("ChunkId: %s, ReadSession: %p",
-            ~Reader->ChunkId.ToString(),
-            this));
+        Logger.AddTag(Sprintf("ReadSession: %p", this));
 
         FetchBlocksFromCache();
 
@@ -267,11 +271,16 @@ private:
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> FetchedBlocks;
 
+    struct TPeerBlocksInfo
+    {
+        yhash_set<int> BlockIndexes;
+    };
+
+    //! Known peers and their blocks (peer address -> TPeerBlocksInfo).
+    yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
+
     //! List of candidates to try.
     yvector<Stroka> PeerAddressList;
-
-    //! Same as #PeerAddressList, but as a set.
-    yhash_set<Stroka> PeerAddressSet;
 
     //! Current index in #CandidateAddresses.
     int PeerIndex;
@@ -279,25 +288,29 @@ private:
     void Cleanup()
     {
         PeerAddressList.clear();
-        PeerAddressSet.clear();
+        PeerBlocksMap.clear();
         PeerIndex = 0;
     }
 
-    void AddPeers(yvector<Stroka>& addresses)
+    void AddPeer(const Stroka& address, int blockIndex)
     {
-        // Remove duplicates and shuffle.
-        std::sort(addresses.begin(), addresses.end());
-        addresses.erase(std::unique(addresses.begin(), addresses.end()), addresses.end());
-        // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
-        Shuffle(addresses.begin(), addresses.end());
-
-        FOREACH (const auto& address, addresses) {
-            if (PeerAddressSet.find(address) == PeerAddressSet.end()) {
-                PeerAddressList.push_back(address);
-                YVERIFY(PeerAddressSet.insert(address).second);
-                LOG_INFO("Peer added (Address: %s)", ~address);
-            }
+        auto peerBlocksMapIt = PeerBlocksMap.find(address);
+        if (peerBlocksMapIt == PeerBlocksMap.end()) {
+            peerBlocksMapIt = PeerBlocksMap.insert(MakePair(address, TPeerBlocksInfo())).first;
+            PeerAddressList.push_back(address);
         }
+        peerBlocksMapIt->second.BlockIndexes.insert(blockIndex);
+    }
+
+    Stroka PickNextPeer()
+    {
+        // When the time comes to fetch from a non-seeding holder, pick a random one.
+        if (PeerIndex >= SeedAddresses.ysize()) {
+            size_t count = PeerAddressList.size() - PeerIndex;
+            size_t randomIndex = PeerIndex + RandomNumber(count);
+            std::swap(PeerAddressList[PeerIndex], PeerAddressList[randomIndex]);
+        }
+        return PeerAddressList[PeerIndex++];
     }
 
     yvector<int> GetUnfetchedBlockIndexes()
@@ -309,6 +322,25 @@ private:
                 result.push_back(blockIndex);
             }
         }
+        return result;
+    }
+
+    yvector<int> GetRequestBlockIndexes(const Stroka& addresss, const yvector<int>& indexesToFetch)
+    {
+        yvector<int> result;
+        result.reserve(indexesToFetch.size());
+
+        auto peerBlocksMapIt = PeerBlocksMap.find(addresss);
+        YASSERT(peerBlocksMapIt != PeerBlocksMap.end());
+
+        const auto& blocksInfo = peerBlocksMapIt->second;
+
+        FOREACH(int blockIndex, indexesToFetch) {
+            if (blocksInfo.BlockIndexes.find(blockIndex) != blocksInfo.BlockIndexes.end()) {
+                result.push_back(blockIndex);
+            }
+        }
+
         return result;
     }
 
@@ -326,7 +358,87 @@ private:
         }
     }
 
+    virtual void OnGotSeeds()
+    {
+        Cleanup();
+
+        // Mark the seeds as having all blocks.
+        FOREACH(const auto& address, SeedAddresses) {
+            FOREACH(int blockIndex, BlockIndexes) {
+                AddPeer(address, blockIndex);
+            }
+        }
+
+        RequestBlocks();
+    }
+
+    void RequestBlocks()
+    {
+        while (true) {
+            FetchBlocksFromCache();
+
+            auto unfetchedBlockIndexes = GetUnfetchedBlockIndexes();
+            if (unfetchedBlockIndexes.empty()) {
+                OnSessionSucceeded();
+                return;
+            }
+
+            if (PeerIndex >= PeerAddressList.ysize()) {
+                OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+                return;
+            }
+
+            auto address = PickNextPeer();
+
+            auto requestBlockIndexes = GetRequestBlockIndexes(address, unfetchedBlockIndexes);
+            if (!requestBlockIndexes.empty()) {
+                LOG_INFO("Requesting blocks from peer (Address: %s, BlockIndexes: [%s])",
+                    ~address,
+                    ~JoinToString(requestBlockIndexes));
+
+                auto channel = HolderChannelCache->GetChannel(address);
+
+                TChunkHolderServiceProxy proxy(~channel);
+                proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+
+                auto request = proxy.GetBlocks();
+                request->set_chunk_id(Reader->ChunkId.ToProto());
+                ToProto(*request->mutable_block_indexes(), requestBlockIndexes);
+                if (!Reader->Peer.IsNull()) {
+                    request->set_peer_address(Reader->Peer.Address);
+                    request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
+                }
+
+                request->Invoke()->Subscribe(FromMethod(
+                    &TReadSession::OnGotBlocks,
+                    TPtr(this),
+                    address,
+                    request));
+                return;
+            }
+
+            LOG_INFO("Skipping peer (Address: %s)", ~address);
+        }
+    }
+
+    void OnGotBlocks(
+        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response,
+        const Stroka& address,
+        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request)
+    {
+        if (response->IsOK()) {
+            ProcessReceivedBlocks(address, ~request, ~response);
+        } else {
+            LOG_WARNING("Error getting blocks from peer (Address: %s)\n%s",
+                ~address,
+                ~response->GetError().ToString());
+        }
+
+        RequestBlocks();
+    }
+
     void ProcessReceivedBlocks(
+        const Stroka& address,
         TChunkHolderServiceProxy::TReqGetBlocks* request,
         TChunkHolderServiceProxy::TRspGetBlocks* response)
     {
@@ -335,92 +447,36 @@ private:
         YASSERT(response->Attachments().size() == blockCount);
 
         int receivedBlockCount = 0;
+        int oldPeerCount = PeerAddressList.ysize();
+
         yvector<Stroka> receivedPeers;
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
             TBlockId blockId(Reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Received block from holder (BlockIndex: %d)", blockIndex);
+                LOG_INFO("Block received (Address: %s, BlockIndex: %d)",
+                    ~address,
+                    blockIndex);
                 auto block = response->Attachments()[index];
                 YASSERT(block);
                 Reader->BlockCache->Put(blockId, block);
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
             } else if (Reader->Config->EnablePeering) {
-                receivedPeers.insert(
-                    receivedPeers.begin(),
-                    blockInfo.peer_addresses().begin(),
-                    blockInfo.peer_addresses().end());
+                FOREACH (const auto& peerAddress, blockInfo.peer_addresses()) {
+                    LOG_INFO("Peer info received (Address: %s, PeerAddress: %s, BlockIndex: %d)",
+                        ~address,
+                        ~peerAddress,
+                        blockIndex);
+                    AddPeer(peerAddress, blockIndex);
+                }
             }
         }
 
-        int oldPeerCount = PeerAddressList.ysize();
-        AddPeers(receivedPeers);
-
-        LOG_INFO("Finished processing holder reply (BlocksReceived: %d, PeersAdded: %d)",
+        LOG_INFO("Finished processing reply (BlocksReceived: %d, PeersAdded: %d)",
             receivedBlockCount,
             PeerAddressList.ysize() - oldPeerCount);
-    }
-
-    virtual void OnGotSeeds()
-    {
-        Cleanup();
-        AddPeers(SeedAddresses);
-        RequestBlocks();
-    }
-
-    void RequestBlocks()
-    {
-        FetchBlocksFromCache();
-
-        auto unfetchedBlockIndexes = GetUnfetchedBlockIndexes();
-        if (unfetchedBlockIndexes.empty()) {
-            OnSessionSucceeded();
-            return;
-        }
-
-        auto address = PeerAddressList[PeerIndex];
-
-        LOG_INFO("Requesting blocks from holder (Address: %s, BlockIndexes: [%s])",
-            ~address,
-            ~JoinToString(unfetchedBlockIndexes));
-
-        auto channel = HolderChannelCache->GetChannel(address);
-
-        TChunkHolderServiceProxy proxy(~channel);
-        proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
-
-        auto request = proxy.GetBlocks();
-        request->set_chunk_id(Reader->ChunkId.ToProto());
-        ToProto(*request->mutable_block_indexes(), unfetchedBlockIndexes);
-        if (!Reader->Peer.IsNull()) {
-            request->set_peer_address(Reader->Peer.Address);
-            request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
-        }
-
-        request->Invoke()->Subscribe(FromMethod(
-            &TReadSession::OnGotBlocks,
-            TPtr(this),
-            request));
-    }
-
-    void OnGotBlocks(
-        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response,
-        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request)
-    {
-        if (response->IsOK()) {
-            ProcessReceivedBlocks(~request, ~response);
-        } else {
-            LOG_WARNING("Error getting blocks from holder\n%s", ~response->GetError().ToString());
-        }
-
-        ++PeerIndex;
-        if (PeerIndex < PeerAddressList.ysize()) {
-            RequestBlocks();
-        } else {
-            OnRetryFailed(TError("Unable to fetch all chunk blocks"));
-        }
     }
 
     virtual void OnSessionSucceeded()
@@ -467,10 +523,7 @@ public:
         , AsyncResult(New<IAsyncReader::TAsyncGetInfoResult>())
         , SeedIndex(0)
     {
-        // TODO: use stack here
-        Logger.SetTag(Sprintf("ChunkId: %s, GetInfoSession: %p",
-            ~Reader->ChunkId.ToString(),
-            this));
+        Logger.AddTag(Sprintf("GetInfoSession: %p", this));
 
         NewRetry();
     }
