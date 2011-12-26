@@ -298,6 +298,8 @@ private:
 
     void NewPass()
     {
+        LOG_INFO("New pass started (PassIndex: %d)", PassIndex);
+
         PeerAddressList.clear();
         PeerBlocksMap.clear();
         PeerIndex = 0;
@@ -395,6 +397,7 @@ private:
             }
 
             if (PeerIndex >= PeerAddressList.ysize()) {
+                LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
                 ++PassIndex;
                 if (PassIndex >= Reader->Config->PassCount) {
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
