@@ -391,7 +391,7 @@ TRemoteWriter::TRemoteWriter(
 {
     YASSERT(AliveNodeCount > 0);
 
-    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     LOG_DEBUG("Writer created (Addresses: [%s])", ~JoinToString(addresses));
 

@@ -98,7 +98,7 @@ TRemoteReader::TRemoteReader(
 
     Shuffle(HolderAddresses.begin(), HolderAddresses.end());
 
-    Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
     LOG_DEBUG("Reader created (Addresses: [%s])", ~JoinToString(HolderAddresses));
 }
 

@@ -53,7 +53,7 @@ public:
         , IsSent(false)
         , Logger(MetaStateLogger)
     {
-        Logger.SetTag(Sprintf("Version: %s", ~StartVersion.ToString()));
+        Logger.AddTag(Sprintf("Version: %s", ~StartVersion.ToString()));
     }
 
     TResult::TPtr AddChange(const TSharedRef& changeData)

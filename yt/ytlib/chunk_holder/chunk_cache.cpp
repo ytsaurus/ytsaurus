@@ -122,7 +122,7 @@ private:
             , Invoker(Owner->Location->GetInvoker())
             , Logger(ChunkHolderLogger)
         {
-            Logger.SetTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+            Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
         }
 
         void Start()

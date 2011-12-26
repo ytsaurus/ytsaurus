@@ -33,7 +33,7 @@ TFileReader::TFileReader(
 {
     YASSERT(masterChannel);
 
-    Logger.SetTag(Sprintf("Path: %s", ~Path));
+    Logger.AddTag(Sprintf("Path: %s", ~Path));
 
     auto transactionId =
         !Transaction

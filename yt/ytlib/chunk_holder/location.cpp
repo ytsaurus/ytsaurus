@@ -31,7 +31,7 @@ TLocation::TLocation(
     , SessionCount(0)
     , Logger(ChunkHolderLogger)
 {
-    Logger.SetTag(Sprintf("LocationPath: %s", ~Config->Path.Quote()));
+    Logger.AddTag(Sprintf("LocationPath: %s", ~Config->Path.Quote()));
 }
 
 ELocationType TLocation::GetType() const

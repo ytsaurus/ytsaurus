@@ -39,7 +39,7 @@ TJob::TJob(
     YASSERT(blockStore);
     YASSERT(chunk);
 
-    Logger.SetTag(Sprintf("JobId: %s", ~JobId.ToString()));
+    Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
 }
 
 EJobType TJob::GetType() const
