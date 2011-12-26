@@ -418,12 +418,9 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
         return;
     }
 
-    bool startAutoTransaction = false; //proxy->IsTransactionRequired(context);
-
     TMsgExecuteVerb message;
     message.set_node_id(proxy->GetNodeId().ToProto());
     message.set_transaction_id(proxy->GetTransactionId().ToProto());
-    message.set_start_auto_transaction(startAutoTransaction);
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
@@ -437,8 +434,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
             &TCypressManager::DoExecuteVerb,
             TPtr(this),
             proxy,
-            context,
-            startAutoTransaction));
+            context));
 
     LOG_INFO("Executing a logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
         ~context->GetPath(),
@@ -464,7 +460,6 @@ TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
 {
     auto nodeId = TNodeId::FromProto(message.node_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());
-    bool startAutoTransaction = message.start_auto_transaction();
 
     yvector<TSharedRef> parts(message.request_parts_size());
     for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
@@ -487,31 +482,16 @@ TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
         NULL);
 
     auto proxy = GetNodeProxy(nodeId, transactionId);
-    DoExecuteVerb(
-        proxy,
-        context,
-        startAutoTransaction);
+    DoExecuteVerb(proxy, context);
 
     return TVoid();
 }
 
 TVoid TCypressManager::DoExecuteVerb(
     ICypressNodeProxy::TPtr proxy,
-    IServiceContext::TPtr context,
-    bool startAutoTransaction)
+    IServiceContext::TPtr context)
 {
     TTransaction* transaction = NULL;
-
-    if (startAutoTransaction) {
-        // Create an automatic transaction.
-        transaction = &TransactionManager->StartTransaction();
-
-        // Replace the proxy with the transacted one.
-        proxy = GetNodeProxy(proxy->GetNodeId(), transaction->GetId());
-
-        LOG_INFO_IF(!IsRecovery(), "Automatic transaction started (TransactionId: %s)",
-            ~transaction->GetId().ToString());
-    }
 
     LOG_INFO_IF(!IsRecovery(), "Executing a logged operation (Path: %s, Verb: %s, TransactionId: %s)",
         ~context->GetPath(),
@@ -522,24 +502,6 @@ TVoid TCypressManager::DoExecuteVerb(
     service->Invoke(~context);
 
     LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
-
-    if (startAutoTransaction) {
-        // Commit or abort the automatic transaction depending on the
-        // outcome of the invocation.
-        auto transactionId = transaction->GetId();
-        if (context->GetError().IsOK()) {
-            // TODO: commit may fail!
-            TransactionManager->CommitTransaction(*transaction);
-
-            LOG_INFO_IF(!IsRecovery(), "Automatic transaction committed (TransactionId: %s)",
-                ~transactionId.ToString());
-        } else {
-            TransactionManager->AbortTransaction(*transaction);
-
-            LOG_INFO_IF(!IsRecovery(), "Automatic transaction aborted (TransactionId: %s)",
-                ~transactionId.ToString());
-        }
-    }
 
     return TVoid();
 }

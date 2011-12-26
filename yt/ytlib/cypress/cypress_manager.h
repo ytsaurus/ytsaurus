@@ -125,10 +125,7 @@ private:
     yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
 
     TVoid DoExecuteLoggedVerb(const NProto::TMsgExecuteVerb& message);
-    TVoid DoExecuteVerb(
-        ICypressNodeProxy::TPtr proxy,
-        NRpc::IServiceContext::TPtr context,
-        bool startAutoTransaction);
+    TVoid DoExecuteVerb(ICypressNodeProxy::TPtr proxy, NRpc::IServiceContext::TPtr context);
 
     // TMetaStatePart overrides.
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
