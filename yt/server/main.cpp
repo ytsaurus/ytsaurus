@@ -100,21 +100,19 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isChunkHolder) {
         auto config = New<TChunkHolderBootstrap::TConfig>();
         try {
-            config->LoadAndValidate(~configNode);
+            config->Load(~configNode);
+
+            // Override RPC port.
+            if (port >= 0) {
+                config->RpcPort = port;
+            }
+
+            config->Validate();
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
                 ~CurrentExceptionMessage());
         }
 
-        //// TODO: killme
-        //auto c = New<NChunkHolder::TLocationConfig>();
-        //c->Path = NFS::CombinePaths(NFS::GetDirectoryName(config->CacheLocation->Path), "chunk_storage.0");
-        //config->StorageLocations.push_back(c);
-
-        // Override RPC port.
-        if (port >= 0) {
-            config->RpcPort = port;
-        }
 
         TChunkHolderBootstrap chunkHolderBootstrap(configFileName, ~config);
         chunkHolderBootstrap.Run();
