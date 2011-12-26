@@ -46,6 +46,11 @@ public:
         , BlockStore(blockStore)
     {
         MasterChannel = CreateCellChannel(~config->Masters);
+
+        if (Config->CacheRemoteReader->PublishPeer) {
+            // TODO(babenko): refactor
+            Config->CacheRemoteReader->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+        }
     }
 
     void Register(TCachedChunk* chunk)
@@ -138,18 +143,12 @@ private:
                 LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
             }
 
-            // TODO(babenko): refactor
-            TPeerInfo peer(
-                Sprintf("%s:%d", ~HostName(), Owner->Config->RpcPort),
-                TInstant::Now() + TDuration::Seconds(60));
-
             RemoteReader = CreateRemoteReader(
                 ~Owner->Config->CacheRemoteReader,
                 Owner->BlockStore->GetBlockCache(),
                 ~Owner->MasterChannel,
                 ChunkId,
-                yvector<Stroka>(),
-                peer);
+                yvector<Stroka>());
 
             LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkInfo()->Subscribe(

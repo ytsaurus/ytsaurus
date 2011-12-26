@@ -44,32 +44,30 @@ void TCachedBlock::AddPeer(const TPeerInfo& peer)
 {
     SweepExpiredPeers();
 
-    // Check if we already have this peer's address. If so, just update the expiration time.
-    // TODO(babenko): one could optimize this by mering with SweepExpiredPeers.
-    FOREACH (auto& existingPeer, Peers) {
-        if (existingPeer.Address == peer.Address) {
-            existingPeer = peer;
-            return;
-        }
+    auto it = Peers.begin();
+    while (it != Peers.end() && it->ExpirationTime > peer.ExpirationTime) {
+        ++it;
     }
 
-    // This is a new address, add the peer.
-    Peers.push_back(peer);
+    Peers.insert(it, peer);
+
+    // TODO(babenko): make configurable
+    const int MaxPeers = 64;
+    if (Peers.ysize() > MaxPeers) {
+        Peers.erase(Peers.begin() + MaxPeers, Peers.end());
+    }
 }
 
 void TCachedBlock::SweepExpiredPeers()
 {
     auto now = TInstant::Now();
-    auto it = Peers.begin();
-    auto jt = it;
-    while (it != Peers.end()) {
-        if (it->ExpirationTime > now) {
-            *jt = *it;
-            ++jt;
-        }
-        ++it;
+
+    auto it = Peers.end();
+    while (it != Peers.begin() && (it - 1)->ExpirationTime < now) {
+        --it;
     }
-    Peers.erase(jt, Peers.end());
+
+    Peers.erase(it, Peers.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

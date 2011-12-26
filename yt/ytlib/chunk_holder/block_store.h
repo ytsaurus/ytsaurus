@@ -10,6 +10,23 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Keeps information about a peer possibly holding a block.
+struct TPeerInfo
+{
+    Stroka Address;
+    TInstant ExpirationTime;
+
+    TPeerInfo()
+    { }
+
+    TPeerInfo(const Stroka& address, TInstant expirationTime)
+        : Address(address)
+        , ExpirationTime(expirationTime)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents a cached block of chunk.
 class TCachedBlock
     : public TCacheValueBase<NChunkClient::TBlockId, TCachedBlock>
@@ -29,17 +46,19 @@ public:
     /*!
      *  Also sweeps expired peers.
      */
-    yvector<NChunkClient::TPeerInfo> GetPeers();
+    yvector<TPeerInfo> GetPeers();
 
     //! Register a new peer.
     /*!
      *  Also sweeps expired peers.
      */
-    void AddPeer(const NChunkClient::TPeerInfo& peer);
+    void AddPeer(const TPeerInfo& peer);
 
 private:
     TSharedRef Data;
-    yvector<NChunkClient::TPeerInfo> Peers;
+
+    //! Sorted by decreasing expiration time.
+    yvector<TPeerInfo> Peers;
 
     void SweepExpiredPeers();
 

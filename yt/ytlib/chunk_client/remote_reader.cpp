@@ -39,19 +39,18 @@ public:
         IBlockCache* blockCache,
         IChannel* masterChannel,
         const TChunkId& chunkId,
-        const yvector<Stroka>& seedAddresses,
-        const TPeerInfo& peer)
+        const yvector<Stroka>& seedAddresses)
         : Config(config)
         , BlockCache(blockCache)
         , ChunkId(chunkId)
-        , Peer(peer)
         , Logger(ChunkClientLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-        LOG_INFO("Reader created (SeedAddresses: [%s], EnablePeering: %s)",
+        LOG_INFO("Reader created (SeedAddresses: [%s], FetchPromPeers: %s, PublishPeer: %s)",
             ~JoinToString(seedAddresses),
-            ~ToString(Config->EnablePeering));
+            ~ToString(Config->FetchFromPeers),
+            ~ToString(Config->PublishPeer));
 
         if (!seedAddresses.empty()) {
             GetSeedsResult = ToFuture(TGetSeedsResult(seedAddresses));
@@ -107,7 +106,6 @@ private:
     TRemoteReaderConfig::TPtr Config;
     IBlockCache::TPtr BlockCache;
     TChunkId ChunkId;
-    TPeerInfo Peer;
     NLog::TTaggedLogger Logger;
 
     TAutoPtr<TProxy> Proxy;
@@ -425,9 +423,9 @@ private:
                 auto request = proxy.GetBlocks();
                 request->set_chunk_id(Reader->ChunkId.ToProto());
                 ToProto(*request->mutable_block_indexes(), unfetchedBlockIndexes);
-                if (!Reader->Peer.IsNull()) {
-                    request->set_peer_address(Reader->Peer.Address);
-                    request->set_peer_expiration_time(Reader->Peer.ExpirationTime.GetValue());
+                if (Reader->Config->PublishPeer) {
+                    request->set_peer_address(Reader->Config->PeerAddress);
+                    request->set_peer_expiration_time((TInstant::Now() + Reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
                 request->Invoke()->Subscribe(FromMethod(
@@ -484,7 +482,7 @@ private:
                 Reader->BlockCache->Put(blockId, block);
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
-            } else if (Reader->Config->EnablePeering) {
+            } else if (Reader->Config->FetchFromPeers) {
                 FOREACH (const auto& peerAddress, blockInfo.peer_addresses()) {
                     LOG_INFO("Peer info received (Address: %s, PeerAddress: %s, BlockIndex: %d)",
                         ~address,
@@ -628,8 +626,7 @@ IAsyncReader::TPtr CreateRemoteReader(
     IBlockCache* blockCache,
     NRpc::IChannel* masterChannel,
     const TChunkId& chunkId,
-    const yvector<Stroka>& seedAddresses,
-    const TPeerInfo& peer)
+    const yvector<Stroka>& seedAddresses)
 {
     YASSERT(config);
     YASSERT(blockCache);
@@ -640,8 +637,7 @@ IAsyncReader::TPtr CreateRemoteReader(
         blockCache,
         masterChannel,
         chunkId,
-        seedAddresses,
-        peer);
+        seedAddresses);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
