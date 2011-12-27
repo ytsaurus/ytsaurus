@@ -12,7 +12,6 @@ namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkHolder::NProto;
-using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +29,7 @@ TChunkWriter::TChunkWriter(
     , CurrentBlockIndex(0)
     , SentSize(0)
     , CurrentSize(0)
+    , UncompressedSize(0)
 {
     YASSERT(chunkWriter);
     
@@ -38,7 +38,7 @@ TChunkWriter::TChunkWriter(
 
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
-        *Attributes.add_channels() = channel.ToProto();
+        *Attributes.add_chunk_channels()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel));
     }
 
@@ -109,11 +109,14 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     auto channel = ChannelWriters[channelIndex];
 
-    NProto::TBlockInfo* blockInfo = Attributes.mutable_channels(channelIndex)->add_blocks();
+    NProto::TBlockInfo* blockInfo = Attributes.mutable_chunk_channels(channelIndex)->add_blocks();
     blockInfo->set_block_index(CurrentBlockIndex);
     blockInfo->set_row_count(channel->GetCurrentRowCount());
 
-    auto data = Codec->Compress(channel->FlushBlock());
+    auto block = channel->FlushBlock();
+    UncompressedSize += block.Size();
+
+    auto data = Codec->Compress(block);
 
     SentSize += data.Size();
     ++CurrentBlockIndex;
@@ -170,10 +173,12 @@ void TChunkWriter::ContinueClose(
         return;
     }
 
-    // Write attributes.
+    // Write attribute
+    Attributes.set_uncompressed_size(UncompressedSize);
+
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::Table);
-    *attributes.MutableExtension(TTableChunkAttributes::table_attributes) = Attributes;
+    *attributes.MutableExtension(NProto::TTableChunkAttributes::table_attributes) = Attributes;
     
     ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,

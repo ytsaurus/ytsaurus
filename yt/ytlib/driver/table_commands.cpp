@@ -179,7 +179,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
         DriverImpl->GetMasterChannel(),
         DriverImpl->GetCurrentTransaction(true),
         // TODO: provide proper schema
-        TSchema(),
+        TSchema::Empty(),
         request->Path);
 
     writer->Open();

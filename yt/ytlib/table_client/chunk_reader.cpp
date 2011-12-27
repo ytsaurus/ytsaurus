@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "chunk_reader.h"
 
-#include "table_chunk_meta.pb.h"
-
 #include "../misc/foreach.h"
 #include "../misc/sync.h"
 #include "../misc/serialize.h"
@@ -103,9 +101,9 @@ private:
 
     void SelectChannels()
     {
-        ChunkChannels.reserve(Attributes.channels_size());
-        for(int i = 0; i < Attributes.channels_size(); ++i) {
-            ChunkChannels.push_back(TChannel::FromProto(Attributes.channels(i)));
+        ChunkChannels.reserve(Attributes.chunk_channels_size());
+        for(int i = 0; i < Attributes.chunk_channels_size(); ++i) {
+            ChunkChannels.push_back(TChannel::FromProto(Attributes.chunk_channels(i).channel()));
         }
 
         // Heuristic: first try to find a channel that contain the whole read channel.
@@ -131,10 +129,10 @@ private:
         int resultIdx = -1;
         size_t minBlockCount = std::numeric_limits<size_t>::max();
 
-        for (int i = 0; i < Attributes.channels_size(); ++i) {
+        for (int i = 0; i < Attributes.chunk_channels_size(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(ChunkReader->Channel)) {
-                size_t blockCount = Attributes.channels(i).blocks_size();
+                size_t blockCount = Attributes.chunk_channels(i).blocks_size();
                 if (minBlockCount > blockCount) {
                     resultIdx = i;
                     minBlockCount = blockCount;
@@ -151,7 +149,7 @@ private:
 
     void SelectOpeningBlocks(yvector<int>& result, yvector<TBlockInfo>& blockHeap) {
         FOREACH (auto channelIdx, SelectedChannels) {
-            const auto& protoChannel = Attributes.channels(channelIdx);
+            const auto& protoChannel = Attributes.chunk_channels(channelIdx);
             int blockIndex = -1;
             int startRow = 0;
             int lastRow = 0;
@@ -192,7 +190,7 @@ private:
         while (true) {
             TBlockInfo currentBlock = blockHeap.front();
             int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-            const auto& protoChannel = Attributes.channels(currentBlock.ChannelIndex);
+            const auto& protoChannel = Attributes.chunk_channels(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();

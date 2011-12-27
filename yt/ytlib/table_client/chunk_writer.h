@@ -6,6 +6,7 @@
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
+#include "table_chunk_meta.pb.h"
 
 #include "../chunk_client/async_writer.h"
 #include "../misc/codec.h"
@@ -83,16 +84,19 @@ private:
 
     yvector<TChannelWriter::TPtr> ChannelWriters;
 
-    //! Columns already set in current row
+    //! Columns already set in current row.
     yhash_set<TColumn> UsedColumns;
 
     int CurrentBlockIndex;
 
-    //! Sum size of completed and sent blocks
+    //! Sum size of completed and sent blocks.
     i64 SentSize;
 
-    //! Current size of written data
+    //! Current size of written data.
     i64 CurrentSize;
+
+    //! Uncompressed size of completed blocks.
+    i64 UncompressedSize;
 
     NProto::TTableChunkAttributes Attributes;
 

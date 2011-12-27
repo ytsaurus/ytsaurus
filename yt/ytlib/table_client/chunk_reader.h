@@ -5,6 +5,7 @@
 #include "schema.h"
 #include "reader.h"
 #include "channel_reader.h"
+#include "table_chunk_meta.pb.h"
 
 #include "../chunk_client/async_reader.h"
 #include "../chunk_client/sequential_reader.h"

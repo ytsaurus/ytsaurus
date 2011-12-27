@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "value.h"
-#include "table_chunk_meta.pb.h"
+#include "schema.pb.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -80,11 +80,16 @@ private:
 class TSchema
 {
 public:
-    TSchema();
+    static TSchema Empty();
+
     void AddChannel(const TChannel& channel);
     const yvector<TChannel>& GetChannels() const;
 
+    NProto::TSchema ToProto() const;
+    static TSchema FromProto(const NProto::TSchema& protoSchema);
+
 private:
+    TSchema();
     yvector<TChannel> Channels;
 };
 

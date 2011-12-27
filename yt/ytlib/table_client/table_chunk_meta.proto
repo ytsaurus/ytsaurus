@@ -1,15 +1,9 @@
 package NYT.NTableClient.NProto;
 
 import "yt/ytlib/chunk_holder/chunk.proto";
+import "yt/ytlib/table_client/schema.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TRange
-{
-    required bytes begin = 1;
-    required bytes end = 2;
-    required bool is_infinite = 3;
-}
 
 message TBlockInfo
 {
@@ -17,11 +11,10 @@ message TBlockInfo
     required int32 row_count = 2;
 }
 
-message TChannel 
+message TChunkChannel
 {
-    repeated bytes columns = 1;
-    repeated TRange ranges = 2;
-    repeated TBlockInfo blocks = 3;
+    required TChannel channel = 1;
+    repeated TBlockInfo blocks = 2;
 }
 
 message TTableChunkAttributes
@@ -31,9 +24,12 @@ message TTableChunkAttributes
         required TTableChunkAttributes table_attributes = 101;
     }
 
-    repeated TChannel channels = 1;
+    repeated TChunkChannel chunk_channels = 1;
     required int32 codec_id = 2;
     required int64 row_count = 3;
+
+    // ToDo: make required.
+    optional int64 uncompressed_size = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

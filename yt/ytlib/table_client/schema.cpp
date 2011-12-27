@@ -288,7 +288,11 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()
+{ }
+
+TSchema TSchema::Empty()
 {
+    TSchema schema;
     TChannel trashChannel;
 
     // Initially the schema consists of a single trash channel,
@@ -296,7 +300,8 @@ TSchema::TSchema()
     // This "trash" channel is expected to be present in any chunk
     // (this is how table writer works now). 
     trashChannel.AddRange(TRange(""));
-    Channels.push_back(trashChannel);
+    schema.Channels.push_back(trashChannel);
+    return schema;
 }
 
 void TSchema::AddChannel(const TChannel& channel)
@@ -309,6 +314,25 @@ void TSchema::AddChannel(const TChannel& channel)
 const yvector<TChannel>& TSchema::GetChannels() const
 {
     return Channels;
+}
+
+NProto::TSchema TSchema::ToProto() const
+{
+    NProto::TSchema protoSchema;
+    FOREACH(auto channel, Channels) {
+        *protoSchema.add_channels() = channel.ToProto();
+    }
+    return protoSchema;
+}
+
+TSchema TSchema::FromProto(const NProto::TSchema& protoSchema)
+{
+    TSchema schema;
+    for (int i = 0; i < protoSchema.channels_size(); ++i) {
+        schema.Channels.push_back(TChannel::FromProto(
+            protoSchema.channels(i)));
+    }
+    return schema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
