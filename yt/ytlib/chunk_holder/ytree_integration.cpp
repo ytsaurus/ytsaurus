@@ -12,20 +12,21 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TCollection>
 class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkMap(TChunkStore* chunkStore)
-        : ChunkStore(chunkStore)
+    TVirtualChunkMap(TCollection* collection)
+        : Collection(collection)
     { }
 
 private:
-    TChunkStore::TPtr ChunkStore;
+    TIntrusivePtr<TCollection> Collection;
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        auto chunks = ChunkStore->GetChunks();
+        auto chunks = Collection->GetChunks();
         yvector<Stroka> keys;
         keys.reserve(chunks.ysize());
         FOREACH (auto chunk, chunks) {
@@ -38,13 +39,13 @@ private:
 
     virtual size_t GetSize() const
     {
-        return ChunkStore->GetChunks().size(); // TODO(MRoizner): avoid copying
+        return Collection->GetChunkCount();
     }
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
-        auto chunk = ChunkStore->FindChunk(id);
+        auto chunk = Collection->FindChunk(id);
         if (!chunk) {
             return NULL;
         }
@@ -61,9 +62,14 @@ private:
 
 };
 
-IYPathService::TPtr CreateChunkMapService(TChunkStore* chunkStore)
+IYPathService::TPtr CreateStoredChunkMapService(TChunkStore* chunkStore)
 {
-    return New<TVirtualChunkMap>(chunkStore);
+    return New< TVirtualChunkMap<TChunkStore> >(chunkStore);
+}
+
+IYPathService::TPtr CreateCachedChunkMapService(TChunkCache* chunkCache)
+{
+    return New< TVirtualChunkMap<TChunkCache> >(chunkCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_holder/block_store.h>
 #include <yt/ytlib/chunk_holder/chunk_store.h>
 #include <yt/ytlib/chunk_holder/chunk_cache.h>
+#include <yt/ytlib/chunk_holder/chunk_registry.h>
 #include <yt/ytlib/chunk_holder/master_connector.h>
 #include <yt/ytlib/chunk_holder/ytree_integration.h>
 
@@ -50,12 +51,14 @@ using NOrchid::TOrchidService;
 using NChunkHolder::TReaderCache;
 using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
+using NChunkHolder::TChunkRegistry;
 using NChunkHolder::TBlockStore;
 using NChunkHolder::TSessionManager;
 using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
 using NChunkHolder::TMasterConnector;
-using NChunkHolder::CreateChunkMapService;
+using NChunkHolder::CreateStoredChunkMapService;
+using NChunkHolder::CreateCachedChunkMapService;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,14 +85,15 @@ void TChunkHolderBootstrap::Run()
 
     auto readerCache = New<TReaderCache>(~Config);
 
-    auto chunkStore = New<TChunkStore>(
-        ~Config,
-        ~readerCache);
+    auto chunkRegistry = New<TChunkRegistry>();
 
     auto blockStore = New<TBlockStore>(
         ~Config,
-        ~chunkStore,
-        //~chunkCache,
+        ~chunkRegistry,
+        ~readerCache);
+
+    auto chunkStore = New<TChunkStore>(
+        ~Config,
         ~readerCache);
 
     auto chunkCache = New<TChunkCache>(
@@ -97,8 +101,8 @@ void TChunkHolderBootstrap::Run()
         ~readerCache,
         ~blockStore);
 
-    // TODO(babenko): fix this
-    blockStore->SetChunkCache(~chunkCache);
+    chunkRegistry->SetChunkStore(~chunkStore);
+    chunkRegistry->SetChunkCache(~chunkCache);
 
     auto sessionManager = New<TSessionManager>(
         ~Config,
@@ -155,8 +159,12 @@ void TChunkHolderBootstrap::Run()
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRootService,
-        "/chunks",
-        ~NYTree::CreateVirtualNode(~CreateChunkMapService(~chunkStore)));
+        "/stored_chunks",
+        ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~chunkStore)));
+    SyncYPathSetNode(
+        ~orchidRootService,
+        "/cached_chunks",
+        ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~chunkCache)));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,

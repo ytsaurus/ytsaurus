@@ -1,12 +1,11 @@
 #include "stdafx.h"
 #include "block_store.h"
-#include "chunk_store.h"
-#include "chunk_cache.h"
+#include "chunk_registry.h"
 #include "reader_cache.h"
-
-#include "../chunk_client/file_reader.h"
+#include "location.h"
 
 #include "../misc/assert.h"
+#include "../chunk_client/file_reader.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -91,12 +90,10 @@ public:
 
     TStoreImpl(
         TChunkHolderConfig* config,
-        TChunkStore* chunkStore,
-//        TChunkCache* chunkCache,
+        TChunkRegistry* chunkRegistry,
         TReaderCache* readerCache)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
-        , ChunkStore(chunkStore)
-//        , ChunkCache(chunkCache)
+        , ChunkRegistry(chunkRegistry)
         , ReaderCache(readerCache)
         , PendingReadSize_(0)
     { }
@@ -148,7 +145,7 @@ public:
             return cookie->GetAsyncResult();
         }
 
-        auto chunk = FindChunk(blockId.ChunkId);
+        auto chunk = ChunkRegistry->FindChunk(blockId.ChunkId);
         if (!chunk) {
             cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
@@ -183,28 +180,8 @@ public:
     }
 
 private:
-    // TODO(babenko): fix this
-    friend class TBlockStore;
-
-    TChunkStore::TPtr ChunkStore;
-    TChunkCache::TPtr ChunkCache;
+    TChunkRegistry::TPtr ChunkRegistry;
     TReaderCache::TPtr ReaderCache;
-
-    TChunk::TPtr FindChunk(const TChunkId& chunkId)
-    {
-        // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
-        auto storedChunk = ChunkStore->FindChunk(chunkId);
-        if (storedChunk) {
-            return storedChunk;
-        }
-
-        auto cachedChunk = ChunkCache->FindChunk(chunkId);
-        if (cachedChunk) {
-            return cachedChunk;
-        }
-
-        return NULL;
-    }
 
     virtual i64 GetWeight(TCachedBlock* block) const
     {
@@ -283,13 +260,11 @@ private:
 
 TBlockStore::TBlockStore(
     TChunkHolderConfig* config,
-    TChunkStore* chunkStore,
-    //TChunkCache* chunkCache,
+    TChunkRegistry* chunkRegistry,
     TReaderCache* readerCache)
     : StoreImpl(New<TStoreImpl>(
         config,
-        chunkStore,
-//        chunkCache,
+        chunkRegistry,
         readerCache))
     , CacheImpl(New<TCacheImpl>(~StoreImpl))
 { }
@@ -317,11 +292,6 @@ i64 TBlockStore::GetPendingReadSize() const
 IBlockCache* TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
-}
-
-void TBlockStore::SetChunkCache(TChunkCache* chunkCache)
-{
-    StoreImpl->ChunkCache = chunkCache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

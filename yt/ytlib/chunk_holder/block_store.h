@@ -66,9 +66,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore;
-class TChunkCache;
 class TReaderCache;
+class TChunkRegistry;
 
 //! Manages cached blocks.
 class TBlockStore
@@ -80,12 +79,8 @@ public:
     //! Constructs a store.
     TBlockStore(
         TChunkHolderConfig* config,
-        TChunkStore* chunkStore,
-//        TChunkCache* chunkCache,
+        TChunkRegistry* chunkRegistry,
         TReaderCache* readerCache);
-
-    // TODO(babenko): fix this
-    void SetChunkCache(TChunkCache* chunkCache);
 
     typedef TValueOrError<TCachedBlock::TPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
