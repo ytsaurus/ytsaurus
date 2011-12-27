@@ -6,6 +6,8 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 
+#include "../misc/configurable.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -39,17 +41,30 @@ void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
     }
 }
 
+struct TGetConfig
+    : public TConfigurable
+{
+    int MaxSize;
+
+    TGetConfig()
+    {
+        Register("max_size", MaxSize).GreaterThanOrEqual(0).Default(100);
+    }
+};
+
 DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 {
-    UNUSED(request);
-
     if (!IsFinalYPath(context->GetPath())) {
         ythrow yexception() << "Resolution error: path must be final";
     }
 
+    auto options = DeserializeFromYson(request->options());
+    auto config = New<TGetConfig>();
+    config->LoadAndValidate(~options);
+    
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-    auto keys = GetKeys(5); // TODO(MRoizner): make configurable, default is 100-1000
+    auto keys = GetKeys(config->MaxSize);
     auto size = GetSize();
 
     // TODO(MRoizner): use fluent

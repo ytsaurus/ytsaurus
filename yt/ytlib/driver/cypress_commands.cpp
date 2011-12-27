@@ -18,6 +18,8 @@ void TGetCommand::DoExecute(TGetRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get();
+    auto optionsNode = request->GetOptions();
+    ypathRequest->set_options(SerializeToYson(~optionsNode));
     auto ypathResponse = proxy.Execute(
         request->Path,
         DriverImpl->GetCurrentTransactionId(),
