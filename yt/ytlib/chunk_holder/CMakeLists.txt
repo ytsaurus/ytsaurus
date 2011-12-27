@@ -5,8 +5,8 @@ set( SRCS
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_holder_service.cpp
-  ${BASE}/chunk_store.cpp
   ${BASE}/chunk_registry.cpp
+  ${BASE}/chunk_store.cpp
   ${BASE}/common.cpp
   ${BASE}/job_executor.cpp
   ${BASE}/location.cpp
@@ -21,8 +21,8 @@ set( HDRS
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_holder_service.h
   ${BASE}/chunk_holder_service_proxy.h
-  ${BASE}/chunk_store.h
   ${BASE}/chunk_registry.h
+  ${BASE}/chunk_store.h
   ${BASE}/common.h
   ${BASE}/job_executor.h
   ${BASE}/location.h

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "retry.h"
+#include "retriable_channel.h"
 #include "client.h"
 
 #include "../bus/client.h"
@@ -80,10 +80,19 @@ public:
             ~Request->GetRequestId().ToString(),
             static_cast<int>(CurrentAttempt));
 
-        Channel->GetUnderlyingChannel()->Send(
-            ~Request,
-            this,
-            Timeout);
+        TInstant now = TInstant::Now();
+        if (CurrentAttempt == 0) {
+            DeadLine = now + Timeout;
+        }
+
+        if (now < DeadLine) {
+            Channel->GetUnderlyingChannel()->Send(
+                ~Request,
+                this,
+                DeadLine - now);
+        } else {
+            ReportUnavailable();
+        }
     }
 
 private:
@@ -93,6 +102,7 @@ private:
     IClientRequest::TPtr Request;
     IClientResponseHandler::TPtr OriginalHandler;
     TDuration Timeout;
+    TInstant DeadLine;
     Stroka CumulativeErrorMessage;
 
     DECLARE_ENUM(EState, 
@@ -137,17 +147,16 @@ private:
                 count,
                 ~error.ToString()));
 
-            if (count < Channel->GetConfig()->RetryCount) {
+            TDuration backoffTime = Channel->GetConfig()->BackoffTime;
+            if (count < Channel->GetConfig()->RetryCount &&
+                TInstant::Now() + backoffTime < DeadLine) {
                 TDelayedInvoker::Submit(
                     ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
-                    Channel->GetConfig()->BackoffTime);
+                    backoffTime);
             } else {
                 State = EState::Done;
                 guard.Release();
-
-                OriginalHandler->OnError(TError(
-                    EErrorCode::Unavailable,
-                    "Retriable request failed, details follow" + CumulativeErrorMessage));
+                ReportUnavailable();
             }
         } else {
             State = EState::Done;
@@ -170,6 +179,13 @@ private:
         }
 
         OriginalHandler->OnResponse(message);
+    }
+
+    void ReportUnavailable()
+    {
+        OriginalHandler->OnError(TError(
+            EErrorCode::Unavailable,
+            "Retriable request failed, details follow" + CumulativeErrorMessage));
     }
 };
 

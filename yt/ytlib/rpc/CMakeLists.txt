@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/client.cpp
   ${BASE}/common.cpp
   ${BASE}/message.cpp
-  ${BASE}/retry.cpp
+  ${BASE}/retriable_channel.cpp
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
@@ -18,7 +18,7 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/error.h
   ${BASE}/message.h
-  ${BASE}/retry.h
+  ${BASE}/retriable_channel.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
