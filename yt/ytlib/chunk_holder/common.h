@@ -113,49 +113,7 @@ struct TChunkHolderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: replace by NProto:THolderStatistics
-struct THolderStatistics
-{
-    THolderStatistics()
-        : AvailableSpace(0)
-        , UsedSpace(0)
-        , ChunkCount(0)
-    { }
-
-    i64 AvailableSpace;
-    i64 UsedSpace;
-    i32 ChunkCount;
-    i32 SessionCount;
-
-    static THolderStatistics FromProto(const NChunkServer::NProto::THolderStatistics& proto)
-    {
-        THolderStatistics result;
-        result.AvailableSpace = proto.available_space();
-        result.UsedSpace = proto.used_space();
-        result.ChunkCount = proto.chunk_count();
-        result.SessionCount = proto.session_count();
-        return result;
-    }
-
-    NChunkServer::NProto::THolderStatistics ToProto() const
-    {
-        NChunkServer::NProto::THolderStatistics result;
-        result.set_available_space(AvailableSpace);
-        result.set_used_space(UsedSpace);
-        result.set_chunk_count(ChunkCount);
-        result.set_session_count(SessionCount);
-        return result;
-    }
-
-    Stroka ToString() const
-    {
-        return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d, SessionCount: %d",
-            AvailableSpace,
-            UsedSpace,
-            ChunkCount,
-            SessionCount);
-    }
-};
+Stroka ToString(const NChunkServer::NProto::THolderStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,4 +124,3 @@ extern NLog::TLogger ChunkHolderLogger;
 } // namespace NChunkHolder
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NChunkHolder::THolderStatistics);

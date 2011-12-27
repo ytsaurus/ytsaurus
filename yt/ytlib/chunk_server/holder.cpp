@@ -12,7 +12,7 @@ THolder::THolder(
     THolderId id,
     const Stroka& address,
     EHolderState state,
-    const THolderStatistics& statistics)
+    const NChunkServer::NProto::THolderStatistics& statistics)
     : Id_(id)
     , Address_(address)
     , State_(state)
@@ -38,7 +38,7 @@ void THolder::Save(TOutputStream* output) const
 {
     ::Save(output, Address_);
     ::Save(output, State_);
-    ::Save(output, Statistics_);
+    Statistics_.SerializeToStream(output);
     SaveSet(output, StoredChunkIds_);
     SaveSet(output, CachedChunkIds_);
     ::Save(output, JobIds_);
@@ -48,10 +48,11 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
 {
     Stroka address;
     EHolderState state;
-    THolderStatistics statistics;
+    NChunkServer::NProto::THolderStatistics statistics;
     ::Load(input, address);
     ::Load(input, state);
-    ::Load(input, statistics);
+    statistics.ParseFromStream(input);
+
     TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
     LoadSet(input, holder->StoredChunkIds_);
     LoadSet(input, holder->CachedChunkIds_);

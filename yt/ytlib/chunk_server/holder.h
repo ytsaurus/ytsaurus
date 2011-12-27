@@ -32,7 +32,7 @@ class THolder
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
-    DEFINE_BYREF_RW_PROPERTY(NChunkHolder::THolderStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(NChunkServer::NProto::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
@@ -42,7 +42,7 @@ public:
         THolderId id,
         const Stroka& address,
         EHolderState state,
-        const NChunkHolder::THolderStatistics& statistics);
+        const NChunkServer::NProto::THolderStatistics& statistics);
 
     THolder(const THolder& other);
 

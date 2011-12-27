@@ -280,15 +280,15 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder) const
     const auto& statistics = holder.Statistics();
     return
         GetFillCoeff(holder) +
-        ActiveSessionsPenalityCoeff * (statistics.SessionCount + GetSessionCount(holder));
+        ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
 }
 
 double TChunkPlacement::GetFillCoeff(const THolder& holder) const
 {
     const auto& statistics = holder.Statistics();
     return
-        (1.0 + statistics.UsedSpace) /
-        (1.0 + statistics.UsedSpace + statistics.AvailableSpace);
+        (1.0 + statistics.used_space()) /
+        (1.0 + statistics.used_space() + statistics.available_space());
 }
 
 bool TChunkPlacement::IsFull(const THolder& holder) const
@@ -297,7 +297,7 @@ bool TChunkPlacement::IsFull(const THolder& holder) const
         return true;
 
     const auto& statistics = holder.Statistics();
-    if (statistics.AvailableSpace - statistics.UsedSpace < MinHolderFreeSpace)
+    if (statistics.available_space() - statistics.used_space() < MinHolderFreeSpace)
         return true;
 
     return false;

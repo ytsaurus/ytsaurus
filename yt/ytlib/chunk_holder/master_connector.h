@@ -101,7 +101,7 @@ private:
     void SendRegister();
 
     //! Computes the current holder statistics.
-    THolderStatistics ComputeStatistics();
+    NChunkServer::NProto::THolderStatistics ComputeStatistics();
 
     //! Handles registration response.
     void OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response);

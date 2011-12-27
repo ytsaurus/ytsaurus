@@ -72,11 +72,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     UNUSED(response);
 
     Stroka address = request->address();
-    auto statistics = NChunkHolder::THolderStatistics::FromProto(request->statistics());
+    const auto& statistics = request->statistics();
     
     context->SetRequestInfo("Address: %s, %s",
         ~address,
-        ~statistics.ToString());
+        ~ToString(statistics));
 
     ValidateLeader();
 

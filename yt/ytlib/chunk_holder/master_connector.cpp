@@ -92,8 +92,7 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
     
-    auto statistics = ComputeStatistics();
-    *request->mutable_statistics() = statistics.ToProto();
+    *request->mutable_statistics() = ComputeStatistics();
 
     request->set_address(Address);
 
@@ -102,19 +101,23 @@ void TMasterConnector::SendRegister()
         ->Via(ServiceInvoker));
 
     LOG_INFO("Register request sent (%s)",
-        ~statistics.ToString());
+        ~ToString(*request->mutable_statistics()));
 }
 
-THolderStatistics TMasterConnector::ComputeStatistics()
+NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 {
-    THolderStatistics result;
+    i64 availableSpace = 0;
+    i64 usedSpace = 0;
     FOREACH(const auto& location, ChunkStore->Locations()) {
-        result.AvailableSpace += location->GetAvailableSpace();
-        result.UsedSpace += location->GetUsedSpace();
+        availableSpace += location->GetAvailableSpace();
+        usedSpace += location->GetUsedSpace();
     }
 
-    result.ChunkCount = ChunkStore->GetChunkCount();
-    result.SessionCount = SessionManager->GetSessionCount();
+    THolderStatistics result;
+    result.set_available_space(availableSpace);
+    result.set_used_space(usedSpace);
+    result.set_chunk_count(ChunkStore->GetChunkCount());
+    result.set_session_count(SessionManager->GetSessionCount());
 
     return result;
 }
@@ -145,8 +148,8 @@ void TMasterConnector::SendHeartbeat()
     YASSERT(HolderId != InvalidHolderId);
     request->set_holder_id(HolderId);
 
-    auto statistics = ComputeStatistics();
-    *request->mutable_statistics() = statistics.ToProto();
+    *request->mutable_statistics() = ComputeStatistics();
+    const auto& statistics = *request->mutable_statistics();
 
     if (IncrementalHeartbeat) {
         ReportedAdded = AddedSinceLastSuccess;
@@ -180,7 +183,7 @@ void TMasterConnector::SendHeartbeat()
         ->Via(ServiceInvoker));
 
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
-        ~statistics.ToString(),
+        ~ToString(statistics),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));

@@ -220,11 +220,11 @@ public:
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         Stroka address,
-        const NChunkHolder::THolderStatistics& statistics)
+        const NChunkServer::NProto::THolderStatistics& statistics)
     {
         TMsgRegisterHolder message;
         message.set_address(address);
-        *message.mutable_statistics() = statistics.ToProto();
+        *message.mutable_statistics() = statistics;
 
         return CreateMetaChange(
             ~MetaStateManager,
@@ -432,7 +432,7 @@ private:
     THolderId RegisterHolder(const TMsgRegisterHolder& message)
     {
         Stroka address = message.address();
-        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.statistics());
+        const auto& statistics = message.statistics();
     
         THolderId holderId = HolderIdGenerator.Next();
     
@@ -447,7 +447,7 @@ private:
         LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
             ~address,
             holderId,
-            ~statistics.ToString());
+            ~ToString(statistics));
 
         auto* newHolder = new THolder(
             holderId,
@@ -480,7 +480,7 @@ private:
     TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
     {
         auto holderId = message.holder_id();
-        auto statistics = NChunkHolder::THolderStatistics::FromProto(message.statistics());
+        const auto& statistics = message.statistics();
 
         auto& holder = GetHolderForUpdate(holderId);
         holder.Statistics() = statistics;
@@ -506,8 +506,8 @@ private:
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
             ~holder.GetAddress(),
             holderId,
-            ~ToString(isFirstHeartbeat),
-            ~statistics.ToString(),
+            ~::ToString(isFirstHeartbeat),
+            ~ToString(statistics),
             static_cast<int>(message.added_chunks_size()),
             static_cast<int>(message.removed_chunks_size()));
 
@@ -710,7 +710,7 @@ private:
         if (holder.HasChunk(chunkId, cached)) {
             LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~ToString(cached),
+                ~::ToString(cached),
                 ~holder.GetAddress(),
                 holderId);
             return;
@@ -721,7 +721,7 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
-            ~ToString(cached),
+            ~::ToString(cached),
             ~holder.GetAddress(),
             holderId);
 
@@ -738,7 +738,7 @@ private:
         if (!holder.HasChunk(chunkId, cached)) {
             LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~ToString(cached),
+                ~::ToString(cached),
                 ~holder.GetAddress(),
                 holderId);
             return;
@@ -749,7 +749,7 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunkId.ToString(),
-             ~ToString(cached),
+             ~::ToString(cached),
              ~holder.GetAddress(),
              holderId);
 
@@ -764,7 +764,7 @@ private:
 
         LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
-             ~ToString(cached),
+             ~::ToString(cached),
              ~holder.GetAddress(),
              holder.GetId());
 
@@ -864,7 +864,7 @@ private:
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
-                ~ToString(cached),
+                ~::ToString(cached),
                 size);
             if (IsLeader()) {
                 ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
@@ -876,7 +876,7 @@ private:
         if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
             LOG_FATAL("Chunk size mismatch (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
                 ~chunkId.ToString(),
-                ~ToString(cached),
+                ~::ToString(cached),
                 chunk->GetSize(),
                 size,
                 ~holder.GetAddress(),
@@ -899,7 +899,7 @@ private:
         if (!chunk) {
             LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
-                 ~ToString(cached),
+                 ~::ToString(cached),
                  ~holder.GetAddress(),
                  holderId);
             return;
@@ -1095,7 +1095,9 @@ void TChunkManager::UnrefChunkList(TChunkList& chunkList)
     Impl->UnrefChunkList(chunkList);
 }
 
-TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(Stroka address, const NChunkHolder::THolderStatistics& statistics)
+TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
+    Stroka address,
+    const NChunkServer::NProto::THolderStatistics& statistics)
 {
     return Impl->InitiateRegisterHolder(address, statistics);
 }

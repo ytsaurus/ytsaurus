@@ -83,7 +83,7 @@ public:
 
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         Stroka address,
-        const NChunkHolder::THolderStatistics& statistics);
+        const NChunkServer::NProto::THolderStatistics& statistics);
     NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
