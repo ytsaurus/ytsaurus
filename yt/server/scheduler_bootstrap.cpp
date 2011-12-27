@@ -18,15 +18,6 @@
 #include <yt/ytlib/ytree/yson_file_service.h>
 #include <yt/ytlib/ytree/ypath_client.h>
 
-#include <yt/ytlib/chunk_holder/chunk_holder_service.h>
-#include <yt/ytlib/chunk_holder/reader_cache.h>
-#include <yt/ytlib/chunk_holder/session_manager.h>
-#include <yt/ytlib/chunk_holder/block_store.h>
-#include <yt/ytlib/chunk_holder/chunk_store.h>
-#include <yt/ytlib/chunk_holder/chunk_cache.h>
-#include <yt/ytlib/chunk_holder/master_connector.h>
-#include <yt/ytlib/chunk_holder/ytree_integration.h>
-
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
@@ -46,16 +37,6 @@ using NMonitoring::GetYPathHttpHandler;
 using NMonitoring::CreateMonitoringProvider;
 
 using NOrchid::TOrchidService;
-
-using NChunkHolder::TReaderCache;
-using NChunkHolder::TChunkStore;
-using NChunkHolder::TChunkCache;
-using NChunkHolder::TBlockStore;
-using NChunkHolder::TSessionManager;
-using NChunkHolder::TJobExecutor;
-using NChunkHolder::TChunkHolderService;
-using NChunkHolder::TMasterConnector;
-using NChunkHolder::CreateChunkMapService;
 
 ////////////////////////////////////////////////////////////////////////////////
 
