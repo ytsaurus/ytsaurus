@@ -11,7 +11,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNLBusServerConfig
-    : TConfigurable
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TNLBusServerConfig> TPtr;
 

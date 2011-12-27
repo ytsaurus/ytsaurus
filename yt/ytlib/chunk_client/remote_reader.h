@@ -13,7 +13,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig
-    : TConfigurable
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TRemoteReaderConfig> TPtr;
 

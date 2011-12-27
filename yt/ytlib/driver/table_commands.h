@@ -10,7 +10,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReadRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;
@@ -37,7 +37,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWriteRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;

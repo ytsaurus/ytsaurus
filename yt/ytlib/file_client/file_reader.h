@@ -24,7 +24,7 @@ public:
     typedef TIntrusivePtr<TFileReader> TPtr;
 
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
     

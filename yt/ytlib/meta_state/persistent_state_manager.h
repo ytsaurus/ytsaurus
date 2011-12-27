@@ -12,7 +12,7 @@ namespace NMetaState {
 
 //! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
-    : TConfigurable
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TPersistentStateManagerConfig> TPtr;
 

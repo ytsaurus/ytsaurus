@@ -47,7 +47,7 @@ struct IDriverImpl
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequestBase
-    : TConfigurable
+    : public TConfigurable
 {
     Stroka Do;
 

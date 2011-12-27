@@ -12,7 +12,7 @@ class TCellMasterBootstrap
 public:
     //! Describes a configuration of TCellMaster.
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

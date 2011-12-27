@@ -8,7 +8,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStartTransactionRequest
-    : TRequestBase
+    : public TRequestBase
 { };
 
 class TStartTransactionCommand
@@ -26,7 +26,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCommitTransactionRequest
-    : TRequestBase
+    : public TRequestBase
 { };
 
 class TCommitTransactionCommand
@@ -44,7 +44,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAbortTransactionRequest
-    : TRequestBase
+    : public TRequestBase
 { };
 
 class TAbortTransactionCommand

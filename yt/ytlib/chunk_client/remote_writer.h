@@ -30,7 +30,7 @@ public:
     typedef TIntrusivePtr<TRemoteWriter> TPtr;
 
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

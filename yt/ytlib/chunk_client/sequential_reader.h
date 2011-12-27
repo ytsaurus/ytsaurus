@@ -25,7 +25,7 @@ public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

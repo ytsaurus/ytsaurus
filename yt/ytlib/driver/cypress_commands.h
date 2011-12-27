@@ -10,7 +10,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;
@@ -37,7 +37,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSetRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Value;
@@ -77,7 +77,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
 
@@ -102,7 +102,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TListRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;
@@ -129,7 +129,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCreateRequest
-    : TRequestBase
+    : public TRequestBase
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;

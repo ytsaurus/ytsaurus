@@ -37,7 +37,7 @@ class TDriver
 {
 public:
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

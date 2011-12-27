@@ -166,7 +166,7 @@ class TDriverProgram
 {
 public:
     struct TConfig
-        : TDriver::TConfig
+        : public TDriver::TConfig
     {
         INode::TPtr Logging;
 

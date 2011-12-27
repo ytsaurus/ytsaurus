@@ -68,7 +68,7 @@ DECLARE_ENUM(ECommitResult,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellConfig
-    : TConfigurable
+    : public TConfigurable
 {
     typedef TIntrusivePtr<TCellConfig> TPtr;
 

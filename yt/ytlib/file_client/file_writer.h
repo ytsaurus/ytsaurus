@@ -23,7 +23,7 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

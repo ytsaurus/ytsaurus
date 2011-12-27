@@ -10,7 +10,7 @@ class TSchedulerBootstrap
 {
 public:
     struct TConfig
-        : TConfigurable
+        : public TConfigurable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
