@@ -58,9 +58,12 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
         ythrow yexception() << "Resolution error: path must be final";
     }
 
-    auto options = DeserializeFromYson(request->options());
     auto config = New<TGetConfig>();
-    config->LoadAndValidate(~options);
+    if (request->has_options()) {
+        auto options = DeserializeFromYson(request->options());
+        config->Load(~options);
+    }
+    config->Validate();
     
     TStringStream stream;
     TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
