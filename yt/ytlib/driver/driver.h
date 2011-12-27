@@ -5,7 +5,7 @@
 #include "../misc/configurable.h"
 #include "../misc/error.h"
 #include "../ytree/ytree.h"
-#include "../ytree/yson_events.h"
+#include "../ytree/yson_consumer.h"
 #include "../ytree/yson_writer.h"
 // TODO: consider using forward declarations.
 #include "../election/leader_lookup.h"

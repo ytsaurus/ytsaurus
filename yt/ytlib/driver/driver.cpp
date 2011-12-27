@@ -8,7 +8,7 @@
 
 #include "../ytree/fluent.h"
 #include "../ytree/serialize.h"
-#include "../ytree/forwarding_yson_events.h"
+#include "../ytree/forwarding_yson_consumer.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/ephemeral.h"
 #include "../election/cell_channel.h"

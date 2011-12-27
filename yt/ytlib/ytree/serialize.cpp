@@ -59,6 +59,15 @@ TYson SerializeToYson(TYsonProducer* producer, TYsonWriter::EFormat format)
     return output.Str();
 }
 
+INode::TPtr CloneNode(const INode* node, INodeFactory* factory)
+{
+    auto builder = CreateBuilderFromFactory(factory);
+    builder->BeginTree();
+    TTreeVisitor visitor(~builder);
+    visitor.Visit(node);
+    return builder->EndTree();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

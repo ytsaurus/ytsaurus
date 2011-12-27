@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "forwarding_yson_events.h"
+#include "forwarding_yson_consumer.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 

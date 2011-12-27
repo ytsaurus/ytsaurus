@@ -5,7 +5,7 @@
 #include "../ytlib/ytree/yson_writer.h"
 #include "../ytlib/ytree/ephemeral.h"
 #include "../ytlib/ytree/serialize.h"
-#include "../ytlib/ytree/yson_events-mock.h"
+#include "../ytlib/ytree/yson_consumer-mock.h"
 
 #include <contrib/testing/framework.h>
 

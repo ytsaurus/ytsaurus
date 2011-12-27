@@ -59,7 +59,7 @@ struct TRule
         Register("writers", Writers).NonEmpty();
     }
 
-    virtual void Load(INode* node, const TYPath& path)
+    virtual void Load(const INode* node, const TYPath& path)
     {
         TConfigurable::Load(node, path);
 

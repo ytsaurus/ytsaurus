@@ -6,7 +6,7 @@
 #include "../misc/error.h"
 #include "../misc/configurable.h"
 #include "../ytree/ytree.h"
-#include "../ytree/yson_events.h"
+#include "../ytree/yson_consumer.h"
 #include "../ytree/yson_reader.h"
 #include "../ytree/yson_writer.h"
 #include "../ytree/fluent.h"

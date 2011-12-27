@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "ytree_fwd.h"
-#include "yson_events.h"
+#include "yson_consumer.h"
 
 #include "../misc/enum.h"
 
