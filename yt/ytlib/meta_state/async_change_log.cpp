@@ -15,10 +15,6 @@ namespace NMetaState {
 
 static NLog::TLogger& Logger = MetaStateLogger;
 
-// TODO: Extract these settings to the global configuration.
-static i32 UnflushedBytesThreshold = 1 << 20;
-static i32 UnflushedRecordsThreshold = 100000;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangeLogQueue
@@ -36,43 +32,24 @@ public:
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
         , Result(New<TAppendResult>())
-        , UnflushedBytes(0)
     { }
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAppendResult::TPtr result;
+        TGuard<TSpinLock> guard(SpinLock);
 
-        bool doFlush = false;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (recordId != DoGetRecordCount()) {
-                LOG_FATAL("Unexpected record id in changelog (expected: %d, got: %d, ChangeLogId: %d)",
-                    DoGetRecordCount(),
-                    recordId,
-                    ChangeLog->GetId());
-            }
-
-            RecordsToAppend.push_back(data);
-            UnflushedBytes += data.Size();
-
-            if (UnflushedBytes >= UnflushedBytesThreshold ||
-                RecordsToAppend.ysize() >= UnflushedRecordsThreshold)
-            {
-                LOG_DEBUG("Async changelog unflushed threshold reached (ChangeLogId: %d)",
-                    ChangeLog->GetId());
-                doFlush = true;
-            }
-
-            result = Result;
+        if (recordId != DoGetRecordCount()) {
+            LOG_FATAL("Unexpected record id in changelog (expected: %d, got: %d, ChangeLogId: %d)",
+                DoGetRecordCount(),
+                recordId,
+                ChangeLog->GetId());
         }
 
-        if (doFlush)
-            Flush();
+        RecordsToAppend.push_back(data);
 
-        return result;
+        return Result;
     }
 
     void Flush()
@@ -90,8 +67,6 @@ public:
 
             result = Result;
             Result = New<TAppendResult>();
-            
-            UnflushedBytes = 0;
         }
 
         ChangeLog->Flush();
@@ -211,7 +186,6 @@ private:
     yvector<TSharedRef> RecordsToAppend;
     yvector<TSharedRef> RecordsToFlush;
     TAppendResult::TPtr Result;
-    i32 UnflushedBytes;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
