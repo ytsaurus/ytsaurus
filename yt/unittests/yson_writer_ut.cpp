@@ -3,7 +3,7 @@
 #include "../ytlib/ytree/yson_writer.h"
 #include "../ytlib/ytree/yson_reader.h"
 #include "../ytlib/ytree/serialize.h"
-#include "../ytlib/ytree/yson_events-mock.h"
+#include "../ytlib/ytree/yson_consumer-mock.h"
 
 #include <util/string/escape.h>
 

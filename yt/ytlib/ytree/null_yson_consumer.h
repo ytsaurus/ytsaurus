@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yson_events.h"
+#include "yson_consumer.h"
 
 namespace NYT {
 namespace NYTree {

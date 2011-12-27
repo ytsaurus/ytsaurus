@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "yson_events.h"
+#include "yson_consumer.h"
 
 
 namespace NYT {

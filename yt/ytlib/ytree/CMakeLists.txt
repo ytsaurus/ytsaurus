@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
   ${BASE}/common.cpp
   ${BASE}/ephemeral.cpp
-  ${BASE}/forwarding_yson_events.cpp
+  ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/json_adapter.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
@@ -22,7 +22,7 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h
-  ${BASE}/forwarding_yson_events.h
+  ${BASE}/forwarding_yson_consumer.h
   ${BASE}/json_adapter.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
@@ -35,8 +35,8 @@ set( HDRS
   ${BASE}/ypath_detail.h
   ${BASE}/ypath_proxy.h
   ${BASE}/ypath_service.h
-  ${BASE}/yson_events-mock.h
-  ${BASE}/yson_events.h
+  ${BASE}/yson_consumer-mock.h
+  ${BASE}/yson_consumer.h
   ${BASE}/yson_file_service.h
   ${BASE}/yson_format.h
   ${BASE}/yson_reader.h

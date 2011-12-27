@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include "../ytlib/ytree/yson_reader.h"
-#include "../ytlib/ytree/yson_events-mock.h"
+#include "../ytlib/ytree/yson_consumer-mock.h"
 
 #include <util/stream/mem.h>
 

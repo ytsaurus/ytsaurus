@@ -2,9 +2,9 @@
 
 #include "common.h"
 #include "ypath_service.h"
-#include "yson_events.h"
+#include "yson_consumer.h"
 #include "tree_builder.h"
-#include "forwarding_yson_events.h"
+#include "forwarding_yson_consumer.h"
 
 #include "../actions/action_util.h"
 
