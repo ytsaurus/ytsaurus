@@ -72,6 +72,8 @@ public:
         YASSERT(channel);
         YASSERT(request);
         YASSERT(originalHandler);
+
+        DeadLine = TInstant::Now() + Timeout;
     }
 
     void Send() 
@@ -80,11 +82,7 @@ public:
             ~Request->GetRequestId().ToString(),
             static_cast<int>(CurrentAttempt));
 
-        TInstant now = TInstant::Now();
-        if (CurrentAttempt == 0) {
-            DeadLine = now + Timeout;
-        }
-
+        auto now = TInstant::Now();
         if (now < DeadLine) {
             Channel->GetUnderlyingChannel()->Send(
                 ~Request,
@@ -149,7 +147,8 @@ private:
 
             TDuration backoffTime = Channel->GetConfig()->BackoffTime;
             if (count < Channel->GetConfig()->RetryCount &&
-                TInstant::Now() + backoffTime < DeadLine) {
+                TInstant::Now() + backoffTime < DeadLine)
+            {
                 TDelayedInvoker::Submit(
                     ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
                     backoffTime);
