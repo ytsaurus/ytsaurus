@@ -109,7 +109,12 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
     ypathRequest->set_type(request->Type);
 
-    auto serializedManifest = SerializeToYson(~request->Manifest, TYsonWriter::EFormat::Binary);
+    TYson serializedManifest;
+    if (request->Manifest) {
+        serializedManifest = SerializeToYson(~request->Manifest, TYsonWriter::EFormat::Binary);
+    } else {
+        serializedManifest = "{}";
+    }
     ypathRequest->set_manifest(serializedManifest);
 
     auto ypathResponse = proxy.Execute(
