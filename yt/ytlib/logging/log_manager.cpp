@@ -174,7 +174,7 @@ public:
         return config;
     }
 
-    static TPtr CreateFromNode(INode* node, const TYPath& path = "/")
+    static TPtr CreateFromNode(INode* node, const TYPath& path = YPathRoot)
     {
         auto config = New<TLogConfig>();
         config->LoadAndValidate(node, path);
@@ -251,7 +251,7 @@ public:
         Shutdown();
     }
 
-    void Configure(INode* node, const TYPath& path = "/")
+    void Configure(INode* node, const TYPath& path = YPathRoot)
     {
         auto config = TLogConfig::CreateFromNode(node, path);
         auto queue = Queue;

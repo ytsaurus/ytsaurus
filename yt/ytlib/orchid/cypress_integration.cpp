@@ -132,7 +132,7 @@ private:
         TManifest()
         {
             Register("remote_address", RemoteAddress);
-            Register("remote_root", RemoteRoot).Default("/");
+            Register("remote_root", RemoteRoot).Default(YPathRoot);
             Register("timeout", Timeout).Default(TDuration::MilliSeconds(3000));
         }
     };

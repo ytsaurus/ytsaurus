@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "cypress_ypath_proxy.h"
 
+#include "../ytree/ypath_detail.h"
+
 namespace NYT {
 namespace NCypress {
 
@@ -14,7 +16,7 @@ const char NodeIdMarker = '#';
 
 TYPath GetYPathFromNodeId(const TNodeId& nodeId)
 {
-    return TYPath("/") + NodeIdMarker + nodeId.ToString();
+    return TYPath(YPathRoot) + NodeIdMarker + nodeId.ToString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

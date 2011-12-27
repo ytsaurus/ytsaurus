@@ -4,6 +4,8 @@
 #include "async_writer.h"
 #include "chunk_service.pb.h"
 
+#include "../ytree/ypath_detail.h"
+
 #include "../misc/configurable.h"
 #include "../misc/metric.h"
 #include "../misc/semaphore.h"
@@ -59,7 +61,7 @@ public:
             Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
         }
 
-        void Validate(const NYTree::TYPath& path = "/") const
+        void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const
         {
             TConfigurable::Validate(path);
             if (WindowSize < GroupSize) {

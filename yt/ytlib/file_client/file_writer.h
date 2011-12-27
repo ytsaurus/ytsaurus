@@ -44,7 +44,7 @@ public:
             Register("remote_writer", RemoteWriter).DefaultNew();
         }
 
-        virtual void Validate(const NYTree::TYPath& path = "/")
+        virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot)
         {
             TConfigurable::Validate(path);
             

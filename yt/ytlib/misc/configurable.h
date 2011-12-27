@@ -6,6 +6,7 @@
 #include "../actions/action.h"
 #include "../actions/action_util.h"
 #include "../ytree/ytree.h"
+#include "../ytree/ypath_detail.h"
 
 namespace NYT {
 namespace NConfig {
@@ -67,9 +68,9 @@ public:
 
     TConfigurable();
 
-    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = "/");
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = "/");
-    virtual void Validate(const NYTree::TYPath& path = "/") const;
+    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
+    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
 

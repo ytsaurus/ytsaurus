@@ -50,7 +50,7 @@ struct TSetRequest
         Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 
-    virtual void Validate(const NYTree::TYPath& path = "/") const
+    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const
     {
         TConfigurable::Validate(path);
         if (!Value && !Stream) {
