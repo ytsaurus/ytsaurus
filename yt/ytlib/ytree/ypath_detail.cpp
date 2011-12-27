@@ -20,6 +20,10 @@ static NLog::TLogger& Logger = YTreeLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TYPath YPathRoot("/");
+
+///////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
     if (IsFinalYPath(path)) {
@@ -160,15 +164,14 @@ void TNodeSetterBase::OnMyEndAttributes()
 TYPath ChopYPathRootMarker(const TYPath& path)
 {
     if (path.empty()) {
-        ythrow yexception() << Sprintf("YPath cannot be empty, use \"%s\" to denote the root", YPathRoot);
+        ythrow yexception() << Sprintf("YPath cannot be empty, use \"%s\" to denote the root", ~YPathRoot);
     }
 
-    TYPath ypathRoot = TYPath(YPathRoot);
-    if (!path.has_prefix(ypathRoot)) {
-        ythrow yexception() << Sprintf("YPath must start with \"%s\"", YPathRoot);
+    if (!path.has_prefix(YPathRoot)) {
+        ythrow yexception() << Sprintf("YPath must start with \"%s\"", ~YPathRoot);
     }
 
-    return path.substr(ypathRoot.size());
+    return path.substr(YPathRoot.size());
 }
 
 void ChopYPathToken(

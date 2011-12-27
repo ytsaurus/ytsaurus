@@ -16,7 +16,7 @@ const char NodeIdMarker = '#';
 
 TYPath GetYPathFromNodeId(const TNodeId& nodeId)
 {
-    return TYPath(YPathRoot) + NodeIdMarker + nodeId.ToString();
+    return YPathRoot + NodeIdMarker + nodeId.ToString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
