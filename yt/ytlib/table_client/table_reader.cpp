@@ -32,7 +32,7 @@ TTableReader::TTableReader(
     auto transactionId = Transaction ? Transaction->GetId() : NullTransactionId;
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        path,
+        ~path,
         ~transactionId.ToString()));
 
     TCypressServiceProxy Proxy(masterChannel);

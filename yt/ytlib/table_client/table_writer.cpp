@@ -31,7 +31,7 @@ TTableWriter::TTableWriter(
     YASSERT(masterChannel);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        path,
+        ~path,
         ~transaction->GetId().ToString()));
 
     OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
