@@ -451,7 +451,7 @@ protected:
 
         Stroka typeName = request->type();
 
-        INode::TPtr manifestNode =
+        NYTree::INode::TPtr manifestNode =
             request->has_manifest()
             ? NYTree::DeserializeFromYson(request->manifest())
             : NYTree::GetEphemeralNodeFactory()->CreateMap();
