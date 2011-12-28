@@ -91,10 +91,13 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
 {
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
-    State.StartOperation();
-    NextReader->Subscribe(FromMethod(
-        &TChunkSequenceReader::SetCurrentChunk,
-        TPtr(this)));
+
+    if (ChunkIds.ysize() != 0) {
+        State.StartOperation();
+        NextReader->Subscribe(FromMethod(
+            &TChunkSequenceReader::SetCurrentChunk,
+            TPtr(this)));
+    }
 
     return State.GetOperationError();
 }
@@ -141,6 +144,7 @@ bool TChunkSequenceReader::HasNextRow() const
 
 TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
 {
+    YASSERT(HasNextRow());
     if (CurrentReader->HasNextRow()) {
         return CurrentReader->AsyncNextRow();
     } else {
