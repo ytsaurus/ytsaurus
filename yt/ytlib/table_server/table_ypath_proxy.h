@@ -13,8 +13,8 @@ namespace NTableServer {
 struct TTableYPathProxy
     : NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, AddTableChunks);
-    DEFINE_YPATH_PROXY_METHOD(NProto, GetTableChunks);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetChunkListId);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

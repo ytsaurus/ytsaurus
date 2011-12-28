@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_node.h"
 #include "file_node_proxy.h"
+#include "file_ypath_proxy.h"
 #include "file_chunk_meta.pb.h"
 
 #include "../misc/codec.h"
@@ -61,43 +62,151 @@ class TFileNodeTypeHandler
 public:
     TFileNodeTypeHandler(
         TCypressManager* cypressManager,
-        TChunkManager* chunkManager);
+        TChunkManager* chunkManager)
+        : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
+        , ChunkManager(chunkManager)
+    {
+        // NB: No smartpointer for this here.
+        RegisterGetter("size", FromMethod(&TThis::GetSize, this));
+        RegisterGetter("codec_id", FromMethod(&TThis::GetCodecId, this));
+        RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
+        RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
+    }
 
-    ERuntimeNodeType GetRuntimeType();
-    ENodeType GetNodeType();
-    Stroka GetTypeName();
+    ERuntimeNodeType GetRuntimeType()
+    {
+        return ERuntimeNodeType::File;
+    }
+
+    ENodeType GetNodeType()
+    {
+        return ENodeType::Entity;
+    }
+
+    Stroka GetTypeName()
+    {
+        return FileTypeName;
+    }
 
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const NCypress::TNodeId& nodeId,
         const NTransactionServer::TTransactionId& transactionId,
-        INode* manifest);
+        INode* manifestNode)
+    {
+        UNUSED(transactionId);
+
+        auto manifest = New<TFileManifest>();
+        manifest->LoadAndValidate(manifestNode);
+
+        auto chunkId = manifest->ChunkId;
+        auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
+        if (!chunk) {
+            ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
+        }
+
+        if (!chunk->IsConfirmed()) {
+            ythrow yexception() << Sprintf("Chunk is not confirmed (ChunkId: %s)", ~chunkId.ToString());
+        }
+
+        TAutoPtr<TFileNode> node = new TFileNode(
+            TBranchedNodeId(nodeId, NullTransactionId),
+            GetRuntimeType());
+
+        // File node references chunk list.
+        auto& chunkList = ChunkManager->CreateChunkList();
+        node->SetChunkListId(chunkList.GetId());
+        ChunkManager->RefChunkTree(chunkList);
+
+        // Chunk list references chunk.
+        chunkList.ChildrenIds().push_back(chunkId);
+        ChunkManager->RefChunkTree(*chunk);
+
+        return node.Release();
+    }
 
     virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
         const NCypress::ICypressNode& node,
-        const NTransactionServer::TTransactionId& transactionId);
+        const NTransactionServer::TTransactionId& transactionId)
+    {
+        return New<TFileNodeProxy>(
+            this,
+            ~CypressManager,
+            ~ChunkManager,
+            transactionId,
+            node.GetId().NodeId);
+    }
 
 protected:
-    virtual void DoDestroy(TFileNode& node);
+    virtual void DoDestroy(TFileNode& node)
+    {
+        ChunkManager->UnrefChunkTree(node.GetChunkListId());
+    }
 
     virtual void DoBranch(
         const TFileNode& committedNode,
-        TFileNode& branchedNode);
+        TFileNode& branchedNode)
+    {
+        UNUSED(committedNode);
+
+        // branchedNode is a copy of committedNode.
+        // Reference the list chunk from branchedNode.
+        ChunkManager->RefChunkTree(branchedNode.GetChunkListId());
+    }
 
     virtual void DoMerge(
         TFileNode& committedNode,
-        TFileNode& branchedNode);
+        TFileNode& branchedNode)
+    {
+        UNUSED(committedNode);
+
+        // Drop the reference from branchedNode.
+        ChunkManager->UnrefChunkTree(branchedNode.GetChunkListId());
+    }
 
 private:
     typedef TFileNodeTypeHandler TThis;
 
     TIntrusivePtr<NChunkServer::TChunkManager> ChunkManager;
 
-    void GetSize(const TGetAttributeParam& param);
-    void GetCodecId(const TGetAttributeParam& param);
-    static void GetChunkListId(const TGetAttributeParam& param);
-    void GetChunkId(const TGetAttributeParam& param);
+    void GetSize(const TGetAttributeParam& param)
+    {
+        const auto& chunk = GetChunk(*param.Node);
+        const auto& attributes = chunk
+            .DeserializeAttributes()
+            .GetExtension(TFileChunkAttributes::file_attributes);
+        BuildYsonFluently(param.Consumer).Scalar(attributes.size());
+    }
 
-    const NChunkServer::TChunk* GetChunk(const TFileNode& node);
+    void GetCodecId(const TGetAttributeParam& param)
+    {
+        const auto& chunk = GetChunk(*param.Node);
+        const auto& attributes = chunk
+            .DeserializeAttributes()
+            .GetExtension(TFileChunkAttributes::file_attributes);
+        BuildYsonFluently(param.Consumer)
+            .Scalar(ECodecId(attributes.codec_id()).ToString());
+    }
+    
+    static void GetChunkListId(const TGetAttributeParam& param)
+    {
+        BuildYsonFluently(param.Consumer)
+            .Scalar(param.Node->GetChunkListId().ToString());
+    }
+
+    void GetChunkId(const TGetAttributeParam& param)
+    {
+        const auto& chunk = GetChunk(*param.Node);
+        BuildYsonFluently(param.Consumer)
+            .Scalar(chunk.GetId().ToString());
+    }
+
+    const NChunkServer::TChunk& GetChunk(const TFileNode& node)
+    {
+        const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
+        YASSERT(chunkList.ChildrenIds().ysize() == 1);
+        auto chunkId = chunkList.ChildrenIds()[0];
+        return ChunkManager->GetChunk(chunkId);
+    }
 
 };
 
@@ -108,145 +217,6 @@ NCypress::INodeTypeHandler::TPtr CreateFileTypeHandler(
     return New<TFileNodeTypeHandler>(
         cypressManager,
         chunkManager);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFileNodeTypeHandler::TFileNodeTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
-    : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
-    , ChunkManager(chunkManager)
-{
-    // NB: No smartpointer for this here.
-    RegisterGetter("size", FromMethod(&TThis::GetSize, this));
-    RegisterGetter("codec_id", FromMethod(&TThis::GetCodecId, this));
-    RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-    RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
-}
-
-void TFileNodeTypeHandler::GetSize(const TGetAttributeParam& param)
-{
-    const auto* chunk = GetChunk(*param.Node);
-
-    if (!chunk || !chunk->IsConfirmed()) {
-        BuildYsonFluently(param.Consumer).Scalar(-1);
-        return;
-    }
-
-    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::file_attributes);
-    BuildYsonFluently(param.Consumer).Scalar(attributes.size());
-}
-
-void TFileNodeTypeHandler::GetCodecId(const TGetAttributeParam& param)
-{
-    const auto* chunk = GetChunk(*param.Node);
-
-    if (!chunk || !chunk->IsConfirmed()) {
-        BuildYsonFluently(param.Consumer).Scalar(-1);
-        return;
-    }
-
-    const auto& attributes = chunk->DeserializeAttributes().GetExtension(TFileChunkAttributes::file_attributes);
-    BuildYsonFluently(param.Consumer).Scalar(ECodecId(attributes.codec_id()).ToString());
-}
-
-void TFileNodeTypeHandler::GetChunkListId(const TGetAttributeParam& param)
-{
-    BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
-}
-
-void TFileNodeTypeHandler::GetChunkId(const TGetAttributeParam& param)
-{
-    const auto* chunk = GetChunk(*param.Node);
-    auto chunkId = !chunk ? NChunkClient::TChunkId() : chunk->GetId();
-    BuildYsonFluently(param.Consumer).Scalar(chunkId.ToString());
-}
-
-const NChunkServer::TChunk* TFileNodeTypeHandler::GetChunk(const TFileNode& node)
-{
-    if (node.GetChunkListId() == NullChunkListId) {
-        return NULL;
-    }
-
-    const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
-    YASSERT(chunkList.ChunkIds().ysize() == 1);
-
-    return &ChunkManager->GetChunk(chunkList.ChunkIds()[0]);
-}
-
-void TFileNodeTypeHandler::DoDestroy(TFileNode& node)
-{
-    if (node.GetChunkListId() != NullChunkListId) {
-        ChunkManager->UnrefChunkList(node.GetChunkListId());
-    }
-}
-
-void TFileNodeTypeHandler::DoBranch(
-    const TFileNode& committedNode,
-    TFileNode& branchedNode)
-{
-    UNUSED(committedNode);
-
-    // branchedNode is a copy of committedNode.
-
-    // Reference the list chunk from branchedNode.
-    if (branchedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->RefChunkList(branchedNode.GetChunkListId());
-    }
-}
-
-void TFileNodeTypeHandler::DoMerge(
-    TFileNode& committedNode,
-    TFileNode& branchedNode)
-{
-    // Drop the reference from committedNode.
-    if (committedNode.GetChunkListId() != NullChunkListId) {
-        ChunkManager->UnrefChunkList(committedNode.GetChunkListId());
-    }
-
-    // Transfer the chunklist from branchedNode to committedNode.
-    committedNode.SetChunkListId(branchedNode.GetChunkListId());
-}
-
-TIntrusivePtr<ICypressNodeProxy> TFileNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
-{
-    return New<TFileNodeProxy>(
-        this,
-        ~CypressManager,
-        ~ChunkManager,
-        transactionId,
-        node.GetId().NodeId);
-}
-
-ERuntimeNodeType TFileNodeTypeHandler::GetRuntimeType()
-{
-    return ERuntimeNodeType::File;
-}
-
-ENodeType TFileNodeTypeHandler::GetNodeType()
-{
-    return ENodeType::Entity;
-}
-
-Stroka TFileNodeTypeHandler::GetTypeName()
-{
-    return FileTypeName;
-}
-
-TAutoPtr<ICypressNode> TFileNodeTypeHandler::CreateFromManifest(
-    const TNodeId& nodeId,
-    const TTransactionId& transactionId,
-    INode* manifest)
-{
-    UNUSED(transactionId);
-    UNUSED(manifest);
-
-    return new TFileNode(
-        TBranchedNodeId(nodeId, NullTransactionId),
-        GetRuntimeType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

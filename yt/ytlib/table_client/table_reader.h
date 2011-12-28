@@ -7,6 +7,7 @@
 #include "../cypress/cypress_service_proxy.h"
 #include "../table_server/table_ypath_proxy.h"
 #include "../chunk_client/block_cache.h"
+#include "../logging/tagged_logger.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -54,9 +55,8 @@ private:
     TConfig::TPtr Config;
     TChunkSequenceReader::TPtr Reader;
     NCypress::TNodeId NodeId;
-
-    //! Nullable. Reading doesn't require active transaction.
     NTransactionClient::ITransaction::TPtr Transaction;
+    NLog::TTaggedLogger Logger;
 
     IAction::TPtr OnAborted_;
 

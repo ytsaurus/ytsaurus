@@ -10,6 +10,8 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NCypress;
+using namespace NYTree;
+using namespace NTransactionClient;
 using namespace NFileServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
@@ -20,9 +22,9 @@ using namespace NProto;
 TFileReader::TFileReader(
     TConfig* config,
     NRpc::IChannel* masterChannel,
-    NTransactionClient::ITransaction* transaction,
-    NChunkClient::IBlockCache* blockCache,
-    const NYTree::TYPath& path)
+    ITransaction* transaction,
+    IBlockCache* blockCache,
+    const TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
@@ -34,38 +36,45 @@ TFileReader::TFileReader(
 {
     YASSERT(masterChannel);
 
-    Logger.AddTag(Sprintf("Path: %s", ~Path));
-
     auto transactionId =
         !Transaction
         ? NullTransactionId
         : Transaction->GetId();
 
-    LOG_INFO("File reader is open (TransactionId: %s)",
-        ~transactionId.ToString());
+    // Bind to the transaction.
+    if (Transaction) {
+        OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
+        Transaction->SubscribeAborted(OnAborted_);
+    }
+
+    Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+        ~Path,
+        ~transactionId.ToString()));
+
+    LOG_INFO("File reader open");
 
     CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
     CypressProxy->SetTimeout(Config->MasterRpcTimeout);
 
-    // Get chunk info.
-    LOG_INFO("Getting file chunk");
-
-    auto getChunkRequest = TFileYPathProxy::GetFileChunk();
-    auto getChunkResponse = CypressProxy->Execute(
+    LOG_INFO("Fetching file info");
+    auto fetchReq = TFileYPathProxy::Fetch();
+    auto fetchRsp = CypressProxy->Execute(
         Path,
         transactionId,
-        ~getChunkRequest)->Get();
+        ~fetchReq)->Get();
 
-    if (!getChunkResponse->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from master\n%s",
-            ~getChunkResponse->GetError().ToString());
+    if (!fetchRsp->IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error fetching file info\n%s",
+            ~fetchRsp->GetError().ToString());
     }
-
-    ChunkId = TChunkId::FromProto(getChunkResponse->chunk_id());
-    auto holderAddresses = FromProto<Stroka>(getChunkResponse->holder_addresses());
-
-    LOG_INFO("Chunk info is received from master (ChunkId: %s, HolderAddresses: [%s])",
+    ChunkId = TChunkId::FromProto(fetchRsp->chunk_id());
+    auto holderAddresses = FromProto<Stroka>(fetchRsp->holder_addresses());
+    FileName = fetchRsp->file_name();
+    Executable = fetchRsp->executable();
+    LOG_INFO("Read info received (ChunkId: %s, FileName: %s, Executable: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
+        ~FileName,
+        ~ToString(Executable),
         ~JoinToString(holderAddresses));
 
     auto remoteReader = CreateRemoteReader(
@@ -75,19 +84,22 @@ TFileReader::TFileReader(
         ChunkId,
         holderAddresses);
 
+    LOG_INFO("Requesting chunk info");
     auto getInfoResult = remoteReader->AsyncGetChunkInfo()->Get();
     if (!getInfoResult.IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info from holder\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info\n%s",
             ~getInfoResult.ToString());
     }
     auto& chunkInfo = getInfoResult.Value();
-
     BlockCount = chunkInfo.blocks_size();
     Size = chunkInfo.size();
-    TFileChunkAttributes fileAttributes = 
-        chunkInfo.attributes().GetExtension(TFileChunkAttributes::file_attributes);
+    auto fileAttributes = chunkInfo.attributes().GetExtension(TFileChunkAttributes::file_attributes);
     auto codecId = ECodecId(fileAttributes.codec_id());
     Codec = GetCodec(codecId);
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
+        BlockCount,
+        Size,
+        ~codecId.ToString());
 
     // Take all blocks.
     yvector<int> blockIndexes;
@@ -100,12 +112,6 @@ TFileReader::TFileReader(
         ~Config->SequentialReader,
         blockIndexes,
         ~remoteReader);
-
-    // Bind to the transaction.
-    if (Transaction) {
-        OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
-        Transaction->SubscribeAborted(OnAborted_);
-    }
 }
 
 TSharedRef TFileReader::Read()
@@ -123,19 +129,28 @@ TSharedRef TFileReader::Read()
 
     LOG_INFO("Reading block (BlockIndex: %d)", BlockIndex);
     Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
-
     auto compressedBlock = SequentialReader->GetBlock();
     auto block = Codec->Decompress(compressedBlock);
-
-    LOG_INFO("Block is read (BlockIndex: %d)", BlockIndex);
+    LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 
     ++BlockIndex;
+
     return block;
 }
 
 i64 TFileReader::GetSize() const
 {
     return Size;
+}
+
+Stroka TFileReader::GetFileName() const
+{
+    return FileName;
+}
+
+bool TFileReader::IsExecutable()
+{
+    return Executable;
 }
 
 void TFileReader::Close()
@@ -147,13 +162,14 @@ void TFileReader::Close()
 
     Finish();
 
-    LOG_INFO("File reader is closed");
+    LOG_INFO("File reader closed");
 }
 
 void TFileReader::Finish()
 {
     if (Transaction) {
         Transaction->UnsubscribeAborted(OnAborted_);
+        Transaction.Reset();
     }
     OnAborted_.Reset();
     SequentialReader.Reset();

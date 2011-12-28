@@ -52,6 +52,18 @@ protected:
             });
     }
 
+    // TODO(babenko): not used
+    template <class TResult, class TContext>
+    void Commit(
+        TContext* context,
+        TMetaChange<TResult>* change)
+    {
+        change
+            ->OnSuccess(~CreateSuccessHandler(context))
+            ->OnError(~CreateErrorHandler(context))
+            ->Commit();
+    }
+
     void ValidateLeader()
     {
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {

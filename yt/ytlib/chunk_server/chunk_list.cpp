@@ -8,14 +8,12 @@ namespace NChunkServer {
 
 TChunkList::TChunkList(const TChunkListId& id)
     : Id_(id)
-    , ReplicaCount_(3)
     , RefCounter(0)
 { }
 
 TChunkList::TChunkList(const TChunkList& other)
     : Id_(other.Id_)
-    , ChunkIds_(other.ChunkIds_)
-    , ReplicaCount_(other.ReplicaCount_)
+    , ChildrenIds_(other.ChildrenIds_)
     , RefCounter(other.RefCounter)
 { }
 
@@ -26,16 +24,14 @@ TAutoPtr<TChunkList> TChunkList::Clone() const
 
 void TChunkList::Save(TOutputStream* output) const
 {
-    ::Save(output, ChunkIds_);
-    ::Save(output, ReplicaCount_);
+    ::Save(output, ChildrenIds_);
     ::Save(output, RefCounter);
 }
 
 TAutoPtr<TChunkList> TChunkList::Load(const TChunkListId& id, TInputStream* input)
 {
     TAutoPtr<TChunkList> chunkList = new TChunkList(id);
-    ::Load(input, chunkList->ChunkIds_);
-    ::Load(input, chunkList->ReplicaCount_);
+    ::Load(input, chunkList->ChildrenIds_);
     ::Load(input, chunkList->RefCounter);
     return chunkList;
 }

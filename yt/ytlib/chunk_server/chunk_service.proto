@@ -74,16 +74,22 @@ message TRspHolderHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAllocateChunk
+message TReqCreateChunks
 {
     required bytes transaction_id = 1;
-    required int32 replica_count = 2;
+    required int32 chunk_count = 2;
+    required int32 upload_replica_count = 3;
 }
 
-message TRspAllocateChunk
+message TRspCreateChunks
 {
-    required bytes chunk_id = 1;
-    repeated bytes holder_addresses = 2;
+    message TChunkInfo
+    {
+        required bytes chunk_id = 1;
+        repeated bytes holder_addresses = 2;
+    }
+
+    repeated TChunkInfo chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,12 +112,49 @@ message TRspConfirmChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFindChunk
+message TReqCreateChunkLists
+{
+    required bytes transaction_id = 1;
+    required int32 chunk_list_count = 2;
+}
+
+message TRspCreateChunkLists
+{
+    repeated bytes chunk_list_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAttachChunkTrees
+{
+    required bytes transaction_id = 1;
+    repeated bytes chunk_tree_ids = 2;
+    required bytes parent_id = 3;
+}
+
+message TRspAttachChunkTrees
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDetachChunkTrees
+{
+    required bytes transaction_id = 1;
+    repeated bytes chunk_tree_ids = 2;
+    required bytes parent_id = 3;
+}
+
+message TRspDetachChunkTrees
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLocateChunk
 {
     required bytes chunk_id = 1;
 }
 
-message TRspFindChunk
+message TRspLocateChunk
 {
     repeated bytes holder_addresses = 1;
 }

@@ -30,88 +30,67 @@ TFileNodeProxy::TFileNodeProxy(
     , ChunkManager(chunkManager)
 { }
 
-bool TFileNodeProxy::IsLogged(IServiceContext* context) const
-{
-    Stroka verb = context->GetVerb();
-    if (verb == "SetFileChunk") {
-        return true;
-    } else {
-        return TBase::IsLogged(context);
-    }
-}
-
 void TFileNodeProxy::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
-    if (verb == "GetFileChunk") {
-        GetFileChunkThunk(context);
-    } else if (verb == "SetFileChunk") {
-        SetFileChunkThunk(context);
+    if (verb == "Fetch") {
+        FetchThunk(context);
     } else {
         TBase::DoInvoke(context);
     }
 }
 
+bool TFileNodeProxy::IsExecutable()
+{
+    // TODO(babenko): fetch this attribute
+    return false;
+}
+
+Stroka TFileNodeProxy::GetFileName()
+{
+    auto parent = GetParent();
+    YASSERT(parent);
+
+    switch (parent->GetType()) {
+        case ENodeType::Map:
+            return parent->AsMap()->GetChildKey(this);
+
+        case ENodeType::List:
+            return ToString(parent->AsList()->GetChildIndex(this));
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, GetFileChunk)
+DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
 {
     UNUSED(request);
 
     const auto& impl = GetTypedImpl();
-
-    TChunkId chunkId;
+    
     auto chunkListId = impl.GetChunkListId();
-    if (chunkListId == NullChunkId) {
-        response->set_chunk_id(NullChunkId.ToProto());
+    const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
+    YASSERT(chunkList.ChildrenIds().size() == 1);
+    
+    auto chunkId = chunkList.ChildrenIds()[0];
+    YASSERT(GetChunkTreeKind(chunkId) == EChunkTreeKind::Chunk);
 
-        context->SetResponseInfo("ChunkId: %s", ~NullChunkId.ToString());
-    } else {
-        const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
-        YASSERT(chunkList.ChunkIds().ysize() == 1);
-        chunkId = chunkList.ChunkIds()[0];
+    const auto& chunk = ChunkManager->GetChunk(chunkId);
 
-        const auto& chunk = ChunkManager->GetChunk(chunkId);
+    response->set_chunk_id(chunkId.ToProto());
+    ChunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
-        response->set_chunk_id(chunkId.ToProto());
-        ChunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
+    response->set_executable(IsExecutable());
+    response->set_file_name(GetFileName());
 
-        context->SetResponseInfo("ChunkId: %s, HolderAddresses: [%s]",
-            ~chunkId.ToString(),
-            ~JoinToString(response->holder_addresses()));
-    }
-
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, SetFileChunk)
-{
-    UNUSED(response);
-
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
-
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
-
-    auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
-    if (chunk.GetChunkListId() != NullChunkListId) {
-        ythrow yexception() << "Chunk is already assigned to another chunk list";
-    }
-
-    LockIfNeeded();
-
-    auto& impl = GetTypedImplForUpdate();
-
-    if (impl.GetChunkListId() != NullChunkListId) {
-        ythrow yexception() << "File already has a chunk";
-    }
-
-    // Create a chunklist and couple it with the chunk.
-    auto& chunkList = ChunkManager->CreateChunkList();
-    ChunkManager->AddChunkToChunkList(chunk, chunkList);
-
-    // Reference the chunklist from the file.
-    impl.SetChunkListId(chunkList.GetId());
-    ChunkManager->RefChunkList(chunkList);
+    context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, HolderAddresses: [%s]",
+        ~chunkId.ToString(),
+        ~response->file_name(),
+        ~ToString(response->executable()),
+        ~JoinToString(response->holder_addresses()));
 
     context->Reply();
 }

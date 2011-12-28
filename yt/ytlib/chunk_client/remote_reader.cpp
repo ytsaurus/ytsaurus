@@ -76,7 +76,7 @@ public:
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
                 ~FromMethod(&TRemoteReader::DoFindChunk, TPtr(this)),
-                LastFindChunkTime + Config->RetryBackoffTime);
+                SeedsTimestamp + Config->RetryBackoffTime);
         }
 
         return GetSeedsResult;
@@ -112,7 +112,7 @@ private:
 
     TSpinLock SpinLock;
     TAsyncGetSeedsResult::TPtr GetSeedsResult;
-    TInstant LastFindChunkTime;
+    TInstant SeedsTimestamp;
 
     void DoFindChunk()
     {
@@ -120,23 +120,23 @@ private:
 
         LOG_INFO("Requesting chunk seeds from the master");
 
-        auto request = Proxy->FindChunk();
-        request->set_chunk_id(ChunkId.ToProto());
-        request->Invoke()->Subscribe(FromMethod(&TRemoteReader::OnChunkFound, TPtr(this)));
+        auto req = Proxy->LocateChunk();
+        req->set_chunk_id(ChunkId.ToProto());
+        req->Invoke()->Subscribe(FromMethod(&TRemoteReader::OnChunkLocated, TPtr(this)));
     }
 
-    void OnChunkFound(TProxy::TRspFindChunk::TPtr response)
+    void OnChunkLocated(TProxy::TRspLocateChunk::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(GetSeedsResult);
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            LastFindChunkTime = TInstant::Now();
+            SeedsTimestamp = TInstant::Now();
         }
 
-        if (response->IsOK()) {
-            auto seedAddresses = FromProto<Stroka>(response->holder_addresses());
+        if (rsp->IsOK()) {
+            auto seedAddresses = FromProto<Stroka>(rsp->holder_addresses());
 
             // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
             Shuffle(seedAddresses.begin(), seedAddresses.end());
@@ -150,7 +150,7 @@ private:
             GetSeedsResult->Set(seedAddresses);
         } else {
             auto message = Sprintf("Error requesting chunk seeds from master\n%s",
-                ~response->GetError().ToString());
+                ~rsp->GetError().ToString());
             LOG_WARNING("%s", ~message);
             GetSeedsResult->Set(TError(message));
         }

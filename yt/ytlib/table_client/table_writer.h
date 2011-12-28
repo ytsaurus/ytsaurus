@@ -7,6 +7,8 @@
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_proxy.h"
 #include "../table_server/table_ypath_proxy.h"
+#include "../chunk_server/common.h"
+#include "../logging/tagged_logger.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -48,20 +50,16 @@ public:
     void Close();
 
 private:
-    bool NodeExists(const Stroka& nodePath);
-    void CreateTableNode(const Stroka& nodePath);
-
     void Finish();
 
     void OnAborted();
 
     TConfig::TPtr Config;
-    const Stroka Path;
-    NCypress::TNodeId NodeId;
+    NChunkServer::TChunkListId ChunkListId;
     NTransactionClient::ITransaction::TPtr Transaction;
     NRpc::IChannel::TPtr MasterChannel;
     TChunkSequenceWriter::TPtr Writer;
-    NCypress::TCypressServiceProxy Proxy;
+    NLog::TTaggedLogger Logger;
     IAction::TPtr OnAborted_;
 
 };

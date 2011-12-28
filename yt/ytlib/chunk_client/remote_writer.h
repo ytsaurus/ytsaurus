@@ -171,7 +171,7 @@ private:
     /*!
      * Invoked from #Cancel
      */
-    void DoCancel(const TError& error);
+    void DoCancel();
 
     void AddGroup(TGroupPtr group);
 
@@ -208,7 +208,6 @@ private:
     void PingSession(int node);
     void SchedulePing(int node);
     void CancelPing(int node);
-    void Shutdown();
     void CancelAllPings();
 
     template<class TResponse>

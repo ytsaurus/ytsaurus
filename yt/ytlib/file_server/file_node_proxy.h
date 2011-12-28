@@ -26,7 +26,8 @@ public:
         const NTransactionServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const;
+    bool IsExecutable();
+    Stroka GetFileName();
 
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
@@ -35,8 +36,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetFileChunk);
-    DECLARE_RPC_SERVICE_METHOD(NProto, SetFileChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
 
 };
 

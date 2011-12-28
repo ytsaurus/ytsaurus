@@ -21,7 +21,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkWriter::TChunkWriter(
     TConfig* config, 
-    NChunkClient::IAsyncWriter::TPtr chunkWriter,
+    NChunkClient::IAsyncWriter* chunkWriter,
     const TSchema& schema)
     : Config(config)
     , Schema(schema)
@@ -126,7 +126,6 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
 TChunkWriter::~TChunkWriter()
 {
-    YASSERT(!State.IsActive());
 }
 
 i64 TChunkWriter::GetCurrentSize() const

@@ -35,8 +35,12 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, AddTableChunks);
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetTableChunks);
+    void TraverseChunkTree(
+        yvector<NChunkServer::TChunkId>* chunkIds,
+        const NChunkServer::TChunkTreeId& treeId);
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListId);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
 
 };
 

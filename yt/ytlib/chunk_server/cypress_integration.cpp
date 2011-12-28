@@ -25,8 +25,8 @@ public:
     DECLARE_ENUM(EChunkFilter,
         (All)
         (Lost)
-        (OverReplicated)
-        (UnderReplicated)
+        (Overreplicated)
+        (Underreplicated)
     );
 
     TVirtualChunkMap(TChunkManager* chunkManager, EChunkFilter filter)
@@ -43,10 +43,10 @@ private:
         switch (Filter) {
             case EChunkFilter::Lost:
                 return ChunkManager->LostChunkIds();
-            case EChunkFilter::OverReplicated:
-                return ChunkManager->OverReplicatedChunkIds();
-            case EChunkFilter::UnderReplicated:
-                return ChunkManager->UnderReplicatedChunkIds();
+            case EChunkFilter::Overreplicated:
+                return ChunkManager->OverreplicatedChunkIds();
+            case EChunkFilter::Underreplicated:
+                return ChunkManager->UnderreplicatedChunkIds();
             default:
                 YUNREACHABLE();
         }
@@ -154,13 +154,13 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkMap,
+        ERuntimeNodeType::LostChunkMap,
         // TODO: extract type name
         "lost_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
-INodeTypeHandler::TPtr CreateOverReplicatedChunkMapTypeHandler(
+INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
@@ -169,13 +169,13 @@ INodeTypeHandler::TPtr CreateOverReplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkMap,
+        ERuntimeNodeType::OverreplicatedChunkMap,
         // TODO: extract type name
-        "over_replicated_chunk_map",
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::OverReplicated));
+        "overreplicated_chunk_map",
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
-INodeTypeHandler::TPtr CreateUnderReplicatedChunkMapTypeHandler(
+INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(
     TCypressManager* cypressManager,
     TChunkManager* chunkManager)
 {
@@ -184,10 +184,10 @@ INodeTypeHandler::TPtr CreateUnderReplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkMap,
+        ERuntimeNodeType::UnderreplicatedChunkMap,
         // TODO: extract type name
-        "under_replicated_chunk_map",
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::UnderReplicated));
+        "underreplicated_chunk_map",
+        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Underreplicated));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,11 +226,10 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("replica_count").Scalar(chunkList->GetReplicaCount())
                         .Item("ref_counter").Scalar(chunkList->GetRefCounter())
-                        .Item("chunk_ids").DoListFor(chunkList->ChunkIds(), [=] (TFluentList fluent, TChunkId chunkId)
+                        .Item("children_ids").DoListFor(chunkList->ChildrenIds(), [=] (TFluentList fluent, TChunkId childId)
                             {
-                                fluent.Item().Scalar(chunkId.ToString());
+                                fluent.Item().Scalar(childId.ToString());
                             })
                     .EndMap();
             }));

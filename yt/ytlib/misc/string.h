@@ -22,7 +22,7 @@ Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimit
         if (current != begin) {
             result.append(delimiter);
         }
-        result.append(::ToString(*current));
+        result.append(ToString(*current));
     }
     return result;
 }
@@ -44,11 +44,11 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIter>
-yvector<Stroka> ConvertToStrings(TIter begin, size_t count)
+yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 {
     yvector<Stroka> result;
-    result.reserve(count);
-    for (TIter it = begin; result.size() != count; ++it) {
+    result.reserve(maxSize);
+    for (TIter it = begin; result.size() < maxSize; ++it) {
         result.push_back(it->ToString());
     }
     return result;

@@ -55,9 +55,9 @@ public:
         PingInvoker = New<TPeriodicInvoker>(
             FromMethod(
                 &TTransactionManager::PingTransaction,
-                transactionManager, 
+                TransactionManager, 
                 Id),
-            transactionManager->Config->PingPeriod);
+            TransactionManager->Config->PingPeriod);
         PingInvoker->Start();
     }
 
@@ -187,6 +187,9 @@ private:
     void MakeStateTransition(EState newState)
     {
         TGuard<TSpinLock> guard(SpinLock);
+        if (newState == State)
+            return;
+
         switch (State) {
             case EState::Committed:
                 ythrow yexception() << "Transaction is already committed";

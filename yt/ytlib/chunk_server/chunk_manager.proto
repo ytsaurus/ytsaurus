@@ -15,9 +15,10 @@ message TMsgUnregisterHolder
     required int32 holder_id = 1;
 }
 
-message TMsgAllocateChunk
+message TMsgCreateChunks
 {
     required bytes transaction_id = 1;
+    required int32 chunk_count = 2;
 }
 
 message TMsgConfirmChunks

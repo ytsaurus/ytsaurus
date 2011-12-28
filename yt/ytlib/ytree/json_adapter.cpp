@@ -50,7 +50,6 @@ void TJsonAdapter::OnMyListItem()
 
 void TJsonAdapter::OnMyEndList(bool hasAttributes)
 {
-    YASSERT(!hasAttributes);
     JsonWriter->CloseArray();
 }
 
@@ -66,7 +65,6 @@ void TJsonAdapter::OnMyMapItem(const Stroka& name)
 
 void TJsonAdapter::OnMyEndMap(bool hasAttributes)
 {
-    YASSERT(!hasAttributes);
     JsonWriter->CloseMap();
 }
 

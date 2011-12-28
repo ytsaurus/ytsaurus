@@ -3,6 +3,7 @@
 #endif
 #undef CONFIGURABLE_INL_H_
 
+#include "../misc/guid.h"
 #include "../ytree/ypath_detail.h"
 
 #include <util/datetime/base.h>
@@ -90,6 +91,12 @@ inline void Read(TDuration& parameter, const NYTree::INode* node, const NYTree::
     parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
 
+// TGuid
+inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
+{
+    parameter = TGuid::FromString(node->AsString()->GetValue());
+}
+
 // TEnumBase
 template <class T>
 inline void Read(
@@ -99,7 +106,7 @@ inline void Read(
     typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
         NYT::NDetail::TEmpty())
 {
-    Stroka value = node->AsString()->GetValue();
+    auto value = node->AsString()->GetValue();
     parameter = T::FromString(value);
 }
 

@@ -29,82 +29,99 @@ TTableNodeProxy::TTableNodeProxy(
     , ChunkManager(chunkManager)
 { }
 
-bool TTableNodeProxy::IsLogged(IServiceContext* context) const
-{
-    Stroka verb = context->GetVerb();
-    if (verb == "AddTableChunks") {
-        return true;
-    } else {
-        return TBase::IsLogged(context);
-    }
-}
-
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
-    if (verb == "AddTableChunks") {
-        AddTableChunksThunk(context);
-    } else if (verb == "GetTableChunks") {
-        GetTableChunksThunk(context);
+    if (verb == "GetChunkListId") {
+        GetChunkListIdThunk(context);
+    } else if (verb == "Fetch") {
+        FetchThunk(context);
     } else {
         TBase::DoInvoke(context);
     }
 }
 
+
+bool TTableNodeProxy::IsLogged(IServiceContext* context) const
+{
+    Stroka verb = context->GetVerb();
+    if (verb == "GetChunkListId") {
+        // This _may_ cause an update.
+        return true;
+    }
+    return TBase::IsLogged(context);;
+}
+
+void TTableNodeProxy::TraverseChunkTree(
+    yvector<NChunkServer::TChunkId>* chunkIds,
+    const NChunkServer::TChunkTreeId& treeId)
+{
+    switch (GetChunkTreeKind(treeId)) {
+        case EChunkTreeKind::Chunk: {
+            chunkIds->push_back(treeId);
+            break;
+        }
+
+        case EChunkTreeKind::ChunkList: {
+            const auto& chunkList = ChunkManager->GetChunkList(treeId);
+            FOREACH (const auto& childId, chunkList.ChildrenIds()) {
+                TraverseChunkTree(chunkIds, childId);
+            }
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, AddTableChunks)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListId)
 {
-    UNUSED(response);
+    context->SetRequestInfo("ForUpdate: %s", ~ToString(request->for_update()));
 
-    auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
-
-    context->SetRequestInfo("ChunkIds: [%s]", ~JoinToString(chunkIds));
-
-    LockIfNeeded();
-
-    auto& impl = GetTypedImplForUpdate();
-
-    // Check if the table has at least one chunk list. Create one if needed.
-    // Also create a new chunklist if the node is committed. The latter case
-    // means that chunks are being appended without taking a lock.
-    TChunkList* chunkList;
-    if (impl.ChunkListIds().empty() || impl.GetState() == ENodeState::Committed) {
-        // Branched node must already have a final chunk list ready for append.
-        YASSERT(impl.GetState() != ENodeState::Branched);
-
-        chunkList = &ChunkManager->CreateChunkList();
-        impl.ChunkListIds().push_back(chunkList->GetId());
-        ChunkManager->RefChunkList(*chunkList);
+    const TTableNode* impl;
+    if (request->for_update()) {
+        LockIfNeeded();
+        impl = &GetTypedImplForUpdate();
     } else {
-        chunkList = &ChunkManager->GetChunkListForUpdate(impl.ChunkListIds().back());
+        impl = &GetTypedImpl();
     }
-    YASSERT(chunkList->GetRefCounter() == 1);
 
-    FOREACH (const auto& chunkId, chunkIds) {
-        auto& chunk = ChunkManager->GetChunkForUpdate(chunkId);
-        ChunkManager->AddChunkToChunkList(chunk, *chunkList);
-    }
+    response->set_chunk_list_id(impl->GetChunkListId().ToProto());
+
+    context->SetResponseInfo("ChunkListId: %s", ~impl->GetChunkListId().ToString());
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetTableChunks)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
-    UNUSED(request);
-
-    yvector<TChunkId> chunkIds;
-
     const auto& impl = GetTypedImpl();
 
-    FOREACH (const auto& chunkListId, impl.ChunkListIds()) {
-        const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
-        chunkIds.insert(chunkIds.end(), chunkList.ChunkIds().begin(), chunkList.ChunkIds().end());
+    yvector<TChunkId> chunkIds;
+    TraverseChunkTree(&chunkIds, impl.GetChunkListId());
+
+    FOREACH (const auto& chunkId, chunkIds) {
+        auto* chunkInfo = response->add_chunks();
+        chunkInfo->set_chunk_id(chunkId.ToProto());
+
+        const auto& chunk = ChunkManager->GetChunk(chunkId);
+        if (chunk.IsConfirmed()) {
+            if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
+                ChunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
+            }
+
+            if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
+                auto attributes = chunk.GetAttributes();
+                chunkInfo->mutable_attributes()->ParseFromArray(attributes.Begin(), attributes.Size());
+            }
+        }
     }
 
-    ToProto<TChunkId, Stroka>(*response->mutable_chunk_ids(), chunkIds);
-
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
+
     context->Reply();
 }
 

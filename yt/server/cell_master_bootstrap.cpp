@@ -194,10 +194,10 @@ void TCellMasterBootstrap::Run()
     cypressManager->RegisterNodeType(~CreateLostChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateOverReplicatedChunkMapTypeHandler(
+    cypressManager->RegisterNodeType(~CreateOverreplicatedChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateUnderReplicatedChunkMapTypeHandler(
+    cypressManager->RegisterNodeType(~CreateUnderreplicatedChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
     cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(

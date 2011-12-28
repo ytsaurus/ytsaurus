@@ -57,7 +57,7 @@ public:
     TGroup(
         int nodeCount, 
         int startBlockIndex, 
-        TRemoteWriter::TPtr writer);
+        TRemoteWriter* writer);
 
     void AddBlock(const TSharedRef& block);
     void Process();
@@ -141,7 +141,7 @@ private:
 TRemoteWriter::TGroup::TGroup(
     int nodeCount, 
     int startBlockIndex, 
-    TRemoteWriter::TPtr writer)
+    TRemoteWriter* writer)
     : IsFlushing_(false)
     , IsSent(nodeCount, false)
     , StartBlockIndex(startBlockIndex)
@@ -540,7 +540,7 @@ void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
     }
 }
 
-void TRemoteWriter::Shutdown()
+void TRemoteWriter::DoCancel()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -548,16 +548,11 @@ void TRemoteWriter::Shutdown()
     // Drop the references to ensure proper resource disposal.
     Window.clear();
     CancelAllPings();
-}
 
-void TRemoteWriter::DoCancel(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-    State.Cancel(error);
-    Shutdown();
+    // Drop the cyclic reference.
+    CurrentGroup.Reset();
 
-    LOG_DEBUG("Writer canceled\n%s",
-        ~error.ToString());
+    LOG_DEBUG("Writer canceled");
 }
 
 void TRemoteWriter::AddGroup(TGroupPtr group)
@@ -594,8 +589,10 @@ void TRemoteWriter::OnNodeDied(int node)
         AliveNodeCount);
 
     if (State.IsActive() && AliveNodeCount == 0) {
-        LOG_WARNING("No alive holders left, chunk writing failed");
-        DoCancel(TError("No alive holders left"));
+        TError error("No alive holders left");
+        LOG_WARNING("Chunk writing failed\n%s", ~error.ToString());
+        State.Fail(error);
+        DoCancel();
     }
 }
 
@@ -880,15 +877,13 @@ void TRemoteWriter::Cancel(const TError& error)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Requesting cancel");
+    LOG_DEBUG("Requesting cancellation\n%s", ~error.ToString());
 
-    // Drop the cyclic reference.
-    CurrentGroup.Reset();
+    State.Cancel(error);
 
     WriterThread->GetInvoker()->Invoke(FromMethod(
         &TRemoteWriter::DoCancel,
-        TPtr(this),
-        error));
+        TPtr(this)));
 }
 
 Stroka TRemoteWriter::GetDebugInfo()

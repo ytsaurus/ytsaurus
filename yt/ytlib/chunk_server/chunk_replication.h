@@ -27,8 +27,8 @@ public:
         IInvoker* invoker);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, LostChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, UnderReplicatedChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, OverReplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, UnderreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, OverreplicatedChunkIds);
 
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);

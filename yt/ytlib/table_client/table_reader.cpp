@@ -2,6 +2,7 @@
 #include "table_reader.h"
 
 #include "../misc/sync.h"
+#include "../chunk_server/common.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -9,7 +10,7 @@ namespace NTableClient {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NTableServer;
-using namespace NTransactionClient;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,22 +23,33 @@ TTableReader::TTableReader(
     const TYPath& path)
     : Config(config)
     , Transaction(transaction)
+    , Logger(TableClientLogger)
 {
     YASSERT(masterChannel);
 
+    OnAborted_ = FromMethod(&TTableReader::OnAborted, TPtr(this));
+
     auto transactionId = Transaction ? Transaction->GetId() : NullTransactionId;
+
+    Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+        path,
+        ~transactionId.ToString()));
 
     TCypressServiceProxy Proxy(masterChannel);
     Proxy.SetTimeout(Config->MasterRpcTimeout);
 
-    auto req = TTableYPathProxy::GetTableChunks();
-    req->SetPath(path);
-
+    LOG_INFO("Fetching table info");
+    auto req = TTableYPathProxy::Fetch();
     auto rsp = Proxy.Execute(path, transactionId, ~req)->Get();
     if (!rsp->IsOK()) {
-        ythrow yexception() << Sprintf("Error requesting table chunks (YPath: %s)\n%s",
-            ~path,
+        LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
             ~rsp->GetError().ToString());
+    }
+
+    yvector<TChunkId> chunkIds;
+    chunkIds.reserve(rsp->chunks_size());
+    FOREACH (const auto& chunkInfo, rsp->chunks()) {
+        chunkIds.push_back(TChunkId::FromProto(chunkInfo.chunk_id()));
     }
 
     Reader = New<TChunkSequenceReader>(
@@ -46,14 +58,13 @@ TTableReader::TTableReader(
         transactionId,
         masterChannel,
         blockCache,
-        FromProto<NChunkClient::TChunkId, Stroka>(rsp->chunk_ids()),
+        chunkIds,
         0,
         // TODO(babenko): fixme, make i64
         std::numeric_limits<int>::max());
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
-        OnAborted_ = FromMethod(&TTableReader::OnAborted, TPtr(this));
         Transaction->SubscribeAborted(OnAborted_);
     }
 }
@@ -93,8 +104,9 @@ void TTableReader::Close()
 {
     if (Transaction) {
         Transaction->UnsubscribeAborted(OnAborted_);
-        OnAborted_.Reset();
+        Transaction.Reset();
     }
+    OnAborted_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

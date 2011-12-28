@@ -12,8 +12,7 @@ namespace NChunkServer {
 class TChunkList
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkListId, Id);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, ChunkIds);
-    DEFINE_BYVAL_RW_PROPERTY(i32, ReplicaCount);
+    DEFINE_BYREF_RW_PROPERTY(yvector<TChunkTreeId>, ChildrenIds);
 
 public:
     TChunkList(const TChunkListId& id);

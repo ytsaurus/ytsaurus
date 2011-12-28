@@ -242,6 +242,13 @@ Stroka NormalizePathSeparators(const Stroka& path)
     return result;
 }
 
+void SetExecutableMode(const Stroka& path, bool executable)
+{
+    UNUSED(path);
+    UNUSED(executable);
+    // TODO(babenko): implement this
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

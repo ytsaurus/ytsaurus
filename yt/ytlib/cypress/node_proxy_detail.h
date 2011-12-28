@@ -451,11 +451,16 @@ protected:
 
         Stroka typeName = request->type();
 
-        auto manifest = NYTree::DeserializeFromYson(request->manifest());
+        INode::TPtr manifestNode =
+            request->has_manifest()
+            ? NYTree::DeserializeFromYson(request->manifest())
+            : NYTree::GetEphemeralNodeFactory()->CreateMap();
+        
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             typeName,
-            ~manifest);
+            ~manifestNode);
+
         CreateRecursive(context->GetPath(), ~value);
 
         response->set_node_id(value->GetNodeId().ToProto());

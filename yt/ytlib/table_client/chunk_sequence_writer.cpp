@@ -33,6 +33,13 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     YASSERT(masterChannel);
 
     CreateNextChunk();
+
+    // TODO(babenko): use TTaggedLogger here
+}
+
+TChunkSequenceWriter::~TChunkSequenceWriter()
+{
+    Cancel(TError("Chunk sequence writing aborted"));
 }
 
 void TChunkSequenceWriter::CreateNextChunk()
@@ -41,20 +48,23 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     NextChunk = New< TFuture<TChunkWriter::TPtr> >();
 
-    LOG_DEBUG("Allocating new chunk (TransactionId: %s; ReplicaCount: %d)",
+    LOG_DEBUG("Creating chunk (TransactionId: %s; UploadReplicaCount: %d)",
         ~TransactionId.ToString(),
         Config->UploadReplicaCount);
 
-    auto req = Proxy.AllocateChunk();
-    req->set_replica_count(Config->UploadReplicaCount);
+    auto req = Proxy.CreateChunks();
+    req->set_chunk_count(1);
+    req->set_upload_replica_count(Config->UploadReplicaCount);
     req->set_transaction_id(TransactionId.ToProto());
 
-    req->Invoke()->Subscribe(FromMethod(
-        &TChunkSequenceWriter::OnChunkCreated,
-        this)->Via(WriterThread->GetInvoker()));
+    req->Invoke()->Subscribe(
+        FromMethod(
+            &TChunkSequenceWriter::OnChunkCreated,
+            TPtr(this))
+        ->Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
+void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(NextChunk);
@@ -64,10 +74,13 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
     }
 
     if (rsp->IsOK()) {
-        auto addresses = FromProto<Stroka>(rsp->holder_addresses());
-        auto chunkId = TChunkId::FromProto(rsp->chunk_id());
+        YASSERT(rsp->chunks_size() == 1);
+        const auto& chunkInfo = rsp->chunks(0);
 
-        LOG_DEBUG("Allocated new chunk (Addresses: [%s]; ChunkId: %s)",
+        auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
+        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
+
+        LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
             ~JoinToString(addresses),
             ~chunkId.ToString());
 
@@ -80,7 +93,7 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspAllocateChunk::TPtr rsp)
 
         NextChunk->Set(New<TChunkWriter>(
             ~Config->ChunkWriter,
-            chunkWriter,
+            ~chunkWriter,
             Schema));
 
     } else {
@@ -177,7 +190,7 @@ void TChunkSequenceWriter::FinishCurrentChunk()
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
-        CurrentChunk->Cancel(TError("Chunk is empty."));
+        CurrentChunk->Cancel(TError("Chunk is empty"));
     }
 
     TGuard<TSpinLock> guard(CurrentSpinLock);

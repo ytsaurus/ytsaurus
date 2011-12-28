@@ -32,14 +32,19 @@ private:
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
 
     void ValidateHolderId(THolderId holderId);
-    void ValidateTransactionId(const NTransactionServer::TTransactionId& transactionId);
-    void ValidateChunkId(const NChunkClient::TChunkId& chunkId);
+    void ValidateTransactionId(const TTransactionId& transactionId);
+    void ValidateChunkId(const TChunkId& chunkId);
+    void ValidateChunkListId(const TChunkListId& chunkListId);
+    void ValidateChunkTreeId(const TChunkTreeId& chunkTreeId);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
     DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
-    DECLARE_RPC_SERVICE_METHOD(NProto, AllocateChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunks);
     DECLARE_RPC_SERVICE_METHOD(NProto, ConfirmChunks);
-    DECLARE_RPC_SERVICE_METHOD(NProto, FindChunk);
+    DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunkLists);
+    DECLARE_RPC_SERVICE_METHOD(NProto, AttachChunkTrees);
+    DECLARE_RPC_SERVICE_METHOD(NProto, DetachChunkTrees);
+    DECLARE_RPC_SERVICE_METHOD(NProto, LocateChunk);
 
 };
 

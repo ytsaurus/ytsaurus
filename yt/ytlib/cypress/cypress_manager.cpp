@@ -68,8 +68,10 @@ TCypressManager::TCypressManager(
 
 void TCypressManager::RegisterNodeType(INodeTypeHandler* handler)
 {
-    RuntimeTypeToHandler.at(static_cast<int>(handler->GetRuntimeType())) = handler;
     YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
+    int type = static_cast<int>(handler->GetRuntimeType());
+    YVERIFY(RuntimeTypeToHandler.at(type) == NULL);
+    RuntimeTypeToHandler.at(type) = handler;
 }
 
 INodeTypeHandler::TPtr TCypressManager::GetTypeHandler(ERuntimeNodeType type)
@@ -216,9 +218,10 @@ bool TCypressManager::IsLockNeeded(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Check if the node is created by the current transaction and is still uncommitted.
+    // Check if the node is still uncommitted.
     const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     if (impl && impl->GetState() == ENodeState::Uncommitted) {
+        // No way to lock it anyway.
         return false;
     }
 
@@ -233,6 +236,7 @@ bool TCypressManager::IsLockNeeded(
                 return false;
             }
             // This is someone else's lock.
+            // Let's report we need ours (we shall probably fail while taking it).
             if (lock.GetNodeId() == currentNodeId) {
                 return true;
             }
@@ -240,7 +244,8 @@ bool TCypressManager::IsLockNeeded(
         currentNodeId = currentImpl.GetParentId();
     }
 
-    return false;
+    // If we're outside of a transaction than the lock is not needed.
+    return transactionId != NullTransactionId;
 }
 
 TLockId TCypressManager::LockTransactionNode(

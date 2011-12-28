@@ -14,7 +14,7 @@ namespace NTableServer {
 class TTableNode
     : public NCypress::TCypressNodeBase
 {
-    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkServer::TChunkListId>, ChunkListIds);
+    DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
     TTableNode(const NCypress::TBranchedNodeId& id, NCypress::ERuntimeNodeType runtimeType);

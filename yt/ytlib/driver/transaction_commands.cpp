@@ -43,7 +43,7 @@ void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
 void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
 {
     auto transaction = DriverImpl->GetCurrentTransaction(true);
-    transaction->Commit();
+    transaction->Abort();
     DriverImpl->SetCurrentTransaction(NULL);
 }
 

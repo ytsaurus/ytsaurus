@@ -66,6 +66,9 @@ i64 GetFileSize(const Stroka& path);
 //! Converts all back slashes to forward slashes.
 Stroka NormalizePathSeparators(const Stroka& path);
 
+//! Sets 'executable' mode.
+void SetExecutableMode(const Stroka& path, bool executable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

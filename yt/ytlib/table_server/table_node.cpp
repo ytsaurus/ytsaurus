@@ -21,7 +21,7 @@ TTableNode::TTableNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
 
 TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
-    , ChunkListIds_(other.ChunkListIds_)
+    , ChunkListId_(other.ChunkListId_)
 { }
 
 ERuntimeNodeType TTableNode::GetRuntimeType() const
@@ -37,36 +37,36 @@ TAutoPtr<ICypressNode> TTableNode::Clone() const
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    ::Save(output, ChunkListIds_);
+    ::Save(output, ChunkListId_);
 }
 
 void TTableNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    ::Load(input, ChunkListIds_);
+    ::Load(input, ChunkListId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
-    : public NCypress::TCypressNodeTypeHandlerBase<TTableNode>
+    : public TCypressNodeTypeHandlerBase<TTableNode>
 {
 public:
     TTableNodeTypeHandler(
-        NCypress::TCypressManager* cypressManager,
+        TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
     {
-        RegisterGetter("chunk_list_ids", FromMethod(&TThis::GetChunkListIds));
+        RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     }
 
-    NCypress::ERuntimeNodeType GetRuntimeType()
+    ERuntimeNodeType GetRuntimeType()
     {
         return ERuntimeNodeType::Table;
     }
 
-    NYTree::ENodeType GetNodeType()
+    ENodeType GetNodeType()
     {
         return ENodeType::Entity;
     }
@@ -76,22 +76,29 @@ public:
         return TableTypeName;
     }
 
-    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
-        const NCypress::TNodeId& nodeId,
-        const NTransactionServer::TTransactionId& transactionId,
-        NYTree::INode* manifest)
+    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        INode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
 
-        return new TTableNode(
+        TAutoPtr<TTableNode> node = new TTableNode(
             TBranchedNodeId(nodeId, NullTransactionId),
             GetRuntimeType());
+
+        // Create an empty chunk list and reference it from the node.
+        auto& chunkList = ChunkManager->CreateChunkList();
+        ChunkManager->RefChunkTree(chunkList);
+        node->SetChunkListId(chunkList.GetId());
+
+        return node.Release();
     }
 
-    virtual TIntrusivePtr<NCypress::ICypressNodeProxy> GetProxy(
-        const NCypress::ICypressNode& node,
-        const NTransactionServer::TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId)
     {
         return New<TTableNodeProxy>(
             this,
@@ -104,58 +111,48 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        FOREACH(const auto& chunkListId, node.ChunkListIds()) {
-            ChunkManager->UnrefChunkList(chunkListId);
-        }
+        ChunkManager->UnrefChunkTree(node.GetChunkListId());
     }
 
     virtual void DoBranch(
         const TTableNode& committedNode,
         TTableNode& branchedNode)
     {
-        UNUSED(committedNode);
-
         // branchedNode is a copy of committedNode.
+        
+        // Create composite chunk list and place it in the root of branchedNode.
+        auto& compositeChunkList = ChunkManager->CreateChunkList();
+        branchedNode.SetChunkListId(compositeChunkList.GetId());
+        ChunkManager->RefChunkTree(compositeChunkList);
 
-        // Reference shared chunklists from branchedNode.
-        FOREACH(const auto& chunkListId, branchedNode.ChunkListIds()) {
-            ChunkManager->RefChunkList(chunkListId);
-        }
-
-        // Create a new chunk list that will keep all newly added chunks.
-        auto& appendChunkList = ChunkManager->CreateChunkList();
-        branchedNode.ChunkListIds().push_back(appendChunkList.GetId());
-
-        // Reference this chunklist from branchedNode.
-        ChunkManager->RefChunkList(appendChunkList);
+        // Make the original chunk list a child of the composite one.
+        auto committedChunkListId = committedNode.GetChunkListId();
+        compositeChunkList.ChildrenIds().push_back(committedChunkListId);
+        ChunkManager->RefChunkTree(committedChunkListId);
     }
 
     virtual void DoMerge(
         TTableNode& committedNode,
         TTableNode& branchedNode)
     {
-        YASSERT(branchedNode.ChunkListIds().ysize() >= 1);
-        YASSERT(branchedNode.ChunkListIds().ysize() <= committedNode.ChunkListIds().ysize() + 1);
+        // TODO(babenko): this needs much improvement
 
-        // Drop references to shared chunklists from branchedNode.
-        for (auto it = branchedNode.ChunkListIds().begin();
-            it != branchedNode.ChunkListIds().end() - 1;
-            ++it)
-        {
-            ChunkManager->UnrefChunkList(*it);
-        }
+        // Obtain the chunk list of branchedNode.
+        auto branchedChunkListId = branchedNode.GetChunkListId();
+        auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
+        YASSERT(branchedChunkList.GetRefCounter() == 1);
 
-        // Check if some chunks were added during the transaction.
-        auto appendChunkListId = branchedNode.ChunkListIds().back();
-        auto& appendChunkList = ChunkManager->GetChunkListForUpdate(appendChunkListId);
-        if (appendChunkList.ChunkIds().empty()) {
-            // No chunks were added, just unref this chunklist.
-            // This prevents creation of empty chunklists.
-            ChunkManager->UnrefChunkList(appendChunkList);
-        } else {
-            // Perform the actual merge: add this chunklist to committedNode.
-            committedNode.ChunkListIds().push_back(appendChunkListId);
-        }
+        // Replace the first child of the branched chunk list with the current chunk list of committedNode.
+        YASSERT(branchedChunkList.ChildrenIds().size() >= 1);
+        auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
+        auto newFirstChildId = committedNode.GetChunkListId();
+        branchedChunkList.ChildrenIds()[0] = newFirstChildId;
+        ChunkManager->RefChunkTree(newFirstChildId);
+        ChunkManager->UnrefChunkTree(oldFirstChildId);
+
+        // Replace the chunk list of committedNode.
+        committedNode.SetChunkListId(branchedChunkListId);
+        ChunkManager->UnrefChunkTree(newFirstChildId);
     }
 
 private:
@@ -163,13 +160,9 @@ private:
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
 
-    static void GetChunkListIds(const TGetAttributeParam& param)
+    static void GetChunkListId(const TGetAttributeParam& param)
     {
-        BuildYsonFluently(param.Consumer)
-            .DoListFor(param.Node->ChunkListIds(), [=] (TFluentList fluent, TChunkListId id)
-                {
-                    fluent.Item().Scalar(id.ToString());
-                });
+        BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
     }
 };
 

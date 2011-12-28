@@ -11,8 +11,11 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NTransactionClient;
 using namespace NTableServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): use totalReplicaCount
 
 TTableWriter::TTableWriter(
     TConfig* config,
@@ -21,72 +24,43 @@ TTableWriter::TTableWriter(
     const TSchema& schema,
     const TYPath& path)
     : Config(config)
-    , Path(path)
     , Transaction(transaction)
     , MasterChannel(masterChannel)
-    , Writer(New<TChunkSequenceWriter>(
-        ~config->ChunkSequenceWriter, 
-        ~MasterChannel,
-        Transaction->GetId(), 
-        schema))
-    , Proxy(masterChannel)
+    , Logger(TableClientLogger)
 {
     YASSERT(masterChannel);
-    YASSERT(transaction);
 
-    Proxy.SetTimeout(Config->MasterRpcTimeout);
+    Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+        path,
+        ~transaction->GetId().ToString()));
 
     OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
     Transaction->SubscribeAborted(OnAborted_);
 
-    if (!NodeExists(path)) {
-        CreateTableNode(path);
+    TCypressServiceProxy proxy(masterChannel);
+    proxy.SetTimeout(Config->MasterRpcTimeout);
+
+    LOG_INFO("Requesting chunk list id");
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkListId();
+    getChunkListIdReq->set_for_update(true);
+    auto getChunkListIdRsp = proxy.Execute(path, Transaction->GetId(), ~getChunkListIdReq)->Get();
+    if (!getChunkListIdRsp->IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
+            ~getChunkListIdRsp->GetError().ToString());
     }
+    ChunkListId = TChunkListId::FromProto(getChunkListIdRsp->chunk_list_id());
+    LOG_INFO("Chunk list id received (ChunkListId: %s)", ~ChunkListId.ToString());
+
+    Writer = New<TChunkSequenceWriter>(
+        ~config->ChunkSequenceWriter, 
+        ~MasterChannel,
+        Transaction->GetId(),
+        schema);
 }
 
 void TTableWriter::Open()
 {
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
-}
-
-bool TTableWriter::NodeExists(const TYPath& path)
-{
-    auto req = TCypressYPathProxy::GetId();
-
-    auto rsp = Proxy.Execute(path, Transaction->GetId(), ~req)->Get();
-
-    if (!rsp->IsOK()) {
-        const auto& error = rsp->GetError();
-        if (NRpc::IsRpcError(error)) {
-            Writer->Cancel(error);
-            ythrow yexception() << Sprintf("Error checking table for existence (Path: %s)\n%s",
-                ~path,
-                ~error.ToString());
-        }
-        return false;
-    }
-
-    NodeId = TNodeId::FromProto(rsp->node_id());
-    return true;
-}
-
-void TTableWriter::CreateTableNode(const Stroka& nodePath)
-{
-    auto req = TCypressYPathProxy::Create();
-    req->set_type("table");
-    req->set_manifest("{}");
-
-    auto rsp = Proxy.Execute(nodePath, Transaction->GetId(), ~req)->Get();
-
-    if (!rsp->IsOK()) {
-        const auto& error = rsp->GetError();
-        Writer->Cancel(error);
-        ythrow yexception() << Sprintf("Error creating table (Path: %s)\n%s",
-            ~nodePath,
-            ~error.ToString());
-    }
-
-    NodeId = TNodeId::FromProto(rsp->node_id());
 }
 
 void TTableWriter::Write(const TColumn& column, TValue value)
@@ -103,20 +77,20 @@ void TTableWriter::Close()
 {
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
-    auto req = TTableYPathProxy::AddTableChunks();
-    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunk_ids(), Writer->GetWrittenChunkIds());
+    TChunkServiceProxy proxy(~MasterChannel);
+    proxy.SetTimeout(Config->MasterRpcTimeout);
 
-    auto rsp = Proxy.Execute(
-        GetYPathFromNodeId(NodeId),
-        Transaction->GetId(),
-        ~req)->Get();
-
+    LOG_INFO("Attaching chunks");
+    auto req = proxy.AttachChunkTrees();
+    req->set_transaction_id(Transaction->GetId().ToProto());
+    req->set_parent_id(ChunkListId.ToProto());
+    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunk_tree_ids(), Writer->GetWrittenChunkIds());
+    auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
-        const auto& error = rsp->GetError();
-        ythrow yexception() << Sprintf("Error adding chunks to table (NodeId: %s)\n%s",
-            ~NodeId.ToString(),
-            ~error.ToString());
+        LOG_ERROR_AND_THROW(yexception(), "Error attaching chunks\n%s",
+            ~rsp->GetError().ToString());
     }
+    LOG_INFO("Chunks attached");
 
     Finish();
 }
@@ -129,7 +103,10 @@ void TTableWriter::OnAborted()
 
 void TTableWriter::Finish()
 {
-    Transaction->UnsubscribeAborted(OnAborted_);
+    if (Transaction) {
+        Transaction->UnsubscribeAborted(OnAborted_);
+        Transaction.Reset();
+    }
     OnAborted_.Reset();
 }
 

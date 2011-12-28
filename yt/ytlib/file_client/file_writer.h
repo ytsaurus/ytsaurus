@@ -6,6 +6,7 @@
 #include "../misc/codec.h"
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
+#include "../transaction_client/transaction_manager.h"
 #include "../cypress/cypress_service_proxy.h"
 #include "../chunk_client/remote_writer.h"
 #include "../chunk_server/chunk_service_proxy.h"
@@ -59,6 +60,7 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
+        NTransactionClient::TTransactionManager* transactionManager,
         const NYTree::TYPath& path);
 
     //! Adds another chunk of data.
@@ -79,6 +81,8 @@ private:
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionServer::TTransactionId TransactionId;
+    NTransactionClient::ITransaction::TPtr UploadTransaction;
+    NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NYTree::TYPath Path;
     bool Closed;
     volatile bool Aborted;

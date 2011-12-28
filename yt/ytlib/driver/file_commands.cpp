@@ -23,6 +23,8 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         DriverImpl->GetBlockCache(),
         request->Path);
 
+    // TODO(babenko): use FileName and Executable values
+
     auto output = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
 
     while (true) {
@@ -44,6 +46,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         ~config,
         DriverImpl->GetMasterChannel(),
         DriverImpl->GetCurrentTransaction(),
+        DriverImpl->GetTransactionManager(),
         request->Path);
 
     auto input = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));

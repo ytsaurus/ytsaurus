@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../misc/configurable.h"
 #include "../misc/lazy_ptr.h"
 
 #include "../ytree/ephemeral.h"
@@ -40,10 +39,10 @@ public:
 
     TOrchidYPathService(const TYson& manifestYson)
     {
-        auto manifestRoot = DeserializeFromYson(manifestYson);
+        auto manifestNode = DeserializeFromYson(manifestYson);
         try {
-            Manifest = New<TManifest>();
-            Manifest->Load(~manifestRoot);
+            Manifest = New<TOrchidManifest>();
+            Manifest->LoadAndValidate(~manifestNode);
         } catch (...) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
                 ~CurrentExceptionMessage());
@@ -120,24 +119,7 @@ private:
         return CombineYPaths(Manifest->RemoteRoot, path);
     }
 
-    struct TManifest
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TManifest> TPtr;
-
-        Stroka RemoteAddress;
-        Stroka RemoteRoot;
-        TDuration Timeout;
-
-        TManifest()
-        {
-            Register("remote_address", RemoteAddress);
-            Register("remote_root", RemoteRoot).Default(YPathRoot);
-            Register("timeout", Timeout).Default(TDuration::MilliSeconds(3000));
-        }
-    };
-
-    TManifest::TPtr Manifest;
+    TOrchidManifest::TPtr Manifest;
     TAutoPtr<TOrchidServiceProxy> Proxy;
 
 };

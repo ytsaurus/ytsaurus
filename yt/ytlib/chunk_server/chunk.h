@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-
 #include "chunk.pb.h"
 
 #include "../misc/property.h"

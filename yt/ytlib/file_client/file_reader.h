@@ -51,6 +51,12 @@ public:
     //! Returns the size of the file.
     i64 GetSize() const;
 
+    //! Returns the file name (as provided by the master).
+    Stroka GetFileName() const;
+
+    //! Returns the executable mode.
+    bool IsExecutable();
+
     //! Reads the next block.
     /*!
      *  \returns The next block or NULL reference is the end is reached.
@@ -75,6 +81,8 @@ private:
     i32 BlockIndex;
     i64 Size;
     ICodec* Codec;
+    Stroka FileName;
+    bool Executable;
 
     IAction::TPtr OnAborted_;
 

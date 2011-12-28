@@ -44,7 +44,7 @@ public:
 
     TChunkWriter(
         TConfig* config, 
-        NChunkClient::IAsyncWriter::TPtr chunkWriter, 
+        NChunkClient::IAsyncWriter* chunkWriter, 
         const TSchema& schema);
     ~TChunkWriter();
 

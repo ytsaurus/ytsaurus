@@ -14,6 +14,7 @@
 #include "../misc/guid.h"
 #include "../misc/assert.h"
 #include "../misc/id_generator.h"
+#include "../misc/string.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -49,21 +50,22 @@ public:
         , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
         , HolderRegistry(holderRegistry)
-        // Some random number.
-        , ChunkIdGenerator(0x7390bac62f716a19)
-        // Some random number.
-        , ChunkListIdGenerator(0x761ba739c541fcd0)
+        , ChunkIdGenerator(ChunkIdSeed)
+        , ChunkListIdGenerator(ChunkListIdSeed)
     {
         YASSERT(chunkManager);
         YASSERT(transactionManager);
         YASSERT(holderRegistry);
 
-        RegisterMethod(this, &TImpl::AllocateChunk);
-        RegisterMethod(this, &TImpl::ConfirmChunks);
-        RegisterMethod(this, &TImpl::RegisterHolder);
-        RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::HeartbeatRequest);
         RegisterMethod(this, &TImpl::HeartbeatResponse);
+        RegisterMethod(this, &TImpl::RegisterHolder);
+        RegisterMethod(this, &TImpl::UnregisterHolder);
+        RegisterMethod(this, &TImpl::CreateChunks);
+        RegisterMethod(this, &TImpl::ConfirmChunks);
+        RegisterMethod(this, &TImpl::CreateChunkLists);
+        RegisterMethod(this, &TImpl::AttachChunkTrees);
+        RegisterMethod(this, &TImpl::DetachChunkTrees);
 
         metaState->RegisterLoader(
             "ChunkManager.1",
@@ -79,6 +81,108 @@ public:
             &TThis::OnTransactionAborted,
             TPtr(this)));
     }
+
+
+    TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+        const TMsgRegisterHolder& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::RegisterHolder,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+        const TMsgUnregisterHolder& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::UnregisterHolder,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
+        const TMsgHeartbeatRequest& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::HeartbeatRequest,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
+        const TMsgHeartbeatResponse& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::HeartbeatResponse,
+            this);
+    }
+
+    TMetaChange< yvector<TChunkId> >::TPtr InitiateAllocateChunk(
+        const TMsgCreateChunks& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::CreateChunks,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
+        const TMsgConfirmChunks& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::ConfirmChunks,
+            this);
+    }
+
+    TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
+        const TMsgCreateChunkLists& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::CreateChunkLists,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateAttachChunkTrees(
+        const TMsgAttachChunkTrees& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::AttachChunkTrees,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateDetachChunkTrees(
+        const TMsgDetachChunkTrees& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::DetachChunkTrees,
+            this);
+    }
+
+
+    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
+    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
+
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
+
 
     const THolder* FindHolder(const Stroka& address)
     {
@@ -102,65 +206,46 @@ public:
         return holderIds;
     }
 
-    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
-    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
-
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
-
-    TMetaChange<TChunkId>::TPtr InitiateAllocateChunk(const TTransactionId& transactionId)
-    {
-        YASSERT(transactionId != NTransactionServer::NullTransactionId);
-
-        TMsgAllocateChunk message;
-        message.set_transaction_id(transactionId.ToProto());
-
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::AllocateChunk,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr InitiateConfirmChunks(const TMsgConfirmChunks& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::ConfirmChunks,
-            this);
-    }
-
 
     TChunkList& CreateChunkList()
     {
         auto chunkListId = ChunkListIdGenerator.Next();
-
         auto* chunkList = new TChunkList(chunkListId);
         ChunkListMap.Insert(chunkListId, chunkList);
-        LOG_INFO_IF(!IsRecovery(), "Chunk list created (ChunkListId: %s)",
-            ~chunkListId.ToString());
-
         return *chunkList;
     }
 
-    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList) 
+
+    void RefChunkTree(const TChunkTreeId& treeId)
     {
-        chunkList.ChunkIds().push_back(chunk.GetId());
-        chunk.SetChunkListId(chunkList.GetId());
-        RefChunk(chunk);
+        switch (GetChunkTreeKind(treeId)) {
+            case EChunkTreeKind::Chunk:
+                RefChunkTree(GetChunkForUpdate(treeId));
+                break;
+            case EChunkTreeKind::ChunkList:
+                RefChunkTree(GetChunkListForUpdate(treeId));
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void UnrefChunkTree(const TChunkTreeId& treeId)
+    {
+        switch (GetChunkTreeKind(treeId)) {
+            case EChunkTreeKind::Chunk:
+                UnrefChunkTree(GetChunkForUpdate(treeId));
+                break;
+            case EChunkTreeKind::ChunkList:
+                UnrefChunkTree(GetChunkListForUpdate(treeId));
+                break;
+            default:
+                YUNREACHABLE();
+        }
     }
 
 
-    void RefChunk(const TChunkId& chunkId)
-    {
-        RefChunk(GetChunkForUpdate(chunkId));
-    }
-
-    void RefChunk(TChunk& chunk)
+    void RefChunkTree(TChunk& chunk)
     {
         int refCounter = chunk.Ref();
         LOG_DEBUG_IF(!IsRecovery(), "Chunk referenced (ChunkId: %s, RefCounter: %d)",
@@ -168,12 +253,7 @@ public:
             refCounter);
     }
 
-    void UnrefChunk(const TChunkId& chunkId)
-    {
-        UnrefChunk(GetChunkForUpdate(chunkId));
-    }
-
-    void UnrefChunk(TChunk& chunk)
+    void UnrefChunkTree(TChunk& chunk)
     {
         int refCounter = chunk.Unref();
         LOG_DEBUG_IF(!IsRecovery(), "Chunk unreferenced (ChunkId: %s, RefCounter: %d)",
@@ -186,12 +266,7 @@ public:
     }
 
 
-    void RefChunkList(const TChunkListId& chunkListId)
-    {
-        RefChunkList(GetChunkListForUpdate(chunkListId));
-    }
-
-    void RefChunkList(TChunkList& chunkList)
+    void RefChunkTree(TChunkList& chunkList)
     {
         int refCounter = chunkList.Ref();
         LOG_DEBUG_IF(!IsRecovery(), "Chunk list referenced (ChunkListId: %s, RefCounter: %d)",
@@ -200,12 +275,7 @@ public:
         
     }
 
-    void UnrefChunkList(const TChunkListId& chunkListId)
-    {
-        UnrefChunkList(GetChunkListForUpdate(chunkListId));
-    }
-
-    void UnrefChunkList(TChunkList& chunkList)
+    void UnrefChunkTree(TChunkList& chunkList)
     {
         int refCounter = chunkList.Unref();
         LOG_DEBUG_IF(!IsRecovery(), "Chunk list unreferenced (ChunkListId: %s, RefCounter: %d)",
@@ -215,53 +285,6 @@ public:
         if (refCounter == 0) {
             RemoveChunkList(chunkList);
         }
-    }
-
-
-    TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
-        Stroka address,
-        const NChunkServer::NProto::THolderStatistics& statistics)
-    {
-        TMsgRegisterHolder message;
-        message.set_address(address);
-        *message.mutable_statistics() = statistics;
-
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::RegisterHolder,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId)
-    {
-        TMsgUnregisterHolder message;
-        message.set_holder_id(holderId);
-
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::UnregisterHolder,
-            this);
-    }
-
-
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(const TMsgHeartbeatRequest& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::HeartbeatRequest,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(const TMsgHeartbeatResponse& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::HeartbeatResponse,
-            this);
     }
 
 
@@ -279,8 +302,8 @@ public:
     }
 
     const yhash_set<TChunkId>& LostChunkIds() const;
-    const yhash_set<TChunkId>& OverReplicatedChunkIds() const;
-    const yhash_set<TChunkId>& UnderReplicatedChunkIds() const;
+    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
+    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
 private:
     typedef TImpl TThis;
@@ -307,25 +330,31 @@ private:
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
 
-    TChunkId AllocateChunk(const TMsgAllocateChunk& message)
+    yvector<TChunkId> CreateChunks(const TMsgCreateChunks& message)
     {
         auto transactionId = TTransactionId::FromProto(message.transaction_id());
+        int chunkCount = message.chunk_count();
 
-        auto chunkId = ChunkIdGenerator.Next();
-        auto* chunk = new TChunk(chunkId);
-        ChunkMap.Insert(chunkId, chunk);
+        yvector<TChunkId> chunkIds;
+        chunkIds.reserve(chunkCount);
+        for (int index = 0; index < chunkCount; ++index) {
+            auto chunkId = ChunkIdGenerator.Next();
+            auto* chunk = new TChunk(chunkId);
+            ChunkMap.Insert(chunkId, chunk);
 
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        transaction.AllocatedChunkIds().push_back(chunkId);
+            // The newly created chunk form an unbound chunk tree, which is referenced by the transaction.
+            auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+            YVERIFY(transaction.UnboundChunkTreeIds().insert(chunkId).second);
+            RefChunkTree(*chunk);
 
-        // Every transaction keeps a reference to every its allocated chunk.
-        RefChunk(*chunk);
+            chunkIds.push_back(chunkId);
+        }
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk allocated (ChunkId: %s, TransactionId: %s)",
-            ~chunkId.ToString(),
+        LOG_INFO_IF(!IsRecovery(), "Chunks allocated (ChunkIds: [%s], TransactionId: %s)",
+            ~JoinToString(chunkIds),
             ~transactionId.ToString());
 
-        return chunkId;
+        return chunkIds;
     }
 
     TVoid ConfirmChunks(const TMsgConfirmChunks& message)
@@ -371,12 +400,99 @@ private:
             }
             
             chunk.SetAttributes(TSharedRef(MoveRV(blob)));
-            transaction.ConfirmedChunkIds().push_back(chunkId);
 
             LOG_INFO_IF(!IsRecovery(), "Chunk confirmed (ChunkId: %s, TransactionId: %s)",
                 ~chunkId.ToString(),
                 ~transactionId.ToString());
         }
+
+        return TVoid();
+    }
+
+    yvector<TChunkListId> CreateChunkLists(const TMsgCreateChunkLists& message)
+    {
+        auto transactionId = TTransactionId::FromProto(message.transaction_id());
+        auto chunkListCount = message.chunk_list_count();
+
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+
+        yvector<TChunkListId> chunkListIds;
+        chunkListIds.reserve(chunkListCount);
+
+        for (int index = 0; index < chunkListCount; ++index) {
+            auto& chunkList = CreateChunkList();
+            auto chunkListId = chunkList.GetId();
+            YVERIFY(transaction.UnboundChunkTreeIds().insert(chunkListId).second);
+            chunkListIds.push_back(chunkListId);
+        }
+
+        LOG_INFO_IF(!IsRecovery(), "Chunk lists created (ChunkListIds: [%s], TransactionId: %s)",
+            ~JoinToString(chunkListIds),
+            ~transactionId.ToString());
+
+        return chunkListIds;
+    }
+
+    TVoid AttachChunkTrees(const TMsgAttachChunkTrees& message)
+    {
+        auto transactionId = TTransactionId::FromProto(message.transaction_id());
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+
+        auto chunkTreeIds = FromProto<TChunkTreeId>(message.chunk_tree_ids());
+
+        auto parentId = TChunkListId::FromProto(message.parent_id());
+        auto& parent = GetChunkListForUpdate(parentId);
+
+        FOREACH (const auto& chunkTreeId, chunkTreeIds) {
+            // TODO(babenko): check that all attached chunks are confirmed.
+            parent.ChildrenIds().push_back(chunkTreeId);
+            if (transaction.UnboundChunkTreeIds().erase(chunkTreeId) != 1) {
+                RefChunkTree(chunkTreeId);
+            }
+        }
+
+        LOG_INFO_IF(!IsRecovery(), "Chunks trees attached (ChunkTreeIds: [%s], ParentId: %s, TransactionId: %s)",
+            ~JoinToString(chunkTreeIds),
+            ~parentId.ToString(),
+            ~transactionId.ToString());
+
+        return TVoid();
+    }
+
+    TVoid DetachChunkTrees(const TMsgDetachChunkTrees& message)
+    {
+        auto transactionId = TTransactionId::FromProto(message.transaction_id());
+        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+
+        auto chunkTreeIdsList = FromProto<TChunkTreeId>(message.chunk_tree_ids());
+
+        auto parentId = TChunkListId::FromProto(message.parent_id());
+        if (parentId == NullChunkListId) {
+            FOREACH (const auto& childId, chunkTreeIdsList) {
+                if (transaction.UnboundChunkTreeIds().erase(childId) == 1) {
+                    UnrefChunkTree(childId);
+                }
+            }
+        } else {
+            yhash_set<TChunkTreeId> chunkTreeIdsSet(chunkTreeIdsList.begin(), chunkTreeIdsList.end());
+            auto& childrenIds = GetChunkListForUpdate(parentId).ChildrenIds();
+            auto it = childrenIds.begin();
+            auto jt = it;
+            while (it != childrenIds.end()) {
+                const auto& childId = *it;
+                if (chunkTreeIdsSet.find(childId) == chunkTreeIdsSet.end()) {
+                    *jt++ = *it;
+                } else {
+                    UnrefChunkTree(childId);
+                }
+            }
+            childrenIds.erase(jt, childrenIds.end());
+        }
+
+        LOG_INFO_IF(!IsRecovery(), "Chunks trees detached (ChunkTreeIds: [%s], ParentId: %s, TransactionId: %s)",
+            ~JoinToString(chunkTreeIdsList),
+            ~parentId.ToString(),
+            ~transactionId.ToString());
 
         return TVoid();
     }
@@ -417,9 +533,9 @@ private:
     {
         auto chunkListId = chunkList.GetId();
 
-        // Drop references to chunks.
-        FOREACH (const auto& chunkId, chunkList.ChunkIds()) {
-            UnrefChunk(chunkId);
+        // Drop references to children.
+        FOREACH (const auto& treeId, chunkList.ChildrenIds()) {
+            UnrefChunkTree(treeId);
         }
 
         ChunkListMap.Remove(chunkListId);
@@ -630,23 +746,18 @@ private:
 
     virtual void OnTransactionCommitted(const TTransaction& transaction)
     {
-        ReleaseAllocatedChunkRefs(transaction);
-
-        // TODO: check that all allocated chunks were confirmed
+        UnrefUnboundChunkTrees(transaction);
     }
 
     virtual void OnTransactionAborted(const TTransaction& transaction)
     {
-        ReleaseAllocatedChunkRefs(transaction);
+        UnrefUnboundChunkTrees(transaction);
     }
 
-    void ReleaseAllocatedChunkRefs(const TTransaction& transaction)
+    void UnrefUnboundChunkTrees(const TTransaction& transaction)
     {
-        // Release the references to every chunk allocated by the transaction.
-        // For those chunks created but not assigned to any Cypress node
-        // this also destroys them.
-        FOREACH(const auto& chunkId, transaction.AllocatedChunkIds()) {
-            UnrefChunk(chunkId);
+        FOREACH(const auto& treeId, transaction.UnboundChunkTreeIds()) {
+            UnrefChunkTree(treeId);
         }
     }
 
@@ -996,8 +1107,8 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobL
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplication);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverReplicatedChunkIds, *ChunkReplication);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderReplicatedChunkIds, *ChunkReplication);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplication);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplication);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1034,9 +1145,34 @@ yvector<THolderId> TChunkManager::AllocateUploadTargets(int replicaCount)
     return Impl->AllocateUploadTargets(replicaCount);
 }
 
-TMetaChange<TChunkId>::TPtr TChunkManager::InitiateAllocateChunk(const TTransactionId& transactionId)
+TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
+    const TMsgRegisterHolder& message)
 {
-    return Impl->InitiateAllocateChunk(transactionId);
+    return Impl->InitiateRegisterHolder(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
+    const TMsgUnregisterHolder& message)
+{
+    return Impl->InitiateUnregisterHolder(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatRequest(
+    const TMsgHeartbeatRequest& message)
+{
+    return Impl->InitiateHeartbeatRequest(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatResponse(
+    const TMsgHeartbeatResponse& message)
+{
+    return Impl->InitiateHeartbeatResponse(message);
+}
+
+TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
+    const TMsgCreateChunks& message)
+{
+    return Impl->InitiateAllocateChunk(message);
 }
 
 NMetaState::TMetaChange<TVoid>::TPtr TChunkManager::InitiateConfirmChunks(
@@ -1045,76 +1181,57 @@ NMetaState::TMetaChange<TVoid>::TPtr TChunkManager::InitiateConfirmChunks(
     return Impl->InitiateConfirmChunks(message);
 }
 
+TMetaChange< yvector<TChunkListId> >::TPtr TChunkManager::InitiateCreateChunkLists(
+    const TMsgCreateChunkLists& message)
+{
+    return Impl->InitiateCreateChunkLists(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateAttachChunkTrees(
+    const TMsgAttachChunkTrees& message)
+{
+    return Impl->InitiateAttachChunkTrees(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateDetachChunkTrees(
+    const TMsgDetachChunkTrees& message)
+{
+    return Impl->InitiateDetachChunkTrees(message);
+}
+
 TChunkList& TChunkManager::CreateChunkList()
 {
     return Impl->CreateChunkList();
 }
 
-void TChunkManager::AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList)
+void TChunkManager::RefChunkTree(const TChunkTreeId& treeId)
 {
-    return Impl->AddChunkToChunkList(chunk, chunkList);
+    Impl->RefChunkTree(treeId);
 }
 
-void TChunkManager::RefChunk(const TChunkId& chunkId)
+void TChunkManager::UnrefChunkTree(const TChunkTreeId& treeId)
 {
-    Impl->RefChunk(chunkId);
+    Impl->UnrefChunkTree(treeId);
 }
 
-void TChunkManager::RefChunk(TChunk& chunk)
+void TChunkManager::RefChunkTree(TChunk& chunk)
 {
-    Impl->RefChunk(chunk);
+    Impl->RefChunkTree(chunk);
 }
 
-void TChunkManager::UnrefChunk(const TChunkId& chunkId)
+void TChunkManager::UnrefChunkTree(TChunk& chunk)
 {
-    Impl->UnrefChunk(chunkId);
+    Impl->UnrefChunkTree(chunk);
 }
 
-void TChunkManager::UnrefChunk(TChunk& chunk)
+void TChunkManager::RefChunkTree(TChunkList& chunkList)
 {
-    Impl->UnrefChunk(chunk);
+    Impl->RefChunkTree(chunkList);
 }
 
-void TChunkManager::RefChunkList(const TChunkListId& chunkListId)
+void TChunkManager::UnrefChunkTree(TChunkList& chunkList)
 {
-    Impl->RefChunkList(chunkListId);
-}
-
-void TChunkManager::RefChunkList(TChunkList& chunkList)
-{
-    Impl->RefChunkList(chunkList);
-}
-
-void TChunkManager::UnrefChunkList(const TChunkListId& chunkListId)
-{
-    Impl->UnrefChunkList(chunkListId);
-}
-
-void TChunkManager::UnrefChunkList(TChunkList& chunkList)
-{
-    Impl->UnrefChunkList(chunkList);
-}
-
-TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
-    Stroka address,
-    const NChunkServer::NProto::THolderStatistics& statistics)
-{
-    return Impl->InitiateRegisterHolder(address, statistics);
-}
-
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(THolderId holderId)
-{
-    return Impl->InitiateUnregisterHolder(holderId);
-}
-
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatRequest(const TMsgHeartbeatRequest& message)
-{
-    return Impl->InitiateHeartbeatRequest(message);
-}
-
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatResponse(const TMsgHeartbeatResponse& message)
-{
-    return Impl->InitiateHeartbeatResponse(message);
+    Impl->UnrefChunkTree(chunkList);
 }
 
 void TChunkManager::RunJobControl(
@@ -1157,8 +1274,8 @@ DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRe
 DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverReplicatedChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderReplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderreplicatedChunkIds, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -308,8 +308,8 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     }
     
     LostChunkIds_.erase(chunkId);
-    UnderReplicatedChunkIds_.erase(chunkId);
-    OverReplicatedChunkIds_.erase(chunkId);
+    UnderreplicatedChunkIds_.erase(chunkId);
+    OverreplicatedChunkIds_.erase(chunkId);
 
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
@@ -485,8 +485,8 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     }
     auto chunkId = chunk.GetId();
     LostChunkIds_.erase(chunkId);
-    OverReplicatedChunkIds_.erase(chunkId);
-    UnderReplicatedChunkIds_.erase(chunkId);
+    OverreplicatedChunkIds_.erase(chunkId);
+    UnderreplicatedChunkIds_.erase(chunkId);
 
     if (storedCount == 0) {
         LOG_INFO("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
@@ -495,7 +495,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             desiredCount);
         LostChunkIds_.insert(chunkId);
     } else if (storedCount - minusCount > desiredCount) {
-        OverReplicatedChunkIds_.insert(chunkId);
+        OverreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
@@ -524,7 +524,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             ~replicaCountStr,
             desiredCount);
     } else if (storedCount + plusCount < desiredCount) {
-        UnderReplicatedChunkIds_.insert(chunkId);
+        UnderreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {

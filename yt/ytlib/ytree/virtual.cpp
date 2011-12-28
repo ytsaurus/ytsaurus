@@ -48,7 +48,7 @@ struct TGetConfig
 
     TGetConfig()
     {
-        Register("max_size", MaxSize).GreaterThanOrEqual(0).Default(100);
+        Register("max_size", MaxSize).GreaterThanOrEqual(0).Default(3);
     }
 };
 
@@ -71,6 +71,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     auto size = GetSize();
 
     // TODO(MRoizner): use fluent
+    BuildYsonFluently(&writer);
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);
@@ -78,15 +79,15 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
         YASSERT(service);
         writer.OnRaw(SyncYPathGet(~service, NYTree::YPathRoot));
     }
-    writer.OnEndMap(true);
-    writer.OnBeginAttributes();
-    writer.OnAttributesItem("size");
-    writer.OnInt64Scalar(size);
-    if (keys.ysize() != size) {
+
+    bool incomplete = keys.ysize() != size;
+    writer.OnEndMap(incomplete);
+    if (incomplete) {
+        writer.OnBeginAttributes();
         writer.OnAttributesItem("incomplete");
         writer.OnStringScalar("True");
+        writer.OnEndAttributes();
     }
-    writer.OnEndAttributes();
 
     response->set_value(stream.Str());
     context->Reply();

@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include "../misc/property.h"
-#include "../chunk_client/common.h"
+#include "../chunk_server/common.h"
 #include "../cypress/common.h"
 
 namespace NYT {
@@ -16,8 +16,7 @@ class TTransaction
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
 
     // Chunk Server stuff
-    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, AllocatedChunkIds);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NChunkClient::TChunkId>, ConfirmedChunkIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkServer::TChunkTreeId>, UnboundChunkTreeIds);
 
     // Cypress stuff
     DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TLockId>, LockIds);

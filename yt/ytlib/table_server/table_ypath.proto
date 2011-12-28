@@ -1,23 +1,39 @@
 package NYT.NTableServer.NProto;
 
+import "yt/ytlib/chunk_holder/chunk.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAddTableChunks
+message TReqGetChunkListId
 {
-    repeated bytes chunk_ids = 1;
+    required bool for_update = 1;
 }
 
-message TRspAddTableChunks
-{ }
+message TRspGetChunkListId
+{
+    required bytes chunk_list_id = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetTableChunks
-{ }
-
-message TRspGetTableChunks
+message TReqFetch
 {
-    repeated bytes chunk_ids = 1;
+    optional bool fetch_holder_addresses = 1;
+    optional bool fetch_chunk_attributes = 2;
+}
+
+message TRspFetch
+{
+    message TChunkInfo
+    {
+        required bytes chunk_id = 1;
+        repeated string holder_addresses = 2;
+        optional NYT.NChunkHolder.NProto.TChunkAttributes attributes = 3;
+    }
+
+    repeated TChunkInfo chunks = 1;
+
+    // TODO(babenko): row_count, various sizes, first row index, last row index
 }
 
 ////////////////////////////////////////////////////////////////////////////////

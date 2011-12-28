@@ -19,6 +19,15 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Simple aliases that make sense as long as request and message contracts are the same.
+namespace NProto {
+    typedef NProto::TReqCreateChunkLists TMsgCreateChunkLists;
+    typedef NProto::TReqAttachChunkTrees TMsgAttachChunkTrees;
+    typedef NProto::TReqDetachChunkTrees TMsgDetachChunkTrees;
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager
     : public TRefCountedBase
 {
@@ -38,10 +47,37 @@ public:
 
     // TODO: provide Stop method
 
-    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, NChunkClient::TChunkId);
+    NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
+        const NProto::TMsgCreateChunks& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
+        const NProto::TMsgConfirmChunks& message);
+
+    NMetaState::TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
+        const NProto::TMsgCreateChunkLists& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateAttachChunkTrees(
+        const NProto::TMsgAttachChunkTrees& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateDetachChunkTrees(
+        const NProto::TMsgDetachChunkTrees& message);
+
+    NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+        const NProto::TMsgRegisterHolder& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+        const NProto::TMsgUnregisterHolder& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
+        const NProto::TMsgHeartbeatRequest& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
+        const NProto::TMsgHeartbeatResponse& message);
+
+    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
     DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
-    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, NChunkClient::TChunkId);
+    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, NChunkHolder::TJobId);
 
     //! Fired when a holder gets registered.
@@ -62,34 +98,16 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
-    NMetaState::TMetaChange<NChunkClient::TChunkId>::TPtr InitiateAllocateChunk(
-        const NTransactionServer::TTransactionId& transactionId);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
-        const NProto::TMsgConfirmChunks& message);
-
     TChunkList& CreateChunkList();
-    void AddChunkToChunkList(TChunk& chunk, TChunkList& chunkList);
 
-    void RefChunk(const NChunkClient::TChunkId& chunkId);
-    void RefChunk(TChunk& chunk);
-    void UnrefChunk(const NChunkClient::TChunkId& chunkId);
-    void UnrefChunk(TChunk& chunk);
+    void RefChunkTree(const TChunkTreeId& treeId);
+    void UnrefChunkTree(const TChunkTreeId& treeId);
 
-    void RefChunkList(const TChunkListId& chunkListId);
-    void RefChunkList(TChunkList& chunkList);
-    void UnrefChunkList(const TChunkListId& chunkListId);
-    void UnrefChunkList(TChunkList& chunkList);
+    void RefChunkTree(TChunk& chunk);
+    void UnrefChunkTree(TChunk& chunk);
 
-    NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
-        Stroka address,
-        const NChunkServer::NProto::THolderStatistics& statistics);
-    NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(THolderId holderId);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
-        const NProto::TMsgHeartbeatRequest& message);
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
-        const NProto::TMsgHeartbeatResponse& message);
+    void RefChunkTree(TChunkList& chunkList);
+    void UnrefChunkTree(TChunkList& chunkList);
 
     void RunJobControl(
         const THolder& holder,
@@ -105,9 +123,9 @@ public:
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk& chunk);
 
-    const yhash_set<NChunkClient::TChunkId>& LostChunkIds() const;
-    const yhash_set<NChunkClient::TChunkId>& OverReplicatedChunkIds() const;
-    const yhash_set<NChunkClient::TChunkId>& UnderReplicatedChunkIds() const;
+    const yhash_set<TChunkId>& LostChunkIds() const;
+    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
+    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
 private:
     class TImpl;

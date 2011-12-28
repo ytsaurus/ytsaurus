@@ -69,6 +69,7 @@ private:
 /*!
  *  The implementation keeps an auto-incrementing <tt>ui64</tt> counter in
  *  the lower part of the TGuid and some hash in the upper part.
+ *  TODO(babenko): fix doc
  */
 template <>
 class TIdGenerator<TGuid>
@@ -77,19 +78,20 @@ public:
     typedef TIdGenerator<TGuid> TThis;
 
     TIdGenerator(ui64 seed)
-        : Seed(seed)
-        , Current(0)
+        : SeedLo(seed & 0xffffffff)
+        , SeedHi(seed >> 32)
+        , Current(1)
     { }
 
     TGuid Next()
     {
         ui64 counter = static_cast<ui64>(AtomicIncrement(Current));
-        ui64 hash = MurmurHash<ui64>(&counter, sizeof (counter), Seed);
+        ui32 hash = MurmurHash<ui32>(&counter, sizeof (counter), SeedLo);
         return TGuid(
             counter >> 32,
             counter & 0xffffffff,
-            hash >> 32,
-            hash & 0xffffffff);
+            hash,
+            SeedHi);
     }
 
     void Reset()
@@ -97,8 +99,14 @@ public:
         Current = 0;
     }
 
+    static bool IsValid(const TGuid& id, ui64 seed)
+    {
+        return id.Parts[3] == (seed >> 32);
+    }
+
 private:
-    ui64 Seed;
+    ui32 SeedLo;
+    ui32 SeedHi;
     TAtomic Current;
 
     friend void ::Save<>(TOutputStream* output, const TThis& generator);

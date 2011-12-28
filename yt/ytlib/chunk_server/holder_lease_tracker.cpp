@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;
@@ -66,8 +68,10 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
 
     LOG_INFO("Holder expired (HolderId: %d)", holderId);
 
+    TMsgUnregisterHolder message;
+    message.set_holder_id(holderId);
     ChunkManager
-        ->InitiateUnregisterHolder(holderId)
+        ->InitiateUnregisterHolder(message)
         ->Commit();
 }
 
