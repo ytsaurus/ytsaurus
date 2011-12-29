@@ -46,7 +46,6 @@ bool TTableNodeProxy::IsLogged(IServiceContext* context) const
 {
     Stroka verb = context->GetVerb();
     if (verb == "GetChunkListId") {
-        // This _may_ cause an update.
         return true;
     }
     return TBase::IsLogged(context);;
@@ -79,17 +78,12 @@ void TTableNodeProxy::TraverseChunkTree(
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListId)
 {
-    context->SetRequestInfo("ForUpdate: %s", ~ToString(request->for_update()));
+    UNUSED(request);
 
-    const TTableNode* impl;
-    if (request->for_update()) {
-        LockIfNeeded();
-        impl = &GetTypedImplForUpdate();
-    } else {
-        impl = &GetTypedImpl();
-    }
+    LockIfNeeded();
+    auto& impl = GetTypedImplForUpdate();
 
-    response->set_chunk_list_id(impl->GetChunkListId().ToProto());
+    response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 
     context->SetResponseInfo("ChunkListId: %s", ~impl->GetChunkListId().ToString());
 

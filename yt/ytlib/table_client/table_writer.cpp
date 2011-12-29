@@ -42,7 +42,6 @@ TTableWriter::TTableWriter(
 
     LOG_INFO("Requesting chunk list id");
     auto getChunkListIdReq = TTableYPathProxy::GetChunkListId();
-    getChunkListIdReq->set_for_update(true);
     auto getChunkListIdRsp = proxy.Execute(path, Transaction->GetId(), ~getChunkListIdReq)->Get();
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",

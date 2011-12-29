@@ -5,9 +5,7 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetChunkListId
-{
-    required bool for_update = 1;
-}
+{ }
 
 message TRspGetChunkListId
 {
