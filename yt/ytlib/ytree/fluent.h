@@ -98,7 +98,7 @@ public:
 
         TParent Scalar(bool value)
         {
-            return Scalar(value ? Stroka("True") : Stroka("False"));
+            return Scalar(value ? Stroka("true") : Stroka("false"));
         }
 
         TParent Entity()

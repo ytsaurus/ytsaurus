@@ -3,7 +3,9 @@
 #endif
 #undef CONFIGURABLE_INL_H_
 
-#include <ytlib/misc/guid.h>
+#include "guid.h"
+#include "string.h"
+
 #include <ytlib/ytree/ypath_detail.h>
 
 #include <util/datetime/base.h>
@@ -72,9 +74,9 @@ inline void Read(Stroka& parameter, const NYTree::INode* node, const NYTree::TYP
 inline void Read(bool& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     Stroka value = node->AsString()->GetValue();
-    if (value == "True") {
+    if (value == "true") {
         parameter = true;
-    } else if (value == "False") {
+    } else if (value == "false") {
         parameter = false;
     } else {
         ythrow yexception()
@@ -107,7 +109,7 @@ inline void Read(
         NYT::NDetail::TEmpty())
 {
     auto value = node->AsString()->GetValue();
-    parameter = T::FromString(value);
+    parameter = T::FromString(ConvertUnderscoreCaseToCamelCase(value));
 }
 
 // INode::TPtr

@@ -56,5 +56,24 @@ yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
+{
+    Stroka result;
+    bool upper = true;
+    FOREACH (char c, data) {
+        if (c == '_') {
+            upper = true;
+        } else {
+            if (upper) {
+                c = std::toupper(c);
+            }
+            result.push_back(c);
+            upper = false;
+        }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
