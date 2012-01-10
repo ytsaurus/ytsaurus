@@ -4,11 +4,10 @@
 
 #include <contrib/testing/framework.h>
 
-using NYT::NYTree::INode;
-using NYT::NYTree::TYson;
-using NYT::NYTree::TYsonWriter;
-using NYT::NYTree::DeserializeFromYson;
-using NYT::NYTree::SerializeToYson;
+namespace NYT {
+namespace NYTree{
+
+////////////////////////////////////////////////////////////////////////////////
 
 Stroka deleteSpaces(const Stroka& str) {
     Stroka res = str;
@@ -27,9 +26,14 @@ TEST(TYTreeSerializationTest, All)
     Stroka someYson = "{\"mode\"=755;\"path\"=\"/home/sandello\"}"
                       "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
                       "\"lock_scope\"=\"mytables\">";
-    INode::TPtr root = DeserializeFromYson(someYson);
-    TYson deserializedYson = SerializeToYson(root.Get(), TYsonWriter::EFormat::Text);
+    auto root = DeserializeFromYson(someYson);
+    auto deserializedYson = SerializeToYson(root.Get(), TYsonWriter::EFormat::Text);
     EXPECT_EQ(deleteSpaces(someYson), deserializedYson) <<
         "Before deserialize/serialize: " << someYson << "\n" <<
         "After: " << deserializedYson;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT
