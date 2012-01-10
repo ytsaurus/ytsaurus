@@ -30,8 +30,11 @@ public:
         TDuration Timeout;
 
         TConfig()
-            : Timeout(TDuration::Minutes(1))
-        { }
+        {
+            Register("timeout", Timeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Minutes(1));
+        }
     };
 
     DECLARE_ENUM(EResultCode,

@@ -30,8 +30,6 @@ public:
         TDuration RpcTimeout;
 
         TConfig()
-            : PingInterval(TDuration::MilliSeconds(1000))
-            , RpcTimeout(TDuration::MilliSeconds(1000))
         {
             Register("ping_interval", PingInterval)
                 .GreaterThan(TDuration())

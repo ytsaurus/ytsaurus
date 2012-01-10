@@ -26,8 +26,11 @@ public:
         TDuration PingTimeout;
 
         TConfig()
-            : PingTimeout(TDuration::MilliSeconds(3000))
-        { }
+        {
+            Register("ping_timeout", PingTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(3000));
+        }
     };
 
     TFollowerTracker(

@@ -27,10 +27,17 @@ public:
         i32 BlockSize;
 
         TConfig()
-            : LookupTimeout(TDuration::Seconds(2))
-            , ReadTimeout(TDuration::Seconds(5))
-            , BlockSize(32 * 1024 * 1024)
-        {}
+        {
+            Register("lookup_timeout", LookupTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(2));
+            Register("read_timeout", ReadTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(5));
+            Register("block_size", BlockSize)
+                .GreaterThan(0)
+                .Default(32 * 1024 * 1024);
+        }
     };
 
     DECLARE_ENUM(EResult,

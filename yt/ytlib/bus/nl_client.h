@@ -18,6 +18,11 @@ struct TNLBusClientConfig
     Stroka Address;
     // TODO: move here MaxNLCallsPerIteration, ClientSleepQuantum, MessageRearrangeTimeout;
 
+    TNLBusClientConfig()
+    {
+        Register("address", Address);
+    }
+
     explicit TNLBusClientConfig(const Stroka& address)
         : Address(address)
     { }

@@ -62,15 +62,18 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TConfig()
-            : RpcTimeout(TDuration::Seconds(3))
-            , MaxBatchDelay(TDuration::MilliSeconds(10))
-            , MaxBatchSize(100)
-        { }
-
         TDuration RpcTimeout;
         TDuration MaxBatchDelay;
         int MaxBatchSize;
+
+        TConfig()
+        {
+            Register("rpc_timeout", RpcTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(3));
+            Register("max_batch_delay", MaxBatchDelay).Default(TDuration::MilliSeconds(10));
+            Register("max_batch_size", MaxBatchSize).Default(100);
+        }
     };
 
     //! Creates an instance.

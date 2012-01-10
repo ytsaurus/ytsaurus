@@ -39,8 +39,11 @@ public:
         TDuration TransactionTimeout;
 
         TConfig()
-            : TransactionTimeout(TDuration::Seconds(10))
-        { }
+        {
+            Register("transaction_timeout", TransactionTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(10));
+        }
     };
 
     //! Creates an instance.

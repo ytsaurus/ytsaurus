@@ -51,17 +51,22 @@ public:
         TDuration PotentialFollowerTimeout;
         
         TConfig()
-            : RpcTimeout(TDuration::MilliSeconds(1000))
-            , FollowerPingInterval(TDuration::MilliSeconds(1000))
-            , FollowerPingTimeout(TDuration::MilliSeconds(5000))
-            , ReadyToFollowTimeout(TDuration::MilliSeconds(5000))
-            , PotentialFollowerTimeout(TDuration::MilliSeconds(5000))
         {
-            Register("rpc_timeout", RpcTimeout).GreaterThan(TDuration());
-            Register("follower_ping_interval", FollowerPingInterval).GreaterThan(TDuration());
-            Register("follower_ping_timeout", FollowerPingTimeout).GreaterThan(TDuration());
-            Register("ready_to_follow_timeout", ReadyToFollowTimeout).GreaterThan(TDuration());
-            Register("potential_follower_timeout", PotentialFollowerTimeout).GreaterThan(TDuration());
+            Register("rpc_timeout", RpcTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
+            Register("follower_ping_interval", FollowerPingInterval)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
+            Register("follower_ping_timeout", FollowerPingTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
+            Register("ready_to_follow_timeout", ReadyToFollowTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
+            Register("potential_follower_timeout", PotentialFollowerTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
         }
     };
 

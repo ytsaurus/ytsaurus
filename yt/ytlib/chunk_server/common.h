@@ -48,11 +48,12 @@ struct TChunkManagerConfig
 {
     typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
 
-    TChunkManagerConfig()
-        : HolderLeaseTimeout(TDuration::Seconds(10))
-    { }
-
     TDuration HolderLeaseTimeout;
+
+    TChunkManagerConfig()
+    {
+        Register("holder_lease_timeout", HolderLeaseTimeout).Default(TDuration::Seconds(10));
+    }
 };
 
 // TODO: make configurable
