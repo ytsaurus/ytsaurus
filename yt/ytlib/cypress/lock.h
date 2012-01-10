@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include "../misc/property.h"
-#include "../transaction_server/common.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NCypress {

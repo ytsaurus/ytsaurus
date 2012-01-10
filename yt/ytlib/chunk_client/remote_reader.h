@@ -4,8 +4,8 @@
 #include "async_reader.h"
 #include "block_cache.h"
 
-#include "../misc/configurable.h"
-#include "../rpc/channel.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include "../ytree/ytree.h"
+#include <ytlib/ytree/ytree.h>
 
 namespace NYT {
 namespace NDriver {

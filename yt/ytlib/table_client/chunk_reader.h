@@ -7,11 +7,11 @@
 #include "channel_reader.h"
 #include "table_chunk_meta.pb.h"
 
-#include "../chunk_client/async_reader.h"
-#include "../chunk_client/sequential_reader.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/async_stream_state.h"
-#include "../misc/codec.h"
+#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/codec.h>
 
 namespace NYT {
 namespace NTableClient {

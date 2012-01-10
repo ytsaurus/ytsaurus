@@ -3,8 +3,8 @@
 #include "chunk.h"
 #include "reader_cache.h"
 
-#include "../misc/fs.h"
-#include "../chunk_client/format.h"
+#include <ytlib/misc/fs.h>
+#include <ytlib/chunk_client/format.h>
 
 namespace NYT {
 namespace NChunkHolder {

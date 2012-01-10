@@ -2,16 +2,16 @@
 #include "chunk_cache.h"
 #include "location.h"
 
-#include "../misc/thread_affinity.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
-#include "../logging/tagged_logger.h"
-#include "../chunk_client/file_writer.h"
-#include "../chunk_client/remote_reader.h"
-#include "../chunk_client/sequential_reader.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../election/cell_channel.h"
-#include "../transaction_server/common.h"
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/election/cell_channel.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NChunkHolder {

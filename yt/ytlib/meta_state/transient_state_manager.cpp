@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "transient_state_manager.h"
 
-#include "../actions/action_queue.h"
-#include "../misc/property.h"
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NMetaState {

@@ -8,7 +8,7 @@
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
 
-#include "../misc/periodic_invoker.h"
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NMetaState {

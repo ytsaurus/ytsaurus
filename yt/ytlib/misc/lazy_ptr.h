@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "../actions/action.h"
+#include <ytlib/actions/action.h>
 
 #include <util/generic/ptr.h>
 #include <util/system/spinlock.h>

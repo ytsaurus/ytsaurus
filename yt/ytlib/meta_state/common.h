@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
-#include "../logging/log.h"
-#include "../election/common.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/election/common.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

@@ -5,12 +5,12 @@
 #include "node_detail.h"
 #include "cypress_ypath.pb.h"
 
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_service.h"
-#include "../ytree/ypath_detail.h"
-#include "../ytree/node_detail.h"
-#include "../ytree/serialize.h"
-#include "../ytree/ephemeral.h"
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/node_detail.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ephemeral.h>
 
 namespace NYT {
 namespace NCypress {

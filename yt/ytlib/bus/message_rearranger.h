@@ -3,7 +3,7 @@
 #include "common.h"
 #include "message.h"
 
-#include "../misc/delayed_invoker.h"
+#include <ytlib/misc/delayed_invoker.h>
 
 namespace NYT {
 namespace NBus {

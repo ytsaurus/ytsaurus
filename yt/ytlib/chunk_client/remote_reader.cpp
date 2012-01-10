@@ -2,13 +2,13 @@
 #include "remote_reader.h"
 #include "holder_channel_cache.h"
 
-#include "../misc/foreach.h"
-#include "../misc/string.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/delayed_invoker.h"
-#include "../logging/tagged_logger.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../chunk_holder/chunk_holder_service_proxy.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 
 #include <util/random/shuffle.h>
 

@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "pattern.h"
 
-#include "../misc/assert.h"
-#include "../misc/foreach.h"
-#include "../misc/fs.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/fs.h>
 
 namespace NYT {
 namespace NLog {

@@ -7,8 +7,8 @@
 #include "cell_manager.h"
 #include "async_change_log.h"
 
-#include "../rpc/client.h"
-#include "../actions/parallel_awaiter.h"
+#include <ytlib/rpc/client.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 namespace NYT {
 namespace NMetaState {

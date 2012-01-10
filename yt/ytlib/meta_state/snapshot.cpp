@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "snapshot.h"
 
-#include "../misc/common.h"
-#include "../misc/fs.h"
-#include "../misc/serialize.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/serialize.h>
 
 #include <util/folder/dirut.h>
 #include <util/stream/lz.h>

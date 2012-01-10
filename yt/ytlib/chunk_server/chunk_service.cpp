@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 
-#include "../misc/string.h"
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {

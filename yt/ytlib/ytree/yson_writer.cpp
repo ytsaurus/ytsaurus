@@ -4,7 +4,7 @@
 #include "yson_writer.h"
 #include "yson_format.h"
 
-#include "../misc/serialize.h"
+#include <ytlib/misc/serialize.h>
 
 #include <util/string/escape.h>
 

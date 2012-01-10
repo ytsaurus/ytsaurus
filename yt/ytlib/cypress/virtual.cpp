@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "virtual.h"
 
-#include "../cypress/node_detail.h"
-#include "../cypress/node_proxy_detail.h"
+#include <ytlib/cypress/node_detail.h>
+#include <ytlib/cypress/node_proxy_detail.h>
 
-#include "../ytree/yson_writer.h"
-#include "../ytree/tree_visitor.h"
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/tree_visitor.h>
 
 namespace NYT {
 namespace NCypress {

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 
-#include "../misc/serialize.h"
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NYTree {

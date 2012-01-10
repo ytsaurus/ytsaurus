@@ -3,12 +3,12 @@
 
 #include "writer.h"
 
-#include "../misc/pattern_formatter.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/pattern_formatter.h>
+#include <ytlib/misc/configurable.h>
 
-#include "../ytree/serialize.h"
-#include "../ytree/ypath_client.h"
-#include "../ytree/ypath_service.h"
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/ypath_service.h>
 
 
 namespace NYT {

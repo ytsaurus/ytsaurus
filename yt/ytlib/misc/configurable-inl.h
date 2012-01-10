@@ -3,8 +3,8 @@
 #endif
 #undef CONFIGURABLE_INL_H_
 
-#include "../misc/guid.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/misc/guid.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 #include <util/datetime/base.h>
 

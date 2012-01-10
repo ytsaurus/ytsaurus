@@ -3,15 +3,15 @@
 #include "chunk_holder_service.pb.h"
 #include "chunk_service.pb.h"
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/configurable.h>
 
-#include "../chunk_client/common.h"
-#include "../chunk_client/remote_reader.h"
-#include "../chunk_client/sequential_reader.h"
-#include "../election/leader_lookup.h"
-#include "../misc/guid.h"
-#include "../logging/log.h"
+#include <ytlib/chunk_client/common.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/election/leader_lookup.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkHolder {

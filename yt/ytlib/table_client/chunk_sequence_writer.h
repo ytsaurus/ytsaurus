@@ -4,11 +4,11 @@
 #include "writer.h"
 #include "chunk_writer.h"
 
-#include "../misc/thread_affinity.h"
-#include "../actions/parallel_awaiter.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../chunk_client/remote_writer.h"
-#include "../transaction_client/transaction.h"
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NTableClient {

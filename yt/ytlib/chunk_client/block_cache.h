@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../misc/ref.h"
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {

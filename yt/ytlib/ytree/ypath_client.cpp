@@ -4,8 +4,8 @@
 #include "ypath_detail.h"
 #include "rpc.pb.h"
 
-#include "../misc/serialize.h"
-#include "../rpc/message.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/rpc/message.h>
 
 namespace NYT {
 namespace NYTree {

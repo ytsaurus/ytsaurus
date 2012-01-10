@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "leader_lookup.h"
 
-#include "../misc/serialize.h"
-#include "../misc/thread_affinity.h"
-#include "../logging/log.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NElection {

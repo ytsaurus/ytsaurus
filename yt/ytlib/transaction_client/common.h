@@ -1,13 +1,13 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/new.h"
-#include "../misc/intrusive_ptr.h"
-#include "../misc/ref_counted_base.h"
-#include "../misc/guid.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/new.h>
+#include <ytlib/misc/intrusive_ptr.h>
+#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/guid.h>
 
-#include "../logging/log.h"
-#include "../actions/action.h"
+#include <ytlib/logging/log.h>
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NTransactionClient {

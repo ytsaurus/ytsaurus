@@ -2,8 +2,8 @@
 
 #include "chunk_holder_service.pb.h"
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NChunkHolder {

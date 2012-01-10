@@ -8,8 +8,8 @@
 #include "cell_manager.h"
 #include "change_log_cache.h"
 
-#include "../election/election_manager.h"
-#include "../rpc/client.h"
+#include <ytlib/election/election_manager.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NMetaState {

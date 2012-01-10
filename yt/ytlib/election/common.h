@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../misc/guid.h"
+#include <ytlib/misc/guid.h>
 
 namespace NYT {
 namespace NElection {

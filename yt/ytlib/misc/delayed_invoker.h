@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../actions/action.h"
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 

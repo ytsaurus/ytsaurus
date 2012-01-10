@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include "../cypress/cypress_service_proxy.h"
-#include "../cypress/cypress_ypath_proxy.h"
-#include "../ytree/ypath_proxy.h"
-#include "../ytree/serialize.h"
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NDriver {

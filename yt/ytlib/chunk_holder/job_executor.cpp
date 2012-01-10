@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "job_executor.h"
 
-#include "../misc/assert.h"
-#include "../misc/string.h"
-#include "../chunk_client/remote_writer.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/chunk_client/remote_writer.h>
 
 namespace NYT {
 namespace NChunkHolder {

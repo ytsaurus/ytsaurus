@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include "../misc/property.h"
-#include "../chunk_server/common.h"
-#include "../cypress/common.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/chunk_server/common.h>
+#include <ytlib/cypress/common.h>
 
 namespace NYT {
 namespace NTransactionServer {

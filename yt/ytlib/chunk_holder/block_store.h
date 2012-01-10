@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include "../misc/cache.h"
-#include "../chunk_client/block_cache.h"
+#include <ytlib/misc/cache.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {

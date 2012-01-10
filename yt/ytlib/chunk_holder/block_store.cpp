@@ -4,8 +4,8 @@
 #include "reader_cache.h"
 #include "location.h"
 
-#include "../misc/assert.h"
-#include "../chunk_client/file_reader.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NChunkHolder {

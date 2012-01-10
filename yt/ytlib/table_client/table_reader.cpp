@@ -1,8 +1,8 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
 
-#include "../misc/sync.h"
-#include "../chunk_server/common.h"
+#include <ytlib/misc/sync.h>
+#include <ytlib/chunk_server/common.h>
 
 namespace NYT {
 namespace NTableClient {

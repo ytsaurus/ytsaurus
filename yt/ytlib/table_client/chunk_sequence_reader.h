@@ -4,10 +4,10 @@
 #include "reader.h"
 #include "chunk_reader.h"
 
-#include "../chunk_client/block_cache.h"
-#include "../chunk_client/remote_reader.h"
-#include "../transaction_client/transaction.h"
-#include "../misc/async_stream_state.h"
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/misc/async_stream_state.h>
 
 namespace NYT {
 namespace NTableClient {

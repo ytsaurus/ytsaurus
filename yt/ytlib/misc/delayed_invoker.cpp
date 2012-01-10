@@ -2,8 +2,8 @@
 #include "common.h"
 #include "delayed_invoker.h"
 
-#include "../logging/log.h"
-#include "../actions/action_queue.h"
+#include <ytlib/logging/log.h>
+#include <ytlib/actions/action_queue.h>
 
 #include <util/generic/set.h>
 #include <util/system/thread.h>

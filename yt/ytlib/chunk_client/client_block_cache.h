@@ -1,7 +1,7 @@
 #pragma once
 
 #include "block_cache.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NChunkClient {

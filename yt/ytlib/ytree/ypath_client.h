@@ -4,11 +4,11 @@
 #include "ypath_service.h"
 #include "ytree.h"
 
-#include "../misc/ref.h"
-#include "../misc/property.h"
-#include "../bus/message.h"
-#include "../rpc/client.h"
-#include "../actions/action_util.h"
+#include <ytlib/misc/ref.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/bus/message.h>
+#include <ytlib/rpc/client.h>
+#include <ytlib/actions/action_util.h>
 
 namespace NYT {
 namespace NYTree {

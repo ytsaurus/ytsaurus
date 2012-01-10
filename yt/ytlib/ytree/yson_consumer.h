@@ -3,7 +3,7 @@
 #include "common.h"
 #include "ytree_fwd.h"
 
-#include "../actions/action.h"
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NYTree {

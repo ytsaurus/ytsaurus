@@ -3,7 +3,7 @@
 #include "common.h"
 #include "meta_state.h"
 
-#include "../actions/signal.h"
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NMetaState {

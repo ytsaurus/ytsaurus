@@ -3,9 +3,9 @@
 #include "common.h"
 #include "cell_manager.h"
 
-#include "../actions/invoker_util.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/lease_manager.h"
+#include <ytlib/actions/invoker_util.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/lease_manager.h>
 
 namespace NYT {
 namespace NMetaState {

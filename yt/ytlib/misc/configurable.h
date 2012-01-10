@@ -3,10 +3,10 @@
 #include "mpl.h"
 #include "property.h"
 
-#include "../actions/action.h"
-#include "../actions/action_util.h"
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/actions/action.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NConfig {

@@ -2,8 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include cypress_service_proxy.h"
 #endif
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NCypress {

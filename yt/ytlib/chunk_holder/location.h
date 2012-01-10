@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../logging/tagged_logger.h"
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkHolder {

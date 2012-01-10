@@ -1,7 +1,7 @@
 #pragma once
 
 #include "delayed_invoker.h"
-#include "../actions/invoker_util.h"
+#include <ytlib/actions/invoker_util.h>
 
 namespace NYT {
 

@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include "../cypress/cypress_manager.h"
-#include "../cypress/node.h"
+#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/node.h>
 
 namespace NYT {
 namespace NCypress {

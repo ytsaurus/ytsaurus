@@ -5,7 +5,7 @@
 #include "async_change_log.h"
 #include "meta_state_manager_proxy.h"
 
-#include "../misc/cache.h"
+#include <ytlib/misc/cache.h>
 
 namespace NYT {
 namespace NMetaState {

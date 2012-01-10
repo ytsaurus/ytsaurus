@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "thread_affinity.h"
-#include "../actions/future.h"
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 

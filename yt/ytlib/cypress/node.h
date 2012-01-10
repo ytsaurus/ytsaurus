@@ -2,10 +2,10 @@
 
 #include "common.h"
 
-#include "../misc/property.h"
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_service.h"
-#include "../transaction_server/common.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NCypress {

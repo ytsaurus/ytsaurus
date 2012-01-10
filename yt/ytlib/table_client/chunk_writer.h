@@ -8,10 +8,10 @@
 #include "channel_writer.h"
 #include "table_chunk_meta.pb.h"
 
-#include "../chunk_client/async_writer.h"
-#include "../misc/codec.h"
-#include "../misc/async_stream_state.h"
-#include "../misc/thread_affinity.h"
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/misc/codec.h>
+#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -4,8 +4,8 @@
 #include "value.h"
 #include "schema.h"
 
-#include "../misc/ref_counted_base.h"
-#include "../misc/async_stream_state.h"
+#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/async_stream_state.h>
 
 namespace NYT {
 namespace NTableClient {

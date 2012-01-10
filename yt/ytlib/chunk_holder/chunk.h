@@ -3,9 +3,9 @@
 #include "common.h"
 #include "chunk.pb.h"
 
-#include "../misc/property.h"
-#include "../misc/error.h"
-#include "../misc/cache.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/misc/cache.h>
 
 namespace NYT {
 namespace NChunkHolder {

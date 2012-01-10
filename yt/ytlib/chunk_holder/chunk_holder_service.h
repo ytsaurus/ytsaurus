@@ -4,7 +4,7 @@
 #include "chunk_holder_service.pb.h"
 #include "chunk_holder_service_proxy.h"
 
-#include "../rpc/server.h"
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NChunkHolder {

@@ -6,7 +6,7 @@
 #include "tree_builder.h"
 #include "forwarding_yson_consumer.h"
 
-#include "../actions/action_util.h"
+#include <ytlib/actions/action_util.h>
 
 namespace NYT {
 namespace NYTree {

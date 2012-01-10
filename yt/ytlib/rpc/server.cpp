@@ -3,11 +3,11 @@
 #include "rpc.pb.h"
 #include "server_detail.h"
 
-#include "../misc/assert.h"
-#include "../logging/log.h"
-#include "../bus/server.h"
-#include "../ytree/fluent.h"
-#include "../rpc/message.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/bus/server.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/rpc/message.h>
 
 namespace NYT {
 namespace NRpc {

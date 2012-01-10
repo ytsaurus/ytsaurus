@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "fs.h"
 
-#include "../logging/log.h"
+#include <ytlib/logging/log.h>
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>

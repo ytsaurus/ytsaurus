@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "action_queue.h"
 
-#include "../logging/log.h"
-#include "../misc/common.h"
-#include "../misc/thread.h"
-#include "../monitoring/stat.h"
+#include <ytlib/logging/log.h>
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/thread.h>
+#include <ytlib/monitoring/stat.h>
 
 namespace NYT {
 

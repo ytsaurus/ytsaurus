@@ -2,9 +2,9 @@
 
 #include "error.h"
 
-#include "../misc/guid.h"
+#include <ytlib/misc/guid.h>
 
-#include "../logging/log.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NRpc {

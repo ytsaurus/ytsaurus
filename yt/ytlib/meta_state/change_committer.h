@@ -6,9 +6,9 @@
 #include "change_log_cache.h"
 #include "follower_tracker.h"
 
-#include "../election/election_manager.h"
-#include "../misc/thread_affinity.h"
-#include "../actions/signal.h"
+#include <ytlib/election/election_manager.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NMetaState {

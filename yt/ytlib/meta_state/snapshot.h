@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../misc/checksum.h"
+#include <ytlib/misc/checksum.h>
 
 #include <util/stream/file.h>
 

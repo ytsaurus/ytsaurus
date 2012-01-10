@@ -6,7 +6,7 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NYTree {

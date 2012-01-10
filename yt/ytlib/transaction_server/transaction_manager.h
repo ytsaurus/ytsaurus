@@ -4,13 +4,13 @@
 #include "transaction.h"
 #include "transaction_manager.pb.h"
 
-#include "../misc/property.h"
-#include "../misc/id_generator.h"
-#include "../misc/lease_manager.h"
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/meta_change.h"
-#include "../meta_state/map.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/lease_manager.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/map.h>
 
 namespace NYT {
 namespace NTransactionServer {

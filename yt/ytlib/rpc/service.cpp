@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "service.h"
 
-#include "../logging/log.h"
-#include "../misc/assert.h"
+#include <ytlib/logging/log.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NRpc {

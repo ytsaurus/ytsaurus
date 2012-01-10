@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "client_block_cache.h"
 
-#include "../misc/cache.h"
-#include "../misc/property.h"
+#include <ytlib/misc/cache.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NChunkClient {

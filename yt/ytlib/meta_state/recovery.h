@@ -12,7 +12,7 @@
 #include "snapshot_store.h"
 #include "cell_manager.h"
 
-#include "../election/election_manager.h"
+#include <ytlib/election/election_manager.h>
 
 namespace NYT {
 namespace NMetaState {

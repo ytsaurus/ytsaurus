@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "change_committer.h"
 
-#include "../misc/serialize.h"
-#include "../misc/foreach.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NMetaState {

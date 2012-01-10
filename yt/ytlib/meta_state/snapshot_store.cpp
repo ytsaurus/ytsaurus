@@ -2,7 +2,7 @@
 #include "common.h"
 #include "snapshot_store.h"
 
-#include "../misc/fs.h"
+#include <ytlib/misc/fs.h>
 
 namespace NYT {
 namespace NMetaState {

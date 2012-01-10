@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/enum.h"
-#include "../misc/guid.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/guid.h>
 
-#include "../logging/log.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {

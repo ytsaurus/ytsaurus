@@ -4,9 +4,9 @@
 #include "yson_reader.h"
 #include "yson_format.h"
 
-#include "../misc/assert.h"
-#include "../misc/serialize.h"
-#include "../actions/action_util.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/actions/action_util.h>
 
 #include <util/string/escape.h>
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "common.h"
 
-#include "../misc/id_generator.h"
+#include <ytlib/misc/id_generator.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../cypress/virtual.h"
-#include "../ytree/virtual.h"
-#include "../ytree/fluent.h"
-#include "../misc/string.h"
+#include <ytlib/cypress/virtual.h>
+#include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NTransactionServer {

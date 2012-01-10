@@ -2,7 +2,7 @@
 #include "file_node_proxy.h"
 #include "file_chunk_meta.pb.h"
 
-#include "../misc/string.h"
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NFileServer {

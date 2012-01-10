@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ytree/ytree_fwd.h"
+#include <ytlib/ytree/ytree_fwd.h>
 
 namespace NYT {
 

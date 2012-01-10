@@ -5,10 +5,10 @@
 #include "block_store.h"
 #include "session_manager.h"
 
-#include "../misc/serialize.h"
-#include "../misc/string.h"
-#include "../actions/action_util.h"
-#include "../actions/parallel_awaiter.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 namespace NYT {
 namespace NChunkHolder {

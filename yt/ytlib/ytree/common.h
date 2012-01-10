@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/assert.h"
-#include "../misc/enum.h"
-#include "../misc/common.h"
-#include "../logging/log.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/common.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NYTree {

@@ -3,8 +3,8 @@
 #include "common.h"
 #include "node.h"
 
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_service.h"
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NCypress {

@@ -3,8 +3,8 @@
 #include "common.h"
 #include "service.h"
 
-#include "../bus/server.h"
-#include "../ytree/ytree_fwd.h"
+#include <ytlib/bus/server.h>
+#include <ytlib/ytree/ytree_fwd.h>
 
 namespace NYT {
 namespace NRpc {

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "chunk_store.h"
 
-#include "../misc/foreach.h"
-#include "../misc/assert.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/assert.h>
 
 #include <utility>
 #include <limits>

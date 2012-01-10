@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "change_log.h"
 
-#include "../misc/serialize.h"
-#include "../misc/checksum.h"
-#include "../logging/log.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/checksum.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
 #include <util/generic/ptr.h>

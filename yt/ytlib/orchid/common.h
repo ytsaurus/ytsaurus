@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../logging/log.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NOrchid {

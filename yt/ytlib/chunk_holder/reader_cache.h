@@ -3,7 +3,7 @@
 #include "common.h"
 #include "chunk_holder_service_proxy.h"
 
-#include "../chunk_client/file_reader.h"
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NChunkHolder {

@@ -3,7 +3,7 @@
 #include "common.h"
 #include "action.h"
 
-#include "../misc/common.h"
+#include <ytlib/misc/common.h>
 
 #include <util/generic/ptr.h>
 #include <util/system/thread.h>

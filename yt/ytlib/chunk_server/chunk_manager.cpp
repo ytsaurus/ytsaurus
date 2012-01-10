@@ -5,16 +5,16 @@
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
 
-#include "../transaction_server/transaction_manager.h"
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/map.h"
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/guid.h"
-#include "../misc/assert.h"
-#include "../misc/id_generator.h"
-#include "../misc/string.h"
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/map.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tree_builder.h"
 
-#include "../actions/action_util.h"
+#include <ytlib/actions/action_util.h>
 
 namespace NYT {
 namespace NYTree {

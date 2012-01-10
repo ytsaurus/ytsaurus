@@ -2,7 +2,7 @@
 
 #include "leader_lookup.h"
 
-#include "../rpc/channel.h"
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NElection {

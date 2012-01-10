@@ -6,9 +6,9 @@
 #include "block_store.h"
 #include "location.h"
 
-#include "../misc/property.h"
-#include "../misc/error.h"
-#include "../actions/signal.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NChunkHolder {

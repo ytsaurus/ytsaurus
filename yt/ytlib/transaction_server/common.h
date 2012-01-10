@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/guid.h"
-#include "../logging/log.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/logging/log.h>
 
-#include "../transaction_client/common.h"
+#include <ytlib/transaction_client/common.h>
 
 namespace NYT {
 namespace NTransactionServer {

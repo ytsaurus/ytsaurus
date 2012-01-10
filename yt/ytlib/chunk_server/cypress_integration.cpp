@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../misc/string.h"
-#include "../ytree/virtual.h"
-#include "../ytree/fluent.h"
-#include "../cypress/virtual.h"
-#include "../cypress/node_proxy_detail.h"
-#include "../cypress/cypress_ypath_proxy.h"
+#include <ytlib/misc/string.h>
+#include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/cypress/virtual.h>
+#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkServer {

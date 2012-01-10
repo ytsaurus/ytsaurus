@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
-#include "../logging/log.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/logging/log.h>
 
-#include "../chunk_client/common.h"
-#include "../transaction_server/common.h"
+#include <ytlib/chunk_client/common.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NChunkServer {

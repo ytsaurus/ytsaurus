@@ -4,17 +4,17 @@
 #include "async_writer.h"
 #include "chunk_service.pb.h"
 
-#include "../ytree/ypath_detail.h"
+#include <ytlib/ytree/ypath_detail.h>
 
-#include "../misc/configurable.h"
-#include "../misc/metric.h"
-#include "../misc/semaphore.h"
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/metric.h>
+#include <ytlib/misc/semaphore.h>
+#include <ytlib/misc/thread_affinity.h>
 
-#include "../chunk_holder/chunk_holder_service_proxy.h"
-#include "../actions/action_queue.h"
+#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
+#include <ytlib/actions/action_queue.h>
 
-#include "../logging/tagged_logger.h"
+#include <ytlib/logging/tagged_logger.h>
 
 #include <util/generic/deque.h>
 

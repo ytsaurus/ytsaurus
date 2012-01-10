@@ -3,7 +3,7 @@
 #include "common.h"
 #include "cypress_ypath.pb.h"
 
-#include "../ytree/ypath_proxy.h"
+#include <ytlib/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NCypress {

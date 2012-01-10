@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_placement.h"
 
-#include "../misc/foreach.h"
+#include <ytlib/misc/foreach.h>
 
 #include <util/random/random.h>
 

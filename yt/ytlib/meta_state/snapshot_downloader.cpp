@@ -3,8 +3,8 @@
 #include "snapshot.h"
 #include "meta_state_manager_proxy.h"
 
-#include "../actions/action_util.h"
-#include "../actions/future.h"
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/future.h>
 
 #include <util/system/fs.h>
 

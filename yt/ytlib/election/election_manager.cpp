@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "election_manager.h"
 
-#include "../misc/serialize.h"
-#include "../logging/log.h"
-#include "../actions/action_util.h"
-#include "../ytree/fluent.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NElection {

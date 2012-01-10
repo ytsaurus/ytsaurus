@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "channel_cache.h"
 
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NRpc {

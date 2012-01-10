@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "chunk_replication.h"
 
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {
