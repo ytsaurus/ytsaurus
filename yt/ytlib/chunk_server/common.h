@@ -68,9 +68,9 @@ extern double MinChunkBalancingFillCoeff;
 extern double MaxHolderFillCoeff;
 extern i64 MinHolderFreeSpace;
 extern double ActiveSessionsPenalityCoeff;
+extern TDuration MaxJobDuration;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
-

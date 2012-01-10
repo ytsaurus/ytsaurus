@@ -146,6 +146,16 @@ void TChunkReplication::ProcessExistingJobs(
                 LOG_INFO("Job running (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
+
+                if (TInstant::Now() - job->GetStartTime() > MaxJobDuration) {
+                    jobsToStop->push_back(jobId);
+
+                    LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxJobDuration: %d ms)",
+                        ~jobId.ToString(),
+                        holder.GetId(),
+                        (TInstant::Now() - job->GetStartTime()).MilliSeconds(),
+                        MaxJobDuration.MilliSeconds());
+                }
                 break;
 
             case EJobState::Completed:

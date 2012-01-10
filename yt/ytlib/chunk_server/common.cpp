@@ -27,6 +27,7 @@ double MinChunkBalancingFillCoeff = 0.1;
 double MaxHolderFillCoeff = 0.99;
 i64 MinHolderFreeSpace = 10 * 1024 * 1024; // 10MB
 double ActiveSessionsPenalityCoeff = 0.1;
+TDuration MaxJobDuration = TDuration::Minutes(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 

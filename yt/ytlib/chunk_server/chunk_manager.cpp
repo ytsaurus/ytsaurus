@@ -899,7 +899,8 @@ private:
             jobId,
             chunkId,
             holder.GetAddress(),
-            targetAddresses);
+            targetAddresses,
+            TInstant::Now());
         JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobListForUpdate(chunkId);
