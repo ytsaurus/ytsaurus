@@ -640,8 +640,10 @@ private:
         }
 
         FOREACH(auto protoJobId, message.stopped_jobs()) {
-            const auto& job = GetJob(TJobId::FromProto(protoJobId));
-            DoRemoveJob(holder, job);
+            const auto& job = FindJob(TJobId::FromProto(protoJobId));
+            if (job) {
+                DoRemoveJob(holder, *job);
+            }
         }
 
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",

@@ -121,8 +121,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
 {
-    UNUSED(response);
-
     auto holderId = request->holder_id();
 
     context->SetRequestInfo("HolderId: %d", holderId);
@@ -142,22 +140,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
         ->InitiateHeartbeatRequest(requestMessage)
         ->Commit();
 
-    yvector<TReqHolderHeartbeat::TJobInfo> runningJobs;
-    runningJobs.reserve(request->jobs_size());
-    FOREACH(const auto& jobInfo, request->jobs()) {
-        auto jobId = TJobId::FromProto(jobInfo.job_id());
-        const TJob* job = ChunkManager->FindJob(jobId);
-        if (!job) {
-            LOG_INFO("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
-                ~jobId.ToString(),
-                ~holder.GetAddress(),
-                holder.GetId());
-            response->add_jobs_to_stop(jobId.ToProto());
-        } else {
-            runningJobs.push_back(jobInfo);
-        }
-    }
-
+    yvector<TReqHolderHeartbeat::TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
+    
     yvector<TRspHolderHeartbeat::TJobStartInfo> jobsToStart;
     yvector<TJobId> jobsToStop;
     ChunkManager->RunJobControl(
@@ -174,9 +158,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
         *responseMessage.add_started_jobs() = jobInfo;
     }
 
+    yhash_set<TJobId> runningJobIds;
+    FOREACH (const auto& jobInfo, runningJobs) {
+        runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
+    }
+
     FOREACH (const auto& jobId, jobsToStop) {
         auto protoJobId = jobId.ToProto();
-        response->add_jobs_to_stop(protoJobId);
+        if (runningJobIds.find(jobId) != runningJobIds.end()) {
+            response->add_jobs_to_stop(protoJobId);
+        }
         responseMessage.add_stopped_jobs(protoJobId);
     }
 

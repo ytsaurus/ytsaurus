@@ -111,15 +111,27 @@ void TChunkReplication::ProcessExistingJobs(
     *replicationJobCount = 0;
     *removalJobCount = 0;
 
-    // TODO: check for missing jobs
+    yhash_set<TJobId> runningJobIds;
+
     // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
-        const auto& job = ChunkManager->GetJob(jobId);
+        runningJobIds.insert(jobId);
+        const auto* job = ChunkManager->FindJob(jobId);
+
+        if (!job) {
+            LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
+                ~jobId.ToString(),
+                ~holder.GetAddress(),
+                holder.GetId());
+            jobsToStop->push_back(jobId);
+            continue;
+        }
+
         auto jobState = EJobState(jobInfo.state());
         switch (jobState) {
             case EJobState::Running:
-                switch (job.GetType()) {
+                switch (job->GetType()) {
                     case EJobType::Replicate:
                         ++*replicationJobCount;
                         break;
@@ -138,7 +150,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Completed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.GetChunkId());
+                ScheduleRefresh(job->GetChunkId());
                 LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -146,7 +158,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Failed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.GetChunkId());
+                ScheduleRefresh(job->GetChunkId());
                 LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -154,6 +166,17 @@ void TChunkReplication::ProcessExistingJobs(
 
             default:
                 YUNREACHABLE();
+        }
+    }
+
+    // Checking for missing jobs
+    FOREACH(auto jobId, holder.JobIds()) {
+        if (runningJobIds.find(jobId) == runningJobIds.end()) {
+            LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
+                ~jobId.ToString(),
+                ~holder.GetAddress(),
+                holder.GetId());
+            jobsToStop->push_back(jobId);
         }
     }
 }
