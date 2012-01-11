@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_holder/reader_cache.h>
 #include <yt/ytlib/chunk_holder/session_manager.h>
 #include <yt/ytlib/chunk_holder/block_store.h>
+#include <yt/ytlib/chunk_holder/block_table.h>
 #include <yt/ytlib/chunk_holder/chunk_store.h>
 #include <yt/ytlib/chunk_holder/chunk_cache.h>
 #include <yt/ytlib/chunk_holder/chunk_registry.h>
@@ -53,6 +54,7 @@ using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
 using NChunkHolder::TChunkRegistry;
 using NChunkHolder::TBlockStore;
+using NChunkHolder::TBlockTable;
 using NChunkHolder::TSessionManager;
 using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
@@ -91,6 +93,8 @@ void TChunkHolderBootstrap::Run()
         ~Config,
         ~chunkRegistry,
         ~readerCache);
+
+    auto blockTable = New<TBlockTable>(~Config->BlockTable);
 
     auto chunkStore = New<TChunkStore>(
         ~Config,
@@ -131,6 +135,7 @@ void TChunkHolderBootstrap::Run()
         ~chunkCache,
         ~readerCache,
         ~blockStore,
+        ~blockTable,
         ~sessionManager);
     rpcServer->RegisterService(~chunkHolderService);
 

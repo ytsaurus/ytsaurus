@@ -17,6 +17,7 @@ class TChunkCache;
 class TReaderCache;
 class TChunk;
 class TBlockStore;
+class TBlockTable;
 class TSessionManager;
 class TSession;
 
@@ -36,6 +37,7 @@ public:
         TChunkCache* chunkcache,
         TReaderCache* readerCache,
         TBlockStore* blockStore,
+        TBlockTable* blockTable,
         TSessionManager* sessionManager);
     ~TChunkHolderService();
 
@@ -51,6 +53,7 @@ private:
     TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;
     TIntrusivePtr<TBlockStore> BlockStore;
+    TIntrusivePtr<TBlockTable> BlockTable;
     TIntrusivePtr<TSessionManager> SessionManager;
 
     NRpc::TChannelCache ChannelCache;

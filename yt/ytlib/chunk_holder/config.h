@@ -30,6 +30,26 @@ struct TLocationConfig
     }
 };
 
+// TODO(roizner): It should be in block_table.h, but we cannot place it there because of cross-includes!
+// TODO(roizner): Or merge it into TChunkHolderConfig
+struct TBlockTableConfig
+    : public TConfigurable
+{
+    typedef TIntrusivePtr<TBlockTableConfig> TPtr;
+
+    int MaxPeersPerBlock;
+    TDuration SweepPeriod;
+
+    TBlockTableConfig()
+    {
+        Register("max_peers_per_block", MaxPeersPerBlock)
+            .GreaterThan(0)
+            .Default(64);
+        Register("sweep_period", SweepPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
     : public TConfigurable

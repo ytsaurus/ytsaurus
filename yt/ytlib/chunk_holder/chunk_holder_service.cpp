@@ -3,6 +3,7 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "block_store.h"
+#include "block_table.h"
 #include "session_manager.h"
 
 #include <ytlib/misc/serialize.h>
@@ -31,6 +32,7 @@ TChunkHolderService::TChunkHolderService(
     TChunkCache* chunkCache,
     TReaderCache* readerCache,
     TBlockStore* blockStore,
+    TBlockTable* blockTable,
     TSessionManager* sessionManager)
     : NRpc::TServiceBase(
         serviceInvoker,
@@ -43,6 +45,7 @@ TChunkHolderService::TChunkHolderService(
     , ChunkCache(chunkCache)
     , ReaderCache(readerCache)
     , BlockStore(blockStore)
+    , BlockTable(blockTable)
     , SessionManager(sessionManager)
 {
     YASSERT(server);
@@ -50,6 +53,7 @@ TChunkHolderService::TChunkHolderService(
     YASSERT(chunkCache);
     YASSERT(readerCache);
     YASSERT(blockStore);
+    YASSERT(blockTable);
     YASSERT(sessionManager);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
@@ -227,8 +231,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 {
-    UNUSED(response);
-
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
     
@@ -237,9 +239,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         ~JoinToString(request->block_indexes()));
 
     bool throttling = CheckThrottling();
-
-    // This will hold the blocks we fetch.
-    TSharedPtr< yvector<TCachedBlock::TPtr> > blocks(new yvector<TCachedBlock::TPtr>(blockCount));
 
     response->Attachments().resize(blockCount);
 
@@ -256,17 +255,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Cannot send the actual data to the client due to throttling.
             // But let's try to provide a hint a least.
             blockInfo->set_data_attached(false);
-            auto block = BlockStore->FindBlock(blockId);
-            if (block) {
-                auto peers = block->GetPeers();
-                if (!peers.empty()) {
-                    FOREACH (const auto& peer, peers) {
-                        blockInfo->add_peer_addresses(peer.Address);
-                    }
-                    LOG_DEBUG("GetBlocks: Peers suggested (BlockIndex: %d, PeerCount: %d)",
-                        blockIndex,
-                        peers.ysize());
+            const auto& peers = BlockTable->GetPeers(blockId);
+            if (!peers.empty()) {
+                FOREACH (const auto& peer, peers) {
+                    blockInfo->add_peer_addresses(peer.Address);
                 }
+                LOG_DEBUG("GetBlocks: Peers suggested (BlockIndex: %d, PeerCount: %d)",
+                    blockIndex,
+                    peers.ysize());
             }
         } else {
             // Fetch the actual data (either from cache or from disk).
@@ -279,7 +275,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                             // Attach the real data.
                             blockInfo->set_data_attached(true);
                             auto block = result.Value();
-                            (*blocks)[index] = block;
                             response->Attachments()[index] = block->GetData();
                             LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
                         } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
@@ -319,10 +314,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Register the peer that we had just sent the reply to.
             if (request->has_peer_address() && request->has_peer_expiration_time()) {
                 TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
-                FOREACH (auto& block, *blocks) {
-                    if (block) {
-                        block->AddPeer(peer);
-                    }
+                FOREACH (const auto& blockIndex, request->block_indexes()) {
+                    BlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
                 }
             }
         }));

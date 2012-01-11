@@ -37,8 +37,10 @@ public:
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxSize)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data)
+    void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source)
     {
+        UNUSED(source);
+
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
             auto block = New<TCachedBlock>(id, data);

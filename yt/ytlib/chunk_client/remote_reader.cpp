@@ -479,7 +479,7 @@ private:
                     blockIndex);
                 auto block = response->Attachments()[index];
                 YASSERT(block);
-                Reader->BlockCache->Put(blockId, block);
+                Reader->BlockCache->Put(blockId, block, address);
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
             } else if (Reader->Config->FetchFromPeers) {

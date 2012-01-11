@@ -132,7 +132,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     }
 
     slot.State = ESlotState::Received;
-    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data);
+    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data, Stroka());
 
     Size += data.Size();
 
