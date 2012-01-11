@@ -58,8 +58,9 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${USER_C_FLAGS} -pthread" )
   set( CMAKE_CXX_FLAGS "${USER_CXX_FLAGS} -std=gnu++0x -pthread" )
-  
+
   # These are configuration-specific compilation flags.
+  # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
   set( CMAKE_CXX_FLAGS_DEBUG "-g -O0" )
   set( CMAKE_CXX_FLAGS_RELEASE "-O2" )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2" )
@@ -75,18 +76,20 @@ endif()
 if (MSVC)
   # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${USER_C_FLAGS}" )
-  set( CMAKE_CXX_FLAGS "${USER_CXX_FLAGS} /EHsc" )
+  set( CMAKE_CXX_FLAGS "${USER_CXX_FLAGS} /Gd /EHsc" )
 
   # These are configuration-specific compliation flags.
-  set( CMAKE_CXX_FLAGS_DEBUG "/Zi /Od" )
-  set( CMAKE_CXX_FLAGS_RELEASE "/O2" )
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2" )
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1" )
+  # http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx
+  set( CMAKE_CXX_FLAGS_DEBUG "/ZI /Od /Oy- /Gm /RTC1 /GS" )
+  set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL /Gm-" )
 
-  set( CMAKE_C_FLAGS_DEBUG "/Zi /Od" )
-  set( CMAKE_C_FLAGS_RELEASE "/O2" )
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2" )
-  set( CMAKE_C_FLAGS_MINSIZEREL "/O1" )
+
+  set( CMAKE_C_FLAGS_DEBUG "/ZI /Od /Oy- /Gm /RTC1 /GS" )
+  set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL /Gm-" )
 
   set( CMAKE_EXE_LINKER_FLAGS_DEBUG "/DEBUG" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "/DEBUG" )
