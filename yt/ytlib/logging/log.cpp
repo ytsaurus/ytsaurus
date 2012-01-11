@@ -30,9 +30,12 @@ void TLogger::Write(const TLogEvent& event)
 
 bool TLogger::IsEnabled(ELogLevel level)
 {
+    // TODO(sandello): Cache pointer to the TLogManager instance in order
+    // to avoid extra locking and synchronization in singleton getter.
     if (TLogManager::Get()->GetConfigVersion() != ConfigVersion) {
         UpdateConfig();
     }
+
     return level >= MinLevel;
 }
 

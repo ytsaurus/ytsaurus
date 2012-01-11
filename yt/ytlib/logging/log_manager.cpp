@@ -250,9 +250,9 @@ public:
     void Configure(INode* node, const TYPath& path = YPathRoot)
     {
         auto config = TLogConfig::CreateFromNode(node, path);
-        auto queue = Queue;
-        if (queue) {
-            queue->GetInvoker()->Invoke(FromMethod(
+
+        if (Queue) {
+            Queue->GetInvoker()->Invoke(FromMethod(
                 &TImpl::DoUpdateConfig,
                 this,
                 config));
@@ -275,10 +275,9 @@ public:
 
     void Flush()
     {
-        auto queue = Queue;
-        if (queue) {
+        if (Queue) {
             FromMethod(&TLogConfig::FlushWriters, Config)
-                ->AsyncVia(queue->GetInvoker())
+                ->AsyncVia(Queue->GetInvoker())
                 ->Do()
                 ->Get();
         }
@@ -286,11 +285,16 @@ public:
 
     void Shutdown()
     {
-        Flush();
-    
-        auto queue = Queue;
-        if (queue) {
+        if (Queue) {
+            auto queue = Queue;
             Queue.Reset();
+
+            // This is actually a Flush(). We cannot use Flush() directly since
+            // we have to drop #Queue pointer.
+            FromMethod(&TLogConfig::FlushWriters, Config)
+                ->AsyncVia(queue->GetInvoker())
+                ->Do()
+                ->Get();
             queue->Shutdown();
         }
     }
@@ -316,13 +320,16 @@ public:
 
     void Write(const TLogEvent& event)
     {
-        auto queue = Queue;
-        if (queue) {
-            queue->GetInvoker()->Invoke(FromMethod(&TImpl::DoWrite, this, event));
+        TRACE();
 
-            // TODO: use system-wide exit function
+        if (Queue) {
+            Queue->GetInvoker()->Invoke(FromMethod(
+                &TImpl::DoWrite,
+                this,
+                event));
+
             if (event.Level == ELogLevel::Fatal) {
-                Shutdown();
+                Flush();
                 ::std::terminate();
             }
         }
