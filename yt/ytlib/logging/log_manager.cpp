@@ -320,8 +320,6 @@ public:
 
     void Write(const TLogEvent& event)
     {
-        TRACE();
-
         if (Queue) {
             Queue->GetInvoker()->Invoke(FromMethod(
                 &TImpl::DoWrite,
