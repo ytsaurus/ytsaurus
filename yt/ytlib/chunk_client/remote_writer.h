@@ -61,9 +61,8 @@ public:
             Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
         }
 
-        void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const
+        virtual void DoValidate() const
         {
-            TConfigurable::Validate(path);
             if (WindowSize < GroupSize) {
                 ythrow yexception() << "\"window_size\" cannot be less than \"group_size\"";
             }

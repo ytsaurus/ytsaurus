@@ -50,7 +50,7 @@ struct TWriteRequest
         Register("value", Value).Default(NULL);
     }
 
-    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const
+    virtual void DoValidate() const
     {
         if (Value) {
             auto type = Value->GetType();

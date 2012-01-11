@@ -54,18 +54,14 @@ struct ILogWriter
             Register("file_name", FileName).Default();
         }
 
-        virtual void Validate(const NYTree::TYPath& path) const
+        virtual void DoValidate() const
         {
-            TConfigurable::Validate(path);
-
             if (Type == EType::File && FileName.empty()) {
                 ythrow yexception() <<
-                    Sprintf("FileName is empty while type is File (Path: %s)",
-                        ~path);
+                    Sprintf("FileName is empty while type is File");
             } else if (Type != EType::File && !FileName.empty()) {
                 ythrow yexception() <<
-                    Sprintf("FileName is not empty while type is not File (Path: %s)",
-                        ~path);
+                    Sprintf("FileName is not empty while type is not File");
             }
         }
     };

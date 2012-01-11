@@ -183,17 +183,13 @@ public:
     }
 
 private:
-    virtual void Validate(const TYPath& path) const
+    virtual void DoValidate() const
     {
-        TConfigurable::Validate(path);
-
         FOREACH (const auto& rule, Rules) {
             FOREACH (const Stroka& writer, rule->Writers) {
                 if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                     ythrow yexception() <<
-                        Sprintf("Unknown writer %s (Path: %s)",
-                            ~writer.Quote(),
-                            ~path);
+                        Sprintf("Unknown writer %s", ~writer.Quote());
                 }
             }
         }

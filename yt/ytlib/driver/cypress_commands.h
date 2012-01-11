@@ -50,14 +50,13 @@ struct TSetRequest
         Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
     }
 
-    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const
+    virtual void DoValidate() const
     {
-        TConfigurable::Validate(path);
         if (!Value && !Stream) {
-            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given (Path: %s)", ~path);
+            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given");
         }
         if (Value && Stream) {
-            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given (Path: %s)", ~path);
+            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given");
         }
     }
 };

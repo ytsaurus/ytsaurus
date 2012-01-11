@@ -56,7 +56,17 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
     FOREACH (auto pair, Parameters) {
         pair.Second()->Validate(CombineYPaths(path, pair.First()));
     }
+    try {
+        DoValidate();
+    } catch (...) {
+        ythrow yexception() << Sprintf("Validation failed (Path: %s)\n%s",
+            ~path,
+            ~CurrentExceptionMessage());
+    }
 }
+
+void TConfigurable::DoValidate() const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

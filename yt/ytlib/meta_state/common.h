@@ -84,9 +84,8 @@ struct TCellConfig
         Register("addresses", Addresses).NonEmpty();
     }
 
-    virtual void Validate(const NYTree::TYPath& path = "") const
+    virtual void DoValidate() const
     {
-        TConfigurable::Validate(path);
         if (Id == NElection::InvalidPeerId) {
             ythrow yexception() << "Missing peer id";
         }
