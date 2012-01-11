@@ -127,12 +127,12 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
+    TConfig::TPtr Config;
+
 private:
     class TImpl;
-    
-    TConfig::TPtr Config;
-    TIntrusivePtr<TImpl> Impl;
 
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,8 +55,8 @@ void TChunkReplication::RunJobControl(
 
     ScheduleJobs(
         holder,
-        Max(0, MaxReplicationFanOut - replicationJobCount),
-        Max(0, MaxRemovalJobsPerHolder - removalJobCount),
+        Max(0, ChunkManager->Config->MaxReplicationFanOut - replicationJobCount),
+        Max(0, ChunkManager->Config->MaxRemovalJobsPerHolder - removalJobCount),
         jobsToStart);
 }
 
@@ -147,14 +147,14 @@ void TChunkReplication::ProcessExistingJobs(
                     ~jobId.ToString(),
                     holder.GetId());
 
-                if (TInstant::Now() - job->GetStartTime() > MaxJobDuration) {
+                if (TInstant::Now() - job->GetStartTime() > ChunkManager->Config->MaxJobDuration) {
                     jobsToStop->push_back(jobId);
 
                     LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxJobDuration: %d ms)",
                         ~jobId.ToString(),
                         holder.GetId(),
                         (TInstant::Now() - job->GetStartTime()).MilliSeconds(),
-                        MaxJobDuration.MilliSeconds());
+                        ChunkManager->Config->MaxJobDuration.MilliSeconds());
                 }
                 break;
 
@@ -295,7 +295,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
 
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
-        MinChunkBalancingFillCoeffDiff;
+        ChunkManager->Config->MinChunkBalancingFillCoeffDiff;
     auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -392,7 +392,7 @@ void TChunkReplication::ScheduleJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetFillCoeff(holder) > MinChunkBalancingFillCoeff)
+        ChunkPlacement->GetFillCoeff(holder) > ChunkManager->Config->MinChunkBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
@@ -594,7 +594,7 @@ void TChunkReplication::ScheduleRefresh(const TChunkId& chunkId)
 
     TRefreshEntry entry;
     entry.ChunkId = chunkId;
-    entry.When = TInstant::Now() + ChunkRefreshDelay;
+    entry.When = TInstant::Now() + ChunkManager->Config->ChunkRefreshDelay;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
 }
@@ -604,7 +604,7 @@ void TChunkReplication::ScheduleNextRefresh()
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
         ->Via(Invoker),
-        ChunkRefreshQuantum);
+        ChunkManager->Config->ChunkRefreshQuantum);
 }
 
 void TChunkReplication::OnRefresh()
@@ -612,7 +612,7 @@ void TChunkReplication::OnRefresh()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto now = TInstant::Now();
-    for (int i = 0; i < MaxChunksPerRefresh; ++i) {
+    for (int i = 0; i < ChunkManager->Config->MaxChunksPerRefresh; ++i) {
         if (RefreshList.empty())
             break;
 
