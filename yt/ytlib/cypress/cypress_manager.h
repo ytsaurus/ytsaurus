@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "node.h"
+#include "type_handler.h"
 #include "node_proxy.h"
 #include "lock.h"
 #include "cypress_manager.pb.h"

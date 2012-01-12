@@ -25,6 +25,7 @@ set( HDRS
   ${BASE}/cypress_ypath_proxy.h
   ${BASE}/lock.h
   ${BASE}/node.h
+  ${BASE}/type_handler.h
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h
   ${BASE}/node_proxy_detail.h

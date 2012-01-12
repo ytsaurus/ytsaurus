@@ -13,6 +13,7 @@ struct IObjectTypeHandler
 {
     typedef TIntrusivePtr<IObjectTypeHandler> TPtr;
 
+    //! Returns the object type handled by the handler.
     virtual EObjectType GetType() = 0;
 
     //! Returns true iff an object with the given id exists.
@@ -22,6 +23,8 @@ struct IObjectTypeHandler
     virtual i32 UnrefObject(const TObjectId& id) = 0;
     virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
 
+    //! Given an object id, constructs a proxy for it.
+    //! Returns NULL if no object with such id exists.
     virtual IObjectProxy::TPtr FindProxy(const TObjectId& id) = 0;
 };
 
