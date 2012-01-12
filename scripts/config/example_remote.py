@@ -6,7 +6,7 @@ Logging = {
     'writers' : { 
         'file' :
         {
-            'type' : "File",
+            'type' : "file",
             'file_name' : "%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
@@ -14,7 +14,7 @@ Logging = {
     'rules' : [
         { 
             'categories' : [ "*" ],
-            'min_level' : "Debug",
+            'min_level' : "debug",
             'writers' : [ "file" ]
         }
     ]
@@ -106,7 +106,7 @@ class Holder(Server):
             'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { 
-            'publish_peer' : 'True'
+            'publish_peer' : 'true'
         },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,
