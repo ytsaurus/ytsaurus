@@ -4,7 +4,7 @@
 #include "node.h"
 
 #include "../ytree/ytree.h"
-#include "../ytree/ypath_service.h"
+#include <yt/ytlib/object_server/object_proxy.h>
 
 namespace NYT {
 namespace NCypress {
@@ -15,6 +15,7 @@ namespace NCypress {
 //! logical Cypress nodes.
 struct ICypressNodeProxy
     : public virtual NYTree::INode
+    , public NObjectServer::IObjectProxy
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
 
@@ -25,18 +26,11 @@ struct ICypressNodeProxy
     //! Returns the id of the transaction for which the proxy is created.
     virtual TTransactionId GetTransactionId() const = 0;
 
-    //! Returns the id of the physical node.
-    virtual TNodeId GetNodeId() const = 0;
-
     //! Returns the physical node.
     virtual const ICypressNode& GetImpl() const = 0;
     
     //! Returns the physical node and allows its mutation.
     virtual ICypressNode& GetImplForUpdate() = 0;
-
-    //! Returns true iff the change specified by the #context
-    //! requires meta state logging.
-    virtual bool IsLogged(NRpc::IServiceContext* context) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

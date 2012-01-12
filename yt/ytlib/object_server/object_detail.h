@@ -1,6 +1,7 @@
 #pragma once
 
 #include "id.h"
+#include "object_ypath.pb.h"
 
 #include <yt/ytlib/misc/property.h>
 #include <yt/ytlib/meta_state/map.h>
@@ -97,6 +98,25 @@ protected:
     {
         return Map->GetForUpdate(Id);
     }
+
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "GetId") {
+            GetIdThunk(context);
+        } else {
+            NYTree::TYPathServiceBase::DoInvoke(context);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetId)
+    {
+        UNUSED(request);
+
+        response->set_id(Id.ToProto());
+        context->Reply();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

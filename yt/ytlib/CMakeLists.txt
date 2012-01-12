@@ -73,6 +73,7 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
     ${CMAKE_CURRENT_BINARY_DIR}/orchid
     ${CMAKE_CURRENT_BINARY_DIR}/table_server
     ${CMAKE_CURRENT_BINARY_DIR}/table_client
+    ${CMAKE_CURRENT_BINARY_DIR}/object_server
   )
 endif()
 

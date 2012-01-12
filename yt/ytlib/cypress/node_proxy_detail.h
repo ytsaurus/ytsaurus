@@ -79,7 +79,7 @@ public:
         return TransactionId;
     }
 
-    virtual TNodeId GetNodeId() const
+    virtual TNodeId GetId() const
     {
         return NodeId;
     }
@@ -112,7 +112,7 @@ public:
     {
         GetImplForUpdate().SetParentId(
             parent
-            ? ToProxy(parent)->GetNodeId()
+            ? ToProxy(parent)->GetId()
             : NullNodeId);
     }
 
@@ -134,9 +134,9 @@ public:
 
         if (attributes) {
             auto* attrProxy = ToProxy(attributes);
-            auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
+            auto& attrImpl = GetImplForUpdate(attrProxy->GetId());
             AttachChild(attrImpl);
-            impl.SetAttributesId(attrProxy->GetNodeId());
+            impl.SetAttributesId(attrProxy->GetId());
         }
     }
 
@@ -169,8 +169,6 @@ protected:
         Stroka verb = context->GetVerb();
         if (verb == "Lock") {
             LockThunk(context);
-        } else if (verb == "GetId") {
-            GetIdThunk(context);
         } else if (verb == "Create") {
             CreateThunk(context);
         } else {
@@ -188,14 +186,6 @@ protected:
         context->Reply();
     }
     
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetId)
-    {
-        UNUSED(request);
-
-        response->set_node_id(GetNodeId().ToProto());
-        context->Reply();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
@@ -443,7 +433,7 @@ protected:
 
         CreateRecursive(context->GetPath(), ~value);
 
-        response->set_node_id(value->GetNodeId().ToProto());
+        response->set_id(value->GetId().ToProto());
 
         context->Reply();
     }

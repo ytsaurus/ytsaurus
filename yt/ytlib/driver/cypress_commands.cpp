@@ -119,16 +119,17 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
         DriverImpl->GetCurrentTransactionId(),
         ~ypathRequest)->Get();
 
-    if (ypathResponse->IsOK()) {
-        auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
-        auto nodeId = TNodeId::FromProto(ypathResponse->node_id());
-        BuildYsonFluently(~consumer)
-            .BeginMap()
-                .Item("node_id").Scalar(nodeId.ToString())
-            .EndMap();
-    } else {
+    if (!ypathResponse->IsOK()) {
         DriverImpl->ReplyError(ypathResponse->GetError());
+        return;
     }
+
+    auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+    auto id = TNodeId::FromProto(ypathResponse->id());
+    BuildYsonFluently(~consumer)
+        .BeginMap()
+            .Item("id").Scalar(id.ToString())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

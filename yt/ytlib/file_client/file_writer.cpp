@@ -202,7 +202,7 @@ void TFileWriter::Close()
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
             ~createNodeRsp->GetError().ToString());
     }
-    NodeId = TNodeId::FromProto(createNodeRsp->node_id());
+    NodeId = TNodeId::FromProto(createNodeRsp->id());
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 
     LOG_INFO("Committing upload transaction");

@@ -14,9 +14,12 @@ set( HDRS
   ${BASE}/object_detail.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
+  ${BASE}/object_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/object_ypath.proto YT_SOURCE_FILES )

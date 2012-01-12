@@ -30,7 +30,7 @@ TNodeFactory::~TNodeFactory()
 ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto node = CypressManager->CreateNode(type, TransactionId);
-    auto nodeId = node->GetNodeId();
+    auto nodeId = node->GetId();
     CypressManager->GetObjectManager()->RefObject(nodeId);
     CreatedNodeIds.push_back(nodeId);
     return node;
@@ -127,7 +127,7 @@ bool TMapNodeProxy::AddChild(INode* child, const Stroka& name)
     auto& impl = GetTypedImplForUpdate();
 
     auto* childProxy = ToProxy(child);
-    auto childId = childProxy->GetNodeId();
+    auto childId = childProxy->GetId();
 
     if (!impl.NameToChild().insert(MakePair(name, childId)).second)
         return false;
@@ -170,7 +170,7 @@ void TMapNodeProxy::RemoveChild(INode* child)
     auto* childProxy = ToProxy(child);
     auto& childImpl = childProxy->GetImplForUpdate();
 
-    auto it = impl.ChildToName().find(childProxy->GetNodeId());
+    auto it = impl.ChildToName().find(childProxy->GetId());
     YASSERT(it != impl.ChildToName().end());
 
     Stroka name = it->second;
@@ -194,7 +194,7 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     auto* newChildProxy = ToProxy(newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
-    auto it = impl.ChildToName().find(oldChildProxy->GetNodeId());
+    auto it = impl.ChildToName().find(oldChildProxy->GetId());
     YASSERT(it != impl.ChildToName().end());
 
     Stroka name = it->second;
@@ -202,8 +202,8 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     impl.ChildToName().erase(it);
     DetachChild(oldChildImpl);
 
-    impl.NameToChild()[name] = newChildProxy->GetNodeId();
-    YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetNodeId(), name)).second);
+    impl.NameToChild()[name] = newChildProxy->GetId();
+    YVERIFY(impl.ChildToName().insert(MakePair(newChildProxy->GetId(), name)).second);
     AttachChild(newChildImpl);
 }
 
@@ -213,7 +213,7 @@ Stroka TMapNodeProxy::GetChildKey(INode* child)
     
     auto* childProxy = ToProxy(child);
 
-    auto it = impl.ChildToName().find(childProxy->GetNodeId());
+    auto it = impl.ChildToName().find(childProxy->GetId());
     YASSERT(it != impl.ChildToName().end());
 
     return it->second;
@@ -327,7 +327,7 @@ void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
     auto& list = impl.IndexToChild();
 
     auto* childProxy = ToProxy(child);
-    auto childId = childProxy->GetNodeId();
+    auto childId = childProxy->GetId();
     auto& childImpl = childProxy->GetImplForUpdate();
 
     if (beforeIndex < 0) {
@@ -367,7 +367,7 @@ bool TListNodeProxy::RemoveChild(int index)
 
     // Remove the child.
     list.erase(list.begin() + index);
-    YVERIFY(impl.ChildToIndex().erase(childProxy->GetNodeId()));
+    YVERIFY(impl.ChildToIndex().erase(childProxy->GetId()));
     DetachChild(childImpl);
 
     return true;
@@ -393,16 +393,16 @@ void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     auto* newChildProxy = ToProxy(newChild);
     auto& newChildImpl = newChildProxy->GetImplForUpdate();
 
-    auto it = impl.ChildToIndex().find(oldChildProxy->GetNodeId());
+    auto it = impl.ChildToIndex().find(oldChildProxy->GetId());
     YASSERT(it != impl.ChildToIndex().end());
 
     int index = it->second;
 
     DetachChild(oldChildImpl);
 
-    impl.IndexToChild()[index] = newChildProxy->GetNodeId();
+    impl.IndexToChild()[index] = newChildProxy->GetId();
     impl.ChildToIndex().erase(it);
-    YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetNodeId(), index)).second);
+    YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetId(), index)).second);
     AttachChild(newChildImpl);
 }
 
@@ -412,7 +412,7 @@ int TListNodeProxy::GetChildIndex(INode* child)
 
     auto childProxy = ToProxy(child);
 
-    auto it = impl.ChildToIndex().find(childProxy->GetNodeId());
+    auto it = impl.ChildToIndex().find(childProxy->GetId());
     YASSERT(it != impl.ChildToIndex().end());
 
     return it->second;

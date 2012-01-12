@@ -515,14 +515,14 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
         LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
             ~context->GetPath(),
             ~context->GetVerb(),
-            !proxy ? "N/A" : ~proxy->GetNodeId().ToString(),
+            !proxy ? "N/A" : ~proxy->GetId().ToString(),
             !proxy ? "N/A" : ~proxy->GetTransactionId().ToString());
         service->Invoke(context);
         return;
     }
 
     TMsgExecuteVerb message;
-    message.set_node_id(proxy->GetNodeId().ToProto());
+    message.set_node_id(proxy->GetId().ToProto());
     message.set_transaction_id(proxy->GetTransactionId().ToProto());
 
     auto requestMessage = context->GetRequestMessage();
@@ -542,7 +542,7 @@ void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* conte
     LOG_INFO("Executing a logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
         ~context->GetPath(),
         ~context->GetVerb(),
-        ~proxy->GetNodeId().ToString(),
+        ~proxy->GetId().ToString(),
         ~proxy->GetTransactionId().ToString());
 
     IServiceContext::TPtr context_ = context;

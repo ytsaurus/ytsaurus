@@ -18,6 +18,7 @@ set( HDRS
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_service.h
   ${BASE}/transaction_service_proxy.h
+  ${BASE}/transaction_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
