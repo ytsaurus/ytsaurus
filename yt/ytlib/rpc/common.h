@@ -20,18 +20,5 @@ extern TRequestId NullRequestId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcManager
-    : private TNonCopyable
-{
-public:
-    TRpcManager();
-
-    static TRpcManager* Get();
-    Stroka GetDebugInfo();
-    void Shutdown();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NRpc
 } // namespace NYT

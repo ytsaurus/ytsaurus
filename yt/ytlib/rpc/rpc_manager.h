@@ -1,4 +1,5 @@
-#include "stdafx.h"
+#pragma once
+
 #include "common.h"
 
 namespace NYT {
@@ -6,11 +7,18 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger RpcLogger("Rpc");
-TRequestId NullRequestId(0, 0, 0, 0);
+class TRpcManager
+    : private TNonCopyable
+{
+public:
+    TRpcManager();
+
+    static TRpcManager* Get();
+    Stroka GetDebugInfo();
+    void Shutdown();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
 } // namespace NYT
-
