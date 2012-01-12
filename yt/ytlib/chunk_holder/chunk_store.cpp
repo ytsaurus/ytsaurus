@@ -53,7 +53,7 @@ TChunkStore::TChunkStore(
 void TChunkStore::RegisterChunk(TStoredChunk* chunk)
 {
     YVERIFY(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
-    chunk->GetLocation()->RegisterChunk(chunk);
+    chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
 
     LOG_DEBUG("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
         ~chunk->GetId().ToString(),
@@ -77,7 +77,7 @@ void TChunkStore::RemoveChunk(TStoredChunk* chunk)
     YVERIFY(ChunkMap.erase(chunkId) == 1);
     
     auto location = chunk->GetLocation();
-    location->UnregisterChunk(chunk);
+    location->UpdateUsedSpace(-chunk->GetSize());
     location->RemoveChunk(chunk);
 
     LOG_INFO("Chunk removed (ChunkId: %s)", ~chunkId.ToString());

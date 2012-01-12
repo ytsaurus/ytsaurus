@@ -39,18 +39,10 @@ ELocationType TLocation::GetType() const
     return Type;
 }
 
-void TLocation::RegisterChunk(TChunk* chunk)
+void TLocation::UpdateUsedSpace(i64 size)
 {
-    i64 size = chunk->GetSize();
     UsedSpace += size;
     AvailableSpace -= size;
-}
-
-void TLocation::UnregisterChunk(TChunk* chunk)
-{
-    i64 size = chunk->GetSize();
-    UsedSpace -= size;
-    AvailableSpace += size;
 }
 
 i64 TLocation::GetAvailableSpace()

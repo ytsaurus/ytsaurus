@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "async_change_log.h"
+#include "meta_version.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/singleton.h>

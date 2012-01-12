@@ -39,10 +39,7 @@ public:
     yvector<TChunkDescriptor> Scan();
 
     //! Updates #UsedSpace and #AvailalbleSpace
-    void RegisterChunk(TChunk* chunk);
-
-    //! Updates #UsedSpace and #AvailalbleSpace
-    void UnregisterChunk(TChunk* chunk);
+    void UpdateUsedSpace(i64 size);
 
     //! Schedules physical removal of a chunk.
     void RemoveChunk(TChunk* chunk);

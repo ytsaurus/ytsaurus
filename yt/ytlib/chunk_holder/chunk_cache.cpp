@@ -55,12 +55,12 @@ public:
 
     void Register(TCachedChunk* chunk)
     {
-        chunk->GetLocation()->RegisterChunk(chunk);
+        chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
     }
 
     void Unregister(TCachedChunk* chunk)
     {
-        chunk->GetLocation()->UnregisterChunk(chunk);
+        chunk->GetLocation()->UpdateUsedSpace(-chunk->GetSize());
     }
 
     void Put(TCachedChunk* chunk)

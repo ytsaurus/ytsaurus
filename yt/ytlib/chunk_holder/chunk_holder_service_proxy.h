@@ -47,6 +47,7 @@ public:
         ((NoSuchBlock)(7))
         ((NoSuchChunk)(8))
         ((ChunkPrecachingFailed)(9))
+        ((OutOfSpace)(10))
     );
 
     TChunkHolderServiceProxy(NRpc::IChannel* channel)
