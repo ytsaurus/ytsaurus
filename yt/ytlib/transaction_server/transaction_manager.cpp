@@ -38,6 +38,12 @@ public:
         return New<TTransactionProxy>(Owner, id);
     }
 
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
+    {
+        UNUSED(manifest);
+        return Owner->Start().GetId();
+    }
+
 private:
     TTransactionManager* Owner;
 

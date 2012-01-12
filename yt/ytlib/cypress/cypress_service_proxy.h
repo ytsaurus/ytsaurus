@@ -36,9 +36,16 @@ public:
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
-        const NYTree::TYPath& path,
-        const TTransactionId& transactionId,
-        TTypedRequest* innerRequest);
+        TTypedRequest* innerRequest,
+        const NYTree::TYPath& path = "",
+        const TTransactionId& transactionId = NullTransactionId);
+
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(
+        TTypedRequest* innerRequest,
+        const NObjectServer::TObjectId& objectId,
+        const TTransactionId& transactionId = NullTransactionId);
 
 };
 

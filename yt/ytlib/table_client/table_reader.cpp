@@ -39,7 +39,7 @@ TTableReader::TTableReader(
 
     LOG_INFO("Fetching table info");
     auto req = TTableYPathProxy::Fetch();
-    auto rsp = Proxy.Execute(path, transactionId, ~req)->Get();
+    auto rsp = Proxy.Execute(~req, path, transactionId)->Get();
     if (!rsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
             ~rsp->GetError().ToString());

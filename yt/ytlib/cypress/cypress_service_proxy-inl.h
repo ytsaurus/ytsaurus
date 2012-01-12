@@ -13,13 +13,28 @@ namespace NCypress {
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
+    TTypedRequest* innerRequest,
+    const NObjectServer::TObjectId& objectId,
+    const TTransactionId& transactionId)
+{
+    return Execute(
+        innerRequest,
+        YPathFromObjectId(objectId),
+        transactionId);
+}
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TCypressServiceProxy::Execute(
+    TTypedRequest* innerRequest,
     const NYTree::TYPath& path,
-    const TTransactionId& transactionId,
-    TTypedRequest* innerRequest)
+    const TTransactionId& transactionId)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
-    innerRequest->SetPath(path);
+    if (!path.empty()) {
+        innerRequest->SetPath(path);
+    }
 
     auto outerRequest = Execute();
     outerRequest->set_transaction_id(transactionId.ToProto());

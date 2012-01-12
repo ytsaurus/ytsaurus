@@ -194,10 +194,7 @@ void TFileWriter::Close()
     createNodeReq->set_type(FileTypeName);
     // TODO(babenko): use TConfigurable::Save when it's ready
     createNodeReq->set_manifest(Sprintf("{chunk_id=\"%s\"}", ~ChunkId.ToString()));
-    auto createNodeRsp = CypressProxy->Execute(
-        Path,
-        TransactionId,
-        ~createNodeReq)->Get();
+    auto createNodeRsp = CypressProxy->Execute(~createNodeReq, Path, TransactionId)->Get();
     if (!createNodeRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
             ~createNodeRsp->GetError().ToString());

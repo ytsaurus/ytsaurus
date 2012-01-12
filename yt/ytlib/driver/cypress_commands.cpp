@@ -21,9 +21,9 @@ void TGetCommand::DoExecute(TGetRequest* request)
     auto optionsNode = request->GetOptions();
     ypathRequest->set_options(SerializeToYson(~optionsNode));
     auto ypathResponse = proxy.Execute(
+        ~ypathRequest,
         request->Path,
-        DriverImpl->GetCurrentTransactionId(),
-        ~ypathRequest)->Get();
+        DriverImpl->GetCurrentTransactionId())->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
@@ -50,9 +50,9 @@ void TSetCommand::DoExecute(TSetRequest* request)
     ypathRequest->set_value(value);
 
     auto ypathResponse = proxy.Execute(
+        ~ypathRequest,
         request->Path,
-        DriverImpl->GetCurrentTransactionId(),
-        ~ypathRequest)->Get();
+        DriverImpl->GetCurrentTransactionId())->Get();
 
     if (!ypathResponse->IsOK()) {
         DriverImpl->ReplyError(ypathResponse->GetError());
@@ -67,9 +67,9 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
     auto ypathRequest = TYPathProxy::Remove();
 
     auto ypathResponse = proxy.Execute(
+        ~ypathRequest,
         request->Path,
-        DriverImpl->GetCurrentTransactionId(),
-        ~ypathRequest)->Get();
+        DriverImpl->GetCurrentTransactionId())->Get();
 
     if (!ypathResponse->IsOK()) {
         DriverImpl->ReplyError(ypathResponse->GetError());
@@ -84,9 +84,9 @@ void TListCommand::DoExecute(TListRequest* request)
     auto ypathRequest = TYPathProxy::List();
 
     auto ypathResponse = proxy.Execute(
+        ~ypathRequest,
         request->Path,
-        DriverImpl->GetCurrentTransactionId(),
-        ~ypathRequest)->Get();
+        DriverImpl->GetCurrentTransactionId())->Get();
 
     if (ypathResponse->IsOK()) {
          auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
@@ -115,9 +115,9 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     }
 
     auto ypathResponse = proxy.Execute(
+        ~ypathRequest,
         request->Path,
-        DriverImpl->GetCurrentTransactionId(),
-        ~ypathRequest)->Get();
+        DriverImpl->GetCurrentTransactionId())->Get();
 
     if (!ypathResponse->IsOK()) {
         DriverImpl->ReplyError(ypathResponse->GetError());
