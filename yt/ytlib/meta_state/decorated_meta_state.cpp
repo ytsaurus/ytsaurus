@@ -3,7 +3,7 @@
 #include "change_log_cache.h"
 #include "snapshot_store.h"
 
-#include "../actions/action_util.h"
+#include <ytlib/actions/action_util.h>
 
 namespace NYT {
 namespace NMetaState {

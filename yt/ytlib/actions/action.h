@@ -3,7 +3,7 @@
 #include "common.h"
 #include "invoker.h"
 
-#include "../misc/new.h"
+#include <ytlib/misc/new.h>
 
 namespace NYT {
 

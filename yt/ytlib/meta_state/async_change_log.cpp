@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "async_change_log.h"
+#include "meta_version.h"
 
-#include "../misc/foreach.h"
-#include "../misc/singleton.h"
-#include "../actions/action_util.h"
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/singleton.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/misc/thread_affinity.h>
 
 #include <util/system/thread.h>
 

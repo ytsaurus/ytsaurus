@@ -4,7 +4,7 @@
 #include "service.h"
 #include "rpc.pb.h"
 
-#include "../bus/message.h"
+#include <ytlib/bus/message.h>
 
 namespace NYT {
 namespace NRpc {

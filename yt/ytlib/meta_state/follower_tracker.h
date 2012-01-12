@@ -2,10 +2,11 @@
 
 #include "common.h"
 #include "cell_manager.h"
+#include "meta_state_manager.h"
 
-#include "../actions/invoker_util.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/lease_manager.h"
+#include <ytlib/actions/invoker_util.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/lease_manager.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -26,8 +27,11 @@ public:
         TDuration PingTimeout;
 
         TConfig()
-            : PingTimeout(TDuration::MilliSeconds(3000))
-        { }
+        {
+            Register("ping_timeout", PingTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(3000));
+        }
     };
 
     TFollowerTracker(

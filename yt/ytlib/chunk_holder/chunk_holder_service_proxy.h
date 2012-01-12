@@ -2,8 +2,8 @@
 
 #include "chunk_holder_service.pb.h"
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -31,6 +31,7 @@ public:
         ((NoSuchBlock)(7))
         ((NoSuchChunk)(8))
         ((ChunkPrecachingFailed)(9))
+        ((OutOfSpace)(10))
     );
 
     TChunkHolderServiceProxy(NRpc::IChannel* channel)
@@ -46,6 +47,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
 
 };
 

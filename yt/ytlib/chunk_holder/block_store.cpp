@@ -4,8 +4,8 @@
 #include "reader_cache.h"
 #include "location.h"
 
-#include "../misc/assert.h"
-#include "../chunk_client/file_reader.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -18,64 +18,18 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlock::TCachedBlock(const TBlockId& blockId, const TSharedRef& data)
+TCachedBlock::TCachedBlock(
+    const TBlockId& blockId,
+    const TSharedRef& data,
+    const Stroka& source)
     : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
-    , Data(data)
+    , Data_(data)
+    , Source_(source)
 { }
-
-TSharedRef TCachedBlock::GetData() const
-{
-    return Data;
-}
 
 TCachedBlock::~TCachedBlock()
 {
     LOG_DEBUG("Purged cached block (BlockId: %s)", ~GetKey().ToString());
-}
-
-yvector<TPeerInfo> TCachedBlock::GetPeers()
-{
-    SweepExpiredPeers();
-    return Peers;
-}
-
-void TCachedBlock::AddPeer(const TPeerInfo& peer)
-{
-    SweepExpiredPeers();
-
-    for (auto it = Peers.begin(); it != Peers.end(); ++it) {
-        if (it->Address == peer.Address) {
-            Peers.erase(it);
-            break;
-        }
-    }
-    
-    {
-        auto it = Peers.begin();
-        while (it != Peers.end() && it->ExpirationTime > peer.ExpirationTime) {
-            ++it;
-        }
-
-        Peers.insert(it, peer);
-    }
-
-    // TODO(babenko): make configurable
-    const int MaxPeers = 64;
-    if (Peers.ysize() > MaxPeers) {
-        Peers.erase(Peers.begin() + MaxPeers, Peers.end());
-    }
-}
-
-void TCachedBlock::SweepExpiredPeers()
-{
-    auto now = TInstant::Now();
-
-    auto it = Peers.end();
-    while (it != Peers.begin() && (it - 1)->ExpirationTime < now) {
-        --it;
-    }
-
-    Peers.erase(it, Peers.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,12 +52,12 @@ public:
         , PendingReadSize_(0)
     { }
 
-    TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data)
+    TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data, const Stroka& source)
     {
         while (true) {
             TInsertCookie cookie(blockId);
             if (BeginInsert(&cookie)) {
-                auto block = New<TCachedBlock>(blockId, data);
+                auto block = New<TCachedBlock>(blockId, data, source);
                 cookie.EndInsert(block);
 
                 LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
@@ -130,7 +84,7 @@ public:
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists (BlockId: %s)",
                     ~blockId.ToString());
             }
-
+            
             LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~blockId.ToString());
 
             return block;
@@ -223,10 +177,21 @@ private:
             return;
         }
 
-        auto block = New<TCachedBlock>(blockId, data);
+        auto block = New<TCachedBlock>(blockId, data, Stroka());
         cookie->EndInsert(block);
 
         LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
+    }
+
+    void UpdatePeer()
+    {
+        auto blocks = GetAll();
+        FOREACH (const auto& block, blocks) {
+            auto source = block->Source();
+            if (!source.empty()) {
+                
+            }
+        }
     }
 };
 
@@ -240,9 +205,9 @@ public:
         : StoreImpl(storeImpl)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data)
+    void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source)
     {
-        StoreImpl->Put(id, data);
+        StoreImpl->Put(id, data, source);
     }
 
     TSharedRef Find(const TBlockId& id)
@@ -279,9 +244,12 @@ TCachedBlock::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
     return StoreImpl->Find(blockId);
 }
 
-TCachedBlock::TPtr TBlockStore::PutBlock(const TBlockId& blockId, const TSharedRef& data)
+TCachedBlock::TPtr TBlockStore::PutBlock(
+    const TBlockId& blockId,
+    const TSharedRef& data,
+    const Stroka& source)
 {
-    return StoreImpl->Put(blockId, data);
+    return StoreImpl->Put(blockId, data, source);
 }
 
 i64 TBlockStore::GetPendingReadSize() const
@@ -292,6 +260,11 @@ i64 TBlockStore::GetPendingReadSize() const
 IBlockCache* TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
+}
+
+yvector<TCachedBlock::TPtr> TBlockStore::GetAllBlocks() const
+{
+    return StoreImpl->GetAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

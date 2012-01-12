@@ -3,7 +3,7 @@
 #include "tree_builder.h"
 #include "ephemeral.h"
 
-#include "../misc/singleton.h"
+#include <ytlib/misc/singleton.h>
 
 namespace NYT {
 namespace NYTree {

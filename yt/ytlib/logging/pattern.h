@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "../misc/pattern_formatter.h"
+#include <ytlib/misc/pattern_formatter.h>
 
 namespace NYT {
 namespace NLog {

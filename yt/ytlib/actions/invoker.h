@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "../misc/ref_counted_base.h"
+#include <ytlib/misc/ref_counted_base.h>
 
 namespace NYT {
 

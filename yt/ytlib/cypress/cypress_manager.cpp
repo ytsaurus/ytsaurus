@@ -3,10 +3,10 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
-#include "../ytree/yson_reader.h"
-#include "../ytree/ephemeral.h"
-#include "../rpc/message.h"
-#include <yt/ytlib/object_server/type_handler_detail.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/rpc/message.h>
+#include <ytlib/object_server/type_handler_detail.h>
 
 namespace NYT {
 namespace NCypress {

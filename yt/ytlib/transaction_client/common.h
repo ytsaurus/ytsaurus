@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/ytlib/logging/log.h>
-#include <yt/ytlib/transaction_server/id.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NTransactionClient {

@@ -1,9 +1,10 @@
 #pragma once
 
+#include "config.h"
 #include "meta_state_manager.h"
 
-#include "../rpc/server.h"
-#include "../misc/configurable.h"
+#include <ytlib/rpc/server.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NMetaState {

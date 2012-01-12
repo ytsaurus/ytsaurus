@@ -2,16 +2,16 @@
 
 #include "common.h"
 
-#include "../misc/configurable.h"
-#include "../misc/codec.h"
-#include "../rpc/channel.h"
-#include "../transaction_client/transaction.h"
-#include "../transaction_client/transaction_manager.h"
-#include "../cypress/cypress_service_proxy.h"
-#include "../chunk_client/remote_writer.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../logging/tagged_logger.h"
-#include <yt/ytlib/cypress/id.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/codec.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/cypress/id.h>
+#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -46,10 +46,8 @@ public:
             Register("remote_writer", RemoteWriter).DefaultNew();
         }
 
-        virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot)
+        virtual void DoValidate()
         {
-            TConfigurable::Validate(path);
-            
             if (TotalReplicaCount < UploadReplicaCount) {
                 ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
             }

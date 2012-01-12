@@ -4,7 +4,7 @@
 #include "value.h"
 #include "schema.h"
 
-#include "../misc/blob_output.h"
+#include <ytlib/misc/blob_output.h>
 
 namespace NYT {
 namespace NTableClient {

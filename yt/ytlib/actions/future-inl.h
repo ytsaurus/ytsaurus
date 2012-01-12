@@ -3,7 +3,7 @@
 #endif
 #undef FUTURE_INL_H_
 
-#include "../misc/foreach.h"
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 

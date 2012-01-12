@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "monitoring_manager.h"
 
-#include "../ytree/ephemeral.h"
-#include "../ytree/yson_writer.h"
-#include "../ytree/tree_visitor.h"
-#include "../ytree/ypath_proxy.h"
-#include "../actions/action_util.h"
-#include "../misc/assert.h"
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/tree_visitor.h>
+#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/misc/assert.h>
 
 #include "stat.h"
 

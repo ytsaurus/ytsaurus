@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "lease_manager.h"
 
-#include "../misc/delayed_invoker.h"
-#include "../misc/thread_affinity.h"
-#include "../actions/action_util.h"
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/action_util.h>
 
 namespace NYT
 {

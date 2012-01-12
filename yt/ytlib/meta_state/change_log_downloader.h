@@ -7,8 +7,8 @@
 #include "cell_manager.h"
 #include "async_change_log.h"
 
-#include "../rpc/client.h"
-#include "../actions/parallel_awaiter.h"
+#include <ytlib/rpc/client.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -29,10 +29,17 @@ public:
         i32 RecordsPerRequest;
 
         TConfig()
-            : LookupTimeout(TDuration::Seconds(5))
-            , ReadTimeout(TDuration::Seconds(5))
-            , RecordsPerRequest(1024 * 1024)
-        { }
+        {
+            Register("lookup_timeout", LookupTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(5));
+            Register("read_timeout", ReadTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(5));
+            Register("records_per_request", RecordsPerRequest)
+                .GreaterThan(0)
+                .Default(1024 * 1024);
+        }
     };
 
     DECLARE_ENUM(EResult,

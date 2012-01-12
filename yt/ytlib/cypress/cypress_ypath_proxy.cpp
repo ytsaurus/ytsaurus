@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_ypath_proxy.h"
 
-#include "../ytree/ypath_detail.h"
+#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NCypress {

@@ -3,9 +3,9 @@
 #include "node_detail.h"
 #include "ypath_detail.h"
 
-#include "../misc/hash.h"
-#include "../misc/assert.h"
-#include "../misc/singleton.h"
+#include <ytlib/misc/hash.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/singleton.h>
 
 #include <algorithm>
 

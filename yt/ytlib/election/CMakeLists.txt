@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/election )
 set( SRCS
   ${BASE}/cell_channel.cpp
+  ${BASE}/common.cpp
   ${BASE}/election_manager.cpp
   ${BASE}/leader_lookup.cpp
 )

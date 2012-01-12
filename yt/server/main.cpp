@@ -4,6 +4,7 @@
 #include "scheduler_bootstrap.h"
 
 #include <yt/ytlib/misc/enum.h>
+#include <yt/ytlib/rpc/rpc_manager.h>
 #include <yt/ytlib/logging/log_manager.h>
 #include <yt/ytlib/ytree/serialize.h>
 

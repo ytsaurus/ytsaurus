@@ -3,7 +3,7 @@
 #include "id.h"
 #include "chunk_service.pb.h"
 
-#include <yt/ytlib/misc/property.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {

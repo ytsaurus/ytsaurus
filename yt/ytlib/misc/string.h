@@ -56,5 +56,52 @@ yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
+{
+    Stroka result;
+    bool upper = true;
+    FOREACH (char c, data) {
+        if (c == '_') {
+            upper = true;
+        } else {
+            if (upper) {
+                c = std::toupper(c);
+            }
+            result.push_back(c);
+            upper = false;
+        }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool ParseBool(const Stroka& value)
+{
+    if (value == "true") {
+        return true;
+    } else if (value == "false") {
+        return false;
+    } else {
+        ythrow yexception()
+            << Sprintf("Could not parse boolean parameter (Value: %s)",
+                value.length() <= 10
+                    ? ~value
+                    : ~(value.substr(0, 10) + "..."));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+T ParseEnum(
+    const Stroka& value,
+    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
+        NYT::NDetail::TEmpty())
+{
+    return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

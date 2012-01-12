@@ -3,7 +3,7 @@
 #include "common.h"
 #include "client.h"
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NBus {
@@ -17,6 +17,11 @@ struct TNLBusClientConfig
 
     Stroka Address;
     // TODO: move here MaxNLCallsPerIteration, ClientSleepQuantum, MessageRearrangeTimeout;
+
+    TNLBusClientConfig()
+    {
+        Register("address", Address);
+    }
 
     explicit TNLBusClientConfig(const Stroka& address)
         : Address(address)

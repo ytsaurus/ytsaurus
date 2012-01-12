@@ -1,7 +1,6 @@
 ﻿#pragma once
 
-#include "../logging/log.h"
-#include "../misc/configurable.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {

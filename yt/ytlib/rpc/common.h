@@ -2,9 +2,9 @@
 
 #include "error.h"
 
-#include "../misc/guid.h"
+#include <ytlib/misc/guid.h>
 
-#include "../logging/log.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NRpc {
@@ -17,19 +17,6 @@ extern NLog::TLogger RpcLogger;
 
 typedef TGuid TRequestId;
 extern TRequestId NullRequestId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRpcManager
-    : private TNonCopyable
-{
-public:
-    TRpcManager();
-
-    static TRpcManager* Get();
-    Stroka GetDebugInfo();
-    void Shutdown();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

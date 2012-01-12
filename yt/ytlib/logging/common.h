@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/enum.h"
-#include "../misc/thread.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/thread.h>
 
 #include <util/system/thread.h>
 

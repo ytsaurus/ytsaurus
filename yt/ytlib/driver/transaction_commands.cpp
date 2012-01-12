@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
 
-#include "../ytree/fluent.h"
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

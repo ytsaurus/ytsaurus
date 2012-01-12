@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../misc/assert.h"
+#include <ytlib/misc/assert.h>
 #include "client.h"
 #include "message.h"
 

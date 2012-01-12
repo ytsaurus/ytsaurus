@@ -1,13 +1,12 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
 
-#include "../transaction_server/transaction_service_proxy.h"
-#include <yt/ytlib/cypress/cypress_ypath_proxy.h>
-#include "../actions/signal.h"
-#include "../misc/assert.h"
-#include "../misc/property.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/periodic_invoker.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/actions/signal.h>
+#include <ytlib/transaction_server/transaction_service_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {

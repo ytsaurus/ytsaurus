@@ -7,8 +7,8 @@
 #include "job_executor.h"
 #include "chunk_service.pb.h"
 
-#include "../rpc/channel.h"
-#include "../chunk_server/chunk_service_proxy.h"
+#include <ytlib/rpc/channel.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {

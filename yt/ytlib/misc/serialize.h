@@ -254,5 +254,14 @@ bool DeserializeProtobuf(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+//! Serializes a given protobuf message into a given stream
+//! Throw yexception() in case of error
+void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message);
 
+//! Reads from a given stream protobuf message
+//! Throw yexception() in case of error
+void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

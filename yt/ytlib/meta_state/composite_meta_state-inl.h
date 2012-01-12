@@ -2,8 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state.h"
 #endif
 
-#include "../misc/assert.h"
-#include "../misc/serialize.h"
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NMetaState {

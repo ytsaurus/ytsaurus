@@ -3,11 +3,10 @@
 #include "common.h"
 #include "transaction.h"
 
-#include "../misc/configurable.h"
-#include "../rpc/channel.h"
-#include "../transaction_server/transaction_service_proxy.h"
-#include <yt/ytlib/cypress/cypress_service_proxy.h>
-#include <yt/ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {

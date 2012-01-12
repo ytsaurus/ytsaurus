@@ -2,10 +2,11 @@
 #include "chunk_writer.h"
 #include "table_chunk_meta.pb.h"
 
-#include "../actions/action_util.h"
-#include "../chunk_client/writer_thread.h"
-#include "../misc/assert.h"
-#include "../misc/serialize.h"
+#include <ytlib/actions/action_util.h>
+#include <ytlib/chunk_client/writer_thread.h>
+#include <ytlib/chunk_client/block_id.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NTableClient {

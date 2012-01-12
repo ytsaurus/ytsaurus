@@ -3,10 +3,10 @@
 #include "foreach.h"
 #include "demangle.h"
 
-#include "../ytree/ytree.h"
-#include "../ytree/ephemeral.h"
-#include "../ytree/fluent.h"
-#include "../ytree/tree_builder.h"
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/tree_builder.h>
 
 #include <algorithm>
 

@@ -4,8 +4,8 @@
 #include "ytree_fwd.h"
 #include "yson_consumer.h"
 
-#include "../misc/property.h"
-#include "../rpc/service.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NYTree {

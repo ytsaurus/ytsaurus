@@ -2,11 +2,11 @@
 
 #include "common.h"
 
-#include "../misc/enum.h"
-#include "../misc/assert.h"
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/thread_affinity.h>
 
 #include <util/ysaveload.h>
 

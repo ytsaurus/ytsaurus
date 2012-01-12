@@ -2,12 +2,12 @@
 
 #include "chunk.pb.h"
 
-#include "../misc/common.h"
-#include "../misc/ref.h"
-#include "../actions/future.h"
-#include "../misc/enum.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/ref.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/misc/enum.h>
 
-#include "../misc/error.h"
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "chunk_holder_service.pb.h"
 #include "chunk_holder_service_proxy.h"
 
-#include "../rpc/server.h"
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -16,6 +17,7 @@ class TChunkCache;
 class TReaderCache;
 class TChunk;
 class TBlockStore;
+class TBlockTable;
 class TSessionManager;
 class TSession;
 
@@ -35,6 +37,7 @@ public:
         TChunkCache* chunkcache,
         TReaderCache* readerCache,
         TBlockStore* blockStore,
+        TBlockTable* blockTable,
         TSessionManager* sessionManager);
     ~TChunkHolderService();
 
@@ -50,6 +53,7 @@ private:
     TIntrusivePtr<TChunkCache> ChunkCache;
     TIntrusivePtr<TReaderCache> ReaderCache;
     TIntrusivePtr<TBlockStore> BlockStore;
+    TIntrusivePtr<TBlockTable> BlockTable;
     TIntrusivePtr<TSessionManager> SessionManager;
 
     NRpc::TChannelCache ChannelCache;
@@ -63,6 +67,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PingSession);
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkInfo);
     DECLARE_RPC_SERVICE_METHOD(NProto, PrecacheChunk);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdatePeer);
 
     void ValidateNoSession(const TChunkId& chunkId);
     void ValidateNoChunk(const TChunkId& chunkId);

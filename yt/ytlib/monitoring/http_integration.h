@@ -3,7 +3,7 @@
 #include "common.h"
 #include "http_server.h"
 
-#include "../ytree/ypath_service.h"
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NMonitoring {

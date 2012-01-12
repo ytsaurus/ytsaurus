@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state_detail.h"
 #endif
 
-#include "../misc/assert.h"
+#include <ytlib/misc/assert.h>
 
 #include <util/charset/wide.h>
 

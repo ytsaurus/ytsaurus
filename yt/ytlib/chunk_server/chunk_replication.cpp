@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "chunk_replication.h"
 
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -17,13 +17,16 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 TChunkReplication::TChunkReplication(
     TChunkManager* chunkManager,
     TChunkPlacement* chunkPlacement,
+    TChunkManager::TConfig* config,
     IInvoker* invoker)
     : ChunkManager(chunkManager)
     , ChunkPlacement(chunkPlacement)
+    , Config(config)
     , Invoker(invoker)
 {
     YASSERT(chunkManager);
     YASSERT(chunkPlacement);
+    YASSERT(config);
     YASSERT(invoker);
 
     ScheduleNextRefresh();
@@ -48,8 +51,8 @@ void TChunkReplication::RunJobControl(
 
     ScheduleJobs(
         holder,
-        Max(0, MaxReplicationFanOut - replicationJobCount),
-        Max(0, MaxRemovalJobsPerHolder - removalJobCount),
+        Max(0, Config->MaxReplicationFanOut - replicationJobCount),
+        Max(0, Config->MaxRemovalJobsPerHolder - removalJobCount),
         jobsToStart);
 }
 
@@ -104,15 +107,27 @@ void TChunkReplication::ProcessExistingJobs(
     *replicationJobCount = 0;
     *removalJobCount = 0;
 
-    // TODO: check for missing jobs
+    yhash_set<TJobId> runningJobIds;
+
     // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
-        const auto& job = ChunkManager->GetJob(jobId);
+        runningJobIds.insert(jobId);
+        const auto* job = ChunkManager->FindJob(jobId);
+
+        if (!job) {
+            LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
+                ~jobId.ToString(),
+                ~holder.GetAddress(),
+                holder.GetId());
+            jobsToStop->push_back(jobId);
+            continue;
+        }
+
         auto jobState = EJobState(jobInfo.state());
         switch (jobState) {
             case EJobState::Running:
-                switch (job.GetType()) {
+                switch (job->GetType()) {
                     case EJobType::Replicate:
                         ++*replicationJobCount;
                         break;
@@ -127,11 +142,21 @@ void TChunkReplication::ProcessExistingJobs(
                 LOG_INFO("Job running (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
+
+                if (TInstant::Now() - job->GetStartTime() > Config->MaxJobDuration) {
+                    jobsToStop->push_back(jobId);
+
+                    LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxDuration: %d ms)",
+                        ~jobId.ToString(),
+                        holder.GetId(),
+                        static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()),
+                        static_cast<i32>(Config->MaxJobDuration.MilliSeconds()));
+                }
                 break;
 
             case EJobState::Completed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.GetChunkId());
+                ScheduleRefresh(job->GetChunkId());
                 LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -139,7 +164,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Failed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job.GetChunkId());
+                ScheduleRefresh(job->GetChunkId());
                 LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -147,6 +172,17 @@ void TChunkReplication::ProcessExistingJobs(
 
             default:
                 YUNREACHABLE();
+        }
+    }
+
+    // Checking for missing jobs
+    FOREACH(auto jobId, holder.JobIds()) {
+        if (runningJobIds.find(jobId) == runningJobIds.end()) {
+            LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
+                ~jobId.ToString(),
+                ~holder.GetAddress(),
+                holder.GetId());
+            jobsToStop->push_back(jobId);
         }
     }
 }
@@ -255,7 +291,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
 
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
-        MinChunkBalancingFillCoeffDiff;
+        Config->MinChunkBalancingFillCoeffDiff;
     auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -352,7 +388,7 @@ void TChunkReplication::ScheduleJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetFillCoeff(holder) > MinChunkBalancingFillCoeff)
+        ChunkPlacement->GetFillCoeff(holder) > Config->MinChunkBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
@@ -554,7 +590,7 @@ void TChunkReplication::ScheduleRefresh(const TChunkId& chunkId)
 
     TRefreshEntry entry;
     entry.ChunkId = chunkId;
-    entry.When = TInstant::Now() + ChunkRefreshDelay;
+    entry.When = TInstant::Now() + Config->ChunkRefreshDelay;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
 }
@@ -564,7 +600,7 @@ void TChunkReplication::ScheduleNextRefresh()
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
         ->Via(Invoker),
-        ChunkRefreshQuantum);
+        Config->ChunkRefreshQuantum);
 }
 
 void TChunkReplication::OnRefresh()
@@ -572,7 +608,7 @@ void TChunkReplication::OnRefresh()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto now = TInstant::Now();
-    for (int i = 0; i < MaxChunksPerRefresh; ++i) {
+    for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
         if (RefreshList.empty())
             break;
 

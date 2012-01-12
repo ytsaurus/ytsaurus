@@ -2,7 +2,7 @@
 
 #include "meta_state_manager.h"
 
-#include "../actions/action.h"
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NMetaState {

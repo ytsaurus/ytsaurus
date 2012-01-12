@@ -2,8 +2,8 @@
 #include "snapshot_creator.h"
 #include "meta_state_manager_proxy.h"
 
-#include "../misc/serialize.h"
-#include "../actions/action_util.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/actions/action_util.h>
 
 #include <util/system/fs.h>
 

@@ -4,11 +4,11 @@
 #include "packet.h"
 #include "message_rearranger.h"
 
-#include "../actions/action_util.h"
-#include "../logging/log.h"
-#include "../misc/assert.h"
-#include "../misc/thread_affinity.h"
-#include "../ytree/fluent.h"
+#include <ytlib/actions/action_util.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/ytree/fluent.h>
 
 #include <util/generic/list.h>
 #include <util/generic/deque.h>

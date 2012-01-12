@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "http_integration.h"
 
-#include "../ytree/json_adapter.h"
-#include "../ytree/ypath_proxy.h"
-#include "../ytree/yson_reader.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/ytree/json_adapter.h>
+#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 #include "stat.h"
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../actions/action.h"
-#include "../rpc/service.h"
-#include "../meta_state/meta_state_manager.h"
+#include <ytlib/actions/action.h>
+#include <ytlib/rpc/service.h>
+#include <ytlib/meta_state/meta_state_manager.h>
 
 namespace NYT {
 namespace NMetaState {

@@ -4,8 +4,8 @@
 #include "async_reader.h"
 #include "block_cache.h"
 
-#include "../misc/configurable.h"
-#include "../rpc/channel.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -59,6 +59,8 @@ struct TRemoteReaderConfig
         Register("publish_peer", PublishPeer).Default(false);
         Register("peer_expiration_timeout", PeerExpirationTimeout).Default(TDuration::Seconds(300));
     }
+
+    // TODO(roizner, babenko): Override Validate - check that if 
 };
 
 IAsyncReader::TPtr CreateRemoteReader(

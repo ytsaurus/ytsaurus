@@ -4,7 +4,7 @@
 #include "cypress_service_proxy.h"
 #include "cypress_manager.h"
 
-#include "../rpc/server.h"
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NCypress {

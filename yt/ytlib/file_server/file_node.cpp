@@ -4,9 +4,9 @@
 #include "file_ypath_proxy.h"
 #include "file_chunk_meta.pb.h"
 
-#include "../misc/codec.h"
-#include "../cypress/node_proxy.h"
-#include "../ytree/fluent.h"
+#include <ytlib/misc/codec.h>
+#include <ytlib/cypress/node_proxy.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NFileServer {

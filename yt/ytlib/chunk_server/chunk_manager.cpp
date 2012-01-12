@@ -5,20 +5,18 @@
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
 
-#include "../transaction_server/transaction_manager.h"
-#include <yt/ytlib/transaction_server/transaction.h>
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/map.h"
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/guid.h"
-#include "../misc/assert.h"
-#include "../misc/id_generator.h"
-#include "../misc/string.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/transaction_server/transaction.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/map.h>
 #include <yt/ytlib/object_server/type_handler_detail.h>
-// TODO(babenko): fix this once ToString is moved to an appropriate place
-#include <yt/ytlib/chunk_holder/common.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -82,7 +80,7 @@ public:
 
     TImpl(
         TConfig* config,
-        TChunkManager* chunkManager,
+        TChunkManager* owner,
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         TTransactionManager* transactionManager,
@@ -91,12 +89,12 @@ public:
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         // TODO: this makes a cyclic reference, don't forget to drop it in Stop
-        , ChunkManager(chunkManager)
+        , Owner(owner)
         , TransactionManager(transactionManager)
         , HolderRegistry(holderRegistry)
         , ObjectManager(objectManager)
     {
-        YASSERT(chunkManager);
+        YASSERT(owner);
         YASSERT(transactionManager);
         YASSERT(holderRegistry);
         YASSERT(objectManager);
@@ -118,6 +116,8 @@ public:
             "ChunkManager.1",
             FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
 
+        metaState->RegisterPart(this);
+
         objectManager->RegisterHandler(~New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(~New<TChunkListTypeHandler>(this));
 
@@ -128,7 +128,6 @@ public:
             &TThis::OnTransactionAborted,
             TPtr(this)));
     }
-
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const TMsgRegisterHolder& message)
@@ -286,7 +285,7 @@ private:
     friend class TChunkListTypeHandler;
 
     TConfig::TPtr Config;
-    TChunkManager::TPtr ChunkManager;
+    TChunkManager::TPtr Owner;
     TTransactionManager::TPtr TransactionManager;
     IHolderRegistry::TPtr HolderRegistry;
     TObjectManager::TPtr ObjectManager;
@@ -614,9 +613,11 @@ private:
             DoAddJob(holder, startInfo);
         }
 
-        FOREACH (auto protoJobId, message.stopped_jobs()) {
-            const auto& job = GetJob(TJobId::FromProto(protoJobId));
-            DoRemoveJob(holder, job);
+        FOREACH(auto protoJobId, message.stopped_jobs()) {
+            const auto* job = FindJob(TJobId::FromProto(protoJobId));
+            if (job) {
+                DoRemoveJob(holder, *job);
+            }
         }
 
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
@@ -686,16 +687,17 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~Owner, ~Config);
 
         ChunkReplication = New<TChunkReplication>(
-            ~ChunkManager,
+            ~Owner,
             ~ChunkPlacement,
+            ~Config,
             ~MetaStateManager->GetEpochStateInvoker());
 
         HolderLeaseTracking = New<THolderLeaseTracker>(
             ~Config,
-            ~ChunkManager,
+            ~Owner,
             ~MetaStateManager->GetEpochStateInvoker());
 
         FOREACH (const auto& pair, HolderMap) {
@@ -865,7 +867,8 @@ private:
             jobId,
             chunkId,
             holder.GetAddress(),
-            targetAddresses);
+            targetAddresses,
+            TInstant::Now());
         JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobListForUpdate(chunkId);
@@ -1111,8 +1114,7 @@ TChunkManager::TChunkManager(
     TTransactionManager* transactionManager,
     IHolderRegistry* holderRegistry,
     TObjectManager* objectManager)
-    : Config(config)
-    , Impl(New<TImpl>(
+    : Impl(New<TImpl>(
         config,
         this,
         metaStateManager,
@@ -1120,9 +1122,7 @@ TChunkManager::TChunkManager(
         transactionManager,
         holderRegistry,
         objectManager))
-{
-    metaState->RegisterPart(Impl);
-}
+{ }
 
 const THolder* TChunkManager::FindHolder(const Stroka& address)
 {

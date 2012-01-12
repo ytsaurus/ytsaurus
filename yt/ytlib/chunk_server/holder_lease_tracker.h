@@ -2,7 +2,7 @@
 
 #include "holder.h"
 
-#include "../misc/lease_manager.h"
+#include <ytlib/misc/lease_manager.h>
 
 // TODO(babenko): get rid
 #include "common.h"

@@ -11,33 +11,6 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveStatistics(TOutputStream* out, const THolderStatistics& statistics)
-{
-    ::Save(out, statistics.available_space());
-    ::Save(out, statistics.used_space());
-    ::Save(out, statistics.chunk_count());
-    ::Save(out, statistics.session_count());
-}
-
-void LoadStatistics(TInputStream* in, THolderStatistics& statistics)
-{
-    i64 availableSpace;
-    i64 usedSpace;
-    i32 chunkCount;
-    i32 sessionCount;
-    ::Load(in, availableSpace);
-    ::Load(in, usedSpace);
-    ::Load(in, chunkCount);
-    ::Load(in, sessionCount);
-
-    statistics.set_available_space(availableSpace);
-    statistics.set_used_space(usedSpace);
-    statistics.set_chunk_count(chunkCount);
-    statistics.set_session_count(sessionCount);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 THolder::THolder(
     THolderId id,
     const Stroka& address,
@@ -68,7 +41,7 @@ void THolder::Save(TOutputStream* output) const
 {
     ::Save(output, Address_);
     ::Save(output, State_);
-    SaveStatistics(output, Statistics_);
+    SaveProto(output, Statistics_);
     SaveSet(output, StoredChunkIds_);
     SaveSet(output, CachedChunkIds_);
     ::Save(output, JobIds_);
@@ -81,7 +54,7 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
     THolderStatistics statistics;
     ::Load(input, address);
     ::Load(input, state);
-    LoadStatistics(input, statistics);
+    LoadProto(input, statistics);
 
     TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
     LoadSet(input, holder->StoredChunkIds_);

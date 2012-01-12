@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "file_commands.h"
 
-#include "../file_client/file_reader.h"
-#include "../file_client/file_writer.h"
+#include <ytlib/file_client/file_reader.h>
+#include <ytlib/file_client/file_writer.h>
 
 namespace NYT {
 namespace NDriver {

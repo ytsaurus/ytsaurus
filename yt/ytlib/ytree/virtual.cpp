@@ -6,7 +6,7 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NYTree {
@@ -85,7 +85,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     if (incomplete) {
         writer.OnBeginAttributes();
         writer.OnAttributesItem("incomplete");
-        writer.OnStringScalar("True");
+        writer.OnStringScalar("true");
         writer.OnEndAttributes();
     }
 

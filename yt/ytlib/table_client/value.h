@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
-#include "../misc/ref.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/ref.h>
 
 #include <util/stream/mem.h>
 

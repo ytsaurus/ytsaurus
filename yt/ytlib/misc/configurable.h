@@ -3,10 +3,10 @@
 #include "mpl.h"
 #include "property.h"
 
-#include "../actions/action.h"
-#include "../actions/action_util.h"
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/actions/action.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NConfig {
@@ -70,11 +70,13 @@ public:
 
     void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
-    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
+    void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
 
 protected:
+    virtual void DoValidate() const;
+
     template <class T>
     TParameter<T>& Register(const Stroka& parameterName, T& value);
 

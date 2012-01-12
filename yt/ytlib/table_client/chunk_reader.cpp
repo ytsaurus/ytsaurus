@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "chunk_reader.h"
 
-#include "../misc/foreach.h"
-#include "../misc/sync.h"
-#include "../misc/serialize.h"
-#include "../actions/action_util.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/sync.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/actions/action_util.h>
 
 #include <algorithm>
 #include <limits>

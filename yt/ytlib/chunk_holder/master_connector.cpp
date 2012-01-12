@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "master_connector.h"
 
-#include "../rpc/client.h"
-#include "../election/cell_channel.h"
-#include "../misc/delayed_invoker.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
+#include <ytlib/rpc/client.h>
+#include <ytlib/election/cell_channel.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
 
 #include <util/system/hostname.h>
 

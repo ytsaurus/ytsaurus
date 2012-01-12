@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "file_reader.h"
 
-#include "../misc/serialize.h"
-#include "../misc/fs.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/fs.h>
 
 namespace NYT {
 namespace NChunkClient {

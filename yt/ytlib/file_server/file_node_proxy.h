@@ -4,10 +4,9 @@
 #include "file_node.h"
 #include "file_ypath.pb.h"
 
-#include "../ytree/ypath_service.h"
-#include "../cypress/node_proxy_detail.h"
-#include "../chunk_server/chunk_manager.h"
-#include <yt/ytlib/object_server/object_manager.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 
 namespace NYT {
 namespace NFileServer {

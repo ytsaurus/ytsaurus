@@ -3,8 +3,10 @@
 #endif
 #undef CONFIGURABLE_INL_H_
 
-#include "../misc/guid.h"
-#include "../ytree/ypath_detail.h"
+#include "guid.h"
+#include "string.h"
+
+#include <ytlib/ytree/ypath_detail.h>
 
 #include <util/datetime/base.h>
 
@@ -78,17 +80,7 @@ inline void Read(Stroka& parameter, const NYTree::INode* node, const NYTree::TYP
 inline void Read(bool& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     Stroka value = node->AsString()->GetValue();
-    if (value == "True") {
-        parameter = true;
-    } else if (value == "False") {
-        parameter = false;
-    } else {
-        ythrow yexception()
-            << Sprintf("Could not load boolean parameter (Value: %s)",
-                value.length() <= 10
-                    ? ~value
-                    : ~(value.substr(0, 10) + "..."));
-    }
+    parameter = ParseBool(value);
 }
 
 // TDuration
@@ -113,7 +105,7 @@ inline void Read(
         NYT::NDetail::TEmpty())
 {
     auto value = node->AsString()->GetValue();
-    parameter = T::FromString(value);
+    parameter = ParseEnum<T>(value);
 }
 
 // INode::TPtr

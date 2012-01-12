@@ -1,10 +1,11 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 
-#include "../rpc/channel_cache.h"
+#include <ytlib/rpc/channel_cache.h>
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NMetaState {

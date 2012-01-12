@@ -3,8 +3,8 @@
 #include "common.h"
 #include "meta_state_manager.pb.h"
 
-#include "../rpc/service.h"
-#include "../rpc/client.h"
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NMetaState {

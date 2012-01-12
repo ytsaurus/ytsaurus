@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_placement.h"
 
-#include "../misc/foreach.h"
+#include <ytlib/misc/foreach.h>
 
 #include <util/random/random.h>
 
@@ -14,10 +14,14 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPlacement::TChunkPlacement(TChunkManager* chunkManager)
+TChunkPlacement::TChunkPlacement(
+    TChunkManager* chunkManager,
+    TChunkManager::TConfig* config)
     : ChunkManager(chunkManager)
+    , Config(config)
 {
     YASSERT(chunkManager);
+    YASSERT(config);
 }
 
 void TChunkPlacement::OnHolderRegistered(const THolder& holder)
@@ -216,7 +220,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = ChunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds().size()) >= MaxReplicationFanIn) {
+        if (static_cast<int>(sink->JobIds().size()) >= Config->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }
@@ -275,7 +279,7 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder) const
     const auto& statistics = holder.Statistics();
     return
         GetFillCoeff(holder) +
-        ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
+        Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
 }
 
 double TChunkPlacement::GetFillCoeff(const THolder& holder) const
@@ -288,11 +292,12 @@ double TChunkPlacement::GetFillCoeff(const THolder& holder) const
 
 bool TChunkPlacement::IsFull(const THolder& holder) const
 {
-    if (GetFillCoeff(holder) > MaxHolderFillCoeff)
+    if (GetFillCoeff(holder) > Config->MaxHolderFillCoeff) {
         return true;
+    }
 
     const auto& statistics = holder.Statistics();
-    if (statistics.available_space() - statistics.used_space() < MinHolderFreeSpace)
+    if (statistics.available_space() - statistics.used_space() < Config->MinHolderFreeSpace)
         return true;
 
     return false;

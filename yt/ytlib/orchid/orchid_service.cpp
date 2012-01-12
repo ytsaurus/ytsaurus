@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "orchid_service.h"
 
-#include "../ytree/ypath_detail.h"
-#include "../ytree/ypath_client.h"
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/ypath_client.h>
 
-#include "../rpc/message.h"
+#include <ytlib/rpc/message.h>
 
 namespace NYT {
 namespace NOrchid {

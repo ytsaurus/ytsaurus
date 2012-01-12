@@ -122,5 +122,28 @@ bool DeserializeProtobuf(google::protobuf::Message* message, TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
+void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message)
+{
+    TBlob blob;
+    if (!SerializeProtobuf(&message, &blob)) {
+        ythrow yexception() << Sprintf("Couldn't serialzie protobuf message");
+    }
+    WriteVarUInt64(output, blob.size());
+    output->Write(blob.begin(), blob.size());
+}
+
+void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
+{
+    ui64 size;
+    ReadVarUInt64(input, &size);
+    TBlob blob(size);
+    input->Read(blob.begin(), size);
+    if (!message.ParseFromArray(blob.begin(), size)) {
+        ythrow yexception() << Sprintf("Couldn't parse protobuf message from input stream");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 

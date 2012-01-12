@@ -3,8 +3,8 @@
 #include "chunk.h"
 #include "reader_cache.h"
 
-#include "../misc/fs.h"
-#include "../chunk_client/format.h"
+#include <ytlib/misc/fs.h>
+#include <ytlib/chunk_client/format.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -39,18 +39,10 @@ ELocationType TLocation::GetType() const
     return Type;
 }
 
-void TLocation::RegisterChunk(TChunk* chunk)
+void TLocation::UpdateUsedSpace(i64 size)
 {
-    i64 size = chunk->GetSize();
     UsedSpace += size;
     AvailableSpace -= size;
-}
-
-void TLocation::UnregisterChunk(TChunk* chunk)
-{
-    i64 size = chunk->GetSize();
-    UsedSpace -= size;
-    AvailableSpace += size;
 }
 
 i64 TLocation::GetAvailableSpace()

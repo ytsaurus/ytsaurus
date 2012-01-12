@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
 
-#include "../misc/sync.h"
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NTableClient {

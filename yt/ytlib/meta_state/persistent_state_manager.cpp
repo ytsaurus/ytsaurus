@@ -12,16 +12,16 @@
 #include "follower_tracker.h"
 #include "follower_pinger.h"
 
-#include "../election/election_manager.h"
-#include "../rpc/service.h"
-#include "../actions/action_util.h"
-#include "../actions/invoker.h"
-#include "../misc/thread_affinity.h"
-#include "../misc/serialize.h"
-#include "../misc/fs.h"
-#include "../misc/guid.h"
-#include "../misc/property.h"
-#include "../ytree/fluent.h"
+#include <ytlib/election/election_manager.h>
+#include <ytlib/rpc/service.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/invoker.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NMetaState {

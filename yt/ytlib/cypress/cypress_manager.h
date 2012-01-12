@@ -7,17 +7,17 @@
 #include "lock.h"
 #include "cypress_manager.pb.h"
 
-#include "../misc/thread_affinity.h"
-#include "../transaction_server/transaction.h"
-#include "../transaction_server/transaction_manager.h"
-#include "../ytree/ypath_service.h"
-#include "../ytree/tree_builder.h"
-#include "../misc/id_generator.h"
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/map.h"
-#include "../meta_state/meta_change.h"
-#include <yt/ytlib/object_server/object_manager.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/transaction_server/transaction.h>
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/map.h>
+#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NCypress {

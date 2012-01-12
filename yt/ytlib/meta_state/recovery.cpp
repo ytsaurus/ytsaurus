@@ -3,9 +3,9 @@
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"
 
-#include "../actions/action_util.h"
-#include "../misc/serialize.h"
-#include "../misc/foreach.h"
+#include <ytlib/actions/action_util.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/foreach.h>
 
 // TODO: wrap with try/catch to handle IO errors
 

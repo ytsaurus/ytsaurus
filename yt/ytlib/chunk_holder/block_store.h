@@ -1,29 +1,13 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 
-#include "../misc/cache.h"
-#include "../chunk_client/block_cache.h"
+#include <ytlib/misc/cache.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Keeps information about a peer possibly holding a block.
-struct TPeerInfo
-{
-    Stroka Address;
-    TInstant ExpirationTime;
-
-    TPeerInfo()
-    { }
-
-    TPeerInfo(const Stroka& address, TInstant expirationTime)
-        : Address(address)
-        , ExpirationTime(expirationTime)
-    { }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,33 +19,15 @@ public:
     typedef TIntrusivePtr<TCachedBlock> TPtr;
 
     //! Constructs a new block from id and data.
-    TCachedBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
+    TCachedBlock(
+        const NChunkClient::TBlockId& blockId,
+        const TSharedRef& data,
+        const Stroka& source);
 
     ~TCachedBlock();
 
-    //! Returns block data.
-    TSharedRef GetData() const;
-
-    //! Gets peers possibly holding this block.
-    /*!
-     *  Also sweeps expired peers.
-     */
-    yvector<TPeerInfo> GetPeers();
-
-    //! Register a new peer.
-    /*!
-     *  Also sweeps expired peers.
-     */
-    void AddPeer(const TPeerInfo& peer);
-
-private:
-    TSharedRef Data;
-
-    //! Sorted by decreasing expiration time.
-    yvector<TPeerInfo> Peers;
-
-    void SweepExpiredPeers();
-
+    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
+    DEFINE_BYREF_RO_PROPERTY(Stroka, Source);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +72,13 @@ public:
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    TCachedBlock::TPtr PutBlock(const NChunkClient::TBlockId& blockId, const TSharedRef& data);
+    TCachedBlock::TPtr PutBlock(
+        const NChunkClient::TBlockId& blockId,
+        const TSharedRef& data,
+        const Stroka& source);
+
+    //! Gets a vector of all blocks stored in the cache. Thread-safe.
+    yvector<TCachedBlock::TPtr> GetAllBlocks() const;
 
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;

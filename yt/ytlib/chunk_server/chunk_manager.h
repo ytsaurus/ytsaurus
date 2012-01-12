@@ -10,9 +10,9 @@
 #include "holder_authority.h"
 #include "chunk_manager.pb.h"
 
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/meta_change.h"
-#include "../transaction_server/transaction_manager.h"
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/transaction_server/transaction_manager.h>
 #include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
@@ -46,8 +46,6 @@ public:
         NTransactionServer::TTransactionManager* transactionManager,
         IHolderRegistry* holderRegistry,
         NObjectServer::TObjectManager* objectManager);
-
-    // TODO: provide Stop method
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
@@ -125,7 +123,6 @@ private:
     class TChunkTypeHandler;
     class TChunkListTypeHandler;
     
-    TConfig::TPtr Config;
     TIntrusivePtr<TImpl> Impl;
 
 };

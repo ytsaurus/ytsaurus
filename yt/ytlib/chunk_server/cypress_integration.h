@@ -3,10 +3,9 @@
 #include "common.h"
 #include "chunk_manager.h"
 
-#include "../meta_state/meta_state_manager.h"
-#include "../cypress/cypress_manager.h"
-#include "../cypress/node.h"
-#include <yt/ytlib/object_server/object_manager.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/node.h>
 
 namespace NYT {
 namespace NChunkServer {

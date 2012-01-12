@@ -2,12 +2,12 @@
 
 #include "channel.h"
 
-#include "../misc/property.h"
-#include "../misc/delayed_invoker.h"
-#include "../misc/metric.h"
-#include "../misc/serialize.h"
-#include "../bus/client.h"
-#include "../actions/future.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/metric.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/bus/client.h>
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 namespace NRpc {

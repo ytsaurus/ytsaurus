@@ -2,9 +2,9 @@
 #include "session_manager.h"
 #include "chunk.pb.h"
 
-#include "../misc/fs.h"
-#include "../misc/assert.h"
-#include "../misc/sync.h"
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -132,7 +132,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     }
 
     slot.State = ESlotState::Received;
-    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data);
+    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data, Stroka());
 
     Size += data.Size();
 

@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "table_commands.h"
 
-#include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
-#include "../ytree/tree_visitor.h"
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/tree_visitor.h>
 
-#include "../table_client/table_reader.h"
-#include "../table_client/table_writer.h"
+#include <ytlib/table_client/table_reader.h>
+#include <ytlib/table_client/table_writer.h>
 
 namespace NYT {
 namespace NDriver {

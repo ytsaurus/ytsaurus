@@ -3,12 +3,12 @@
 #include "common.h"
 #include "chunk.pb.h"
 
-#include "../misc/common.h"
-#include "../misc/assert.h"
-#include "../misc/enum.h"
-#include "../misc/ref.h"
-#include "../actions/future.h"
-#include "../misc/async_stream_state.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/ref.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/misc/async_stream_state.h>
 
 namespace NYT {
 namespace NChunkClient {

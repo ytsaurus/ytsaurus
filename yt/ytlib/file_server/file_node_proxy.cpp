@@ -2,8 +2,8 @@
 #include "file_node_proxy.h"
 #include "file_chunk_meta.pb.h"
 
-#include "../misc/string.h"
-#include <yt/ytlib/object_server/id.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NFileServer {

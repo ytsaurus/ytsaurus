@@ -2,18 +2,18 @@
 
 #include "common.h"
 
-#include "../misc/configurable.h"
-#include "../misc/error.h"
-#include "../ytree/ytree.h"
-#include "../ytree/yson_consumer.h"
-#include "../ytree/yson_writer.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/yson_writer.h>
 // TODO: consider using forward declarations.
-#include "../election/leader_lookup.h"
-#include "../transaction_client/transaction_manager.h"
-#include "../file_client/file_reader.h"
-#include "../file_client/file_writer.h"
-#include "../table_client/table_reader.h"
-#include "../table_client/table_writer.h"
+#include <ytlib/election/leader_lookup.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/file_client/file_reader.h>
+#include <ytlib/file_client/file_writer.h>
+#include <ytlib/table_client/table_reader.h>
+#include <ytlib/table_client/table_writer.h>
 
 namespace NYT {
 namespace NDriver {

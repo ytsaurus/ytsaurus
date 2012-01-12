@@ -3,7 +3,7 @@
 #include "common.h"
 #include "action.h"
 
-#include "../misc/foreach.h"
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 

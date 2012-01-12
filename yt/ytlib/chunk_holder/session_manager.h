@@ -4,9 +4,9 @@
 #include "chunk_store.h"
 #include "chunk_holder_service_proxy.h"
 
-#include "../chunk_client/file_writer.h"
-#include "../misc/lease_manager.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/misc/lease_manager.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkHolder {

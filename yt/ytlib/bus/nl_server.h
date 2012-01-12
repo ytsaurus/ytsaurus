@@ -3,7 +3,7 @@
 #include "common.h"
 #include "server.h"
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NBus {

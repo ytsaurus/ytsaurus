@@ -5,11 +5,11 @@
 #include "cypress_manager.h"
 #include "ypath.pb.h"
 
-#include "../misc/serialize.h"
-#include "../ytree/node_detail.h"
-#include "../ytree/fluent.h"
-#include "../ytree/ephemeral.h"
-#include "../ytree/tree_builder.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/ytree/node_detail.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NCypress {
